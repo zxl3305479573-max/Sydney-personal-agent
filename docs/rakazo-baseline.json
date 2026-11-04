@@ -1,0 +1,18 @@
+{
+  "recordedAt": "2026-11-03",
+  "repository": "https://github.com/elie222/rakazo.git",
+  "commit": "aebca9dcfd0cf734484ce41e3c5ad9521551659d",
+  "license": "Apache-2.0",
+  "sourceDirectory": ".",
+  "remoteName": "upstream",
+  "nodeVersionTested": "24.15.0",
+  "packageManager": "pnpm@9.15.0",
+  "computerProviderUnderEvaluation": "docker",
+  "deploymentTarget": "native-single-host-linux",
+  "nativeDesktopImplemented": false,
+  "guestOperatingSystem": "linux",
+  "localRuntimeEnabled": false,
+  "runtimeValidationTarget": "remote-linux-server-pending",
+  "remoteForkCreated": false,
+  "sydneyAcceptancePassed": false
+}

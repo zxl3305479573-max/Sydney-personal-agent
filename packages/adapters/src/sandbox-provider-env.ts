@@ -82,6 +82,7 @@ export function sandboxProviderOptionsFromEnv(
   | "wuyingEndUserId"
   | "wuyingMcpUrl"
   | "wuyingMcpToken"
+  | "nativeLinuxSocketPath"
 > {
   return {
     hostComputerUrl: source.SANDBOX_HOST_URL,
@@ -136,6 +137,7 @@ export function sandboxProviderOptionsFromEnv(
     wuyingEndUserId: optional(source.WUYING_END_USER_ID),
     wuyingMcpUrl: optional(source.WUYING_MCP_URL),
     wuyingMcpToken: optional(source.WUYING_MCP_TOKEN),
+    nativeLinuxSocketPath: optional(source.SYDNEY_NATIVE_DRIVER_SOCKET),
   };
 }
 

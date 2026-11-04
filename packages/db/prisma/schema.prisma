@@ -922,6 +922,7 @@ model Task {
   userId    String
   prompt    String
   status    String
+    executionState Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   runs      Run[]
@@ -942,6 +943,7 @@ model Run {
   task                 Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId               String
   status               String
+    taskMandate          Json?
   trigger              String
   modelProvider        String?
   modelId              String?

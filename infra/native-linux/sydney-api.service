@@ -1,0 +1,22 @@
+[Unit]
+Description=Sydney API
+After=network-online.target postgresql.service sydney-driver.socket
+Wants=network-online.target
+
+[Service]
+User=sydney-control
+Group=sydney-control
+WorkingDirectory=/opt/sydney
+Environment=NODE_ENV=production
+Environment=SANDBOX_PROVIDER=native-linux
+Environment=SYDNEY_NATIVE_DRIVER_SOCKET=/run/sydney-driver.sock
+EnvironmentFile=/etc/sydney/backend.env
+ExecStart=/opt/sydney/node/bin/node --enable-source-maps /opt/sydney/apps/api/dist/index.js
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sydney-control
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

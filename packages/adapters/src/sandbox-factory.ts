@@ -10,6 +10,7 @@ import { E2BSandboxProvider } from "./e2b-sandbox.js";
 import { FakeSandboxProvider } from "./fake-sandbox.js";
 import type { KubernetesSandboxOptions } from "./kubernetes-sandbox.js";
 import { KubernetesSandboxProvider } from "./kubernetes-sandbox.js";
+import { createNativeLinuxTransport, NativeLinuxSandbox } from "./native-linux-sandbox.js";
 import { NoneSandboxProvider } from "./none-sandbox.js";
 import { NovitaSandboxProvider } from "./novita-sandbox.js";
 import { RailwaySandboxProvider } from "./railway-sandbox.js";
@@ -57,6 +58,7 @@ export interface SandboxProviderOptions {
   wuyingMcpUrl?: string;
   wuyingMcpToken?: string;
   dataDir?: string;
+  nativeLinuxSocketPath?: string;
 }
 
 function missingRemoteKey(
@@ -171,6 +173,29 @@ export async function createSandboxProvider(
       return new DesktopSandboxProvider({
         root: opts.dataDir,
       });
+    case "native-linux":
+      if (!opts.nativeLinuxSocketPath?.trim()) {
+        return new NoneSandboxProvider("Native Linux driver socket is not configured.");
+      }
+      {
+        return new NativeLinuxSandbox(
+          async (context) => {
+            const lease = context.nativeRunLease;
+            if (
+              !lease ||
+              !context.runId ||
+              !lease.owner ||
+              !Number.isInteger(lease.fence) ||
+              lease.fence < 1 ||
+              typeof lease.validate !== "function"
+            ) {
+              return null;
+            }
+            return lease.validate();
+          },
+          createNativeLinuxTransport(opts.nativeLinuxSocketPath),
+        );
+      }
     case "fake":
       return new FakeSandboxProvider();
     default: {

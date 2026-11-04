@@ -1,0 +1,18 @@
+[Unit]
+Description=Sydney private X11 display
+After=network.target
+
+[Service]
+User=sydney-desktop
+Group=sydney-desktop
+Environment=HOME=/var/lib/sydney-desktop
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -auth /var/lib/sydney-desktop/.Xauthority
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sydney-desktop
+PrivateTmp=no
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

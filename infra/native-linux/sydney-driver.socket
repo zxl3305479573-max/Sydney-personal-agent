@@ -1,0 +1,12 @@
+[Unit]
+Description=Sydney native desktop control socket
+
+[Socket]
+ListenStream=/run/sydney-driver.sock
+SocketUser=sydney-control
+SocketGroup=sydney-control
+SocketMode=0600
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

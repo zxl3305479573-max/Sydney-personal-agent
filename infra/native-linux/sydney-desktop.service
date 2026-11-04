@@ -1,0 +1,22 @@
+[Unit]
+Description=Sydney desktop session
+Requires=sydney-display.service
+After=sydney-display.service
+
+[Service]
+User=sydney-desktop
+Group=sydney-desktop
+Environment=HOME=/var/lib/sydney-desktop
+Environment=DISPLAY=:99
+Environment=XAUTHORITY=/var/lib/sydney-desktop/.Xauthority
+EnvironmentFile=-/etc/sydney/desktop-proxy.env
+ExecStart=/usr/bin/dbus-run-session /usr/bin/xfce4-session
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sydney-desktop
+PrivateTmp=no
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -20,6 +20,15 @@ export interface AdapterContext {
   keepScreenWarm?: boolean;
   /** When releasing a screen after cancel, also stop orphaned browser work on that screen. */
   cancelRunWork?: boolean;
+  /** Exact URL a managed task's web_fetch may load; the grant is scope-limited. */
+  requireExactWebUrl?: string;
+  /** In-process validation for native sandbox calls. */
+  nativeRunLease?: {
+    owner: string;
+    fence: number;
+    validate: () => Promise<number | null>;
+    expiresAt?: number;
+  };
   signal: AbortSignal;
   /** Connected external accounts available to this run, including their owning connector. */
   connectedConnections?: ConnectedConnector[];

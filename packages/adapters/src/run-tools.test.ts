@@ -29,6 +29,7 @@ vi.mock("./run-tool-gate.js", async (importOriginal) => ({
 }));
 
 import { applyTool, isToolError } from "./run-tools.js";
+import { gateToolCall } from "./run-tool-gate.js";
 
 function dispatchContext(tainted: boolean) {
   return {
@@ -65,6 +66,35 @@ beforeEach(() => {
 });
 
 describe("dispatchTool audit outcomes", () => {
+  it("refuses managed helper delegation before the approval gate", async () => {
+    const ctx = dispatchContext(false);
+    const managed = {
+      ...ctx,
+      run: {
+        userId: "user-1",
+        trigger: "managed_task",
+        taskMandate: {
+          id: "mandate-1",
+          userId: "user-1",
+          spaceId: "space-1",
+          botId: "bot-1",
+          threadId: "thread-1",
+          taskId: "task-1",
+          runId: "run-1",
+          source: "authenticated_user",
+          issuedAt: 1,
+          expiresAt: 9_999_999_999_999,
+          scopes: [{ tool: "run_subagent", action: "execute", resource: "workspace" }],
+        },
+      },
+    };
+    vi.mocked(gateToolCall).mockClear();
+    await expect(applyTool(managed as never, "run_subagent", {}, "call-1")).resolves.toEqual({
+      error: "Managed task permission does not allow this tool or resource.",
+    });
+    expect(gateToolCall).not.toHaveBeenCalled();
+  });
+
   it("records an ordinary successful call as a success", async () => {
     const ctx = dispatchContext(true);
     const result = await applyTool(ctx as never, "update_preferences", {}, "call-1");

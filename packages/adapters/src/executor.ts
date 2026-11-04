@@ -1,4 +1,4 @@
-import type { AgentRunRequest, ComputerRef, SemanticMemoryProvider } from "@rakazo/adapter-kit";
+import type { AgentRunRequest, AgentRunModel, ComputerRef, SemanticMemoryProvider } from "@rakazo/adapter-kit";
 import {
   DEFAULT_CONTEXT_STRATEGY,
   isModelCredentialRejected,
@@ -7,7 +7,11 @@ import {
   SandboxUnresponsiveError,
 } from "@rakazo/adapter-kit";
 import type { MessageBlock, ModelRoleChoice, RunStatus } from "@rakazo/contracts";
-import { disabledBuiltinToolSet } from "@rakazo/contracts";
+import {
+  disabledBuiltinToolSet,
+  StoredTaskMandateSchema,
+  TaskExecutionStateSchema,
+} from "@rakazo/contracts";
 import {
   assertTransition,
   botMessageAllowsSilence,
@@ -47,6 +51,8 @@ import {
   settleReleasedTakeoverCards,
   spaceHasModelAccess,
   teamChatRunFromOwner,
+  guardManagedRun,
+  runAsTenant,
 } from "@rakazo/db";
 import { enrichLogContext, getLogger } from "@rakazo/logging";
 import { sanitizedError } from "@rakazo/logging/monitoring";
@@ -54,6 +60,8 @@ import { formatAgentEnvironmentInstruction } from "./agent-environment.js";
 import { createApprovedEffectReplayQueue } from "./approval-effect.js";
 import { PARTIAL_REPLY_NOTE } from "./automated-messages.js";
 import { loadBotMessageContext } from "./bot-messages.js";
+import { watchManagedTaskControl } from "./managed-task-control.js";
+import { filterManagedTaskTools } from "./managed-task-tools.js";
 import {
   commandCredentialRedactions,
   loadBotCommandEnvironment,
@@ -651,6 +659,45 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           botId: bot.id,
           runId,
           screenLeaseId: screenLeaseIdForRun(computerLease, runId, fence),
+          nativeRunLease: {
+            owner: workerId,
+            fence,
+            validate: async () => {
+              if (!lease.valid || runAbortController?.signal.aborted) return null;
+              const now = new Date();
+              const ownedRun = await deps.prisma.run.findFirst({
+                where: {
+                  id: runId,
+                  botId: bot.id,
+                  userId: run.userId,
+                  spaceId: run.spaceId,
+                  status: "running",
+                  leaseOwner: workerId,
+                  leaseFence: fence,
+                  leaseExpiresAt: { gt: now },
+                },
+                select: { leaseExpiresAt: true },
+              });
+              if (!ownedRun?.leaseExpiresAt || !lease.valid || runAbortController?.signal.aborted) {
+                return null;
+              }
+              if (computerLease) {
+                const ownedComputer = await deps.prisma.computerExecutionLease.findFirst({
+                  where: {
+                    computerId: computerLease.computerId,
+                    botId: computerLease.botId,
+                    runId,
+                    fence: computerLease.fence,
+                    expiresAt: { gt: new Date() },
+                  },
+                  select: { expiresAt: true },
+                });
+                if (!ownedComputer || !lease.valid || runAbortController?.signal.aborted) return null;
+                return Math.min(ownedRun.leaseExpiresAt.getTime(), ownedComputer.expiresAt.getTime());
+              }
+              return ownedRun.leaseExpiresAt.getTime();
+            },
+          },
           signal: runAbortController.signal,
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
@@ -1264,10 +1311,17 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           !ownerStartedRun || Boolean(turnCheckpoint) || Boolean(checkpointLoadError);
         // The creation intro only asks what the bot is for (see selectBuiltinToolsForRun),
         // so it gets no connector tools either.
-        const tools =
+        const availableTools =
           run.trigger === "created"
             ? strategicBuiltins
             : [...strategicBuiltins, ...strategicConnectorTools];
+        const tools =
+          run.trigger === "managed_task"
+            ? filterManagedTaskTools(
+                availableTools,
+                StoredTaskMandateSchema.parse(run.taskMandate).scopes,
+              )
+            : availableTools;
         const taskCatalogInstruction = tools.some((tool) => tool.name === "task_catalog")
           ? TASK_CATALOG_GUIDANCE
           : undefined;
@@ -1627,6 +1681,45 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         );
         // Provider kind and model id only: custom endpoints are identified by kind, never host.
         const activeModel = { "model.provider": runModelProvider, "model.id": runModelId };
+        const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
+        const managedCallObserver = (observer: AgentRunModel["callObserver"]) => {
+          if (!managedTaskId) throw new Error("managed_task_missing_task_id");
+          return {
+            beforeCall: async (call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0]) => {
+              await runAsTenant(
+                { userId: run.userId, spaceId: run.spaceId },
+                () =>
+                  guardManagedRun(
+                    deps.prisma,
+                    { userId: run.userId, spaceId: run.spaceId },
+                    managedTaskId,
+                    {
+                      runId,
+                      workerId,
+                      fence,
+                      action: { tool: "model_call", action: "execute", resource: "model" },
+                      reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
+                      executionId: call.callId,
+                    },
+                    0,
+                  ),
+              );
+              const reservation = await observer?.beforeCall(call);
+              return reservation ? `managed:${reservation}` : "managed-task-call";
+            },
+            afterCall: async (reservationId: string, usage: Parameters<NonNullable<AgentRunModel["callObserver"]>["afterCall"]>[1]) => {
+              if (reservationId === "managed-task-call") return;
+              if (reservationId.startsWith("managed:")) {
+                await observer?.afterCall(reservationId.slice(8), usage);
+              }
+            },
+            onRequestId: (reservationId: string, providerRequestId: string) =>
+              observer?.onRequestId?.(
+                reservationId.startsWith("managed:") ? reservationId.slice(8) : reservationId,
+                providerRequestId,
+              ),
+          };
+        };
         // Shutdown must not finalize the attempt. The finally block queues the run
         // when this worker still owns it.
         const interruptedByShutdown = async () => {
@@ -1637,7 +1730,28 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           return true;
         };
 
+        const managedControlWatch = managedTaskId
+          ? watchManagedTaskControl(
+              async () =>
+                runAsTenant({ userId: run.userId, spaceId: run.spaceId }, async () => {
+                  const task = await deps.prisma.task.findFirst({
+                    where: { id: managedTaskId, userId: run.userId, spaceId: run.spaceId },
+                    select: { executionState: true },
+                  });
+                  const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
+                  return Boolean(
+                    parsed.success &&
+                      parsed.data.currentRunId === runId &&
+                      parsed.data.control.intent === "continue" &&
+                      (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
+                  );
+                }),
+              runAbortController,
+            )
+          : undefined;
         try {
+          await managedControlWatch?.ready;
+          context.signal.throwIfAborted();
           if (checkpointLoadError) throw checkpointLoadError;
           const runtimeEvents = deps.runtime.run(
             {
@@ -1718,7 +1832,14 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 provider: runModelProvider,
                 id: runModelId,
                 ...(credential ? { connectionId: credential.id } : {}),
-                ...resolvedModelRunFields(resolved),
+                ...resolvedModelRunFields(
+                  run.trigger === "managed_task"
+                    ? {
+                        ...resolved,
+                        callObserver: managedCallObserver(resolved.callObserver),
+                      }
+                    : resolved,
+                ),
                 thinkingLevel: thinkingLevel ?? resolved.thinkingLevel ?? null,
               },
               fallbackModels: fallbackModels.map(({ provider, modelId, credentialId }) => ({
@@ -1731,7 +1852,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                     const key = fallbackKey(provider, modelId, connectionId);
                     if (!fallbackModelKeys.has(key))
                       throw new Error("Backup model is not selected");
-                    return resolveConnectedModel(
+                    const fallback = await resolveConnectedModel(
                       { userId: run.userId, spaceId: run.spaceId },
                       provider,
                       modelId,
@@ -1747,6 +1868,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                       )?.thinkingLevel ?? null,
                       connectionId,
                     );
+                    return {
+                      ...fallback,
+                      ...(run.trigger === "managed_task"
+                        ? { callObserver: managedCallObserver(fallback.callObserver) }
+                        : {}),
+                    };
                   }
                 : undefined,
               onModelChange: async (provider, modelId) => {
@@ -1834,6 +1961,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           );
           if (await consumeRunEvents(ctx, runtimeEvents)) return;
           if (await interruptedByShutdown()) return;
+          context.signal.throwIfAborted();
           await completeRun(ctx);
         } catch (caughtError) {
           if (await interruptedByShutdown()) return;
@@ -1841,6 +1969,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             ownCredential: resolved.ownCredential,
             active: activeModel,
           });
+        } finally {
+          managedControlWatch?.close();
         }
       } catch (setupError) {
         // An abort while stopping is not a setup failure, and must not spend the

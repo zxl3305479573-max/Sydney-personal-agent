@@ -167,6 +167,7 @@ import {
 import { SearchQueryOutputSchema } from "./search.js";
 import { SecurityEventListInputSchema, SecurityEventSchema } from "./security-events.js";
 import { SettingsScopeSchema, SpaceSettingSchema, settingsScopeInput } from "./settings-scope.js";
+import { taskExecutionContract } from "./task-execution.js";
 
 const botId = z.object({ botId: Id });
 const groupId = z.object({ groupId: Id });
@@ -1284,6 +1285,7 @@ export const appContract = {
   runs: {
     list: oc.input(z.object({ filter: z.enum(["active", "recent"]) })).output(RunsListOutputSchema),
   },
+  tasks: taskExecutionContract,
   /** The signed-in user's wallet; absent when the deployment offers none. */
   paymentWallet: {
     status: oc.output(PaymentWalletStatusSchema),

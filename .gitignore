@@ -41,6 +41,10 @@ verify-report
 design/
 PRODUCT_PLAN.md
 
+# Sydney project documents
+!docx/design/
+!docx/design/**
+
 # Lingui compiled catalogs — Vite plugin compiles .po at build time
 apps/web/src/locales/**/*.mjs
 apps/web/src/locales/**/*.js

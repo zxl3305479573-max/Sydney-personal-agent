@@ -282,7 +282,8 @@ export async function gateToolCall(
       ? { ...resolvedRules, decision: "ask" as const }
       : resolvedRules;
   const mode = approvalModeFromPreference(await ctx.trust.loadAutoReviewPreference());
-  const reviewable = mode === "auto" && !requiresMandatoryApproval;
+  const reviewable =
+    run.trigger !== "managed_task" && mode === "auto" && !requiresMandatoryApproval;
   const injectedReview = reviewable ? deps.autoReview : undefined;
   const reviewSettings = !reviewable || injectedReview ? null : await ctx.trust.loadApprovalModel();
   const memberChecker = reviewSettings?.primarySource === "member";

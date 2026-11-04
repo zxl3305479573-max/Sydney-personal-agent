@@ -66,6 +66,7 @@ vi.mock("./pages/Board", () => {
   capability.boardLoaded();
   return { BoardPage: () => <div>Board page</div> };
 });
+vi.mock("./pages/Tasks", () => ({ TasksPage: () => <div>Tasks page</div> }));
 vi.mock("./pages/IntegrationSetup", () => ({ IntegrationSetupPage: () => null }));
 vi.mock("./pages/McpOAuthCallback", () => ({ McpOAuthCallbackPage: () => null }));
 
@@ -126,6 +127,25 @@ it("loads the board chunk only after bootstrap enables the route", async () => {
     });
     expect(capability.boardLoaded).toHaveBeenCalledOnce();
     expect(container.textContent).toBe("Board page");
+  } finally {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it("mounts the authenticated tasks page", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        <MemoryRouter initialEntries={["/app/tasks"]}>
+          <App />
+        </MemoryRouter>,
+      ),
+    );
+    expect(container.textContent).toBe("Tasks page");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
