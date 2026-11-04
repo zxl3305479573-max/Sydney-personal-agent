@@ -1038,6 +1038,16 @@ async function hasActiveBackgroundWork(
   context: AdapterContext,
   computerId: string,
 ): Promise<boolean> {
+  if (sandbox.inspectBackgroundWorkEvidence) {
+    try {
+      return (
+        (await sandbox.inspectBackgroundWorkEvidence(computer, computerId, context)).status !==
+        "idle"
+      );
+    } catch (error) {
+      return !isSandboxGoneError(error) && !isSandboxDamagedError(error);
+    }
+  }
   if (sandbox.inspectBackgroundWork) {
     try {
       return (await sandbox.inspectBackgroundWork(computer, computerId, context)) !== "idle";

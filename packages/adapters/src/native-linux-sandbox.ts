@@ -1,6 +1,7 @@
 import type {
   AdapterContext,
   AdapterDescriptor,
+  BackgroundWorkEvidence,
   CommandRequest,
   ComputerActionRequest,
   ComputerActionResult,
@@ -17,6 +18,7 @@ import type {
   SnapshotRef,
 } from "@rakazo/adapter-kit";
 import * as net from "node:net";
+import { computerHomeKey } from "@rakazo/db";
 
 type Transport = (
   method: string,
@@ -57,7 +59,7 @@ function socketTransport(socketPath: string) {
       const timer = setTimeout(() => {
         cleanup();
         socket.destroy();
-        reject(new Error("native_driver_timeout"));
+        reject(new Error(`native_driver_timeout:${method}`));
       }, 10_000);
       signal?.addEventListener("abort", onAbort, { once: true });
       socket.once("error", (error) => {
@@ -113,6 +115,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
   constructor(
     private readonly runLeaseValid: (context: AdapterContext) => Promise<number | null>,
     private readonly transport: Transport,
+    private readonly screen?: { userId: string; spaceId: string; botId: string; port: number },
   ) {}
 
   describe(): AdapterDescriptor<SandboxCapabilities> {
@@ -131,9 +134,15 @@ export class NativeLinuxSandbox implements SandboxProvider {
   }
 
   private assertComputer(context: AdapterContext, computer: ComputerRef): void {
+    const teamHomeKey = computerHomeKey({
+      mode: "team",
+      spaceId: context.spaceId,
+      userId: context.userId,
+    });
     if (
       computer.kind !== "native-linux" ||
-      computer.botId !== context.botId ||
+      !context.botId ||
+      (computer.botId !== context.botId && computer.botId !== teamHomeKey) ||
       !/^native:[A-Za-z0-9_-]{16,}$/.test(computer.providerRef)
     ) {
       throw new Error("native_generation_mismatch");
@@ -221,11 +230,31 @@ export class NativeLinuxSandbox implements SandboxProvider {
 
   async connectScreen(
     computer: ComputerRef,
-    _request: ScreenRequest,
+    request: ScreenRequest,
     context: AdapterContext,
   ): Promise<ScreenSession> {
-    await this.guard(context, computer);
-    throw new Error("native_screen_unsupported");
+    this.assertComputer(context, computer);
+    if (
+      request.view !== "stream" ||
+      request.interactive ||
+      !this.screen ||
+      context.userId !== this.screen.userId ||
+      context.spaceId !== this.screen.spaceId ||
+      context.botId !== this.screen.botId ||
+      !Number.isInteger(this.screen.port) ||
+      this.screen.port < 1 ||
+      this.screen.port > 65535 ||
+      context.signal.aborted
+    ) {
+      throw new Error("native_screen_unsupported");
+    }
+    await this.transport("status", {}, context, computer);
+    if (context.signal.aborted) throw new Error("native_screen_unsupported");
+    return {
+      url: `http://127.0.0.1:${this.screen.port}/vnc.html`,
+      mimeType: "text/html",
+      close: async () => {},
+    };
   }
 
   async sendInput(
@@ -316,7 +345,31 @@ export class NativeLinuxSandbox implements SandboxProvider {
   ): Promise<"active" | "idle" | "unknown"> {
     this.assertComputer(context, computer);
     const result = await this.transport("inspect", {}, context, computer);
-    return result === "active" ? "active" : "unknown";
+    if (result === "active" || result === "idle") return result;
+    return "unknown";
+  }
+
+  async inspectBackgroundWorkEvidence(
+    computer: ComputerRef,
+    computerId: string,
+    context: AdapterContext,
+  ): Promise<BackgroundWorkEvidence> {
+    this.assertComputer(context, computer);
+    const result = await this.transport("inspect", {}, context, computer);
+    const observedAt = new Date().toISOString();
+    if (result === "active") {
+      return { status: "active", kind: "process_group_active", markerId: computerId, observedAt };
+    }
+    if (result === "idle") {
+      return { status: "idle", kind: "process_group_empty", markerId: computerId, observedAt };
+    }
+    return {
+      status: "unknown",
+      kind: "unavailable",
+      markerId: computerId,
+      observedAt,
+      reason: "native_driver_inspection_unknown",
+    };
   }
 
   async stop(_computer: ComputerRef, _context: AdapterContext): Promise<void> {

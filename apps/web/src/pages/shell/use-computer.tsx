@@ -36,7 +36,6 @@ import {
 import type { Panel } from "../../lib/right-panel-state";
 import type { createSpaceRpc } from "../../lib/rpc";
 import {
-  computerPanelNeedsScreen,
   computerTakeoverBlocked,
   screenMissing,
   screenReadLoaded,
@@ -471,7 +470,6 @@ export function useComputerControls({
     setScreenLoadError(null);
   }, [computerBot?.id, screenUrl]);
   const computerBootEpoch = useRef(0);
-  const autoBooted = useRef<string | null>(null);
 
   async function bootComputer({
     botId: targetBotId,
@@ -535,38 +533,6 @@ export function useComputerControls({
     cacheComputerFor(targetBotId, { computer: status });
     await refreshComputerScreen(targetBotId);
   }
-
-  useEffect(() => {
-    if (panel !== "computer") {
-      autoBooted.current = null;
-      return;
-    }
-    if (!active) return;
-    const botId = active.id;
-    // Opening the panel is a fresh try at a screen that failed.
-    screenAwaitsRetry.current = false;
-    let cancelled = false;
-    void (async () => {
-      // Refresh from the server first: a stale SSE "booting" snapshot would
-      // otherwise hide an RPC takeover.
-      const snap = await refreshThread(botId).catch(() => null);
-      if (cancelled || activeBotId.current !== botId) return;
-      const state = snap?.computer?.state;
-      const screen = state === "running" ? await refreshComputerScreen(botId) : null;
-      if (cancelled || activeBotId.current !== botId) return;
-      if (!computerPanelNeedsScreen(state, screen) || autoBooted.current === botId) return;
-      autoBooted.current = botId;
-      await bootComputer({
-        botId,
-        takeControl: false,
-        showProgress: false,
-        force: true,
-      }).catch(() => undefined);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [panel, active?.id]);
 
   useEffect(() => {
     setComputerOpen(false);
@@ -763,16 +729,9 @@ export function useComputerControls({
         {t`Booting live desktop…`}
       </span>
     ) : null;
-  const computerPreviewScreen =
-    !computerOpen &&
-    computer?.kind !== "desktop" &&
-    computer?.state === "running" &&
-    Boolean(embeddedScreenUrl) &&
-    !computerScreenError;
   const showingRecoveryHint =
     !computerOpen &&
     computer?.kind !== "desktop" &&
-    !computerPreviewScreen &&
     !computerScreenError &&
     showComputerRecoveryHint;
 

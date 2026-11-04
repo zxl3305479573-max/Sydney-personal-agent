@@ -59,6 +59,10 @@ export interface SandboxProviderOptions {
   wuyingMcpToken?: string;
   dataDir?: string;
   nativeLinuxSocketPath?: string;
+  nativeLinuxScreenUserId?: string;
+  nativeLinuxScreenSpaceId?: string;
+  nativeLinuxScreenBotId?: string;
+  nativeLinuxScreenPort?: number;
 }
 
 function missingRemoteKey(
@@ -194,6 +198,17 @@ export async function createSandboxProvider(
             return lease.validate();
           },
           createNativeLinuxTransport(opts.nativeLinuxSocketPath),
+          opts.nativeLinuxScreenUserId &&
+          opts.nativeLinuxScreenSpaceId &&
+          opts.nativeLinuxScreenBotId &&
+          opts.nativeLinuxScreenPort
+            ? {
+                userId: opts.nativeLinuxScreenUserId,
+                spaceId: opts.nativeLinuxScreenSpaceId,
+                botId: opts.nativeLinuxScreenBotId,
+                port: opts.nativeLinuxScreenPort,
+              }
+            : undefined,
         );
       }
     case "fake":

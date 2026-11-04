@@ -1,8 +1,12 @@
 import importlib.util
 import pathlib
+import socket
 import sys
+import tempfile
+import time
 import types
 import unittest
+from contextlib import ExitStack
 from unittest.mock import patch
 
 if sys.platform == "win32":
@@ -157,6 +161,62 @@ class NativeDriverPolicyTests(unittest.TestCase):
             second = self.driver.observe(request)
         self.assertEqual(first["frameId"], second["frameId"])
         self.assertEqual((first["width"], first["height"]), (2, 3))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux process and socket semantics")
+    def test_command_completes_with_idle_timeout_socket(self):
+        with tempfile.TemporaryDirectory() as root, ExitStack() as sockets:
+            client, server = socket.socketpair()
+            sockets.enter_context(client)
+            sockets.enter_context(server)
+            self.driver.root = root
+            self.driver.display = ":10"
+            self.driver.xauthority = "/tmp/unused"
+            self.driver.processes = {}
+            server.settimeout(5)
+            request = {
+                "botId": "bot",
+                "run": {"id": "run", "fence": 1, "expiresAt": int(time.time() * 1000) + 8000},
+                "command": {"argv": ["/bin/echo", "ok"], "timeoutMs": 2000},
+            }
+            result = self.driver.run_command(request, server)
+            self.assertEqual(result["code"], 0)
+            self.assertEqual(result["stdout"], "ok\n")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux process and socket semantics")
+    def test_command_refuses_a_disconnected_client(self):
+        with tempfile.TemporaryDirectory() as root, ExitStack() as sockets:
+            client, server = socket.socketpair()
+            sockets.enter_context(client)
+            sockets.enter_context(server)
+            self.driver.root = root
+            self.driver.display = ":10"
+            self.driver.xauthority = "/tmp/unused"
+            self.driver.processes = {}
+            server.settimeout(5)
+            client.close()
+            request = {
+                "botId": "bot",
+                "run": {"id": "run", "fence": 1, "expiresAt": int(time.time() * 1000) + 8000},
+                "command": {"argv": ["/bin/sleep", "5"], "timeoutMs": 2000},
+            }
+            with self.assertRaisesRegex(MODULE.Refused, "connection closed"):
+                self.driver.run_command(request, server)
+
+    def test_inspect_returns_idle_for_a_known_empty_run_registry(self):
+        self.driver.processes = {("bot", "run"): set()}
+        result = self.driver.dispatch(
+            {"method": "inspect", "botId": "bot", "generation": "generation", "targetRunId": "run"},
+            None,
+        )
+        self.assertEqual(result, "idle")
+
+    def test_inspect_returns_unknown_after_registry_is_lost(self):
+        self.driver.processes = {}
+        result = self.driver.dispatch(
+            {"method": "inspect", "botId": "bot", "generation": "generation", "targetRunId": "run"},
+            None,
+        )
+        self.assertEqual(result, "unknown")
 
 
 if __name__ == "__main__":

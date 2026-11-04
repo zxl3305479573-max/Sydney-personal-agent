@@ -73,6 +73,14 @@ a shared disk for homes. Leave it unset to keep homes on local disk, as before.
 The same connection also stores new artifacts; see [shared storage migration](#shared-storage-migration)
 for migrating existing files and push registrations.
 
+For Sydney's two-host deployment, the S3-compatible endpoint may be hosted on the cloud computer
+server's private persistent disk, or may be an already-provided private endpoint reachable from
+both hosts. This moves durable file bytes away from the backend volume while keeping the control
+database and decryption keys on the backend. It does not grant the desktop account object-storage
+credentials and does not make the cloud computer a database host. The concrete endpoint, service
+account, disk path and backup procedure remain deployment-specific; record them in
+[the Sydney storage migration plan](../docx/design/STORAGE_SPLIT_MIGRATION.md) before enabling it.
+
 ```env
 OBJECT_STORAGE_BUCKET=rakazo-homes
 OBJECT_STORAGE_ENDPOINT=https://storage.example.com

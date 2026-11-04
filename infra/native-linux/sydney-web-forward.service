@@ -1,0 +1,12 @@
+[Unit]
+Description=Sydney cloud web local proxy
+Requires=sydney-web-forward.socket
+After=sydney-web-forward.socket
+
+[Service]
+DynamicUser=yes
+ExecStart=/lib/systemd/systemd-socket-proxyd --exit-idle-time=30s 127.0.0.1:15173
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

@@ -83,6 +83,10 @@ export function sandboxProviderOptionsFromEnv(
   | "wuyingMcpUrl"
   | "wuyingMcpToken"
   | "nativeLinuxSocketPath"
+  | "nativeLinuxScreenUserId"
+  | "nativeLinuxScreenSpaceId"
+  | "nativeLinuxScreenBotId"
+  | "nativeLinuxScreenPort"
 > {
   return {
     hostComputerUrl: source.SANDBOX_HOST_URL,
@@ -138,6 +142,13 @@ export function sandboxProviderOptionsFromEnv(
     wuyingMcpUrl: optional(source.WUYING_MCP_URL),
     wuyingMcpToken: optional(source.WUYING_MCP_TOKEN),
     nativeLinuxSocketPath: optional(source.SYDNEY_NATIVE_DRIVER_SOCKET),
+    nativeLinuxScreenUserId: optional(source.SYDNEY_NATIVE_SCREEN_USER_ID),
+    nativeLinuxScreenSpaceId: optional(source.SYDNEY_NATIVE_SCREEN_SPACE_ID),
+    nativeLinuxScreenBotId: optional(source.SYDNEY_NATIVE_SCREEN_BOT_ID),
+    nativeLinuxScreenPort: positiveInteger(
+      source.SYDNEY_NATIVE_SCREEN_PORT,
+      "SYDNEY_NATIVE_SCREEN_PORT",
+    ),
   };
 }
 

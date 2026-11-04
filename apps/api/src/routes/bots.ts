@@ -35,6 +35,7 @@ import {
   expireComputerExecutionLeases,
   InstructionConflictError,
   IsolationError,
+  MainBotLimitError,
   recordComputerRunEnd,
   recordSecurityEvent,
   restoreBotUnderComputerQuota,
@@ -400,6 +401,8 @@ export function botsRoutes(ctx: RouterContext) {
               : {}),
           },
         }).catch((error) => {
+          if (error instanceof MainBotLimitError)
+            throw new ORPCError("BAD_REQUEST", { message: error.message });
           if (input.expectedSettings && isRecordNotFound(error))
             throw new ORPCError("CONFLICT", {
               message: "Settings changed; review the current settings first.",

@@ -82,13 +82,15 @@ export function computerRoutes(ctx: RouterContext) {
         if (!bot.computer) throw new IsolationError();
         if (bot.computer.state === "running" && bot.computer.providerRef) {
           try {
-            await ensureComputerWorkspaceLayout(
-              deps.sandbox,
-              toComputerRef(bot.computer),
-              parseComputerMode(bot.computer.scope),
-              bot.id,
-              computerContext(context.actor, bot.id, "boot"),
-            );
+            if (bot.computer.kind !== "native-linux") {
+              await ensureComputerWorkspaceLayout(
+                deps.sandbox,
+                toComputerRef(bot.computer),
+                parseComputerMode(bot.computer.scope),
+                bot.id,
+                computerContext(context.actor, bot.id, "boot"),
+              );
+            }
             scheduleComputerSleep(deps.jobs, bot.computer.id);
             return computerStatus(deps, context.actor, input.botId);
           } catch (error) {
@@ -96,7 +98,8 @@ export function computerRoutes(ctx: RouterContext) {
           }
         }
         const ctx = computerContext(context.actor, bot.id, "boot");
-        const manualRunId = `boot:${randomUUID()}`;
+        const nativeBoot = deps.env.sandboxProvider === "native-linux";
+        const manualRunId = `boot${nativeBoot ? "_" : ":"}${randomUUID()}`;
         let lease: ComputerExecutionLease | null;
         try {
           lease = await acquireBootLease(deps.prisma, {
@@ -112,9 +115,27 @@ export function computerRoutes(ctx: RouterContext) {
         }
         const computerId = bot.computer.id;
         try {
+          if (nativeBoot && !lease) throw new ComputerBusyError();
+          const nativeRunLease =
+            nativeBoot && lease
+              ? {
+                  owner: "manual-boot",
+                  fence: lease.fence,
+                  validate: async () => {
+                    const current = await deps.prisma.computerExecutionLease.findUnique({
+                      where: { computerId_botId: { computerId, botId: bot.id } },
+                      select: { runId: true, fence: true, expiresAt: true },
+                    });
+                    return current?.runId === manualRunId && current.fence === lease.fence
+                      ? current.expiresAt.getTime()
+                      : null;
+                  },
+                }
+              : undefined;
           await getLogger().withContext({ reason: "manual" }, () =>
             provisionComputer(deps, computerId, {
               ...ctx,
+              ...(nativeRunLease ? { runId: manualRunId, nativeRunLease } : {}),
               screenLeaseId: screenLeaseIdForRun(lease, manualRunId),
             }),
           );
@@ -760,14 +781,18 @@ export function computerRoutes(ctx: RouterContext) {
           return { url: null };
         }
         const computer = bot.computer;
+        const nativeReadOnly = computer.kind === "native-linux";
         const session = await deps.sandbox
           .connectScreen(
             toComputerRef(computer),
             {
               view: "stream",
-              interactive: hasActiveComputerControl(computer) && computer.controlBotId === bot.id,
+              interactive:
+                !nativeReadOnly &&
+                hasActiveComputerControl(computer) &&
+                computer.controlBotId === bot.id,
               controlToken:
-                computer.controlBotId === bot.id
+                !nativeReadOnly && computer.controlBotId === bot.id
                   ? (computer.controlLeaseId ?? undefined)
                   : undefined,
             },
@@ -783,7 +808,8 @@ export function computerRoutes(ctx: RouterContext) {
         scheduleComputerSleep(deps.jobs, bot.computer.id);
         const viewUrl = withViewOnly(
           session.url,
-          !(hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id),
+          nativeReadOnly ||
+            !(hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id),
         );
         return {
           url: addScreenProxyCapability(
@@ -795,7 +821,7 @@ export function computerRoutes(ctx: RouterContext) {
               computerId: computer.id,
               botGeneration: bot.screenGeneration,
               computerGeneration: computer.screenGeneration,
-              controlLeaseId: computer.controlLeaseId,
+              controlLeaseId: nativeReadOnly ? null : computer.controlLeaseId,
             },
             undefined,
             session.headers,

@@ -18,7 +18,7 @@ import {
   verifyManagedTaskCompletion,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
-import type { RouterContext } from "./context.js";
+import type { RouterContext } from "../context.js";
 
 async function taskOperation<Result>(operation: () => Promise<Result>): Promise<Result> {
   try {
@@ -103,18 +103,13 @@ export function tasksRoutes(ctx: RouterContext) {
       ),
       revoke: authed.tasks.revoke.handler(({ context, input }) =>
         taskOperation(async () => {
-          const result = await controlManagedTask(
+          await controlManagedTask(
             deps.prisma,
             context.actor,
             input.taskId,
             "cancel",
             input.expectedVersion,
           );
-          if (result.threadId && result.eventSeq !== null) {
-            await deps.events.notify(result.threadId, result.eventSeq).catch((error) => {
-              getLogger().error("managed task revoke realtime notification", error);
-            });
-          }
           await recordAuditEvent({
             action: "task.mandate.revoked",
             actor: { type: "user", id: context.actor.userId },
@@ -134,13 +129,6 @@ export function tasksRoutes(ctx: RouterContext) {
             input.expectedVersion,
             input.expiresAt,
           );
-          await recordAuditEvent({
-            action: "task.mandate.renewed",
-            actor: { type: "user", id: context.actor.userId },
-            spaceId: context.actor.spaceId,
-            target: { type: "task", id: input.taskId },
-            runId: input.runId,
-          });
           return { ok: true as const };
         }),
       ),
@@ -153,13 +141,6 @@ export function tasksRoutes(ctx: RouterContext) {
             input.runId,
             input.expectedVersion,
           );
-          await recordAuditEvent({
-            action: "task.stop.confirmed",
-            actor: { type: "user", id: context.actor.userId },
-            spaceId: context.actor.spaceId,
-            target: { type: "task", id: input.taskId },
-            runId: input.runId,
-          });
           return { ok: true as const };
         }),
       ),
@@ -173,13 +154,6 @@ export function tasksRoutes(ctx: RouterContext) {
             input.outcome,
             input.expectedVersion,
           );
-          await recordAuditEvent({
-            action: "task.effect.reconciled",
-            actor: { type: "user", id: context.actor.userId },
-            spaceId: context.actor.spaceId,
-            target: { type: "effect", id: input.effectId },
-            metadata: { outcome: input.outcome },
-          });
           return { ok: true as const };
         }),
       ),
@@ -191,12 +165,6 @@ export function tasksRoutes(ctx: RouterContext) {
             input.taskId,
             input.expectedVersion,
           );
-          await recordAuditEvent({
-            action: "task.review.finished",
-            actor: { type: "user", id: context.actor.userId },
-            spaceId: context.actor.spaceId,
-            target: { type: "task", id: input.taskId },
-          });
           return { ok: true as const };
         }),
       ),
@@ -209,13 +177,6 @@ export function tasksRoutes(ctx: RouterContext) {
             input.runId,
             input.expectedVersion,
           );
-          await recordAuditEvent({
-            action: "task.result.verified",
-            actor: { type: "user", id: context.actor.userId },
-            spaceId: context.actor.spaceId,
-            target: { type: "task", id: input.taskId },
-            runId: input.runId,
-          });
           return { ok: true as const };
         }),
       ),
@@ -231,32 +192,17 @@ export function tasksRoutes(ctx: RouterContext) {
           if (!row) throw new IsolationError();
           const task = taskSummary(row);
           const history = await readTaskExecutionHistory(deps.prisma, context.actor, row.id);
-          if (!history) throw new IsolationError();
-          const latest = await deps.prisma.task.findFirst({
-            where: { id: row.id, userId: row.userId, spaceId: row.spaceId },
-            select: { updatedAt: true },
-          });
-          if (latest?.updatedAt.getTime() !== row.updatedAt.getTime()) {
-            throw new TaskExecutionError("snapshot_changed");
-          }
           const projection = projectTask({
             task: { id: task.id, status: task.status, execution: task.execution },
             runs: history.runs,
-            pendingEffects: history.pendingEffects.map((id) => ({ id, status: "intended" })),
-            unresolvedEffects: history.unresolvedEffects.map((id) => ({ id, status: "intended" })),
+            pendingEffects: history.pendingEffects.map((id) => ({ id, status: "pending" })),
+            unresolvedEffects: history.unresolvedEffects.map((id) => ({ id, status: "unknown" })),
           });
           return {
             task,
-            state:
-              !history.historyComplete && projection.state === "succeeded"
-                ? "queued" as const
-                : projection.state,
+            state: !history.historyComplete && projection.state === "succeeded" ? "queued" : projection.state,
             reason: history.historyComplete ? projection.reason : "history_incomplete",
-            runs: history.runs.map((run) => ({
-              id: run.id,
-              status: run.status,
-              attempts: run.attempts,
-            })),
+            runs: history.runs,
             unresolvedEffects: [...projection.unresolvedEffectIds],
             pendingEffects: history.pendingEffects,
             historyComplete: history.historyComplete,
@@ -287,9 +233,7 @@ export function tasksRoutes(ctx: RouterContext) {
           computer.controlLeaseExpiresAt &&
           computer.controlLeaseExpiresAt.getTime() > Date.now()
         ) {
-          throw new ORPCError("CONFLICT", {
-            message: "Desktop preview is disabled during takeover",
-          });
+          throw new ORPCError("CONFLICT", { message: "Desktop preview is disabled during takeover" });
         }
         const observation = await deps.sandbox.observe(
           {

@@ -1415,6 +1415,7 @@ app.whenReady().then(async () => {
   currentSetup = await readSetup(userDataDir);
   const target = resolveStartupTarget({
     envUrl: process.env.RAKAZO_WEB_URL,
+    pcBackendUrl: process.env.SYDNEY_PC_BACKEND_URL,
     saved: currentSetup,
     forceSetup: process.env.RAKAZO_FORCE_SETUP === "1",
   });

@@ -11,21 +11,27 @@
 | [总计划](PLAN.md) | 阶段、依赖、需求、交付物、验收条件和当前状态 | 开始、完成、中断或调整阶段时 |
 | [开发记录](DEVELOPMENT_LOG.md) | 实际做了什么、为什么改、改到哪里、未完成事项 | 每个可验收部分交付或工作中断时 |
 | [验证记录](VALIDATION.md) | 验证范围、环境、实际结果、限制和未执行项 | 每次有验证结论时 |
-| [需求验收清单](ACCEPTANCE.md) | PA-001 至 PA-018 的现有基础和验收缺口 | 需求证据或验收结论变化时 |
+| [需求验收清单](ACCEPTANCE.md) | 需求的现有基础和验收缺口 | 需求证据或验收结论变化时 |
 | [运维手册](OPERATIONS.md) | 部署、账号权限、配置、升级回滚、备份恢复和排障 | 实现或改变对应运行行为时 |
 | [首个工程任务](design/FIRST_TASK.md) | 离线工程场景、完成证据、数据发送及预算边界 | 场景与验收条件变化时 |
 | [任务与 Run 映射](design/TASK_RUN_MAPPING.md) | 复用源码、状态、审批、事务和 Pi 接线位置 | 任务与持久化契约变化时 |
 | [原生 Linux 设计](design/NATIVE_LINUX_DESIGN.md) | 同机账号、驱动协议、能力、清理与服务器验收清单 | 原生 Provider 或部署边界变化时 |
 | [双机实施方案](design/TWO_HOST_DEPLOYMENT.md) | 后台与云电脑分离部署、连接安全和验收 | 双机设计、部署或验证变化时 |
+| [存储划分与迁移方案](design/STORAGE_SPLIT_MIGRATION.md) | 后台控制数据、云电脑工作区和对象存储的划分与迁移 | 存储布局、迁移、清理或回滚变化时 |
+| [PC 客户端联调计划](design/PC_CLIENT_INTEGRATION.md) | Electron 客户端与后台、模型和云电脑的联调及 Web 服务移除顺序 | PC 客户端开发、打包或入口调整时 |
+| [PC 后台部署决策](../docs/adr/0015-pc-backend-on-cloud-computer.md) | 云电脑 PC 后台与主后台控制服务的边界和权限 | PC 后台部署、认证或资源边界变化时 |
 | [P2 策略接口](design/TASK_POLICY_IMPLEMENTATION.md) | 实际纯策略、调用方责任和集成缺口 | 策略实现变化时 |
 | [P2 状态投影与读取](design/TASK_PROJECTION.md) | 已实现的任务状态、历史读取、安全条件和验证局限 | 投影或读取契约变化时 |
 | [任务执行接线](design/TASK_EXECUTION_INTEGRATION.md) | 持久化、用户 API、Pi 门禁与预算 | 执行链路变化时 |
+| [聊天外观方案](design/CHAT_APPEARANCE.md) | 聊天背景、气泡和搭配管理的范围与验收 | 外观需求或实现变化时 |
+| [热插拔插件历史设计](design/HOT_PLUGIN_SYSTEM.md) | 已停止推进的插件方案与离线试点记录 | 仅保留历史参考 |
 | [窗口分工与交接](WORKSTREAMS.md) | 独立对话的实际归属、文件写集和未派发任务 | 分工、交接或窗口能力变化时 |
 
 技术细节继续放在已有的 [需求](../docs/requirements.md)、[架构](../docs/architecture.md)、[安全](../docs/security.md)、[电脑设计](../docs/cloud-computer.md) 和 [架构决策](../docs/adr/0004-native-server-and-task-orchestration.md) 中，通过链接关联，不复制多份相同规则。
 
 ## 当前项目状态
 
+- Web 已迁至云电脑隔离试运行，后台保留回环入口、API 和 Worker；当前验收与回滚限制见 [ADR-0013](../docs/adr/0013-isolated-cloud-web-proposal.md) 和 [运维手册](OPERATIONS.md)。
 - Rakazo 底座、Sydney 二次开发代码和项目配置统一位于当前仓库根目录；本目录只保存计划、开发过程、验证和运维文档。
 - Rakazo 基线已经导入；上一次底座静态检查与 Pi 离线测试有通过记录，不能代表 Sydney 功能已实现。
 - P2/P3 已接入授权存储、用户任务 API、Pi 工具与主模型门禁；已有定向离线验证，真实数据库和模型尚未验收。继续推进 P4–P6，实际证据见总计划与验证记录。

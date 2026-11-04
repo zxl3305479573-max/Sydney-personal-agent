@@ -36,7 +36,7 @@ const actor = {
   isDeploymentOwner: true,
 } satisfies Actor;
 
-function routerDeps(prisma: PrismaClient) {
+function routerDeps(prisma: PrismaClient, sandboxProvider = "fake") {
   return {
     prisma,
     jobs: { enqueue: vi.fn() },
@@ -45,14 +45,14 @@ function routerDeps(prisma: PrismaClient) {
       defaultModel: "fake-model",
       webOrigin: "https://web.example.test",
       screenProxySecret: "fake-test-secret",
-      sandboxProvider: "fake",
+      sandboxProvider,
     },
     dataDir: "/tmp/rakazo-router-test",
   } as unknown as RouterDeps;
 }
 
-async function boot(prisma: PrismaClient) {
-  const handler = new RPCHandler(createRouter(routerDeps(prisma)), {
+async function boot(prisma: PrismaClient, sandboxProvider = "fake") {
+  const handler = new RPCHandler(createRouter(routerDeps(prisma, sandboxProvider)), {
     clientInterceptors: [onError((error, { path }) => handleRpcError(error, path))],
   });
   const { response } = await handler.handle(
@@ -79,6 +79,42 @@ beforeEach(() => {
 });
 
 describe("computer boot", () => {
+  it("binds native manual boot to the current execution lease", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    const findUnique = vi.fn();
+    const prisma = {
+      bot: { findFirst: vi.fn().mockResolvedValue(stoppedBot) },
+      computerExecutionLease: { findUnique },
+    } as unknown as PrismaClient;
+    lifecycle.acquireComputerExecutionLease.mockImplementation(async (_prisma, input) => ({
+      ...input,
+      fence: 3,
+    }));
+    lifecycle.provisionComputer.mockImplementation(async (_deps, _computerId, context) => {
+      expect(context.runId).toMatch(/^boot_[A-Za-z0-9_-]+$/);
+      expect(context.nativeRunLease.fence).toBe(3);
+      findUnique.mockResolvedValueOnce({ runId: context.runId, fence: 3, expiresAt });
+      expect(await context.nativeRunLease.validate()).toBe(expiresAt.getTime());
+      findUnique.mockResolvedValueOnce({ runId: context.runId, fence: 4, expiresAt });
+      expect(await context.nativeRunLease.validate()).toBeNull();
+      throw new Error("stop after validation");
+    });
+
+    await boot(prisma, "native-linux");
+
+    expect(lifecycle.provisionComputer).toHaveBeenCalledOnce();
+    expect(lifecycle.releaseComputerExecutionLease).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a native manual boot without an execution lease", async () => {
+    const prisma = {
+      bot: { findFirst: vi.fn().mockResolvedValue(stoppedBot) },
+    } as unknown as PrismaClient;
+    const response = await boot(prisma, "native-linux");
+    expect(response?.status).toBe(409);
+    expect(lifecycle.provisionComputer).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])("uses claimless lease acquisition when busy=%s", async (busy) => {
     lifecycle.acquireComputerExecutionLease.mockImplementation(lifecycle.realAcquire!);
     lifecycle.provisionComputer.mockRejectedValue(new Error("stop after the lease"));

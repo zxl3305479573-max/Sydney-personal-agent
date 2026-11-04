@@ -269,6 +269,22 @@ export interface SandboxCapabilities {
   multiScreen?: boolean;
 }
 
+export type BackgroundWorkEvidenceKind =
+  | "process_group_active"
+  | "process_group_empty"
+  | "provider_reported_active"
+  | "provider_reported_idle"
+  | "unavailable"
+  | "inspection_failed";
+
+export interface BackgroundWorkEvidence {
+  status: "active" | "idle" | "unknown";
+  kind: BackgroundWorkEvidenceKind;
+  markerId: string;
+  observedAt: string;
+  reason?: string;
+}
+
 export interface ConnectorTool {
   name: string;
   description: string;

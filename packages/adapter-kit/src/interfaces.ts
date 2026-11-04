@@ -10,6 +10,7 @@ import type {
   AutoReviewResult,
   BackgroundJob,
   BackgroundJobHandlers,
+  BackgroundWorkEvidence,
   BillingByokCheckoutRequest,
   BillingCheckoutRequest,
   BillingCreditCheckoutRequest,
@@ -170,6 +171,15 @@ export interface SandboxProvider {
     markerId: string,
     context: AdapterContext,
   ): Promise<"active" | "idle" | "unknown">;
+  /**
+   * Providers must return unknown when they cannot prove quiescence. Callers
+   * must not infer idle from a failed transport or a restarted provider.
+   */
+  inspectBackgroundWorkEvidence?(
+    computer: ComputerRef,
+    markerId: string,
+    context: AdapterContext,
+  ): Promise<BackgroundWorkEvidence>;
   connectScreen(
     computer: ComputerRef,
     request: ScreenRequest,

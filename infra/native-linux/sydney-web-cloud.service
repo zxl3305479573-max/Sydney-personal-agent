@@ -1,0 +1,23 @@
+[Unit]
+Description=Sydney isolated cloud web
+Requires=sydney-web-cloud-link.service
+After=sydney-web-cloud-link.service
+
+[Service]
+User=sydney-web-stage
+Group=sydney-web-stage
+EnvironmentFile=/var/lib/sydney-web-stage/web.env
+Environment=SYDNEY_WEB_RUNTIME_DIR=/run/sydney-web-stage
+Environment=SYDNEY_WEB_APP_DIR=/opt/sydney-web-stage/apps/web
+Environment=SYDNEY_WEB_NODE=/opt/sydney-web-stage/usr/bin/node
+ExecStart=/usr/bin/python3 /opt/sydney-web-stage/bridge-check/web_bridge.py
+Restart=on-failure
+RestartSec=5
+PrivateNetwork=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/sydney-web-stage /opt/sydney-web-stage/apps/web/asset-archive /opt/sydney-web-stage/apps/web/node_modules/.vite-temp
+
+[Install]
+WantedBy=multi-user.target

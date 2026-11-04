@@ -40,7 +40,7 @@ export async function commitSpaceRename(input: {
 export function sidebarGroupsForSpaces<TBot extends SidebarChat, TGroup extends SidebarChat>(
   spaces: readonly SidebarSpace<TBot, TGroup>[],
   query: string,
-  labels?: { pinned: string; unassigned: string },
+  labels?: { pinned: string; unassigned: string; mainBots?: string },
 ) {
   const needle = query.toLowerCase();
   const showSpaceNames = spaces.length > 1;
@@ -64,6 +64,12 @@ export function sidebarGroupsForSpaces<TBot extends SidebarChat, TGroup extends 
       space.botSections,
       { labels },
     );
+    const pinnedGroup = grouped.find((group) => group.key === "pinned");
+    const mainBots = pinnedGroup?.bots.filter((item) => item.kind === "bot") ?? [];
+    if (pinnedGroup) {
+      pinnedGroup.bots = pinnedGroup.bots.filter((item) => item.kind !== "bot");
+      if (pinnedGroup.bots.length === 0) grouped.splice(grouped.indexOf(pinnedGroup), 1);
+    }
     // Keep destinations visible after their last bot is dragged out. Search
     // still hides empty lists, and spaces without sections keep their old layout.
     if (!needle && space.botSections.length > 0 && grouped.length > 0) {
@@ -82,6 +88,12 @@ export function sidebarGroupsForSpaces<TBot extends SidebarChat, TGroup extends 
         "unassigned",
       ];
       grouped.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+    }
+    if (mainBots.length > 0 || (!needle && space.bots.length > 0)) {
+      grouped.unshift({ key: "main-bots", title: labels?.mainBots ?? "Main bots", bots: mainBots });
+    }
+    if (!needle && mainBots.length > 0 && !grouped.some((group) => group.key === "unassigned")) {
+      grouped.push({ key: "unassigned", title: labels?.unassigned ?? "Unassigned", bots: [] });
     }
     const sections = grouped.map((group, index) => ({
       ...group,

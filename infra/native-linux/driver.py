@@ -4,6 +4,7 @@ import json
 import os
 import pwd
 import re
+import select
 import selectors
 import signal
 import socket
@@ -276,11 +277,12 @@ class Driver:
             while selector.get_map():
                 if time.monotonic() >= deadline:
                     raise Refused("Command timed out; inspect its effects before retrying")
-                try:
-                    if connection.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b"":
-                        raise Refused("Command connection closed; result may be unknown")
-                except BlockingIOError:
-                    pass
+                if select.select([connection], [], [], 0)[0]:
+                    try:
+                        if connection.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b"":
+                            raise Refused("Command connection closed; result may be unknown")
+                    except BlockingIOError:
+                        pass
                 for selected, _ in selector.select(timeout=0.1):
                     chunk = os.read(selected.fileobj.fileno(), 65536)
                     if not chunk:
@@ -305,6 +307,8 @@ class Driver:
                 pass
             if process.poll() is None:
                 process.wait()
+            process.stdout.close()
+            process.stderr.close()
             with self.lock:
                 self.processes.get((request["botId"], run_id), set()).discard(process)
 
@@ -452,7 +456,9 @@ class Driver:
         if method in ("cancel", "inspect", "stop"):
             run_id = request.get("targetRunId")
             with self.lock:
-                processes = list(self.processes.get((bot_id, run_id), set())) if run_id else [
+                key = (bot_id, run_id)
+                known = key in self.processes if run_id else False
+                processes = list(self.processes.get(key, set())) if run_id else [
                     process for (owner, _), items in self.processes.items()
                     if owner == bot_id for process in items
                 ]
@@ -463,7 +469,9 @@ class Driver:
                     except ProcessLookupError:
                         pass
                 return None
-            return "active" if any(process.poll() is None for process in processes) else "unknown"
+            if any(process.poll() is None for process in processes):
+                return "active"
+            return "idle" if known else "unknown"
         raise Refused("Unsupported native desktop method")
 
     def serve_connection(self, connection):

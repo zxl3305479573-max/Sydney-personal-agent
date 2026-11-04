@@ -11,7 +11,13 @@ export type TaskExecutionView = {
   currentRunId: string | null;
   control: TaskControlView;
   completionEvidence: { runId: string; confirmedBy: string; confirmedAt: number } | null;
-  budget: { maxRuns: number; maxToolCalls: number; maxModelCalls: number; maxReservedTokens: number; timeoutMs: number };
+  budget: {
+    maxRuns: number;
+    maxToolCalls: number;
+    maxModelCalls: number;
+    maxReservedTokens: number;
+    timeoutMs: number;
+  };
   deadline: number | null;
   modelCalls: number;
   reservedTokens: number;
@@ -26,25 +32,40 @@ export type TaskProjectionInput = {
 };
 
 export type TaskProjectionOutput = {
-  state: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "paused" | "waiting_input" | "waiting_takeover";
+  state:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "paused"
+    | "waiting_input"
+    | "waiting_takeover";
   reason: string | null;
   runs: TaskRunView[];
   unresolvedEffectIds: string[];
   pendingEffectIds: string[];
 };
 
-const ACTIVE_RUN_STATUSES = new Set(["queued", "leased", "running", "waiting_input", "waiting_takeover"]);
+const ACTIVE_RUN_STATUSES = new Set([
+  "queued",
+  "leased",
+  "running",
+  "waiting_input",
+  "waiting_takeover",
+]);
 
 export function projectTask(input: TaskProjectionInput): TaskProjectionOutput {
   const activeRun = input.runs.find((run) => ACTIVE_RUN_STATUSES.has(run.status));
   const lastRun = input.runs.find((run) => run.id === input.task.execution.currentRunId);
   const control = input.task.execution.control;
   if (activeRun) {
-    const state = activeRun.status === "waiting_input"
-      ? "waiting_input"
-      : activeRun.status === "waiting_takeover"
-        ? "waiting_takeover"
-        : "running";
+    const state =
+      activeRun.status === "waiting_input"
+        ? "waiting_input"
+        : activeRun.status === "waiting_takeover"
+          ? "waiting_takeover"
+          : "running";
     return {
       state,
       reason: control.intent === "continue" ? null : "stop_unconfirmed",
@@ -89,7 +110,10 @@ export function projectTask(input: TaskProjectionInput): TaskProjectionOutput {
       pendingEffectIds: [],
     };
   }
-  if (lastRun?.status === "completed" && input.task.execution.completionEvidence?.runId === lastRun.id) {
+  if (
+    lastRun?.status === "completed" &&
+    input.task.execution.completionEvidence?.runId === lastRun.id
+  ) {
     return {
       state: "succeeded",
       reason: null,

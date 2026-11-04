@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SandboxProvider } from "@rakazo/adapter-kit";
 import type { ComputerCommand } from "@rakazo/contracts";
-import { COMPUTER_COMMAND_OUTPUT_MAX_CHARS } from "@rakazo/contracts";
+import { ATTACHMENT_MAX_BYTES, COMPUTER_COMMAND_OUTPUT_MAX_CHARS } from "@rakazo/contracts";
 import { redactSecrets, sandboxCommandTimeoutMs } from "@rakazo/core";
 import { RunHistoryWriteError } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -42,6 +42,7 @@ import type { RunContext } from "./run-context.js";
 import { addRunSecrets } from "./run-context.js";
 import { builtinOffered } from "./run-instructions.js";
 import { computerScreenToolResult } from "./run-lifecycle.js";
+import { publishMessage } from "./run-messages.js";
 import type { ToolCall, ToolHandlers } from "./run-tool-gate.js";
 import {
   isRunningShellCommand,
@@ -50,6 +51,7 @@ import {
 } from "./shell-command-stream.js";
 import { DESKTOP_HELD_FOR_TAKEOVER_MESSAGE } from "./takeover-resume.js";
 import { getActiveTeachingSession } from "./teaching-session.js";
+import { attachWorkspaceFileToThread } from "./thread-artifacts.js";
 
 function appendComputerCommand(ctx: RunContext, payload: ComputerCommand) {
   const { deps, run, runId, bot, thread } = ctx;
@@ -124,6 +126,55 @@ function formatObservation(
   );
   screen.lastFrameId = observation.frameId;
   return result;
+}
+
+async function publishObservationImage(
+  ctx: RunContext,
+  executionId: string,
+  observation: Awaited<ReturnType<SandboxProvider["observe"]>>,
+  result: ReturnType<typeof observationToolResult>,
+) {
+  if (!ctx.deps.artifacts || !result.content.some((part) => part.type === "image")) return;
+  if (observation.image.byteLength > (ctx.deps.maxUploadSizeBytes ?? ATTACHMENT_MAX_BYTES)) {
+    getLogger().warn("computer screenshot exceeded attachment limit", {
+      runId: ctx.runId,
+      frameId: observation.frameId,
+      bytes: observation.image.byteLength,
+    });
+    return;
+  }
+
+  const frameId = observation.frameId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "latest";
+  const extension = observation.mimeType === "image/jpeg" ? "jpg" : "png";
+  const filePath = `screenshots/screenshot-${frameId}.${extension}`;
+  try {
+    const attached = await attachWorkspaceFileToThread(
+      {
+        prisma: ctx.deps.prisma,
+        artifacts: ctx.deps.artifacts,
+        maxUploadSizeBytes: ctx.deps.maxUploadSizeBytes,
+      },
+      {
+        spaceId: ctx.run.spaceId,
+        userId: ctx.run.userId,
+        botId: ctx.bot.id,
+        groupId: ctx.thread.groupId ?? undefined,
+        runId: ctx.runId,
+        filePath,
+        bytes: observation.image,
+        operationId: executionId,
+        name: `screenshot-${frameId}.${extension}`,
+        description: "Computer screenshot",
+      },
+    );
+    await publishMessage(ctx.deps, ctx.run, "bot", [attached.block]);
+  } catch (error) {
+    getLogger().warn("computer screenshot attachment failed", {
+      runId: ctx.runId,
+      frameId: observation.frameId,
+      error,
+    });
+  }
 }
 
 async function screenBlocked(ctx: RunContext): Promise<string | undefined> {
@@ -258,14 +309,19 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
 export const computerTools: ToolHandlers = {
   async computer_observe(ctx, call) {
     const { deps, context } = ctx;
-    const { name } = call;
+    const { name, executionId } = call;
     const blocked = await screenBlocked(ctx);
     if (blocked) return { error: blocked };
     return computerScreenToolResult(async () =>
-      formatObservation(
-        ctx,
-        await deps.sandbox.observe(await ctx.computer.get("tool", name), context),
-      ),
+      (async () => {
+        const observation = await deps.sandbox.observe(
+          await ctx.computer.get("tool", name),
+          context,
+        );
+        const result = formatObservation(ctx, observation);
+        await publishObservationImage(ctx, executionId, observation, result);
+        return result;
+      })(),
     );
   },
   async computer_act(ctx, call) {
@@ -289,14 +345,15 @@ export const computerTools: ToolHandlers = {
         },
         context,
       );
-      return result.observation
-        ? formatObservation(
-            ctx,
-            result.observation,
-            `completed ${result.completed} computer action${result.completed === 1 ? "" : "s"}`,
-            visualActionKey,
-          )
-        : { ok: true, completed: result.completed };
+      if (!result.observation) return { ok: true, completed: result.completed };
+      const observation = formatObservation(
+        ctx,
+        result.observation,
+        `completed ${result.completed} computer action${result.completed === 1 ? "" : "s"}`,
+        visualActionKey,
+      );
+      await publishObservationImage(ctx, call.executionId, result.observation, observation);
+      return observation;
     }, call.finish);
   },
   async shell(ctx, call) {

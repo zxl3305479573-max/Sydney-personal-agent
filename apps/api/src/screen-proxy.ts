@@ -1,12 +1,18 @@
 import { timingSafeEqual } from "node:crypto";
-import { hasActiveComputerControl } from "@rakazo/adapters";
+import type { SandboxProvider } from "@rakazo/adapter-kit";
+import { hasActiveComputerControl, toComputerRef } from "@rakazo/adapters";
 import { openScreenCapability, SCREEN_TARGET_ENDPOINT } from "@rakazo/core/node/screen-capability";
 import type { PrismaClient } from "@rakazo/db";
 import { runAsSystem } from "@rakazo/db";
 import type { Hono } from "hono";
 import { requestBodyLimit } from "./request-body-limit.js";
 
-export function mountScreenTarget(app: Hono, prisma: PrismaClient, secret: string) {
+export function mountScreenTarget(
+  app: Hono,
+  prisma: PrismaClient,
+  secret: string,
+  sandbox?: SandboxProvider,
+) {
   app.post(SCREEN_TARGET_ENDPOINT, requestBodyLimit(16 * 1024), async (c) => {
     c.header("cache-control", "no-store");
     const supplied = Buffer.from(c.req.header("authorization") ?? "");
@@ -28,8 +34,12 @@ export function mountScreenTarget(app: Hono, prisma: PrismaClient, secret: strin
           screenGeneration: scope.botGeneration,
         },
         select: {
+          userId: true,
+          spaceId: true,
           computer: {
             select: {
+              homeKey: true,
+              kind: true,
               screenGeneration: true,
               providerRef: true,
               state: true,
@@ -55,6 +65,32 @@ export function mountScreenTarget(app: Hono, prisma: PrismaClient, secret: strin
           computer.controlBotId !== scope.botId))
     )
       return c.body(null, 403);
+    if (computer.kind === "native-linux") {
+      if (!sandbox || target.interactive) return c.body(null, 403);
+      try {
+        const session = await sandbox.connectScreen(
+          toComputerRef(computer),
+          { view: "stream", interactive: false },
+          {
+            operationId: "screen-recheck",
+            traceId: "screen-recheck",
+            userId: bot.userId,
+            spaceId: bot.spaceId,
+            botId: scope.botId,
+            signal: AbortSignal.timeout(1000),
+          },
+        );
+        if (!session.url) return c.body(null, 403);
+        const current = new URL(session.url);
+        if (
+          current.protocol !== target.protocol ||
+          current.hostname !== target.hostname ||
+          Number(current.port || (current.protocol === "https:" ? 443 : 80)) !== target.port
+        ) return c.body(null, 403);
+      } catch {
+        return c.body(null, 403);
+      }
+    }
     return c.json(target);
   });
 }

@@ -123,19 +123,28 @@ export function serializeSetup(setup: DesktopSetup): string {
 }
 
 /**
- * Decides between the first-run setup window and the app window. An explicit
- * `RAKAZO_WEB_URL` still wins over saved configuration so test and performance
- * harnesses can point the shell anywhere without touching a user's real setup.
+ * Decides between the first-run setup window and the app window. Explicit
+ * `RAKAZO_WEB_URL` and `SYDNEY_PC_BACKEND_URL` values win over saved
+ * configuration so test harnesses and deployed PC clients can choose a server
+ * without rewriting a user's setup file.
  */
 export function resolveStartupTarget(input: {
   envUrl?: string;
+  pcBackendUrl?: string;
   saved?: DesktopSetup | null;
   forceSetup?: boolean;
 }): StartupTarget {
   if (input.forceSetup === true) return { kind: "setup" };
 
   const envUrl = input.envUrl?.trim();
-  if (envUrl !== undefined && envUrl !== "") return { kind: "app", url: envUrl, source: "env" };
+  if (envUrl !== undefined && envUrl !== "") {
+    return { kind: "app", url: envUrl, source: "env" };
+  }
+
+  const pcBackendUrl = input.pcBackendUrl?.trim();
+  if (pcBackendUrl !== undefined && pcBackendUrl !== "") {
+    return { kind: "app", url: pcBackendUrl, source: "env" };
+  }
 
   if (input.saved != null) {
     const saved = parseSetupInput(input.saved);

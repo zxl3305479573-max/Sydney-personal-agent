@@ -78,21 +78,31 @@ describe("resolveRosterDrop", () => {
     ).toBeNull();
   });
 
-  it("never moves a pinned bot into a section; pinned rows only reorder", () => {
+  it("moves a main bot back to a normal section", () => {
     expect(
       resolveRosterDrop({
         dragged: bot("a", null, true),
         target: { kind: "section", sectionId: "s2" },
         sameList: false,
       }),
-    ).toBeNull();
+    ).toEqual({ action: "pin", pinned: false, sectionId: "s2" });
     expect(
       resolveRosterDrop({
         dragged: bot("a", null, true),
         target: { kind: "bot", chat: bot("b", "s2") },
         sameList: false,
       }),
-    ).toBeNull();
+    ).toEqual({ action: "pin", pinned: false, sectionId: "s2" });
+  });
+
+  it("moves an ordinary bot into main bots", () => {
+    expect(
+      resolveRosterDrop({
+        dragged: bot("a", null),
+        target: { kind: "main-bots" },
+        sameList: false,
+      }),
+    ).toEqual({ action: "pin", pinned: true });
   });
 
   it("joins a group chat when dropped on it", () => {

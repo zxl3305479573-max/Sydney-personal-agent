@@ -32,6 +32,7 @@ import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { AccountAccess, LinkSsoRow } from "../components/AccountAccess";
 import { AccountDataSettings } from "../components/AccountDataSettings";
 import { SuccessPop } from "../components/ai/primitives";
+import { ChatAppearanceSettings } from "../components/ChatAppearanceSettings";
 import { ComputerDeviceSettings } from "../components/ComputerDeviceSettings";
 import { ComputersUnavailableHint } from "../components/ComputersUnavailableHint";
 import { DesktopUpdateSection } from "../components/DesktopUpdates";
@@ -448,6 +449,8 @@ export function GeneralSettingsPanels({
           }
         />
       </SettingsGroup>
+
+      <ChatAppearanceSettings />
 
       <TrustedLinkSitesSettings />
       <ComputerDeviceSettings />

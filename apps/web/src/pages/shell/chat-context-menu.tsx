@@ -1,3 +1,4 @@
+import { useLingui } from "@lingui/react/macro";
 import type { Bot, BotSection, Group } from "@rakazo/contracts";
 import { lazyOverlay } from "../../components/ErrorBoundary";
 import type { createSpaceRpc } from "../../lib/rpc";
@@ -23,6 +24,8 @@ export function ChatContextMenu({
   dialogs,
   openChatSettings,
   navigate,
+  mainBotCount,
+  setSendError,
 }: {
   rpc: ReturnType<typeof createSpaceRpc>;
   bot: Bot | undefined;
@@ -35,7 +38,10 @@ export function ChatContextMenu({
   dialogs: ShellDialogsState;
   openChatSettings: (kind: "bot" | "group", id: string) => void;
   navigate: (path: string) => void;
+  mainBotCount: number;
+  setSendError: (error: string | null) => void;
 }) {
+  const { t } = useLingui();
   const chat = bot ?? group;
   if (!chat) return null;
   const target = bot
@@ -44,17 +50,27 @@ export function ChatContextMenu({
   return (
     <BotContextMenu
       bot={chat}
+      isBot={Boolean(bot)}
       onClose={onClose}
       sections={sections}
       onTogglePinned={() => {
         onClose();
+        if (bot && !bot.pinned && mainBotCount >= 4) {
+          setSendError(t`Each space can have at most 4 main bots`);
+          return;
+        }
         const request = bot
           ? rpc.bots.update({ botId: bot.id, pinned: !bot.pinned })
           : rpc.groups.update({
               groupId: group!.id,
               pinned: !group!.pinned,
             });
-        void request.then(() => refreshBots());
+        void request
+          .then(() => refreshBots())
+          .catch(() => {
+            setSendError(t`Could not save`);
+            void refreshBots().catch(() => undefined);
+          });
       }}
       onToggleUnread={() => {
         const unread = !chat.unread;
@@ -68,9 +84,9 @@ export function ChatContextMenu({
       }}
       onMoveToSection={(sectionId) => {
         onClose();
-        if (sectionId === chat.sectionId) return;
+        if (sectionId === chat.sectionId && !bot?.pinned) return;
         const request = bot
-          ? rpc.bots.update({ botId: bot.id, sectionId })
+          ? rpc.bots.update({ botId: bot.id, sectionId, pinned: false })
           : rpc.groups.update({ groupId: group!.id, sectionId });
         void request.then(() => refreshBots());
       }}

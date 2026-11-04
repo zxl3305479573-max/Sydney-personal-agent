@@ -1,12 +1,12 @@
 # Sydney 项目架构与设计说明
 
-更新日期：2026-11-04。状态：基于当前源码的架构说明与审计快照；不是生产验收声明。Rakazo 基线为 `aebca9dcfd0cf734484ce41e3c5ad9521551659d`，Sydney 改动直接位于仓库根目录。
+更新日期：2026-11-05。状态：基于当前源码的架构说明与审计快照；不是生产验收声明。Rakazo 基线为 `aebca9dcfd0cf734484ce41e3c5ad9521551659d`，Sydney 改动直接位于仓库根目录。
 
 本文把已存在的 Rakazo 能力、Sydney 已接线的离线代码和仍待实现/验收的能力分开描述。更细的上游说明见 [架构](architecture.md)、[安全](security.md)、[电脑设计](cloud-computer.md)、[集成](integrations.md) 和 [自托管集成](self-host-integrations.md)；审计结论见 [模块审计](audit/README.md)。
 
 ## 1. 定位与首版边界
 
-Sydney 是基于 Rakazo 的个人 Agent 定制项目，不是另起一套 Agent Runtime。当前目标是在后台 Linux 服务器运行 API、Worker、Pi Runtime 和数据库，在独立云电脑运行桌面；桌面通过 `SandboxProvider` 接入，跨机连接仍待实现和验证。项目采用模块化单体和既有 PostgreSQL/Run/Attempt/审批/租约体系，参考 DSH 的任务、派工和 Mandate 思想，不引入 DSH Runtime，也不额外建立调度器或任务数据库。
+Sydney 是基于 Rakazo 的个人 Agent 定制项目，不是另起一套 Agent Runtime。当前目标是在后台 Linux 服务器运行 API、Worker、Pi Runtime 和数据库，在独立云电脑运行桌面；后期云电脑还将承载 PC 后台、渲染产物和屏幕代理，PC 后台通过受控链路访问主后台。桌面通过 `SandboxProvider` 接入，跨机连接仍待完整实现和验证。项目采用模块化单体和既有 PostgreSQL/Run/Attempt/审批/租约体系，参考 DSH 的任务、派工和 Mandate 思想，不引入 DSH Runtime，也不额外建立调度器或任务数据库。三层部署边界见 [ADR-0015](adr/0015-pc-backend-on-cloud-computer.md)。
 
 当前控制链路尚未生产就绪：managed runtime 期间会轮询控制意图并尝试中断，但这不是即时停止，也不能证明后台工作静止；停止确认接口失败关闭，暂停后的恢复及副作用核对不可通过该入口完成。原生 Provider 的租约检查仍需并发与 Linux 验证，详见模块审计。
 
@@ -18,8 +18,10 @@ Sydney 是基于 Rakazo 的个人 Agent 定制项目，不是另起一套 Agent 
 
 ```mermaid
 flowchart LR
-  User[个人用户] --> Web[apps/web 工作台]
-  Web --> API[apps/api 认证与 RPC]
+  User[个人用户] --> PC[Electron PC 客户端]
+  PC --> PCBackend[云电脑 PC 后台<br/>渲染产物 / BFF / 屏幕代理]
+  PCBackend --> Renderer[apps/web 共享渲染产物]
+  PCBackend --> API[主后台 apps/api 认证与 RPC]
   API --> DB[(PostgreSQL / packages/db)]
   API --> Jobs[现有 Job Publisher]
   Jobs --> Worker[apps/worker]
@@ -51,8 +53,8 @@ API 负责认证用户入口、查询和调度现有 Run；Worker 领取并持�
 
 ### 主执行链
 
-1. 用户任务页面通过 `/app/tasks` 认证路由进入；本轮补上了原先缺失的 lazy route 和路由测试（测试尚未运行）。页面流程设计为选择模型数据发送同意、桌面/文件/URL/记忆范围及预算。
-2. `tasks.dispatch` 在事务中锁定 Task、检查版本/控制状态/最大 Run 数/期限，创建 `trigger=managed_task` 的 Run 并保存绑定该 Run 的 Mandate。
+1. 独立任务工作台和任务 API 已移除；旧 `/app/tasks` 地址跳转到聊天，现有受管运行安全检查继续保留。
+2. 受管任务底层仍保留版本、控制状态、预算与 Mandate 逻辑，当前不再通过原任务工作台派发。
 3. API 将既有 Run continuation job 入队；Worker 用 Run lease 和单调 fence 取得执行权，创建 Attempt。
 4. Executor 装配模型、历史、记忆、工具、连接器和电脑上下文，调用 `PiAgentRuntime` 运行模型/工具循环。
 5. 模型请求经 `ModelCallObserver` 做调用预算预留和既有用量记录；工具经解析、审批/副作用记录和 managed scope/lease 校验后交给 handler。
@@ -145,7 +147,7 @@ Provider 通过 `SANDBOX_PROVIDER=native-linux` 和 `SYDNEY_NATIVE_DRIVER_SOCKET
 | --- | --- |
 | Rakazo Pi 主执行链与常规 Connector | 上游源码已有；Sydney 未做全量生产验收 |
 | Task / Run / Attempt、Mandate 与工具/主模型门禁 | Sydney 代码已离线接线；PostgreSQL、并发及全入口审计待验 |
-| 工作台与任务 API | API 与 `/app/tasks` 路由代码已挂载；路由测试、浏览器 E2E 和真实任务待验 |
+| 独立任务工作台与任务 API | 已从当前代码移除，旧页面地址跳转聊天；部署及浏览器验收待执行 |
 | 原生 Linux Provider/驱动草案 | 代码已存在；服务器权限、桌面和清理验收待验 |
 | Pi helper 多 Agent | 上游有单层 helper；managed task 当前禁止 |
 | OAuth / MCP / 集成服务 | Rakazo 具备多种路径；本地部署启用项和首个真实 App 未确认 |

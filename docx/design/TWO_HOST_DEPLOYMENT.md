@@ -1,10 +1,12 @@
 # 后台与云电脑双机方案
 
+2026-11-04 更新：单人使用 SSH 隧道已部署并通过跨机截图、状态及无租约拒绝检查；为此允许专用账号本地 TCP 转发，权限及未验收项见 [ADR-0010](../../docs/adr/0010-personal-trial-ssh-forwarding.md) 与 [V-026](../VALIDATION.md#v-026单人使用双机隧道)。下文保留原设计和实施清单，后台应用和真实任务仍未完成。
+
 状态：设计与实施计划，尚未部署或验收。关联 PA-004、PA-005、PA-006、PA-009 至 PA-018；部署决策见 [ADR-0008](../../docs/adr/0008-separate-control-and-desktop-hosts.md)。阶段状态以 [总计划](../PLAN.md) 为准。
 
 ## 目标与现状
 
-后台机承载 Web/API、Worker、Pi、PostgreSQL、模型连接及授权审计；云电脑承载 Linux 桌面、浏览器、工作区及受限驱动。用户已准备桌面环境；截图中的候选后台机为 Ubuntu 22.04、2 vCPU、2 GiB，其实际余量、磁盘和已有业务仍待核查。生产模型、代理用途和后台连接方式待确认。
+当前控制面仍按后台机承载 API、Worker、Pi、PostgreSQL、模型连接及授权审计，云电脑承载 Linux 桌面、浏览器、工作区、Web 和受限驱动。用户新增后期方向：云电脑还将承载 PC 后台，负责渲染产物、PC 专用 BFF 和屏幕代理；主后台数据库、任务控制、模型凭据和审计不迁移。该方向仍处于规划阶段，详见 [ADR-0015](../../docs/adr/0015-pc-backend-on-cloud-computer.md)。
 
 现有 `native-linux` Provider 调用本地 Unix socket；Python 驱动检查云电脑本机 peer UID、Run fence 和短期期限。现有 systemd 示例按同机设计，不能直接视为跨机部署方案。2 GiB 后台先作为测试起点；应用与数据库的峰值、构建、备份和其他服务需实测，资源不足时再调整。
 

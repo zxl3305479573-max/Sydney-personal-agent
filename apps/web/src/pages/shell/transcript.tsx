@@ -37,6 +37,7 @@ import {
 import { ActiveBotGlyph } from "../../components/ai/CollaborationMarker";
 import { VoiceChatCard } from "../../components/call/VoiceChatCard";
 import type { ArtifactTarget } from "../../lib/artifact-open";
+import { useChatAppearance } from "../../lib/chat-appearance";
 import { quoteDraftForSelection } from "../../lib/quote-selection";
 import { messageHasVisibleBlocks } from "../../lib/tool-activity-view";
 import { TRANSCRIPT_CONTENT_PADDING } from "../../lib/transcript-layout";
@@ -141,6 +142,19 @@ export const Transcript = memo(function Transcript({
   onOpenImportSetup?: (target: ImportSetupTarget) => void;
 }) {
   const { t } = useLingui();
+  const appearance = useChatAppearance();
+  const background = appearance.backgrounds.find((item) => item.id === appearance.backgroundId);
+  const bubble = appearance.bubbles.find((item) => item.id === appearance.bubbleId);
+  const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!background?.image || typeof URL.createObjectURL !== "function") {
+      setBackgroundUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(background.image);
+    setBackgroundUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [background?.image]);
   const [atEnd, setAtEnd] = useState(true);
   const following = useRef(true);
   const jumpScrolling = useRef(false);
@@ -425,6 +439,20 @@ export const Transcript = memo(function Transcript({
 
   return (
     <div className="relative flex min-h-0 flex-1">
+      {background && backgroundUrl ? (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <img
+            alt=""
+            src={backgroundUrl}
+            className="size-full"
+            style={{ objectFit: background.fit, opacity: background.opacity / 100 }}
+          />
+          <div
+            className="absolute inset-0 bg-black"
+            style={{ opacity: background.overlay / 100 }}
+          />
+        </div>
+      ) : null}
       <div
         ref={scrollRef}
         data-testid="transcript"
@@ -467,14 +495,36 @@ export const Transcript = memo(function Transcript({
             following.current = false;
           }
         }}
-        className={`rk-scroll isolate flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto scroll-pt-16 scroll-pb-7 pt-20 pb-12 md:pt-[84px] md:pb-13 ${TRANSCRIPT_CONTENT_PADDING}`}
+        className={`rk-scroll isolate relative flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto scroll-pt-16 scroll-pb-7 pt-20 pb-12 md:pt-[84px] md:pb-13 ${TRANSCRIPT_CONTENT_PADDING}`}
         style={
-          userBubble
-            ? ({
-                "--chat-user": userBubble.background,
-                "--chat-user-foreground": userBubble.foreground,
-              } as CSSProperties)
-            : undefined
+          {
+            ...(userBubble
+              ? {
+                  "--chat-user": userBubble.background,
+                  "--chat-user-foreground": userBubble.foreground,
+                }
+              : {}),
+            ...(bubble
+              ? {
+                  "--custom-chat-user-background": `${bubble.user.background}${Math.round(
+                    bubble.user.opacity * 2.55,
+                  )
+                    .toString(16)
+                    .padStart(2, "0")}`,
+                  "--custom-chat-user-foreground": bubble.user.foreground,
+                  "--custom-chat-user-border": bubble.user.border,
+                  "--custom-chat-user-radius": `${bubble.user.radius}px`,
+                  "--custom-chat-bot-background": `${bubble.bot.background}${Math.round(
+                    bubble.bot.opacity * 2.55,
+                  )
+                    .toString(16)
+                    .padStart(2, "0")}`,
+                  "--custom-chat-bot-foreground": bubble.bot.foreground,
+                  "--custom-chat-bot-border": bubble.bot.border,
+                  "--custom-chat-bot-radius": `${bubble.bot.radius}px`,
+                }
+              : {}),
+          } as CSSProperties
         }
       >
         {olderCursor != null ? (

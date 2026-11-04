@@ -30,6 +30,22 @@ function space(
 }
 
 describe("sidebarGroupsForSpaces", () => {
+  it("separates main bots from pinned groups and keeps the empty drop target", () => {
+    const input = {
+      ...space("space-1", "Personal"),
+      bots: [{ ...chat("a", "Alpha"), pinned: true }, chat("b", "Beta")],
+      groups: [{ ...chat("g", "Group"), pinned: true }],
+    };
+    const groups = sidebarGroupsForSpaces([input], "");
+    expect(groups.map((group) => group.key)).toEqual(["main-bots", "pinned", "unassigned"]);
+    expect(groups[0]?.bots.map((item) => item.chat.id)).toEqual(["a"]);
+    expect(groups[1]?.bots.map((item) => item.chat.id)).toEqual(["g"]);
+    expect(sidebarGroupsForSpaces([{ ...input, bots: [input.bots[1]!] }], "")[0]).toMatchObject({
+      key: "main-bots",
+      bots: [],
+    });
+  });
+
   it("keeps an empty space with saved sections openable", () => {
     const empty = {
       ...space("space-2", "Support", { canRename: true, bots: [] }),
@@ -69,6 +85,7 @@ describe("sidebarGroupsForSpaces", () => {
       ],
     };
     expect(sidebarGroupsForSpaces([input], "").map((group) => group.key)).toEqual([
+      "main-bots",
       "section:s1",
       "section:s2",
       "unassigned",
@@ -82,13 +99,13 @@ describe("sidebarGroupsForSpaces", () => {
     const [group] = sidebarGroupsForSpaces([space("space-1", "Personal", { canRename: true })], "");
 
     expect(group).toMatchObject({
-      title: "Personal",
+      title: "Main bots",
       spaceName: "Personal",
       canRenameSpace: true,
       canDeleteSpace: false,
       showLock: false,
     });
-    expect(group?.bots).toHaveLength(1);
+    expect(group?.bots).toHaveLength(0);
   });
 
   it("still names each space once there is more than one", () => {
@@ -100,9 +117,9 @@ describe("sidebarGroupsForSpaces", () => {
       "",
     );
 
-    expect(groups.map((group) => group.title)).toEqual(["Personal", "Support"]);
+    expect(groups.map((group) => group.title)).toEqual(["Personal", "Personal", "Support"]);
     expect(groups[0]).toMatchObject({ canRenameSpace: true, canDeleteSpace: false });
-    expect(groups[1]).toMatchObject({
+    expect(groups[2]).toMatchObject({
       canRenameSpace: true,
       canDeleteSpace: true,
       emptySpaceId: "space-2",
@@ -115,7 +132,7 @@ describe("sidebarGroupsForSpaces", () => {
       "",
     );
 
-    expect(groups[1]).toMatchObject({
+    expect(groups[2]).toMatchObject({
       title: "Shared",
       canRenameSpace: false,
       canDeleteSpace: false,

@@ -549,6 +549,17 @@ export default function Account() {
         <SettingsGroup>
           <SettingsRow
             accessibilityRole="button"
+            accessibilityLabel={t("Chat appearance")}
+            chevron="right"
+            onPress={() => router.push("/chat-appearance")}
+            title={t("Chat appearance")}
+            value={t("Background and bubbles")}
+          />
+        </SettingsGroup>
+
+        <SettingsGroup>
+          <SettingsRow
+            accessibilityRole="button"
             accessibilityLabel={t("Language")}
             accessibilityValue={{ text: UI_LOCALE_LABELS[locale] }}
             chevron="right"

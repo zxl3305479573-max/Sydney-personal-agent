@@ -6,6 +6,7 @@ import {
 import type { PrismaClient } from "@rakazo/db";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
+import type { SandboxProvider } from "@rakazo/adapter-kit";
 import { mountScreenTarget } from "./screen-proxy.js";
 
 const secret = "fake-screen-secret";
@@ -20,9 +21,12 @@ function fixture(
   interactive = false,
   upstream = `http://127.0.0.1:49152/embed.html?view_only=${!interactive}`,
   headers?: Record<string, string>,
+  sandbox?: SandboxProvider,
 ) {
   const computer = {
     screenGeneration: 0,
+    kind: "fake",
+    homeKey: "bot",
     providerRef: "fake-provider",
     state: "running",
     controlHolder: "user",
@@ -32,6 +36,8 @@ function fixture(
   };
   const bot = {
     id: "bot",
+    userId: "user",
+    spaceId: "space",
     computerId: "computer",
     archivedAt: null as Date | null,
     screenGeneration: 0,
@@ -43,7 +49,7 @@ function fixture(
       : null,
   );
   const app = new Hono();
-  mountScreenTarget(app, { bot: { findFirst } } as unknown as PrismaClient, secret);
+  mountScreenTarget(app, { bot: { findFirst } } as unknown as PrismaClient, secret, sandbox);
   const url = addScreenProxyCapability(
     upstream,
     secret,
@@ -63,6 +69,21 @@ function fixture(
 }
 
 describe("screen capability lifecycle authorization", () => {
+  it("rechecks native driver generation and screen target for active viewers", async () => {
+    const connectScreen = vi.fn().mockResolvedValue({
+      url: "http://127.0.0.1:49152/vnc.html",
+    });
+    const sandbox = { connectScreen } as unknown as SandboxProvider;
+    const { request, computer } = fixture(false, undefined, undefined, sandbox);
+    computer.kind = "native-linux";
+    computer.providerRef = "native:0123456789abcdef";
+    expect((await request()).status).toBe(200);
+    connectScreen.mockRejectedValueOnce(new Error("generation changed"));
+    expect((await request()).status).toBe(403);
+    connectScreen.mockResolvedValueOnce({ url: "http://127.0.0.1:12345/vnc.html" });
+    expect((await request()).status).toBe(403);
+    expect(connectScreen).toHaveBeenCalledTimes(3);
+  });
   it("returns sealed provider headers only after lifecycle authorization", async () => {
     const headers = { cookie: "provider_auth=fake-private-token" };
     const { request, path, computer } = fixture(false, undefined, headers);

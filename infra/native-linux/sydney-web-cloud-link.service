@@ -1,0 +1,20 @@
+[Unit]
+Description=Sydney isolated cloud web SSH link
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=sydney-web-stage
+Group=sydney-web-stage
+RuntimeDirectory=sydney-web-stage
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=restart
+ExecStart=/usr/bin/ssh -F /var/lib/sydney-web-stage/.ssh/config -N -T -L /run/sydney-web-stage/api.sock:127.0.0.1:3100 -L /run/sydney-web-stage/screen.sock:127.0.0.1:16080 -R 127.0.0.1:15173:/run/sydney-web-stage/web.sock sydney-backend
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

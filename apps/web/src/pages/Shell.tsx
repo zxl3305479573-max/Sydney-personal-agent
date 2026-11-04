@@ -457,6 +457,7 @@ function SpaceShell() {
     () =>
       sidebarGroupsForSpaces(sidebarSpaces, miniSidebar ? "" : search.query, {
         pinned: t`Pinned`,
+        mainBots: t`Main bots`,
         unassigned: t`Unassigned`,
       }),
     [sidebarSpaces, search.query, miniSidebar, t],
@@ -873,6 +874,8 @@ function SpaceShell() {
         dialogs={dialogs}
         openChatSettings={openChatSettings}
         navigate={navigate}
+        mainBotCount={bots.filter((bot) => bot.pinned).length}
+        setSendError={composer.setSendError}
       />
     ) : null;
   const shell = (
@@ -1165,9 +1168,6 @@ function SpaceShell() {
               bot={active}
               computer={computer}
               computerOpen={computerOpen}
-              embeddedScreenUrl={computerControls.embeddedScreenUrl}
-              screenFrameKey={computerState.screenFrameKey}
-              screenFrameRef={computerState.setScreenFrame}
               computerScreenError={computerControls.computerScreenError}
               computerBooting={computerControls.computerBooting}
               booting={booting}

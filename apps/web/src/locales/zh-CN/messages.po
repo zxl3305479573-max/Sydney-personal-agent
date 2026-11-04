@@ -6675,3 +6675,141 @@ msgstr "你的语音提供方额度已用完。"
 #: src/lib/user-error.ts
 msgid "Your voice provider key was rejected."
 msgstr "你的语音提供方拒绝了该密钥。"
+
+msgid "Tasks"
+msgstr "任务工作台"
+
+msgid "New task"
+msgstr "新建任务"
+
+msgid "Recent tasks"
+msgstr "最近的任务"
+
+msgid "Select a task"
+msgstr "选择一个任务"
+
+msgid "Back to chat"
+msgstr "返回对话"
+
+msgid "Select an agent"
+msgstr "选择一个助手"
+
+msgid "Agent"
+msgstr "助手"
+
+msgid "Request"
+msgstr "任务内容"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Create a task, choose its permissions, and follow its progress."
+msgstr "创建任务、设置授权范围，并随时查看执行进度。"
+
+msgid "Create an agent in chat before starting a task."
+msgstr "开始任务前，请先在对话页面创建助手。"
+
+msgid "New tasks will appear here."
+msgstr "创建的任务会显示在这里。"
+
+msgid "Choose a recent task to review its status, permissions, and desktop preview."
+msgstr "选择最近的任务，查看状态、授权范围和电脑预览。"
+
+msgid "Authorize execution"
+msgstr "授权执行"
+
+msgid "Allowed HTTPS page"
+msgstr "允许访问的 HTTPS 页面"
+
+msgid "Read workspace files"
+msgstr "读取工作区文件"
+
+msgid "Write workspace files"
+msgstr "写入工作区文件"
+
+msgid "Save memory"
+msgstr "保存记忆"
+
+msgid "Refresh desktop preview"
+msgstr "刷新电脑预览"
+
+msgid "Desktop preview"
+msgstr "电脑预览"
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Files and artifacts"
+msgstr "文件与产物"
+
+msgid "Open chat and approvals"
+msgstr "打开对话与审批"
+
+msgid "Measured usage"
+msgstr "查看用量"
+
+msgid "Reserved tokens"
+msgstr "预留 Token"
+
+msgid "Model calls"
+msgstr "模型调用"
+
+msgid "Attempts"
+msgstr "尝试次数"
+
+msgid "Waiting for input"
+msgstr "等待输入"
+
+msgid "Waiting for takeover"
+msgstr "等待接管"
+
+msgid "Run commands and operate the desktop with the desktop user’s file and network access"
+msgstr "运行命令并操作桌面，可访问桌面用户拥有权限的文件和网络"
+
+msgid "Questions during managed tasks are not available yet."
+msgstr "受管任务暂不支持执行中向用户提问。"
+
+msgid "I allow the configured model to receive the request, relevant history, and tool results."
+msgstr "我同意将任务内容、相关历史和工具结果发送给已配置的模型。"
+
+msgid "Retry with these permissions"
+msgstr "使用这些权限重试"
+
+msgid "Start with these permissions"
+msgstr "使用这些权限开始"
+
+msgid "Revoke authorization"
+msgstr "撤销授权"
+
+msgid "Stopping is not confirmed. Server-side verification of background work is not available yet."
+msgstr "尚未确认停止，服务器暂时无法验证后台工作是否已停止。"
+
+msgid "Inspect this effect before recording its outcome"
+msgstr "记录结果前请先检查此操作"
+
+msgid "I checked: completed"
+msgstr "已检查：已完成"
+
+msgid "I checked: not applied"
+msgstr "已检查：未生效"
+
+msgid "Finish review"
+msgstr "完成检查"
+
+msgid "I checked the result"
+msgstr "我已检查结果"
+
+msgid "Renew existing authorization"
+msgstr "延长现有授权"
+
+msgid "Main bots"
+msgstr "主 Bot"
+
+msgid "Set as main bot"
+msgstr "设为主 Bot"
+
+msgid "Remove from main bots"
+msgstr "移出主 Bot"
+
+msgid "Each space can have at most 4 main bots"
+msgstr "每个空间最多设置 4 个主 Bot"

@@ -21,6 +21,7 @@ Rakazo 源码、Sydney 二次开发代码、Linux 驱动和项目配置现在统
 | [开发规范](docs/development.md) | 约定目录、编码、测试、配置、评审和提交方式 |
 | [安全与隐私](docs/security.md) | 定义工具权限、授权范围、个人数据和密钥处理 |
 | [云电脑接入设计](docs/cloud-computer.md) | 定义可插拔 Provider、操控接口、能力声明和切换规则 |
+| [存储划分与迁移方案](docx/design/STORAGE_SPLIT_MIGRATION.md) | 定义后台控制数据、云电脑工作区和对象存储的迁移边界 |
 | [基础设施清单](docs/infrastructure.md) | 列出服务器、桌面环境、网络、存储和费用项目 |
 | [PC 界面规划](docs/frontend.md) | 参考 Grok Bot 的功能组织，规划对话和内嵌桌面 |
 | [早期架构记录](docs/adr/0001-local-first-modular-monolith.md) | 保留已替代的本地优先方案与历史背景 |

@@ -204,7 +204,7 @@ describe("commitBotUpdate", () => {
           spaceId: "space-1",
           threadId: "thread-1",
           botId: "bot-1",
-          data: { pinned: true },
+          data: { pinned: false },
           emitBotUpdated: false,
         },
         appendEvent,
@@ -215,6 +215,35 @@ describe("commitBotUpdate", () => {
     expect(notify).not.toHaveBeenCalled();
     expect(appendEvent).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledOnce();
+  });
+
+  it("locks and rejects a fifth main bot without updating it", async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      bot: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ userId: "user-1", pinned: false }),
+        count: vi.fn().mockResolvedValue(4),
+        update: vi.fn(),
+      },
+    };
+    await expect(
+      commitBotUpdate({
+        prisma: {
+          $transaction: async (run: (client: typeof tx) => Promise<unknown>) => run(tx),
+        } as never,
+        notify: vi.fn(),
+        spaceId: "space-1",
+        threadId: "thread-1",
+        botId: "bot-1",
+        data: { pinned: true },
+        emitBotUpdated: false,
+      }),
+    ).rejects.toThrow("Each space can have at most 4 main bots");
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+    expect(tx.bot.count).toHaveBeenCalledWith({
+      where: { spaceId: "space-1", userId: "user-1", pinned: true, archivedAt: null },
+    });
+    expect(tx.bot.update).not.toHaveBeenCalled();
   });
 });
 

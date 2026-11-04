@@ -1,5 +1,115 @@
 # 运维手册
 
+## 云端 Web 与只读屏幕当前运行形态（2026-11-05）
+
+当前 Web 由云电脑上的 `sydney-web-cloud.service` 运行，服务通过 `sydney-web-cloud-link.service` 与后台 API、屏幕隧道及本地入口连接；后台 `sydney-web.service` 是旧的本机预览服务，当前停用，避免与 `sydney-web-forward.socket/service` 争用入口端口。查看状态应同时检查云端 Web、云端链路、后台转发、API 和 `sydney-screen-tunnel.service`。
+
+网页静态产物已同步到云端运行目录，旧版本保留在云端 `apps/web/dist.before-v045`。升级云端 Web 时先构建完整产物、保留上一版、切换后重启 `sydney-web-cloud.service`，再通过本机转发登录和检查 Bot 页面。云端桥接服务内部使用独立端口，不能直接把该内部端口当作公网入口。
+
+原生 `native-linux` 屏幕始终按只读方式签发，不携带控制租约或输入令牌；即使数据库中存在控制租约，也不能借此开启交互。当前已验证全屏 iframe 可创建，Canvas/WebSocket 长时间稳定性和撤销仍待验证。
+
+## 手动启动租约与预览移除（2026-11-05）
+
+原生电脑的手动启动改用当前执行租约，运行号前缀为 `boot_`（驱动只接受字母、数字、下划线和连字符）。修改已随后台 API 产物部署并完成一次真实启动；后台备份位于 `/var/backups/sydney-manual-boot-20261104`。部署时须以 `install -m 644` 写入产物，避免服务账号读不到文件。
+
+侧栏电脑预览已移除，桌面画面只在全屏窗口加载。该网页改动只在本地构建，尚未同步到云电脑上的运行目录；云端目录是一次部署快照，升级必须先同步构建与依赖并保留旧版本，可复现流程仍未演练。
+
+## 原生只读屏幕部署与限制（2026-11-04）
+
+后台已启用独立 `sydney-screen-tunnel.service`，API 通过 `/etc/sydney/native-screen.env` 和 systemd drop-in 配置限定身份及屏幕端口；API 产物和源码部署前备份位于 `/var/backups/sydney-screen-20261104`。相关服务和 API `/ready` 已检查正常。恢复备份前应核对现有部署版本及后续变更，使用服务可读取的产物权限；完整回滚未演练。
+
+云电脑 `sydney-screen-vnc.service` 为服务端只读，`sydney-screen-websockify.service` 与 VNC 均绑定回环；回环不能隔离云电脑上的其他本地用户。真实 Web 电脑启动目前因原生运行租约缺失失败，尚不能显示画面；不要直接修改数据库状态或取消租约检查。手动启动租约、安全停止及重启恢复均待验证。
+
+## 任务工作台移除（2026-11-04）
+
+当前源码已移除独立任务工作台和专用任务 API，旧 `/app/tasks` 地址将跳转聊天。此改动尚未部署；部署前须核查是否存在正在运行或需要处理的受管任务，移除 API 后将无法通过该接口控制或核对这些任务。未删除数据库中的任务、运行或授权记录；未验证部署与回滚流程。
+
+## 截图图片回传 Web（2026-11-04）
+
+`computer_observe` 和带观察结果的 `computer_act` 在拿到新画面后，会通过现有 ArtifactStore 保存 PNG，并在当前线程发布 `image` 消息块。Web 从该消息块读取附件并显示真实图片；相同 `frameId` 的重复画面仍只供模型复用，不重复发布附件。
+
+本次已在后台 `/opt/sydney` 更新适配器并重建 `sydney-api`、`sydney-worker`；验证命令为 `systemctl is-active sydney-api sydney-worker sydney-web sydney-tunnel` 和 `curl -fsS http://127.0.0.1:3100/ready`。更新前的源码备份为 `/opt/sydney/packages/adapters/src/run-tools-computer.ts.before-screenshot-fix-20261104`，回滚前应先停止 API/Worker、恢复源码并重新构建，完整回滚尚未演练。
+
+截图附件使用现有上传上限；上传失败只记录后台日志并保留模型工具结果，不应据此判断截图已显示。需要确认用户可见结果时，应在 Web 中检查消息是否存在图片元素且图片自然尺寸大于零，不能只看模型文字。
+
+## 存储分层迁移准备（2026-11-04）
+
+已连接一台后台和一台云电脑进行只读盘点。后台数据目录约 452 KiB，可用内存约 65 MiB；主要内存压力来自 API、Worker 和 Web 进程。暂缓对象存储部署和文件迁移，优先调查服务减压；具体边界见 [存储划分与迁移方案](design/STORAGE_SPLIT_MIGRATION.md)。
+
+后台环境未配置对象存储 bucket 或 endpoint，云电脑未发现对象存储服务。云电脑 Ubuntu 24.04.4，约 3.6 GiB 内存、约 2.3 GiB available、根分区剩余约 48 GiB；Sydney 驱动、VNC/noVNC 和代理保持 active。云电脑 UFW inactive，全局 SSH 配置允许 TCP forwarding；专用账号限制见 ADR-0010。后台随后 SSH 握手超时，尚未实施服务调整。
+
+用户授权并通过控制台执行 `systemctl stop sydney-web` 后，可用内存由约 26 MiB 回升到约 504 MiB；API、Worker 和隧道显示 active，Web 显示 failed，主进程退出状态 143。随后经云电脑中转连接后台 SSH 22 成功，主机密钥校验通过，API `/ready` 返回正常；Web 页面仍不可用。Web 依赖预览中间件及远程桌面代理，迁移方案和重启恢复尚未验证。
+
+后续复核发现 Web 已于 22:19 重新启动，首页及认证会话接口返回 200。API 于 22:21 曾因部署产物读取权限错误重试，随后恢复 active，`/ready` 返回正常；Worker 和隧道也为 active。当时可用内存约 400 MiB，swap 未使用。API 部署产物在核查期间发生外部变更，本次未覆盖该产物、未修改服务配置，实际迁移及长期资源表现仍待验证。
+
+Web 已迁至云电脑试运行：云电脑 `/opt/sydney-web-stage` 是当前运行目录，`sydney-web-cloud` 和 `sydney-web-cloud-link` 均已启用；前者使用独立网络命名空间，后者通过仅服务账号可访问的 `/run/sydney-web-stage` 套接字连接后台。云电脑系统账号 `sydney-web-stage` 的配置在 `/var/lib/sydney-web-stage`，仅持有独立屏幕代理密钥和受限 SSH 密钥；后台 root 的该公钥只允许访问 API、屏幕目标和指定回环监听，不能执行命令或连接数据库。临时归档传输密钥及其后台授权已移除，原有维护密钥保留。
+
+后台 `sydney-web-forward.socket` 已启用，在原回环地址 5173 经 `sydney-web-forward.service` 转发到云电脑；原 `sydney-web.service` 已停止并禁用，应用文件保留。切换期间设置的五分钟自动回滚计时器在登录和服务检查通过后取消。需要恢复旧 Web 时，在后台执行 `/usr/local/sbin/sydney-web-forward-rollback`，它会停用转发并启用原 Web；脚本语法已检查，但完整回滚尚未演练。恢复后如不再使用云端服务，可在云电脑停用 `sydney-web-cloud` 和 `sydney-web-cloud-link`；撤销后台专用公钥和清理目录前先确认不再需要，维护公钥不能一并移除。
+
+当前云端目录是一次部署快照，后台 `/opt/sydney/apps/web` 的后续构建不会自动同步。Web 升级必须先同步匹配的构建和依赖到云电脑、保留旧版本并验证后切换；可复现的升级与回退流程尚未验证。当前登录、Bot 列表、首页、屏幕通道和无效授权拒绝已验证；重启云端 Web 服务后入口恢复。没有运行中的电脑，真实授权屏幕页面、两机整机重启及长期负载尚未验证。见 [ADR-0013](../docs/adr/0013-isolated-cloud-web-proposal.md)。
+
+用户要求长期保留的维护私钥位于本机用户目录 `.ssh/sydney-codex-cloud-20261104`，公钥为同名 `.pub`；私钥 ACL 已去继承，仅授予当前 Windows 用户读取。两台服务器 root 已授权该公钥；当前本机经云电脑中转后台 SSH 22，使用固定的主机密钥校验。撤销时先确保其他管理入口可用，再从两台服务器的 `authorized_keys` 精确移除对应公钥，并按用户要求处理本机私钥；不要将私钥或凭据提交仓库。
+
+未验证项：云电脑对象存储安装或端点、网络与 TLS、实际迁移 counts、服务重启、断线恢复、备份恢复、清理和资源复测。未验证命令不得作为生产安装步骤直接复制执行。
+
+## Web 模型与云电脑复测（2026-11-04）
+
+用户配置模型后，Web 文本模型请求和只读云电脑截图均已验证通过。模型凭据只通过应用的加密存储使用；不要从数据库导出密文或把 API 密钥写入日志、命令和文档。测试结束时云电脑保持运行，若不继续使用，应从 Web 正常停止；当前 native-linux Provider 的 `stop`/`destroy` 仍不支持，不能用服务重启代替安全停止。
+
+本轮清理了单人测试库中的登录限流计数，以解除自动化测试的 15 分钟登录限制；没有删除用户、模型凭据或任务数据。数据库现有失败 Run 保留用于排查，后续清理前应确认不再需要诊断记录。复测时后台可用内存约 81 MiB，运行更多模型任务前应先观察内存和交换空间。
+
+## 云电脑截图故障修复（2026-11-04）
+
+后台 API/Worker 已重新构建，包含团队 home key 身份校验修复及驱动超时方法标识。上一版编译产物和原 Provider 文件位于后台机 `/var/backups/sydney-native-fix-20261104`；还原需先停止相关服务、核对版本和数据兼容性，回滚步骤未演练。
+
+云电脑 `/opt/sydney-native/driver.py` 已更新以修复命令连接检测阻塞；原文件备份为同目录的 `driver.py.before-socket-fix-20261104`。驱动重启会改变 generation，执行前须确认没有活动任务，不能把重启视为远端工作已安全停止。运行状态可用 `systemctl status sydney-driver.service sydney-driver.socket` 检查，重启或回滚后的完整恢复流程未演练。
+
+Web 真实截图任务完成，原生 stop/destroy、可信停止和断线恢复仍不可用或未验证；应用报回滚失败时不可直接推断远端没有副作用。后台内存仍紧张，实测可用内存约 119 MiB。
+
+## Web 个人测试（2026-11-04）
+
+后台机 `sydney-web.service` 运行已构建的 Web 预览服务，只监听 `127.0.0.1:5173`，API 继续监听本机 3100；Web 通过现有 Vite 代理连接 API，未修改公网 Caddy 配置。服务使用 `/etc/sydney/backend.env`，并可写入 Web 的 `.vite-temp` 和 `asset-archive` 目录。使用 `systemctl status sydney-web sydney-api sydney-worker sydney-tunnel` 检查服务；`systemctl stop sydney-web` 可停止 Web。服务设置为开机启动，重启恢复尚未实测。
+
+当前 Windows 本机通过临时 SSH 本地转发访问 `http://127.0.0.1:5173/`，该连接不是开机自动恢复；断开后可按现有 SSH 管理配置重新转发本机 5173 至后台机回环 5173。已创建个人测试账号，初始凭据保存在本机用户目录 `.ssh/sydney-web-test-login.txt`，服务器临时明文凭据文件已删除，仓库不保存凭据。注册仍关闭；模型尚未配置。
+
+本次 Web 基线为提交 `b7c91915d`，额外包含部署时工作区四个未提交的 Web 文件；后续更新须记录源码快照及构建结果。构建期间曾暂停 API 和 Worker 并在结束后恢复。服务运行时后台机可用内存约 246 MiB，真实模型任务可能产生更大压力；外网访问、任务闭环和恢复仍待验收。
+
+## 永久清除旧项目数据（2026-11-04）
+
+用户要求释放存储空间后，已删除 Sydney Myself 数据目录、旧回滚目录、此前创建的恢复备份，以及 Infinite Canvas 的 WebDAV 数据和配置；同时删除两个项目对应的 Docker 镜像。此前保留的数据和恢复备份现已不可用，下面的旧项目移除记录仅描述清除前的状态。Caddy 的历史配置备份仍存在，不包含本次已清除的数据目录。
+
+清除后根分区可用空间约 23 GiB，Sydney API 就绪及 Worker 心跳检查通过，后台、隧道、数据库和其他已检查服务保持 active。未执行恢复或其他业务功能回归。
+
+## 移除两个旧项目（2026-11-04）
+
+按用户要求移除 Sydney Myself 个人网站及 Infinite Canvas 画布的部署：停用并删除个人网站的两个 systemd 服务和两个应用目录，删除画布及其 WebDAV 容器；Caddy 的原有画布和 WebDAV 代理已替换为 HTTP 404，Caddy 自身继续运行。两个容器镜像未删除。
+
+当时保留了个人网站数据、画布 WebDAV 数据、旧回滚目录及恢复备份；这些内容随后按用户要求删除，见上方永久清除记录。
+
+移除后 Sydney API `/ready` 和 Worker 心跳检查通过，Sydney 服务、隧道、PostgreSQL、Caddy、Docker、Super-Sydney 云同步及站点统计服务保持 active；其他项目业务功能未回归。
+
+## 后台部署（2026-11-04）
+
+后台机运行提交 `b7c91915d` 的 API 和 Worker，应用目录 `/opt/sydney`，systemd 服务为 `sydney-api.service`、`sydney-worker.service`，依赖已有 `sydney-tunnel.service`；Worker 在 `/etc/systemd/system/sydney-worker.service.d/health.conf` 获准写入 `/tmp` 心跳。API 仅监听 `127.0.0.1:3100`，数据库仅监听本机 5432；没有修改现有反向代理或开放公网。`systemctl status sydney-api sydney-worker sydney-tunnel`、`curl -fsS http://127.0.0.1:3100/ready` 可检查状态；Worker 心跳检查为 `sudo -u sydney-control node /opt/sydney/apps/worker/dist/health-check.js`。
+
+原生 PostgreSQL 18 数据位于 `/var/lib/postgresql/18/main`，应用数据库为 `sydney`，迁移 owner 和受 RLS 限制的运行角色分离。`/etc/sydney/backend.env` 保存运行配置，`/etc/sydney/migration.env` 保存仅 root 可读的迁移凭据；应用数据在 `/var/lib/sydney-control/data`。同目录下原有 `.ssh` 是双机隧道所需密钥，不得覆盖。新增 PostgreSQL 签名源 `/etc/apt/sources.list.d/sydney-pgdg.list` 指向阿里云镜像；系统 `libpq5`、`libpq-dev` 已升级，详见 ADR-0011。
+
+启动和停止分别使用 `systemctl start sydney-api sydney-worker` 和 `systemctl stop sydney-api sydney-worker`；停止后台不会自动删除数据。更新、重新迁移及回滚操作尚未演练，更新前应备份数据库、应用数据和受保护的环境文件，并保存旧版本；恢复需要同时保留数据库、加密密钥和隧道材料。不要使用删除数据库、数据目录或 PostgreSQL 服务作为简单回滚。尚未建立异机备份或验证恢复。
+
+后台部署时服务器可用内存曾降至约 279 MiB，Worker 队列有并发与连接池告警，真实任务可能触发内存或交换压力。当时尚未创建账户或部署 Web；后续 Web 测试状态见上方记录。真实模型、公开访问、完整任务和重启恢复仍需单独验收。
+
+## 双机隧道试接（2026-11-04）
+
+后台机创建 `sydney-control` 系统账号，其私钥、固定的云电脑主机密钥和连接文件位于 `/var/lib/sydney-control/.ssh`；`sydney-tunnel.service` 使用 `/run/sydney-tunnel/driver.sock`，现已启用并设置开机启动，当前截图检查通过。服务状态可用 `systemctl status sydney-tunnel.service` 查看；停用可执行 `systemctl disable --now sydney-tunnel.service`，实际停用和重新启用恢复尚未演练。
+
+云电脑安装 `xdotool`、`xclip`、`imagemagick` 及系统依赖；驱动位于 `/opt/sydney-native/driver.py`，`sydney-driver.socket` 监听 `/var/lib/sydney-tunnel-jail/run/driver.sock`，由独立 `sydney-tunnel` 用户连接；驱动以 `sydney-desktop` 用户运行，工作区位于 `/home/sydney-desktop/.local/share/sydney/workspaces`。驱动服务当前绑定 `DISPLAY=:10` 和该桌面账号的 `.Xauthority`，且通过 drop-in 允许写 `/tmp`；桌面会话变更后不可假设其仍然有效。
+
+云电脑 `/etc/ssh/sshd_config` 末尾添加了专用账号的 Match 配置，原配置备份为 `/etc/ssh/sshd_config.sydney-tunnel-backup`；本次放宽前另备份为 `/etc/ssh/sshd_config.sydney-before-personal-trial`（保留实际文件名）。受限账号公钥文件为 `/etc/ssh/sydney-authorized-keys/sydney-tunnel`。按单人使用要求，该账号现允许本地 TCP 转发，并可能访问云电脑可达的其他 TCP 服务；仍禁止交互终端、代理及 X11 转发并启用 chroot，详见 ADR-0010。此前的调试日志设置及临时日志挂载已撤销。
+
+需要停止使用时先停用后台隧道，再于云电脑将专用账号 Match 段的 `AllowTcpForwarding local` 改为 `AllowTcpForwarding no`，执行 `sshd -t` 验证后重载 SSH；以上停用和回滚尚未演练。变更 SSH 前先保留云控制台和既有管理连接，检查当前配置及备份，避免覆盖后续修改。
+
+后台与云电脑分别为本次管理临时添加了公钥；任务结束后确认不再需要管理连接，再按公钥注释核对并删除对应行。本机专用私钥和后台隧道私钥均未写入仓库。已建立连接所需的部分服务和配置，但没有部署后台应用，也没有验收生产运行、重启恢复或任务闭环。
+
 ## 本机品牌预览记录（2026-11-04）
 
 用户授权后，在 Windows 本机使用已有 Node 24 恢复依赖，并启动 Docker 中的 `rakazo-dev-postgres` 开发数据库及 Web、API、Worker 和 supervisor。数据库使用本机回环端口 54318，Web 预览为 `http://127.0.0.1:5173`；这是临时开发环境，不是双机部署。
@@ -171,6 +281,29 @@ P2 在应用核心包新增纯派工和授权判定，未增加配置项、依�
 
 本机验证选择已安装 Node.js 24.15.0，只运行指定核心文件的 Vitest 单 worker、核心包类型检查及指定文件的 Biome；不启动 Docker、PostgreSQL、桌面或真实模型。具体执行与失败记录以 [验证记录](VALIDATION.md) 为准。
 
+## 云电脑实时桌面服务（2026-11-04）
+
+云电脑服务器已确认运行 Ubuntu 24.04。桌面当前由 XRDP 创建在 `DISPLAY=:10`，桌面用户为 `sydney-desktop`。已安装 Ubuntu 软件包 `x11vnc`、`websockify` 和 `novnc`，并启用以下两个云电脑侧服务：
+
+- `sydney-screen-vnc.service`：以 `sydney-desktop` 用户读取 `DISPLAY=:10`，仅监听 `127.0.0.1:5900`。
+- `sydney-screen-websockify.service`：将 noVNC 静态页面和 WebSocket 代理提供在 `127.0.0.1:6080`，转发到本机 `5900`。
+
+已验证 `x11vnc` 能读取当前 X11 桌面；通过 SSH 本地端口转发访问 `vnc.html` 返回 200，并完成 WebSocket 到 VNC 的 RFB `003.008` 握手。端口没有对公网开放，后台服务器仍需通过受控的跨机隧道访问 `6080`。
+
+查看状态使用 `systemctl status sydney-screen-vnc.service sydney-screen-websockify.service`。本次未执行停止、回滚、重启恢复或公网访问配置；已安装的软件包和 systemd 单元属于服务器状态，不等于仓库中的应用 Provider 已完成屏幕会话接线。XRDP 会话变化后必须重新确认 `DISPLAY`、`.Xauthority` 和服务状态。
+
+后台侧的 `sydney-tunnel.service` 仍只验证了原有驱动 Unix socket 转发；本轮没有后台管理密钥，未修改其配置来转发云电脑的 `6080`。接入屏幕前必须在后台服务器以现有运维身份增加受控的本地端口转发，确认 Web/API 的屏幕目标生成和回环访问，再做重启恢复验证。不要把云电脑本机的 `6080` 直接开放公网。
+
+后续进展：后台另设 `sydney-screen-tunnel.service`，以 `sydney-control` 身份复用现有专用密钥及固定主机密钥，将 `127.0.0.1:16080` 转发到云电脑回环 `6080`；未重启原驱动隧道。云电脑 `/etc/systemd/system/sydney-screen-vnc.service.d/10-view-only.conf` 将 VNC 服务设为服务端只读。后台页面、WebSocket 握手和 RFB 标识已通过，重启与断线恢复未测。查看状态可使用 `systemctl status sydney-screen-tunnel.service`；如需停止屏幕隧道可使用 `systemctl disable --now sydney-screen-tunnel.service`，该停用命令尚未实测。隧道和云电脑屏幕端口仅监听回环，但无独立认证，同机其他账号可能读取画面；应用认证、授权和隔离接线未完成前不能将其视为安全的公开服务。
+
+可选配置为 `SYDNEY_NATIVE_SCREEN_USER_ID`、`SYDNEY_NATIVE_SCREEN_SPACE_ID`、`SYDNEY_NATIVE_SCREEN_BOT_ID` 和 `SYDNEY_NATIVE_SCREEN_PORT`，四项均配置时才启用对应身份的只读屏幕 URL；后台已部署，重启恢复待验。不得将真实身份标识写进仓库或将它们视作凭据；API 仍需执行现有用户与屏幕票据授权。建连和连接复核时检查驱动代次，真实连接在驱动重启时的失效行为仍待验证。
+
+后续部署尝试：后台 `/var/backups/sydney-screen-20261104/source.tar` 与 `index.js` 为本次屏幕接线前的备份，五个源文件已暂存。候选构建仅计划写入 `apps/api/dist/index.screen-new.js`，执行后 SSH 握手超时，实际运行状态未知；未执行正式产物替换、API 重启或屏幕身份配置。重连后先检查候选构建进程、API/Worker/Web 和原隧道状态、内存及日志，再决定继续或回滚；备份恢复尚未演练。
+
+实时屏幕问题记录（2026-11-05）：用户复测仍无法连接实时画面。已确认云电脑 Web 使用独立网络命名空间，宿主机看不到 `5174` 属正常；应在 Web 进程命名空间内检查 `5174`、`3100`、`16080`。当前已确认三个端口和 `/run/sydney-web-stage/api.sock`、`screen.sock`、`web.sock` 存在，API `/ready` 与本机 `5173` 页面均返回 200。曾重启 `sydney-web-cloud-link.service` 和 `sydney-web-cloud.service`，重启后基础状态恢复，但不能据此判断实时屏幕已恢复。
+
+后续排查必须保留一个已登录浏览器会话，单次记录 `computer/screenUrl`、`/novnc/.../vnc.html`、`/novnc/.../websockify` 的请求和 WebSocket 关闭码，并同步查看云电脑 `sydney-web-cloud`、云电脑 SSH link、后台 `sydney-web-forward` 和 API 日志。重点区分 API 屏幕票据复核、后台 `15173` 反向转发、WebSocket 握手和云电脑 `6080` 上游四个阶段。不要继续高频创建登录会话；本轮排查已触发测试账号登录限流 429。未确认断点前，不恢复已停用的旧 `sydney-web.service`，不开放公网 VNC/noVNC 端口，不修改数据库状态。详细验证记录见 V-049。
+
 ## 6. 状态投影与只读历史适配
 
 新增 `readTaskExecutionHistory` 仅在现有匹配的 tenant 上下文中读取数据，拒绝无上下文、其他租户或 system 上下文；不能为了调用方便关闭 RLS 或增加系统绕过。它通过 RepeatableRead 单事务读取元数据，当前尚无真实 PostgreSQL 验证或 API 入口接线。
@@ -203,3 +336,11 @@ P2 在应用核心包新增纯派工和授权判定，未增加配置项、依�
 | 升级回滚 | 按“停旧 Worker、迁移、新 API/Worker”顺序演练；验证旧制品不兼容新门禁时只能回滚到兼容迁移 | 不能混跑旧 Worker 和新任务 |
 
 演练前必须准备：隔离恢复环境、加密备份、受限数据库账号、桌面与后台账号、模型替身或明确同意的真实模型、已知外部测试目标。每轮演练后清理测试授权与外部资源。
+
+## 插件宿主离线试点
+
+2026-11-04：仓库增加仅由测试显式启动的固定样例子进程，不新增配置、服务、生产进程、数据路径或部署步骤。该样例以执行测试的账号运行，不是安全沙箱；不要将其用于加载未知插件。生产启用、资源限制、升级与回滚流程尚未设计完成或验证。
+
+## 聊天外观本地数据
+
+2026-11-04：Web 首版代码将聊天背景图片、气泡样式及搭配保存在当前浏览器的 IndexedDB 数据库 `sydney-chat-appearance`，不新增服务器配置或后台数据路径。设置中可取消预览、恢复默认或删除单项并保存；浏览器清除站点数据会删除该数据库，不跨浏览器或设备同步，也不包含在服务器备份中。恢复此前数据须依赖浏览器自身的备份能力，尚未演练；新前端部署及真实浏览器持久化尚未验证。

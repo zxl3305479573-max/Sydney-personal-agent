@@ -27,6 +27,7 @@ type ChatMenuTarget = Pick<Bot, "name" | "pinned" | "sectionId" | "unread">;
 /** A roster row's context menu content; `onClose` serves the lazy-load error fallback. */
 export function BotContextMenu({
   bot,
+  isBot,
   onTogglePinned,
   sections,
   onMoveToSection,
@@ -40,6 +41,7 @@ export function BotContextMenu({
   onDelete,
 }: {
   bot: ChatMenuTarget;
+  isBot?: boolean;
   onClose: () => void;
   onTogglePinned: () => void;
   sections: BotSection[];
@@ -62,7 +64,13 @@ export function BotContextMenu({
     >
       <ContextMenuItem onClick={onTogglePinned}>
         <Pin />
-        {bot.pinned ? t`Unpin` : t`Pin`}
+        {isBot
+          ? bot.pinned
+            ? t`Remove from main bots`
+            : t`Set as main bot`
+          : bot.pinned
+            ? t`Unpin`
+            : t`Pin`}
       </ContextMenuItem>
       <ContextMenuSub>
         <ContextMenuSubTrigger>

@@ -1,5 +1,164 @@
 # 验证记录
 
+## V-048：PC 后台部署方向规划
+
+- 日期：2026-11-05；范围：用户新增的“后期 PC 端后台运行在云电脑”部署方向。
+- 已形成：新增 [ADR-0015](../docs/adr/0015-pc-backend-on-cloud-computer.md)，将目标拓扑划分为 PC Electron 客户端、云电脑 PC 后台和主后台控制服务；同步 PC 客户端计划、双机方案、项目架构、总计划和文档入口。
+- 已明确：云电脑 PC 后台只负责渲染产物、PC 专用 BFF、WebSocket/屏幕代理；主后台继续保存认证主数据、任务状态、授权、审计、模型凭据、数据库和 Worker。
+- 未执行：未实现 PC 后台、未修改 systemd、SSH、端口、认证或数据路径；未测量云电脑同时运行桌面、浏览器、驱动、Web 和 PC 后台时的资源。
+- 限制：该记录是架构规划，不代表三层拓扑已经部署；PC 后台到主后台的认证转发协议、公开入口、重启恢复和回滚仍待设计与实机验收。
+- 代码补充：Electron 已增加 `SYDNEY_PC_BACKEND_URL` 启动入口，测试覆盖其优先于保存配置且不覆盖显式 `RAKAZO_WEB_URL`；`setup-config` 定向测试 50 项通过。
+- 类型检查：`pnpm --filter @rakazo/desktop check` 首次被项目 Node 引擎门禁拒绝；设置 `npm_config_engine_strict=false` 后两个 TypeScript 配置检查通过。当前 Node 为 `22.22.0`，项目要求 `^22.22.2 || ^24.0.0 || >=26.0.0`。
+- 未执行：未验证真实云电脑 URL、Electron 窗口登录、模型聊天、打包产物或服务器部署；未把环境降级检查当作完整发布验收。
+
+## V-047：PC 客户端联调规划
+
+- 日期：2026-11-05；范围：现有 Electron 客户端与后台入口、登录、Bot、模型、聊天、云电脑画面和后续 Web 静态服务移除顺序。
+- 已核对：`apps/desktop/package.json` 的 Electron 开发、检查和打包脚本；`setup-config` 的已有实例探测、服务器地址校验、会话分区和请求头范围；现有 Electron 设置及本地栈 E2E 覆盖。
+- 已形成：新增 [PC 客户端联调计划](design/PC_CLIENT_INTEGRATION.md)，并同步总计划、开发记录、窗口分工和文档入口。计划把工作拆为 PC-01 至 PC-05，明确真实服务器入口、WebSocket、OAuth、附件、屏幕和打包验收依赖。
+- 未执行：未启动 Electron、后台服务、数据库或模型；未连接真实账号；未运行客户端 E2E、打包或服务器命令。因此本条是规划核对，不代表 PC 客户端联调通过。
+- 限制：云电脑画面已有一次真实 iframe 验证，但稳定性、撤销和整机重启恢复仍待另一窗口继续验收；Web 服务移除前必须完成 Electron 内置渲染与远程 API 分离。
+
+## V-046：云端 Web 部署与原生只读屏幕复核
+
+- 日期：2026-11-05；确认网页运行在云电脑的 `sydney-web-cloud.service`，后台旧的 `sydney-web.service` 已停用，后台入口由 `sydney-web-forward.socket/service` 转发到云端 Web；云端 Web、云端 SSH 链路、后台 API 和屏幕隧道均为 active。
+- 本机 Web 生产构建成功并同步到云端网页运行目录，旧静态资源保留为 `dist.before-v045`；重启云端 Web 后页面登录和 Bot 列表正常。侧栏电脑不再创建 iframe 预览，页面只显示状态和“打开”入口。
+- 原生屏幕接口此前因残留控制租约按交互模式请求而返回 `native_screen_unsupported`；API 已将 `native-linux` 屏幕固定为只读，不携带控制令牌或控制租约，重新构建部署后真实浏览器一次验证全屏 iframe 已创建，未显示错误提示。
+- 仍未完成稳定的 noVNC Canvas/WebSocket 长时间验收；本轮未执行鼠标、键盘、终端或写入操作。云端 Web 重启恢复和后台 API 重启已分别验证，整机重启、连接撤销和长期负载仍待验收。
+
+## V-045：原生手动启动租约修复与预览移除
+
+- 日期：2026-11-05；范围：原生手动启动的租约传递、侧栏电脑预览。手动启动的原生电脑不再调用没有租约的工作区准备；启动改用驱动可接受的 `boot_` 前缀运行号，并把当前执行租约作为校验回调交给适配器，校验失败即拒绝操作。
+- 新增 2 个定向用例覆盖租约校验通过、代次变化后拒绝以及无租约时拒绝启动；`computer-boot` 10 项、电脑相关 Web 3 个文件 10 项通过，API 与 Web 类型检查通过，改动文件 Biome 检查通过。仓库全量 Web 与 API 套件存在与本改动无关的既有失败，未一并修复。
+- 已移除侧栏电脑预览的 iframe，改为状态与打开入口，桌面画面只在全屏窗口加载；Web 生产构建成功，构建产物仅保存在本机。
+- 租约修复此前已部署到后台 API 并完成一次真实启动：电脑由 `error` 转为 `running`，屏幕地址接口返回 200。随后后台 SSH 持续握手超时，本轮未能同步网页改动、复核服务或验证真实桌面画面；预览移除尚未部署，云电脑桌面显示、连接撤销与重启恢复仍未验收。
+
+## V-044：云电脑隔离运行 Web
+
+- 2026-11-04：原 Web 位于后台，切换前可用内存约 232 MiB；将 Web 切至云电脑后一次测得约 334 MiB，swap 为零。资源值为快照，不能推断峰值；后台 socket 代理运行时约 1.2 MiB，云端 Web 服务约 146 MiB。
+- 云端转发组件在独立网络命名空间中通过双向转发和 Unix 套接字权限测试。运行文件清单一致；Node、Web 配置、build-id 及旧版静态资源校验一致，未逐字节校验全部依赖。
+- 切换前后首页及认证接口正常，真实测试账号登录和 Bot 列表成功；API `/ready` 正常，Worker 心跳通过，API、Worker、隧道、PostgreSQL 和 Caddy active。
+- 切换后重启云端 Web 服务，后台原入口重新返回 200；切换前重启云端隧道后也恢复。两机整机重启未演练。
+- 屏幕底层 HTTP 返回 200、WebSocket 升级成功，无效屏幕授权返回 403；受限隧道不允许执行命令或连接数据库，桌面账号不能读取配置或访问套接字。曾重启云端隧道并确认恢复。
+- 后台原 Web 已停用但保留，切换计时回滚保护在验收后取消；临时传输密钥和授权已清除。真实授权屏幕页面因没有运行中电脑未验证；完整回滚、两机重启、升级同步和长期负载未验证。
+
+## V-043：只读屏幕部署与浏览器启动检查
+
+- 日期：2026-11-04；后台受限构建成功并部署 API，初次部署产物权限错误导致 API 无法读取，恢复后修正权限并重新部署；API 就绪检查正常，API、Worker、Web、驱动隧道和屏幕隧道均为 active。
+- 云电脑驱动及只读屏幕服务均为 active，屏幕端口监听回环；后台到屏幕服务的 HTTP、WebSocket 及 RFB 握手通过。这些检查不代表真实浏览器画面已可用。
+- 浏览器登录成功，但电脑预览显示启动失败；确认没有活动运行和未过期执行租约后，从界面重试，启动接口返回 500，未生成屏幕 iframe。日志指向工作区准备时缺少原生运行租约。
+- 尚未修复手动启动租约问题，未验收真实桌面画面、旧连接撤销、重启恢复及交互；未修改数据库状态来绕过失败。
+
+## V-038：移除独立任务工作台
+
+- 日期：2026-11-04；Web 路由测试 9 项通过，含旧地址跳转聊天；Web、API、数据库、核心和契约包类型检查通过。
+- 受影响 TypeScript 文件 Biome 检查通过；首次检查发现核心包导出顺序不符，调整后通过。检查使用 `engine-strict=false`，本机 Node 22.22.0 低于要求的 22.22.2。
+- 未部署或执行真实浏览器、数据库和在途任务验收；数据库记录未删除，受管任务执行及授权校验代码仍保留。
+
+## V-037：移除侧栏任务入口
+
+- 日期：2026-11-04；侧栏文件 Biome 检查、Web 类型检查及 `git diff --check` 通过。
+- 本机 Node 22.22.0 低于项目要求的 22.22.2，类型检查使用 `engine-strict=false`；未部署或进行浏览器验收。
+
+## V-036：侧栏主 Bot 区
+
+- 日期：2026-11-04；范围：侧栏分组、拖放决策、Bot 更新及名额校验。
+- 本机定向测试初次发现原置顶测试替身未适配新增事务，调整测试并补充分组用例后，3 个文件、32 项通过；Web、数据库和 API 类型检查通过。
+- 本机 Node 22.22.0 低于项目声明最低版本 22.22.2，检查使用 `engine-strict=false`；未安装依赖或启动本地服务。
+- 只读检查发现后台机可用内存约 114 MiB，Web、API、Worker 均为 active；本轮未在资源紧张时构建或重启，未部署服务器。
+- 未执行浏览器交互、真实 PostgreSQL 并发及多设备同步验收；历史超限数据不会自动移除。
+
+## V-035：截图图片回传 Web
+
+- 日期：2026-11-04；范围：`computer_observe`、带观察结果的 `computer_act`、附件存储和 Web 消息渲染。
+- 代码验证：`pnpm exec vitest run packages/adapters/src/computer-tools.test.ts packages/adapters/src/thread-artifacts.test.ts`，2 个测试文件、33 项通过；`pnpm --config.engine-strict=false --filter @rakazo/adapters check` 通过。首次类型检查被本机 Node `22.22.0` 低于项目要求 `22.22.2` 拦截，未安装或更新依赖。
+- 部署验证：后台 `/opt/sydney` 更新适配器源码，API/Worker 构建成功并重启；`sydney-api`、`sydney-worker`、`sydney-web`、`sydney-tunnel` 均为 active，API `/ready` 返回 `ok: true` 且 `degraded: false`。
+- Web 验证：通过本机 SSH 转发登录测试账号，发送只读截图请求；页面新增消息包含真实图片元素，浏览器加载尺寸为 1920×1080，图片附件名为 `shot-*.png`，同时保留文字说明。
+- 本轮没有执行点击、键盘、终端或文件写入；没有读取或记录模型 API 密钥。云电脑仍保持 running，原生 stop/destroy、断线恢复、重启恢复和可信停止未验收。
+- 限制：截图作为线程附件持久化，每个新画面会增加一条图片消息；后台可用内存有限，未做高并发或大尺寸截图压力测试。
+
+## V-034：存储分层迁移准备
+
+- 日期：2026-11-04。
+- 后台只读盘点：可用内存约 65 MiB，数据目录约 452 KiB；API、Worker、Web 服务内存分别约 542、361、139 MiB。对象存储 bucket 和 endpoint 未配置。
+- 后续用户控制台报告可用内存降至约 26 MiB；按用户授权停止 Web 后约 504 MiB，交换空间使用为零，API、Worker、隧道 active，Web failed 原因待查。SSH 重试被拒绝，未完成进一步检查。
+- 随后通过云电脑中转后台 SSH 22 成功并校验既有主机密钥；后台 API `/ready` 为 ok 且未降级，Web 退出状态为 143。Web 仍停用；迁移及重启恢复未验证。
+- 再次检查时 Web 已重新启动，首页和认证会话接口均为 200；API 曾因部署产物权限错误重试后恢复，`/ready` 正常，Worker、Web 和隧道 active，可用内存约 400 MiB。部署产物发生外部变更，本次未覆盖；未迁移服务或验证长期负载。
+- 云电脑隔离转发组件在 `PrivateNetwork` 下通过双向转发与套接字权限测试；受限 SSH 隧道经 Unix 套接字访问后台 `/ready` 正常，桌面账号无法读取专用配置或访问该套接字。依赖传输及实际 Web、认证、屏幕、切换与恢复测试未完成。
+- 本机持久密钥已用于两台服务器登录；随后后台 SSH 从本机及经云电脑中转均握手超时。云电脑维护 SSH 和驱动、屏幕、代理服务仍可访问或 active。
+- Web preview 含 CSP、noVNC 代理等中间件，尚不能直接以静态服务替换；本次未调整服务、未实施迁移或完成减压。
+- 已完成：静态盘点 `createAgentHomeStore`、`createArtifactStore`、`home-storage migrate` 和 `shared-storage artifacts`，确认现有代码支持本地与对象存储并行读取及可重复迁移。
+- 已完成：文档划分后台控制数据、云电脑活动工作区、对象存储文件内容和敏感凭据边界。
+- 已执行：`pnpm exec vitest run packages/adapters/src/artifact-store-factory.test.ts packages/adapters/src/home-object-store.test.ts`，2 个测试文件、63 项测试通过；仅为本机离线测试。
+- 已执行：通过用户提供的 root SSH 入口只读盘点云电脑；确认 Ubuntu 24.04.4、约 3.6 GiB 内存、约 2.3 GiB available、根分区剩余约 48 GiB，现有 Sydney 驱动、VNC/noVNC 和代理服务 active。
+- 已确认：云电脑未安装或运行 MinIO、SeaweedFS、Garage 等对象存储服务，当前 Sydney 工作区约 452 KiB；没有在云电脑安装新服务或开放新端口。
+- 已确认：云电脑 UFW 当前 inactive，全局 SSH 配置允许 TCP forwarding 且未限制 `permitopen`；专用账号实际限制另见 ADR-0010。在确定后台网络路径和访问策略前，不应把对象存储绑定到公网或直接开放新端口。
+- 未执行：云电脑对象存储端点配置、服务器 dry-run、home/artifact 实际迁移、服务重启、备份恢复和后台资源复测。
+- 限制：尚无远程对象存储，未释放后台文件或进程内存。
+
+## V-032：Web 模型与云电脑复测
+
+- 日期：2026-11-04。用户已配置的 DeepSeek 提供商凭据存在，凭据内容未读取；Web 登录成功后，文本提示测试返回预期“模型连接正常”，页面未出现模型错误或浏览器页面异常。
+- 同一 Web 入口发起只读云电脑观察测试，页面未出现“模型提供商返回了错误”或 `Computer provisioning failed`；后台日志显示 `native-linux` provision 成功，Run 完成，电脑状态为 `running` 且 `restorePending=false`。
+- `native-linux-sandbox.test.ts` 改为真实临时 Unix socket 后，服务器 12 项全部通过；API、Worker、Web、隧道和 PostgreSQL 保持 active，API `/ready` 与 Worker 心跳通过。
+- 本轮没有执行点击、键盘、终端或文件写入；旧的 3 个失败 Run 保留，未执行清理。后台可用内存约 81 MiB，继续运行真实任务有内存压力；重启恢复、断线恢复、可信停止和完整负载未验收。
+
+## V-031：云电脑截图故障修复
+
+- 日期：2026-11-04。现场日志先显示团队工作区身份校验失败；修复后出现原生驱动 `execute` 超时，定位到驱动在有 socket 超时配置时的连接断开检测。零等待就绪检查修复后，云电脑侧 Python 测试 14 项通过，包括空闲连接快速命令及断开连接拒绝。
+- 后台服务器 Provider 定向测试 5 项通过，覆盖团队 home key 的空间和用户匹配、其他身份拒绝、代次及租约检查。完整文件测试 12 项中 10 项通过、2 项失败，失败原因为已有 `node:net` ESM 导出无法被 `vi.spyOn` 模拟；未将完整套件记为通过。
+- 跨机只读截图返回有效 PNG；随后经 Web、真实模型及 `computer_observe` 发起一次截图任务，日志显示电脑创建成功，任务状态为 completed，电脑为 running 且恢复标志已清除。该验证不等于截图已作为附件展示，也不代表键鼠、终端的完整使用、断线恢复或可信停止通过。
+- 原生 Provider 的 stop 和 destroy 仍不支持；当创建阶段发生其他错误时，失败回滚仍可能产生聚合错误。测试期间构建后台时服务短暂停止并恢复；未验证重启恢复或高负载。
+
+## V-030：Web 测试部署
+
+- 日期：2026-11-04。后台机以 `b7c91915d` 为基础叠加四个当前工作区 Web 修改，Web 生产构建成功；构建提示部分分包超过 500 kB。`sydney-web` 为 enabled、active，仅监听服务器回环端口 5173。
+- 本机 SSH 转发后的 Web 首页返回 200，浏览器渲染 Sydney 首页，认证接口经代理返回 200；测试账号接口登录、会话读取和退出成功。本机无头浏览器提交登录后进入 `/onboarding/model`。
+- API `/ready` 正常、Worker 心跳通过，后台、隧道及其他已检查服务保持 active。验证时后台机可用内存约 246 MiB；尚未配置模型，未验收真实任务、云电脑界面交互、外网访问、服务器重启或 SSH 转发重连。
+- 一次浏览器命令直接调用未能获得退出状态，改用现有 Playwright 和 Edge 后验证通过；初次登录后立即检查页面过早，等待后确认已进入模型配置页。
+
+## V-029：旧项目数据清除
+
+- 日期：2026-11-04。个人网站数据、旧回滚目录、恢复备份及画布 WebDAV 目录已不存在，两个项目的 Docker 镜像已删除；根分区可用空间约 23 GiB。
+- Sydney API `/ready` 正常，Worker 心跳检查通过，后台、隧道、数据库和其他已检查服务为 active。未执行其他业务接口回归；Caddy 历史配置备份仍存在。
+
+## V-028：旧项目移除
+
+- 日期：2026-11-04。个人网站的两个部署目录和服务文件已移除，画布及 WebDAV 容器已删除，原项目监听端口 3000、4331 和 8080 未再出现；画布代理已从当前 Caddy 配置撤销。
+- Sydney API `/ready` 返回正常，Worker 心跳检查通过；Sydney、隧道、数据库及其他现有服务保持 active。数据和备份保留，未验证恢复及其他项目业务接口。
+
+## V-027：后台部署
+
+- 日期：2026-11-04；后台机 Node 22.23.2、pnpm 9.15.0 和 PostgreSQL 18；提交 `b7c91915d` 的 API、Worker 构建成功，207 项 Prisma 迁移及队列、运行账号初始化成功。
+- API `/health` 和 `/ready` 返回 `ok: true`，就绪结果 `degraded: false`；Worker 内置心跳检查通过。运行数据库账号非超级用户、无绕过 RLS、建库或建角色权限；服务账号可连接隧道 Unix socket。
+- API 与数据库仅监听回环；API、Worker、隧道均为 enabled 和 active，既有 Caddy、Docker、站点及相关项目服务为 active。未对既有业务接口做功能回归。
+- 首次 Worker 心跳因服务文件系统只读失败，开放 `/tmp` 写入并重启后通过；一次 socket 检查路径拼写错误，修正后通过。旧版 Docker 拉取尝试因仓库连接不稳定停止；系统自带 PostgreSQL 14 不满足项目要求。
+- 检查时可用内存约 279 MiB，交换空间已使用约 69 MiB；Worker 日志存在队列并发与连接池大小警告。未执行真实模型、账户登录、端到端任务、重启恢复、负载测试或备份恢复演练。
+
+## V-026：单人使用双机隧道
+
+- 日期：2026-11-04；根据用户确认的单人使用范围启用较宽 SSH 转发。云电脑 `sshd -t` 通过，专用账号有效配置为 `AllowTcpForwarding local`，保留 chroot 与禁用终端；后台隧道服务为 enabled、active。
+- 从后台专用账号通过 Unix socket 验证 provision、generation/status、无租约文件请求拒绝，以及真实桌面截图的 PNG 格式；未记录截图画面。后台隧道目录和 socket 属于 `sydney-control`，分别为 0700 和 0600。
+- 后台既有 SSH、Docker、Caddy 及三个现有项目服务均为 active；服务状态不等于业务接口验收。首次对尚未加载的隧道执行 `reset-failed` 失败，随后直接启用成功。
+- 当时未验证两机重启、隧道断线重连、会话重登、键鼠输入、真实模型任务或可信停止；后台随后已部署，见 V-027。TCP 转发权限的实际范围与风险见 ADR-0010。
+
+## V-025：PC 任务工作台
+
+- 日期：2026-11-04；关联 PA-001、PA-003、PA-006、PA-018。任务页和中文目录定向 Vitest：2 个文件、13 项通过；使用模拟 API 数据在本机无头 Edge 检查 1440×900 空状态和 1280×720 任务详情，后者无水平溢出，未同意数据发送时派工按钮禁用。
+- 未使用真实账号执行完整创建、派工与审批流程；未验证双机、模型、实时画面和原生客户端，界面状态不能代表真实任务验收通过。
+
+## V-024：双机驱动与隧道试接
+
+- 日期：2026-11-04；用户授权的两台 Linux 服务器。后台到云电脑 SSH 可达，云电脑主机密钥与用户从控制台提供的 SHA256 指纹一致；两机时间同步状态正常。
+- 云电脑部署 Python 驱动、systemd socket 及受限 SSH 账号；安装 `xdotool`、`xclip`、`imagemagick` 和依赖。后台创建专用账号、密钥和 SSH 隧道服务；已有服务检查正常。
+- 临时允许 SSH TCP 本地转发时，跨机 provision、generation/status、无租约文件请求拒绝和当前 X11 会话的 PNG 截图均通过。截图仅验证 PNG 和字节数，未记录画面内容。截图首次失败因 systemd 只读文件系统禁止 ImageMagick 写 `/tmp`，增加驱动服务 `/tmp` 写权限后通过。
+- 当时的失败与限制：当 `AllowTcpForwarding no` 时，尽管 `AllowStreamLocalForwarding local`，实测 Unix socket 请求被拒绝；使用 `permitopen` 约束 TCP 也拒绝 Unix socket。当时已禁用并停止隧道；后续按单人使用授权启用较宽转发，当前结果见 V-026。
+
+## V-024：浏览器标签图标缓存
+
+- 日期：2026-11-04；关联 PA-018。使用本机无头 Edge 打开开发页面，验证标签图标的新版本地址均返回 HTTP 200，页面标题为 Sydney；`git diff --check` 通过。
+- 未控制用户当前浏览器标签或读取其图标缓存，刷新后实际显示仍待用户确认；未运行桌面或移动端打包。
+
 ## V-023：Sydney 品牌和本地预览
 
 - 日期：2026-11-04；关联 PA-009、PA-018。图标导出脚本成功运行；5 个定向 Vitest 文件共 69 项通过，覆盖 Web、桌面和移动端名称相关逻辑及现有本地化回归；11 个相关源码文件的 Biome 检查和 `git diff --check` 通过。
@@ -240,6 +399,86 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - 成本与副作用：未启动 Docker、数据库、应用或桌面服务，未调用真实模型；没有模型 token 费用。没有创建新对话窗口或调用子代理。
 - 限制：读适配器和投影仅导出，API/Worker 尚未调用；currentRunId、控制静止和完成证据仍需可信存储与版本化接线，不能从展示状态推断实际进程已经停止。
 
+## V-033：云电脑实时桌面服务
+
+- 日期：2026-11-04；范围：用户指定的 Ubuntu 24.04 云电脑侧桌面画面服务。
+- 已执行：安装 `x11vnc`、`websockify`、`novnc`；创建并启用 `sydney-screen-vnc.service`、`sydney-screen-websockify.service`；两个服务仅监听云电脑回环地址的 `5900`、`6080` 端口。
+- 已验证：`x11vnc` 以 `sydney-desktop` 用户读取当前 `DISPLAY=:10` 成功；远端 noVNC 页面返回 HTTP 200；本机经 SSH 转发连接 WebSocket 后收到 RFB `003.008` 握手。
+- 未执行：后台机到云电脑的屏幕端口持久化隧道、API 屏幕目标签发、Web 实际工作台实时画面和输入接管。现有 Provider 屏幕会话接线仍未完成。
+- 限制：当前图形会话来自 XRDP，云电脑重启或 XRDP 会话变化后需重新核对 `DISPLAY` 与 `XAUTHORITY`；本次没有开放公网端口，没有执行重启恢复、回滚或高负载验证。
+
+## V-039：后台屏幕隧道接入受阻
+
+- 日期：2026-11-04；范围：后台服务器屏幕转发的只读核查。
+- 已验证：云电脑可连接后台的 SSH、API 和 Web TCP 端口；云电脑现有 `sydney-tunnel` SSH 会话来自后台服务器且保持建立；本机无法直接连接后台 SSH。
+- 未完成：使用本机现有密钥经云电脑跳板登录后台失败，因此没有修改或重启 `sydney-tunnel.service`，没有新增 `6080` 转发，也没有执行后台 Web 实时桌面验证。
+- 结论：云电脑侧屏幕服务已通过 V-033；后台屏幕隧道和 Provider/Web 接线仍待后台管理密钥或双机联动窗口完成。
+
+## V-040：后台只读屏幕隧道
+
+- 日期：2026-11-04；范围：用户授权的两台服务器之间的屏幕传输。
+- 云电脑 VNC 服务已启用 `-viewonly`；后台独立 `sydney-screen-tunnel.service` 为 enabled、active，后台 `127.0.0.1:16080` 转发至云电脑 `127.0.0.1:6080`，使用现有专用隧道账号与固定主机密钥。
+- 后台经隧道请求 noVNC 页面返回 200，WebSocket 升级返回 101 且收到 RFB `003.008`；API、Worker、Web 和原驱动隧道保持 active。服务启动后的首次立即检查未等到端口就绪而退出，随后复查通过。
+- 未验证 Web 实际显示、输入拒绝的端到端行为、身份与会话授权、隧道重连及服务器重启。回环端口无独立认证，同机其他可连接回环端口的进程可读取画面；不可视为完整访问控制。
+
+## V-041：原生只读屏幕接线离线验证
+
+- 日期：2026-11-04；范围：原生 Provider、屏幕配置映射和只读身份绑定。
+- 本机 adapters TypeScript 类型检查通过；新增屏幕身份及配置映射的两个定向测试通过。完整的两个定向文件共 32 项中，先前运行有 29 项通过、2 项 Unix socket 测试在 Windows 失败；新增配置测试随后单独通过，不能将完整套件记为通过。
+- Biome 检查未通过：原生文件包含既有格式和生成器规则问题，也有本轮测试格式问题；没有格式化其他窗口已有代码。`git diff --check` 另行检查。
+- 后台有一个未归档 Bot，原生电脑当前未处于 running；空闲内存约 83 MiB。未部署应用代码、未绑定服务器配置、未构建或重启 API；Web 实时桌面、开放连接的驱动代次失效、只读输入拒绝和重启恢复均未验收。
+
+## V-042：只读屏幕连接复核与部署中断
+
+- 日期：2026-11-04。API 对原生屏幕票据复核时再次验证驱动代次、绑定身份及回环目标；代理与环境配置两个测试文件共 37 项通过，API TypeScript 类型检查通过。
+- 后台源码逐文件与本机变更比较，确认仅含本次屏幕变动后，在 `/var/backups/sydney-screen-20261104` 备份相关源码及 API 产物，暂存五个改动源码文件；未修改 API 环境配置或当前正式产物。
+- 启动 systemd 限制内存和 CPU 的候选 API 构建后，命令一直未返回；后台新 SSH 连接及从云电脑读取后台 SSH 标识超时。云电脑自身 SSH、VNC 和 noVNC 服务仍正常；后台进程、构建是否仍运行及原因未知。
+- 未执行正式产物切换、API 重启、账户绑定、浏览器实测和回滚。恢复后台连接后须先核查状态与候选构建，不应重复启动构建或假定服务已停止。
+
 ## 后续验证记录格式
 
 每条使用连续编号，包含日期、关联阶段与需求、版本和环境、命令或步骤、实际结果、失败原因、未执行项、成本或副作用及适用限制。修复后复验保留前一次失败结论，再追加最终结果。
+
+## V-049：实时屏幕仍未完成端到端验收
+
+- 日期：2026-11-05；关联需求：PA-010、PA-012、PA-017、PA-018；状态：未通过，问题保留。
+- 环境：Windows 本机通过现有 SSH 隧道访问 `127.0.0.1:5173`；云电脑运行 `sydney-web-cloud`、`sydney-web-cloud-link`、`sydney-screen-vnc`、`sydney-screen-websockify`；后台运行 Web 转发、API、Worker 和 `sydney-screen-tunnel`。
+- 已验证：云电脑 Web 独立网络命名空间内的 `5174`、`3100`、`16080` 均监听；桥接 `/ready` 返回 200；云电脑的 `api.sock`、`screen.sock`、`web.sock` 存在；本机页面、会话接口和监控配置均返回 200；后台 API 的屏幕票据复核请求返回 200；noVNC 页面及静态资源曾返回 200。
+- 已执行修复：重启云电脑 `sydney-web-cloud-link.service` 和 `sydney-web-cloud.service`，重新生成运行时 socket；重启后服务均为 active，`5174`、`3100`、`16080` 和 `/ready` 复查通过。
+- 实际结果：用户侧仍无法连接实时屏幕。自动浏览器复现可以取得 `computer/screenUrl` 并加载 noVNC 页面资源，但未稳定观察到最终屏幕 iframe/WebSocket 建立；用户在重建链路后仍反馈失败。
+- 相关异常：此前云电脑 Web 日志出现 `screen.proxy.target_rejected` 的 `authority_unavailable`、`screen.proxy.recheck_unavailable`，云电脑 Web SSH 链路出现过 `channel open failed: connect failed: Connection refused`；重启链路后尚未形成通过用户浏览器的稳定成功证据。
+- 副作用与限制：排查期间重复使用测试账号登录，触发过 API 登录限流 429；后续验证不得继续高频登录。没有提交或推送代码，没有修改数据库状态，没有开放公网屏幕端口。
+- 未完成：浏览器 Network 中实际 WebSocket 握手的状态、后台 `15173` 反向转发与云电脑 Web 进程的逐跳关联、noVNC 自动重连原因、真实桌面画面和断线恢复仍未验收。
+- 下一步：暂不继续重启服务；在下一轮使用一个已登录浏览器会话，记录单次 `computer/screenUrl`、`/novnc/.../websockify` 握手和关闭码，并同时对照云电脑 Web、后台转发和 API 日志，定位具体断点后再做最小修复。
+
+## 聊天外观方案核对（2026-11-04）
+
+- 本次仅核对现有深浅外观入口、共享样式变量和聊天气泡颜色位置，并同步需求、计划及历史决策；聊天外观功能尚未实现。
+- 未运行应用、浏览器、测试或服务器验证；方案中的切换、保存、兼容及无障碍均待实现后验收。
+
+## 聊天外观首版离线验证（2026-11-04）
+
+- Web 定向 Vitest：设置、账号设置、消息和聊天渲染共 4 个文件、40 项通过；覆盖样式保存与取消、组合选择、缺失引用回退、模拟 IndexedDB 恢复和存储失败，以及聊天样式变量应用。加入上限保护后单独重跑设置测试 4 项通过。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过；7 个相关文件的 Biome 检查通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于仓库要求 22.22.2 而未启动；改用现有 `pnpm exec tsc` 执行项目配置，不安装依赖。
+- 一次联合测试因模拟 IndexedDB 的图片状态泄漏到其他测试文件导致 3 项失败；清理测试共享状态后重跑 40 项通过。运行时图片上传解码、真实 IndexedDB、浏览器视觉、无障碍和目标尺寸未验证；未部署或运行服务器。
+
+## 移动端聊天外观接线验证（2026-11-04）
+
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：通过，覆盖移动端聊天外观存储、设置页、聊天页和消息气泡类型。
+- `pnpm exec vitest run apps/mobile/lib/appearance.test.ts apps/mobile/lib/account-screen.test.tsx --maxWorkers=1`：2 个文件 20 项通过，覆盖既有移动端主题和账户设置回归；本次新设置页没有实机测试。
+- 相关移动端非设置源码执行 Biome 检查，其中新增聊天存储、消息气泡和聊天页修改已修复格式；Windows shell 对带括号的设置路径无法稳定传给 Biome，设置页和设置布局未单独完成格式命令，类型检查仍通过。
+- 未运行 Expo iOS/Android 构建、真机图片选择、应用重启后的文件恢复、SecureStore 真实读写、视觉/辅助功能和跨设备同步；移动端目前只与自身本地配置接通，未与 Web 配置同步。
+
+## 热插拔插件离线契约验证（2026-11-04）
+
+- 范围：`hot-plugin-lifecycle.ts` 状态转换及新调用准入；Node 22.22.0，本机无服务和外部请求。
+- `pnpm exec vitest run packages/core/src/hot-plugin-lifecycle.test.ts --maxWorkers=1`：1 个文件 4 项通过；格式修复后重新运行仍通过。
+- `pnpm exec biome check` 首次提示导入顺序和格式问题；对两个新增文件执行 `biome check --write` 后通过。pnpm 提示根配置部分字段不再读取；本次未安装或修改依赖。
+- 未运行类型检查、真实进程、数据库、跨 Worker 并发、服务器隔离、现有插件安装回归或完整工作区测试；纯函数不验证宿主身份、原子性、授权或外部副作用。
+
+## 热插拔固定宿主试点验证（2026-11-04）
+
+- 环境：本机 Node 22.22.0；仅启动测试用固定 Node 子进程，无服务器、数据库、外部服务或真实工作区访问。
+- `pnpm exec vitest run packages/adapters/src/hot-plugin-pilot.test.ts packages/core/src/hot-plugin-lifecycle.test.ts --maxWorkers=1`：2 个文件 12 项通过；覆盖真实子进程启停、在途排空、崩溃、超时、协议错误、输出上限和另一实例继续处理。
+- 对新增文件运行 Biome 并修复格式；`pnpm exec tsc --ignoreConfig --noEmit --skipLibCheck --types node --target es2022 --module nodenext --moduleResolution nodenext packages/adapters/src/hot-plugin-pilot.ts packages/core/src/hot-plugin-lifecycle.ts` 通过。首次单文件类型检查缺少 `--ignoreConfig`，第二次缺少 `--types node`，修正参数后通过；不等同工作区类型检查。
+- 未验证真实 Linux 权限、网络或资源隔离、进程树清理、强制终止竞态、目标服务器部署、持久化、安装升级和现有 Agent/审批链；pnpm 提示根配置部分字段不再读取，未更改或安装依赖。

@@ -111,6 +111,21 @@ describe("resolveSandboxProvider", () => {
 });
 
 describe("sandboxProviderOptionsFromEnv", () => {
+  it("reads the explicitly bound native screen configuration", () => {
+    expect(
+      sandboxProviderOptionsFromEnv({
+        SYDNEY_NATIVE_SCREEN_USER_ID: "user",
+        SYDNEY_NATIVE_SCREEN_SPACE_ID: "space",
+        SYDNEY_NATIVE_SCREEN_BOT_ID: "bot",
+        SYDNEY_NATIVE_SCREEN_PORT: "16080",
+      }),
+    ).toMatchObject({
+      nativeLinuxScreenUserId: "user",
+      nativeLinuxScreenSpaceId: "space",
+      nativeLinuxScreenBotId: "bot",
+      nativeLinuxScreenPort: 16080,
+    });
+  });
   it("loads CreateOS settings from the shared env contract", () => {
     expect(
       sandboxProviderOptionsFromEnv({

@@ -104,8 +104,10 @@ export function SidebarRoster({
         const headerDropTarget: RosterDropTarget | null =
           group.spaceId === bootstrapMe?.spaceId &&
           !group.emptySpaceId &&
-          (group.sectionId || group.key.endsWith("unassigned"))
-            ? { kind: "section", sectionId: group.sectionId }
+          (group.sectionId || group.key.endsWith("unassigned") || group.key.endsWith("main-bots"))
+            ? group.key.endsWith("main-bots")
+              ? { kind: "main-bots" }
+              : { kind: "section", sectionId: group.sectionId }
             : null;
         const headerDropKey = `header:${group.key}`;
         const section = group.sectionId

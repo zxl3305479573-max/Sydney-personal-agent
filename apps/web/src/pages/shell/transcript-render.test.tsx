@@ -5,6 +5,12 @@ import { act, useCallback, useMemo, useRef } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  cancelChatAppearancePreview,
+  EMPTY_CHAT_APPEARANCE,
+  newBubbleStyle,
+  previewChatAppearance,
+} from "../../lib/chat-appearance";
 import { Transcript } from "./transcript";
 
 const messageRenders = vi.hoisted(() => new Map<string, number>());
@@ -141,3 +147,19 @@ it.each([false, true])(
     }
   },
 );
+
+it("applies and clears custom bubble variables without changing messages", () => {
+  act(() => root.render(<Host messages={[message("one", "Hello")]} />));
+  const style = newBubbleStyle();
+  act(() =>
+    previewChatAppearance({ ...EMPTY_CHAT_APPEARANCE, bubbles: [style], bubbleId: style.id }),
+  );
+  const transcript = container.querySelector<HTMLElement>('[data-testid="transcript"]');
+  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe(
+    style.user.foreground,
+  );
+  expect(transcript?.style.getPropertyValue("--custom-chat-bot-radius")).toBe("20px");
+  act(() => cancelChatAppearancePreview());
+  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe("");
+  expect(messageRenders.get("one")).toBe(1);
+});

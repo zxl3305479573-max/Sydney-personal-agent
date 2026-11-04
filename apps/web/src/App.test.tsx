@@ -66,7 +66,6 @@ vi.mock("./pages/Board", () => {
   capability.boardLoaded();
   return { BoardPage: () => <div>Board page</div> };
 });
-vi.mock("./pages/Tasks", () => ({ TasksPage: () => <div>Tasks page</div> }));
 vi.mock("./pages/IntegrationSetup", () => ({ IntegrationSetupPage: () => null }));
 vi.mock("./pages/McpOAuthCallback", () => ({ McpOAuthCallbackPage: () => null }));
 
@@ -133,7 +132,7 @@ it("loads the board chunk only after bootstrap enables the route", async () => {
   }
 });
 
-it("mounts the authenticated tasks page", async () => {
+it("redirects the removed tasks page to the chat shell", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -145,7 +144,7 @@ it("mounts the authenticated tasks page", async () => {
         </MemoryRouter>,
       ),
     );
-    expect(container.textContent).toBe("Tasks page");
+    expect(container.textContent).toBe("Shell");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();

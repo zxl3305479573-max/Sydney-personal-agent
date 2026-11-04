@@ -910,7 +910,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   );
   app.route("/", marketingEmailRoutes(prisma, env.authSecret));
   mountApiRequestBodyLimits(app, env.maxUploadSizeBytes);
-  mountScreenTarget(app, prisma, env.screenProxySecret);
+  mountScreenTarget(app, prisma, env.screenProxySecret, sandbox);
   mountDiagramScript(app);
   const auditAuthResponse = createAuthResponseAudit();
   // Account and session tables, signup bootstrap and account deletion span tenants;

@@ -148,6 +148,7 @@ export function createRouter(deps: RouterDeps) {
   return os.router({
     ...accountRoutes(ctx),
     ...spacesRoutes(ctx),
+      ...tasksRoutes(ctx),
     ...modelsRoutes(ctx),
     ...botsRoutes(ctx),
     ...threadsRoutes(ctx),
@@ -161,6 +162,5 @@ export function createRouter(deps: RouterDeps) {
     ...messagingRoutes(ctx),
     ...contentRoutes(ctx),
     ...paymentWalletRoutes(ctx),
-    ...tasksRoutes(ctx),
   });
 }

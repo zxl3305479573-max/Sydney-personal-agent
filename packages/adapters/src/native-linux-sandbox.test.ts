@@ -1,6 +1,10 @@
 import type { AdapterContext, ComputerRef } from "@rakazo/adapter-kit";
-import { EventEmitter } from "node:events";
+import { once } from "node:events";
+import { mkdtemp, rm } from "node:fs/promises";
 import * as net from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { computerHomeKey } from "@rakazo/db";
 import { expect, it, vi } from "vitest";
 import { createNativeLinuxTransport, NativeLinuxSandbox } from "./native-linux-sandbox.js";
 
@@ -50,6 +54,25 @@ it("allows an identity-bound read-only preview without an execution lease", asyn
   expect(transport).toHaveBeenCalledWith("observe", {}, { ...context, nativeRunLease: undefined }, computer);
 });
 
+it("restricts the live screen to the configured identity and validates the driver generation", async () => {
+  const transport = vi.fn().mockResolvedValue({ generation: "0123456789abcdef" });
+  const screen = { userId: "user", spaceId: "space", botId: "bot", port: 16080 };
+  const sandbox = new NativeLinuxSandbox(async () => null, transport, screen);
+  const viewer = { ...context, nativeRunLease: undefined };
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, viewer)).resolves.toMatchObject({
+    url: "http://127.0.0.1:16080/vnc.html",
+    mimeType: "text/html",
+  });
+  expect(transport).toHaveBeenCalledWith("status", {}, viewer, computer);
+  await expect(sandbox.connectScreen(computer, { view: "stream", interactive: true }, viewer)).rejects.toThrow("native_screen_unsupported");
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, { ...viewer, userId: "other" })).rejects.toThrow();
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, { ...viewer, spaceId: "other" })).rejects.toThrow();
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, { ...viewer, botId: "other" })).rejects.toThrow();
+  transport.mockRejectedValueOnce(new Error("generation changed"));
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, viewer)).rejects.toThrow("generation changed");
+  await expect(new NativeLinuxSandbox(async () => null, transport).connectScreen(computer, { view: "stream" }, viewer)).rejects.toThrow("native_screen_unsupported");
+});
+
 it("rejects a computer owned by another bot", async () => {
   const transport = vi.fn();
   const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
@@ -57,6 +80,25 @@ it("rejects a computer owned by another bot", async () => {
     "native_generation_mismatch",
   );
   expect(transport).not.toHaveBeenCalled();
+});
+
+it("allows a team home only for its space and user", async () => {
+  const teamHome = computerHomeKey({ mode: "team", spaceId: context.spaceId, userId: context.userId });
+  const teamComputer = { ...computer, botId: teamHome };
+  const transport = vi.fn().mockResolvedValue("aGVsbG8=");
+  const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
+
+  await expect(sandbox.readFile(teamComputer, "notes.txt", context)).resolves.toBeInstanceOf(Uint8Array);
+  await expect(sandbox.readFile(teamComputer, "notes.txt", { ...context, userId: "other" })).rejects.toThrow(
+    "native_generation_mismatch",
+  );
+  await expect(sandbox.readFile(teamComputer, "notes.txt", { ...context, spaceId: "other" })).rejects.toThrow(
+    "native_generation_mismatch",
+  );
+  await expect(sandbox.readFile(teamComputer, "notes.txt", { ...context, botId: undefined })).rejects.toThrow(
+    "native_generation_mismatch",
+  );
+  expect(transport).toHaveBeenCalledOnce();
 });
 
 it("declares PTY unavailable and exposes conservative run cleanup results", async () => {
@@ -83,53 +125,76 @@ it("refuses unsupported native stop and destroy operations", async () => {
 });
 
 it("keeps driver identity and lease fields out of caller-controlled params", async () => {
-  const socket = new EventEmitter() as EventEmitter & {
-    write: (data: string) => void;
-    end: () => void;
-    destroy: () => void;
-  };
-  let request: Record<string, unknown> | undefined;
-  socket.write = (data) => {
-    request = JSON.parse(data) as Record<string, unknown>;
-    queueMicrotask(() => socket.emit("data", Buffer.from('{"ok":true,"value":null}\n')));
-  };
-  socket.end = () => undefined;
-  socket.destroy = () => undefined;
-  vi.spyOn(net, "createConnection").mockReturnValue(socket as never);
-  const transport = createNativeLinuxTransport("/tmp/driver.sock");
-  const response = transport(
-    "write",
-    { path: "file.txt", botId: "attacker", generation: "attacker", run: { id: "attacker", fence: 0 } },
-    context,
-    computer,
-  );
-  socket.emit("connect");
-  await response;
-  expect(request).toMatchObject({
-    method: "write",
-    botId: "bot",
-    generation: "0123456789abcdef",
-    run: { id: "run", fence: 2 },
-    path: "file.txt",
+  const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
+  const socketPath = path.join(directory, "driver.sock");
+  const server = net.createServer();
+  let socket: net.Socket | undefined;
+  try {
+    server.listen(socketPath);
+    await once(server, "listening");
+    const transport = createNativeLinuxTransport(socketPath);
+    const response = transport(
+      "write",
+      { path: "file.txt", botId: "attacker", generation: "attacker", run: { id: "attacker", fence: 0 } },
+      context,
+      computer,
+    );
+    [socket] = await once(server, "connection") as [net.Socket];
+    const [data] = await once(socket, "data") as [Buffer];
+    expect(JSON.parse(data.toString("utf8"))).toMatchObject({
+      method: "write",
+      botId: "bot",
+      generation: "0123456789abcdef",
+      run: { id: "run", fence: 2 },
+      path: "file.txt",
+    });
+    socket.end('{"ok":true,"value":null}\n');
+    await expect(response).resolves.toBeNull();
+  } finally {
+    socket?.destroy();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("returns explicit quiescence evidence for native background work", async () => {
+  const transport = vi.fn().mockResolvedValueOnce("idle").mockResolvedValueOnce("unknown");
+  const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
+
+  await expect(sandbox.inspectBackgroundWorkEvidence(computer, "computer", context)).resolves.toMatchObject({
+    status: "idle",
+    kind: "process_group_empty",
+    markerId: "computer",
+  });
+  await expect(sandbox.inspectBackgroundWorkEvidence(computer, "computer", context)).resolves.toMatchObject({
+    status: "unknown",
+    kind: "unavailable",
+    markerId: "computer",
   });
 });
 
 it("closes an in-flight native request when its signal is aborted", async () => {
-  const socket = new EventEmitter() as EventEmitter & {
-    write: (data: string) => void;
-    end: () => void;
-    destroy: ReturnType<typeof vi.fn>;
-  };
-  socket.write = () => undefined;
-  socket.end = () => undefined;
-  socket.destroy = vi.fn();
-  vi.spyOn(net, "createConnection").mockReturnValue(socket as never);
-  const controller = new AbortController();
-  const transport = createNativeLinuxTransport("/tmp/driver.sock");
-  const pending = transport("execute", {}, { ...context, signal: controller.signal }, computer);
-  controller.abort();
-  await expect(pending).rejects.toThrow("native_driver_aborted_result_unknown");
-  expect(socket.destroy).toHaveBeenCalledOnce();
+  const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
+  const socketPath = path.join(directory, "driver.sock");
+  const server = net.createServer();
+  let socket: net.Socket | undefined;
+  try {
+    server.listen(socketPath);
+    await once(server, "listening");
+    const controller = new AbortController();
+    const transport = createNativeLinuxTransport(socketPath);
+    const pending = transport("execute", {}, { ...context, signal: controller.signal }, computer);
+    [socket] = await once(server, "connection") as [net.Socket];
+    socket.resume();
+    const disconnected = once(socket, "close");
+    controller.abort();
+    await expect(pending).rejects.toThrow("native_driver_aborted_result_unknown");
+    await disconnected;
+  } finally {
+    socket?.destroy();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 it("decodes driver images and file payloads", async () => {

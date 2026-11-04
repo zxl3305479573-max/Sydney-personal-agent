@@ -20,6 +20,7 @@ import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { openMobileArtifact } from "../../lib/artifact-open";
 import { allowsSpace } from "../../lib/ask-action-label";
 import { plainAskTitle } from "../../lib/ask-title";
+import { mobileBubbleSurfaceStyle, useMobileChatAppearance } from "../../lib/chat-appearance";
 import { t, useI18n } from "../../lib/i18n";
 import { isInlineImageBlock } from "../../lib/inline-image";
 import {
@@ -218,7 +219,17 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
   userBubble?: UserBubble;
 }) {
   const colorScheme = useResolvedAppearance();
-  const tokens = withUserBubble(mobileTokens(), userBubble);
+  const chatAppearance = useMobileChatAppearance();
+  const baseTokens = withUserBubble(mobileTokens(), userBubble);
+  const tokens = chatAppearance.bubble
+    ? {
+        ...baseTokens,
+        chatUser: chatAppearance.bubble.userBackground,
+        chatUserForeground: chatAppearance.bubble.userForeground,
+        muted: chatAppearance.bubble.botBackground,
+        foreground: chatAppearance.bubble.botForeground,
+      }
+    : baseTokens;
   const { t } = useI18n();
   const [peerExpanded, setPeerExpanded] = useState(false);
   const artifactTarget: MobileArtifactTarget = groupId ? { groupId } : { botId };
@@ -495,11 +506,12 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     const hasInlineImages = attachments.some(isInlineImageBlock);
     const bubbleStyle = {
       maxWidth: "100%",
-      borderRadius: 20,
-      backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
       paddingHorizontal: 14,
       paddingVertical: 12,
       gap: 8,
+      ...mobileBubbleSurfaceStyle(chatAppearance, message.role === "user" ? "user" : "bot", {
+        backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
+      }),
     } as const;
     return (
       <View style={hasInlineImages ? { maxWidth: "100%", gap: 8 } : bubbleStyle}>
@@ -734,7 +746,17 @@ function MessageTextCard({
   userBubble?: UserBubble;
 }) {
   const colorScheme = useResolvedAppearance();
-  const tokens = withUserBubble(mobileTokens(), userBubble);
+  const chatAppearance = useMobileChatAppearance();
+  const baseTokens = withUserBubble(mobileTokens(), userBubble);
+  const tokens = chatAppearance.bubble
+    ? {
+        ...baseTokens,
+        chatUser: chatAppearance.bubble.userBackground,
+        chatUserForeground: chatAppearance.bubble.userForeground,
+        muted: chatAppearance.bubble.botBackground,
+        foreground: chatAppearance.bubble.botForeground,
+      }
+    : baseTokens;
   const contentText = blockText(message);
   const { t } = useI18n();
   const userMentions = useContext(UserMentionsContext);
@@ -772,10 +794,11 @@ function MessageTextCard({
         flexShrink: 1,
         minWidth: 0,
         maxWidth: "100%",
-        backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
+        ...mobileBubbleSurfaceStyle(chatAppearance, message.role === "user" ? "user" : "bot", {
+          backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
+        }),
         paddingHorizontal: 14,
         paddingVertical: 9,
-        borderRadius: 20,
       }}
     >
       {speaker ? (

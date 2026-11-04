@@ -14,6 +14,11 @@
       "development": "./src/user-error.ts",
       "default": "./src/user-error.ts"
     },
+    "./hot-plugin-lifecycle": {
+      "types": "./src/hot-plugin-lifecycle.ts",
+      "development": "./src/hot-plugin-lifecycle.ts",
+      "default": "./src/hot-plugin-lifecycle.ts"
+    },
     "./message-quote": {
       "types": "./src/message-quote.ts",
       "development": "./src/message-quote.ts",

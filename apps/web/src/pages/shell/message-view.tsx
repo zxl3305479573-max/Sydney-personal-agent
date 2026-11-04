@@ -502,6 +502,12 @@ export const MessageView = memo(function MessageView({
                   data-testid="message-user-bubble"
                   data-quote-message-id={quoteMessageId}
                   className="max-w-full whitespace-pre-wrap wrap-anywhere rounded-[20px] bg-chat-user px-[18px] py-3 text-body1 text-chat-user-foreground"
+                  style={{
+                    backgroundColor: "var(--custom-chat-user-background, var(--chat-user))",
+                    color: "var(--custom-chat-user-foreground, var(--chat-user-foreground))",
+                    borderRadius: "var(--custom-chat-user-radius, 20px)",
+                    boxShadow: "inset 0 0 0 1px var(--custom-chat-user-border, transparent)",
+                  }}
                   dir="auto"
                 >
                   <LinkifiedText>{block.text}</LinkifiedText>
@@ -519,6 +525,12 @@ export const MessageView = memo(function MessageView({
                 <div
                   data-testid="message-bot-bubble"
                   className="max-w-full rounded-[20px] bg-muted px-[18px] py-3 text-body1 text-foreground"
+                  style={{
+                    backgroundColor: "var(--custom-chat-bot-background, var(--muted))",
+                    color: "var(--custom-chat-bot-foreground, var(--foreground))",
+                    borderRadius: "var(--custom-chat-bot-radius, 20px)",
+                    boxShadow: "inset 0 0 0 1px var(--custom-chat-bot-border, transparent)",
+                  }}
                   dir="auto"
                 >
                   <div data-quote-message-id={quoteMessageId}>

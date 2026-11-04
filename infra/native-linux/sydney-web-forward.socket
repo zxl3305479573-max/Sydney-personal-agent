@@ -1,0 +1,9 @@
+[Unit]
+Description=Sydney cloud web local entry
+
+[Socket]
+ListenStream=127.0.0.1:5173
+Service=sydney-web-forward.service
+
+[Install]
+WantedBy=sockets.target

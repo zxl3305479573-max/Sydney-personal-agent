@@ -6,6 +6,28 @@ import { appendEventInTransaction } from "./events.js";
 
 type AppendEvent = typeof appendEventInTransaction;
 
+export class MainBotLimitError extends Error {
+  constructor() {
+    super("Each space can have at most 4 main bots");
+  }
+}
+
+async function checkMainBotLimit(
+  tx: Prisma.TransactionClient,
+  options: { spaceId: string; botId: string },
+) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${options.spaceId}, 2))::text`;
+  const bot = await tx.bot.findUniqueOrThrow({
+    where: { id: options.botId },
+    select: { userId: true, pinned: true },
+  });
+  if (bot.pinned) return;
+  const count = await tx.bot.count({
+    where: { spaceId: options.spaceId, userId: bot.userId, pinned: true, archivedAt: null },
+  });
+  if (count >= 4) throw new MainBotLimitError();
+}
+
 /**
  * When profile labels or instructions change, write `bot.updated` in the same
  * transaction so clients can refresh after every successful write.
@@ -41,15 +63,22 @@ export async function commitBotUpdate(
     options.data.instructions === undefined &&
     !options.instructionRestore
   ) {
-    return options.prisma.bot.update({
-      where: { id: options.botId, ...options.expectedSettings },
-      data: options.data,
-      select: { id: true, name: true, description: true },
+    const update = (tx: Prisma.TransactionClient) =>
+      tx.bot.update({
+        where: { id: options.botId, ...options.expectedSettings },
+        data: options.data,
+        select: { id: true, name: true, description: true },
+      });
+    if (options.data.pinned !== true) return update(options.prisma);
+    return options.prisma.$transaction(async (tx) => {
+      await checkMainBotLimit(tx, options);
+      return update(tx);
     });
   }
 
   const { instructions, ...data } = options.data;
   const committed = await options.prisma.$transaction(async (tx) => {
+    if (options.data.pinned === true) await checkMainBotLimit(tx, options);
     // Event appends also lock the thread; all writers take it before the bot row.
     await tx.$queryRaw`SELECT id FROM threads WHERE id = ${options.threadId} FOR UPDATE`;
     if (typeof instructions === "string" || options.instructionRestore) {

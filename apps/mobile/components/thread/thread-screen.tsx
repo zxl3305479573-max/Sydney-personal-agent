@@ -14,7 +14,7 @@ import {
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { I18nManager, Platform, View } from "react-native";
+import { I18nManager, ImageBackground, Platform, StyleSheet, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
@@ -23,6 +23,7 @@ import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useCallSession } from "../../lib/call-session";
+import { useMobileChatAppearance } from "../../lib/chat-appearance";
 import { composerDraftScope } from "../../lib/composer-draft";
 import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
@@ -81,6 +82,7 @@ function isActiveStatus(status: string | undefined): boolean {
  */
 export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string }) {
   const tokens = mobileTokens();
+  const chatAppearance = useMobileChatAppearance();
   const styles = useThemedStyles(createThreadHeaderStyles);
   const { t, locale } = useI18n();
   const focused = useIsFocused();
@@ -551,125 +553,143 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
 
   return (
     <View style={{ flex: 1 }}>
-      <KeyboardAvoidingView
-        // Padding always settles to zero. "height" stays shrunk when the keyboard hides without
-        // move frames, such as when a pushed screen closes with its own keyboard up.
-        behavior="padding"
-        {...threadKeyboardAvoidance({
-          os: Platform.OS,
-          floatingHeader: threadHeaderFloats(),
-          nativeHeaderHeight,
-        })}
-        style={{
-          flex: 1,
-          backgroundColor: tokens.background,
-        }}
+      <ImageBackground
+        source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
+        imageStyle={{ opacity: chatAppearance.backgroundOpacity }}
+        style={{ flex: 1 }}
       >
-        {/* The keyboard's padding shrinks this, so the floating composer rides above it. */}
-        <View style={{ flex: 1 }}>
-          <ThreadMessageList
-            scroll={scroll}
-            pinnedListHandlers={paging.pinnedListHandlers}
-            threadKey={threadKey}
-            headerClearance={headerClearance}
-            bottomInset={bottomInset}
-            columnPadding={columnPadding}
-            visibleMessages={visibleMessages}
-            liveItems={liveItems}
-            renderItem={renderItem}
-            renderMessageRow={renderMessageRow}
-            loadEarlierControl={loadEarlierControl}
-            failedSendBubbles={failedSendBubbles}
-            errorNotice={errorNotice}
-            workingFooter={workingFooter}
-            loadingNewer={paging.loadingNewer}
-            showLatest={showLatest}
-          />
-          {/* Shrinks (the suggestion lists scroll) so the input and Send stay above the keyboard. */}
-          <ThreadComposerDock
-            hidden={readOnly}
-            columnPadding={columnPadding}
-            notice={<ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />}
-            onHeight={setDockHeight}
-            replyTarget={replyTarget}
-            replyAuthor={
-              replyTarget?.role === "user"
-                ? (channelMessageSender(replyTarget.blocks) ?? t("You"))
-                : (memberName(snap?.members, replyTarget?.botId) ?? displayName ?? t("Bot"))
-            }
-            replyQuote={replyQuote}
-            threadTarget={artifactTarget}
-            onDismissReply={() => {
-              setReplyTarget(null);
-              setReplyQuote(null);
+        {chatAppearance.backgroundUri ? (
+          <View
+            pointerEvents="none"
+            style={{
+              ...StyleSheet.absoluteFill,
+              backgroundColor: "#000",
+              opacity: chatAppearance.overlayOpacity,
             }}
-            attachmentNotice={attachments.attachmentNotice}
-            attachments={attachments.activePendingAttachments}
-            onRemoveAttachment={(id) =>
-              attachments.setPendingAttachments((current) =>
-                current.filter((item) => item.id !== id),
-              )
-            }
-          >
-            <ThreadComposer
-              key={threadKey}
-              ref={composer.composerRef}
-              draftScope={draftScope}
-              agentSkills={agentSkills}
-              composerMentionTargets={composerMentionTargets}
-              onMentionRequested={onMentionRequested}
-              composerPrompt={composerPrompt}
-              replyTargetId={replyTarget?.id}
-              replyQuote={replyQuote}
-              attachmentIds={attachments.activePendingAttachments.map(
-                (attachment) => attachment.id,
-              )}
-              botId={botId}
-              onCall={onCall}
-              working={working}
-              sending={composer.sending || attachments.shareImporting}
-              styles={styles}
-              attachActions={attachments.attachActions}
-              attachFrom={attachments.attachFrom}
-              send={composer.send}
-              stop={composer.stop}
-              startVoiceCall={startVoiceCall}
-              onSlashAction={composer.runSlashAction}
+          />
+        ) : null}
+        <KeyboardAvoidingView
+          // Padding always settles to zero. "height" stays shrunk when the keyboard hides without
+          // move frames, such as when a pushed screen closes with its own keyboard up.
+          behavior="padding"
+          {...threadKeyboardAvoidance({
+            os: Platform.OS,
+            floatingHeader: threadHeaderFloats(),
+            nativeHeaderHeight,
+          })}
+          style={{
+            flex: 1,
+            backgroundColor: tokens.background,
+          }}
+        >
+          {/* The keyboard's padding shrinks this, so the floating composer rides above it. */}
+          <View style={{ flex: 1 }}>
+            <ThreadMessageList
+              scroll={scroll}
+              pinnedListHandlers={paging.pinnedListHandlers}
+              threadKey={threadKey}
+              headerClearance={headerClearance}
+              bottomInset={bottomInset}
+              columnPadding={columnPadding}
+              visibleMessages={visibleMessages}
+              liveItems={liveItems}
+              renderItem={renderItem}
+              renderMessageRow={renderMessageRow}
+              loadEarlierControl={loadEarlierControl}
+              failedSendBubbles={failedSendBubbles}
+              errorNotice={errorNotice}
+              workingFooter={workingFooter}
+              loadingNewer={paging.loadingNewer}
+              showLatest={showLatest}
             />
-          </ThreadComposerDock>
-        </View>
-        {botActionsOpen ? <BotActionsModal actions={botActions} onClose={closeBotActions} /> : null}
-        {selectableText !== null ? (
-          <SelectTextSheet text={selectableText} onClose={() => setSelectableText(null)} />
-        ) : null}
-        <RunErrorSheet
-          details={detailsOpen ? runError : null}
-          onClose={() => setDetailsOpen(false)}
-          action={runErrorAction}
-        />
-        {markdownPreview && artifactTarget ? (
-          <MarkdownArtifactPreview
-            threadTarget={artifactTarget}
-            target={markdownPreview}
-            onClose={() => setMarkdownPreview(null)}
+            {/* Shrinks (the suggestion lists scroll) so the input and Send stay above the keyboard. */}
+            <ThreadComposerDock
+              hidden={readOnly}
+              columnPadding={columnPadding}
+              notice={<ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />}
+              onHeight={setDockHeight}
+              replyTarget={replyTarget}
+              replyAuthor={
+                replyTarget?.role === "user"
+                  ? (channelMessageSender(replyTarget.blocks) ?? t("You"))
+                  : (memberName(snap?.members, replyTarget?.botId) ?? displayName ?? t("Bot"))
+              }
+              replyQuote={replyQuote}
+              threadTarget={artifactTarget}
+              onDismissReply={() => {
+                setReplyTarget(null);
+                setReplyQuote(null);
+              }}
+              attachmentNotice={attachments.attachmentNotice}
+              attachments={attachments.activePendingAttachments}
+              onRemoveAttachment={(id) =>
+                attachments.setPendingAttachments((current) =>
+                  current.filter((item) => item.id !== id),
+                )
+              }
+            >
+              <ThreadComposer
+                key={threadKey}
+                ref={composer.composerRef}
+                draftScope={draftScope}
+                agentSkills={agentSkills}
+                composerMentionTargets={composerMentionTargets}
+                onMentionRequested={onMentionRequested}
+                composerPrompt={composerPrompt}
+                replyTargetId={replyTarget?.id}
+                replyQuote={replyQuote}
+                attachmentIds={attachments.activePendingAttachments.map(
+                  (attachment) => attachment.id,
+                )}
+                botId={botId}
+                onCall={onCall}
+                working={working}
+                sending={composer.sending || attachments.shareImporting}
+                styles={styles}
+                attachActions={attachments.attachActions}
+                attachFrom={attachments.attachFrom}
+                send={composer.send}
+                stop={composer.stop}
+                startVoiceCall={startVoiceCall}
+                onSlashAction={composer.runSlashAction}
+              />
+            </ThreadComposerDock>
+          </View>
+          {botActionsOpen ? (
+            <BotActionsModal actions={botActions} onClose={closeBotActions} />
+          ) : null}
+          {selectableText !== null ? (
+            <SelectTextSheet text={selectableText} onClose={() => setSelectableText(null)} />
+          ) : null}
+          <RunErrorSheet
+            details={detailsOpen ? runError : null}
+            onClose={() => setDetailsOpen(false)}
+            action={runErrorAction}
           />
-        ) : null}
-        {quoteTarget ? (
-          <QuoteSheet
-            message={quoteTarget}
-            onCancel={() => setQuoteTarget(null)}
-            onQuote={(excerpt) => {
-              setReplyTarget(quoteTarget);
-              setReplyQuote(excerpt);
-              setQuoteTarget(null);
-            }}
-          />
-        ) : null}
-        {/* The header buttons float over the chat; only the clock gets a soft backdrop. */}
-        {headerHeight > 0 ? (
-          <View pointerEvents="none" style={[styles.statusBarFade, { height: insets.top }]} />
-        ) : null}
-      </KeyboardAvoidingView>
+          {markdownPreview && artifactTarget ? (
+            <MarkdownArtifactPreview
+              threadTarget={artifactTarget}
+              target={markdownPreview}
+              onClose={() => setMarkdownPreview(null)}
+            />
+          ) : null}
+          {quoteTarget ? (
+            <QuoteSheet
+              message={quoteTarget}
+              onCancel={() => setQuoteTarget(null)}
+              onQuote={(excerpt) => {
+                setReplyTarget(quoteTarget);
+                setReplyQuote(excerpt);
+                setQuoteTarget(null);
+              }}
+            />
+          ) : null}
+          {/* The header buttons float over the chat; only the clock gets a soft backdrop. */}
+          {headerHeight > 0 ? (
+            <View pointerEvents="none" style={[styles.statusBarFade, { height: insets.top }]} />
+          ) : null}
+        </KeyboardAvoidingView>
+      </ImageBackground>
     </View>
   );
 }

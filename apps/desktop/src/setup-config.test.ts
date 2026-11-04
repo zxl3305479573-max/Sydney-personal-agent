@@ -206,6 +206,33 @@ describe("startup target", () => {
     });
   });
 
+  it("opens the configured Sydney PC backend before using saved setup", () => {
+    expect(
+      resolveStartupTarget({
+        pcBackendUrl: "https://pc.example.com",
+        saved,
+      }),
+    ).toEqual({
+      kind: "app",
+      url: "https://pc.example.com",
+      source: "env",
+    });
+  });
+
+  it("prefers the legacy explicit web URL over the PC backend alias", () => {
+    expect(
+      resolveStartupTarget({
+        envUrl: "http://127.0.0.1:4321",
+        pcBackendUrl: "https://pc.example.com",
+        saved,
+      }),
+    ).toEqual({
+      kind: "app",
+      url: "http://127.0.0.1:4321",
+      source: "env",
+    });
+  });
+
   it("ignores an empty RAKAZO_WEB_URL", () => {
     expect(resolveStartupTarget({ envUrl: "   ", saved }).kind).toBe("app");
     expect(resolveStartupTarget({ envUrl: "   ", saved })).toMatchObject({ source: "saved" });

@@ -58,8 +58,6 @@ async function render(status: ComputerStatus | null, onOpen = vi.fn()) {
         bot={bot}
         computer={status}
         computerOpen={false}
-        embeddedScreenUrl="https://screen.example.test/"
-        screenFrameRef={() => undefined}
         computerScreenError={null}
         computerBooting={null}
         booting={false}
@@ -102,8 +100,8 @@ it.each([null, computer("stopped"), computer("suspended")])(
   },
 );
 
-it("previews a running computer's screen", async () => {
+it("shows a running computer without opening a live preview", async () => {
   await render(computer("running"));
   expect(container.querySelector('[data-state="idle"]')).toBeNull();
-  expect(container.querySelector("iframe")).not.toBeNull();
+  expect(container.querySelector("iframe")).toBeNull();
 });

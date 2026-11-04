@@ -483,14 +483,28 @@ export function useRosterDrop({
         reorderRosterBot(draggedBot.id, action.targetBotId, groupBotIds);
         return;
       }
+      if (
+        action.action === "pin" &&
+        action.pinned &&
+        bots.filter((bot) => bot.pinned).length >= 4
+      ) {
+        setSendError(t`Each space can have at most 4 main bots`);
+        return;
+      }
       const request =
-        action.action === "move"
-          ? rpc.bots.update({ botId: draggedBot.id, sectionId: action.sectionId })
-          : rpc.groups.update({
-              groupId: action.groupId,
-              botIds: action.botIds,
-              expectedBotIds: action.botIds.filter((id) => id !== draggedBot.id),
-            });
+        action.action === "pin"
+          ? rpc.bots.update({
+              botId: draggedBot.id,
+              pinned: action.pinned,
+              sectionId: action.sectionId,
+            })
+          : action.action === "move"
+            ? rpc.bots.update({ botId: draggedBot.id, sectionId: action.sectionId })
+            : rpc.groups.update({
+                groupId: action.groupId,
+                botIds: action.botIds,
+                expectedBotIds: action.botIds.filter((id) => id !== draggedBot.id),
+              });
       void request
         .then(async () => {
           await refreshBots();
@@ -503,7 +517,7 @@ export function useRosterDrop({
           void refreshBots().catch(() => undefined);
         });
     },
-    [draggedBot, refreshBots, reorderRosterBot, rosterDropAction, t],
+    [bots, draggedBot, refreshBots, reorderRosterBot, rosterDropAction, t],
   );
   return {
     draggedBotId,
