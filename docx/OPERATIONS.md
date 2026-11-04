@@ -22,6 +22,10 @@ systemd 草案按源码在 `/opt/sydney` 根目录部署编写，不包含独立
 
 失败 Run 本身不构成后台静止证明；未静止或存在未知效果时，工作台不开放重试。停止证据尚不可用时，不要修改控制状态来强行重试。
 
+授权续期只适用于仍处于 queued/leased/running/waiting 状态的当前 Run；已完成、失败或取消的 Run 不得用旧 mandate 续期。waiting 状态的桌面与外部副作用边界需在 Linux 服务器演练后确认。
+
+原生驱动对工作区文件列举、读取、写入和导出请求会再次验证 Run lease、短期限和 fence；Provider 预检查通过不代表请求一定成功。桌面截图预览可以走只读路径，取消和 inspect 仍返回保守结果；未在目标 Linux 验证前，不得据此宣称已实现可信急停或完整账号隔离。
+
 ## 新任务门禁的部署要求（2026-11-03）
 
 新 Task.executionState、Run.taskMandate 迁移为增量列。本地尚未执行迁移。生产启用前停止所有旧 Worker，再迁移和部署新版 API/Worker，最后开放新任务入口。旧 Worker 不识别授权门禁，不能依靠 schema 向后兼容允许其混跑新任务。

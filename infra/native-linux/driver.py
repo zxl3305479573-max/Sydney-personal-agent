@@ -415,14 +415,18 @@ class Driver:
         if method == "act":
             return self.act(request)
         if method == "list":
+            self.authorize_run(request)
             return self.list_files(bot_id, "" if request.get("path") == "/" else request.get("path", ""))
         if method == "read":
+            self.authorize_run(request)
             limit = request.get("maxBytes") or MAX_FILE
             return base64.b64encode(self.read_file(bot_id, request.get("path"), limit)).decode("ascii")
         if method == "write":
+            self.authorize_run(request)
             self.write_file(bot_id, request.get("path"), request.get("content"), request.get("executable", False))
             return None
         if method == "export":
+            self.authorize_run(request)
             return self.export_files(bot_id)
         if method in ("cancel", "inspect", "stop"):
             run_id = request.get("targetRunId")

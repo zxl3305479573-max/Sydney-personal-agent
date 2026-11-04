@@ -8,6 +8,7 @@ import {
   controlManagedTask,
   guardManagedRun,
   reconcileManagedTaskEffect,
+  renewManagedTaskMandate,
   TaskExecutionError,
   verifyManagedTaskCompletion,
 } from "./task-execution.js";
@@ -26,6 +27,7 @@ function harness(
     effect?: { id: string; status: string } | null;
     runLease?: { leaseOwner: string; leaseFence: number; leaseExpiresAt: Date | null };
     queuedCancelCount?: number;
+    mandate?: object;
   } = {},
 ) {
   let savedState: TaskExecutionState = {
@@ -68,7 +70,12 @@ function harness(
       }),
     },
     run: {
-      findFirst: vi.fn(async () => ({ status: options.runStatus ?? "failed", ...options.runLease })),
+      findFirst: vi.fn(async () => ({
+        id: "run-1",
+        status: options.runStatus ?? "failed",
+        taskMandate: options.mandate,
+        ...options.runLease,
+      })),
       updateMany: vi.fn(async () => ({ count: options.queuedCancelCount ?? 0 })),
       findMany: vi.fn(async () => [{ id: "run-1", ...actor }]),
     },
@@ -139,6 +146,45 @@ describe("managed task state transitions", () => {
         new TaskExecutionError("task_cancelled"),
       );
     });
+    expect(db.tx.task.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects renewal of a terminal Run", async () => {
+    const db = harness({ runStatus: "completed" });
+    await runAsTenant(actor, async () => {
+      await expect(
+        renewManagedTaskMandate(db.prisma, actor, "task-1", "run-1", 2, Date.now() + 60_000),
+      ).rejects.toThrow(new TaskExecutionError("run_not_active"));
+    });
+    expect(db.tx.run.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects renewal when the Run changes state during the update", async () => {
+    const now = Date.now();
+    const db = harness({
+      runStatus: "running",
+      queuedCancelCount: 0,
+      mandate: {
+        id: "mandate-1",
+        ...actor,
+        botId: "bot-1",
+        threadId: "thread-1",
+        taskId: "task-1",
+        runId: "run-1",
+        source: "authenticated_user",
+        issuedAt: now,
+        expiresAt: now + 30_000,
+        scopes: [{ tool: "web_fetch", action: "execute", resource: "https://example.com/" }],
+      },
+    });
+    await runAsTenant(actor, async () => {
+      await expect(
+        renewManagedTaskMandate(db.prisma, actor, "task-1", "run-1", 2, now + 60_000),
+      ).rejects.toThrow(new TaskExecutionError("run_state_changed"));
+    });
+    expect(db.tx.run.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "run-1", taskId: "task-1", ...actor, status: "running" },
+    }));
     expect(db.tx.task.update).not.toHaveBeenCalled();
   });
 

@@ -23,9 +23,10 @@
 - **排队取消已收紧**：取消操作在 Task 行锁事务内仅对当前 `managed_task` 且仍为 `queued` 的 Run 写入终态、清理可恢复状态并记录 `run.cancelled`；提交后尽力通知。Worker 已先领取时仍保留 `quiesced=false`。真实 PostgreSQL 抢占竞争、锁顺序和事件通知尚未验收。
 - **状态版本此前未全面生效**：本轮已让续期、停止确认、effect reconciliation、复核和完成验证检查 expectedVersion；每次 mandate 续期和 effect reconciliation 会推进 Task version。API/DB 定向测试尚未运行。
 - **恢复与 effect 状态已收紧**：cancel 不可转回 continue；pause 恢复前检查全部 Run 的未结算 effect；reconciliation 只接受 intended/ambiguous/failed，拒绝覆盖 settled 状态。仍需针对效应和跨事务竞态运行 PostgreSQL 并发测试。
-- **续期竞态**：`renewManagedTaskMandate` 校验 Task version、控制意图和 mandate 绑定/期限，但仍没有显式检查 Run status、lease owner/fence；真实 PostgreSQL 并发语义待验。
+- **续期竞态**：`renewManagedTaskMandate` 校验 Task version、控制意图和 mandate 绑定/期限，并用当前 Run 状态条件更新；Run 状态改变时拒绝续期。续期本身不声称确认执行租约，真实 PostgreSQL 并发语义待验。
 - **Run 租约过期**：managed model/tool guard 现显式拒绝到期或缺失的 Run lease；相关替身测试新增但未执行，真实数据库竞态仍待验。
-- **重试标志未使用**：dispatch schema 接收 `retry`，本函数未见消费该字段；重试语义实际来自新 nonce 和状态检查，UI 标志可能造成误解。
+- **重试门禁已补齐**：dispatch 对已有 Run 要求显式 `retry=true`，避免客户端把新 nonce 误当作普通首次派工；活动 Run、未决 effect 和控制状态仍分别阻止派工。
+- **授权续期状态**：续期现要求 Run 仍处于受管活动状态，拒绝 completed/failed/cancelled 等终态；waiting_input/waiting_takeover 是否在真实流程中保留正确授权边界仍需联调。
 - **Effect reconciliation 边界**：对外 reconciliation 现检查 tenant、Task version、父 Task 归属和可结算状态；仍需验证请求审计事件与 effect 更新的原子性，因为审计事件写在 API 事务之外。
 - **Effect 字段修正**：`ExternalEffect` 没有 userId，查询通过关联 Run 限制 userId、spaceId 与 taskId，effect 自身限制 spaceId 并排除内部 checkpoint；真实 RLS 和数据库执行尚未验证。
 - **派工复核**：新派工事务额外检查同任务活动 Run 与全部历史的未决效果；仅有非活动终态不等于可证明静止，原有 `quiesced` 门禁保持不变。并发行为尚未在 PostgreSQL 验证。

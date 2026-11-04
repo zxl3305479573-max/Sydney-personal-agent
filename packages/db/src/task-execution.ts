@@ -188,6 +188,7 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       if (!input.modelDataConsent) throw new TaskExecutionError("consent_required");
       const runCount = await tx.run.count({ where: { taskId: task.id, ...actor } });
       if (runCount >= state.budget.maxRuns) throw new TaskExecutionError("max_runs_reached");
+      if (runCount > 0 && !input.retry) throw new TaskExecutionError("retry_required");
       const activeRun = await tx.run.findFirst({
         where: { taskId: task.id, ...actor, status: { in: [...ACTIVE_RUN_STATUSES] } },
         select: { id: true },
@@ -430,9 +431,12 @@ export async function renewManagedTaskMandate(
     }
     const run = await tx.run.findFirst({
       where: { id: runId, taskId, ...actor },
-      select: { id: true, taskMandate: true },
+      select: { id: true, status: true, taskMandate: true },
     });
     if (!run) throw new IsolationError();
+    if (!ACTIVE_RUN_STATUSES.includes(run.status as (typeof ACTIVE_RUN_STATUSES)[number])) {
+      throw new TaskExecutionError("run_not_active");
+    }
     const mandate = StoredTaskMandateSchema.parse(run.taskMandate);
     if (mandate.expiresAt <= Date.now()) throw new TaskExecutionError("mandate_expired");
     if (
@@ -448,10 +452,11 @@ export async function renewManagedTaskMandate(
     if (expiresAt <= Date.now() || expiresAt > Date.now() + 24 * 60 * 60_000) {
       throw new TaskExecutionError("mandate_expiry_invalid");
     }
-    await tx.run.update({
-      where: { id: run.id },
+    const renewed = await tx.run.updateMany({
+      where: { id: run.id, taskId, ...actor, status: run.status },
       data: { taskMandate: { ...mandate, expiresAt } },
     });
+    if (renewed.count !== 1) throw new TaskExecutionError("run_state_changed");
     await saveState(tx, task, { ...state, version: state.version + 1 });
     return { ok: true as const };
   });

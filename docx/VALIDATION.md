@@ -21,6 +21,15 @@
 - 未执行：真实 PostgreSQL 行锁与迁移、API/Worker/Pi 集成、浏览器 E2E、Linux 驱动、模型/App、备份恢复和资源测量。
 - `git diff --check` 已执行通过；不覆盖未跟踪文件，文档另做静态检查。
 
+## V-015：授权续期与原生文件准入
+
+- 日期：2026-11-04；关联 PA-004、PA-005、PA-010、PA-012、PA-014。
+- `infra/native-linux/test_driver.py` 执行 6 项 Python unittest，全部通过；覆盖文件操作缺少/过期 lease、旧 fence、授权请求到达处理器、路径和桌面互斥。
+- 使用缓存 TypeScript 6.0.3 对 `packages/db/src/task-execution.ts` 和对应测试做语法转译，诊断数为 0；不等同于完整类型检查。
+- 内存替身检查通过 4 项：终态续期拒绝、续期状态竞争拒绝、条件更新成功、已有 Run 时 `retry=false` 拒绝。
+- 未执行 Vitest、完整类型检查、真实 PostgreSQL/RLS/并发、Linux systemd/socket/账号权限、普通 Run 回归、Pi、模型、App 和浏览器 E2E。
+- `git diff --check` 和本轮 7 份文档尾随空白、冲突标记、相对链接检查通过。
+
 ## V-012：managed 工具暴露与尽力中断
 
 - 日期：2026-11-04；关联 P2/P3/P4、PA-004、PA-005、PA-006、PA-010、PA-014。

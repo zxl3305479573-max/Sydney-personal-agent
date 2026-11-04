@@ -61,6 +61,8 @@ Rakazo Pi 内置 `run_subagent` 是同一父 Run 中的辅助 Pi 会话，不是
 
 任务历史投影以持久化的 currentRunId 查找当前执行，不依赖历史数组的最后一行；历史查询按创建时间和 ID 稳定排序并显式报告截断。排队取消的 Run 状态和取消事件在同一事务内写入，提交后的通知只是唤醒提示，停止证据仍需独立建立。上述路径尚未经过真实数据库与队列验收。
 
+原生 Linux 工作区文件请求采用两层准入：TypeScript Provider 在数据库侧检查 Run lease，Python driver 在 socket 请求侧再次检查短期限和 fence。该设计减少绕过 Provider 的风险，但不替代 Linux UID、systemd、桌面用户和进程归属的实机验证。
+
 Sydney managed task 在模型工具列表中只暴露已授权且受支持的工具，不暴露 `run_subagent`、`spawn_bot`、`paid_request` 及尚无等价门禁的 `ask_user`/接管直通分支。普通 Rakazo Run 不使用这一筛选。因此“Rakazo 有 Pi 多 Agent”不等于“managed task 已支持递归/并行子 Agent”。若未来开放，必须为 helper 模型调用计费、共享总 token/deadline、工具权限继承、取消传播和审计增加显式契约。
 
 ### 预算解释

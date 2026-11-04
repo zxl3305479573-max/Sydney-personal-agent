@@ -30,6 +30,7 @@
 - **路径访问范围**：只对 API 文件调用使用安全 workspace dirfd；桌面 shell 的 `cwd` 接受任意已存在绝对目录，命令本身按桌面 UID 运行，并非 workspace 沙箱。
 - **能力声明/实现不齐**：本轮将 `pty` capability 修正为 false，因为 `CommandRequest.pty` 实际被拒绝；`persistentHome: true` 声明仍需 Linux 实机核对。screen/takeover/snapshot/export 不支持。
 - **观察权限**：无 lease 的只读截图适用于任务页预览，但 API 路由必须持续验证 Bot、电脑状态和 takeover；它仍暴露屏幕敏感内容给有权用户。
+- **文件请求的二次校验**：驱动对 list/read/write/export 现在要求有效 Run lease，并在内存中复用 fence/期限检查；Provider 先查数据库仍存在读后写竞态，驱动重启会丢失 fence 表，Linux 实机和同账号对抗测试待验。
 
 ## 验证与状态
 
