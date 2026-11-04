@@ -1,6 +1,6 @@
 # ADR-0004：同机原生 Linux 与任务编排层
 
-- 状态：方向已接受，具体实现待 P1 设计及后续验收
+- 状态：历史决策；同机部署方向由 [ADR-0008](0008-separate-control-and-desktop-hosts.md) 替代，Rakazo/Pi 及任务编排决策保留
 - 日期：2026-11-03
 - 关联需求：PA-001 至 PA-018
 - 前序决策：[ADR-0003](0003-rakazo-fork-as-execution-base.md)

@@ -60,7 +60,7 @@ import { formatAgentEnvironmentInstruction } from "./agent-environment.js";
 import { createApprovedEffectReplayQueue } from "./approval-effect.js";
 import { PARTIAL_REPLY_NOTE } from "./automated-messages.js";
 import { loadBotMessageContext } from "./bot-messages.js";
-import { watchManagedTaskControl } from "./managed-task-control.js";
+import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
 import { filterManagedTaskTools } from "./managed-task-tools.js";
 import {
   commandCredentialRedactions,
@@ -475,7 +475,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         tool: undefined,
         screenRelease: undefined,
       };
-      let runAbortController: AbortController | null = null;
+      const runAbortController = new AbortController();
       const runningHelpers = new Map<string, RunningHelper>();
       const settleHelpers = () => settleRunningHelpers(deps, run, runningHelpers);
 
@@ -505,9 +505,35 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         clearInterval(heartbeat);
       };
 
+      if (deps.shutdownSignal?.aborted) runAbortController.abort(deps.shutdownSignal.reason);
+      const onShutdown = () => runAbortController.abort(deps.shutdownSignal?.reason);
+      deps.shutdownSignal?.addEventListener("abort", onShutdown);
+      detachShutdown = () => deps.shutdownSignal?.removeEventListener("abort", onShutdown);
+      const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
+      const managedControlWatch = managedTaskId
+        ? watchManagedTaskControl(
+            async () =>
+              runAsTenant({ userId: run.userId, spaceId: run.spaceId }, async () => {
+                const task = await deps.prisma.task.findFirst({
+                  where: { id: managedTaskId, userId: run.userId, spaceId: run.spaceId },
+                  select: { executionState: true },
+                });
+                const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
+                return Boolean(
+                  parsed.success &&
+                    parsed.data.currentRunId === runId &&
+                    parsed.data.control.intent === "continue" &&
+                    (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
+                );
+              }),
+            runAbortController,
+          )
+        : undefined;
       const runSecrets = [...deps.secrets];
       let dispatchHandedOff = false;
       try {
+        await managedControlWatch?.ready;
+        runAbortController.signal.throwIfAborted();
         // Durable run ownership and its heartbeat now carry recovery. Model,
         // integration and computer setup must not occupy a queue dispatch slot.
         onRunStarted?.();
@@ -579,6 +605,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
           loadRunCodeRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
+        runAbortController.signal.throwIfAborted();
         // Team chat reaches people besides the owner, so their runs get a group channel's limits.
         const teamChatConversationId =
           run.trigger === "messaging" ? thread.externalConversationId : null;
@@ -627,12 +654,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 modelChoice.modelId,
               )
             : null;
-        runAbortController = new AbortController();
-        if (!lease.valid) runAbortController.abort();
-        if (deps.shutdownSignal?.aborted) runAbortController.abort(deps.shutdownSignal.reason);
-        const onShutdown = () => runAbortController?.abort(deps.shutdownSignal?.reason);
-        deps.shutdownSignal?.addEventListener("abort", onShutdown);
-        detachShutdown = () => deps.shutdownSignal?.removeEventListener("abort", onShutdown);
+        runAbortController.signal.throwIfAborted();
         const composioRows = storedConnections.filter(
           (connection) => connection.connectorId === "composio",
         );
@@ -646,6 +668,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             );
           }
         }
+        runAbortController.signal.throwIfAborted();
         const connectedComposio = mergeConnectedPlugins(composioRows, liveSlugs);
         const connectedPlugins = selectRunConnections(
           storedConnections,
@@ -1214,7 +1237,10 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const voiceCall = callEndRun || isCallClientNonce(sourceClientNonce);
         const graphicalToolsAllowed = graphical && acceptsImages && !heldForTakeover;
         const pageBrowserAllowed =
-          graphical && browser.describe().capabilities.page && !heldForTakeover;
+          graphical &&
+          computerKind !== "native-linux" &&
+          browser.describe().capabilities.page &&
+          !heldForTakeover;
         const disabledBuiltinTools = disabledBuiltinToolSet(bot.disabledBuiltinTools);
         const userComputerOwnerId = userComputerOwner({
           trigger: run.trigger,
@@ -1681,7 +1707,6 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         );
         // Provider kind and model id only: custom endpoints are identified by kind, never host.
         const activeModel = { "model.provider": runModelProvider, "model.id": runModelId };
-        const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
         const managedCallObserver = (observer: AgentRunModel["callObserver"]) => {
           if (!managedTaskId) throw new Error("managed_task_missing_task_id");
           return {
@@ -1730,27 +1755,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           return true;
         };
 
-        const managedControlWatch = managedTaskId
-          ? watchManagedTaskControl(
-              async () =>
-                runAsTenant({ userId: run.userId, spaceId: run.spaceId }, async () => {
-                  const task = await deps.prisma.task.findFirst({
-                    where: { id: managedTaskId, userId: run.userId, spaceId: run.spaceId },
-                    select: { executionState: true },
-                  });
-                  const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
-                  return Boolean(
-                    parsed.success &&
-                      parsed.data.currentRunId === runId &&
-                      parsed.data.control.intent === "continue" &&
-                      (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
-                  );
-                }),
-              runAbortController,
-            )
-          : undefined;
         try {
-          await managedControlWatch?.ready;
           context.signal.throwIfAborted();
           if (checkpointLoadError) throw checkpointLoadError;
           const runtimeEvents = deps.runtime.run(
@@ -1969,13 +1974,26 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             ownCredential: resolved.ownCredential,
             active: activeModel,
           });
-        } finally {
-          managedControlWatch?.close();
         }
       } catch (setupError) {
         // An abort while stopping is not a setup failure, and must not spend the
         // retry budget that eventually fails the run.
         if (deps.shutdownSignal?.aborted) return;
+        if (runAbortController.signal.reason instanceof ManagedTaskControlStopped && lease.valid) {
+          await deps.events.finalizeRun({
+            spaceId: run.spaceId,
+            threadId: run.threadId,
+            botId: run.botId,
+            runId,
+            taskId: run.taskId,
+            attemptId: attempt.id,
+            leaseOwner: workerId,
+            leaseFence: fence,
+            outcome: "failed",
+            error: "Managed task was stopped or its control state was unavailable.",
+          });
+          return;
+        }
         const computerBusy = setupError instanceof ComputerBusyError;
         const retryForever = computerBusy || isTooManyDatabaseConnections(setupError);
         const setupMessage = redactSecrets(userRunError(setupError), runSecrets);
@@ -2044,6 +2062,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           throw new Error("Run setup failed; retrying", { cause: reportedSetupError });
         }
       } finally {
+        managedControlWatch?.close();
         getLogger().info("run.computer", {
           "run.id": runId,
           trigger: run.trigger,

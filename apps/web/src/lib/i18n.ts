@@ -45,7 +45,25 @@ export function getActiveUiLocale(): UiLocale {
 
 async function loadCatalog(locale: UiLocale): Promise<CatalogMessages> {
   const { messages } = await importChunk(catalogLoaders[locale]);
-  return messages;
+  const english =
+    locale === "en"
+      ? messages
+      : await importChunk(catalogLoaders.en).then(
+          (catalog) => catalog.messages,
+          () => ({}) as CatalogMessages,
+        );
+  const brandFallbacks = Object.fromEntries(
+    Object.entries(english).filter(([, value]) => JSON.stringify(value).includes("Rakazo")),
+  );
+  const rebrand = (value: unknown): unknown =>
+    typeof value === "string"
+      ? value.replaceAll("Rakazo", "Sydney")
+      : Array.isArray(value)
+        ? value.map(rebrand)
+        : value;
+  return Object.fromEntries(
+    Object.entries({ ...brandFallbacks, ...messages }).map(([key, value]) => [key, rebrand(value)]),
+  ) as CatalogMessages;
 }
 
 function activateLoaded(locale: UiLocale, messages: CatalogMessages): UiLocale {

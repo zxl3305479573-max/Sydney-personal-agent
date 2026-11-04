@@ -81,6 +81,83 @@ class NativeDriverPolicyTests(unittest.TestCase):
             writing.assert_called_once()
             exporting.assert_called_once()
 
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_invalid_pointer_action_does_not_move_the_pointer(self, _clock):
+        with patch.object(self.driver, "desktop_command") as command:
+            for action in (
+                {"kind": "pointer", "x": 5, "y": 10, "type": "invalid"},
+                {"kind": "pointer", "x": 5, "y": 10, "type": "click", "button": "invalid"},
+            ):
+                request = {
+                    "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+                    "request": {"actions": [action]},
+                }
+                with self.subTest(action=action), self.assertRaises(MODULE.Refused):
+                    self.driver.act(request)
+            command.assert_not_called()
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_valid_pointer_click_moves_before_clicking(self, _clock):
+        request = {
+            "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "request": {"actions": [{"kind": "pointer", "x": 5, "y": 10, "type": "click"}], "observe": False},
+        }
+        with patch.object(self.driver, "desktop_command") as command:
+            self.assertEqual(self.driver.act(request), {"completed": 1})
+            self.assertEqual(command.call_args_list, [
+                unittest.mock.call(["/usr/bin/xdotool", "mousemove", "--", "5", "10"]),
+                unittest.mock.call(["/usr/bin/xdotool", "click", "1"]),
+            ])
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_text_input_pastes_unicode_into_the_focused_application(self, _clock):
+        request = {
+            "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "request": {"actions": [{"kind": "clipboard", "text": "你好"}], "observe": False},
+        }
+        with patch.object(self.driver, "desktop_command") as command:
+            self.assertEqual(self.driver.act(request), {"completed": 1})
+            self.assertEqual(command.call_args_list, [
+                unittest.mock.call(["/usr/bin/xclip", "-selection", "clipboard"], "你好".encode()),
+                unittest.mock.call(["/usr/bin/xdotool", "key", "--", "ctrl+v"]),
+            ])
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_scroll_uses_the_requested_position_and_amount(self, _clock):
+        request = {
+            "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "request": {
+                "actions": [{"kind": "scroll", "direction": "down", "amount": 20, "x": 5, "y": 10}],
+                "observe": False,
+            },
+        }
+        with patch.object(self.driver, "desktop_command") as command:
+            self.assertEqual(self.driver.act(request), {"completed": 1})
+            self.assertEqual(command.call_args_list, [
+                unittest.mock.call(["/usr/bin/xdotool", "mousemove", "--", "5", "10"]),
+                unittest.mock.call(["/usr/bin/xdotool", "click", "--repeat", "20", "5"]),
+            ])
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_action_returns_requested_observation(self, _clock):
+        request = {
+            "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "request": {"actions": [{"kind": "wait", "ms": 0}], "observe": True, "settleMs": 0},
+        }
+        with patch.object(self.driver, "observe", return_value={"frameId": "frame"}) as observe:
+            self.assertEqual(self.driver.act(request), {"completed": 1, "observation": {"frameId": "frame"}})
+            observe.assert_called_once_with(request)
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_identical_screens_have_stable_frame_ids(self, _clock):
+        png = b"\x89PNG\r\n\x1a\n" + bytes(8) + MODULE.struct.pack(">II", 2, 3)
+        request = {"botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000}}
+        with patch.object(self.driver, "desktop_command", return_value=png):
+            first = self.driver.observe(request)
+            second = self.driver.observe(request)
+        self.assertEqual(first["frameId"], second["frameId"])
+        self.assertEqual((first["width"], first["height"]), (2, 3))
+
 
 if __name__ == "__main__":
     unittest.main()

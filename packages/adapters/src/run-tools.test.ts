@@ -66,6 +66,41 @@ beforeEach(() => {
 });
 
 describe("dispatchTool audit outcomes", () => {
+  it("does not execute a managed tool when cancelled during the approval gate", async () => {
+    const ctx = dispatchContext(false);
+    const controller = new AbortController();
+    const managed = {
+      ...ctx,
+      context: { signal: controller.signal },
+      run: {
+        userId: "user-1",
+        trigger: "managed_task",
+        taskMandate: {
+          id: "mandate-1",
+          userId: "user-1",
+          spaceId: "space-1",
+          botId: "bot-1",
+          threadId: "thread-1",
+          taskId: "task-1",
+          runId: "run-1",
+          source: "authenticated_user",
+          issuedAt: 1,
+          expiresAt: 9_999_999_999_999,
+          scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+        },
+      },
+    };
+    const originalGate = vi.mocked(gateToolCall).getMockImplementation()!;
+    vi.mocked(gateToolCall).mockImplementationOnce(async (...arguments_) => {
+      const outcome = await originalGate(...arguments_);
+      controller.abort(new Error("stopped"));
+      return outcome;
+    });
+    await expect(applyTool(managed as never, "read_file", { path: "note.txt" }, "call-1"))
+      .rejects.toThrow("stopped");
+    expect(audited).toEqual([]);
+  });
+
   it("refuses managed helper delegation before the approval gate", async () => {
     const ctx = dispatchContext(false);
     const managed = {

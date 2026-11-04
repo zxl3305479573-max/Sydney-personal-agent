@@ -97,3 +97,10 @@ body,
     opacity: 0.3;
   }
 }
+/* Tint the transparent brand mark to the current theme without adding a plate. */
+.sydney-brand-mark {
+  display: inline-block;
+  flex: none;
+  background-color: currentColor;
+  mask: url("/sydney-mark.png") center / contain no-repeat;
+}

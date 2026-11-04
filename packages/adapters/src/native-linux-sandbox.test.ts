@@ -67,6 +67,8 @@ it("declares PTY unavailable and exposes conservative run cleanup results", asyn
   const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
 
   expect(sandbox.describe().capabilities.pty).toBe(false);
+  expect(sandbox.describe().capabilities.graphical).toBe(true);
+  expect(sandbox.describe().capabilities.takeover).toBe(false);
   await sandbox.cancelRunWork(computer, "computer", "run", context);
   await expect(sandbox.inspectBackgroundWork(computer, "computer", context)).resolves.toBe("unknown");
   expect(transport).toHaveBeenNthCalledWith(1, "cancel", { targetRunId: "run" }, context, computer);
@@ -157,6 +159,12 @@ it("converts command output into runtime process events", async () => {
     { type: "stderr", data: "err" },
     { type: "exit", code: 0 },
   ]);
+  expect(transport).toHaveBeenCalledWith(
+    "execute",
+    { command: { argv: ["true"], timeoutMs: 8000 } },
+    expect.anything(),
+    computer,
+  );
 });
 
 it("requires a valid lease before a native command", async () => {

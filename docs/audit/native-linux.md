@@ -31,6 +31,9 @@
 - **能力声明/实现不齐**：本轮将 `pty` capability 修正为 false，因为 `CommandRequest.pty` 实际被拒绝；`persistentHome: true` 声明仍需 Linux 实机核对。screen/takeover/snapshot/export 不支持。
 - **观察权限**：无 lease 的只读截图适用于任务页预览，但 API 路由必须持续验证 Bot、电脑状态和 takeover；它仍暴露屏幕敏感内容给有权用户。
 - **文件请求的二次校验**：驱动对 list/read/write/export 现在要求有效 Run lease，并在内存中复用 fence/期限检查；Provider 先查数据库仍存在读后写竞态，驱动重启会丢失 fence 表，Linux 实机和同账号对抗测试待验。
+- **指针参数顺序**：指针类型和按钮现在先于鼠标移动校验；单条非法指针动作不会先移动鼠标。一个动作列表中的前序动作仍可能已经执行，不能将整个列表视为原子操作。
+- **基础图形执行**：Provider 现声明图形观察/动作能力；驱动支持截图、指针、键盘、剪贴板粘贴输入、滚动及动作后观察。浏览器结构化页面工具、实时屏幕流和人工接管仍不可用；真实 X11、剪贴板粘贴及 Provider/Executor 测试尚未执行。剪贴板内容可能被桌面账号其他进程读取。
+- **短时终端**：原生 shell 改为直接执行 Bash，Provider 将超时限制在 8 秒以内，驱动把相对工作目录解析到 Bot home。进程组清理和脱组残留仍不能证明静止；真实 Linux 与 Run 接线未验证。
 
 ## 验证与状态
 

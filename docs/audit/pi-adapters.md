@@ -19,7 +19,7 @@
 ## 阻塞发现
 
 - **辅助模型预算覆盖不全**：helper 在 `pi-runtime-subagent.ts` 可优先使用模型配置自身 `callObserver`；现在 managed 工具列表不暴露 helper，自动模型审核也暂时关闭。上述关闭策略和其他潜在辅助模型调用仍需定向集成测试，不能据此宣称全面成本上限。
-- **控制传播仍不完整**：managed runtime 执行期间约每两秒读取 Task 控制状态，pause/cancel、Run 变更、截止或读取失败时触发 AbortSignal；进入 runtime 之前会先查一次。该轮询没有覆盖所有启动准备步骤，不能保证正在运行的外部请求遵从信号，也不能证明后台进程静止。
+- **控制传播仍不完整**：managed 控制轮询现从 Run/电脑租约取得且 Attempt 创建后启动，贯穿准备阶段和 runtime；pause/cancel、Run 变更、截止或读取失败时触发 AbortSignal。工具解析、准备、审批和授权检查返回后新增中止检查，但审批内部或已经发出的操作仍可能继续；租约领取与电脑租约获取早于轮询，不能证明后台进程静止。相关 executor 和工具测试尚未执行。
 - **取消传播待实测**：native socket 现响应 AbortSignal 关闭请求，驱动尝试清理命令进程组；脱组子进程及外部副作用仍可能继续。Task 停止确认仍失败关闭，真实 Linux、PostgreSQL 和 Pi 联调未验收。
 - **工具计数语义**：guard 在 handler 之前计数；被拒绝的后续副作用或无效调用可能消耗预算，这是保守限额，但需要 UI 解释。模型调用 guard 预留后，observer 再建立 billing reservation；第二步失败时 Task reservation 不回滚。
 - **副作用前后顺序**：在工具解析前后增加静态 scope 预筛，但实时 DB 授权与预算事务仍位于 approval/effect gate 之后；授权过期或撤销发生在预筛之后时仍可能留下无必要审批记录。

@@ -30,8 +30,10 @@
 - **Effect reconciliation 边界**：对外 reconciliation 现检查 tenant、Task version、父 Task 归属和可结算状态；仍需验证请求审计事件与 effect 更新的原子性，因为审计事件写在 API 事务之外。
 - **Effect 字段修正**：`ExternalEffect` 没有 userId，查询通过关联 Run 限制 userId、spaceId 与 taskId，effect 自身限制 spaceId 并排除内部 checkpoint；真实 RLS 和数据库执行尚未验证。
 - **派工复核**：新派工事务额外检查同任务活动 Run 与全部历史的未决效果；仅有非活动终态不等于可证明静止，原有 `quiesced` 门禁保持不变。并发行为尚未在 PostgreSQL 验证。
+- **创建重放预算**：创建任务时复用 nonce 现在逐项比较原有预算，变化时返回冲突，避免调用方误以为旧任务采用新预算；替身测试尚未运行，真实事务并发仍待验。
 - **结果投影已收紧**：完成 Run 没有 completion evidence 时返回 `completion_unverified`；历史结果不完整时 API 不允许把投影包装为成功；完成确认会查询同 Task 全部 Run 的未结算 effect，包含此前 Run。
 - **预算累计单调**：Run 预留预算在外部模型 call 失败或已知 usage 后不结算/释放，属于保守上限，但会减少同一任务可继续调用次数；需确认这是明确产品行为。
+- **重试预算与期限**：新派工现保留任务已计入的模型/工具调用、token 预留及首次截止时间，截止后拒绝新派工。旧版本已经清零的数据无法由当前状态恢复；新增替身测试尚未运行，不能宣称历史任务的累计上限可靠。
 - **并发与物理 schema 未验**：表名/字段 SQL、PostgreSQL 行锁、RLS、事务重试、JSON 写入和迁移没有在真实 PostgreSQL 执行。
 
 ## 验证与状态

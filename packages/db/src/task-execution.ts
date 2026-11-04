@@ -144,15 +144,21 @@ export async function createManagedTask(prisma: PrismaClient, actor: Tenant, raw
         },
         update: {},
       });
+      const summary = taskSummary(task);
       if (
         task.userId !== actor.userId ||
         task.spaceId !== actor.spaceId ||
         task.botId !== input.botId ||
-        task.prompt !== input.prompt
+        task.prompt !== input.prompt ||
+        summary.execution.budget.maxRuns !== input.budget.maxRuns ||
+        summary.execution.budget.maxToolCalls !== input.budget.maxToolCalls ||
+        summary.execution.budget.maxModelCalls !== input.budget.maxModelCalls ||
+        summary.execution.budget.maxReservedTokens !== input.budget.maxReservedTokens ||
+        summary.execution.budget.timeoutMs !== input.budget.timeoutMs
       ) {
         throw new TaskExecutionError("nonce_payload_mismatch");
       }
-      return taskSummary(task);
+      return summary;
     }),
   );
 }
@@ -205,6 +211,9 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       });
       if (unresolved) throw new TaskExecutionError("effects_unresolved");
       const now = Date.now();
+      if (state.deadline !== null && state.deadline <= now) {
+        throw new TaskExecutionError("task_deadline_exceeded");
+      }
       if (input.expiresAt <= now || input.expiresAt > now + 24 * 60 * 60_000) {
         throw new TaskExecutionError("mandate_expiry_invalid");
       }
@@ -238,10 +247,7 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
         version: state.version + 1,
         currentRunId: run.id,
         control: { intent: "continue", quiesced: false },
-        deadline: now + state.budget.timeoutMs,
-        modelCalls: 0,
-        reservedTokens: 0,
-        toolCalls: [],
+        deadline: state.deadline ?? now + state.budget.timeoutMs,
       });
       return { runId: run.id, reused: false };
     }),

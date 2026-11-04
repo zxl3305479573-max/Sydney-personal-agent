@@ -40,6 +40,27 @@ describe("activateUiLocale", () => {
     vi.unstubAllGlobals();
   });
 
+  it("rebrands translated catalog messages and falls back for missing brand translations", async () => {
+    const loaders = Object.fromEntries(
+      UI_LOCALES.map((locale) => [
+        locale,
+        async () => ({
+          messages:
+            locale === "en"
+              ? { signIn: "Sign in to Rakazo", welcome: "Welcome to Rakazo" }
+              : locale === "zh-CN"
+                ? { signIn: "登录 Rakazo" }
+                : {},
+        }),
+      ]),
+    ) as Record<UiLocale, () => Promise<{ messages: Record<string, string> }>>;
+    setCatalogLoadersForTests(loaders);
+
+    await activateUiLocale("zh-CN");
+    expect(i18n._({ id: "signIn" })).toBe("登录 Sydney");
+    expect(i18n._({ id: "welcome" })).toBe("Welcome to Sydney");
+  });
+
   it("falls back to English when the preferred catalog fails to load", async () => {
     setCatalogLoadersForTests({
       en: async () => ({ messages: { Settings: "Settings" } }),

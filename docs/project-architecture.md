@@ -6,13 +6,15 @@
 
 ## 1. 定位与首版边界
 
-Sydney 是基于 Rakazo 的个人 Agent 定制项目，不是另起一套 Agent Runtime。当前目标是在单台专用 Linux 服务器上运行 API、Worker、Pi Runtime、数据库及专用桌面；桌面通过 `SandboxProvider` 接入。项目采用模块化单体和既有 PostgreSQL/Run/Attempt/审批/租约体系，参考 DSH 的任务、派工和 Mandate 思想，不引入 DSH Runtime，也不额外建立调度器或任务数据库。
+Sydney 是基于 Rakazo 的个人 Agent 定制项目，不是另起一套 Agent Runtime。当前目标是在后台 Linux 服务器运行 API、Worker、Pi Runtime 和数据库，在独立云电脑运行桌面；桌面通过 `SandboxProvider` 接入，跨机连接仍待实现和验证。项目采用模块化单体和既有 PostgreSQL/Run/Attempt/审批/租约体系，参考 DSH 的任务、派工和 Mandate 思想，不引入 DSH Runtime，也不额外建立调度器或任务数据库。
 
 当前控制链路尚未生产就绪：managed runtime 期间会轮询控制意图并尝试中断，但这不是即时停止，也不能证明后台工作静止；停止确认接口失败关闭，暂停后的恢复及副作用核对不可通过该入口完成。原生 Provider 的租约检查仍需并发与 Linux 验证，详见模块审计。
 
 源码位于根目录：`apps/api`、`apps/worker`、`apps/web`、`packages/contracts`、`packages/core`、`packages/db`、`packages/adapter-kit`、`packages/adapters`。`docx/` 是开发、计划和运维记录目录，不是应用源码目录，也不意味着已有 Word 文件。
 
 ## 2. 总体结构
+
+下图描述双机目标；安全转发尚未实现，现有 Provider 只能连接其本机 Unix socket。
 
 ```mermaid
 flowchart LR
@@ -27,7 +29,8 @@ flowchart LR
   Executor --> Model[模型 Provider 与用量观察器]
   Executor --> Connectors[MCP / Apps / Messaging]
   Executor --> Sandbox[SandboxProvider]
-  Sandbox --> Socket[Unix socket]
+  Sandbox --> Link[待验证的跨机受控连接]
+  Link --> Socket[云电脑 Unix socket]
   Socket --> Driver[独立桌面账号的 native driver]
   Driver --> Desktop[Linux 桌面 / 浏览器 / workspace]
 ```
@@ -63,13 +66,19 @@ Rakazo Pi 内置 `run_subagent` 是同一父 Run 中的辅助 Pi 会话，不是
 
 原生 Linux 工作区文件请求采用两层准入：TypeScript Provider 在数据库侧检查 Run lease，Python driver 在 socket 请求侧再次检查短期限和 fence。该设计减少绕过 Provider 的风险，但不替代 Linux UID、systemd、桌面用户和进程归属的实机验证。
 
+受管 Run 在获取执行租约并创建 Attempt 后启动控制轮询，准备阶段和 Pi 运行期间共享中止信号。停止意图、截止或控制读取异常会阻止后续可检查的步骤；这不证明已发送的操作或后台进程已经停止，服务端静止证明仍待实现和验证。
+
 Sydney managed task 在模型工具列表中只暴露已授权且受支持的工具，不暴露 `run_subagent`、`spawn_bot`、`paid_request` 及尚无等价门禁的 `ask_user`/接管直通分支。普通 Rakazo Run 不使用这一筛选。因此“Rakazo 有 Pi 多 Agent”不等于“managed task 已支持递归/并行子 Agent”。若未来开放，必须为 helper 模型调用计费、共享总 token/deadline、工具权限继承、取消传播和审计增加显式契约。
+
+原生 Provider 现为支持视觉的模型声明截图和图形操作能力，驱动支持截图、点击、键盘、剪贴板粘贴输入和滚动；原生浏览器结构化页面工具、实时流及接管仍关闭。原生终端使用有时限的直接 Bash 命令，以上接线未经过真实 Linux、模型或双机验证。
 
 ### 预算解释
 
 Task 保存 `maxRuns`、`maxToolCalls`、`maxModelCalls`、`maxReservedTokens` 和 `timeoutMs`。当前 model guard 以输入 token 估计加最大输出 token 做预留；普通工具独立计数；真实 usage 继续走 Rakazo 用量记录。预留是保守上限，不是账单；不因未知 usage 退款。当前 audit 发现 Pi helper 与部分辅助审核模型没有被 managed task 的 reservation wrapper 明确覆盖，须在开放此功能前补测/修复。未完成线上 token、缓存、价格或 CPU/内存成本测量。
 
 ## 5. 云电脑与 Linux 原生桌面
+
+以下时序描述现有驱动的本机调用，不代表跨机连接已实现；双机方案及验收见 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)。
 
 ### Provider 路径
 
@@ -95,7 +104,7 @@ Provider 通过 `SANDBOX_PROVIDER=native-linux` 和 `SYDNEY_NATIVE_DRIVER_SOCKET
 
 已有代码路径包括有限命令执行、文件 list/read/write、单次桌面截图及有限鼠标键盘动作。`connectScreen`、workspace export、snapshot 明确不支持；PTY capability 已设为不可用。`stop`/`destroy` 本轮改为明确报 unsupported；driver cancel/inspect 现已接线，但 inspect 只能确认 active 或 unknown，不能证明 idle，且均未在 Linux 验证。屏幕流、Viewer、人工接管、可靠后台进程静止证明、独立强沙箱均未实现或未验收。
 
-同机桌面账号是可控执行账户，不是强隔离环境。其 shell 可访问该账号权限内的文件和网络；被执行的恶意程序可能影响同 UID 桌面及驱动。需要运行不可信代码、桌面管理员权限或可信急停时，改用独立 VM/主机并保留客体外控制面。
+云电脑桌面账号是可控执行账户。其 shell 可访问该账号权限内的文件和网络；被执行的恶意程序可能影响同 UID 桌面及驱动。独立主机改善控制面分离，但网络隔离、凭据保护和可信急停仍须单独实现和验证。
 
 ## 6. App 与服务连通方式
 

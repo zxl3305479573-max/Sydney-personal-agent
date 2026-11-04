@@ -5,7 +5,10 @@
 
   /** Core's `translate`, which this plain page cannot import: English-keyed, `{name}` placeholders. */
   function t(message, values) {
-    const template = Object.hasOwn(messages, message) ? messages[message] : message;
+    const template = (Object.hasOwn(messages, message) ? messages[message] : message).replace(
+      /Rakazo(?! Cloud)/g,
+      "Sydney",
+    );
     if (!values) return template;
     return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) =>
       Object.hasOwn(values, key) ? String(values[key]) : match,

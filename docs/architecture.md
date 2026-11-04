@@ -6,7 +6,7 @@
 
 ## 1. 架构方向
 
-控制服务采用模块化单体，使用 TypeScript 实现任务编排、模型适配、权限和数据访问。按 [ADR-0004](adr/0004-native-server-and-task-orchestration.md)，首版后台和桌面位于同一台 Linux 服务器，使用不同账号及受控通信，通过统一 Provider 接口接入。下图中的客体表示逻辑执行面，不要求独立 VM 或 Docker。
+控制服务采用模块化单体，使用 TypeScript 实现任务编排、模型适配、权限和数据访问。按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，首版后台和桌面位于两台 Linux 服务器，通过统一 Provider 接口及待验证的受控通信连接，不以 Docker 为前提。
 
 PC 前端暂按浏览器工作台规划。控制服务可以在本机或云端部署，任务与记忆保存在控制侧，电脑内的文件独立管理。若使用远程模型，实际发送内容必须符合 [安全与隐私](security.md)。
 

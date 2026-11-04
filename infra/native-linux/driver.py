@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import os
 import pwd
@@ -236,6 +237,8 @@ class Driver:
             raise Refused("Invalid command")
         home = self.environment(request["botId"])["home"]
         cwd = command.get("cwd") or home
+        if isinstance(cwd, str) and not os.path.isabs(cwd):
+            cwd = os.path.join(home, cwd)
         if not isinstance(cwd, str) or "\0" in cwd or not os.path.isdir(cwd):
             raise Refused("Invalid command directory")
         environment = {
@@ -333,7 +336,7 @@ class Driver:
             raise Refused("Invalid desktop image")
         width, height = struct.unpack(">II", data[16:24])
         return {
-            "frameId": uuid.uuid4().hex,
+            "frameId": hashlib.sha256(data).hexdigest(),
             "capturedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "mimeType": "image/png", "width": width, "height": height,
             "imageBase64": base64.b64encode(data).decode("ascii"),
@@ -342,8 +345,11 @@ class Driver:
     def act(self, request):
         self.authorize_run(request)
         actions = (request.get("request") or {}).get("actions")
-        if not isinstance(actions, list) or len(actions) > 20:
+        if not isinstance(actions, list) or len(actions) > 24:
             raise Refused("Invalid desktop actions")
+        settle_ms = (request.get("request") or {}).get("settleMs", 350)
+        if not isinstance(settle_ms, int) or isinstance(settle_ms, bool) or not 0 <= settle_ms <= 5000:
+            raise Refused("Invalid settle time")
         completed = 0
         for action in actions:
             self.authorize_run(request)
@@ -352,7 +358,7 @@ class Driver:
             kind = action.get("kind")
             if kind == "wait":
                 duration = action.get("ms")
-                if not isinstance(duration, int) or isinstance(duration, bool) or not 0 <= duration <= 1000:
+                if not isinstance(duration, int) or isinstance(duration, bool) or not 0 <= duration <= 5000:
                     raise Refused("Invalid wait")
                 time.sleep(duration / 1000)
             elif kind == "key":
@@ -368,29 +374,44 @@ class Driver:
                 if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 8192
                        for value in (xpos, ypos)):
                     raise Refused("Invalid pointer coordinates")
-                self.desktop_command(["/usr/bin/xdotool", "mousemove", "--", str(xpos), str(ypos)])
                 action_type = action.get("type")
                 button = {"left": "1", "right": "3"}.get(action.get("button", "left"))
                 if not button or action_type not in ("move", "click", "down", "up"):
                     raise Refused("Invalid pointer action")
+                self.desktop_command(["/usr/bin/xdotool", "mousemove", "--", str(xpos), str(ypos)])
                 if action_type != "move":
                     verb = {"click": "click", "down": "mousedown", "up": "mouseup"}[action_type]
                     self.desktop_command(["/usr/bin/xdotool", verb, button])
             elif kind == "scroll":
                 button = {"up": "4", "down": "5", "left": "6", "right": "7"}.get(action.get("direction"))
                 amount = action.get("amount", 1)
-                if not button or not isinstance(amount, int) or isinstance(amount, bool) or not 1 <= amount <= 10:
+                xpos, ypos = action.get("x"), action.get("y")
+                if not button or not isinstance(amount, int) or isinstance(amount, bool) or not 1 <= amount <= 20:
                     raise Refused("Invalid scroll")
+                if xpos is not None or ypos is not None:
+                    if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 8192
+                           for value in (xpos, ypos)):
+                        raise Refused("Invalid scroll coordinates")
+                    self.desktop_command(["/usr/bin/xdotool", "mousemove", "--", str(xpos), str(ypos)])
+                    self.authorize_run(request)
                 self.desktop_command(["/usr/bin/xdotool", "click", "--repeat", str(amount), button])
             elif kind == "clipboard":
                 text = action.get("text")
                 if not isinstance(text, str) or len(text.encode("utf-8")) > 65536:
                     raise Refused("Invalid clipboard text")
                 self.desktop_command(["/usr/bin/xclip", "-selection", "clipboard"], text.encode("utf-8"))
+                self.authorize_run(request)
+                self.desktop_command(["/usr/bin/xdotool", "key", "--", "ctrl+v"])
             else:
                 raise Refused("Unsupported desktop action")
             completed += 1
-        return {"completed": completed}
+        result = {"completed": completed}
+        if (request.get("request") or {}).get("observe", True):
+            if settle_ms:
+                time.sleep(settle_ms / 1000)
+            self.authorize_run(request)
+            result["observation"] = self.observe(request)
+        return result
 
     def dispatch(self, request, connection):
         if not isinstance(request, dict):

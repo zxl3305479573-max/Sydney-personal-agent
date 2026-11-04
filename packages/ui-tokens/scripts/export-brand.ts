@@ -1,32 +1,17 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { darkTokens } from "../src/index.ts";
 
 const root = new URL("../../../", import.meta.url);
 const path = (name: string) => fileURLToPath(new URL(name, root));
-const source = path("packages/ui-tokens/assets/Rakazo.icon/Assets/orange-bot.png");
+const source = path("packages/ui-tokens/assets/Sydney.icon/Assets/sydney-mark.png");
 
-// Match the Icon Composer portrait: the character sits 90 points below center.
-const portrait = await sharp(source).resize(1024, 1024).png().toBuffer();
-async function framed(background: string) {
-  return sharp({ create: { width: 1024, height: 1114, channels: 4, background } })
-    .composite([{ input: portrait, top: 90, left: 0 }])
-    .extract({ left: 0, top: 0, width: 1024, height: 1024 })
-    .png()
-    .toBuffer();
-}
-const mask = Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" rx="200" fill="white"/></svg>',
-);
-async function roundedCorners(input: Buffer) {
-  return sharp(input)
-    .composite([{ input: mask, blend: "dest-in" }])
-    .png()
-    .toBuffer();
-}
-const square = await framed(darkTokens.background);
-const rounded = await roundedCorners(square);
+// The Sydney mark is a glyph on transparency; keep it that way rather than baking a plate.
+const square = await sharp(source)
+  .resize(1024, 1024, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  .png()
+  .toBuffer();
+const rounded = square;
 
 async function png(input: Buffer, name: string, size: number) {
   await sharp(input).resize(size, size).png().toFile(path(name));
@@ -62,25 +47,39 @@ for (const app of ["web", "www"]) {
   await ico(rounded, `${publicDir}/favicon.ico`, [16, 32, 48]);
 }
 await mkdir(path("apps/www/public/brand"), { recursive: true });
+// The marketing site still points at this file name; its copy is rebranded separately.
 await png(rounded, "apps/www/public/brand/rakazo-mark.png", 256);
+// The web app tints the mark with the theme foreground through a CSS mask.
+await png(rounded, "apps/web/public/sydney-mark.png", 256);
 await png(rounded, "apps/mobile/assets/favicon.png", 128);
 await png(square, "apps/desktop/assets/icon.png", 1024);
+await png(square, "apps/desktop/assets/icon-macos.png", 1024);
 await ico(rounded, "apps/desktop/assets/icon.ico", [16, 32, 48, 64, 128, 256]);
+await png(square, "apps/mobile/assets/icon.png", 1024);
+await png(square, "apps/mobile/assets/adaptive-icon.png", 1024);
 
-// The splash shows the character alone, with no plate, so it sits on either splash colour.
-// Keep the existing transparent padding so its visual size stays stable.
-await sharp(await roundedCorners(await framed("transparent")))
+// The launcher background layer is left empty so the mark is not forced onto a dark plate.
+await sharp({
+  create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+})
+  .png()
+  .toFile(path("apps/mobile/assets/icon-background.png"));
+
+// The splash and themed launcher shapes show the mark alone, with no plate.
+await sharp(rounded)
   .resize(620, 620)
   .extend({ top: 202, bottom: 202, left: 202, right: 202, background: "transparent" })
   .png()
   .toFile(path("apps/mobile/assets/splash-icon.png"));
 
-// Android notification icons must be white alpha silhouettes, with transparent eyes.
-const silhouette = await sharp(path("apps/mobile/assets/monochrome-icon.png"))
-  .resize(72, 72)
-  .extractChannel("alpha")
-  .toBuffer();
-await sharp({ create: { width: 72, height: 72, channels: 3, background: "white" } })
-  .joinChannel(silhouette)
-  .png()
-  .toFile(path("apps/mobile/assets/notification-icon.png"));
+async function whiteSilhouette(input: Buffer, name: string, size: number) {
+  const alpha = await sharp(input).resize(size, size).extractChannel("alpha").toBuffer();
+  await sharp({ create: { width: size, height: size, channels: 3, background: "white" } })
+    .joinChannel(alpha)
+    .png()
+    .toFile(path(name));
+}
+
+// Android themed launchers and notification icons need white alpha silhouettes.
+await whiteSilhouette(rounded, "apps/mobile/assets/monochrome-icon.png", 1024);
+await whiteSilhouette(rounded, "apps/mobile/assets/notification-icon.png", 72);

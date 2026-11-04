@@ -46,6 +46,7 @@ async function runRoutine(
     /** User stop already flipped the run to cancelled before the turn ends. */
     cancelRun?: boolean;
     onRunStarted?: () => void;
+    managedControlBlocked?: boolean;
   } = {},
 ) {
   const attachment: Extract<MessageBlock, { kind: "file" | "image" }> = {
@@ -63,7 +64,9 @@ async function runRoutine(
     spaceId: "space-1",
     userId: "user-1",
     status: "queued" as string,
-    trigger: options.attachments && !options.steering ? "user" : "routine",
+    trigger: options.managedControlBlocked
+      ? "managed_task"
+      : options.attachments && !options.steering ? "user" : "routine",
     sourceMessageId: options.attachments && !options.steering ? "message-1" : null,
     routineId: "routine-1",
     retryOfRunId: null,
@@ -200,7 +203,10 @@ async function runRoutine(
       findFirst: vi.fn(async () => null),
       count: vi.fn(async () => 0),
     },
-    task: { findUniqueOrThrow: vi.fn(async () => ({ id: run.taskId, prompt: "Sweep the inbox" })) },
+    task: {
+      findUniqueOrThrow: vi.fn(async () => ({ id: run.taskId, prompt: "Sweep the inbox" })),
+      findFirst: vi.fn(async () => ({ executionState: null })),
+    },
     computer: {
       updateMany: vi.fn(async () => ({ count: 1 })),
       findFirst: vi.fn(async () => ({
@@ -351,6 +357,24 @@ afterEach(() => {
 });
 
 describe("run computer provisioning", () => {
+  it("stops a managed attempt before model and connector setup when control is unavailable", async () => {
+    const { prisma, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
+      managedControlBlocked: true,
+    });
+    expect(prisma.task.findFirst).toHaveBeenCalled();
+    expect(prisma.task.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(prisma.connection.findMany).not.toHaveBeenCalled();
+    expect(runtimeRun).not.toHaveBeenCalled();
+    expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
+      runId: "run-1",
+      outcome: "failed",
+      error: "Managed task was stopped or its control state was unavailable.",
+    }));
+    expect(enqueue).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: "run.continue" }),
+    );
+  });
+
   it("retries handed-off setup failures with durable attempt accounting and backoff", async () => {
     const onRunStarted = vi.fn();
     const { run, enqueue, runtimeRun, prisma } = await runRoutine([], {

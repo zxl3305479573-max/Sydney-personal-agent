@@ -6,6 +6,8 @@ import { appendEventInTransaction } from "./events.js";
 import {
   confirmManagedTaskStopped,
   controlManagedTask,
+  createManagedTask,
+  dispatchManagedTask,
   guardManagedRun,
   reconcileManagedTaskEffect,
   renewManagedTaskMandate,
@@ -18,6 +20,101 @@ vi.mock("./events.js", () => ({
 }));
 
 const actor = { userId: "user-1", spaceId: "space-1" };
+
+describe("managed task creation replay", () => {
+  it("rejects changed budgets and reuses an identical request", async () => {
+    const state = harness().state();
+    const task = {
+      id: "task-1", ...actor, botId: "bot-1", threadId: "thread-1",
+      prompt: "prompt", status: "queued", createdAt: new Date(0), updatedAt: new Date(0),
+      executionState: state,
+    };
+    const tx = {
+      thread: { findFirst: vi.fn(async () => ({ id: task.threadId })) },
+      task: { upsert: vi.fn(async () => task) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+        operation(tx),
+      ),
+    } as unknown as PrismaClient;
+    const input = {
+      botId: task.botId, prompt: task.prompt, clientNonce: "nonce-1", budget: state.budget,
+    };
+
+    await runAsTenant(actor, async () => {
+      await expect(createManagedTask(prisma, actor, input)).resolves.toMatchObject({ id: task.id });
+      for (const key of Object.keys(state.budget) as (keyof typeof state.budget)[]) {
+        const changed = { ...input, budget: { ...input.budget, [key]: input.budget[key] + 1 } };
+        await expect(createManagedTask(prisma, actor, changed)).rejects.toThrow("nonce_payload_mismatch");
+      }
+    });
+  });
+});
+
+describe("managed task retry budget", () => {
+  it.each([false, true])("preserves usage and deadline on retry (expired: %s)", async (expired) => {
+    const now = Date.now();
+    const state = {
+      ...harness().state(),
+      control: { intent: "continue" as const, quiesced: true },
+      deadline: now + (expired ? -1 : 60_000),
+      modelCalls: 2,
+      reservedTokens: 1000,
+      toolCalls: [{ id: "old-call", tool: "read_file", reservedTokens: 0 }],
+    };
+    const task = {
+      id: "task-1", ...actor, botId: "bot-1", threadId: "thread-1",
+      prompt: "prompt", status: "running", createdAt: new Date(0), updatedAt: new Date(0),
+      executionState: state,
+    };
+    const tx = {
+      $queryRaw: vi.fn(async () => [{ id: task.id }]),
+      task: {
+        findMany: vi.fn(async () => [task]),
+        update: vi.fn(async () => task),
+      },
+      run: {
+        findFirst: vi.fn(async () => null),
+        count: vi.fn(async () => 1),
+        create: vi.fn(async () => ({ id: "run-2" })),
+        update: vi.fn(async () => ({})),
+      },
+      externalEffect: { findFirst: vi.fn(async () => null) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+        operation(tx),
+      ),
+    } as unknown as PrismaClient;
+    const input = {
+      taskId: task.id, expectedVersion: state.version, clientNonce: "retry-1",
+      retry: true, expiresAt: now + 60_000, modelDataConsent: true,
+      scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+    };
+
+    await runAsTenant(actor, async () => {
+      if (expired) {
+        await expect(dispatchManagedTask(prisma, actor, input)).rejects.toThrow("task_deadline_exceeded");
+        expect(tx.run.create).not.toHaveBeenCalled();
+      } else {
+        await expect(dispatchManagedTask(prisma, actor, input)).resolves.toEqual({
+          runId: "run-2", reused: false,
+        });
+        expect(tx.task.update).toHaveBeenCalledWith(expect.objectContaining({
+          data: expect.objectContaining({
+            executionState: expect.objectContaining({
+              deadline: state.deadline,
+              modelCalls: 2,
+              reservedTokens: 1000,
+              toolCalls: state.toolCalls,
+            }),
+          }),
+        }));
+      }
+    });
+  });
+});
 
 function harness(
   options: {

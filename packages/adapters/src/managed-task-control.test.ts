@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { watchManagedTaskControl } from "./managed-task-control.js";
+import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
 
 it("aborts when task control changes and stops polling", async () => {
   vi.useFakeTimers();
@@ -11,6 +11,7 @@ it("aborts when task control changes and stops polling", async () => {
     expect(controller.signal.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(20);
     expect(controller.signal.aborted).toBe(true);
+    expect(controller.signal.reason).toBeInstanceOf(ManagedTaskControlStopped);
     await vi.advanceTimersByTimeAsync(100);
     expect(allowed).toHaveBeenCalledTimes(2);
     watch.close();
@@ -26,6 +27,7 @@ it("fails closed on a control read error", async () => {
   }, controller);
   await watch.ready;
   expect(controller.signal.aborted).toBe(true);
+  expect(controller.signal.reason).toBeInstanceOf(ManagedTaskControlStopped);
   watch.close();
 });
 
@@ -40,4 +42,14 @@ it("does not abort after the watcher is closed while a read is pending", async (
   resolveRead(false);
   await watch.ready;
   expect(controller.signal.aborted).toBe(false);
+});
+
+it("does not read control when the attempt is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const allowed = vi.fn(async () => true);
+  const watch = watchManagedTaskControl(allowed, controller);
+  await watch.ready;
+  expect(allowed).not.toHaveBeenCalled();
+  watch.close();
 });

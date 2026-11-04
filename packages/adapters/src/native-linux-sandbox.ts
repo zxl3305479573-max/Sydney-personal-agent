@@ -121,7 +121,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
       contractVersion: "1",
       adapterVersion: "1",
       capabilities: {
-        graphical: false,
+        graphical: true,
         pty: false,
         snapshots: false,
         takeover: false,
@@ -208,7 +208,8 @@ export class NativeLinuxSandbox implements SandboxProvider {
     context: AdapterContext,
   ): AsyncIterable<ProcessEvent> {
     const guardedContext = await this.guard(context, computer);
-    const result = (await this.transport("execute", { command: request }, guardedContext, computer)) as {
+    const command = { ...request, timeoutMs: Math.min(request.timeoutMs ?? 8_000, 8_000) };
+    const result = (await this.transport("execute", { command }, guardedContext, computer)) as {
       stdout?: string;
       stderr?: string;
       code?: number;

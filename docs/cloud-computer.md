@@ -2,7 +2,7 @@
 
 状态：接口与接入方案提议，尚未实现。更新日期：2026-11-03。
 
-后续决策：按 [ADR-0004](adr/0004-native-server-and-task-orchestration.md)，首版后台与 Agent 桌面在同一台专属 Linux 服务器原生运行。具体复用点、生产限制及待验证能力见 [原生 Linux 设计](../docx/design/NATIVE_LINUX_DESIGN.md)。本文件保留可插拔目标契约；不要求新建平行 Provider 框架，不以 Docker 先行，也不将现有开发用 `desktop` 直接当作生产图形桌面。
+后续决策：按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，首版后台与 Agent 桌面分机运行；跨机连接见 [双机实施方案](../docx/design/TWO_HOST_DEPLOYMENT.md)。本文件保留可插拔目标契约；不要求新建平行 Provider 框架，不以 Docker 先行，也不将现有开发用 `desktop` 直接当作生产图形桌面。
 
 关联需求：PA-011 至 PA-017。
 

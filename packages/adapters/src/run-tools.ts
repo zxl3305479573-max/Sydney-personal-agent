@@ -114,6 +114,7 @@ async function dispatchTool(
     }
   }
   const request = await resolveToolRequest(ctx, name, args, executionId);
+  if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if ("error" in request) return request;
   if (ctx.run.trigger === "managed_task") {
     try {
@@ -131,8 +132,10 @@ async function dispatchTool(
     }
   }
   const refused = await prepareToolRequest(ctx, request);
+  if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if (refused) return refused;
   const gate = await gateToolCall(ctx, request, observer);
+  if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if ("result" in gate) return gate.result;
   if (ctx.run.trigger === "managed_task") {
     try {
@@ -161,8 +164,10 @@ async function dispatchTool(
           ),
       );
     } catch {
+      ctx.context.signal.throwIfAborted();
       return { error: "Managed task authorization or execution budget rejected this tool." };
     }
+    ctx.context.signal.throwIfAborted();
   }
   if (!gate.call.applied) return toolHandler(gate.call.name)(ctx, gate.call);
   let outcome: "success" | "failure" = "failure";

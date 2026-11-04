@@ -44,7 +44,8 @@ let writtenLocale: string | null = null;
 let saving: Promise<void> = Promise.resolve();
 
 export function t(message: string, values?: Record<string, string | number>): string {
-  return translate(desktopMessages(), message, values);
+  const template = (desktopMessages()[message] ?? message).replaceAll("Rakazo", "Sydney");
+  return translate({ [message]: template }, message, values);
 }
 
 export function desktopLocale(): DesktopLocale {
