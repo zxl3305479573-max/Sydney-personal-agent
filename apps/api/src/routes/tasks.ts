@@ -18,7 +18,7 @@ import {
   verifyManagedTaskCompletion,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
-import type { RouterContext } from "../context.js";
+import type { RouterContext } from "./context.js";
 
 async function taskOperation<Result>(operation: () => Promise<Result>): Promise<Result> {
   try {

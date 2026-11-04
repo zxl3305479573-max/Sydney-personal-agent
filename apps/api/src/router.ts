@@ -148,7 +148,7 @@ export function createRouter(deps: RouterDeps) {
   return os.router({
     ...accountRoutes(ctx),
     ...spacesRoutes(ctx),
-      ...tasksRoutes(ctx),
+    ...tasksRoutes(ctx),
     ...modelsRoutes(ctx),
     ...botsRoutes(ctx),
     ...threadsRoutes(ctx),

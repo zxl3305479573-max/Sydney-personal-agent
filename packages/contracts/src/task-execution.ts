@@ -116,7 +116,7 @@ const TaskInspectOutput = z.object({
 });
 
 export const taskExecutionContract = {
-  list: oc.input(z.object({})).output(z.array(TaskInspectOutput.shape.task.omit({}))),
+  list: oc.input(z.object({ botId: Id.optional() })).output(z.array(TaskInspectOutput.shape.task)),
   create: oc.input(TaskCreateInput).output(TaskInspectOutput.shape.task),
   dispatch: oc
     .input(TaskDispatchInput)
