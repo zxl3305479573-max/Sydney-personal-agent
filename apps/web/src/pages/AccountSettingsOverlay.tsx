@@ -18,6 +18,7 @@ import {
   NativeSelect,
   NativeSelectOption,
   OptionSelect,
+  RollingNumber,
   Switch,
   TextField,
   ToggleGroup,
@@ -537,21 +538,25 @@ export function UsageSettingsPanel({
       className="outline-none"
     >
       {usage ? (
-        <dl className="grid grid-cols-3 gap-3">
+        <dl className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:grid-cols-3">
           {[
-            { label: t`Runs`, value: number(usage.runs) },
-            { label: t`Tokens`, value: number(usage.totalTokens) },
+            { label: t`Runs`, value: number(usage.runs), rolling: usage.runs },
+            { label: t`Tokens`, value: number(usage.totalTokens), rolling: usage.totalTokens },
             { label: t`Cost`, value: cost(usage.costUsd) },
           ].map((stat) => (
             <div
               key={stat.label}
-              className="rounded-xl border border-border px-4 py-3"
+              className="min-w-0 rounded-xl border border-border px-4 py-3"
             >
               <dt className="text-[12.5px] text-muted-foreground">
                 {stat.label}
               </dt>
-              <dd className="mt-1 text-[18px] font-medium tabular-nums text-foreground">
-                {stat.value}
+              <dd className="mt-1 break-words text-[18px] font-medium tabular-nums text-foreground [overflow-wrap:anywhere]">
+                {stat.rolling == null ? (
+                  stat.value
+                ) : (
+                  <RollingNumber value={stat.rolling} locale={i18n.locale} label={stat.value} />
+                )}
               </dd>
             </div>
           ))}

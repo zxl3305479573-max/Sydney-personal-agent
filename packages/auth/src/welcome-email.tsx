@@ -12,10 +12,10 @@ export function welcomeEmail(
   return message(
     user.email,
     locale,
-    say("Welcome to Rakazo"),
+    say("Welcome to Sydney"),
     <>
       <Text>{greeting(say, user.name)}</Text>
-      <Text>{say("Thanks for signing up for Rakazo.")}</Text>
+      <Text>{say("Thanks for signing up for Sydney.")}</Text>
       <Text>{say("Have any questions? Reply to this email.")}</Text>
     </>,
     unsubscribeUrl,

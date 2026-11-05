@@ -9,6 +9,9 @@
 /* Web type: the system font and a 14/20 base scale. Mobile sets its own type natively. */
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-chat:
+    Inter, "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -21,6 +24,9 @@
   --text-body2--line-height: 18px;
   --text-body1: 14px;
   --text-body1--line-height: 20px;
+  --text-chat: 15.5px;
+  --text-chat--line-height: 25px;
+  --text-chat--letter-spacing: 0.006em;
   --text-heading3: 17px;
   --text-heading3--line-height: 24px;
   --text-heading3--letter-spacing: -0.008em;
@@ -104,6 +110,18 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Arc icon rule: every lucide glyph, arrows included, draws at one weight so mixed
+     call sites stop drifting between 1.8, 1.9, 2 and 3. Inline SVGs set their own. */
+  .lucide {
+    stroke-width: 1.75;
+  }
+  .rk-chat-type {
+    font-family: var(--font-chat);
+    font-size: var(--text-chat);
+    font-weight: 400;
+    line-height: var(--text-chat--line-height);
+    letter-spacing: var(--text-chat--letter-spacing);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

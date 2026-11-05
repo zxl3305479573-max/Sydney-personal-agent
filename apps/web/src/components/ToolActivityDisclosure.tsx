@@ -2,14 +2,14 @@ import { Plural, Trans } from "@lingui/react/macro";
 import { ChatMarkdown } from "@rakazo/chat-ui/web";
 import type { ThreadMessage } from "@rakazo/contracts";
 import { formatCompactDuration } from "@rakazo/core";
+import { ChevronIcon } from "@rakazo/ui-web";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@rakazo/ui-web/components/ui/collapsible";
-import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { toolStepCount } from "../lib/tool-activity-view";
 
 type ToolStep = Extract<ThreadMessage["blocks"][number], { kind: "steps" }>["steps"][number];
@@ -87,10 +87,13 @@ export function ToolActivityDisclosure({
 }) {
   const duration = formatCompactDuration(durationMs);
   const toolCount = stepCount;
+  const [open, setOpen] = useState(live);
+  useEffect(() => setOpen(live), [live]);
   return (
     <Collapsible
       key={live ? "working" : "actions"}
-      defaultOpen={live}
+      open={open}
+      onOpenChange={setOpen}
       data-testid="tool-activity"
       data-live={live || undefined}
       className="group"
@@ -100,12 +103,7 @@ export function ToolActivityDisclosure({
           live ? "text-foreground/75" : "text-muted-foreground"
         }`}
       >
-        <ChevronRight
-          aria-hidden
-          size={14}
-          strokeWidth={1.8}
-          className="transition-transform duration-150 group-data-panel-open:rotate-90 motion-reduce:transition-none"
-        />
+        <ChevronIcon size={14} pointing="right" state={open} turn={90} />
         <span className="flex items-center gap-2">
           <span>{live ? <Trans>Working…</Trans> : <Trans>Done</Trans>}</span>
           <span>

@@ -1,4 +1,8 @@
 .rk-chat-markdown {
+  font-family: var(--font-chat, inherit);
+  font-weight: 400;
+  letter-spacing: 0.006em;
+  line-height: 1.6;
   min-width: 0;
   overflow-wrap: anywhere;
 }

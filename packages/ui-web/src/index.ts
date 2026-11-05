@@ -51,7 +51,26 @@ export * from "./components/ui/toggle.js";
 export * from "./components/ui/toggle-group.js";
 export * from "./components/ui/tooltip.js";
 export { GroupAvatar, type GroupAvatarMember, type GroupAvatarProps } from "./group-avatar.js";
+export {
+  BellIcon,
+  ChevronIcon,
+  CopyCheckIcon,
+  HeartIcon,
+  IconMorph,
+  type IconMorphName,
+  type IconMorphProps,
+  MenuIcon,
+  PlayPauseIcon,
+  PlusCheckIcon,
+  SunMoonIcon,
+} from "./icon-morph.js";
 export { cn } from "./lib/utils.js";
 export { LogoAvatar } from "./logo-avatar.js";
 export { ModelThinkingOptions } from "./model-thinking-options.js";
+export { RollingNumber, type RollingNumberProps } from "./rolling-number.js";
 export { SectionHeading } from "./section-heading.js";
+export {
+  SegmentedControl,
+  type SegmentedControlOption,
+  type SegmentedControlProps,
+} from "./segmented-control.js";

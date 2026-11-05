@@ -61,6 +61,26 @@ describe("activateUiLocale", () => {
     expect(i18n._({ id: "welcome" })).toBe("Welcome to Sydney");
   });
 
+  it("starts the preferred and English catalogs without waiting for either", async () => {
+    let resolveChinese!: (value: { messages: Record<string, string> }) => void;
+    const chinese = new Promise<{ messages: Record<string, string> }>((resolve) => {
+      resolveChinese = resolve;
+    });
+    const english = vi.fn(async () => ({ messages: { welcome: "Welcome to Rakazo" } }));
+    const loaders = Object.fromEntries(
+      UI_LOCALES.map((locale) => [locale, async () => ({ messages: {} })]),
+    ) as Record<UiLocale, () => Promise<{ messages: Record<string, string> }>>;
+    loaders.en = english;
+    loaders["zh-CN"] = () => chinese;
+    setCatalogLoadersForTests(loaders);
+
+    const activation = activateUiLocale("zh-CN");
+    expect(english).toHaveBeenCalledOnce();
+    resolveChinese({ messages: { welcome: "欢迎使用 Sydney" } });
+    await expect(activation).resolves.toBe("zh-CN");
+    expect(i18n._({ id: "welcome" })).toBe("欢迎使用 Sydney");
+  });
+
   it("falls back to English when the preferred catalog fails to load", async () => {
     setCatalogLoadersForTests({
       en: async () => ({ messages: { Settings: "Settings" } }),

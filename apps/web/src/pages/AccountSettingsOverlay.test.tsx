@@ -29,6 +29,7 @@ vi.mock("@rakazo/ui-web", async (importOriginal) => ({
     <label htmlFor={htmlFor}>{children}</label>
   ),
   Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+  RollingNumber: (await importOriginal<typeof UiWeb>()).RollingNumber,
   TextField: (await importOriginal<typeof UiWeb>()).TextField,
   Label: ({ children, htmlFor }: { children?: ReactNode; htmlFor?: string }) => (
     <label htmlFor={htmlFor}>{children}</label>
@@ -325,11 +326,12 @@ it("shows usage totals and a per-model breakdown", async () => {
         />,
       ),
     );
-    expect([...container.querySelectorAll("dd")].map((node) => node.textContent)).toEqual([
-      "2",
-      "1,234",
-      "$0.50",
-    ]);
+    // The rolling digits hold every glyph in the strip, so read the spoken copy.
+    expect(
+      [...container.querySelectorAll("dd")].map(
+        (node) => node.querySelector(".sr-only")?.textContent ?? node.textContent,
+      ),
+    ).toEqual(["2", "1,234", "$0.50"]);
     expect(
       [...container.querySelectorAll("tbody tr")].map((row) =>
         [...row.querySelectorAll("td")].map((cell) => cell.textContent),

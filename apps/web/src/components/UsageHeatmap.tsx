@@ -1,3 +1,4 @@
+import { RollingNumber } from "@rakazo/ui-web";
 import { useMemo, useState } from "react";
 
 export type UsageEvent = { createdAt: string };
@@ -91,7 +92,7 @@ export function UsageHeatmap({
       <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-1.5 text-sm text-muted-foreground">
           <strong className="font-medium tabular-nums text-foreground">
-            {total}
+            <RollingNumber value={total} />
           </strong>
           <span>次模型调用 · 最近 12 周</span>
         </p>
@@ -114,7 +115,7 @@ export function UsageHeatmap({
         <p className="text-sm text-muted-foreground">暂无模型调用记录。</p>
       ) : (
         <>
-          <div className="relative">
+          <div className="relative min-w-0">
             <div className="overflow-x-auto pb-1">
               <div
                 className="grid min-w-[480px] grid-cols-[24px_auto] gap-x-2 gap-y-2"

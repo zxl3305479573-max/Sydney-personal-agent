@@ -104,9 +104,9 @@ describe("email languages", () => {
 
   it("writes a code email in Spanish", async () => {
     const message = await signInCodeEmail("user@example.test", "123456", "es");
-    expect(message.subject).toBe("Tu código para iniciar sesión en Rakazo");
+    expect(message.subject).toBe("Tu código para iniciar sesión en Sydney");
     expect(message.html).toContain('lang="es"');
-    expect(message.text).toContain("Introduce este código para iniciar sesión en Rakazo:");
+    expect(message.text).toContain("Introduce este código para iniciar sesión en Sydney:");
     expect(message.html).toContain('dir="ltr"');
   });
 
@@ -122,7 +122,7 @@ describe("email languages", () => {
       "Hola, Ana:",
     );
     const english = await welcomeEmail(user, "https://example.test/u");
-    expect(english.subject).toBe("Welcome to Rakazo");
+    expect(english.subject).toBe("Welcome to Sydney");
     expect(english.text).toContain("Hi Ana,");
     expect(english.text).not.toContain("github.com/elie222/rakazo");
     expect(english.html).not.toContain("rakazo.com/api/download");

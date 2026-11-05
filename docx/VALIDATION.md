@@ -1,5 +1,56 @@
 # 验证记录
 
+## 2026-11-05：Arc 小组件续做与聊天字体
+
+- 定向命令：`pnpm exec vitest run --root . packages/ui-web/src/segmented-control.test.tsx packages/ui-web/src/icon-morph.test.tsx packages/ui-web/src/rolling-number.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/components/ToolActivityDisclosure.test.tsx apps/web/src/pages/shell/composer.test.tsx apps/web/src/pages/shell/message-view.test.tsx --maxWorkers=1`；首次运行发现受控分段控件的键盘测试未更新值、工具卡片运行结束后展开状态未同步，修复后 7 文件 132 项通过。测试环境仍提示未实现 Canvas 上下文，未阻止通过。
+- `pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json` 与 `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 均通过；`git diff --check` 通过。
+- 新增的 `segmented-control`、`icon-morph`、`index` 与 CSS 文件执行 Biome 检查通过；`ChatAppearanceSettings.tsx`、`message-view.tsx` 仍有提交前版本的整文件格式差异，未对整文件自动重排，以免混入无关改动。`ToolActivityDisclosure.tsx` 和 `composer.tsx` 的 Biome 检查通过。
+- 未运行全量 UI 套件、全工作区构建、真实浏览器截图、深浅主题、中文换行比对、iPhone 或服务器部署；Grokbot 字体为视觉近似，不能宣称与官方一致。
+
+## 2026-11-05：注册开放部署验证
+
+- 已确认本地 `.env` 的 `SIGNUPS_ENABLED=true`；后台环境原值为 `SIGNUPS_ENABLED=false`，且未发现 `EMAIL_PROVIDER`、`SMTP_URL` 或发件人配置。
+- 备份 `/etc/sydney/backend.env` 后，将 `SIGNUPS_ENABLED` 改为 `true` 并重启 `sydney-api`；服务 active，后台 `/ready` 返回 `{"ok":true,"degraded":false}`。
+- 使用正式 HTTPS 来源的临时账号完成密码注册（200）、会话读取（200）和账号删除（200）；使用旧回环来源的请求按预期返回 403 `INVALID_ORIGIN`。未执行独立密码登录、登出和正式浏览器注册表单验证；临时账号和测试凭据已清理。
+- 公网认证能力接口返回 `passwordAuth=true`、`emailCode=false`、`passwordReset=false`，与当前没有事务邮件配置一致。
+- 本次不宣称邮箱验证、邮箱验证码、密码找回、allowlist、正式浏览器表单视觉、深浅主题和登录限流通过；这些项目需要配置事务邮件服务或真实浏览器后继续验证。
+
+## 2026-11-05：QQ SMTP 与邮件品牌验证
+
+- 旧项目 QQ 邮箱 SMTP 配置转换为当前项目变量后写入后台受保护环境文件；重启 API 后 `/ready` 正常，能力接口返回 `passwordAuth=true`、`emailCode=true`、`passwordReset=true`。
+- `example.invalid` 临时注册触发了真实发信和 QQ 邮箱退信，说明验证邮件发送钩子已生效；已删除两个临时账号及对应验证记录，未验证收件、点击验证链接和验证码登录。
+- 用户提供的退信截图显示标题 `Verify your Rakazo email`；仓库邮件模板、13 个语言文件和相关测试中的用户可见品牌已改为 Sydney。`pnpm exec vitest run --maxWorkers=1 packages/auth/src/email.test.ts packages/auth/src/index.test.ts apps/api/src/marketing-email.test.ts`：3 个文件、52 项通过；`packages/auth` 与 `apps/api` 的 TypeScript 检查通过。
+- 后台邮件模板源码已同步；使用现有 `node scripts/build-server.mjs ...` 重建期间服务器 SSH 超时，未确认构建完成、`index.js` 品牌字符串、重启后 `/ready` 和新邮件标题。该部分记录为中断，未宣称线上生效。
+
+## 2026-11-05：Arc 图标规范与滚动数字
+
+- 滚动数字组件新增 3 项定向测试；用量设置、热力图、消息输入框和弹窗测试共 118 项通过。测试环境仍提示未实现 Canvas 上下文，未阻止通过。
+- `pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json` 和 `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 均通过；本机 Node 22.22.0 仍低于仓库要求的 22.22.2，包级 `pnpm --filter` 检查命令受引擎校验阻止。
+- `pnpm exec biome check` 对新增的 `rolling-number.tsx` 和 `rolling-number.test.tsx` 无问题（仓库使用 Biome，此前误用 Prettier 检查）。`UsageHeatmap.tsx` 和 `AccountSettingsOverlay.tsx` 仍有既有问题：前者有 a11y 语义与格式差异，后者有多行 import 折叠差异和 import 排序，均不在本次改动行上，未顺手修改。
+- 单独运行 `apps/web/src/pages/shell/composer.test.tsx` 与 `shell-overlay.test.ts` 后，本轮定向测试合计 129 项通过。
+- `packages/ui-web` 的头像测试（`bot-avatar` 16 项、`group-avatar` 4 项、`logo-avatar` 2 项）在本工作区失败：渲染结果是流体头像 canvas，测试仍期望 `rakazo-organic-avatar`。这些文件本次未修改，与图标和滚动数字改动无关，未调查其根因。
+- 未在浏览器或 iPhone 查看描边变化、滚动数字动画、深浅主题和减少动态效果；未部署，不能认定线上已生效。
+
+## 2026-11-05：手机网页布局离线验证
+
+- 用量设置、热力图和消息输入框现有定向测试共 115 项通过；加入覆盖弹窗与工作台的 `shell-overlay.test.ts` 后为 126 项通过。测试环境提示未实现 Canvas 上下文，未阻止测试通过。本机 Node 22.22.0 低于仓库要求的 22.22.2，包级检查命令因此被引擎校验阻止。
+- 再次执行 `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 时 `Shell.tsx:348` 报错：该行以函数形式调用 `setMobileSidebarOpen`，而 `use-mobile-sidebar.ts` 当前版本已把该 setter 收窄为只接受布尔值。该文件属于同工作区另一处未提交改动，本次布局修改未涉及该行；错误未修复，也未据此认定本次改动类型不通过。
+- 未在浏览器或 iPhone 实测排版、长数字、集成名称、单列与双列切换、键盘弹出和收起、缩放及安全区域；未部署，不能认定线上已修复。
+- 该轮曾用 Prettier 检查并报不通过，但仓库实际使用 Biome 格式化，结论作废；未对整份文件执行自动格式化，以避免混入无关格式改动。`git diff --check` 通过。
+
+## 2026-11-05：手机网页登录慢初步排查
+
+- 从本机分别访问现有正式域名和通过临时解析直连现有云电脑，三次首页总耗时分别约为 1.14–1.54 秒和 0.06–0.07 秒；另一次现有入口会话请求约 2.23 秒、入口 JS 约 6.31 秒。结果仅代表当时本机网络，不代表 iPhone 网络或长期性能。
+- 云电脑服务状态正常，检查时负载较低；网页初始化等待会话结果。未改动 DNS、代理或服务器配置，未在 iPhone 实测，具体瓶颈尚未确认。
+- 用户反馈 iPhone 的 Wi-Fi 和手机流量均约 7 秒。本地调整路由懒加载和语言包并发后，`App.test.tsx` 与 `i18n-activate.test.ts` 共 17 项通过；未执行生产构建、服务器部署和 iPhone 复测，不能断言加载时间已改善。
+- 用户补充反馈手机切换界面也慢，具体页面和阶段待确认。本机三次匿名会话请求经现有入口约 2.35–2.97 秒，指定源站直连约 0.70–1.83 秒；该检查不代表登录后的页面或线程接口耗时。现有群聊快照优化尚未证明已部署，不能视为线上生效。
+- 用户明确慢的入口是设置和连接应用。本地添加延迟预加载后，`ErrorBoundary.test.tsx` 和 `SettingsOverlay.test.tsx` 共 14 项通过；这些测试未直接测量预加载效果。`shell-overlays.tsx` 的 Biome 检查报告既有格式差异，提交前版本同样未通过；未重排无关代码。未构建、部署或在 iPhone 上复测。
+
+## 2026-11-05：手机网页 Bot 与群聊列表首页
+
+- 关联 PA-018。手机列表状态、聊天直达状态、返回列表逻辑和现有懒加载/设置回归共 5 个定向测试文件、35 项通过；Web TypeScript 检查通过，6 个本轮文件的 Biome 检查通过。`mobile-sidebar-swipe.spec.ts` 已改写为列表首页场景，未执行。
+- 未执行生产构建、服务器部署和 iPhone 实机验证。一次扩大到 Web 页面目录的全量 Vitest 运行出现 25 个文件失败、3 个运行时错误，错误涉及其他组件测试的 mock/资源环境；未将其归因于本轮改动，也未修改无关测试。
+
 ## 2026-11-05：PC 群聊加载离线验证
 
 - 线程同步、订阅及事件相关测试 129 项通过；随后新增跨群缓存隔离测试，线程同步文件 6 项通过。Web TypeScript 和改动文件格式检查通过。
@@ -137,6 +188,14 @@
 - 源站 HTTP 80 仅服务 ACME 验证，其余请求返回 404；源站 HTTPS 接受目标 Host 并转发到既有 Web socket。Nginx worker 使用既有 Web 服务账号。
 - 后续用户确认 Cloudflare SSL/TLS 当前为 Flexible；一次公网 HTTPS 测试期间，云电脑抓包观察到 Cloudflare 地址向源站 TCP 80 发起连接，公网仍返回 404，与当前 HTTP 端口仅提供 ACME 的配置一致。需在 Cloudflare 为该主机名设置严格 HTTPS 回源后再次验证；未修改 Cloudflare 配置。
 - 用户随后确认已将域名全局模式调整为 Full (strict)；公网 HTTPS 页面与 `/rpc/health` 返回 200，客户端证书验证通过；无登录状态调用 `/rpc/me` 返回 401，无效屏幕地址返回 403。未登录、附件拒绝和无效 Host 检查不能代替真实用户流程或完整安全审计。
+
+## 2026-11-05：“获取移动应用”入口清理复核
+
+- 源码检查：`apps/web/src/components/SidebarFooter.tsx` 无下载按钮、手机图标及 App Store/APK 跳转；`rg` 对已跟踪源码未发现“获取移动应用 / Get the mobile app”文案，仅保留新增回归断言中的英文原字符串。
+- 线上资源：请求 `https://pc.zxlup.xin/` 并抓取入口脚本及其公开 JS 依赖共 15 个，未发现该中英文文案；`/build-id` 返回 `20261105061136`。
+- 本机产物：`pnpm --config.engine-strict=false --filter @rakazo/web build` 通过，构建标识 `20261105092721`；对 `apps/web/dist` 全量检索未发现该中英文文案，旧含文案的 JS 和 source map 已被新构建替换。`dist` 仍由 `.gitignore` 排除，未提交，也未部署到线上或打进新桌面安装包。
+- 定向验证：`SidebarFooter.test.tsx` 与手机列表定向测试共 2 个文件、31 项通过；格式修正后 `SidebarFooter.test.tsx` 单独 26 项通过、Biome 通过；`@rakazo/web check` 和 `git diff --check` 通过。
+- 未执行：登录后的真实账户菜单视觉、手机端账户菜单、桌面端打包和正式部署复验；已安装桌面客户端及浏览器 Service Worker 缓存可能仍使用旧资源，需要新构建发布或清缓存后复查。
 
 ## 手机端并行验证（2026-11-05）
 

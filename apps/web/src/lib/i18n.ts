@@ -44,14 +44,12 @@ export function getActiveUiLocale(): UiLocale {
 }
 
 async function loadCatalog(locale: UiLocale): Promise<CatalogMessages> {
-  const { messages } = await importChunk(catalogLoaders[locale]);
-  const english =
-    locale === "en"
-      ? messages
-      : await importChunk(catalogLoaders.en).then(
-          (catalog) => catalog.messages,
-          () => ({}) as CatalogMessages,
-        );
+  const [preferred, fallback] = await Promise.all([
+    importChunk(catalogLoaders[locale]),
+    locale === "en" ? Promise.resolve(null) : importChunk(catalogLoaders.en).catch(() => null),
+  ]);
+  const messages = preferred.messages;
+  const english = fallback?.messages ?? (locale === "en" ? messages : ({} as CatalogMessages));
   const brandFallbacks = Object.fromEntries(
     Object.entries(english).filter(([, value]) => JSON.stringify(value).includes("Rakazo")),
   );

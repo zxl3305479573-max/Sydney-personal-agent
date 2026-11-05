@@ -20,7 +20,6 @@ import {
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
 import type { GroupAvatarMember } from "@rakazo/ui-web";
 import { Button } from "@rakazo/ui-web";
-import { useIsMobile } from "@rakazo/ui-web/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { Lock, Monitor, Moon, Plug, Plus, ScrollText, Sun, Users } from "lucide-react";
 import {
@@ -96,7 +95,7 @@ import { useComposerActions } from "./shell/use-composer-actions";
 import { useComposerMentions } from "./shell/use-composer-mentions";
 import { useComputerControls, useComputerState } from "./shell/use-computer";
 import { useMessageJump } from "./shell/use-message-jump";
-import { useMobileSidebar } from "./shell/use-mobile-sidebar";
+import { isChatListPath, useMobileSidebar } from "./shell/use-mobile-sidebar";
 import { useReadAloud } from "./shell/use-read-aloud";
 import { useReportedUiLocale } from "./shell/use-reported-ui-locale";
 import { useRightPanel, useRightPanelRestore } from "./shell/use-right-panel";
@@ -150,7 +149,17 @@ function SpaceShell() {
     setOverlay,
   } = useShellNavigation();
   const queries = spaceQueries(userId ?? null, shellSpaceId);
-  const roster = useSpaceRoster({ rpc, seed, botId, groupId, navigate, redirectKeepingOverlay });
+  const { mobileSidebarOpen, setMobileSidebarOpen, swipeHandlers, isMobileView } =
+    useMobileSidebar();
+  const isMobileList = isMobileView && isChatListPath(window.location.pathname);
+  const roster = useSpaceRoster({
+    rpc,
+    seed,
+    botId,
+    groupId,
+    navigate,
+    redirectKeepingOverlay,
+  });
   const {
     groups,
     setGroups,
@@ -243,8 +252,38 @@ function SpaceShell() {
   };
   const voiceStatus: VoiceStatus | null =
     useQuery(queries.voice.status.queryOptions()).data ?? null;
-  const { mobileSidebarOpen, setMobileSidebarOpen, swipeHandlers } = useMobileSidebar();
-  const isMobileSidebar = useIsMobile();
+  const isMobileSidebar = isMobileView;
+  const [composerViewport, setComposerViewport] = useState<{ height: number; top: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!isMobileSidebar || !viewport) {
+      setComposerViewport(null);
+      return;
+    }
+    const sync = () => {
+      const focused = document.activeElement;
+      const editingComposer =
+        focused instanceof HTMLElement && focused.closest('[data-testid="composer-field"]');
+      setComposerViewport(
+        editingComposer && viewport.scale === 1
+          ? { height: viewport.height, top: viewport.offsetTop }
+          : null,
+      );
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    document.addEventListener("focusin", sync);
+    document.addEventListener("focusout", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      document.removeEventListener("focusin", sync);
+      document.removeEventListener("focusout", sync);
+    };
+  }, [isMobileSidebar]);
   const miniSidebar = botsSidebarCollapsed && !isMobileSidebar;
   const [botMenu, setBotMenu] = useState<{ kind: "bot" | "group"; id: string } | null>(null);
   const closeBotMenu = useCallback(() => setBotMenu(null), []);
@@ -356,6 +395,7 @@ function SpaceShell() {
     chat: groupId ? { groupId } : active ? { botId: active.id } : undefined,
     navigate,
     redirectKeepingOverlay,
+    isMobileList,
   });
   const { notifyBrowserForEvent, flushPendingBrowserNotifications } =
     useBrowserNotifications(botsRef);
@@ -891,6 +931,17 @@ function SpaceShell() {
       data-testid="shell-root"
       data-ready={shellReady}
       className="relative flex h-full min-h-0 min-w-0 overflow-hidden bg-background text-foreground/90 [&[data-resizing-sidebar]_*[data-slot=sidebar-gap]]:transition-none [&[data-resizing-sidebar]_*[data-slot=sidebar-container]]:transition-none"
+      style={
+        composerViewport
+          ? {
+              position: "fixed",
+              left: 0,
+              right: 0,
+              top: `max(${composerViewport.top}px, env(safe-area-inset-top))`,
+              height: `calc(${composerViewport.height}px - max(0px, env(safe-area-inset-top) - ${composerViewport.top}px))`,
+            }
+          : undefined
+      }
       {...swipeHandlers}
     >
       <ComputerUpdateProgress

@@ -3079,10 +3079,6 @@ msgstr "Général"
 msgid "Get a free month for each friend who starts a trial."
 msgstr "Obtenez un mois gratuit pour chaque ami qui commence un essai."
 
-#: src/components/SidebarFooter.tsx
-msgid "Get the mobile app"
-msgstr "Obtenir l’application mobile"
-
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Getting ready"
 msgstr "Préparation en cours"

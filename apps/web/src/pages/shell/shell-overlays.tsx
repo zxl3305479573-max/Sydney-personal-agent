@@ -9,7 +9,7 @@ import type {
 import { writeSaved } from "@rakazo/core/query";
 import { useQuery } from "@tanstack/react-query";
 import type { RefObject } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { lazyOverlay } from "../../components/ErrorBoundary";
 import type { connectedAppMarks } from "../../lib/connected-apps";
 import type { SpaceQueries } from "../../lib/query";
@@ -66,6 +66,14 @@ export function AppOverlays({
   stdioEnabled: boolean;
   onConnectedAppsChange: (apps: ReturnType<typeof connectedAppMarks>) => void;
 }) {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void import("../SettingsOverlay").catch(() => undefined);
+      void import("../PluginsOverlay").catch(() => undefined);
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <>
       {overlay?.kind === "integrations" ? (

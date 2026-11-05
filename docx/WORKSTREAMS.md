@@ -1,5 +1,11 @@
 # 对话窗口分工与交接
 
+2026-11-05 手机网页首页列表：当前窗口负责 `apps/web/src/pages/shell/use-mobile-sidebar.ts`、`shell-sidebar.tsx`、`use-space-roster.ts` 及定向测试；复用 Bot 列表，不修改 `Shell.tsx`、侧栏布局或 Bot 列表展示组件。
+
+2026-11-05 手机网页首屏优化：当前窗口负责 `apps/web/src/App.tsx`、`apps/web/src/lib/i18n.ts` 和相关定向测试；共享文档仅追加结果。
+
+2026-11-05 设置与连接应用加载优化：当前窗口负责 `apps/web/src/pages/shell/shell-overlays.tsx` 和定向验证；不改动其他窗口的设置页和连接应用主体。
+
 2026-11-05 云电脑文字输入排查：当前窗口负责 `infra/native-linux/driver.py`、`infra/native-linux/test_driver.py` 和相关文档追加；其他窗口的屏幕接线及服务器配置不在本窗口写集。
 
 2026-11-05 顶部机器人展示窗口：负责 Web 侧栏 `sidebar-roster.tsx`、`space-sidebar.ts`、其定向测试及右键菜单文案；沿用现有置顶接口，不修改其他窗口的聊天外观、API 或服务器配置。共享文档只追加相关结果。
@@ -9,6 +15,8 @@
 2026-11-05 PC 客户端联调规划：当前窗口负责 `docx/design/PC_CLIENT_INTEGRATION.md` 及相关计划、开发记录和验证记录；实现范围为现有 Electron 壳与云电脑 PC 后台的连接、登录、聊天、Bot、模型配置、云电脑画面接入和后续 Web 静态服务移除顺序。当前窗口同时恢复统一任务 API/状态读取接线，并维护 PC 后台 Host 配置；另一窗口负责原生手动启动租约与真实画面修复，本窗口不修改其代码文件。
 
 2026-11-05 当前状态：Web 云端服务已完成网页产物切换；侧栏预览移除，全屏屏幕入口保留。原生屏幕 API 已固定只读并通过一次真实 iframe 验证；后续只做稳定性、撤销和重启恢复验收，不恢复侧栏实时预览。
+
+2026-11-05 清理“获取移动应用”残留：本窗口负责 `apps/web/src/components/SidebarFooter.test.tsx`、14 个 `apps/web/src/locales/*/messages.po` 词条、`docs/mobile-app.md` 及共享文档追加；不修改其他窗口的未提交文件，不删除 `apps/mobile` 或手机网页适配。真实账户菜单与部署复验待完成。
 
 2026-11-05 电脑屏幕收尾：本窗口负责 `apps/api/src/routes/computer.ts`、`computer-boot.test.ts`、`apps/web/src/pages/shell/computer-panel.tsx`、`use-computer.tsx` 及其测试，追加手动启动租约与移除预览；共享文档只追加结果。网页部署与真实画面验收尚未完成，详见 V-045。
 

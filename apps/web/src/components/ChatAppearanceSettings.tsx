@@ -1,3 +1,4 @@
+import { SegmentedControl } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
 import type {
   BubbleSide,
@@ -16,8 +17,8 @@ import {
   useAppearanceImage,
   validateBackgroundImage,
 } from "../lib/chat-appearance";
-import { SettingsGroup } from "./SettingsRows";
 import { AppearanceColorPicker } from "./AppearanceColorPicker";
+import { SettingsGroup } from "./SettingsRows";
 
 const fieldClass =
   "rounded-md border border-border bg-background px-2 py-1 text-foreground";
@@ -83,13 +84,13 @@ function AppearancePreview({ appearance }: { appearance: ChatAppearance }) {
       ) : null}
       <div className="relative flex flex-col gap-2">
         <span
-          className="self-end rounded-[20px] bg-chat-user px-4 py-2 text-chat-user-foreground"
+          className="rk-chat-type self-end rounded-[20px] bg-chat-user px-4 py-2 text-chat-user-foreground"
           style={bubbleStyle(bubble?.user, userImage)}
         >
           你好，这是我的消息。
         </span>
         <span
-          className="self-start rounded-[20px] bg-muted px-4 py-2 text-foreground"
+          className="rk-chat-type self-start rounded-[20px] bg-muted px-4 py-2 text-foreground"
           style={bubbleStyle(bubble?.bot, botImage)}
         >
           你好，这是助手的回复。
@@ -302,30 +303,22 @@ export function ChatAppearanceSettings() {
         <fieldset disabled={!ready || saving} className="space-y-4">
           <div className="space-y-2">
             <p className="font-medium">外观模式</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={fieldClass}
-                aria-pressed={
-                  draft.mode === "simple" ||
-                  (!draft.mode && !draft.backgroundId && !draft.bubbleId)
-                }
-                onClick={() => change({ ...draft, mode: "simple" })}
-              >
-                简洁默认
-              </button>
-              <button
-                type="button"
-                className={fieldClass}
-                aria-pressed={
-                  draft.mode === "custom" ||
-                  (!draft.mode && !!(draft.backgroundId || draft.bubbleId))
-                }
-                onClick={() => change({ ...draft, mode: "custom" })}
-              >
-                自定义
-              </button>
-            </div>
+            <SegmentedControl
+              label="外观模式"
+              value={
+                draft.mode === "custom" ||
+                (!draft.mode && !!(draft.backgroundId || draft.bubbleId))
+                  ? "custom"
+                  : "simple"
+              }
+              onValueChange={(mode) =>
+                change({ ...draft, mode: mode === "custom" ? "custom" : "simple" })
+              }
+              options={[
+                { value: "simple", label: "简洁默认" },
+                { value: "custom", label: "自定义" },
+              ]}
+            />
             <p className="text-muted-foreground">
               切换至简洁默认会保留自定义素材和搭配。更改后请保存外观。
             </p>

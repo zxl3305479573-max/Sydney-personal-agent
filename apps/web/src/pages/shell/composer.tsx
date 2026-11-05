@@ -51,7 +51,7 @@ import {
 import { useComposerLayout } from "./use-composer-layout";
 
 const ATTACHMENT_ACCEPT = attachmentPickerAccept(navigator.userAgent);
-const COMPOSER_TEXT = "rk-scroll whitespace-pre-wrap break-words px-0.5 py-0.5 text-body1";
+const COMPOSER_TEXT = "rk-scroll rk-chat-type whitespace-pre-wrap break-words px-0.5 py-0.5";
 export const Composer = memo(function Composer({
   artifactTarget,
   activeName,
@@ -887,7 +887,7 @@ export const Composer = memo(function Composer({
               autoComplete="off"
               dir="auto"
               rows={1}
-              className={`${COMPOSER_TEXT} block max-h-25 min-h-[24px] w-full resize-none overflow-y-auto bg-transparent text-transparent caret-foreground outline-none placeholder:text-muted-foreground selection:bg-ring/30 selection:text-transparent disabled:opacity-40 forced-colors:text-[CanvasText]`}
+              className={`${COMPOSER_TEXT} block max-h-25 min-h-[25px] w-full resize-none overflow-y-auto bg-transparent text-transparent caret-foreground outline-none placeholder:text-muted-foreground selection:bg-ring/30 selection:text-transparent disabled:opacity-40 forced-colors:text-[CanvasText]`}
             />
             <ComposerMentionHighlights
               ref={mirrorRef}

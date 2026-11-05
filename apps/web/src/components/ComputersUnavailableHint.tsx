@@ -1,5 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Button, Spinner } from "@rakazo/ui-web";
+import { Button, CopyCheckIcon, Spinner } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
 import type { SandboxAvailabilityPhase } from "../lib/computer-sandbox";
 import {
@@ -127,6 +127,7 @@ export function ComputersUnavailableHint({
             </Button>
           ) : null}
           <Button type="button" variant="ghost" size="sm" onClick={() => void handleCopyGuidance()}>
+            <CopyCheckIcon state={copied} size={16} />
             {copied ? <Trans>Copied</Trans> : <Trans>Copy .env example</Trans>}
           </Button>
         </div>

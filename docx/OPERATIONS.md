@@ -1,5 +1,15 @@
 # 运维手册
 
+## 注册开放配置（2026-11-05）
+
+注册开放步骤和验收顺序见 [注册开放实施清单](design/REGISTRATION_ROLLOUT.md)。后台 `/etc/sydney/backend.env` 原先使用 `SIGNUPS_ENABLED=false`，本次备份为 `/etc/sydney/backend.env.before-signups-20261105` 后只改为 `SIGNUPS_ENABLED=true` 并重启 `sydney-api`；不把 SMTP、Resend API key 或真实发件人凭据写入仓库和文档。
+
+注册开放后，复用旧项目 QQ 邮箱 SMTP：转换为 `EMAIL_PROVIDER=smtp`、`SMTP_URL=smtps://...`、`EMAIL_FROM=...` 写入 `/etc/sydney/backend.env`，配置前备份为 `/etc/sydney/backend.env.before-qq-smtp-20261105`。重启后 `/ready` 正常，认证能力接口显示密码认证、邮箱验证码和密码找回开启；密钥和发件人地址不写入仓库或文档。
+
+用 `example.invalid` 临时地址验证发送钩子时产生了 QQ 邮箱退信，已删除两个临时账号和验证记录；后续不得用会触发真实外部投递的地址做回归。用户截图发现认证邮件仍带上游品牌；仓库邮件模板已改为 Sydney，源码已同步到后台，但重建 API 期间服务器 SSH 超时，构建是否完成、运行产物是否更新及重启状态未复核。恢复邮件配置可还原 `backend.env.before-qq-smtp-20261105`，恢复构建产物可使用 `index.js.before-sydney-email-brand-20261105`，完整回滚未演练。
+
+邮箱验证链接点击、邮箱验证码登录、密码找回、allowlist 首个账号准入、欢迎邮件、线上新邮件标题和正式浏览器视觉均未完成真实验收。服务器恢复后应先检查构建状态、`index.js` 品牌字符串、`/ready` 和认证能力接口，再用不会触发外部投递的方式验证邮件模板。
+
 ## 云电脑文字输入驱动修复
 
 2026-11-05 云电脑 `/opt/sydney-native/driver.py` 已修复 `xclip` 后台进程导致的输出管道超时，并重启 `sydney-driver.service`；服务与 socket 状态正常。部署前文件备份为 `/opt/sydney-native/driver.py.before-clipboard-20261105`。如需回滚，应先核对后续驱动改动，再恢复备份并重启驱动；回滚尚未演练。独立剪贴板读写已验证，实际网页粘贴和 Agent 端到端验收仍待完成。普通剪贴板不提供凭据隔离。

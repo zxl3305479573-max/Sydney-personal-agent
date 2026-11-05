@@ -57,37 +57,34 @@ async function swipe(page: Page, start: [number, number], end: [number, number])
   );
 }
 
-test("swiping inward from the mobile edge opens the bots sidebar", async ({ page }, testInfo) => {
+test("shows the mobile chat list first and reopens it from a chat", async ({ page }, testInfo) => {
   await prepareOnboarding(page);
   const stamp = Date.now();
   await signup(page, `mobile-sidebar-swipe-${stamp}@rakazo.test`, "password12", "Swipe Test");
   await completeOnboarding(page);
   await page.goto("/app");
-  await page.waitForURL(/\/app\/[^/]+$/);
+  await expect(page).toHaveURL(/\/app\/?$/);
 
-  const closeNavigation = page.getByRole("button", { name: "Close navigation" });
+  const sidebar = page.getByTestId("bots-sidebar");
   const edge = page.getByTestId("mobile-sidebar-swipe-edge");
-  await expect(closeNavigation).toHaveCount(0);
-  await expect(edge).toHaveCSS("touch-action", "none");
-
-  await swipe(page, [16, 420], [35, 510]);
-  await expect(closeNavigation).toHaveCount(0);
-  await swipe(page, [120, 420], [205, 424]);
-  await expect(closeNavigation).toHaveCount(0);
-
-  await swipe(page, [16, 420], [92, 426]);
-  await expect(closeNavigation).toBeVisible();
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(edge).toHaveCount(0);
-  await expect(page.getByTestId("bots-sidebar")).toContainText("Chief");
+  await expect(sidebar).toContainText("Chief");
+  await captureScreenshot(page, testInfo, "mobile-chat-list");
+
+  await page.getByRole("button", { name: /Chief/ }).first().click();
+  await expect(page).toHaveURL(/\/app\/[^/]+$/);
+  await expect(sidebar).toHaveAttribute("aria-hidden", "true");
+  await expect(edge).toHaveCSS("touch-action", "none");
+  await swipe(page, [16, 420], [92, 426]);
+  await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await captureScreenshot(page, testInfo, "mobile-sidebar-edge-swipe-open");
 
-  // Right-to-left layouts swipe in from the other edge.
-  await closeNavigation.click();
-  await expect(closeNavigation).toHaveCount(0);
+  // Going back to the list route reopens it; right-to-left layouts swipe in from the other edge.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/?$/);
+  await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await page.locator("html").evaluate((html) => html.setAttribute("dir", "rtl"));
-  const edgeBox = await edge.boundingBox();
-  expect(edgeBox?.x).toBeGreaterThan(350);
-  await swipe(page, [374, 420], [298, 426]);
-  await expect(closeNavigation).toBeVisible();
-  await expect(page.getByTestId("bots-sidebar")).toContainText("Chief");
+  await expect(sidebar).toContainText("Chief");
 });

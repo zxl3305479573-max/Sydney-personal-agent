@@ -36,6 +36,7 @@ export function useSpaceRoster({
   groupId,
   navigate,
   redirectKeepingOverlay,
+  isMobileList = false,
 }: {
   rpc: ReturnType<typeof createSpaceRpc>;
   seed: AppBootstrap | undefined;
@@ -43,6 +44,8 @@ export function useSpaceRoster({
   groupId: string | undefined;
   navigate: Navigation["navigate"];
   redirectKeepingOverlay: Navigation["redirectKeepingOverlay"];
+  /** A phone at /app stays on its chat list instead of opening a chat automatically. */
+  isMobileList?: boolean;
 }) {
   const [groups, setGroups] = useState<Group[]>(seed?.groups ?? []);
   const [bots, setBots] = useState<Bot[]>(seed?.bots ?? []);
@@ -134,6 +137,8 @@ export function useSpaceRoster({
           return;
         }
         const currentBotId = routeBotId.current;
+        // A phone at /app stays on its chat list; no chat is opened for it.
+        if (!currentBotId && !routeGroupId.current && isMobileList) return;
         if (!currentBotId || !list.some((bot) => bot.id === currentBotId)) {
           redirectKeepingOverlay(firstThreadRoute(list, groupList));
         }
@@ -141,7 +146,7 @@ export function useSpaceRoster({
         botsRefreshInFlight.current -= 1;
       }
     },
-    [navigate],
+    [navigate, isMobileList],
   );
 
   const flushBotOrder = useCallback(async () => {
@@ -218,6 +223,7 @@ export function useSpaceRoster({
     botsRefreshInFlight,
     routeBotId,
     routeGroupId,
+    isMobileList,
     refreshBots,
     reorderRosterBot,
     addCreatedBot,
@@ -244,6 +250,7 @@ export function useSpaceBootstrap({
   chat,
   navigate,
   redirectKeepingOverlay,
+  isMobileList = false,
 }: {
   rpc: ReturnType<typeof createSpaceRpc>;
   roster: SpaceRoster;
@@ -258,6 +265,8 @@ export function useSpaceBootstrap({
   chat: ChatTarget | undefined;
   navigate: Navigation["navigate"];
   redirectKeepingOverlay: Navigation["redirectKeepingOverlay"];
+  /** A phone at /app keeps its chat list instead of opening the first chat. */
+  isMobileList?: boolean;
 }) {
   const {
     bots,
@@ -312,7 +321,7 @@ export function useSpaceBootstrap({
     spaces,
   };
   useLayoutEffect(() => {
-    if (routeChat) {
+    if (routeChat && !isMobileList) {
       redirectKeepingOverlay(
         routeChat.groupId ? `/app/g/${routeChat.groupId}` : `/app/${routeChat.botId}`,
       );
@@ -402,8 +411,9 @@ export function useSpaceBootstrap({
           }
           return;
         }
+        const onMobileList = !botId && !groupId && isMobileList;
         const selectedBotId = bootstrap.thread?.botId ?? bootstrap.bots[0]?.id;
-        if (selectedBotId && selectedBotId !== botId) {
+        if (!onMobileList && selectedBotId && selectedBotId !== botId) {
           redirectKeepingOverlay(`/app/${selectedBotId}`);
         }
       })

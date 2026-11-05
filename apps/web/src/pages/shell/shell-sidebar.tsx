@@ -37,7 +37,7 @@ export function focusSidebarSearch() {
 
 type User = { name?: string | null; email?: string; image?: string | null };
 
-/** The bots sidebar: a drawer on phones, collapsible to icons elsewhere. */
+/** The bots list fills the screen on phones and collapses to icons elsewhere. */
 export function ShellSidebar({
   isMobile,
   mobileOpen,
@@ -112,17 +112,6 @@ export function ShellSidebar({
   } = search;
   return (
     <>
-      <button
-        type="button"
-        aria-label={t`Close navigation`}
-        aria-hidden={mobileOpen ? undefined : true}
-        inert={mobileOpen ? undefined : true}
-        tabIndex={mobileOpen ? undefined : -1}
-        onClick={() => setMobileOpen(false)}
-        className={`absolute inset-y-0 end-0 start-[min(calc(100%-48px),316px)] z-30 bg-overlay transition-opacity duration-150 ease-out motion-reduce:transition-none md:hidden ${
-          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-      />
       <Sidebar
         collapsible={isMobile ? "none" : "icon"}
         side={document.documentElement.dir === "rtl" ? "right" : "left"}
@@ -134,7 +123,7 @@ export function ShellSidebar({
         data-collapsed={collapsed ? "true" : "false"}
         className={
           isMobile
-            ? `absolute inset-y-0 start-0 z-40 flex w-[calc(100%-48px)] max-w-[316px] shrink-0 flex-col border-e border-sidebar-border bg-sidebar transition-transform duration-200 ease-out motion-reduce:transition-none ${mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"}`
+            ? `absolute inset-y-0 start-0 z-40 flex w-full max-w-none shrink-0 flex-col bg-sidebar pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-200 ease-out motion-reduce:transition-none [&_[data-roster-top-bots]]:grid-cols-3 ${mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"}`
             : "h-full overflow-hidden border-sidebar-border"
         }
       >

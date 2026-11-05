@@ -3079,10 +3079,6 @@ msgstr "一般"
 msgid "Get a free month for each friend who starts a trial."
 msgstr "友だちがトライアルを開始するたびに、1か月無料になります。"
 
-#: src/components/SidebarFooter.tsx
-msgid "Get the mobile app"
-msgstr "モバイルアプリを入手"
-
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Getting ready"
 msgstr "準備中"

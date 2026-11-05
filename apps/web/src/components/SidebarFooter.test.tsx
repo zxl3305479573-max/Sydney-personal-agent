@@ -173,7 +173,12 @@ it("omits Board when unavailable", async () => {
 it("does not link to the upstream mobile app or documentation", async () => {
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Android");
   await render();
-  expect([...document.querySelectorAll("a")].some((link) => link.href.includes("github.com/elie222/rakazo"))).toBe(false);
+  expect(
+    [...document.querySelectorAll("a")].some((link) =>
+      link.href.includes("github.com/elie222/rakazo"),
+    ),
+  ).toBe(false);
+  expect(document.body.textContent).not.toContain("Get the mobile app");
 });
 
 it("falls back when app artwork fails and accepts replacement artwork", async () => {
@@ -246,9 +251,7 @@ it("keeps at most three marks with the same tile and a missing-logo fallback", a
     { name: "GitHub", logo: "https://example.test/github.svg" },
     { name: "Slack" },
   ]);
-  const tiles = [
-    ...host.querySelectorAll('button[aria-label="Connect apps"] span.isolate > span'),
-  ];
+  const tiles = [...host.querySelectorAll('button[aria-label="Connect apps"] span.isolate > span')];
   expect(tiles).toHaveLength(3);
   expect(new Set(tiles.map((tile) => tile.className)).size).toBe(1);
   expect(tiles[1]!.textContent).toBe("N");

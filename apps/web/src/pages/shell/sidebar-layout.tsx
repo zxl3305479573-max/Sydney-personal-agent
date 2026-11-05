@@ -18,6 +18,7 @@ export function BotsSidebarLayout({
   onPreviewCollapsedChange,
   computerOpen,
   children,
+  style,
   ...props
 }: ComponentProps<typeof SidebarProvider> & {
   userId: string | null | undefined;
@@ -40,7 +41,11 @@ export function BotsSidebarLayout({
         open={!collapsed}
         onOpenChange={(open) => onCollapsedChange(!open)}
         style={
-          { "--sidebar-width": `${width}px`, "--sidebar-width-icon": `${width}px` } as CSSProperties
+          {
+            ...style,
+            "--sidebar-width": `${width}px`,
+            "--sidebar-width-icon": `${width}px`,
+          } as CSSProperties
         }
         data-resizing-sidebar={resizing || undefined}
       >
