@@ -153,6 +153,7 @@ export function RoleModelPicker({
               query={query}
               setQuery={setQuery}
               label={t`Search models`}
+              clearLabel={t`Clear`}
               placeholder={t`Search`}
             />
           ) : null}

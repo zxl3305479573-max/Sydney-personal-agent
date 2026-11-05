@@ -9,7 +9,7 @@ import {
   InputGroupInput,
   Sidebar,
 } from "@rakazo/ui-web";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { InviteDialog } from "../../components/InviteDialog";
@@ -179,6 +179,8 @@ export function ShellSidebar({
               <Search size={16} strokeWidth={1.8} aria-hidden="true" />
             </InputGroupAddon>
             <InputGroupInput
+              type="search"
+              className="[&::-webkit-search-cancel-button]:hidden"
               value={activityMode ? activityFilters.query : query}
               onChange={(e) => {
                 if (activityMode) setActivityFilters({ ...activityFilters, query: e.target.value });
@@ -203,6 +205,26 @@ export function ShellSidebar({
               autoComplete="off"
               name="sidebar-search"
             />
+            <div className="flex w-8 shrink-0 items-center justify-center">
+              {(activityMode ? activityFilters.query : query) ? (
+                <button
+                  type="button"
+                  aria-label={`${t`Clear`} ${activityMode ? t`Search runs` : t`Search`}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (activityMode) setActivityFilters({ ...activityFilters, query: "" });
+                    else {
+                      setSearchOpen(true);
+                      setQuery("");
+                    }
+                    focusSidebarSearch();
+                  }}
+                  className="animate-in fade-in zoom-in-95 rounded-md p-1 text-muted-foreground duration-150 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring motion-reduce:animate-none motion-reduce:transition-none"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
             {activityMode ? (
               <InputGroupAddon align="inline-end">
                 <InputGroupButton

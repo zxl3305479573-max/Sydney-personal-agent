@@ -1,5 +1,8 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { AccountSecurity, UsageSummary } from "@rakazo/contracts";
+import type {
+  AccountSecurity,
+  UsageSummary,
+} from "@rakazo/contracts";
 import {
   accountDisplay,
   displayName,
@@ -16,6 +19,7 @@ import {
   NativeSelectOption,
   OptionSelect,
   Switch,
+  TextField,
   ToggleGroup,
   ToggleGroupItem,
 } from "@rakazo/ui-web";
@@ -38,6 +42,8 @@ import { ComputersUnavailableHint } from "../components/ComputersUnavailableHint
 import { DesktopUpdateSection } from "../components/DesktopUpdates";
 import { PasskeySettings } from "../components/PasskeySettings";
 import { SettingsGroup, SettingsRow } from "../components/SettingsRows";
+import { UsageHeatmap } from "../components/UsageHeatmap";
+import type { UsageEvent } from "../components/UsageHeatmap";
 import { TrustedLinkSitesSettings } from "../components/TrustedLinkSitesSettings";
 import { authClient } from "../lib/auth";
 import type { BotsSidebarDensity } from "../lib/bots-sidebar-density-pref";
@@ -52,7 +58,11 @@ import {
   subscribeComposerEnterToSend,
 } from "../lib/composer-enter-to-send-pref";
 import { getActiveUiLocale, setUiLocale } from "../lib/i18n";
-import { localTimezone, sameTimeZone, timezoneOptions } from "../lib/local-timezone";
+import {
+  localTimezone,
+  sameTimeZone,
+  timezoneOptions,
+} from "../lib/local-timezone";
 import { usePasskeysSupported } from "../lib/passkeys";
 import {
   getRemoteImagesPreference,
@@ -67,7 +77,10 @@ import {
   setToolActivityPreference,
 } from "../lib/tool-activity-preference";
 import type { AppearancePreference } from "../lib/ui-appearance";
-import { getUiAppearancePreference, setUiAppearance } from "../lib/ui-appearance";
+import {
+  getUiAppearancePreference,
+  setUiAppearance,
+} from "../lib/ui-appearance";
 import type { UiLocale } from "../lib/ui-locale";
 import { UI_LOCALE_LABELS, UI_LOCALES } from "../lib/ui-locale";
 import { authErrorText } from "../lib/user-error";
@@ -132,7 +145,8 @@ export function GeneralSettingsPanels({
     }
   }
 
-  const [accountSecurity, setAccountSecurity] = useState<AccountSecurity | null>(null);
+  const [accountSecurity, setAccountSecurity] =
+    useState<AccountSecurity | null>(null);
   const [locale, setLocale] = useState<UiLocale>(() => getActiveUiLocale());
   const localeRequestRef = useRef(0);
   const [appearance, setAppearance] = useState<AppearancePreference>(() =>
@@ -164,10 +178,13 @@ export function GeneralSettingsPanels({
   const loadRemoteImagesId = useId();
   const timezoneId = useId();
   const showPassword = Boolean(
-    accountSecurity?.hasPassword && accountSecurity.passwordChangeEnabled !== false,
+    accountSecurity?.hasPassword &&
+    accountSecurity.passwordChangeEnabled !== false,
   );
   const passkeysSupported = usePasskeysSupported();
-  const canLinkSso = Boolean(accountSecurity?.sso && !accountSecurity.ssoLinked);
+  const canLinkSso = Boolean(
+    accountSecurity?.sso && !accountSecurity.ssoLinked,
+  );
   const [timezonePending, setTimezonePending] = useState(false);
   const [timezoneError, setTimezoneError] = useState<string | null>(null);
   const deviceTimezone = localTimezone();
@@ -208,33 +225,26 @@ export function GeneralSettingsPanels({
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.stopPropagation();
-                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                if (event.nativeEvent.isComposing || event.keyCode === 229)
+                  return;
                 if (!namePending) setEditingName(false);
               }
             }}
           >
-            <Field>
-              <FieldLabel htmlFor={nameId}>
-                <Trans>Name</Trans>
-              </FieldLabel>
-              <Input
-                id={nameId}
-                autoComplete="name"
-                autoFocus
-                maxLength={80}
-                value={nameDraft}
-                disabled={namePending}
-                onChange={(event) => {
-                  setNameDraft(event.target.value);
-                  setNameError(null);
-                }}
-              />
-            </Field>
-            {nameError ? (
-              <p role="alert" className="text-[12.5px] text-destructive">
-                {nameError}
-              </p>
-            ) : null}
+            <TextField
+              label={<Trans>Name</Trans>}
+              id={nameId}
+              autoComplete="name"
+              autoFocus
+              maxLength={80}
+              value={nameDraft}
+              disabled={namePending}
+              error={nameError}
+              onChange={(event) => {
+                setNameDraft(event.target.value);
+                setNameError(null);
+              }}
+            />
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={namePending || !nameDraft.trim()}>
                 <Trans>Save</Trans>
@@ -255,7 +265,9 @@ export function GeneralSettingsPanels({
               <>
                 <p className="break-words">{account.label}</p>
                 {email && account.label !== email ? (
-                  <p className="mt-0.5 break-words text-[13px] text-muted-foreground">{email}</p>
+                  <p className="mt-0.5 break-words text-[13px] text-muted-foreground">
+                    {email}
+                  </p>
                 ) : null}
               </>
             }
@@ -264,7 +276,9 @@ export function GeneralSettingsPanels({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setNameDraft(account.label === email ? "" : displayName(name, ""));
+                  setNameDraft(
+                    account.label === email ? "" : displayName(name, ""),
+                  );
                   setNameError(null);
                   setEditingName(true);
                 }}
@@ -369,7 +383,10 @@ export function GeneralSettingsPanels({
                 </div>
               ) : null}
               {timezoneError ? (
-                <p role="alert" className="mt-2 text-right text-[12.5px] text-destructive">
+                <p
+                  role="alert"
+                  className="mt-2 text-right text-[12.5px] text-destructive"
+                >
                   {timezoneError}
                 </p>
               ) : null}
@@ -381,7 +398,10 @@ export function GeneralSettingsPanels({
       <SettingsGroup title={<Trans>Chat</Trans>}>
         <SettingsRow
           label={
-            <Label htmlFor={enterToSendId} className="text-[14px] font-normal text-foreground">
+            <Label
+              htmlFor={enterToSendId}
+              className="text-[14px] font-normal text-foreground"
+            >
               <Trans>Send with Enter</Trans>
             </Label>
           }
@@ -396,7 +416,10 @@ export function GeneralSettingsPanels({
         />
         <SettingsRow
           label={
-            <Label htmlFor={streamRepliesId} className="text-[14px] font-normal text-foreground">
+            <Label
+              htmlFor={streamRepliesId}
+              className="text-[14px] font-normal text-foreground"
+            >
               <Trans>Stream replies</Trans>
             </Label>
           }
@@ -414,7 +437,10 @@ export function GeneralSettingsPanels({
         />
         <SettingsRow
           label={
-            <Label htmlFor={showToolActivityId} className="text-[14px] font-normal text-foreground">
+            <Label
+              htmlFor={showToolActivityId}
+              className="text-[14px] font-normal text-foreground"
+            >
               <Trans>Show tool activity</Trans>
             </Label>
           }
@@ -432,7 +458,10 @@ export function GeneralSettingsPanels({
         />
         <SettingsRow
           label={
-            <Label htmlFor={loadRemoteImagesId} className="text-[14px] font-normal text-foreground">
+            <Label
+              htmlFor={loadRemoteImagesId}
+              className="text-[14px] font-normal text-foreground"
+            >
               <Trans>Load web images automatically</Trans>
             </Label>
           }
@@ -464,7 +493,10 @@ export function GeneralSettingsPanels({
       ) : null}
 
       <SettingsGroup title={<Trans>Data</Trans>} data-testid="account-data">
-        <AccountDataSettings onImported={onAccountImported} onImportAgent={onImportAgent} />
+        <AccountDataSettings
+          onImported={onAccountImported}
+          onImportAgent={onImportAgent}
+        />
         <AccountAccess onSecurity={setAccountSecurity} />
       </SettingsGroup>
     </div>
@@ -473,9 +505,13 @@ export function GeneralSettingsPanels({
 
 export function UsageSettingsPanel({
   usage,
+  usageRecords,
+  usageRecordsStatus = "loading",
   panelRef,
 }: {
   usage?: UsageSummary | null;
+  usageRecords?: UsageEvent[];
+  usageRecordsStatus?: "loading" | "error" | "success";
   panelRef?: RefObject<HTMLDivElement | null>;
 }) {
   const { t, i18n } = useLingui();
@@ -484,12 +520,22 @@ export function UsageSettingsPanel({
     style: "currency",
     currency: "USD",
   });
-  const number = (value: number | null | undefined) => (value == null ? "—" : count.format(value));
+  const number = (value: number | null | undefined) =>
+    value == null ? "—" : count.format(value);
   const cost = (value: number | null | undefined) =>
-    value == null ? "—" : value > 0 && value < 0.01 ? `<${usd.format(0.01)}` : usd.format(value);
+    value == null
+      ? "—"
+      : value > 0 && value < 0.01
+        ? `<${usd.format(0.01)}`
+        : usd.format(value);
   const models = usage?.models ?? [];
   return (
-    <div ref={panelRef} tabIndex={-1} data-testid="usage-settings" className="outline-none">
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      data-testid="usage-settings"
+      className="outline-none"
+    >
       {usage ? (
         <dl className="grid grid-cols-3 gap-3">
           {[
@@ -497,8 +543,13 @@ export function UsageSettingsPanel({
             { label: t`Tokens`, value: number(usage.totalTokens) },
             { label: t`Cost`, value: cost(usage.costUsd) },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-border px-4 py-3">
-              <dt className="text-[12.5px] text-muted-foreground">{stat.label}</dt>
+            <div
+              key={stat.label}
+              className="rounded-xl border border-border px-4 py-3"
+            >
+              <dt className="text-[12.5px] text-muted-foreground">
+                {stat.label}
+              </dt>
               <dd className="mt-1 text-[18px] font-medium tabular-nums text-foreground">
                 {stat.value}
               </dd>
@@ -506,6 +557,7 @@ export function UsageSettingsPanel({
           ))}
         </dl>
       ) : null}
+      <UsageHeatmap records={usageRecords} status={usageRecordsStatus} />
       {models.length > 0 ? (
         <div className="mt-4 rounded-xl border border-border px-2">
           <Table className="text-[13.5px]">
@@ -530,10 +582,15 @@ export function UsageSettingsPanel({
             </TableHeader>
             <TableBody>
               {models.map((row) => (
-                <TableRow key={`${row.provider}:${row.model}`} className="hover:bg-transparent">
+                <TableRow
+                  key={`${row.provider}:${row.model}`}
+                  className="hover:bg-transparent"
+                >
                   <TableCell>
                     <div className="text-foreground">{row.model}</div>
-                    <div className="text-[12px] text-muted-foreground">{row.provider}</div>
+                    <div className="text-[12px] text-muted-foreground">
+                      {row.provider}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {number(row.modelCalls)}
@@ -544,7 +601,9 @@ export function UsageSettingsPanel({
                   <TableCell className="text-right tabular-nums">
                     {number(row.outputTokens)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{cost(row.costUsd)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {cost(row.costUsd)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -711,10 +770,18 @@ function ChangePasswordRow({ email }: { email?: string | null }) {
             </p>
           ) : null}
           <div className="mt-4 flex items-center gap-3">
-            <Button type="submit" disabled={pending || !currentPassword || !newPassword}>
+            <Button
+              type="submit"
+              disabled={pending || !currentPassword || !newPassword}
+            >
               {pending ? <Trans>Changing…</Trans> : <Trans>Save</Trans>}
             </Button>
-            <Button type="button" variant="ghost" disabled={pending} onClick={close}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pending}
+              onClick={close}
+            >
               <Trans>Cancel</Trans>
             </Button>
           </div>
@@ -746,7 +813,9 @@ function SettingsPasswordInput({
         type="password"
         autoComplete={autoComplete}
         autoFocus={autoFocus}
-        minLength={autoComplete === "new-password" ? MIN_PASSWORD_LENGTH : undefined}
+        minLength={
+          autoComplete === "new-password" ? MIN_PASSWORD_LENGTH : undefined
+        }
         maxLength={MAX_PASSWORD_LENGTH}
         value={value}
         onChange={(event) => onChange(event.target.value)}

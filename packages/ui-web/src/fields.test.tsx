@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SwitchField } from "./components/ui/field.js";
-import { Input, InputRevealLabelsProvider } from "./components/ui/input.js";
+import { Input, InputRevealLabelsProvider, TextField } from "./components/ui/input.js";
 
 const mounted: Array<() => void> = [];
 
@@ -96,6 +96,42 @@ describe("Input with a hidden value", () => {
 
     act(() => button.click());
     expect(input.type).toBe("password");
+  });
+});
+
+describe("TextField", () => {
+  it("connects the label, description, error and existing descriptions to the input", () => {
+    const container = render(
+      <TextField
+        id="account-name"
+        name="accountName"
+        label="Name"
+        description="Your display name."
+        error="Enter a valid name."
+        aria-describedby="external-note"
+        defaultValue="Sydney"
+      />,
+    );
+    const input = container.querySelector<HTMLInputElement>("input");
+    expect(container.querySelector("label")?.htmlFor).toBe("account-name");
+    expect(input?.name).toBe("accountName");
+    expect(input?.value).toBe("Sydney");
+    expect(input?.getAttribute("aria-invalid")).toBe("true");
+    expect(input?.getAttribute("aria-describedby")).toBe(
+      "external-note account-name-description account-name-error",
+    );
+    expect(container.querySelector('[role="alert"]')?.id).toBe("account-name-error");
+  });
+
+  it("removes the error state when validation succeeds", () => {
+    const { container, root } = renderRoot(<TextField label="Name" error="Invalid" />);
+    act(() => root.render(<TextField label="Name" description="Ready" />));
+    const input = container.querySelector("input");
+    expect(input?.getAttribute("aria-invalid")).not.toBe("true");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(input?.getAttribute("aria-describedby")).toBe(
+      container.querySelector('[data-slot="field-description"]')?.id,
+    );
   });
 });
 

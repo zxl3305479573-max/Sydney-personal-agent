@@ -1,5 +1,35 @@
 # 验证记录
 
+## 2026-11-05：PC 气泡颜色选择离线验证
+
+- `pnpm exec vitest run --maxWorkers=1 apps/web/src/components/AppearanceColorPicker.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx`：2 个文件、7 项通过，覆盖新建黑底白字、预设选择、无效 HEX 和外观存储交互。
+- `pnpm exec vitest run --maxWorkers=1 apps/web/src/pages/shell/transcript-render.test.tsx`：3 项通过。三个文件联合运行时，聊天渲染测试因其他外观测试遗留状态与测试环境的对象 URL 不兼容而失败；尚未解决跨文件隔离问题。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。本机 Node 22.22.0 低于项目要求的 22.22.2。真实浏览器取色、键盘交互、外观视觉和服务器部署未验收。
+
+## 2026-11-05：PC 搜索框离线验证
+
+- `pnpm exec vitest run --maxWorkers=1 packages/ui-web/src/list-search-input.test.tsx apps/web/src/pages/shell/chat-model-picker.test.tsx apps/web/src/pages/model-settings/compatible-model-fields.test.tsx`：3 个文件、14 项通过，涵盖普通及命令式搜索清空、焦点恢复、输入法保护和模型选择回归。
+- 初次执行中测试环境缺少 `ResizeObserver`，以及命令组件实际使用 text 类型的断言不匹配；补齐模拟并按组件实际行为调整后通过。另一次弹层测试出现未复现的失败，后续两次运行通过。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。本机 Node 22.22.0 低于项目要求的 22.22.2。真实浏览器、侧栏按钮、键盘操作和服务器部署未验收。
+
+## 2026-11-05：PC 单行输入框离线验证
+
+- `pnpm exec vitest run --maxWorkers=1 packages/ui-web/src/fields.test.tsx apps/web/src/pages/AccountSettingsOverlay.test.tsx`：2 个文件、33 项通过，覆盖标签、说明和错误关联、账号名称编辑及密码显示回归。首次执行因账号页测试模拟缺少新组件失败，补齐模拟后复测通过。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。本机 Node 22.22.0 低于项目要求的 22.22.2；直接检查不代表满足运行环境要求。
+- 未执行真实浏览器视觉、键盘操作、响应式尺寸和服务器部署验收。
+
+## 2026-11-05：PC 用量趋势图离线验证
+
+- `pnpm exec vitest run apps/web/src/components/UsageHeatmap.test.tsx apps/web/src/pages/AccountSettingsOverlay.test.tsx apps/web/src/pages/SettingsOverlay.test.tsx`：3 个文件、35 项通过，包含 UTC 日期聚合、图表切换、空状态和失败提示。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。本机 Node 为 22.22.0，低于仓库声明的最低 22.22.2；直接检查通过不代表满足运行环境要求。
+- 接口仅提供最近 100 条记录；尚未验证实际服务器数据、浏览器显示、键盘操作或部署。
+
+## 2026-11-05：PC 聊天双外观离线验证
+
+- `pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx`：2 个文件、8 项通过，涵盖模式切换、素材保留和模拟存储重载等。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于项目要求的 22.22.2 未运行；直接调用检查不代表满足项目运行环境要求。
+- 未验证真实图片上传及解码、浏览器视觉和键盘操作、Electron、移动端、服务器部署和跨设备同步。
+
 ## V-048：PC 后台部署方向规划
 
 - 日期：2026-11-05；范围：用户新增的“后期 PC 端后台运行在云电脑”部署方向。

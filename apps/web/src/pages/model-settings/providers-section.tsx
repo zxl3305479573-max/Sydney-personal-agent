@@ -199,6 +199,7 @@ function AddProvider({
               query={query}
               setQuery={setQuery}
               label={t`Add provider`}
+              clearLabel={t`Clear`}
               placeholder={t`Search`}
             />
           ) : null}

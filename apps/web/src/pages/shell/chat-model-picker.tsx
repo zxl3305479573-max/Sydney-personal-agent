@@ -103,6 +103,7 @@ export function ChatModelPicker({
               query={query}
               setQuery={setQuery}
               label={t`Search models`}
+              clearLabel={t`Clear`}
               placeholder={t`Search`}
             />
             <CommandList className="min-h-0 max-h-80 flex-1 overflow-y-auto">

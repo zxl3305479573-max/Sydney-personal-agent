@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 
 export type ChatBackground = {
@@ -16,6 +16,7 @@ export type BubbleSide = {
   opacity: number;
   radius: number;
   border: string;
+  image?: Blob;
 };
 
 export type ChatBubbleStyle = {
@@ -33,6 +34,7 @@ export type ChatCombination = {
 };
 
 export type ChatAppearance = {
+  mode?: "simple" | "custom";
   backgrounds: ChatBackground[];
   bubbles: ChatBubbleStyle[];
   combinations: ChatCombination[];
@@ -57,8 +59,10 @@ const bubbleSideSchema = z.object({
   border: colorSchema,
   opacity: z.number().int().min(20).max(100),
   radius: z.number().int().min(0).max(32),
+  image: z.instanceof(Blob).optional(),
 });
 const appearanceSchema = z.object({
+  mode: z.enum(["simple", "custom"]).optional(),
   backgrounds: z
     .array(
       z.object({
@@ -73,7 +77,12 @@ const appearanceSchema = z.object({
     .max(100),
   bubbles: z
     .array(
-      z.object({ id: idSchema, name: nameSchema, user: bubbleSideSchema, bot: bubbleSideSchema }),
+      z.object({
+        id: idSchema,
+        name: nameSchema,
+        user: bubbleSideSchema,
+        bot: bubbleSideSchema,
+      }),
     )
     .max(100),
   combinations: z
@@ -95,39 +104,62 @@ export function newBubbleStyle(): ChatBubbleStyle {
     id: crypto.randomUUID(),
     name: "新气泡样式",
     user: {
-      background: "#dbeafe",
-      foreground: "#172554",
+      background: "#000000",
+      foreground: "#ffffff",
       opacity: 100,
       radius: 20,
-      border: "#93c5fd",
+      border: "#000000",
     },
     bot: {
-      background: "#f3f4f6",
-      foreground: "#1f2937",
+      background: "#000000",
+      foreground: "#ffffff",
       opacity: 100,
       radius: 20,
-      border: "#d1d5db",
+      border: "#000000",
     },
   };
 }
 
+export function useAppearanceImage(image: Blob | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!image || typeof URL.createObjectURL !== "function") {
+      setUrl(null);
+      return;
+    }
+    const next = URL.createObjectURL(image);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [image]);
+  return url;
+}
+
 export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
-  const backgrounds = value.backgrounds.filter((item) => item.image instanceof Blob);
+  const backgrounds = value.backgrounds.filter(
+    (item) => item.image instanceof Blob,
+  );
   const bubbles = value.bubbles;
   const backgroundIds = new Set(backgrounds.map((item) => item.id));
   const bubbleIds = new Set(bubbles.map((item) => item.id));
   return {
+    mode: value.mode,
     backgrounds,
     bubbles,
     combinations: value.combinations.map((item) => ({
       ...item,
       backgroundId:
-        item.backgroundId && backgroundIds.has(item.backgroundId) ? item.backgroundId : null,
-      bubbleId: item.bubbleId && bubbleIds.has(item.bubbleId) ? item.bubbleId : null,
+        item.backgroundId && backgroundIds.has(item.backgroundId)
+          ? item.backgroundId
+          : null,
+      bubbleId:
+        item.bubbleId && bubbleIds.has(item.bubbleId) ? item.bubbleId : null,
     })),
     backgroundId:
-      value.backgroundId && backgroundIds.has(value.backgroundId) ? value.backgroundId : null,
-    bubbleId: value.bubbleId && bubbleIds.has(value.bubbleId) ? value.bubbleId : null,
+      value.backgroundId && backgroundIds.has(value.backgroundId)
+        ? value.backgroundId
+        : null,
+    bubbleId:
+      value.bubbleId && bubbleIds.has(value.bubbleId) ? value.bubbleId : null,
   };
 }
 
@@ -150,9 +182,11 @@ function openDatabase(): Promise<IDBDatabase> {
       return;
     }
     const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+    request.onupgradeneeded = () =>
+      request.result.createObjectStore(STORE_NAME);
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("无法打开本地存储"));
+    request.onerror = () =>
+      reject(request.error ?? new Error("无法打开本地存储"));
     request.onblocked = () => reject(new Error("本地存储被其他页面占用"));
   });
 }
@@ -200,8 +234,10 @@ export async function saveChatAppearance(value: ChatAppearance): Promise<void> {
       const transaction = database.transaction(STORE_NAME, "readwrite");
       transaction.objectStore(STORE_NAME).put(normalized, RECORD_KEY);
       transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error ?? new Error("无法保存聊天外观"));
-      transaction.onerror = () => reject(transaction.error ?? new Error("无法保存聊天外观"));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("无法保存聊天外观"));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error("无法保存聊天外观"));
     });
     saved = normalized;
     current = normalized;
@@ -240,13 +276,19 @@ export function useChatAppearance(): ChatAppearance {
 }
 
 export async function validateBackgroundImage(file: File): Promise<void> {
-  if (file.size === 0 || file.size > 5 * 1024 * 1024) throw new Error("请选择不超过 5 MB 的图片");
+  if (file.size === 0 || file.size > 5 * 1024 * 1024)
+    throw new Error("请选择不超过 5 MB 的图片");
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const png =
     file.type === "image/png" &&
-    [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
+    [137, 80, 78, 71, 13, 10, 26, 10].every(
+      (byte, index) => bytes[index] === byte,
+    );
   const jpeg =
-    file.type === "image/jpeg" && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+    file.type === "image/jpeg" &&
+    bytes[0] === 255 &&
+    bytes[1] === 216 &&
+    bytes[2] === 255;
   const webp =
     file.type === "image/webp" &&
     String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&

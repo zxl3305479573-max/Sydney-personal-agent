@@ -1,6 +1,10 @@
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { ChatMarkdown, LinkifiedText, withBlockMentions } from "@rakazo/chat-ui/web";
+import {
+  ChatMarkdown,
+  LinkifiedText,
+  withBlockMentions,
+} from "@rakazo/chat-ui/web";
 import type {
   BotAvatarSet,
   LoginFieldInput,
@@ -89,14 +93,24 @@ export const MessageView = memo(function MessageView({
     remember?: false,
   ) => Promise<void>;
   onOpenBot: (botId: string) => void;
-  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
+  onOpenPeerMessages: (peer: {
+    peerBotId: string;
+    peerBotName: string;
+  }) => void;
   /** The adjacent receipts represented by this peer line. */
   peerExchange?: PeerExchange;
   speakerName?: string;
   memberName?: (botId: string | undefined) => string | undefined;
   peerBot: (
     botId: string,
-  ) => { name?: string; color: string; status?: string; avatarSet?: BotAvatarSet } | undefined;
+  ) =>
+    | {
+        name?: string;
+        color: string;
+        status?: string;
+        avatarSet?: BotAvatarSet;
+      }
+    | undefined;
   replyParent?: ThreadMessage;
   onJumpToMessage?: (messageId: string) => void;
   onRefresh: () => Promise<void>;
@@ -119,7 +133,10 @@ export const MessageView = memo(function MessageView({
     message.role === "bot" &&
     message.blocks.length > 0 &&
     message.blocks.every(
-      (block) => block.kind === "text" || block.kind === "progress" || block.kind === "steps",
+      (block) =>
+        block.kind === "text" ||
+        block.kind === "progress" ||
+        block.kind === "steps",
     );
   const isLive = message.id.startsWith("progress:");
   const quoteMessageId = message.id.includes(":") ? undefined : message.id;
@@ -135,7 +152,10 @@ export const MessageView = memo(function MessageView({
         : message.blocks,
     [message.blocks, mentions],
   );
-  const visibleNarrationBlocks = renderableMessageBlocks(blocks, showToolActivity);
+  const visibleNarrationBlocks = renderableMessageBlocks(
+    blocks,
+    showToolActivity,
+  );
   const renderMention = useCallback(
     (id: string) => {
       const block = mentions?.find((bot) => bot.botId === id);
@@ -191,7 +211,9 @@ export const MessageView = memo(function MessageView({
   );
   // Anchored below the speaker and reply line so the rail centers on the bubble itself.
   // A message with text and attachments anchors it on its first text bubble.
-  const textAnchorIndex = message.blocks.findIndex((block) => block.kind === "text");
+  const textAnchorIndex = message.blocks.findIndex(
+    (block) => block.kind === "text",
+  );
   const hoverAnchorIndex =
     textAnchorIndex === -1
       ? message.blocks.findIndex((block) => block.kind === "ask")
@@ -241,7 +263,9 @@ export const MessageView = memo(function MessageView({
                     >
                       <ToolSteps
                         steps={block.steps}
-                        currentIndex={isLive ? block.steps.length - 1 : undefined}
+                        currentIndex={
+                          isLive ? block.steps.length - 1 : undefined
+                        }
                         limit={isLive ? LIVE_TOOL_STEP_WINDOW : undefined}
                       />
                     </ToolActivityDisclosure>
@@ -251,7 +275,9 @@ export const MessageView = memo(function MessageView({
                   return (
                     <div
                       key={i}
-                      data-quote-message-id={block.kind === "text" ? quoteMessageId : undefined}
+                      data-quote-message-id={
+                        block.kind === "text" ? quoteMessageId : undefined
+                      }
                     >
                       <ChatMarkdown
                         streaming={block.kind === "progress"}
@@ -264,7 +290,9 @@ export const MessageView = memo(function MessageView({
                 }
                 return null;
               })}
-              {!isLive && voiceReady && message.blocks.some((block) => block.kind === "text") ? (
+              {!isLive &&
+              voiceReady &&
+              message.blocks.some((block) => block.kind === "text") ? (
                 <Button
                   variant="text"
                   size="xs"
@@ -292,7 +320,10 @@ export const MessageView = memo(function MessageView({
         )}
       >
         {blocks.map((block, i) => {
-          if (block.kind === "steps" && shouldRenderToolCard(block, showToolActivity)) {
+          if (
+            block.kind === "steps" &&
+            shouldRenderToolCard(block, showToolActivity)
+          ) {
             return (
               <StandaloneToolActivity
                 key={i}
@@ -319,16 +350,23 @@ export const MessageView = memo(function MessageView({
               </div>
             );
           }
-          if (block.kind === "bot_message_sent" || block.kind === "bot_message_received") {
+          if (
+            block.kind === "bot_message_sent" ||
+            block.kind === "bot_message_received"
+          ) {
             const sent = block.kind === "bot_message_sent";
             if (
               i !==
               blocks.findIndex(
-                (b) => b.kind === "bot_message_sent" || b.kind === "bot_message_received",
+                (b) =>
+                  b.kind === "bot_message_sent" ||
+                  b.kind === "bot_message_received",
               )
             )
               return null;
-            const peer = peerExchange?.peerBotName ?? (sent ? block.toBotName : block.fromBotName);
+            const peer =
+              peerExchange?.peerBotName ??
+              (sent ? block.toBotName : block.fromBotName);
             const peerBotId = sent ? block.toBotId : block.fromBotId;
             const count = peerExchange?.count ?? 1;
             const label =
@@ -345,7 +383,9 @@ export const MessageView = memo(function MessageView({
                 avatarSet={peerBot(peerBotId)?.avatarSet}
                 identity={peerBotId}
                 label={label}
-                onClick={() => onOpenPeerMessages({ peerBotId, peerBotName: peer })}
+                onClick={() =>
+                  onOpenPeerMessages({ peerBotId, peerBotName: peer })
+                }
               />
             );
           }
@@ -407,19 +447,32 @@ export const MessageView = memo(function MessageView({
                 />
                 {block.status === "created" ? null : (
                   <span className="text-muted-foreground">
-                    {block.status === "archived" ? <Trans>archived</Trans> : <Trans>deleted</Trans>}
+                    {block.status === "archived" ? (
+                      <Trans>archived</Trans>
+                    ) : (
+                      <Trans>deleted</Trans>
+                    )}
                   </span>
                 )}
               </div>
             );
           }
           if (block.kind === "choice") {
-            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId =
+              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
-            return <ChoiceCard key={i} botId={botId} block={block} onBotChanged={onBotChanged} />;
+            return (
+              <ChoiceCard
+                key={i}
+                botId={botId}
+                block={block}
+                onBotChanged={onBotChanged}
+              />
+            );
           }
           if (block.kind === "app_connect") {
-            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId =
+              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
             return (
               <div key={i} className="flex justify-start">
@@ -435,7 +488,11 @@ export const MessageView = memo(function MessageView({
           if (block.kind === "chart") {
             return (
               <div key={i} className="flex justify-start">
-                <ChartBlockView name={block.name} spec={block.spec} data={block.data} />
+                <ChartBlockView
+                  name={block.name}
+                  spec={block.spec}
+                  data={block.data}
+                />
               </div>
             );
           }
@@ -443,7 +500,11 @@ export const MessageView = memo(function MessageView({
             return (
               <div key={i} className="flex justify-start">
                 <ImportSetupCard
-                  botId={"botId" in artifactTarget ? artifactTarget.botId : message.botId}
+                  botId={
+                    "botId" in artifactTarget
+                      ? artifactTarget.botId
+                      : message.botId
+                  }
                   block={block}
                   onOpen={onOpenImportSetup}
                 />
@@ -451,11 +512,16 @@ export const MessageView = memo(function MessageView({
             );
           }
           if (block.kind === "mcp_approval") {
-            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId =
+              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
             return (
               <div key={i} className="flex justify-start">
-                <McpApprovalCard botId={botId} threadId={message.threadId} block={block} />
+                <McpApprovalCard
+                  botId={botId}
+                  threadId={message.threadId}
+                  block={block}
+                />
               </div>
             );
           }
@@ -503,10 +569,16 @@ export const MessageView = memo(function MessageView({
                   data-quote-message-id={quoteMessageId}
                   className="max-w-full whitespace-pre-wrap wrap-anywhere rounded-[20px] bg-chat-user px-[18px] py-3 text-body1 text-chat-user-foreground"
                   style={{
-                    backgroundColor: "var(--custom-chat-user-background, var(--chat-user))",
-                    color: "var(--custom-chat-user-foreground, var(--chat-user-foreground))",
+                    backgroundColor:
+                      "var(--custom-chat-user-background, var(--chat-user))",
+                    backgroundImage: "var(--custom-chat-user-image, none)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    color:
+                      "var(--custom-chat-user-foreground, var(--chat-user-foreground))",
                     borderRadius: "var(--custom-chat-user-radius, 20px)",
-                    boxShadow: "inset 0 0 0 1px var(--custom-chat-user-border, transparent)",
+                    boxShadow:
+                      "inset 0 0 0 1px var(--custom-chat-user-border, transparent)",
                   }}
                   dir="auto"
                 >
@@ -526,21 +598,31 @@ export const MessageView = memo(function MessageView({
                   data-testid="message-bot-bubble"
                   className="max-w-full rounded-[20px] bg-muted px-[18px] py-3 text-body1 text-foreground"
                   style={{
-                    backgroundColor: "var(--custom-chat-bot-background, var(--muted))",
-                    color: "var(--custom-chat-bot-foreground, var(--foreground))",
+                    backgroundColor:
+                      "var(--custom-chat-bot-background, var(--muted))",
+                    backgroundImage: "var(--custom-chat-bot-image, none)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    color:
+                      "var(--custom-chat-bot-foreground, var(--foreground))",
                     borderRadius: "var(--custom-chat-bot-radius, 20px)",
-                    boxShadow: "inset 0 0 0 1px var(--custom-chat-bot-border, transparent)",
+                    boxShadow:
+                      "inset 0 0 0 1px var(--custom-chat-bot-border, transparent)",
                   }}
                   dir="auto"
                 >
                   <div data-quote-message-id={quoteMessageId}>
-                    <ChatMarkdown renderMention={renderMention}>{block.text}</ChatMarkdown>
+                    <ChatMarkdown renderMention={renderMention}>
+                      {block.text}
+                    </ChatMarkdown>
                   </div>
                   {voiceReady ? (
                     <Button
                       variant="text"
                       size="xs"
-                      aria-label={speaking ? t`Stop speaking` : t`Speak this reply`}
+                      aria-label={
+                        speaking ? t`Stop speaking` : t`Speak this reply`
+                      }
                       onClick={speak}
                       className="mt-2 font-normal"
                     >
@@ -557,9 +639,14 @@ export const MessageView = memo(function MessageView({
               <div key={i} className="flex justify-start">
                 <div className="flex flex-col gap-2 rounded-[20px] bg-muted px-5 py-4">
                   {block.lines.map((line) => (
-                    <div key={line.k} className="flex items-baseline gap-2.5 text-[15px]">
+                    <div
+                      key={line.k}
+                      className="flex items-baseline gap-2.5 text-[15px]"
+                    >
                       <span className="text-success">✓</span>
-                      <span className="font-semibold text-foreground">{line.k}</span>
+                      <span className="font-semibold text-foreground">
+                        {line.k}
+                      </span>
                       <span className="text-muted-foreground">→</span>
                       <span>{line.v}</span>
                     </div>
@@ -584,11 +671,16 @@ export const MessageView = memo(function MessageView({
               </div>
             );
           }
-          if (block.kind === "cloud_agent") return <CloudAgentCard key={i} block={block} />;
+          if (block.kind === "cloud_agent")
+            return <CloudAgentCard key={i} block={block} />;
           if (block.kind === "skill_draft") {
             return (
               <div key={i} className="flex justify-start">
-                <SkillDraftCard block={block} onRefresh={onRefresh} onAddRoutine={onAddRoutine} />
+                <SkillDraftCard
+                  block={block}
+                  onRefresh={onRefresh}
+                  onAddRoutine={onAddRoutine}
+                />
               </div>
             );
           }
@@ -660,15 +752,25 @@ function BotMention({
     <span
       dir="auto"
       className="font-medium"
-      style={live ? { color: resolvePersonaColorDef(block.botId, color).light } : undefined}
+      style={
+        live
+          ? { color: resolvePersonaColorDef(block.botId, color).light }
+          : undefined
+      }
     >
       {block.name}
     </span>
   );
   if (!live) {
     return (
-      <span data-testid="bot-mention" className="inline-flex items-baseline gap-1.5">
-        <UserRound className="size-4 self-center text-muted-foreground" aria-hidden="true" />
+      <span
+        data-testid="bot-mention"
+        className="inline-flex items-baseline gap-1.5"
+      >
+        <UserRound
+          className="size-4 self-center text-muted-foreground"
+          aria-hidden="true"
+        />
         {name}
       </span>
     );
@@ -681,7 +783,12 @@ function BotMention({
       className="-mx-1 inline-flex items-baseline gap-1.5 rounded-md px-1 transition-colors hover:bg-accent"
     >
       <span className="self-center">
-        <BotAvatar avatarSet={avatarSet} color={color} identity={block.botId} size={18} />
+        <BotAvatar
+          avatarSet={avatarSet}
+          color={color}
+          identity={block.botId}
+          size={18}
+        />
       </span>
       {name}
     </button>
