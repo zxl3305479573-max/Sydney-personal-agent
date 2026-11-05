@@ -1,5 +1,11 @@
 # 运维手册
 
+## PC 界面部署（2026-11-05）
+
+Web 静态产物由源码提交 `f8133e602` 在云电脑 `/opt/sydney-web-build-f8133e602` 复用 `/opt/sydney-web-stage` 现有依赖构建；运行目录为 `/opt/sydney-web-stage/apps/web/dist`，构建标识为 `20261105035626`。替换时把上一版资源一并保留在新目录，减少已打开页面请求旧哈希文件失败的风险；上一版完整产物保留在 `/opt/sydney-web-stage/apps/web/dist.before-f8133e602`。
+
+仅在确认需要回滚时，先保留当前 `dist`，将 `dist.before-f8133e602` 移回 `dist`，重启 `sydney-web-cloud`，再检查公网 `/build-id`、首页、POST `/rpc/health` 和 API `/ready`；此前首次切换失败时自动恢复过上一版，但完整人工回滚步骤尚未演练。该次只更新静态产物，没有更新服务器源码、依赖或后台 API；真实登录和聊天功能待验。
+
 PC 聊天气泡图片与背景一样保存在当前浏览器的 `sydney-chat-appearance` IndexedDB 中，不上传后台；清除该站点的浏览器数据会丢失这些本地素材和外观配置。不同浏览器、设备或 Electron 的独立存储不会自动同步，实际客户端存储路径和迁移方式尚未验证。
 
 ## 云端 Web 与只读屏幕当前运行形态（2026-11-05）

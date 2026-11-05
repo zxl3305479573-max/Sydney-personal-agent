@@ -1,5 +1,12 @@
 # 验证记录
 
+## 2026-11-05：PC 界面部署验证
+
+- 代码提交 `f8133e602` 已推送 `origin/main`；云电脑使用该提交在 `/opt/sydney-web-build-f8133e602` 复用已有依赖执行 Vite 生产构建，Node 22.23.2，构建成功，构建标识 `20261105035626`；构建有大文件分块提示。
+- 首次切换后立即检查时返回空响应，切换脚本恢复旧版本并确认服务正常；增加启动就绪重试后再次切换成功。现有 Web、Web 链路、HTTPS 代理、驱动、VNC 和 WebSocket 代理均为 active；后台 API、Worker、隧道和转发 socket 为 active，后台及云端 API `/ready` 正常。
+- 公网首页、新构建标识和设置资源返回 200，健康 RPC 使用 POST 返回 200；GET 该 RPC 返回 405。独立无登录 Chromium 打开首页返回 200，标题为 Sydney，页面正常渲染且未捕获页面异常。
+- 未使用用户登录会话，未验证登录后的用量、聊天外观、图片上传、键盘、真实屏幕、Electron 或回滚演练；已有聊天外观测试跨文件状态隔离问题仍待解决。
+
 ## 2026-11-05：PC 气泡颜色选择离线验证
 
 - `pnpm exec vitest run --maxWorkers=1 apps/web/src/components/AppearanceColorPicker.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx`：2 个文件、7 项通过，覆盖新建黑底白字、预设选择、无效 HEX 和外观存储交互。
