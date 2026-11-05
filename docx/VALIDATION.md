@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-11-05：UIArc 参考组件离线验证
+
+- `pnpm exec vitest run --maxWorkers=1 packages/ui-web/src/fields.test.tsx packages/ui-web/src/list-search-input.test.tsx apps/web/src/components/AppearanceColorPicker.test.tsx apps/web/src/components/UsageHeatmap.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx`：6 个文件、25 项通过，覆盖输入字段、搜索清空/焦点恢复、颜色预设与无效 HEX、热力图、外观设置和聊天渲染回归。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；`pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json`：通过。本机 Node 22.22.0 低于仓库声明的最低 22.22.2。
+- 已对照用户提供的 UIArc Input、Search field、Color picker 和 Activity heatmap registry 结构检查实现；未执行真实登录后的浏览器截图比对、窄窗口交互、屏幕取色或服务器切换验证。
+
 ## 2026-11-05：PC 界面部署验证
 
 - 代码提交 `f8133e602` 已推送 `origin/main`；云电脑使用该提交在 `/opt/sydney-web-build-f8133e602` 复用已有依赖执行 Vite 生产构建，Node 22.23.2，构建成功，构建标识 `20261105035626`；构建有大文件分块提示。

@@ -138,9 +138,7 @@ export const Transcript = memo(function Transcript({
     peerBotName: string;
   }) => void;
   memberName?: (botId: string | undefined) => string | undefined;
-  peerBot: (
-    botId: string,
-  ) =>
+  peerBot: (botId: string) =>
     | {
         name?: string;
         color: string;
@@ -177,9 +175,14 @@ export const Transcript = memo(function Transcript({
       setBackgroundUrl(null);
       return;
     }
-    const url = URL.createObjectURL(background.image);
-    setBackgroundUrl(url);
-    return () => URL.revokeObjectURL(url);
+    try {
+      const url = URL.createObjectURL(background.image);
+      setBackgroundUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } catch {
+      setBackgroundUrl(null);
+      return;
+    }
   }, [background?.image]);
   const [atEnd, setAtEnd] = useState(true);
   const following = useRef(true);

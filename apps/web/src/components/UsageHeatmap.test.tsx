@@ -20,7 +20,7 @@ it("groups real records by UTC date and limits the window", () => {
   expect(days.at(-1)).toEqual({ date: "2026-11-05", calls: 0 });
 });
 
-it("switches between the grid and curve, and reports loading failures", async () => {
+it("renders the contribution calendar and reports loading failures", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -33,15 +33,12 @@ it("switches between the grid and curve, and reports loading failures", async ()
         />,
       ),
     );
-    expect(container.querySelectorAll('[role="group"] button')).toHaveLength(
-      84,
-    );
-    expect(container.textContent).toContain("最多读取最近 100 条记录");
-    const curve = [...container.querySelectorAll("button")].find(
-      (item) => item.textContent === "趋势曲线",
-    );
-    await act(async () => curve?.click());
-    expect(container.querySelector("svg polyline")).not.toBeNull();
+    expect(container.querySelector('[role="grid"]')).not.toBeNull();
+    expect(
+      container.querySelectorAll('[role="gridcell"]:not(:disabled)'),
+    ).toHaveLength(84);
+    expect(container.textContent).toContain("最近加载的 100 条记录");
+    expect(container.querySelector('[aria-label="用量等级"]')).not.toBeNull();
     await act(async () => root.render(<UsageHeatmap status="error" />));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "加载失败",

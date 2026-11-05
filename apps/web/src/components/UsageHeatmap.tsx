@@ -3,6 +3,9 @@ import { useMemo, useState } from "react";
 export type UsageEvent = { createdAt: string };
 type Day = { date: string; calls: number };
 
+const DAY = 86_400_000;
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+
 export function usageDays(records: UsageEvent[], now = new Date()): Day[] {
   const end = Date.UTC(
     now.getUTCFullYear(),
@@ -17,10 +20,32 @@ export function usageDays(records: UsageEvent[], now = new Date()): Day[] {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return Array.from({ length: 84 }, (_, index) => {
-    const date = new Date(end - (83 - index) * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    const date = new Date(end - (83 - index) * DAY).toISOString().slice(0, 10);
     return { date, calls: counts.get(date) ?? 0 };
+  });
+}
+
+function levelFor(count: number, maximum: number): number {
+  if (count === 0) return 0;
+  if (count <= Math.max(1, Math.ceil(maximum * 0.25))) return 1;
+  if (count <= Math.max(2, Math.ceil(maximum * 0.5))) return 2;
+  if (count <= Math.max(3, Math.ceil(maximum * 0.75))) return 3;
+  return 4;
+}
+
+function monthLabels(days: Day[], lead: number) {
+  return days.flatMap((day, index) => {
+    const date = new Date(`${day.date}T00:00:00Z`);
+    if (date.getUTCDate() !== 1 && index !== 0) return [];
+    return [
+      {
+        label: new Intl.DateTimeFormat("zh-CN", {
+          month: "short",
+          timeZone: "UTC",
+        }).format(date),
+        column: Math.floor((lead + index) / 7),
+      },
+    ];
   });
 }
 
@@ -31,138 +56,169 @@ export function UsageHeatmap({
   records?: UsageEvent[];
   status: "loading" | "error" | "success";
 }) {
-  const [view, setView] = useState<"grid" | "curve">("grid");
-  const [selected, setSelected] = useState<Day | null>(null);
+  const [selected, setSelected] = useState<{
+    day: Day;
+    index: number;
+  } | null>(null);
   const days = useMemo(() => usageDays(records ?? []), [records]);
   const maximum = Math.max(0, ...days.map((day) => day.calls));
-  const shownCalls = days.reduce((sum, day) => sum + day.calls, 0);
-  const points = days
-    .map(
-      (day, index) =>
-        `${(index / (days.length - 1)) * 100},${46 - (day.calls / Math.max(1, maximum)) * 40}`,
-    )
-    .join(" ");
+  const total = days.reduce((sum, day) => sum + day.calls, 0);
+  const lead = days[0]
+    ? (new Date(`${days[0].date}T00:00:00Z`).getUTCDay() + 7) % 7
+    : 0;
+  const weeks = Math.ceil((lead + days.length) / 7);
+  const labels = monthLabels(days, lead);
+  const cells = Array.from({ length: weeks * 7 }, (_, index) => {
+    const day = days[index - lead];
+    return { day, index };
+  });
+  const selectedColumn = selected
+    ? Math.floor(selected.index / 7)
+    : 0;
+  const selectedRow = selected ? selected.index % 7 : 0;
+  const selectedStyle = selected
+    ? {
+        left: `${24 + 8 + selectedColumn * 15 + 6}px`,
+        top: `${24 + selectedRow * 16}px`,
+      }
+    : undefined;
 
   return (
     <section
-      className="mt-4 rounded-xl border border-border p-4"
-      aria-label="近期用量趋势"
+      className="relative mt-4 grid min-w-0 gap-4 rounded-2xl border border-border bg-background p-4"
+      aria-label="近期用量热力图"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-medium text-foreground">近期用量趋势</h3>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            最近 12 周，按 UTC 日期统计已加载的模型调用；最多读取最近 100
-            条记录，历史可能不完整。
-          </p>
-        </div>
-        <div
-          className="flex rounded-lg border border-border p-1"
-          aria-label="图表视图"
-        >
-          <button
-            type="button"
-            aria-pressed={view === "grid"}
-            onClick={() => setView("grid")}
-            className={`rounded-md px-3 py-1 text-xs ${view === "grid" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-          >
-            热力图
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === "curve"}
-            onClick={() => setView("curve")}
-            className={`rounded-md px-3 py-1 text-xs ${view === "curve" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-          >
-            趋势曲线
-          </button>
-        </div>
-      </div>
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-1.5 text-sm text-muted-foreground">
+          <strong className="font-medium tabular-nums text-foreground">
+            {total}
+          </strong>
+          <span>次模型调用 · 最近 12 周</span>
+        </p>
+        <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+          UTC 日期
+        </span>
+      </header>
+      <p className="m-0 text-xs leading-relaxed text-muted-foreground">
+        数据来自最近加载的 100 条记录，缺少的历史记录不会被补算。
+      </p>
       {status === "loading" ? (
-        <p className="mt-5 text-sm text-muted-foreground" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           正在加载用量记录…
         </p>
       ) : status === "error" ? (
-        <p className="mt-5 text-sm text-destructive" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           用量记录加载失败，请重新打开用量页面重试。
         </p>
       ) : records?.length === 0 ? (
-        <p className="mt-5 text-sm text-muted-foreground">暂无模型调用记录。</p>
+        <p className="text-sm text-muted-foreground">暂无模型调用记录。</p>
       ) : (
         <>
-          <div className="mt-4 flex items-baseline gap-2">
-            <strong className="text-2xl font-semibold tabular-nums">
-              {shownCalls}
-            </strong>
-            <span className="text-xs text-muted-foreground">
-              次已加载的调用
-            </span>
-          </div>
-          {view === "grid" ? (
-            <div className="mt-4 overflow-x-auto">
+          <div className="relative">
+            <div className="overflow-x-auto pb-1">
               <div
-                className="grid min-w-[420px] grid-flow-col grid-rows-7 gap-1"
-                role="group"
-                aria-label="按日期查看已加载的调用次数"
+                className="grid min-w-[480px] grid-cols-[24px_auto] gap-x-2 gap-y-2"
+                role="grid"
+                aria-label="按日期查看模型调用次数"
               >
-                {days.map((day) => (
-                  <button
-                    key={day.date}
-                    type="button"
-                    aria-label={`${day.date}，已加载 ${day.calls} 次调用`}
-                    title={`${day.date}：${day.calls} 次已加载调用`}
-                    onFocus={() => setSelected(day)}
-                    onMouseEnter={() => setSelected(day)}
-                    onClick={() => setSelected(day)}
-                    className="h-4 min-w-4 rounded-[3px] bg-primary outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
-                    style={{
-                      opacity:
-                        day.calls === 0
-                          ? 0.1
-                          : 0.25 + (day.calls / maximum) * 0.75,
-                    }}
-                  />
-                ))}
+                <div />
+                <div className="relative h-4 text-xs text-muted-foreground">
+                  {labels.map((item) => (
+                    <span
+                      key={`${item.label}-${item.column}`}
+                      className="absolute whitespace-nowrap"
+                      style={{ left: `calc(${item.column} * 15px)` }}
+                    >
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid grid-rows-7 gap-1 text-[10px] leading-3 text-muted-foreground">
+                  {WEEKDAYS.map((day, index) => (
+                    <span
+                      key={day}
+                      className={index % 2 === 0 ? "" : "invisible"}
+                    >
+                      {day}
+                    </span>
+                  ))}
+                </div>
+                <div
+                  className="grid grid-flow-col grid-rows-7 gap-1"
+                  style={{ gridTemplateColumns: `repeat(${weeks}, 12px)` }}
+                  onMouseLeave={() => setSelected(null)}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget))
+                      setSelected(null);
+                  }}
+                >
+                  {cells.map(({ day, index }) => (
+                    <button
+                      key={day?.date ?? `empty-${index}`}
+                      type="button"
+                      role="gridcell"
+                      tabIndex={day ? 0 : -1}
+                      disabled={!day}
+                      aria-label={
+                        day ? `${day.date}，${day.calls} 次模型调用` : undefined
+                      }
+                      title={
+                        day ? `${day.date}：${day.calls} 次模型调用` : undefined
+                      }
+                      onFocus={() => day && setSelected({ day, index })}
+                      onMouseEnter={() => day && setSelected({ day, index })}
+                      onClick={() => day && setSelected({ day, index })}
+                      className="size-3 rounded-[3px] border-0 outline-offset-2 transition-[background-color,transform] duration-150 focus-visible:z-10 focus-visible:scale-125 focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none motion-reduce:transition-none"
+                      data-level={day ? levelFor(day.calls, maximum) : undefined}
+                      data-selected={
+                        selected?.day.date === day?.date ? "true" : undefined
+                      }
+                      style={{
+                        backgroundColor: day
+                          ? `color-mix(in oklab, var(--primary) ${day.calls === 0 ? 7 : 20 + levelFor(day.calls, maximum) * 20}%, var(--background))`
+                          : "transparent",
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <svg
-                viewBox="0 0 100 50"
-                preserveAspectRatio="none"
-                className="h-32 min-w-[420px] w-full overflow-visible"
-                role="img"
-                aria-label={`最近 12 周每日已加载调用次数趋势，最高 ${maximum} 次`}
+            {selected ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-[var(--radius)] border border-background/15 bg-foreground px-3 py-1.5 text-background shadow-lg"
+                style={selectedStyle}
               >
-                <path
-                  d="M0 46 H100"
-                  fill="none"
-                  stroke="currentColor"
-                  className="text-border"
-                  strokeWidth="0.3"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <polyline
-                  points={points}
-                  fill="none"
-                  stroke="currentColor"
-                  className="text-primary"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-            <span>
-              {days[0]?.date} — {days.at(-1)?.date}（UTC）
-            </span>
+                <p className="m-0 whitespace-nowrap text-sm font-medium tabular-nums leading-[1.3]">
+                  {selected.day.calls} 次模型调用
+                </p>
+                <p className="m-0 whitespace-nowrap text-xs leading-[1.35] text-background/70">
+                  {selected.day.date}
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <footer className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span aria-live="polite">
               {selected
-                ? `${selected.date}：${selected.calls} 次已加载调用`
-                : "选择方格查看当天数据"}
+                ? `${selected.day.date}：${selected.day.calls} 次模型调用`
+                : "悬停或选择方格查看日期"}
             </span>
-          </div>
+            <span className="flex items-center gap-1.5" aria-label="用量等级">
+              少
+              {[0, 1, 2, 3, 4].map((level) => (
+                <i
+                  key={level}
+                  aria-hidden="true"
+                  className="size-3 rounded-[3px]"
+                  style={{
+                    backgroundColor: `color-mix(in oklab, var(--primary) ${level === 0 ? 7 : 20 + level * 20}%, var(--background))`,
+                  }}
+                />
+              ))}
+              多
+            </span>
+          </footer>
         </>
       )}
     </section>
