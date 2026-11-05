@@ -5,6 +5,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { createSpaceRpc } from "../../lib/rpc";
+import type { PendingMessage } from "./optimistic-messages";
 import { useComposerActions } from "./use-composer-actions";
 
 vi.mock("@lingui/react/macro", () => ({
@@ -32,6 +33,16 @@ let me: Me | null;
 let navigate: ReturnType<typeof vi.fn>;
 let root: Root;
 let latest: ReturnType<typeof useComposerActions>;
+let activeSnapshot: ThreadSnapshot | null;
+let optimistic: ReturnType<typeof createOptimisticMock>;
+
+function createOptimisticMock() {
+  return {
+    begin: vi.fn<(entry: PendingMessage) => void>(),
+    confirm: vi.fn<(nonce: string, seq: number) => void>(),
+    fail: vi.fn<(nonce: string) => void>(),
+  };
+}
 
 function ref<T>(current: T) {
   return { current };
@@ -47,7 +58,7 @@ function Harness() {
     activeGroupId: ref<string | undefined>(undefined),
     botsRef: ref<Bot[]>([]),
     bootstrapMe: me,
-    activeSnapshot: null,
+    activeSnapshot,
     navigate: navigate as never,
     refreshBots: async () => undefined,
     refreshThreadRef: ref(async () => ({}) as ThreadSnapshot),
@@ -58,6 +69,7 @@ function Harness() {
     commitComputer: () => undefined,
     clearReadBoundary: () => undefined,
     flushPendingBrowserNotifications: () => undefined,
+    optimistic,
   });
   return null;
 }
@@ -71,6 +83,8 @@ async function flush() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   me = null;
+  activeSnapshot = null;
+  optimistic = createOptimisticMock();
   navigate = vi.fn();
   rpc = {
     routines: { testRun: vi.fn() },
@@ -230,4 +244,42 @@ it("asks the chat to follow on submit, before the send lands", async () => {
     expect.not.objectContaining({ text: expect.anything() }),
   );
   expect(latest.sentCount).toBe(2);
+});
+
+it("shows a pending text before the server responds and confirms its receipt", async () => {
+  activeSnapshot = { threadId: "thread-1", messages: [] } as unknown as ThreadSnapshot;
+  act(() => root.render(<Harness />));
+  let finish!: (value: { runId: string; taskId: string; seq: number }) => void;
+  rpc.threads.send.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  let sent!: Promise<boolean>;
+  act(() => {
+    sent = latest.sendMessage("hello", [], "nonce-1");
+  });
+  expect(optimistic.begin).toHaveBeenCalledWith(
+    expect.objectContaining({
+      nonce: "nonce-1",
+      message: expect.objectContaining({
+        threadId: "thread-1",
+        blocks: [{ kind: "text", text: "hello" }],
+      }),
+    }),
+  );
+  await act(async () => {
+    finish({ runId: "run-1", taskId: "task-1", seq: 7 });
+    await sent;
+  });
+  expect(optimistic.confirm).toHaveBeenCalledWith("nonce-1", 7);
+});
+
+it("removes the pending text when sending fails", async () => {
+  activeSnapshot = { threadId: "thread-1", messages: [] } as unknown as ThreadSnapshot;
+  act(() => root.render(<Harness />));
+  rpc.threads.send.mockRejectedValue(new Error("offline"));
+  expect(await send("hello", [])).toBe(false);
+  expect(optimistic.begin).toHaveBeenCalledOnce();
+  expect(optimistic.fail).toHaveBeenCalledWith("nonce-1");
 });

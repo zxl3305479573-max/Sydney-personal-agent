@@ -30,6 +30,28 @@ import {
 } from "./thread-events.js";
 
 describe("thread event reduction", () => {
+  it("retains the send nonce and persisted sequence from a live user message", () => {
+    const next = reduceThreadSnapshot(
+      snapshot([]),
+      event({
+        type: "thread.message.created",
+        seq: 20,
+        payload: {
+          messageId: "message-1",
+          seq: 4,
+          role: "user",
+          blocks: [{ kind: "text", text: "hello" }],
+          clientNonce: "nonce-1",
+        },
+      }),
+    );
+    expect(next?.messages[0]).toMatchObject({
+      seq: 20,
+      persistedSeq: 4,
+      clientNonce: "nonce-1",
+    });
+  });
+
   it("shows a committed direct send as queued before its snapshot refresh returns", () => {
     const initial = snapshot([message("user-1", [{ kind: "text", text: "Continue" }], 4)]);
 

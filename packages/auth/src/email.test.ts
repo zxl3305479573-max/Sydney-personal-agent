@@ -124,7 +124,8 @@ describe("email languages", () => {
     const english = await welcomeEmail(user, "https://example.test/u");
     expect(english.subject).toBe("Welcome to Rakazo");
     expect(english.text).toContain("Hi Ana,");
-    expect(english.text).toContain("Rakazo also has apps for iPhone");
+    expect(english.text).not.toContain("github.com/elie222/rakazo");
+    expect(english.html).not.toContain("rakazo.com/api/download");
   });
 
   it.each(Object.entries(CATALOGS))(

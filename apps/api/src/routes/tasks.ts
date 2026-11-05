@@ -72,9 +72,11 @@ export function tasksRoutes(ctx: RouterContext) {
             runId: result.runId,
             metadata: { reused: result.reused },
           });
-          await deps.jobs.enqueue({ ...runContinueJob(result.runId), keepExisting: true }).catch((error) => {
-            getLogger().error("managed task enqueue", error);
-          });
+          await deps.jobs
+            .enqueue({ ...runContinueJob(result.runId), keepExisting: true })
+            .catch((error) => {
+              getLogger().error("managed task enqueue", error);
+            });
           return result;
         }),
       ),
@@ -200,7 +202,10 @@ export function tasksRoutes(ctx: RouterContext) {
           });
           return {
             task,
-            state: !history.historyComplete && projection.state === "succeeded" ? "queued" : projection.state,
+            state:
+              !history.historyComplete && projection.state === "succeeded"
+                ? "queued"
+                : projection.state,
             reason: history.historyComplete ? projection.reason : "history_incomplete",
             runs: history.runs,
             unresolvedEffects: [...projection.unresolvedEffectIds],
@@ -233,7 +238,9 @@ export function tasksRoutes(ctx: RouterContext) {
           computer.controlLeaseExpiresAt &&
           computer.controlLeaseExpiresAt.getTime() > Date.now()
         ) {
-          throw new ORPCError("CONFLICT", { message: "Desktop preview is disabled during takeover" });
+          throw new ORPCError("CONFLICT", {
+            message: "Desktop preview is disabled during takeover",
+          });
         }
         const observation = await deps.sandbox.observe(
           {

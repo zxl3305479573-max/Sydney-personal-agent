@@ -94,6 +94,13 @@ it("uses the shared desktop flow for linking", async () => {
     }),
   );
 });
+it("labels a configured Google provider as a Google account link", async () => {
+  await act(async () => root.render(<LinkSsoRow providerName="Google" />));
+  await click("Link Google account");
+  expect(authClient.linkSocial).toHaveBeenCalledWith(
+    expect.objectContaining({ provider: "oidc" }),
+  );
+});
 it("shows a failed link's redirect error on the SSO row, not under Delete account", async () => {
   window.history.replaceState(null, "", "/?sso-link=1&error=account_not_linked");
   try {

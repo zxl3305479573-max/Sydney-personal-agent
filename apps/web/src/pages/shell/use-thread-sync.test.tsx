@@ -30,9 +30,128 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function groupInput() {
+  const response = deferred<ThreadSnapshot>();
+  const get = vi.fn(() => response.promise);
+  const commitSnapshot = vi.fn();
+  const input = {
+    rpc: { threads: { get } },
+    queries: { threads: { get: { queryKey: vi.fn(() => ["group-thread"]) } } },
+    thread: {
+      snapshot: null,
+      snapshotRef: ref<ThreadSnapshot | null>(null),
+      commitSnapshot,
+      updateSnapshot: vi.fn(),
+      setRoutines: vi.fn(),
+      setRoutinesBotId: vi.fn(),
+      setTaughtSkills: vi.fn(),
+      setTaughtSkillsBotId: vi.fn(),
+      bootstrappedThread: ref(null),
+      expandedHistoryThread: ref(null),
+      historyEpoch: ref(0),
+      messageScroll: ref(null),
+      pinnedAroundRef: ref(null),
+      resetHistory: vi.fn(),
+    },
+    computerState: {
+      computerRef: ref(null),
+      commitComputer: vi.fn(),
+      cacheComputerFor: vi.fn(),
+      showCachedComputer: vi.fn(),
+      computerOpenRef: ref(false),
+      computerBotIdRef: ref(null),
+      refreshComputerScreen: vi.fn(),
+    },
+    active: undefined,
+    activeGroup: undefined as { id: string; name: string } | undefined,
+    inGroup: true,
+    groupId: "group-1",
+    activeBotId: ref<string | undefined>(undefined),
+    activeGroupId: ref<string | undefined>("group-1"),
+    botsRef: ref([]),
+    searchParamsRef: ref(new URLSearchParams()),
+    refreshBots: vi.fn(async () => {}),
+    notifyBrowserForEvent: vi.fn(),
+    markBotReadIfVisible: vi.fn(),
+    markGroupReadOnReply: vi.fn(),
+    seed: undefined as { thread: ThreadSnapshot } | undefined,
+  };
+  return { input, response, get, commitSnapshot };
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+});
+
+it("starts loading the group before the roster arrives and ignores a late response after switching", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const { input, response, get, commitSnapshot } = groupInput();
+  function Probe() {
+    useThreadSync(input as unknown as Parameters<typeof useThreadSync>[0]);
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  await act(async () => root.render(createElement(Probe)));
+  expect(runThreadSubscription).toHaveBeenCalledTimes(1);
+  const subscription = vi.mocked(runThreadSubscription).mock.calls[0]![0];
+  const loading = subscription.loadInitial();
+  expect(get).toHaveBeenCalledWith({ groupId: "group-1" }, expect.anything());
+
+  input.activeGroup = { id: "group-1", name: "Group" };
+  await act(async () => root.render(createElement(Probe)));
+  expect(runThreadSubscription).toHaveBeenCalledTimes(1);
+
+  input.activeGroupId.current = "group-2";
+  response.resolve({
+    threadId: "thread-1",
+    groupId: "group-1",
+    messages: [],
+  } as unknown as ThreadSnapshot);
+  await act(async () => void (await loading));
+  expect(commitSnapshot).not.toHaveBeenCalled();
+  act(() => root.unmount());
+});
+
+it.each([false, true])(
+  "uses the matching cached group seed unless jumping to history (%s)",
+  async (jump) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const { input, commitSnapshot } = groupInput();
+    const saved = {
+      threadId: "thread-1",
+      groupId: "group-1",
+      messages: [],
+    } as unknown as ThreadSnapshot;
+    input.seed = { thread: saved };
+    if (jump) input.searchParamsRef.current.set("m", "old-message");
+    function Probe() {
+      useThreadSync(input as unknown as Parameters<typeof useThreadSync>[0]);
+      return null;
+    }
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(Probe)));
+    if (jump) expect(commitSnapshot).not.toHaveBeenCalled();
+    else expect(commitSnapshot).toHaveBeenCalledWith(saved);
+    expect(runThreadSubscription).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  },
+);
+
+it("does not show a cached seed from a different group", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const { input, commitSnapshot } = groupInput();
+  input.seed = {
+    thread: { threadId: "thread-2", groupId: "group-2", messages: [] } as unknown as ThreadSnapshot,
+  };
+  function Probe() {
+    useThreadSync(input as unknown as Parameters<typeof useThreadSync>[0]);
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  await act(async () => root.render(createElement(Probe)));
+  expect(commitSnapshot).not.toHaveBeenCalled();
+  act(() => root.unmount());
 });
 
 it.each([false, true])(

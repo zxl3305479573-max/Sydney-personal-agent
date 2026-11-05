@@ -1,0 +1,21 @@
+[Unit]
+Description=Sydney PC HTTPS entry
+After=network-online.target sydney-web-cloud.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/sydney-pc-nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/sydney-pc.conf
+ExecStart=/usr/sbin/nginx -c /etc/nginx/sydney-pc.conf
+ExecReload=/usr/sbin/nginx -s reload -c /etc/nginx/sydney-pc.conf
+ExecStop=/usr/sbin/nginx -s quit -c /etc/nginx/sydney-pc.conf
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run /var/log/nginx
+
+[Install]
+WantedBy=multi-user.target

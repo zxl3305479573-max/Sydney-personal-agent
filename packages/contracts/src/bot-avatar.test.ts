@@ -26,6 +26,15 @@ describe("bot avatar values", () => {
     });
   });
 
+  it("keeps the chat color separate from the fluid avatar color", () => {
+    const value = "#123456::fluid_#abcdef";
+    expect(isBotAvatarValue(value)).toBe(true);
+    expect(parseBotAvatarValue(value)).toEqual({ kind: "color", color: "#123456" });
+    expect(isBotAvatarValue("#123456::fluid_bad")).toBe(false);
+    expect(CreateBotInput.parse({ name: "Scout", avatarSet: "fluid", color: value }).color).toBe(value);
+    expect(resolveBotAvatarSet("fluid")).toBe("fluid");
+  });
+
   it("does not treat remote URLs as images", () => {
     expect(parseBotAvatarValue("https://evil.example/track.png")).toEqual({
       kind: "other",

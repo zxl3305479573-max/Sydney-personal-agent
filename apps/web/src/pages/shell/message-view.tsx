@@ -219,7 +219,7 @@ export const MessageView = memo(function MessageView({
       ? message.blocks.findIndex((block) => block.kind === "ask")
       : textAnchorIndex;
   const peerReceipt = isPeerReceiptBlocks(message.blocks);
-  const hoverActions = peerReceipt ? null : (
+  const hoverActions = peerReceipt || message.id.startsWith("pending:") ? null : (
     <MessageHoverActions
       message={message}
       side={message.role === "user" ? "start" : "end"}

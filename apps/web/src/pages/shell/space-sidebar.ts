@@ -90,7 +90,7 @@ export function sidebarGroupsForSpaces<TBot extends SidebarChat, TGroup extends 
       grouped.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
     }
     if (mainBots.length > 0 || (!needle && space.bots.length > 0)) {
-      grouped.unshift({ key: "main-bots", title: labels?.mainBots ?? "Main bots", bots: mainBots });
+      grouped.unshift({ key: "main-bots", title: "", bots: mainBots });
     }
     if (!needle && mainBots.length > 0 && !grouped.some((group) => group.key === "unassigned")) {
       grouped.push({ key: "unassigned", title: labels?.unassigned ?? "Unassigned", bots: [] });
@@ -100,7 +100,11 @@ export function sidebarGroupsForSpaces<TBot extends SidebarChat, TGroup extends 
       sectionId: group.key.startsWith("section:") ? group.key.slice("section:".length) : null,
       key: showSpaceNames ? `space:${space.id}:${group.key}` : group.key,
       // A header holding the space menu is never blank, even for the only space.
-      title: showSpaceNames ? space.name : index === 0 && !group.title ? space.name : group.title,
+      title: showSpaceNames
+        ? space.name
+        : index === 0 && !group.title && group.key !== "main-bots"
+          ? space.name
+          : group.title,
       subtitle: showSpaceNames && group.title ? group.title : undefined,
       showLock: showSpaceNames,
       emptySpaceId: undefined as string | undefined,

@@ -37,6 +37,7 @@ import {
 } from "../../lib/thread-events";
 import { errorText } from "../../lib/user-error";
 import type { PendingAttachment } from "./chat-shared";
+import type { useOptimisticMessages } from "./optimistic-messages";
 import type { useShellNavigation } from "./use-shell-navigation";
 
 type ThreadRefresh = RefObject<(id: string) => Promise<ThreadSnapshot>>;
@@ -65,6 +66,7 @@ export function useComposerActions({
   commitComputer,
   clearReadBoundary,
   flushPendingBrowserNotifications,
+  optimistic,
 }: {
   rpc: ReturnType<typeof createSpaceRpc>;
   activeId: string | undefined;
@@ -85,6 +87,7 @@ export function useComposerActions({
   commitComputer: (next: ComputerStatus | null) => void;
   clearReadBoundary: () => void;
   flushPendingBrowserNotifications: () => void;
+  optimistic?: Pick<ReturnType<typeof useOptimisticMessages>, "begin" | "confirm" | "fail">;
 }) {
   const { t } = useLingui();
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
@@ -344,6 +347,28 @@ export function useComposerActions({
         if (permissionRequest) void permissionRequest.then(flushPendingBrowserNotifications);
       }
       const trimmed = plan.trimmed;
+      const showPending =
+        plan.shouldSend &&
+        Boolean(trimmed) &&
+        !attachments.length &&
+        !mentions.length &&
+        !activeReplyTarget &&
+        !reroutedToGroup &&
+        Boolean(activeSnapshot);
+      if (showPending && activeSnapshot) {
+        const afterSeq = Math.max(-1, ...activeSnapshot.messages.map((message) => message.seq));
+        optimistic?.begin({
+          nonce: clientNonce,
+          message: {
+            id: `pending:${clientNonce}`,
+            threadId: activeSnapshot.threadId,
+            seq: afterSeq + 1,
+            role: "user",
+            blocks: [{ kind: "text", text: trimmed }],
+            createdAt: new Date().toISOString(),
+          },
+        });
+      }
       sendingRef.current = true;
       setSending(true);
       setSendError(null);
@@ -424,6 +449,7 @@ export function useComposerActions({
           ? (await rpc.threads.sendWithRoutines({ ...payload, routineIds: plan.routineIds })).send
           : await rpc.threads.send(payload);
         accepted = true;
+        if (showPending && sent) optimistic?.confirm(clientNonce, sent.seq);
         if (sent && botTarget && activeBotId.current === botTarget) {
           updateSnapshot((current) =>
             applyThreadSendReceipt(
@@ -457,6 +483,7 @@ export function useComposerActions({
         else if (botTarget) void refreshThreadRef.current(botTarget).catch(() => undefined);
         return true;
       } catch (error) {
+        if (showPending && !accepted) optimistic?.fail(clientNonce);
         const isConfirmation = isImageInputConfirmation(error);
         // Offer the file resend only for the unchanged draft this send carried.
         const confirmation = isConfirmation && draftEdits.current === editsAtSend;
@@ -485,9 +512,11 @@ export function useComposerActions({
     [
       activeReplyTarget?.id,
       activeReplyQuote,
+      activeSnapshot,
       clearReply,
       flushPendingBrowserNotifications,
       navigate,
+      optimistic,
       pendingAttachments,
       sending,
       t,

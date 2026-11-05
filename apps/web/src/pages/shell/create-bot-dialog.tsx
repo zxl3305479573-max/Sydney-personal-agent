@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { BotAvatarSet } from "@rakazo/contracts";
-import { BOT_NAME_MAX_LENGTH, DEFAULT_NEW_BOT_AVATAR_SET } from "@rakazo/contracts";
+import { BOT_NAME_MAX_LENGTH } from "@rakazo/contracts";
 import {
   newClientId,
   ORGANIC_AVATAR_HEART_FAMILY,
@@ -60,10 +60,10 @@ export function CreateBotDialog({
     return id;
   });
   const [look, setLook] = useState(() => ({
-    value: pick(BOT_AVATAR_COLORS),
+    value: `${pick(BOT_AVATAR_COLORS)}::fluid_#8B5CF6`,
     identity: pick(ORGANIC_IDENTITIES),
   }));
-  const [avatarSet, setAvatarSet] = useState<BotAvatarSet>(DEFAULT_NEW_BOT_AVATAR_SET);
+  const [avatarSet, setAvatarSet] = useState<BotAvatarSet>("fluid");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmed = name.trim();

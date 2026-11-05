@@ -218,7 +218,12 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     baseURL: env.baseURL,
     trustedOrigins: [...buildTrustedOrigins(env), "rakazo://"],
     account: {
-      accountLinking: { enabled: true, disableImplicitLinking: true, trustedProviders: [] },
+      accountLinking: {
+        enabled: true,
+        disableImplicitLinking: true,
+        trustedProviders: [],
+        updateUserInfoOnLink: env.oidc?.issuer === "https://accounts.google.com",
+      },
       encryptOAuthTokens: true,
     },
     // Store only a hash of identifiers that carry an emailed token. Other
@@ -722,9 +727,31 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
           },
         },
         update: {
-          before: async (user) => {
+          before: async (user, ctx = null) => {
             if (user.email && isMessagingEmail(user.email)) {
               throw new APIError("BAD_REQUEST", { message: "Email is not available" });
+            }
+            const link =
+              env.oidc?.issuer === "https://accounts.google.com" &&
+              isOidcCallback(ctx)
+                ? (await getOAuthState())?.link
+                : undefined;
+            if (
+              link &&
+              "name" in user &&
+              "image" in user
+            ) {
+              const stored = await ctx!.context.internalAdapter.findUserById(link.userId);
+              const image = user.image;
+              let safeImage: string | undefined;
+              if (typeof image === "string") {
+                try {
+                  const url = new URL(image);
+                  if (url.protocol === "https:" && url.hostname.endsWith(".googleusercontent.com"))
+                    safeImage = image;
+                } catch {}
+              }
+              return { data: { name: stored?.name, image: safeImage ?? stored?.image } };
             }
             return {
               data: {

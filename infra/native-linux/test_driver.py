@@ -122,9 +122,25 @@ class NativeDriverPolicyTests(unittest.TestCase):
         with patch.object(self.driver, "desktop_command") as command:
             self.assertEqual(self.driver.act(request), {"completed": 1})
             self.assertEqual(command.call_args_list, [
-                unittest.mock.call(["/usr/bin/xclip", "-selection", "clipboard"], "你好".encode()),
+                unittest.mock.call(
+                    ["/usr/bin/xclip", "-selection", "clipboard"], "你好".encode(),
+                    capture_output=False,
+                ),
                 unittest.mock.call(["/usr/bin/xdotool", "key", "--", "ctrl+v"]),
             ])
+
+    def test_clipboard_command_does_not_capture_output_from_background_owner(self):
+        self.driver.display = ":10"
+        self.driver.xauthority = "/desktop/.Xauthority"
+        result = types.SimpleNamespace(returncode=0, stdout=None)
+        with patch.object(MODULE.os, "getuid", return_value=1, create=True), \
+             patch.object(MODULE.pwd, "getpwuid", return_value=types.SimpleNamespace(pw_dir="/desktop"), create=True), \
+             patch.object(MODULE.subprocess, "run", return_value=result) as run:
+            self.assertEqual(
+                self.driver.desktop_command(["/usr/bin/xclip"], b"text", capture_output=False), b"",
+            )
+            self.assertEqual(run.call_args.kwargs["stdout"], MODULE.subprocess.DEVNULL)
+            self.assertEqual(run.call_args.kwargs["stderr"], MODULE.subprocess.DEVNULL)
 
     @patch.object(MODULE.time, "time", return_value=1.0)
     def test_scroll_uses_the_requested_position_and_amount(self, _clock):

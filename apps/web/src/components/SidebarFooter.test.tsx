@@ -146,14 +146,23 @@ it("opens integrations and keeps the existing account actions and links", async 
     "Artifacts",
     "Board",
     "Usage",
-    "Get the mobile app",
-    "Docs",
     "Log out",
   ]);
   expect(host.querySelector('[data-testid="user-menu-trigger"]')?.getAttribute("aria-label")).toBe(
     "Account menu for Demo User",
   );
 });
+
+it("keeps the account name and an accessible, keyboard-focusable connection control", async () => {
+  await render("Sydney");
+  const footer = host.querySelector('[data-testid="sidebar-footer"]')!;
+  const connect = footer.querySelector<HTMLButtonElement>('button[aria-label="Connect apps"]')!;
+  expect(footer.textContent).toContain("Sydney");
+  expect(connect).not.toBeNull();
+  await act(async () => connect.focus());
+  expect(document.activeElement).toBe(connect);
+});
+
 it("omits Board when unavailable", async () => {
   await render();
   expect(document.querySelector('[data-slot="popover-content"]')?.textContent).not.toContain(
@@ -161,15 +170,10 @@ it("omits Board when unavailable", async () => {
   );
 });
 
-it("offers the existing Android download on Android", async () => {
+it("does not link to the upstream mobile app or documentation", async () => {
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Android");
   await render();
-  const mobile = [...document.querySelectorAll("a")].find(
-    (link) => link.textContent === "Get the mobile app",
-  )!;
-  expect(mobile.href).toBe(
-    "https://github.com/elie222/rakazo/releases/download/android/rakazo.apk",
-  );
+  expect([...document.querySelectorAll("a")].some((link) => link.href.includes("github.com/elie222/rakazo"))).toBe(false);
 });
 
 it("falls back when app artwork fails and accepts replacement artwork", async () => {
@@ -242,7 +246,9 @@ it("keeps at most three marks with the same tile and a missing-logo fallback", a
     { name: "GitHub", logo: "https://example.test/github.svg" },
     { name: "Slack" },
   ]);
-  const tiles = [...host.querySelectorAll('span[aria-hidden="true"] > span')];
+  const tiles = [
+    ...host.querySelectorAll('button[aria-label="Connect apps"] span.isolate > span'),
+  ];
   expect(tiles).toHaveLength(3);
   expect(new Set(tiles.map((tile) => tile.className)).size).toBe(1);
   expect(tiles[1]!.textContent).toBe("N");

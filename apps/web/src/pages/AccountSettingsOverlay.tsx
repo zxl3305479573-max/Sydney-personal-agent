@@ -487,7 +487,7 @@ export function GeneralSettingsPanels({
       {showPassword || passkeysSupported || canLinkSso ? (
         <SettingsGroup title={<Trans>Security</Trans>}>
           {showPassword ? <ChangePasswordRow email={email} /> : null}
-          {canLinkSso ? <LinkSsoRow /> : null}
+          {canLinkSso ? <LinkSsoRow providerName={accountSecurity?.sso?.name} /> : null}
           <PasskeySettings />
         </SettingsGroup>
       ) : null}

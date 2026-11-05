@@ -126,6 +126,8 @@ export function useThreadSync({
   } = computerState;
   const threadRefreshEpoch = useRef(0);
   const groupRefreshEpoch = useRef(0);
+  const activeGroupRef = useRef(activeGroup);
+  activeGroupRef.current = activeGroup;
   const [loadingOlder, setLoadingOlder] = useState(false);
   // A very fast run can finish over SSE while its threads.send response is still
   // returning. Do not let that late receipt resurrect terminal work as queued.
@@ -404,7 +406,7 @@ export function useThreadSync({
   }, [active?.id, markBotReadIfVisible, notifyBrowserForEvent]);
 
   useEffect(() => {
-    if (!groupId || !activeGroup) return;
+    if (!groupId) return;
     const pendingJump = searchParamsRef.current.get("m");
     if (!pendingJump) {
       pinnedAroundRef.current = null;
@@ -412,7 +414,10 @@ export function useThreadSync({
     }
     historyEpoch.current += 1;
     const threadKey = cachedThreadKey({ groupId });
-    const cachedThread = pendingJump ? undefined : queryClient.getQueryData(threadKey);
+    const cachedThread = pendingJump
+      ? undefined
+      : (queryClient.getQueryData<ThreadSnapshot>(threadKey) ??
+        (seed?.thread?.groupId === groupId ? seed.thread : undefined));
     if (cachedThread && snapshotRef.current?.groupId !== groupId) commitSnapshot(cachedThread);
     const sidebarRefresh = createRefreshCoalescer(() => refreshBots());
     const snapshotRefresh = createRefreshCoalescer(() => refreshGroupThread(groupId));
@@ -450,7 +455,7 @@ export function useThreadSync({
           initial.threadId,
           initial.cursor,
           true,
-          eventBot?.name ?? activeGroup.name,
+          eventBot?.name ?? activeGroupRef.current?.name ?? "",
           true,
           true,
         );
@@ -480,7 +485,7 @@ export function useThreadSync({
       const left = snapshotRef.current;
       if (left?.groupId === groupId) queryClient.setQueryData(threadKey, left);
     };
-  }, [activeGroup?.id, groupId, notifyBrowserForEvent, markGroupReadOnReply]);
+  }, [groupId, notifyBrowserForEvent, markGroupReadOnReply]);
 
   // Memoized children take these, so they stay referentially stable across renders.
   const refreshThreadRef = useRef(refreshThread);

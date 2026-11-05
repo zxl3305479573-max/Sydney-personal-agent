@@ -227,7 +227,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <AuthFrame onSubmit={submit} title={title}>
+    <AuthFrame onSubmit={submit} title={title} mode={mode}>
       {sent ? (
         <div className="w-full text-center">
           <Link to="/sign-in" className="font-medium text-foreground">
@@ -284,28 +284,31 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                 </div>
               ) : null}
               {codeStep ? (
-                <div className="flex w-full justify-center">
-                  <InputOTP
-                    aria-label={t({ message: "Code", context: "email sign-in" })}
-                    maxLength={CODE_LENGTH}
-                    pattern={"^\\d+$"}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    autoFocus
-                    value={code}
-                    onChange={setCode}
-                    onComplete={(value: string) => void verifyCode(value)}
-                  >
-                    <InputOTPGroup>
-                      {[0, 1, 2, 3, 4, 5].map((index) => (
-                        <InputOTPSlot
-                          key={index}
-                          index={index}
-                          className="size-12 text-lg first:rounded-l-xl last:rounded-r-xl"
-                        />
-                      ))}
-                    </InputOTPGroup>
-                  </InputOTP>
+                <div className="w-full">
+                  <p className="mb-4 text-sm text-muted-foreground">{email.trim()}</p>
+                  <div className="flex justify-center">
+                    <InputOTP
+                      aria-label={t({ message: "Code", context: "email sign-in" })}
+                      maxLength={CODE_LENGTH}
+                      pattern={"^\\d+$"}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      value={code}
+                      onChange={setCode}
+                      onComplete={(value: string) => void verifyCode(value)}
+                    >
+                      <InputOTPGroup>
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <InputOTPSlot
+                            key={index}
+                            index={index}
+                            className="size-9 text-lg first:rounded-l-xl last:rounded-r-xl sm:size-12"
+                          />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
                 </div>
               ) : (
                 <div className="w-full">
@@ -426,29 +429,13 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   <Trans>Continue with {reset.sso.name}</Trans>
                 </Button>
               ) : null}
-              {codeStep ? null : (
+              {mode === "forgot" && !codeStep ? (
                 <p className="mt-8 text-muted-foreground">
-                  {mode === "in" ? (
-                    <>
-                      <Trans>Don’t have an account?</Trans>{" "}
-                      <Link to="/sign-up" className="font-medium text-foreground">
-                        <Trans>Sign up</Trans>
-                      </Link>
-                    </>
-                  ) : mode === "up" ? (
-                    <>
-                      <Trans>Already have an account?</Trans>{" "}
-                      <Link to="/sign-in" className="font-medium text-foreground">
-                        <Trans>Sign in</Trans>
-                      </Link>
-                    </>
-                  ) : (
-                    <Link to="/sign-in" className="font-medium text-foreground">
-                      <Trans>Back to sign in</Trans>
-                    </Link>
-                  )}
+                  <Link to="/sign-in" className="font-medium text-foreground">
+                    <Trans>Back to sign in</Trans>
+                  </Link>
                 </p>
-              )}
+              ) : null}
             </>
           ) : null}
         </>
@@ -544,20 +531,70 @@ export function AuthFrame({
   title,
   onSubmit,
   children,
+  mode,
 }: {
   title: React.ReactNode;
   onSubmit: (event: React.FormEvent) => void;
   children: React.ReactNode;
+  mode?: AuthMode;
 }) {
   return (
-    <div className="flex min-h-full items-center justify-center bg-background px-6 py-16 text-foreground">
-      <form onSubmit={onSubmit} className="flex w-[460px] flex-col items-center">
-        <span aria-hidden="true" className="sydney-brand-mark h-[74px] w-[74px]" />
-        <h1 aria-live="polite" className="mb-9 mt-7 text-4xl font-medium tracking-tight">
-          {title}
-        </h1>
-        {children}
-      </form>
+    <div className="relative isolate grid min-h-full grid-rows-[64px_1fr_64px] overflow-hidden bg-background text-foreground">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_72%_78%_at_50%_50%,black_38%,transparent_100%)]"
+      >
+        <svg className="h-full w-full text-border" aria-hidden="true">
+          <svg x="50%" y="50%" overflow="visible">
+            <line x1="-2400" x2="2400" y1="0" y2="0" stroke="currentColor" />
+            <line x1="0" x2="0" y1="-2400" y2="2400" stroke="currentColor" />
+            {Array.from({ length: 14 }, (_, index) => (
+              <circle
+                key={index}
+                cx="0"
+                cy="0"
+                r={224 + index * 60}
+                fill="none"
+                stroke="currentColor"
+                opacity={index % 3 === 2 ? 1 : 0.55}
+              />
+            ))}
+          </svg>
+        </svg>
+      </div>
+      <header className="flex items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="flex items-center gap-2 font-medium">
+          <span aria-hidden="true" className="sydney-brand-mark h-7 w-7" />
+          <span>Sydney</span>
+        </div>
+        {mode === "in" || mode === "up" ? (
+          <p className="text-right text-sm text-muted-foreground">
+            {mode === "in" ? (
+              <Trans>Don’t have an account?</Trans>
+            ) : (
+              <Trans>Already have an account?</Trans>
+            )}{" "}
+            <Link
+              to={mode === "in" ? "/sign-up" : "/sign-in"}
+              className="ml-1 font-medium text-foreground"
+            >
+              {mode === "in" ? <Trans>Sign up</Trans> : <Trans>Sign in</Trans>}
+            </Link>
+          </p>
+        ) : null}
+      </header>
+      <main className="grid min-w-0 place-items-center px-3 py-4 sm:px-4 sm:py-6">
+        <form
+          onSubmit={onSubmit}
+          className="flex w-full max-w-[420px] flex-col items-start rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8"
+        >
+          <h1 aria-live="polite" className="mb-6 text-2xl font-medium tracking-tight sm:text-3xl">
+            {title}
+          </h1>
+          {children}
+        </form>
+      </main>
+      <div aria-hidden="true" />
     </div>
   );
 }

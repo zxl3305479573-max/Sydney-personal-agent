@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sydney</title>
+    <link rel="stylesheet" href="splash.css">
+  </head>
+  <body>
+    <main aria-label="Sydney 正在启动">
+      <svg class="mark" viewBox="0 0 256 256" aria-hidden="true">
+        <defs>
+          <mask id="drawing">
+            <path class="stroke stroke-one" pathLength="1" d="M43 98 C73 85 108 94 130 111 C151 129 150 166 158 190 C166 210 202 209 237 201"/>
+            <path class="stroke stroke-two" pathLength="1" d="M128 111 C150 79 173 45 195 47 C218 46 226 68 210 87 C193 106 171 114 148 125"/>
+            <path class="stroke stroke-three" pathLength="1" d="M130 113 C91 118 37 126 25 151 C7 187 35 211 62 196 C90 181 111 146 130 122"/>
+          </mask>
+        </defs>
+        <image href="sydney-mark.png" width="256" height="256" mask="url(#drawing)"/>
+        <image class="finished-mark" href="sydney-mark.png" width="256" height="256"/>
+      </svg>
+    </main>
+  </body>
+</html>

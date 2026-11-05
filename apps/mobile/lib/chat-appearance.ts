@@ -67,8 +67,16 @@ function normalize(value: unknown): MobileChatAppearance {
           userForeground: (bubble as Record<string, unknown>).userForeground as string,
           botBackground: (bubble as Record<string, unknown>).botBackground as string,
           botForeground: (bubble as Record<string, unknown>).botForeground as string,
-          radius: 20,
-          opacity: 1,
+          radius:
+            typeof (bubble as Record<string, unknown>).radius === "number" &&
+            Number.isFinite((bubble as Record<string, unknown>).radius)
+              ? Math.min(40, Math.max(0, (bubble as Record<string, number>).radius!))
+              : 20,
+          opacity:
+            typeof (bubble as Record<string, unknown>).opacity === "number" &&
+            Number.isFinite((bubble as Record<string, unknown>).opacity)
+              ? Math.min(1, Math.max(0, (bubble as Record<string, number>).opacity!))
+              : 1,
         }
       : null,
   };
@@ -99,8 +107,9 @@ export async function loadMobileChatAppearance(): Promise<MobileChatAppearance> 
 }
 
 export async function saveMobileChatAppearance(next: MobileChatAppearance): Promise<void> {
-  appearance = normalize(next);
-  await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(appearance));
+  const normalized = normalize(next);
+  await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(normalized));
+  appearance = normalized;
   loaded = true;
   notify();
 }

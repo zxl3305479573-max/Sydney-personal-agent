@@ -1,5 +1,21 @@
 # 运维手册
 
+## 云电脑文字输入驱动修复
+
+2026-11-05 云电脑 `/opt/sydney-native/driver.py` 已修复 `xclip` 后台进程导致的输出管道超时，并重启 `sydney-driver.service`；服务与 socket 状态正常。部署前文件备份为 `/opt/sydney-native/driver.py.before-clipboard-20261105`。如需回滚，应先核对后续驱动改动，再恢复备份并重启驱动；回滚尚未演练。独立剪贴板读写已验证，实际网页粘贴和 Agent 端到端验收仍待完成。普通剪贴板不提供凭据隔离。
+
+## PC 启动动画资源（待打包验证）
+
+桌面静态资源复制脚本将 `apps/desktop/src/splash.html`、`splash.css` 和 `apps/web/public/sydney-mark.png` 复制到 `apps/desktop/dist/`，由 Electron 本地加载；无需增加服务器配置。静态复制已执行，安装包包含这些资源及真实客户端启动尚未验证；部署前须通过现有桌面打包流程确认。
+
+## Google 头像绑定配置（待验证）
+
+该功能复用现有唯一 OIDC 提供方，需在 Google 创建 OAuth Web 客户端并登记 `BETTER_AUTH_URL` 对应的 `/api/auth/callback/oidc` 回调，再为 API 配置 `OIDC_ISSUER=https://accounts.google.com`、`OIDC_NAME=Google`、`OIDC_CLIENT_ID` 和 `OIDC_CLIENT_SECRET`；保留 `AUTH_PASSWORD_ENABLED=true` 可继续使用邮箱登录。密钥只放服务器密钥配置，不写入仓库。切换发行方会影响已有 SSO 绑定，并启用现有 SSO 登录入口，配置前需确认部署现状。上述 Google 配置、回调及部署均未实测；完成部署后需用匹配邮箱的已验证账户测试授权、头像显示与原有邮箱登录。
+
+## UI 重做部署（2026-11-05）
+
+提交 `4d49b063d` 的 Web 产物在 `/opt/sydney-web-build-4d49b063d` 使用现有依赖和 Node 22.23.2 构建，当前运行目录为 `/opt/sydney-web-stage/apps/web/dist`，构建标识 `20261105061136`；上一版位于 `/opt/sydney-web-stage/apps/web/dist.before-4d49b063d`，并将旧资源保留于新产物中。需回滚时先保留当前产物，恢复该备份并重启 `sydney-web-cloud`，再核对 `/build-id` 和 API 健康；人工回滚尚未演练。当前用量热力图误采用日历样式，尚不符合用户提供的 Cohort retention 参考。
+
 ## PC 界面部署（2026-11-05）
 
 Web 静态产物由源码提交 `f8133e602` 在云电脑 `/opt/sydney-web-build-f8133e602` 复用 `/opt/sydney-web-stage` 现有依赖构建；运行目录为 `/opt/sydney-web-stage/apps/web/dist`，构建标识为 `20261105035626`。替换时把上一版资源一并保留在新目录，减少已打开页面请求旧哈希文件失败的风险；上一版完整产物保留在 `/opt/sydney-web-stage/apps/web/dist.before-f8133e602`。
@@ -8,9 +24,19 @@ Web 静态产物由源码提交 `f8133e602` 在云电脑 `/opt/sydney-web-build-
 
 PC 聊天气泡图片与背景一样保存在当前浏览器的 `sydney-chat-appearance` IndexedDB 中，不上传后台；清除该站点的浏览器数据会丢失这些本地素材和外观配置。不同浏览器、设备或 Electron 的独立存储不会自动同步，实际客户端存储路径和迁移方式尚未验证。
 
+## PC 域名源站 HTTPS（2026-11-05）
+
+后台 `sydney-api.service.d/30-pc-origin.conf` 最后加载 `/etc/sydney/pc-origin.env`，将 `WEB_ORIGIN` 与 `BETTER_AUTH_URL` 设置为正式域名；保留原 `/etc/sydney/backend.env`。systemd 的 `EnvironmentFile` 会覆盖 `Environment`，更改时需核对加载顺序。回滚时先备份并移除该 drop-in，执行 `systemctl daemon-reload` 与 `systemctl restart sydney-api`，再验证 `/ready` 和所需登录入口；回滚会短暂中断 API，尚未演练。当前旧回环网页来源不再被视为受信任来源，正式登录和其他认证方式验收见 V-054。
+
+云电脑部署 `sydney-pc-nginx.service`，配置为 `/etc/nginx/sydney-pc.conf`，以 `sydney-web-stage` worker 访问 `/run/sydney-web-stage/web.sock`。80 端口仅提供 ACME webroot `/var/lib/sydney-pc-acme`，443 使用 `/etc/letsencrypt/live/sydney-pc/` 的证书并转发 `pc.zxlup.xin`。云端当前使用 `sydney-web-cloud.service.d/30-pc-host.conf` 设置 `RAKAZO_ALLOWED_HOSTS`；仓库的 `PC_BACKEND_HOSTNAME` 接线尚未部署。
+
+自动续期使用 `certbot.timer`、webroot 和 `/etc/letsencrypt/renewal-hooks/deploy/sydney-pc-reload`，续期演练见 V-053。状态检查：`systemctl status sydney-pc-nginx sydney-web-cloud sydney-web-cloud-link certbot.timer`；配置检查：`nginx -t -c /etc/nginx/sydney-pc.conf`。正式证书签发时没有设置邮件，需通过定时检查监测证书和续期状态。
+
+用户将 Cloudflare 全局模式调整为 Full (strict) 后，公网页面与 API 健康检查返回 200；真实客户端和 WebSocket 尚未验收。回滚 HTTPS 入口可停止并禁用 `sydney-pc-nginx.service`；移除 Host 附加配置前先备份，再重启云端 Web 恢复原配置，Web 会短暂中断。停用入口后证书自动续期将无法经 webroot 完成，恢复入口或调整续期前应检查 `certbot.timer` 和该证书续期配置；上述完整回滚尚未演练。旧的本地转发链路及后台服务不依赖该公网入口。
+
 ## 云端 Web 与只读屏幕当前运行形态（2026-11-05）
 
-当前 Web 由云电脑上的 `sydney-web-cloud.service` 运行，服务通过 `sydney-web-cloud-link.service` 与后台 API、屏幕隧道及本地入口连接；后台 `sydney-web.service` 是旧的本机预览服务，当前停用，避免与 `sydney-web-forward.socket/service` 争用入口端口。查看状态应同时检查云端 Web、云端链路、后台转发、API 和 `sydney-screen-tunnel.service`。
+当前 Web/PC 后台由云电脑上的 `sydney-web-cloud.service` 运行，服务通过 `sydney-web-cloud-link.service` 与后台 API、屏幕隧道及本地入口连接；后台 `sydney-web.service` 是旧的本机预览服务，当前停用，避免与 `sydney-web-forward.socket/service` 争用入口端口。正式 HTTPS 主机名配置为 `PC_BACKEND_HOSTNAME` 后，云端 Vite 预览服务才会接受该 Host。查看状态应同时检查云端 Web、云端链路、后台转发、API 和 `sydney-screen-tunnel.service`。
 
 网页静态产物已同步到云端运行目录，旧版本保留在云端 `apps/web/dist.before-v045`。升级云端 Web 时先构建完整产物、保留上一版、切换后重启 `sydney-web-cloud.service`，再通过本机转发登录和检查 Bot 页面。云端桥接服务内部使用独立端口，不能直接把该内部端口当作公网入口。
 

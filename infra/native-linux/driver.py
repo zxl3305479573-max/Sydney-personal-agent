@@ -312,19 +312,20 @@ class Driver:
             with self.lock:
                 self.processes.get((request["botId"], run_id), set()).discard(process)
 
-    def desktop_command(self, argv, data=None):
+    def desktop_command(self, argv, data=None, capture_output=True):
         environment = {
             "HOME": pwd.getpwuid(os.getuid()).pw_dir, "PATH": "/usr/bin:/bin",
             "DISPLAY": self.display, "XAUTHORITY": self.xauthority, "LANG": "C.UTF-8",
         }
         try:
-            result = subprocess.run(argv, input=data, env=environment, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, timeout=5, check=False)
+            output = subprocess.PIPE if capture_output else subprocess.DEVNULL
+            result = subprocess.run(argv, input=data, env=environment, stdout=output,
+                                    stderr=output, timeout=5, check=False)
         except (OSError, subprocess.TimeoutExpired):
             raise Refused("Desktop operation unavailable")
-        if result.returncode != 0 or len(result.stdout) > MAX_FILE:
+        if result.returncode != 0 or (result.stdout is not None and len(result.stdout) > MAX_FILE):
             raise Refused("Desktop operation failed")
-        return result.stdout
+        return result.stdout or b""
 
     def observe(self, request):
         if request.get("run"):
@@ -403,7 +404,10 @@ class Driver:
                 text = action.get("text")
                 if not isinstance(text, str) or len(text.encode("utf-8")) > 65536:
                     raise Refused("Invalid clipboard text")
-                self.desktop_command(["/usr/bin/xclip", "-selection", "clipboard"], text.encode("utf-8"))
+                self.desktop_command(
+                    ["/usr/bin/xclip", "-selection", "clipboard"], text.encode("utf-8"),
+                    capture_output=False,
+                )
                 self.authorize_run(request)
                 self.desktop_command(["/usr/bin/xdotool", "key", "--", "ctrl+v"])
             else:

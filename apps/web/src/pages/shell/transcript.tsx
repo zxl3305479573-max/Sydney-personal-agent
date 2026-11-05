@@ -1,5 +1,5 @@
 import { i18n } from "@lingui/core";
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type {
   BotAvatarSet,
   LoginFieldInput,
@@ -722,6 +722,11 @@ export const Transcript = memo(function Transcript({
                       onMarkUnread={onMarkUnread}
                       onReact={onReact}
                     />
+                    {message.id.startsWith("pending:") && !message.id.startsWith("pending:confirmed:") ? (
+                      <p role="status" className="mt-1 text-right text-xs text-muted-foreground">
+                        <Trans>Sending…</Trans>
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 {!peerReceipt && messageReactions ? (

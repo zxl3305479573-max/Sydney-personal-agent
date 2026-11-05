@@ -459,6 +459,73 @@ describe("OIDC callbacks", () => {
     expect(rows("account")).toHaveLength(2);
     expect(new Set(rows("account").map((account) => account.userId)).size).toBe(1);
   });
+  it.each([
+    ["https://lh3.googleusercontent.com/avatar", "https://lh3.googleusercontent.com/avatar"],
+    ["https://example.test/avatar", null],
+    [undefined, null],
+  ])("copies only a valid Google picture on an authorized link: %s", async (picture, expected) => {
+    activeIssuer = "https://accounts.google.com";
+    setup({
+      oidc: {
+        issuer: activeIssuer,
+        clientId: "test-client",
+        clientSecret: "test-client-secret",
+        name: "Google",
+        scopes: [],
+        allowSignupBypass: false,
+      },
+    });
+    await request("/sign-up/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+      name: "Local",
+    });
+    rows("user")[0]!.emailVerified = true;
+    const claims = {
+      sub: "subject-1",
+      email: "sso@example.test",
+      email_verified: true,
+      name: "Google name",
+      ...(picture ? { picture } : {}),
+    };
+    const response = await request(await start(claims, true));
+    expect(response.headers.get("location")).toBe(`${origin}/app`);
+    expect(rows("user")[0]?.name).toBe("Local");
+    expect(rows("user")[0]?.image ?? null).toBe(expected);
+  });
+  it("does not copy a Google picture when the link email differs", async () => {
+    activeIssuer = "https://accounts.google.com";
+    setup({
+      oidc: {
+        issuer: activeIssuer,
+        clientId: "test-client",
+        clientSecret: "test-client-secret",
+        name: "Google",
+        scopes: [],
+        allowSignupBypass: false,
+      },
+    });
+    await request("/sign-up/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+      name: "Local",
+    });
+    rows("user")[0]!.emailVerified = true;
+    const response = await request(
+      await start(
+        {
+          sub: "subject-1",
+          email: "other@example.test",
+          email_verified: true,
+          picture: "https://lh3.googleusercontent.com/avatar",
+        },
+        true,
+      ),
+    );
+    expect(response.headers.get("location")).toContain("error=");
+    expect(rows("user")[0]?.image ?? null).toBeNull();
+    expect(rows("account")).toHaveLength(1);
+  });
   it("offers linking after issuer replacement, retains old links, and preserves linking safety", async () => {
     setup();
     await request("/sign-up/email", {

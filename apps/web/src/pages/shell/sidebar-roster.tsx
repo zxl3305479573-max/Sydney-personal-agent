@@ -96,6 +96,7 @@ export function SidebarRoster({
   return (
     <>
       {sidebarGroups.map((group, groupIndex) => {
+        const topBots = group.key.endsWith("main-bots");
         const collapsed = Boolean(group.title) && collapsedSidebarSections.has(group.key);
         const groupBotIds = group.bots.flatMap((item) =>
           item.kind === "bot" ? [item.chat.id] : [],
@@ -261,7 +262,32 @@ export function SidebarRoster({
                 ) : null}
               </div>
             ) : null}
-            <CollapsibleContent className="flex flex-col gap-0.5">
+            <CollapsibleContent
+              data-roster-top-bots={topBots ? "" : undefined}
+              data-roster-drop={topBots && rosterDropKey === headerDropKey ? "true" : undefined}
+              className={
+                topBots && !mini
+                  ? `grid grid-cols-2 gap-x-2 gap-y-3 rounded-xl ${draggedBotId ? "min-h-20" : ""} ${rosterDropKey === headerDropKey ? "bg-sidebar-accent" : ""}`
+                  : "flex flex-col gap-0.5"
+              }
+              onDragOver={(event) => {
+                if (!topBots || !headerDropTarget || !rosterDropAction(headerDropTarget, false))
+                  return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                if (rosterDropKey !== headerDropKey) setRosterDropKey(headerDropKey);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  if (rosterDropKey === headerDropKey) setRosterDropKey(null);
+                }
+              }}
+              onDrop={(event) => {
+                if (!topBots || !headerDropTarget) return;
+                event.preventDefault();
+                applyRosterDrop(headerDropTarget, false, groupBotIds);
+              }}
+            >
               {group.bots.map((item) => {
                 const selected =
                   (item.kind === "bot" && !inGroup && active?.id === item.chat.id) ||
@@ -274,7 +300,7 @@ export function SidebarRoster({
                   (rosterHasUndismissedRunError(item.chat.runErrorId, dismissedRunErrorIds) ||
                     (active?.id === item.chat.id && Boolean(displayedRunError)));
                 const compactStatusLabel =
-                  (compact || mini) && item.kind === "bot"
+                  (compact || mini || topBots) && item.kind === "bot"
                     ? rowError
                       ? t`Error`
                       : compactRosterStatusLabel(item.chat.status)
@@ -307,7 +333,7 @@ export function SidebarRoster({
                       avatarSet={item.chat.avatarSet}
                       color={item.chat.color}
                       identity={item.chat.id}
-                      size={mini ? 40 : compact ? 28 : 38}
+                      size={mini ? 40 : topBots ? 64 : compact ? 28 : 38}
                       status={item.chat.status}
                     />
                   ) : (
@@ -330,7 +356,7 @@ export function SidebarRoster({
                     aria-current={selected ? "page" : undefined}
                     aria-label={mini ? item.chat.name : undefined}
                     aria-describedby={
-                      mini
+                      mini || topBots
                         ? [
                             item.chat.unread ? `roster-unread-${item.kind}-${item.chat.id}` : null,
                             compactStatusLabel
@@ -353,6 +379,7 @@ export function SidebarRoster({
                     onDragOver={(event) => {
                       if (!rowDropTarget || !rosterDropAction(rowDropTarget, rowSameList)) return;
                       event.preventDefault();
+                      event.stopPropagation();
                       event.dataTransfer.dropEffect = "move";
                       if (rosterDropKey !== rowDropKey) setRosterDropKey(rowDropKey);
                     }}
@@ -362,6 +389,7 @@ export function SidebarRoster({
                     onDrop={(event) => {
                       if (!rowDropTarget) return;
                       event.preventDefault();
+                      event.stopPropagation();
                       applyRosterDrop(rowDropTarget, rowSameList, groupBotIds);
                     }}
                     onDragEnd={() => {
@@ -394,9 +422,11 @@ export function SidebarRoster({
                     className={`flex items-center ${
                       mini
                         ? "mx-auto size-12 justify-center rounded-xl"
-                        : compact
-                          ? "w-full min-h-11 gap-2 rounded-xl px-2.5 py-1.5"
-                          : "w-full gap-3 rounded-xl px-2.5 py-[10px]"
+                        : topBots
+                          ? "w-full min-w-0 flex-col justify-center gap-2 rounded-xl px-2 py-3"
+                          : compact
+                            ? "w-full min-h-11 gap-2 rounded-xl px-2.5 py-1.5"
+                            : "w-full gap-3 rounded-xl px-2.5 py-[10px]"
                     } text-start ${
                       item.kind === "bot" ? "cursor-grab active:cursor-grabbing" : ""
                     } ${
@@ -405,10 +435,10 @@ export function SidebarRoster({
                         : "group-hover/row:bg-accent"
                     }`}
                   >
-                    {mini ? (
+                    {mini || topBots ? (
                       <span className="relative shrink-0">
                         {avatar}
-                        {rowError ? (
+                        {rowError && !topBots ? (
                           <span
                             aria-hidden="true"
                             className="absolute -end-0.5 bottom-0 size-2 rounded-full bg-destructive ring-2 ring-sidebar"
@@ -424,11 +454,13 @@ export function SidebarRoster({
                         ) : null}
                         {item.chat.unread ? (
                           <>
-                            <span
-                              aria-hidden="true"
-                              data-roster-unread-dot
-                              className="absolute -end-0.5 top-0 size-2 rounded-full bg-unread ring-2 ring-sidebar"
-                            />
+                            {!topBots ? (
+                              <span
+                                aria-hidden="true"
+                                data-roster-unread-dot
+                                className="absolute -end-0.5 top-0 size-2 rounded-full bg-unread ring-2 ring-sidebar"
+                              />
+                            ) : null}
                             <span
                               id={`roster-unread-${item.kind}-${item.chat.id}`}
                               className="sr-only"
@@ -441,7 +473,15 @@ export function SidebarRoster({
                     ) : (
                       avatar
                     )}
-                    {!mini ? (
+                    {topBots && !mini ? (
+                      <span
+                        dir="auto"
+                        data-roster-bot-name=""
+                        className="max-w-full truncate text-center text-body2 font-medium text-foreground"
+                      >
+                        {item.chat.name}
+                      </span>
+                    ) : !mini ? (
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1.5">
                           <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">

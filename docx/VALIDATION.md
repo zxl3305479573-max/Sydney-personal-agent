@@ -1,5 +1,71 @@
 # 验证记录
 
+## 2026-11-05：PC 群聊加载离线验证
+
+- 线程同步、订阅及事件相关测试 129 项通过；随后新增跨群缓存隔离测试，线程同步文件 6 项通过。Web TypeScript 和改动文件格式检查通过。
+- 定向测试覆盖群列表未返回时启动请求、群信息到达后不重建订阅、旧请求返回时不覆盖当前群，以及匹配缓存、历史跳转和跨群缓存隔离。
+- 未使用真实账号或服务器测试首次加载时间、慢连接、权限拒绝与用户实际操作；未部署。
+
+## 2026-11-05：云电脑文字输入
+
+- 关联 PA-011、PA-012。云电脑桌面用户在独立 X11 选择区复现 `xclip` 捕获输出时超时；关闭输出捕获后正常退出。部署后使用驱动完成独立选择区中英文文本往返，服务与 socket 均为 active。
+- Windows 本机执行 `python -m unittest infra.native-linux.test_driver`：17 项中 15 项通过、2 项跳过。未在真实网页或 Agent 会话中验证粘贴，未验证浏览器通过命令启动。
+
+## 2026-11-05：PC 消息发送即时反馈离线验证
+
+- 发送、输入框、线程事件、临时气泡和 API 线程目标相关定向测试首轮 274 项通过；新增事件标识检查后复跑相关四个文件 185 项通过，消息与对话渲染测试另有 13 项通过。Web 和 API TypeScript 检查通过。
+- 相关输入框测试环境报告 Canvas 接口未实现，不影响上述测试结果；旧有 `message-view.tsx` 和 `transcript.tsx` 全文件格式检查存在既有排版差异，本次未整体改写。
+- 未连接真实服务或部署，实际网络延迟、视觉和浏览器滚动尚未验收；旧 API 与新 Web 混用时的实时消息可能短暂重复，待同步部署验证。
+
+## 2026-11-05：上游宣传入口清理验证
+
+- Web 聊天输入及侧栏定向测试 116 项通过；邮件模板测试 22 项通过；Web TypeScript 检查通过。测试环境不支持 Canvas，出现相关提示，未验证头像绘制。
+- 未进行真实浏览器、邮件发送、移动端或部署验证。旧头像渲染测试此前 20 项失败仍未解决；不能认定整个品牌与头像清理完成。
+
+## 2026-11-05：旧头像清理（未完成）
+
+- PC 创建和头像设置两项更新后的定向测试通过，Web TypeScript 检查通过；七个删除的 SVG 在源码中未找到文件名引用。
+- 旧头像渲染测试 30 项中 20 项失败，涉及已移除的旧图形、工作状态和活动动画；不能判定功能回归通过。Canvas 真实效果、移动端与官网未验证。
+
+## 2026-11-05：PC 启动动画离线验证
+
+- 移除可见文字后重新执行本地静态资源复制；调整仅涉及页面内容和样式，未重新运行 Electron 或安装包验证。
+- 启动交接、应用文档状态、启动配置和窗口选项定向测试共 81 项通过，桌面 TypeScript 和相关文件格式检查通过；静态资源复制脚本执行成功。
+- 本地无头 Chrome 打开复制后的启动页，检查约 650 毫秒中间帧和完成帧，分别观察到部分笔画和完整图标。该检查不验证 Electron 窗口交接、实际动画流畅度、系统减少动态效果或服务器慢连接。
+- 未启动 Electron、构建安装包、部署或验证真实失败回退；相关测试仍需在授权环境完成。
+
+## 2026-11-05：Google 头像绑定离线验证
+
+- OIDC 及账户设置定向测试 2 个文件、115 项通过，覆盖匹配邮箱绑定、无效头像、不同邮箱拒绝绑定及原名称保留；认证包和 Web TypeScript 检查通过。
+- 使用模拟的 Google 签名和 OIDC 服务，未验证真实 Google 授权、服务器配置、图片网络可达性、已绑定账号更新或部署。
+
+## 2026-11-05：登录注册外观离线验证
+
+- 登录页面定向测试 16 项通过，Web TypeScript 检查通过。
+- 未启动浏览器或服务器，实际视觉、深浅主题、窄屏、真实认证及部署均未验收；现有测试不证明与参考完全一致。
+
+## 2026-11-05：侧栏连接应用入口离线验证
+
+- 使用本地 Vitest 运行 `apps/web/src/components/SidebarFooter.test.tsx`：26 项通过，覆盖连接操作、头像回退、按钮焦点和应用图标数量；Web TypeScript 检查通过。
+- 测试环境不渲染实际布局，悬停展开动画、窄侧栏、减少动态效果和与参考图的视觉一致性尚未在浏览器验收；未部署。
+
+## 2026-11-05：PC 流体 Bot 头像离线验证
+
+- 契约、既有头像和颜色选择器定向测试 36 项通过；创建 Bot 与头像设置定向测试 11 项通过。Web 和共享 Web UI TypeScript 检查通过。
+- 本机 `pnpm` 命令因 Node 版本为 22.22.0、项目要求至少 22.22.2 而拒绝执行；上述检查通过已有的本地工具直接运行，未安装依赖。
+- 测试环境没有 Canvas 绘图实现，未验证真实绘制、鼠标动画、不同颜色效果和性能；未运行浏览器、移动端或服务器部署验证。
+
+## 2026-11-05：主 Bot 展示精简验证
+
+- 侧栏分组和拖拽定向测试 2 个文件、23 项通过；Web TypeScript 检查及本次相关文件的 `git diff --check` 通过。
+- 上述测试未覆盖实际渲染，主 Bot 头像、名称及无障碍状态提示仍需浏览器验收；未部署。
+
+## 2026-11-05：UI 重做部署及参考核对
+
+- 云电脑以提交 `4d49b063d` 隔离构建 Web，Node 22.23.2，构建标识 `20261105061136`；构建成功并有大分包提示。旧产物保留在 `/opt/sydney-web-stage/apps/web/dist.before-4d49b063d`。
+- 重启后公网首页、`/build-id` 和 POST `/rpc/health` 返回 200；云端 Web、链路、HTTPS 代理、驱动和屏幕服务为 active，后台 API、Worker、隧道和转发 socket 为 active，云端与后台 API `/ready` 均正常。
+- 复核原始附件发现参考是付费 Cohort retention 三角图；本轮错误地使用 Activity heatmap 日历图。未完成所需参考复刻，也未验收真实登录后的页面、窄屏或键盘交互。
+
 ## 2026-11-05：UIArc 参考组件离线验证
 
 - `pnpm exec vitest run --maxWorkers=1 packages/ui-web/src/fields.test.tsx packages/ui-web/src/list-search-input.test.tsx apps/web/src/components/AppearanceColorPicker.test.tsx apps/web/src/components/UsageHeatmap.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx`：6 个文件、25 项通过，覆盖输入字段、搜索清空/焦点恢复、颜色预设与无效 HEX、热力图、外观设置和聊天渲染回归。
@@ -37,11 +103,72 @@
 - `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。本机 Node 为 22.22.0，低于仓库声明的最低 22.22.2；直接检查通过不代表满足运行环境要求。
 - 接口仅提供最近 100 条记录；尚未验证实际服务器数据、浏览器显示、键盘操作或部署。
 
+## 侧栏顶部机器人展示验证（2026-11-05）
+
+- Web 侧栏分组、置顶拖放与排序定向测试共 23 项通过；Web TypeScript 类型检查、相关文件 Biome 检查与 `git diff --check` 通过。
+- 未执行真实浏览器视觉、鼠标拖放、不同侧栏宽度或服务器部署验收；既有每空间四个置顶名额保持不变。
+
+## V-055：PC 预置入口启动探测
+
+- 日期：2026-11-05；用户反馈正式域名账号登录测试完成。本窗口未读取账号密码或独立操作其登录会话。
+- Electron 为 `SYDNEY_PC_BACKEND_URL` 单独识别来源，启动时先规范化地址并探测 Sydney 健康契约；失败返回设置页，显式开发地址保持原行为。
+- 本机桌面配置 Vitest 50 项、桌面 TypeScript 检查通过；真实公网 `/rpc/health` 返回预期健康格式。Node 版本 22.22.0 低于项目引擎要求，检查使用 `npm_config_engine_strict=false`。
+- 已增加成功、不可达、地址错误和非 Sydney 响应的 Electron 端到端用例；本机缺少桌面构建产物和 Electron 可执行文件，这些用例未执行。未执行打包、真实 Electron 登录、WebSocket、附件或屏幕验收。
+
 ## 2026-11-05：PC 聊天双外观离线验证
 
 - `pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx`：2 个文件、8 项通过，涵盖模式切换、素材保留和模拟存储重载等。
 - `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于项目要求的 22.22.2 未运行；直接调用检查不代表满足项目运行环境要求。
 - 未验证真实图片上传及解码、浏览器视觉和键盘操作、Electron、移动端、服务器部署和跨设备同步。
+
+## V-054：正式域名登录来源修复
+
+- 日期：2026-11-05；用户登录请求在认证日志中返回 `403 INVALID_ORIGIN`；后台原 `WEB_ORIGIN` 和 `BETTER_AUTH_URL` 均为回环地址。未读取或验证用户密码。
+- 通过 systemd 附加配置最后加载 `/etc/sydney/pc-origin.env`，将两个地址设为正式 HTTPS 域名；原 `/etc/sydney/backend.env` 保留。检查 Run 状态无进行中记录后重启 API，API `/ready`、Worker 和隧道正常。
+- 公网正式域名来源的虚构账号登录返回 `401 INVALID_EMAIL_OR_PASSWORD`，非信任来源返回 `403 INVALID_ORIGIN`。这表明正式来源已通过来源检查，不代表用户密码正确或真实登录成功。
+- 未验收真实账号登录、原回环入口登录、OAuth、passkey、WebSocket 或会话恢复；回环 URL 不再处于原有受信任网页来源之列。
+
+## V-053：PC 域名源站 HTTPS 与续期
+
+- 日期：2026-11-05；用户确认 Cloudflare 记录指向云电脑并开放 443。云电脑安装系统包 Nginx、Certbot，以专用 systemd 服务运行反向代理；`sydney-web-cloud` 加入目标 Host 并短暂重启。
+- Let's Encrypt 正式证书签发成功，证书到期日为 2027-02-03；本机强制连接云电脑回环的 HTTPS 返回 200 且证书验证通过，HTTPS 转发的 `/rpc/health` 返回 200。
+- `certbot renew --dry-run --cert-name sydney-pc --run-deploy-hooks --non-interactive --no-random-sleep-on-renew` 成功；证书定时器、反向代理、Web 和 SSH 链路 active。
+- 公网 `https://pc.zxlup.xin/` 和 `/rpc/health` 返回 Cloudflare 404，表现与源站 HTTP 80 的 404 相同，但尚不能排除其他 Cloudflare 规则或回源目标问题。未验证公网登录、真实 WebSocket、附件、屏幕或 Electron。
+- 源站 HTTP 80 仅服务 ACME 验证，其余请求返回 404；源站 HTTPS 接受目标 Host 并转发到既有 Web socket。Nginx worker 使用既有 Web 服务账号。
+- 后续用户确认 Cloudflare SSL/TLS 当前为 Flexible；一次公网 HTTPS 测试期间，云电脑抓包观察到 Cloudflare 地址向源站 TCP 80 发起连接，公网仍返回 404，与当前 HTTP 端口仅提供 ACME 的配置一致。需在 Cloudflare 为该主机名设置严格 HTTPS 回源后再次验证；未修改 Cloudflare 配置。
+- 用户随后确认已将域名全局模式调整为 Full (strict)；公网 HTTPS 页面与 `/rpc/health` 返回 200，客户端证书验证通过；无登录状态调用 `/rpc/me` 返回 401，无效屏幕地址返回 403。未登录、附件拒绝和无效 Host 检查不能代替真实用户流程或完整安全审计。
+
+## 手机端并行验证（2026-11-05）
+
+- 本机单 worker 定向 Vitest：保险箱、敏感输入和主题 5 个文件 71 项通过；服务器地址、登录、群聊和电脑页 4 个文件 101 项通过；新增聊天外观保存和重载 2 项通过。测试使用替身，不等同真实设备。
+- `node node_modules/typescript/bin/tsc --noEmit -p apps/mobile/tsconfig.json` 通过；本机 Node 为 22.22.0，低于仓库声明的 22.22.2 最低版本。
+- 未安装依赖、构建 iOS、连接 iPhone、访问真实登录信息或验收真实服务器；现有 Expo 项目、iOS 包标识和签名归属需要配置，服务入口需由手机可达。
+
+## V-052：PC 正式域名接入前检查
+
+- 日期：2026-11-05；公共 DNS 服务器对 `pc.zxlup.xin` 返回 Cloudflare IPv4 地址，不能据此确认 Cloudflare 后台配置的源站目标。
+- 云电脑现有 `sydney-web-cloud` 与 `sydney-web-cloud-link` 为 active，API socket `/ready` 返回 200；以 `pc.zxlup.xin` 作为 Host 访问 Web socket 返回 403。
+- 检查时云电脑没有公网 80/443 监听，未发现 nginx、Caddy、certbot 命令或现有 Let's Encrypt 证书；未测试 HTTPS、登录、WebSocket 和屏幕代理。
+- 仅执行只读检查；未发布公网入口、变更主机名白名单、修改防火墙或重启服务。公网接入需完成源站 TLS、权限边界及回滚设计与验收。
+- 用户随后确认 Cloudflare 中 `pc` 的源站为云电脑 IP；经域名请求返回 Cloudflare 521。云端当前部署的 Vite 配置尚无 `PC_BACKEND_HOSTNAME` 接线；仓库已有相关改动，但尚未同步到云端。本轮未确认云厂商安全组的 80/443 入方向配置。
+
+## V-051：中转连接与双机只读检查
+
+- 日期：2026-11-05 10:15（服务器时间）；本机直连后台 SSH 超时，通过云电脑中转登录成功。后台 `sydney-api`、`sydney-worker`、`sydney-tunnel` 和 `sydney-web-forward.socket` 为 active。
+- 后台内存：总量 1.7 GiB、available 233 MiB，swap 使用 0；该值是单次快照，不代表峰值或长期容量。
+- 云电脑 `sydney-driver`、VNC、noVNC、`sydney-web-cloud` 和 `sydney-web-cloud-link` 为 active；云端 API socket 的 `/ready` 返回 `{"ok":true,"degraded":false}`。云电脑 available 内存约 2.0 GiB。
+- 本轮仅执行只读检查及计划文档整理；未运行模型、真实任务、Electron、重启或恢复演练。未确认本机 SSH 直连超时的根因。
+
+## V-050：任务 API 与云电脑 PC 后台配置接线
+
+- 日期：2026-11-05；范围：任务统一 RPC 接线、云电脑 PC 后台主机名配置和双机只读健康检查。
+- 代码验证：`packages/contracts`、`apps/api`、`apps/web`、`apps/desktop` TypeScript 检查通过；任务执行定向测试 16 项通过；`apps/api/src/router.test.ts` 单项路由构造测试通过；Vite 配置测试 3 项通过。
+- 受影响包的 `packages/db`、`packages/core`、`packages/adapters` TypeScript 检查通过；本机没有可调用的 Prisma CLI，`prisma validate` 未执行。
+- 云电脑验证：直接 SSH 只读检查确认 Ubuntu 24.04、约 `2.1 GiB` available、Sydney 驱动、VNC/noVNC、云端 Web 和 SSH link active；Unix socket `/run/sydney-web-stage/{api,screen,web}.sock` 存在，API `/ready` 返回 `{"ok":true,"degraded":false}`。
+- Host 边界验证：通过未登记的 `pc-backend.local` 访问云端 Web socket 返回 Vite Host 拒绝；说明正式域名必须先写入 `PC_BACKEND_HOSTNAME` 后再验收 HTTPS、Cookie、WebSocket 和 Electron。
+- 账号边界验证：云电脑上的 `sydney-web-stage` 和 `sydney-desktop` 均无法读取后台环境文件、数据库目录、维护密钥或 Web/驱动 Unix socket；socket 文件保持 `0700` 且归 `sydney-web-stage`。
+- 后台限制：从本机直连 `47.99.159.146:22` 超时，经云电脑中转也未完成 root SSH banner；本轮没有修改后台服务、数据库、迁移、端口或密钥。
+- 未完成：正式域名/TLS、Electron 真实登录、真实模型、屏幕长连接、双机断线恢复、后台重启恢复、备份恢复和 P5 文件整理摘要闭环。
 
 ## V-048：PC 后台部署方向规划
 

@@ -1,25 +1,22 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { NavLink } from "@rakazo/contracts";
-import { ANDROID_APK_URL, IOS_APP_STORE_URL } from "@rakazo/contracts";
 import {
   AppMarkStack,
   Button,
-  buttonVariants,
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@rakazo/ui-web";
 import {
-  BookOpen,
   Download,
   FolderOpen,
   Gauge,
+  Grid2X2Plus,
   Link2,
   LogOut,
   Plug,
   ScrollText,
   Settings,
-  Smartphone,
   SquareKanban,
   UserPlus,
   UserRound,
@@ -89,13 +86,7 @@ export function SidebarFooter({
     const label = labelRef.current;
     if (!pill || !label || typeof ResizeObserver === "undefined") return;
     const measure = () => {
-      const style = getComputedStyle(pill);
-      const available =
-        pill.clientWidth -
-        Number.parseFloat(style.paddingLeft) -
-        Number.parseFloat(style.paddingRight) -
-        label.scrollWidth -
-        Number.parseFloat(style.columnGap);
+      const available = pill.clientWidth - 24 - 8 - label.scrollWidth;
       setMarkCount(sidebarMarkCount(available));
     };
     const observer = new ResizeObserver(measure);
@@ -209,15 +200,6 @@ export function SidebarFooter({
               <Trans>Usage</Trans>
             </Button>
             <div className="my-1 border-t border-border" />
-            <a
-              className={`${buttonVariants({ variant: "ghost" })} h-9 w-full justify-start gap-2.5 font-normal`}
-              href={/Android/i.test(navigator.userAgent) ? ANDROID_APK_URL : IOS_APP_STORE_URL}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Smartphone className="text-muted-foreground" strokeWidth={1.75} />
-              <Trans>Get the mobile app</Trans>
-            </a>
             {onInvite ? (
               <Button
                 variant="ghost"
@@ -228,15 +210,6 @@ export function SidebarFooter({
                 <Trans>Invite friends</Trans>
               </Button>
             ) : null}
-            <a
-              className={`${buttonVariants({ variant: "ghost" })} h-9 w-full justify-start gap-2.5 font-normal`}
-              href="https://github.com/elie222/rakazo/blob/main/docs/self-host.md"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <BookOpen className="text-muted-foreground" strokeWidth={1.75} />
-              <Trans>Docs</Trans>
-            </a>
             <div className="my-1 border-t border-border" />
             <Button
               variant="ghost"
@@ -256,17 +229,33 @@ export function SidebarFooter({
         ) : null}
       </Popover>
       {!mini ? (
-        <Button
-          variant="outline"
-          ref={pillRef}
-          onClick={onIntegrations}
-          className="h-9 min-w-0 flex-1 justify-between bg-sidebar-accent hover:border-foreground/30 hover:bg-sidebar-accent dark:hover:bg-sidebar-accent"
-        >
-          <span ref={labelRef} className="min-w-0 truncate">
-            <Trans>Connect apps</Trans>
+        <>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {name}
           </span>
-          <AppMarkStack marks={logos.slice(0, markCount)} ringClassName="ring-sidebar-accent" />
-        </Button>
+          <button
+            type="button"
+            ref={pillRef}
+            aria-label={t`Connect apps`}
+            onClick={onIntegrations}
+            className="group/connect relative flex h-9 w-9 min-w-9 max-w-full shrink items-center overflow-hidden rounded-full border border-border bg-background text-foreground transition-[width,background-color,border-color] duration-300 ease-out hover:w-44 hover:bg-sidebar-accent focus-visible:w-44 focus-visible:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none"
+          >
+            <Grid2X2Plus
+              aria-hidden="true"
+              className="absolute left-1/2 size-4 -translate-x-1/2 transition-opacity duration-150 group-hover/connect:opacity-0 group-focus-visible/connect:opacity-0 motion-reduce:transition-none"
+              strokeWidth={1.75}
+            />
+            <span
+              aria-hidden="true"
+              className="flex w-full min-w-0 items-center justify-between gap-2 px-3 opacity-0 transition-opacity duration-150 group-hover/connect:opacity-100 group-focus-visible/connect:opacity-100 motion-reduce:transition-none"
+            >
+              <span ref={labelRef} className="min-w-0 truncate whitespace-nowrap text-sm font-medium">
+                <Trans>Connect apps</Trans>
+              </span>
+              <AppMarkStack marks={logos.slice(0, markCount)} ringClassName="ring-sidebar-accent" />
+            </span>
+          </button>
+        </>
       ) : null}
       {update.available ? (
         <IconTooltip label={t`Install update`}>

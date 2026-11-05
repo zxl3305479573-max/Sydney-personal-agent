@@ -52,6 +52,17 @@ export default function ChatAppearanceScreen() {
     }
   }
 
+  async function saveBubble(bubble: typeof appearance.bubble) {
+    setBusy(true);
+    try {
+      await saveMobileChatAppearance({ ...appearance, bubble });
+    } catch {
+      Alert.alert(t("Could not save"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <SettingsGroup label={t("Chat appearance")}>
@@ -82,7 +93,11 @@ export default function ChatAppearanceScreen() {
         ) : null}
         <SettingsRow
           title={t("Bubble style")}
-          detail={appearance.bubble ? t("A custom bubble style is active.") : t("Use the default bubbles.")}
+          detail={
+            appearance.bubble
+              ? t("A custom bubble style is active.")
+              : t("Use the default bubbles.")
+          }
           value={appearance.bubble ? t("Custom") : t("Default")}
         />
       </SettingsGroup>
@@ -94,9 +109,7 @@ export default function ChatAppearanceScreen() {
             title={preset.name}
             accessibilityRole="button"
             disabled={busy}
-            onPress={() =>
-              void saveMobileChatAppearance({ ...appearance, bubble: preset.value })
-            }
+            onPress={() => void saveBubble(preset.value)}
             trailing={
               <View style={[styles.swatches, stacked && styles.stackedSwatches]}>
                 <View style={[styles.swatch, { backgroundColor: preset.value.userBackground }]} />
@@ -109,7 +122,7 @@ export default function ChatAppearanceScreen() {
           title={t("Default bubbles")}
           accessibilityRole="button"
           disabled={busy}
-          onPress={() => void saveMobileChatAppearance({ ...appearance, bubble: null })}
+          onPress={() => void saveBubble(null)}
         />
       </SettingsGroup>
 

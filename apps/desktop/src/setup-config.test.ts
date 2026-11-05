@@ -215,7 +215,7 @@ describe("startup target", () => {
     ).toEqual({
       kind: "app",
       url: "https://pc.example.com",
-      source: "env",
+      source: "pc-env",
     });
   });
 

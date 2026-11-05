@@ -50,7 +50,6 @@ export function ChatContextMenu({
   return (
     <BotContextMenu
       bot={chat}
-      isBot={Boolean(bot)}
       onClose={onClose}
       sections={sections}
       onTogglePinned={() => {

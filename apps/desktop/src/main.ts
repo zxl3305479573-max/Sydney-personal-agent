@@ -100,6 +100,7 @@ import {
   sessionPartitionForServerUrl,
 } from "./setup-config.js";
 import { clearSetup, readSetup, readUiLocale, writeSetup, writeUiLocale } from "./setup-store.js";
+import { finishAfterStartup } from "./startup-handoff.js";
 import { createSystemSpeech } from "./system-speech.js";
 import type { UserDeviceAccess } from "./user-device.js";
 import { createUserDeviceAccess, deviceName } from "./user-device.js";
@@ -121,6 +122,7 @@ const PROBE_TIMEOUT_MS = 8_000;
 const DESKTOP_STACK_PROBE_PATH = "/.well-known/rakazo-desktop-stack";
 const DESKTOP_STACK_TOKEN_HEADER = "x-rakazo-desktop-stack-token";
 let mainWindow: BrowserWindow | null = null;
+let startupWindow: BrowserWindow | null = null;
 
 /** The server or the network refused the page; the setup window says so and the server logs its side. */
 class ServerUnavailable extends Error {}
@@ -310,6 +312,7 @@ function createWindow(url: string, partition: string | null) {
   const icon = developmentIcon();
   const win = new BrowserWindow({
     ...browserWindowOptions(process.platform, screen.getPrimaryDisplay().workAreaSize),
+    ...(startupWindow ? { show: false } : {}),
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(import.meta.dirname, "preload.cjs"),
@@ -614,6 +617,7 @@ function createSetupWindow() {
   const icon = developmentIcon();
   const win = new BrowserWindow({
     ...setupWindowOptions(process.platform, screen.getPrimaryDisplay().workAreaSize),
+    ...(startupWindow ? { show: false } : {}),
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(import.meta.dirname, "setup-preload.cjs"),
@@ -648,13 +652,62 @@ function showSetupWindow(error: string | null = null) {
     win = createSetupWindow();
   }
   if (mainWindow !== null && !mainWindow.isDestroyed()) mainWindow.hide();
-  win.show();
-  win.focus();
+  if (!startupWindow) {
+    win.show();
+    win.focus();
+  }
   return win;
 }
 
+function createStartupWindow() {
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const icon = developmentIcon();
+  const win = new BrowserWindow({
+    width: Math.min(480, workArea.width),
+    height: Math.min(420, workArea.height),
+    title: "Sydney",
+    backgroundColor: "#161616",
+    autoHideMenuBar: true,
+    resizable: false,
+    ...(icon ? { icon } : {}),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  startupWindow = win;
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.once("closed", () => {
+    if (startupWindow === win) {
+      startupWindow = null;
+      app.quit();
+    }
+  });
+  const shown = new Promise<void>((resolve) => {
+    win.once("closed", resolve);
+    win.webContents.once("did-finish-load", () => {
+      const duration = systemPreferences.getAnimationSettings().prefersReducedMotion ? 0 : 1800;
+      setTimeout(resolve, duration);
+    });
+    void win.loadFile(path.join(import.meta.dirname, "splash.html")).catch(() => resolve());
+  });
+  return { win, shown };
+}
+
+function finishStartupWindow(startup: ReturnType<typeof createStartupWindow>) {
+  if (startupWindow !== startup.win || quitting) return;
+  const next = setupWindow ?? mainWindow;
+  if (next && !next.isDestroyed()) {
+    next.show();
+    next.focus();
+  }
+  startupWindow = null;
+  if (!startup.win.isDestroyed()) startup.win.destroy();
+}
+
 function restoreAppWindowAfterSetup() {
-  if (quitting) return;
+  if (quitting || startupWindow) return;
   if (setupWindow !== null && !setupWindow.isDestroyed()) return;
   if (mainWindow === null || mainWindow.isDestroyed() || currentTargetUrl === null) return;
   clearTimeout(warmWindowTimer);
@@ -1300,6 +1353,11 @@ if (!hasSingleInstanceLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
+    if (startupWindow && !startupWindow.isDestroyed()) {
+      startupWindow.show();
+      startupWindow.focus();
+      return;
+    }
     const win = secondInstanceWindow(setupWindow, mainWindow);
     if (win === null) return;
     revealSecondInstanceWindow(win);
@@ -1308,6 +1366,11 @@ if (!hasSingleInstanceLock) {
 
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
+  const startup = createStartupWindow();
+  await finishAfterStartup(startDesktop(), startup.shown, () => finishStartupWindow(startup));
+});
+
+async function startDesktop() {
   installSessionPermissions(session.defaultSession, permissionTarget);
   const userDataDir = app.getPath("userData");
   startDesktopLocale(
@@ -1758,6 +1821,11 @@ app.whenReady().then(async () => {
 
   // Register before startup awaits so macOS dock clicks during probe/open are handled.
   app.on("activate", () => {
+    if (startupWindow !== null && !startupWindow.isDestroyed()) {
+      startupWindow.show();
+      startupWindow.focus();
+      return;
+    }
     if (setupWindow !== null && !setupWindow.isDestroyed()) {
       setupWindow.show();
       setupWindow.focus();
@@ -1779,6 +1847,16 @@ app.whenReady().then(async () => {
 
   if (target.kind === "setup") {
     showSetupWindow();
+  } else if (target.source === "pc-env") {
+    const reachability = await probeServer(target.url);
+    if (reachability.ok && reachability.url) {
+      if (await appOpener.open(reachability.url)) {
+        commitPendingAppSwitch();
+        destroySetupWindow();
+      }
+    } else {
+      showSetupWindow(reachability.error ?? t("Could not reach that address."));
+    }
   } else if (target.source === "saved") {
     if (currentSetup?.mode === "new") {
       const managedUrl = managedLocalOpenUrl(target.url, localStack.webUrl());
@@ -1816,7 +1894,7 @@ app.whenReady().then(async () => {
       destroySetupWindow();
     }
   }
-});
+}
 
 app.on("window-all-closed", () => {
   // A hidden session probe (defaultSessionHasOriginData) can be the only window

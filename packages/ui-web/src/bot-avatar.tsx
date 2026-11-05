@@ -21,6 +21,7 @@ import { useBotAvatarActivity } from "./bot-avatar-activity.js";
 import { useAvatarMotionVisibility } from "./hooks/use-avatar-motion-visibility.js";
 import { cn } from "./lib/utils.js";
 import { LogoAvatar } from "./logo-avatar.js";
+import { FluidAvatar } from "./fluid-avatar.js";
 import "./styles.css";
 
 export type { BotColorDef };
@@ -47,6 +48,8 @@ export function parseBotAvatar(
   imageUrl?: string;
 } {
   if (!rawColor) return { color: "#F97316", isImage: false };
+  const fluid = /^(#[0-9a-fA-F]{3,6})::fluid_#[0-9a-fA-F]{6}$/.exec(rawColor);
+  if (fluid) return { color: fluid[1]!, isImage: false };
   // Only data: image URLs are rendered. Arbitrary http(s)/blob values in `color`
   // must not become <img src> (SSRF / tracking when other members view the bot).
   if (rawColor.startsWith("data:image/")) {
@@ -103,6 +106,11 @@ export const BotAvatar = memo(function BotAvatar({
     () => resolvePersonaColorDef(effectiveId, parsed.color),
     [effectiveId, parsed.color],
   );
+
+  if (!parsed.isImage) {
+    const fluidColor = /::fluid_(#[0-9a-fA-F]{6})$/.exec(color)?.[1] ?? parsed.color;
+    return <FluidAvatar color={fluidColor} size={size} className={className} />;
+  }
 
   if (parsed.isImage && parsed.imageUrl) {
     return (

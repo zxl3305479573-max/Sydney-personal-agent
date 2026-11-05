@@ -166,6 +166,16 @@ SecureStore, like password sign-in. Native builds need the Expo WebBrowser modul
 Provider emails are verified only when `email_verified` is the boolean `true`. False or missing
 claims stay unverified, including on subsequent sign-ins, and an unverified claim never changes
 the account's email. Sign-in never links accounts by email.
+
+For Google account linking, configure the existing OIDC provider with issuer
+`https://accounts.google.com` and name `Google`, using a Google OAuth web client.
+The account settings show **Link Google account** when linking is available. After a
+successful explicit link, a Google-hosted HTTPS profile picture is copied to the local
+account; the existing name and any existing image are retained if no valid picture is
+provided. The image is imported at link time and is not automatically refreshed.
+This uses the deployment's single OIDC provider and also enables its existing SSO
+sign-in path; it does not provide a separate Google provider alongside another SSO.
+Google client setup and a real authorization flow have not yet been validated.
 If an email belongs to another account, sign in to that existing account and choose **Link SSO**
 in account settings. Linking requires an authenticated session, a verified provider email and
 matching email addresses. With email delivery, an account links SSO only after its email is

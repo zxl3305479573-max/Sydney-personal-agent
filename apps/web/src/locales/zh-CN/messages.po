@@ -3478,6 +3478,9 @@ msgstr "关联私信"
 msgid "Link SSO"
 msgstr "关联 SSO"
 
+msgid "Link Google account"
+msgstr "绑定 Google 账号"
+
 #: src/pages/Artifacts.tsx
 msgid "List view"
 msgstr "列表视图"
@@ -6812,4 +6815,4 @@ msgid "Remove from main bots"
 msgstr "移出主 Bot"
 
 msgid "Each space can have at most 4 main bots"
-msgstr "每个空间最多设置 4 个主 Bot"
+msgstr "每个空间顶部最多放置 4 个机器人"

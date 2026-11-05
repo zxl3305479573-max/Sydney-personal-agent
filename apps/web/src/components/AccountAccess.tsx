@@ -209,7 +209,7 @@ export function DeleteAccountForm({
 }
 
 /** Links the organization's SSO identity to an account that signed up another way. */
-export function LinkSsoRow() {
+export function LinkSsoRow({ providerName = "SSO" }: { providerName?: string }) {
   const { t } = useLingui();
   const [error, setError] = useState<string | null>(() => {
     const code = redirectError("link");
@@ -237,10 +237,14 @@ export function LinkSsoRow() {
   }
   return (
     <SettingsRow
-      label={<Trans>SSO</Trans>}
+      label={providerName}
       control={
         <Button variant="secondary" size="sm" onClick={() => void link()}>
-          <Trans>Link SSO</Trans>
+          {providerName.toLowerCase() === "google" ? (
+            <Trans>Link Google account</Trans>
+          ) : (
+            <Trans>Link SSO</Trans>
+          )}
         </Button>
       }
     >

@@ -1,5 +1,5 @@
-import * as z from "zod";
 import { oc } from "@orpc/contract";
+import * as z from "zod";
 import { Id } from "./ids.js";
 
 export const TaskGrantSchema = z.object({
@@ -118,9 +118,7 @@ const TaskInspectOutput = z.object({
 export const taskExecutionContract = {
   list: oc.input(z.object({ botId: Id.optional() })).output(z.array(TaskInspectOutput.shape.task)),
   create: oc.input(TaskCreateInput).output(TaskInspectOutput.shape.task),
-  dispatch: oc
-    .input(TaskDispatchInput)
-    .output(z.object({ runId: Id, reused: z.boolean() })),
+  dispatch: oc.input(TaskDispatchInput).output(z.object({ runId: Id, reused: z.boolean() })),
   control: oc
     .input(TaskVersionInput.and(z.object({ intent: z.enum(["pause", "cancel", "continue"]) })))
     .output(z.object({ ok: z.literal(true) })),
@@ -137,11 +135,7 @@ export const taskExecutionContract = {
     )
     .output(z.object({ ok: z.literal(true) })),
   confirmStop: oc
-    .input(
-      TaskVersionInput.and(
-        z.object({ runId: Id, stoppedConfirmed: z.literal(true) }),
-      ),
-    )
+    .input(TaskVersionInput.and(z.object({ runId: Id, stoppedConfirmed: z.literal(true) })))
     .output(z.object({ ok: z.literal(true) })),
   reconcile: oc
     .input(

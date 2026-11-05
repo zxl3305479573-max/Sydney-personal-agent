@@ -103,6 +103,23 @@ describe("resolveRosterDrop", () => {
         sameList: false,
       }),
     ).toEqual({ action: "pin", pinned: true });
+    expect(
+      resolveRosterDrop({
+        dragged: bot("a", null),
+        target: { kind: "bot", chat: bot("b", null, true) },
+        sameList: false,
+      }),
+    ).toEqual({ action: "pin", pinned: true });
+  });
+
+  it("reorders bots within the top area", () => {
+    expect(
+      resolveRosterDrop({
+        dragged: bot("a", null, true),
+        target: { kind: "bot", chat: bot("b", null, true) },
+        sameList: true,
+      }),
+    ).toEqual({ action: "reorder", targetBotId: "b" });
   });
 
   it("joins a group chat when dropped on it", () => {

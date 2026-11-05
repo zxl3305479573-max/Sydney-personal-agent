@@ -60,6 +60,7 @@ async function useStandInApi() {
   cleanup.push(() => new Promise((resolve) => api.close(() => resolve())));
   vi.stubEnv("API_PROXY_TARGET", `http://127.0.0.1:${(api.address() as AddressInfo).port}`);
   vi.stubEnv("RAKAZO_HOST", "app.example.test");
+  vi.stubEnv("PC_BACKEND_HOSTNAME", "pc.example.test");
   vi.stubEnv("RAKAZO_ALLOWED_HOSTS", ".team.example.test");
   vi.stubEnv("SCREEN_PROXY_SECRET", "test-screen-proxy-secret-0123456789abcdef");
   // Lingui's plugin finds its config from the working directory, as `vite` runs it.
@@ -98,6 +99,7 @@ describe("vite.config", () => {
     const { port } = server.httpServer.address() as AddressInfo;
 
     await expect(upgrade(port, "app.example.test")).resolves.toBe(101);
+    await expect(upgrade(port, "pc.example.test")).resolves.toBe(101);
     await expect(upgrade(port, "a.team.example.test:443")).resolves.toBe(101);
     await expect(upgrade(port, "preview.example.test")).resolves.toBe(101);
     await expect(upgrade(port, "evil.example")).resolves.toBe(404);

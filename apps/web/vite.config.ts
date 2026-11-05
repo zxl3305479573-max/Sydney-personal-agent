@@ -464,8 +464,11 @@ export default defineConfig(({ command, mode }) => {
   const rootEnv = loadEnv(mode, path.resolve(import.meta.dirname, "../.."), "");
   const api = process.env.API_PROXY_TARGET ?? rootEnv.API_PROXY_TARGET ?? "http://127.0.0.1:3100";
   const previewHost = process.env.RAKAZO_HOST ?? rootEnv.RAKAZO_HOST ?? "localhost";
+  const pcBackendHostname =
+    process.env.PC_BACKEND_HOSTNAME?.trim() ?? rootEnv.PC_BACKEND_HOSTNAME?.trim() ?? "";
   const allowedHosts = [
     previewHost,
+    ...(pcBackendHostname === "" ? [] : [pcBackendHostname]),
     ...(process.env.RAKAZO_ALLOWED_HOSTS ?? rootEnv.RAKAZO_ALLOWED_HOSTS ?? "")
       .split(",")
       .map((entry) => entry.trim())

@@ -87,6 +87,7 @@ function launch(extraEnv: Record<string, string> = {}) {
   const env = { ...process.env, RAKAZO_PERFORMANCE_USER_DATA: userData };
   // A stale RAKAZO_WEB_URL from the developer's shell would bypass setup entirely.
   delete env.RAKAZO_WEB_URL;
+  delete env.SYDNEY_PC_BACKEND_URL;
   const executablePath = process.env.RAKAZO_E2E_EXECUTABLE;
   return electron.launch({
     ...(executablePath ? { executablePath: path.resolve(executablePath) } : {}),
@@ -95,6 +96,35 @@ function launch(extraEnv: Record<string, string> = {}) {
     env: { ...env, ...extraEnv },
   });
 }
+
+test("opens a healthy configured PC backend", async () => {
+  app = await launch({ SYDNEY_PC_BACKEND_URL: serverUrl });
+  const window = await app.firstWindow();
+  await expect(window.getByText(APP_MARKER)).toBeVisible();
+});
+
+test("shows setup when the configured PC backend is unreachable", async () => {
+  app = await launch({ SYDNEY_PC_BACKEND_URL: closedUrl });
+  const window = await app.firstWindow();
+  await expect(window.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
+  await expect(window.getByText("Nothing is listening at that address yet.")).toBeVisible();
+});
+
+test("rejects an invalid configured PC backend", async () => {
+  app = await launch({ SYDNEY_PC_BACKEND_URL: "file:///tmp/not-a-server" });
+  const window = await app.firstWindow();
+  await expect(window.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
+  await expect(window.getByText("Enter a valid http:// or https:// address.")).toBeVisible();
+});
+
+test("rejects a configured PC backend without the Sydney health response", async () => {
+  app = await launch({ SYDNEY_PC_BACKEND_URL: `${serverUrl}/not-sydney` });
+  const window = await app.firstWindow();
+  await expect(window.getByRole("heading", { name: "Welcome to Rakazo" })).toBeVisible();
+  await expect(
+    window.getByText("That address did not respond like a Rakazo server."),
+  ).toBeVisible();
+});
 
 test("first run offers Rakazo Cloud first, with local and existing instances", async () => {
   app = await launch();

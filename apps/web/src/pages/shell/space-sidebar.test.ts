@@ -39,6 +39,7 @@ describe("sidebarGroupsForSpaces", () => {
     const groups = sidebarGroupsForSpaces([input], "");
     expect(groups.map((group) => group.key)).toEqual(["main-bots", "pinned", "unassigned"]);
     expect(groups[0]?.bots.map((item) => item.chat.id)).toEqual(["a"]);
+    expect(groups[0]?.title).toBe("");
     expect(groups[1]?.bots.map((item) => item.chat.id)).toEqual(["g"]);
     expect(sidebarGroupsForSpaces([{ ...input, bots: [input.bots[1]!] }], "")[0]).toMatchObject({
       key: "main-bots",
@@ -99,7 +100,7 @@ describe("sidebarGroupsForSpaces", () => {
     const [group] = sidebarGroupsForSpaces([space("space-1", "Personal", { canRename: true })], "");
 
     expect(group).toMatchObject({
-      title: "Main bots",
+      title: "",
       spaceName: "Personal",
       canRenameSpace: true,
       canDeleteSpace: false,

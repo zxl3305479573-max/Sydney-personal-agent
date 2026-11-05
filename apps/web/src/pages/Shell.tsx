@@ -80,6 +80,7 @@ import { ComputerOverlay } from "./shell/computer-overlay";
 import { ComputerPanel } from "./shell/computer-panel";
 import type { CreateBotDialogInput } from "./shell/create-bot-dialog";
 import type { ImportSetupTarget } from "./shell/import-setup-card";
+import { useOptimisticMessages } from "./shell/optimistic-messages";
 import { ShellDialogs, useShellDialogs } from "./shell/shell-dialogs";
 import { AppOverlays, SettingsOverlays } from "./shell/shell-overlays";
 import { cycleBotId, useShellShortcuts } from "./shell/shell-shortcuts";
@@ -484,6 +485,7 @@ function SpaceShell() {
     : snapshot?.botId === active?.id
       ? snapshot
       : null;
+  const optimistic = useOptimisticMessages(activeSnapshot);
   const currentRuns = activeThreadRuns(activeSnapshot);
   const answerableAskIds = useMemo(() => answerableAskMessageIds(activeSnapshot), [activeSnapshot]);
   const dismissableAskIds = useMemo(
@@ -494,8 +496,8 @@ function SpaceShell() {
   const transcriptRunning = workingRuns.length > 0;
   const composerRunning = currentRuns.some((run) => isActive(run.status));
   const transcript = useMemo(
-    () => foldPeerReplies(activeSnapshot?.messages ?? [], { includePeerReceipts: true }),
-    [activeSnapshot?.messages],
+    () => foldPeerReplies(optimistic.messages, { includePeerReceipts: true }),
+    [optimistic.messages],
   );
   const transcriptArtifactTarget = useMemo<ArtifactTarget>(
     () => (inGroup ? { groupId: groupId ?? "" } : { botId: active?.id ?? "" }),
@@ -609,6 +611,7 @@ function SpaceShell() {
     commitComputer,
     clearReadBoundary: read.clearReadBoundary,
     flushPendingBrowserNotifications,
+    optimistic,
   });
   const { sending, sendError, stopRun } = composer;
   function openChatSettings(kind: "bot" | "group", id: string) {

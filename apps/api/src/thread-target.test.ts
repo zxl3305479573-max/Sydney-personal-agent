@@ -2894,7 +2894,10 @@ describe("sendThreadMessage", () => {
     });
     expect(tx.event.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        payload: expect.objectContaining({ replyQuote: "just this span" }),
+        payload: expect.objectContaining({
+          replyQuote: "just this span",
+          clientNonce: "strategic-initiative:bot-1:1",
+        }),
       }),
     });
   });

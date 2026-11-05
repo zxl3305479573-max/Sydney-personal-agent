@@ -1,12 +1,12 @@
 import * as z from "zod";
 
 /** Per-bot set. Missing values belong to the original renderer. */
-export const BotAvatarSetSchema = z.enum(["organic", "rakazo"]);
+export const BotAvatarSetSchema = z.enum(["organic", "rakazo", "fluid"]);
 export type BotAvatarSet = z.infer<typeof BotAvatarSetSchema>;
 export const DEFAULT_NEW_BOT_AVATAR_SET: BotAvatarSet = "organic";
 
 export function resolveBotAvatarSet(value?: string | null): BotAvatarSet {
-  return value === "rakazo" ? "rakazo" : "organic";
+  return value === "rakazo" || value === "fluid" ? value : "organic";
 }
 
 /** Matches the eight shipped mascot shapes in `@rakazo/core`. */
@@ -20,6 +20,7 @@ export const BOT_AVATAR_VALUE_MAX_LENGTH = 200_000;
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const SHAPE_SUFFIX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})::shape_\d+$/;
+const FLUID_SUFFIX = /^(#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))::fluid_(#[0-9a-fA-F]{6})$/;
 const DATA_IMAGE = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 export type ParsedBotAvatar =
@@ -29,6 +30,8 @@ export type ParsedBotAvatar =
   | { kind: "other"; raw: string };
 
 export function parseBotAvatarValue(raw: string): ParsedBotAvatar {
+  const fluid = FLUID_SUFFIX.exec(raw);
+  if (fluid) return { kind: "color", color: fluid[1]! };
   if (raw.startsWith("data:image/")) {
     return { kind: "image", imageUrl: raw };
   }
@@ -47,7 +50,7 @@ export function parseBotAvatarValue(raw: string): ParsedBotAvatar {
 /** True for values we persist on `bots.color` (hex, encoded shape, or data image). */
 export function isBotAvatarValue(raw: string): boolean {
   if (!raw || raw.length > BOT_AVATAR_VALUE_MAX_LENGTH) return false;
-  return HEX_COLOR.test(raw) || SHAPE_SUFFIX.test(raw) || DATA_IMAGE.test(raw);
+  return HEX_COLOR.test(raw) || SHAPE_SUFFIX.test(raw) || FLUID_SUFFIX.test(raw) || DATA_IMAGE.test(raw);
 }
 
 export const BotAvatarValueSchema = z

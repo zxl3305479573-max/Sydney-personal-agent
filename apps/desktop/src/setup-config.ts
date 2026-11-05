@@ -13,7 +13,7 @@ export const PROBE_RESPONSE_LIMIT_BYTES = 64 * 1024;
 export const SETUP_FILE_NAME = "setup.json";
 
 export type StartupTarget =
-  | { kind: "app"; url: string; source: "env" | "saved" }
+  | { kind: "app"; url: string; source: "env" | "pc-env" | "saved" }
   | { kind: "setup" };
 
 const SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
@@ -143,7 +143,7 @@ export function resolveStartupTarget(input: {
 
   const pcBackendUrl = input.pcBackendUrl?.trim();
   if (pcBackendUrl !== undefined && pcBackendUrl !== "") {
-    return { kind: "app", url: pcBackendUrl, source: "env" };
+    return { kind: "app", url: pcBackendUrl, source: "pc-env" };
   }
 
   if (input.saved != null) {
