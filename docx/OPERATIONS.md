@@ -22,6 +22,12 @@
 
 该功能复用现有唯一 OIDC 提供方，需在 Google 创建 OAuth Web 客户端并登记 `BETTER_AUTH_URL` 对应的 `/api/auth/callback/oidc` 回调，再为 API 配置 `OIDC_ISSUER=https://accounts.google.com`、`OIDC_NAME=Google`、`OIDC_CLIENT_ID` 和 `OIDC_CLIENT_SECRET`；保留 `AUTH_PASSWORD_ENABLED=true` 可继续使用邮箱登录。密钥只放服务器密钥配置，不写入仓库。切换发行方会影响已有 SSO 绑定，并启用现有 SSO 登录入口，配置前需确认部署现状。上述 Google 配置、回调及部署均未实测；完成部署后需用匹配邮箱的已验证账户测试授权、头像显示与原有邮箱登录。
 
+## 提交 a36741a41 云端部署与服务重启（2026-11-05）
+
+代码提交 `a36741a41` 已推送 `origin/main`。云端网页运行目录 `/opt/sydney-web-stage/apps/web/dist` 已切换到本地构建标识 `20261105092721` 的完整 Web 产物；新产物同步时校验 325 个文件且不含“获取移动应用 / Get the mobile app”。旧产物完整备份为 `/opt/sydney-web-stage/apps/web/dist.before-a36741a41`，新目录同时保留旧 `assets` 哈希资源，避免已打开页面请求旧文件失败。回滚时先保留当前 `dist`，恢复该备份并重启 `sydney-web-cloud.service`，再核对 `/build-id`、首页、会话接口与 API `/ready`；本次完整人工回滚未演练。
+
+本轮重启顺序为云端 `sydney-web-cloud-link.service`、`sydney-web-cloud.service`，后台 `sydney-worker.service`、`sydney-api.service`。状态检查：`systemctl is-active sydney-web-cloud sydney-web-cloud-link sydney-api sydney-worker sydney-web-forward.socket sydney-screen-tunnel`；API 健康：`curl -fsS http://127.0.0.1:3100/ready`；公网检查：`https://pc.zxlup.xin/build-id`、`/`、`/api/auth/get-session` 和 `/ready`。用户明确不启动本机开发服务，本机 `pnpm dev`、Web、API、Worker 和 supervisor 保持未启动；Docker 中已有的开发数据库容器不属于该服务栈。
+
 ## UI 重做部署（2026-11-05）
 
 提交 `4d49b063d` 的 Web 产物在 `/opt/sydney-web-build-4d49b063d` 使用现有依赖和 Node 22.23.2 构建，当前运行目录为 `/opt/sydney-web-stage/apps/web/dist`，构建标识 `20261105061136`；上一版位于 `/opt/sydney-web-stage/apps/web/dist.before-4d49b063d`，并将旧资源保留于新产物中。需回滚时先保留当前产物，恢复该备份并重启 `sydney-web-cloud`，再核对 `/build-id` 和 API 健康；人工回滚尚未演练。当前用量热力图误采用日历样式，尚不符合用户提供的 Cohort retention 参考。

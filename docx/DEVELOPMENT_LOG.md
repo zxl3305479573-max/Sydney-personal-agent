@@ -185,6 +185,14 @@
 - 已短暂重启云端 Web 服务；未改动主后台、数据库、任务或 SSH 隧道。源站代理配置、证书续期和回滚方法见运维手册。
 - 用户将 Cloudflare 全局加密模式调整为 Full (strict) 后，公网页面和健康检查返回 200，匿名用户接口及无效屏幕请求被拒绝；真实登录和 WebSocket 尚待验收。
 
+## 2026-11-05：工作区提交与云端网页重启
+
+- 用户要求提交并推送全部工作区代码；提交 `a36741a41` 包含 76 个文件，已推送到 `origin/main`，本地 `main` 跟踪同步改为 `origin/main`。
+- 用户随后明确不启动本机开发服务；本机只保留 Docker 中已启动的开发数据库容器，Web、API、Worker 和 supervisor 均未启动。
+- 云端部署：将本地构建标识 `20261105092721` 的 Web 产物同步到云电脑，校验 325 个文件且不含“获取移动应用 / Get the mobile app”；保留旧 `dist` 为 `dist.before-a36741a41` 后切换并重启 `sydney-web-cloud` 与 `sydney-web-cloud-link`。
+- 后台 `sydney-worker`、`sydney-api` 已重启；API `/ready` 在重启后约 2 秒恢复 `{"ok":true,"degraded":false}`。公网首页、会话接口、入口脚本和 `/build-id` 均通过健康检查。
+- 提交状态：代码提交 `a36741a41` 已推送；本段运维记录另行提交，验证结果见 V-055。
+
 ## 2026-11-05：清理“获取移动应用”残留
 
 - 关联 PA-018。账户菜单中的下载按钮此前已从 `SidebarFooter.tsx` 移除；本轮删除 14 个 Web 语言目录中不再使用的“Get the mobile app / 获取移动应用”词条，更新 `docs/mobile-app.md` 对账户菜单入口的说明，并在侧栏测试中增加按钮文案不出现的断言。

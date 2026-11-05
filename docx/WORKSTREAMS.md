@@ -16,6 +16,8 @@
 
 2026-11-05 当前状态：Web 云端服务已完成网页产物切换；侧栏预览移除，全屏屏幕入口保留。原生屏幕 API 已固定只读并通过一次真实 iframe 验证；后续只做稳定性、撤销和重启恢复验收，不恢复侧栏实时预览。
 
+2026-11-05 提交、推送与云端重启：本窗口负责全工作区 76 个文件的 `a36741a41` 提交与 `origin/main` 推送，将 `20261105092721` Web 产物部署到云端目录，重启云端 Web/链路及后台 API/Worker，并追加共享部署、验证与运维记录。按用户要求不启动本机 `pnpm dev`；不修改另一窗口的服务器实时屏幕配置。
+
 2026-11-05 清理“获取移动应用”残留：本窗口负责 `apps/web/src/components/SidebarFooter.test.tsx`、14 个 `apps/web/src/locales/*/messages.po` 词条、`docs/mobile-app.md` 及共享文档追加；不修改其他窗口的未提交文件，不删除 `apps/mobile` 或手机网页适配。真实账户菜单与部署复验待完成。
 
 2026-11-05 电脑屏幕收尾：本窗口负责 `apps/api/src/routes/computer.ts`、`computer-boot.test.ts`、`apps/web/src/pages/shell/computer-panel.tsx`、`use-computer.tsx` 及其测试，追加手动启动租约与移除预览；共享文档只追加结果。网页部署与真实画面验收尚未完成，详见 V-045。

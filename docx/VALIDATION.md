@@ -189,6 +189,15 @@
 - 后续用户确认 Cloudflare SSL/TLS 当前为 Flexible；一次公网 HTTPS 测试期间，云电脑抓包观察到 Cloudflare 地址向源站 TCP 80 发起连接，公网仍返回 404，与当前 HTTP 端口仅提供 ACME 的配置一致。需在 Cloudflare 为该主机名设置严格 HTTPS 回源后再次验证；未修改 Cloudflare 配置。
 - 用户随后确认已将域名全局模式调整为 Full (strict)；公网 HTTPS 页面与 `/rpc/health` 返回 200，客户端证书验证通过；无登录状态调用 `/rpc/me` 返回 401，无效屏幕地址返回 403。未登录、附件拒绝和无效 Host 检查不能代替真实用户流程或完整安全审计。
 
+## V-055：提交推送与云端服务重启验证（2026-11-05）
+
+- 日期：2026-11-05；关联需求：PA-018；状态：通过。
+- 代码：提交 `a36741a41` 包含 76 个已修改/新增文件，推送到 `origin/main` 成功；`git diff --cached --check` 通过，`main` 与 `origin/main` 一致。
+- 云端静态产物：新目录含 325 个文件，`build-id=20261105092721`，全量检索中英文旧菜单文案命中 0；切换前旧产物备份为 `dist.before-a36741a41`，并保留旧哈希资源减少已打开页面加载失败风险。
+- 服务：云电脑 `sydney-web-cloud`、`sydney-web-cloud-link`、`sydney-driver`、`sydney-screen-vnc`、`sydney-screen-websockify` 均为 active；`/run/sydney-web-stage` 的 `api.sock`、`screen.sock`、`web.sock` 存在。后台 `sydney-api`、`sydney-worker`、`sydney-web-forward.socket`、`sydney-screen-tunnel` 均为 active。
+- 健康检查：后台 API `/ready` 返回 `{"ok":true,"degraded":false}`；公网首页 200、入口脚本 `index-JOo88klc.js` 200 且不含旧文案、`/build-id` 返回 `20261105092721`、`/api/auth/get-session` 200、公网 `/ready` 200。
+- 未完成：登录后的真实账户菜单视觉、手机主屏幕缓存刷新、已安装桌面客户端内置资源、实时屏幕 WebSocket 逐跳和长时间稳定性未验收；浏览器 Service Worker 缓存仍可能短期提供旧资源。
+
 ## 2026-11-05：“获取移动应用”入口清理复核
 
 - 源码检查：`apps/web/src/components/SidebarFooter.tsx` 无下载按钮、手机图标及 App Store/APK 跳转；`rg` 对已跟踪源码未发现“获取移动应用 / Get the mobile app”文案，仅保留新增回归断言中的英文原字符串。
