@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import type * as UiWeb from "@rakazo/ui-web";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
@@ -11,10 +10,6 @@ import {
   saveChatAppearance,
 } from "../lib/chat-appearance";
 import { ChatAppearanceSettings } from "./ChatAppearanceSettings";
-
-vi.mock("@rakazo/ui-web", async (importOriginal) => ({
-  ...(await importOriginal<typeof UiWeb>()),
-}));
 
 afterEach(() => {
   vi.restoreAllMocks();

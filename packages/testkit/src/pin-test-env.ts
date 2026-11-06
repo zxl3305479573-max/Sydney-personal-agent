@@ -1,7 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { afterAll } from "vitest";
 
-Object.assign(globalThis, { __DEV__: true });
+const testExpo =
+  (
+    globalThis as typeof globalThis & {
+      expo?: {
+        EventEmitter?: new (...args: never[]) => unknown;
+        modules?: { EventEmitter?: new (...args: never[]) => unknown };
+      };
+    }
+  ).expo ?? {};
+const testEventEmitter = class {
+  addListener() {
+    return { remove() {} };
+  }
+  removeAllListeners() {}
+  emit() {}
+};
+testExpo.EventEmitter ??= testEventEmitter;
+testExpo.modules ??= {};
+testExpo.modules.EventEmitter ??= testEventEmitter;
+Object.assign(globalThis, { __DEV__: true, expo: testExpo });
 
 const dom = (
   globalThis as typeof globalThis & {

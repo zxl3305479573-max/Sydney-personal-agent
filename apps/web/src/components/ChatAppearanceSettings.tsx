@@ -1,10 +1,5 @@
-import { SegmentedControl } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
-import type {
-  BubbleSide,
-  ChatAppearance,
-  ChatBubbleStyle,
-} from "../lib/chat-appearance";
+import type { BubbleSide, ChatAppearance, ChatBubbleStyle } from "../lib/chat-appearance";
 import {
   cancelChatAppearancePreview,
   EMPTY_CHAT_APPEARANCE,
@@ -20,16 +15,13 @@ import {
 import { AppearanceColorPicker } from "./AppearanceColorPicker";
 import { SettingsGroup } from "./SettingsRows";
 
-const fieldClass =
-  "rounded-md border border-border bg-background px-2 py-1 text-foreground";
+const fieldClass = "rounded-md border border-border bg-background px-2 py-1 text-foreground";
 
 function AppearancePreview({ appearance }: { appearance: ChatAppearance }) {
   const background =
     appearance.mode === "simple"
       ? undefined
-      : appearance.backgrounds.find(
-          (item) => item.id === appearance.backgroundId,
-        );
+      : appearance.backgrounds.find((item) => item.id === appearance.backgroundId);
   const bubble =
     appearance.mode === "simple"
       ? undefined
@@ -130,9 +122,7 @@ function BubbleEditor({
                   onError("");
                 })
                 .catch((caught: unknown) =>
-                  onError(
-                    caught instanceof Error ? caught.message : "无法读取图片",
-                  ),
+                  onError(caught instanceof Error ? caught.message : "无法读取图片"),
                 );
           }}
         />
@@ -170,9 +160,7 @@ function BubbleEditor({
           min="20"
           max="100"
           value={value.opacity}
-          onChange={(event) =>
-            onChange({ ...value, opacity: Number(event.target.value) })
-          }
+          onChange={(event) => onChange({ ...value, opacity: Number(event.target.value) })}
         />{" "}
         {value.opacity}%
       </label>
@@ -183,9 +171,7 @@ function BubbleEditor({
           min="0"
           max="32"
           value={value.radius}
-          onChange={(event) =>
-            onChange({ ...value, radius: Number(event.target.value) })
-          }
+          onChange={(event) => onChange({ ...value, radius: Number(event.target.value) })}
         />{" "}
         {value.radius}px
       </label>
@@ -215,8 +201,7 @@ export function ChatAppearanceSettings() {
       .catch((caught: unknown) => {
         if (active) {
           setError(
-            caught instanceof Error &&
-              caught.message === "已保存的聊天外观数据无效"
+            caught instanceof Error && caught.message === "已保存的聊天外观数据无效"
               ? "已保存的聊天外观数据无效，当前显示默认外观；保存将覆盖损坏的数据。"
               : "无法读取浏览器本地存储，请检查浏览器设置。",
           );
@@ -237,9 +222,7 @@ export function ChatAppearanceSettings() {
     previewChatAppearance(normalized);
   }
 
-  const background = draft.backgrounds.find(
-    (item) => item.id === draft.backgroundId,
-  );
+  const background = draft.backgrounds.find((item) => item.id === draft.backgroundId);
   const bubble = draft.bubbles.find((item) => item.id === draft.bubbleId);
   function changeBubble(next: ChatBubbleStyle) {
     change({
@@ -250,8 +233,7 @@ export function ChatAppearanceSettings() {
 
   async function addBackground(file: File) {
     try {
-      if (draft.backgrounds.length >= 100)
-        throw new Error("最多添加 100 张背景图片");
+      if (draft.backgrounds.length >= 100) throw new Error("最多添加 100 张背景图片");
       await validateBackgroundImage(file);
       if (!mounted.current) return;
       const id = crypto.randomUUID();
@@ -272,8 +254,7 @@ export function ChatAppearanceSettings() {
       });
       setError("");
     } catch (caught) {
-      if (mounted.current)
-        setError(caught instanceof Error ? caught.message : "无法读取图片");
+      if (mounted.current) setError(caught instanceof Error ? caught.message : "无法读取图片");
     }
   }
 
@@ -292,22 +273,16 @@ export function ChatAppearanceSettings() {
 
   return (
     <SettingsGroup title="聊天外观">
-      <div
-        className="space-y-4 p-4 text-sm"
-        data-testid="chat-appearance-settings"
-      >
-        <p className="text-muted-foreground">
-          背景和气泡可以分别搭配；图片只保存在当前浏览器。
-        </p>
+      <div className="space-y-4 p-4 text-sm" data-testid="chat-appearance-settings">
+        <p className="text-muted-foreground">背景和气泡可以分别搭配；图片只保存在当前浏览器。</p>
         <AppearancePreview appearance={draft} />
         <fieldset disabled={!ready || saving} className="space-y-4">
           <div className="space-y-2">
             <p className="font-medium">外观模式</p>
-            <SegmentedControl
+            <AppearanceModeControl
               label="外观模式"
               value={
-                draft.mode === "custom" ||
-                (!draft.mode && !!(draft.backgroundId || draft.bubbleId))
+                draft.mode === "custom" || (!draft.mode && !!(draft.backgroundId || draft.bubbleId))
                   ? "custom"
                   : "simple"
               }
@@ -332,9 +307,7 @@ export function ChatAppearanceSettings() {
                 id="chat-background"
                 className={fieldClass}
                 value={draft.backgroundId ?? ""}
-                onChange={(event) =>
-                  change({ ...draft, backgroundId: event.target.value || null })
-                }
+                onChange={(event) => change({ ...draft, backgroundId: event.target.value || null })}
               >
                 <option value="">默认背景</option>
                 {draft.backgrounds.map((item) => (
@@ -363,9 +336,7 @@ export function ChatAppearanceSettings() {
                   onClick={() =>
                     change({
                       ...draft,
-                      backgrounds: draft.backgrounds.filter(
-                        (item) => item.id !== background.id,
-                      ),
+                      backgrounds: draft.backgrounds.filter((item) => item.id !== background.id),
                       backgroundId: null,
                     })
                   }
@@ -452,9 +423,7 @@ export function ChatAppearanceSettings() {
                 id="chat-bubble-style"
                 className={fieldClass}
                 value={draft.bubbleId ?? ""}
-                onChange={(event) =>
-                  change({ ...draft, bubbleId: event.target.value || null })
-                }
+                onChange={(event) => change({ ...draft, bubbleId: event.target.value || null })}
               >
                 <option value="">默认气泡</option>
                 {draft.bubbles.map((item) => (
@@ -485,9 +454,7 @@ export function ChatAppearanceSettings() {
                   onClick={() =>
                     change({
                       ...draft,
-                      bubbles: draft.bubbles.filter(
-                        (item) => item.id !== bubble.id,
-                      ),
+                      bubbles: draft.bubbles.filter((item) => item.id !== bubble.id),
                       bubbleId: null,
                     })
                   }
@@ -504,9 +471,7 @@ export function ChatAppearanceSettings() {
                     className={fieldClass}
                     maxLength={80}
                     value={bubble.name}
-                    onChange={(event) =>
-                      changeBubble({ ...bubble, name: event.target.value })
-                    }
+                    onChange={(event) => changeBubble({ ...bubble, name: event.target.value })}
                   />
                 </label>
                 <BubbleEditor
@@ -538,9 +503,7 @@ export function ChatAppearanceSettings() {
                 className={fieldClass}
                 value=""
                 onChange={(event) => {
-                  const item = draft.combinations.find(
-                    (entry) => entry.id === event.target.value,
-                  );
+                  const item = draft.combinations.find((entry) => entry.id === event.target.value);
                   if (item)
                     change({
                       ...draft,
@@ -567,9 +530,7 @@ export function ChatAppearanceSettings() {
               <button
                 type="button"
                 className={fieldClass}
-                disabled={
-                  !combinationName.trim() || draft.combinations.length >= 100
-                }
+                disabled={!combinationName.trim() || draft.combinations.length >= 100}
                 onClick={() => {
                   change({
                     ...draft,
@@ -600,9 +561,7 @@ export function ChatAppearanceSettings() {
                     change({
                       ...draft,
                       combinations: draft.combinations.map((entry) =>
-                        entry.id === item.id
-                          ? { ...entry, name: event.target.value }
-                          : entry,
+                        entry.id === item.id ? { ...entry, name: event.target.value } : entry,
                       ),
                     })
                   }
@@ -613,9 +572,7 @@ export function ChatAppearanceSettings() {
                   onClick={() =>
                     change({
                       ...draft,
-                      combinations: draft.combinations.filter(
-                        (entry) => entry.id !== item.id,
-                      ),
+                      combinations: draft.combinations.filter((entry) => entry.id !== item.id),
                     })
                   }
                 >
@@ -625,11 +582,7 @@ export function ChatAppearanceSettings() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={fieldClass}
-              onClick={() => void save()}
-            >
+            <button type="button" className={fieldClass} onClick={() => void save()}>
               保存外观
             </button>
             <button
@@ -660,5 +613,40 @@ export function ChatAppearanceSettings() {
         ) : null}
       </div>
     </SettingsGroup>
+  );
+}
+
+function AppearanceModeControl({
+  label,
+  value,
+  onValueChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <fieldset
+      aria-label={label}
+      className="inline-flex rounded-lg border border-border/70 bg-white/55 p-1 shadow-sm backdrop-blur-xl"
+    >
+      {options.map((option) => (
+        <button
+          aria-pressed={value === option.value}
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+            value === option.value
+              ? "bg-white text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          key={option.value}
+          onClick={() => onValueChange(option.value)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </fieldset>
   );
 }
