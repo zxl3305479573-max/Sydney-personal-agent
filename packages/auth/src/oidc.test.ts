@@ -451,9 +451,16 @@ describe("OIDC callbacks", () => {
       password: "test-password-123",
       name: "Local",
     });
-    const unverified = await request(await start(undefined, true));
-    expect(unverified.headers.get("location")).toContain("error=unable_to_link_account");
+    const unverified = await request("/link-social", {
+      provider: "oidc",
+      callbackURL: `${origin}/app`,
+    });
+    expect(unverified.status).toBe(401);
     rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const response = await request(await start(undefined, true));
     expect(response.headers.get("location")).toBe(`${origin}/app`);
     expect(rows("account")).toHaveLength(2);
@@ -481,6 +488,10 @@ describe("OIDC callbacks", () => {
       name: "Local",
     });
     rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const claims = {
       sub: "subject-1",
       email: "sso@example.test",
@@ -511,6 +522,10 @@ describe("OIDC callbacks", () => {
       name: "Local",
     });
     rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const response = await request(
       await start(
         {
@@ -534,6 +549,10 @@ describe("OIDC callbacks", () => {
       name: "Local",
     });
     rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     await request(await start(undefined, true));
     expect(await (await request("/account-security")).json()).toMatchObject({ ssoLinked: true });
     const oldAccountId = rows("account").find(
@@ -578,6 +597,11 @@ describe("OIDC callbacks", () => {
       password: "test-password-123",
       name: "Local",
     });
+    rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const response = await request(
       await start({ sub: "subject-1", email: "sso@example.test", email_verified: verified }, true),
     );
@@ -591,7 +615,13 @@ describe("OIDC callbacks", () => {
       password: "test-password-123",
       name: "Squatter",
     });
+    rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const callback = await start(undefined, true);
+    rows("user")[0]!.emailVerified = false;
     const authorize = `${issuer}/authorize?state=${new URL(`${origin}${callback}`).searchParams.get("state")}`;
     cookies = "";
     await request(
@@ -632,6 +662,10 @@ describe("OIDC callbacks", () => {
       name: "Local",
     });
     rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "sso@example.test",
+      password: "test-password-123",
+    });
     const callback = await start(undefined, true, "rakazo://account");
     const authorize = `${issuer}/authorize?state=${new URL(`${origin}${callback}`).searchParams.get("state")}`;
     cookies = "";
@@ -992,6 +1026,11 @@ describe("SSO-only account deletion", () => {
       email: "local@example.test",
       password: "test-password-123",
       name: "Local",
+    });
+    rows("user")[0]!.emailVerified = true;
+    await request("/sign-in/email", {
+      email: "local@example.test",
+      password: "test-password-123",
     });
     expect(
       (
@@ -1489,6 +1528,11 @@ describe("SSO-only account deletion", () => {
         email: "local@example.test",
         password: "test-password-123",
         name: "Local",
+      });
+      rows("user")[0]!.emailVerified = true;
+      await request("/sign-in/email", {
+        email: "local@example.test",
+        password: "test-password-123",
       });
       setup({ passwordAuth });
       expect(await (await request("/account-security")).json()).toMatchObject({

@@ -115,10 +115,14 @@ space or owner mismatch that keeps the server's tools from that bot.
 
 ## Apps and connectors
 
-Plugins use [Composio](https://composio.dev) when `COMPOSIO_API_KEY` is set. Pipedream is an
-alternative managed connector provider: set `PIPEDREAM_CLIENT_ID`, `PIPEDREAM_CLIENT_SECRET`,
-`PIPEDREAM_PROJECT_ID` and `PIPEDREAM_ENVIRONMENT` (`development` or `production`). Set them on the
-API and worker.
+Plugins use [Composio](https://composio.dev) when `COMPOSIO_API_KEY` is set. Create the key on the
+Composio **Platform** side: sign in at [dashboard.composio.dev](https://dashboard.composio.dev),
+pick the project, then open **Settings → API Keys** (direct link
+`https://dashboard.composio.dev/~/project/settings/api-keys`) and copy the `ak_...` project key.
+Composio's **For You** surface only shows an MCP server URL and a `ck_...` consumer key, and neither
+configures this catalog. Pipedream is an alternative managed connector provider: set
+`PIPEDREAM_CLIENT_ID`, `PIPEDREAM_CLIENT_SECRET`, `PIPEDREAM_PROJECT_ID` and
+`PIPEDREAM_ENVIRONMENT` (`development` or `production`). Set them on the API and worker.
 
 `INTEGRATIONS_CATALOG_URL` points API connector search at an
 [integrations.sh](https://integrations.sh/)-compatible catalog, such as a mirror you host. Give the

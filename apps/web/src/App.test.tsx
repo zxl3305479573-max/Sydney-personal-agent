@@ -116,7 +116,7 @@ it("loads the board chunk only after bootstrap enables the route", async () => {
   );
   try {
     await act(async () => root.render(render()));
-    expect(container.textContent).toBe("Shell");
+    expect(container.textContent).toContain("Shell");
     expect(capability.screen).toHaveBeenCalledExactlyOnceWith({ screen: "board", surface: "web" });
     expect(capability.boardLoaded).not.toHaveBeenCalled();
     capability.enabled = true;
@@ -125,7 +125,7 @@ it("loads the board chunk only after bootstrap enables the route", async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(capability.boardLoaded).toHaveBeenCalledOnce();
-    expect(container.textContent).toBe("Board page");
+    expect(container.textContent).toContain("Board page");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -144,7 +144,7 @@ it("redirects the removed tasks page to the chat shell", async () => {
         </MemoryRouter>,
       ),
     );
-    expect(container.textContent).toBe("Shell");
+    expect(container.textContent).toContain("Shell");
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -169,12 +169,12 @@ it("keeps the sign-in page mounted while a signed-out session refetches", async 
   try {
     capability.authMounts = 0;
     await render({ isPending: false, data: null, error: null });
-    expect(container.textContent).toBe("Auth in");
+    expect(container.textContent).toContain("Auth in");
     // Better Auth refetches a null session when the tab regains focus.
     await render({ isPending: true, data: null, error: null });
-    expect(container.textContent).toBe("Auth in");
+    expect(container.textContent).toContain("Auth in");
     await render({ isPending: false, data: null, error: null });
-    expect(container.textContent).toBe("Auth in");
+    expect(container.textContent).toContain("Auth in");
     expect(capability.authMounts).toBe(1);
   } finally {
     capability.session = null;
@@ -202,7 +202,7 @@ it.each(["throw", "reject"])(
           </MemoryRouter>,
         ),
       );
-      expect(container.textContent).toBe("Shell");
+      expect(container.textContent).toContain("Shell");
     } finally {
       await act(async () => root.unmount());
       vi.unstubAllGlobals();

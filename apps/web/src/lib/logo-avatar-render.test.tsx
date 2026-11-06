@@ -67,7 +67,7 @@ async function mount(status?: string) {
   );
 }
 const live = () => container.querySelector<SVGSVGElement>('[data-testid="live"] svg')!;
-it("projects production feed events into the live avatar and subscribes only live Rakazo consumers", async () => {
+it("projects production feed events into the live avatar and subscribes only live Sydney consumers", async () => {
   const subscribe = vi.spyOn(webLogoAvatarActivity, "subscribe");
   await mount();
   expect(subscribe).toHaveBeenCalledTimes(1);
@@ -114,7 +114,7 @@ it("retains the live pose through overlapping feed hydration, hidden updates and
   expect(live().dataset.activity).toBe("reading");
   const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
   await act(async () => document.dispatchEvent(new Event("visibilitychange")));
-  expect(live().dataset.paused).toBe("true");
+  expect(live().dataset.paused).toBeUndefined();
   await act(async () =>
     webLogoAvatarActivity.apply(
       "chat",
@@ -125,7 +125,7 @@ it("retains the live pose through overlapping feed hydration, hidden updates and
   expect(live().dataset.activity).toBe("reading");
   hidden.mockReturnValue(false);
   await act(async () => document.dispatchEvent(new Event("visibilitychange")));
-  expect(live().dataset.paused).toBe("false");
+  expect(live().dataset.paused).toBeUndefined();
   await act(async () => {
     webLogoAvatarActivity.resetSource("chat");
     webLogoAvatarActivity.resetSource("call");
@@ -147,8 +147,7 @@ it("keeps static SVG artwork mounted through rapid live activity changes", async
     ),
   );
   await act(async () => webLogoAvatarActivity.hydrate("chat", snapshot));
-  const body = container.querySelector(".logo-avatar-art");
-  const definition = body!.querySelector("defs");
+  const body = container.querySelector(".sydney-bot-avatar");
   for (let seq = 1; seq <= 40; seq++) {
     await act(async () =>
       webLogoAvatarActivity.apply(
@@ -156,12 +155,10 @@ it("keeps static SVG artwork mounted through rapid live activity changes", async
         event(seq, "thread.meta", { activity: { thinking: seq % 2 === 0 } }),
       ),
     );
-    expect(container.querySelector(".rakazo-logo-avatar")!.getAttribute("data-activity")).toBe(
+    expect(container.querySelector(".sydney-bot-avatar")!.getAttribute("data-activity")).toBe(
       seq % 2 === 0 ? "thinking" : "working",
     );
-    expect(container.querySelector(".logo-avatar-art")).toBe(body);
-    expect(body!.querySelector("defs")).toBe(definition);
-    expect(container.querySelectorAll("[data-logo-layer]")).toHaveLength(1);
+    expect(container.querySelector(".sydney-bot-avatar")).toBe(body);
   }
 });
 

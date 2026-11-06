@@ -1507,7 +1507,7 @@ export function PluginsOverlay({
     >
       <DialogContent
         showCloseButton={false}
-        className="flex h-[760px] max-h-[calc(100%-2rem)] w-[1080px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[1080px]"
+        className="sydney-integrations-dialog flex h-[760px] max-h-[calc(100%-2rem)] w-[1080px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[1080px]"
       >
         <DialogHeader className="flex-row items-start justify-between gap-2 px-4 pt-6 sm:px-8 sm:pt-7">
           <DialogTitle className="text-heading2 text-foreground">
@@ -1561,7 +1561,7 @@ export function PluginsOverlay({
               }}
               aria-label={t`Search apps`}
               placeholder={t`Search apps`}
-              className="h-11 rounded-xl px-4 md:text-[15px]"
+              className="sydney-mobile-glass-input h-11 rounded-xl px-4 md:text-[15px]"
             />
             {categories.length >= 2 || category ? (
               <div className="flex flex-wrap gap-2" data-testid="integration-categories">
@@ -1678,48 +1678,46 @@ export function PluginsOverlay({
               {catalogLoaded && showFeatured && !category ? (
                 <div className="mb-6" data-testid="featured-connectors">
                   {catalog.length === 0 ? (
-                    plugins.length ? null : (
-                      <p className="text-[13.5px] leading-6 text-muted-foreground/80">
-                        <Trans>Configure a plugin catalog on the server to connect apps.</Trans>
-                      </p>
-                    )
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {featuredTiles.map((tile) => {
-                        const item = tile.item;
-                        const key = item ? catalogItemKey(item) : tile.id;
-                        const disabled = tile.missing || !item;
-                        if (item && !tile.missing) {
-                          // Featured is the stable hit target for connection-tile-* in E2E.
-                          return renderCatalogTile(item, tile.label, item.logo, {
-                            tileTestId: true,
-                          });
-                        }
-                        return (
-                          <div
-                            key={key}
-                            className={`flex min-w-0 items-center gap-3 rounded-xl px-2.5 py-2 ${
-                              disabled ? "opacity-70" : ""
-                            }`}
-                          >
-                            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-sm font-semibold text-foreground">
-                              {tile.label[0]}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[15px] font-medium text-foreground">
-                                {tile.label}
-                              </div>
-                              {disabled ? (
-                                <div className="truncate text-[12.5px] text-muted-foreground">
-                                  <Trans>Not in the plugin catalog</Trans>
-                                </div>
-                              ) : null}
-                            </div>
+                    <p className="mb-3 text-[13.5px] leading-6 text-muted-foreground/80">
+                      <Trans>Configure a plugin catalog on the server to connect apps.</Trans>
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {featuredTiles.map((tile) => {
+                      const item = tile.item;
+                      const key = item ? catalogItemKey(item) : tile.id;
+                      const disabled = tile.missing || !item;
+                      if (item && !tile.missing) {
+                        // Featured is the stable hit target for connection-tile-* in E2E.
+                        return renderCatalogTile(item, tile.label, item.logo, {
+                          tileTestId: true,
+                        });
+                      }
+                      return (
+                        <div
+                          key={key}
+                          aria-disabled="true"
+                          className={`flex min-w-0 items-center gap-3 rounded-xl px-2.5 py-2 ${
+                            disabled ? "opacity-70" : ""
+                          }`}
+                        >
+                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-sm font-semibold text-foreground">
+                            {tile.label[0]}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[15px] font-medium text-foreground">
+                              {tile.label}
+                            </div>
+                            {disabled ? (
+                              <div className="truncate text-[12.5px] text-muted-foreground">
+                                <Trans>Not in the plugin catalog</Trans>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
 

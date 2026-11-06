@@ -168,7 +168,7 @@ export function ShellSidebar({
                 type="button"
                 aria-label={t`Connect apps`}
                 onClick={openIntegrations}
-                className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-4 text-[15px] text-foreground"
+                className="sydney-mobile-glass flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[15px] text-foreground"
               >
                 <Grid2X2Plus size={18} aria-hidden="true" />
                 <span>
@@ -180,7 +180,7 @@ export function ShellSidebar({
               data-testid="sidebar-search"
               className={
                 isMobile
-                  ? "h-11 min-w-0 flex-1 rounded-full border border-border bg-card text-muted-foreground focus-within:border-ring dark:bg-input"
+                  ? "sydney-mobile-glass h-11 min-w-0 flex-1 rounded-full text-muted-foreground focus-within:border-ring"
                   : "mx-2.5 mb-3 w-auto rounded-xl bg-card dark:bg-input border border-border text-muted-foreground focus-within:border-ring"
               }
             >

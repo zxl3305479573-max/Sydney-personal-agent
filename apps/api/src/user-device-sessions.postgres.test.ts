@@ -59,6 +59,19 @@ describe.skipIf(!databaseUrl)("paired computers end with the sign-in that paired
     const address = `device-sessions-${stamp}-${++account}@example.test`;
     const password = "test-password-123";
     await auth("/sign-up/email", { email: address, password, name: "Owner" });
+    const verification = await vi.waitFor(() => {
+      const link = email.sent
+        .filter((message) => message.to === address)
+        .map((message) => message.text.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+        .find(Boolean);
+      if (!link) throw new Error("No verification email yet");
+      return new URL(link);
+    });
+    const verificationResponse = await handles.app.request(
+      verification.pathname + verification.search,
+      { headers: { origin: webOrigin } },
+    );
+    expect(verificationResponse.status).toBe(302);
     const signIn = async (current = password) =>
       sessionCookieHeader(await auth("/sign-in/email", { email: address, password: current }));
     return { address, password, signIn };

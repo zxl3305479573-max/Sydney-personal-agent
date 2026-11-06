@@ -665,7 +665,7 @@ function MobileSidebarRoster({
           type="button"
           data-testid="mobile-create-bot"
           onClick={onCreateBot}
-          className="flex h-14 w-full items-center gap-3 rounded-full border border-border bg-background px-5 text-start text-[17px] text-foreground shadow-sm"
+          className="sydney-mobile-glass flex h-14 w-full items-center gap-3 rounded-full px-5 text-start text-[17px] text-foreground"
         >
           <Plus size={24} strokeWidth={1.7} aria-hidden="true" />
           <Trans>New bot</Trans>
@@ -690,7 +690,7 @@ function MobileSidebarRoster({
               data-testid="mobile-create-group"
               aria-label={t`New group chat`}
               onClick={onCreateGroup}
-              className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="sydney-mobile-glass grid size-10 place-items-center rounded-full text-muted-foreground hover:text-foreground"
             >
               <Plus size={28} strokeWidth={1.5} aria-hidden="true" />
             </button>
@@ -770,8 +770,8 @@ function MobileRosterRow({
       onClick={() =>
         openSpaceChat(chat.spaceId, item.kind === "bot" ? `/app/${chat.id}` : `/app/g/${chat.id}`)
       }
-      className={`flex w-full items-center gap-4 rounded-2xl px-1 py-2 text-start ${
-        selected ? "bg-sidebar-accent" : "hover:bg-accent"
+      className={`sydney-mobile-glass-item flex w-full items-center gap-4 rounded-2xl px-1 py-2 text-start ${
+        selected ? "sydney-mobile-glass-item-selected" : "hover:bg-accent"
       }`}
     >
       <span className="shrink-0">{avatar}</span>

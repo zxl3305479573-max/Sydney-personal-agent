@@ -548,7 +548,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
                   const session = await findSession(token);
                   if (!session || isMessagingEmail(session.user.email)) return null;
                   if (session.user.emailVerified) return session;
-                  if (env.oidc?.allowSignupBypass) {
+                  if (env.oidc) {
                     const accounts = await ctx.context.internalAdapter.findAccounts(
                       session.user.id,
                     );
@@ -614,6 +614,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             const policy = signupPolicyFromEnv(env);
             const oidcSignIn = isOidcCallback(ctx);
             const bypassAllowlist = oidcSignIn && env.oidc?.allowSignupBypass;
+            const bypassEmailVerification = oidcSignIn && Boolean(env.oidc);
             if (!user || isMessagingEmail(user.email)) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_VERIFICATION_REQUIRED",
@@ -623,7 +624,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             if (
               !user.emailVerified &&
               (policy.allowlist.length > 0 || requireSignupEmailCode) &&
-              !bypassAllowlist
+              !bypassAllowlist &&
+              !bypassEmailVerification
             ) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_VERIFICATION_REQUIRED",
@@ -737,15 +739,10 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               throw new APIError("BAD_REQUEST", { message: "Email is not available" });
             }
             const link =
-              env.oidc?.issuer === "https://accounts.google.com" &&
-              isOidcCallback(ctx)
+              env.oidc?.issuer === "https://accounts.google.com" && isOidcCallback(ctx)
                 ? (await getOAuthState())?.link
                 : undefined;
-            if (
-              link &&
-              "name" in user &&
-              "image" in user
-            ) {
+            if (link && "name" in user && "image" in user) {
               const stored = await ctx!.context.internalAdapter.findUserById(link.userId);
               const image = user.image;
               let safeImage: string | undefined;

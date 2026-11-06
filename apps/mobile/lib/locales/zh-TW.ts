@@ -1274,6 +1274,23 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "1 bot now uses the space default.": "1 個機器人已改用空間預設模型。",
   "{count} bots now use the space default.": "{count} 個機器人已改用空間預設模型。",
   "Could not switch {failedNames}. Try again.": "無法切換 {failedNames}，請再試一次。",
+  "A custom background is active.": "A custom background is active.",
+  "A custom bubble style is active.": "A custom bubble style is active.",
+  "Background and bubbles": "Background and bubbles",
+  "Bubble presets": "Bubble presets",
+  "Bubble style": "Bubble style",
+  Change: "Change",
+  "Chat appearance": "Chat appearance",
+  "Chat appearance is saved on this device and is not uploaded.":
+    "Chat appearance is saved on this device and is not uploaded.",
+  "Chat background": "Chat background",
+  Custom: "Custom",
+  "Default bubbles": "Default bubbles",
+  "Remove background": "Remove background",
+  "The image could not be removed.": "The image could not be removed.",
+  "The image could not be saved on this device.": "The image could not be saved on this device.",
+  "Use the default background.": "Use the default background.",
+  "Use the default bubbles.": "Use the default bubbles.",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

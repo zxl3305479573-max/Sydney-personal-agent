@@ -1263,6 +1263,23 @@ export const NL_MESSAGES: Record<string, string> = {
   "{count} bots now use the space default.": "{count} bots gebruiken nu de spacestandaard.",
   "Could not switch {failedNames}. Try again.":
     "Kon {failedNames} niet overzetten. Probeer het opnieuw.",
+  "A custom background is active.": "A custom background is active.",
+  "A custom bubble style is active.": "A custom bubble style is active.",
+  "Background and bubbles": "Background and bubbles",
+  "Bubble presets": "Bubble presets",
+  "Bubble style": "Bubble style",
+  Change: "Change",
+  "Chat appearance": "Chat appearance",
+  "Chat appearance is saved on this device and is not uploaded.":
+    "Chat appearance is saved on this device and is not uploaded.",
+  "Chat background": "Chat background",
+  Custom: "Custom",
+  "Default bubbles": "Default bubbles",
+  "Remove background": "Remove background",
+  "The image could not be removed.": "The image could not be removed.",
+  "The image could not be saved on this device.": "The image could not be saved on this device.",
+  "Use the default background.": "Use the default background.",
+  "Use the default bubbles.": "Use the default bubbles.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

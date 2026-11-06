@@ -254,7 +254,8 @@ export function connectionsRoutes(ctx: RouterContext) {
                 });
               }
               return items;
-            } catch {
+            } catch (error) {
+              getLogger().error(`${provider.describe().id} connector catalog failed`, error);
               return [];
             }
           }),

@@ -7,10 +7,13 @@ import { connectMcpOauth } from "../../lib/mcp-connect";
 import { rpc } from "../../lib/rpc";
 import { errorText } from "../../lib/user-error";
 
+const COMPOSIO_MCP_ENDPOINT = "https://connect.composio.dev/mcp";
+
 /** Personal MCP connections never configure deployment-wide provider credentials. */
 export function IntegrationSetup({ onDone, botId }: { onDone?: () => void; botId?: string }) {
   const { t } = useLingui();
   const [endpoint, setEndpoint] = useState("");
+  const [composioKey, setComposioKey] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<IntegrationCatalogResult[]>([]);
   const [searched, setSearched] = useState(false);
@@ -41,9 +44,16 @@ export function IntegrationSetup({ onDone, botId }: { onDone?: () => void; botId
     }
   }
 
-  async function connect(name: string, url: string) {
+  async function connect(
+    name: string,
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<boolean> {
+    let connectedSuccessfully = false;
     await run(async () => {
-      const existing = (await rpc.mcp.servers.list()).find((server) => server.endpoint === url);
+      const existing = headers
+        ? undefined
+        : (await rpc.mcp.servers.list()).find((server) => server.endpoint === url);
       const server =
         existing ??
         (await rpc.mcp.servers.create({
@@ -51,12 +61,15 @@ export function IntegrationSetup({ onDone, botId }: { onDone?: () => void; botId
           name,
           transport: "streamable_http",
           endpoint: url,
+          headers,
         }));
       const result = await connectMcpOauth(server.id);
       if (result === "cancelled") return;
       if (botId) await rpc.mcp.assignments.approve({ botId, serverId: server.id });
       setConnected((current) => [...current, url]);
+      connectedSuccessfully = true;
     });
+    return connectedSuccessfully;
   }
 
   return (
@@ -64,6 +77,35 @@ export function IntegrationSetup({ onDone, botId }: { onDone?: () => void; botId
       <h1 className="text-[32px] font-medium text-foreground">
         <Trans>Add MCP server</Trans>
       </h1>
+      <div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-4">
+        <div>
+          <h2 className="text-base font-medium text-foreground">
+            <Trans>Connect Composio</Trans>
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            <Trans>Use your Composio MCP consumer key to connect apps to this Bot.</Trans>
+          </p>
+        </div>
+        <Input
+          aria-label={t`Composio consumer key`}
+          type="password"
+          placeholder="ck_..."
+          value={composioKey}
+          onChange={(event) => setComposioKey(event.target.value)}
+        />
+        <Button
+          disabled={busy || !composioKey.trim()}
+          onClick={() => {
+            void connect("Composio", COMPOSIO_MCP_ENDPOINT, {
+              "x-consumer-api-key": composioKey.trim(),
+            }).then((success) => {
+              if (success) setComposioKey("");
+            });
+          }}
+        >
+          <Trans>Connect Composio</Trans>
+        </Button>
+      </div>
       <form
         className="flex gap-2"
         onSubmit={(event) => {

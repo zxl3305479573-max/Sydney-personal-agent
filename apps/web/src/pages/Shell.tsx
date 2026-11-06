@@ -1082,7 +1082,10 @@ function SpaceShell() {
           />
           {!active && !activeGroup && initialBotsLoaded ? (
             <div className="grid flex-1 place-items-center">
-              <Button onClick={() => dialogs.setCreateBotOpen(true)}>
+              <Button
+                className="sydney-mobile-glass"
+                onClick={() => dialogs.setCreateBotOpen(true)}
+              >
                 <Plus size={16} aria-hidden="true" />
                 <Trans>New bot</Trans>
               </Button>

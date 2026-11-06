@@ -23,7 +23,8 @@ export function PageBreadcrumb() {
   const { pathname } = useLocation();
   if (pathname === "/") return null;
   const label = pageLabel(pathname);
-  const translatedLabel = i18n._({ id: label, message: label });
+  const translatedLabel =
+    typeof i18n?._ === "function" ? i18n._({ id: label, message: label }) : label;
 
   return (
     <nav

@@ -278,7 +278,6 @@ function SessionApp() {
                 <Route path="/app" element={<ShellPage />} />
                 <Route path="/app/g/:groupId" element={<ShellPage />} />
                 <Route path="/app/tasks" element={<Navigate to="/app" replace />} />
-                <Route path="/app/:botId" element={<ShellPage />} />
                 <Route element={<CallLayout />}>
                   <Route path="/onboarding/:step?" element={<OnboardingPage />} />
                   <Route path="/app/artifacts" element={<ArtifactsPage />} />
@@ -286,6 +285,7 @@ function SessionApp() {
                   {ticketBoardEnabled ? <Route path="/app/board" element={<BoardPage />} /> : null}
                   <Route path="/app/x/:linkId" element={<NavLinkPage />} />
                 </Route>
+                <Route path="/app/:botId" element={<ShellPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Routes>

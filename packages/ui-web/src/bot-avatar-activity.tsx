@@ -24,13 +24,20 @@ export function BotAvatarActivityProvider({
   return <Activity value={source}>{children}</Activity>;
 }
 /** Updates as a transition: a busy thread must not starve urgent work such as navigation. */
-export function useBotAvatarActivity(identity: string, status?: string): LogoAvatarActivity {
+export function useBotAvatarActivity(
+  identity: string,
+  status?: string,
+  enabled = true,
+): LogoAvatarActivity {
   const source = useContext(Activity);
   const [, setVersion] = useState(0);
-  const activity = source.getActivity(identity, status);
+  const activity = enabled
+    ? source.getActivity(identity, status)
+    : logoAvatarStatusActivity(status);
   const rendered = useRef(activity);
   rendered.current = activity;
   useEffect(() => {
+    if (!enabled) return;
     const refresh = () => {
       if (source.getActivity(identity, status) !== rendered.current)
         startTransition(() => setVersion((version) => version + 1));
@@ -38,6 +45,6 @@ export function useBotAvatarActivity(identity: string, status?: string): LogoAva
     const unsubscribe = source.subscribe(refresh);
     refresh();
     return unsubscribe;
-  }, [source, identity, status]);
+  }, [source, identity, status, enabled]);
   return activity;
 }

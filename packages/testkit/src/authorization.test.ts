@@ -530,6 +530,18 @@ describeWithDatabase("API authorization and resource isolation", () => {
       ["botSecrets/list"],
       ["botSecrets/put"],
       ["botSecrets/remove"],
+      ["tasks/list"],
+      ["tasks/create"],
+      ["tasks/dispatch"],
+      ["tasks/control"],
+      ["tasks/revoke"],
+      ["tasks/renew"],
+      ["tasks/confirmStop"],
+      ["tasks/reconcile"],
+      ["tasks/finishReview"],
+      ["tasks/verify"],
+      ["tasks/inspect"],
+      ["tasks/preview"],
     ]);
 
     const results = await Promise.all(

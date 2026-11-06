@@ -1,7 +1,6 @@
 import type { BotAvatarSet } from "@rakazo/contracts";
 import type { BotColorDef, LogoAvatarActivity } from "@rakazo/core";
 import {
-  ACTIVE_RUN_STATUSES,
   BOT_AVATAR_COLORS,
   BOT_COLOR_LIST,
   DEFAULT_BOT_AVATAR_COLOR,
@@ -13,6 +12,7 @@ import {
   shippedBotAvatarShapePath,
 } from "@rakazo/core";
 import { memo, useMemo } from "react";
+import { useBotAvatarActivity } from "./bot-avatar-activity.js";
 import { cn } from "./lib/utils.js";
 import "./styles.css";
 
@@ -43,6 +43,9 @@ export function parseBotAvatar(
   const fluid = /^(#[0-9a-fA-F]{3,6})::fluid_#[0-9a-fA-F]{6}$/.exec(rawColor);
   if (fluid) return { color: fluid[1]!, isImage: false };
   if (rawColor.startsWith("data:image/")) {
+    return { color: "#F97316", isImage: true, imageUrl: rawColor };
+  }
+  if (/^\/avatar-library\/[a-z0-9-]+\.webp$/.test(rawColor)) {
     return { color: "#F97316", isImage: true, imageUrl: rawColor };
   }
   if (rawColor.includes("::shape_")) {
@@ -83,10 +86,20 @@ export const BotAvatar = memo(function BotAvatar({
   status,
   identity = "",
   className,
+  activity,
+  avatarSet,
 }: BotAvatarProps) {
-  const isWorking = ACTIVE_RUN_STATUSES.some((activeStatus) => activeStatus === status);
-
   const parsed = useMemo(() => parseBotAvatar(color, identity), [color, identity]);
+  const liveActivity = useBotAvatarActivity(
+    identity,
+    status,
+    activity === undefined &&
+      avatarSet === "rakazo" &&
+      !parsed.isImage &&
+      parsed.shapeIndex === undefined,
+  );
+  const renderedActivity = activity ?? liveActivity;
+  const isWorking = renderedActivity !== "idle" && renderedActivity !== "error";
   const effectiveId = identity || parsed.color || "agent";
   const avatarColor = /::fluid_(#[0-9a-fA-F]{6})$/.exec(color)?.[1] ?? parsed.color;
   const variant = parsed.shapeIndex === undefined ? 0 : (parsed.shapeIndex + 1) % 5;
@@ -102,6 +115,7 @@ export const BotAvatar = memo(function BotAvatar({
       <div
         className={cn("rakazo-bot-avatar relative shrink-0 select-none", className)}
         data-working={isWorking}
+        data-activity={renderedActivity}
         style={{ width: size, height: size }}
       >
         <div className="rakazo-bot-avatar-picture relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-transparent">
@@ -140,6 +154,7 @@ export const BotAvatar = memo(function BotAvatar({
       aria-hidden="true"
       className={cn("sydney-bot-avatar shrink-0 select-none", className)}
       data-working={isWorking}
+      data-activity={renderedActivity}
       data-color={colorDef.hex}
       data-variant={variant}
       style={{ width: size, height: size, flex: "none" }}

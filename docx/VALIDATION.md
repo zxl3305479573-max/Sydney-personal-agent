@@ -1,5 +1,22 @@
 # 验证记录
 
+## 2026-11-06：固定头像与个人头像库
+
+- 头像库、Bot 创建、头像编辑、PWA 和共享头像渲染共 6 个定向测试文件通过，合计 45 项；Web 与 ui-web TypeScript 检查通过。
+- 云电脑 Web 构建成功，版本 `20261106131423`；公网版本号一致，三张 `/avatar-library/*.webp` 素材均返回 HTTP 200 和 `image/webp`，PWA 预缓存包含三张素材。
+- Web、云电脑链路、后台 API、Worker 和隧道均 active，API `/ready` 正常；本次未修改后台和数据库。
+- 未执行真实手机视觉、真实上传、多张头像在刷新后的 IndexedDB 恢复、跨设备同步和真实 Bot 创建；Biome 仍报告共享样式中的既有 `!important`/选择器规则，未将无关样式重构纳入本次范围。
+
+## 2026-11-06：连接应用空目录前端状态修复
+
+- 静态核对：`PluginsOverlay.tsx` 在 `catalog.length === 0` 时仍渲染五个常用应用占位卡片，并显示目录未配置提示；占位卡片带 `aria-disabled="true"`，不触发连接流程。
+- 数据核对：服务器返回目录项时仍沿用原有 `renderCatalogTile`、应用图标、OAuth 连接和连接状态逻辑。
+- 静态核对：`apps/api/src/routes/connections.ts` 的目录分支在捕获提供方异常后记录错误日志，返回值仍为空数组，接口输出结构和权限逻辑未变。
+- 文档核对：`docs/self-host-integrations.md` 与 `.env.example` 写明 Composio Platform 项目 API Keys 页地址和 `ak_...` 密钥前缀，并说明 For You 的 MCP/`ck_...` 不适用。
+- 静态核对：`IntegrationSetup.tsx` 的 Composio 快速入口固定 MCP 地址，提交 `x-consumer-api-key`，并复用 `mcp.servers.create` 的加密存储与 Bot 分配流程。
+- 已执行：API 类型检查、Web 类型检查、相关 Biome 检查、`git diff --check`。
+- 待执行：浏览器视觉、真实 Composio/Pipedream 目录和 OAuth 验证。
+
 ## 2026-11-06：GitHub Actions Runner 修复
 
 - 范围：`.github/workflows/ci.yml` 和 `.github/workflows/playwright.yml` 的通用 Linux 检查任务。
@@ -911,3 +928,21 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `git diff --check`：通过；未发现尾随空格或补丁空白错误。
 - 未运行 Web 服务、浏览器 E2E、截图对照、手机实机、软键盘、深色主题和部署验证；因此仅确认静态接线正确，不能标记为视觉验收完成。
 - 未启动 Docker、数据库、桌面服务或真实模型；无安装、配置、权限、数据和运维路径变化。
+
+## 移动端工作台组件玻璃质感验证（2026-11-06）
+
+- 范围：移动端搜索框、连接应用入口、新建 Bot 入口与弹窗、Bot/群聊列表、账号入口、集成弹窗及通用移动端 Dialog/Popover 表面。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；覆盖本轮新增的组件样式类名和 JSX 接线。
+- `git diff --check`：通过；未发现补丁空白错误。
+- `pnpm exec vitest run apps/web/src/components/SidebarFooter.test.tsx apps/web/src/pages/shell/create-bot-dialog.test.tsx apps/web/src/App.test.tsx --maxWorkers=1`：3 个文件、37 项通过。
+- 未启动 Web 服务，未执行真实浏览器截图、手机实机、软键盘、深色主题、`backdrop-filter` 降级和部署验证；因此不能将视觉效果标记为实机验收完成。
+- 本轮没有修改安装、配置、启动、服务、权限或数据路径，也没有运行 Docker、数据库或全工作区构建。
+
+## CI 失败修复离线验证（2026-11-06）
+
+- `pnpm exec vitest run packages/auth/src/oidc.test.ts --maxWorkers=1`：105 项通过，覆盖 OIDC 登录、账户关联、重新认证和账户删除。
+- `pnpm exec vitest run apps/web/src/call-routes.test.tsx apps/desktop/src/setup.test.ts --maxWorkers=1`：16 项通过，覆盖通话离开 Shell 后的路由和桌面启动页品牌文案。
+- `pnpm exec vitest run apps/mobile/lib/i18n.test.ts apps/mobile/lib/settings-sheet.test.ts --maxWorkers=1`：26 项通过，覆盖新增聊天外观翻译键和设置页链接。
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：通过；`pnpm exec turbo check --continue` 中除本地旧 Expo 依赖检查外的 21 个任务通过。
+- 相关改动执行 `pnpm exec biome check`：通过；`git diff --check`：通过。
+- 未完成：本机 `node_modules` 仍是 Expo 57.0.31 等旧补丁版本，移动端 `expo install --check` 因本机 Node 22.22.0 和旧安装失败；未重装依赖、未运行 PostgreSQL、Docker、浏览器 E2E、移动端实机或生产部署。锁文件已更新，需由 GitHub CI 的干净安装确认。

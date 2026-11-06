@@ -29,6 +29,7 @@ vi.mock("@rakazo/ui-web", () => ({
   BotAvatar: () => null,
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
   defaultBotAvatarValue: () => "",
+  Spinner: () => null,
   Button: ({ children, ...props }: { children: ReactNode }) => (
     <button {...props}>{children}</button>
   ),

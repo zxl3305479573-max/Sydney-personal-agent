@@ -41,6 +41,20 @@ it.skipIf(!databaseUrl)(
       expect((await post("/api/auth/sign-up/email", { ...credentials, name: "New" })).status).toBe(
         200,
       );
+      const verification = await vi.waitFor(() => {
+        const link = email.sent
+          .filter((message) => message.to === address)
+          .map((message) => message.text.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+          .find(Boolean);
+        if (!link) throw new Error("No verification email yet");
+        return new URL(link);
+      });
+      const verificationResponse = await handles.app.request(
+        verification.pathname + verification.search,
+        { headers: { origin: webOrigin } },
+      );
+      expect(verificationResponse.status).toBe(302);
+      expect((await post("/api/auth/sign-in/email", credentials)).status).toBe(200);
       await vi.waitFor(() => expect(welcomes()).toHaveLength(1));
       expect(welcomes()[0]!.to).toBe(address);
 

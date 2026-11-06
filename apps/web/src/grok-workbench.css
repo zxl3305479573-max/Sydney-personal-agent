@@ -26,31 +26,186 @@
   display: none;
 }
 
-.sydney-bot-shapes {
+.sydney-avatar-library {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sydney-avatar-library-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-items: center;
   gap: 8px;
   min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
 }
 
-.sydney-bot-shape {
+.sydney-avatar-library-item {
+  position: relative;
   display: grid;
   width: 48px;
   height: 48px;
   place-items: center;
-  border: 2px solid transparent;
-  border-radius: 16px;
 }
 
-.sydney-bot-shape[aria-pressed="true"] {
-  border-color: var(--muted-foreground);
+.sydney-avatar-library-option {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease;
+}
+
+.sydney-avatar-library-option:hover {
+  transform: scale(1.06);
+}
+
+.sydney-avatar-library-option[aria-pressed="true"] {
+  border-color: var(--foreground);
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--foreground);
+}
+
+.sydney-avatar-library-option .sydney-bot-avatar,
+.sydney-avatar-library-option .rakazo-bot-avatar {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.sydney-avatar-library-delete {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid var(--background);
+  border-radius: 50%;
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.sydney-avatar-library-upload {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sydney-avatar-library-upload:hover {
+  border-color: var(--foreground);
+  color: var(--foreground);
+}
+
+.sydney-avatar-library-hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-align: center;
 }
 
 @media (max-width: 767px) {
+  .sydney-create-bot,
+  .sydney-integrations-dialog {
+    border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: var(--dialog);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+      0 18px 48px color-mix(in srgb, black 14%, transparent);
+    backdrop-filter: blur(24px) saturate(1.15);
+  }
+
+  .sydney-mobile-glass,
+  .sydney-mobile-glass-input {
+    border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: var(--card);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+      0 8px 20px color-mix(in srgb, black 7%, transparent);
+    backdrop-filter: blur(18px) saturate(1.1);
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+
+  .sydney-mobile-glass:hover,
+  .sydney-mobile-glass:focus-visible,
+  .sydney-mobile-glass-input:focus-within,
+  .sydney-mobile-glass-input:focus-visible {
+    border-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 88%, transparent) inset,
+      0 10px 24px color-mix(in srgb, black 9%, transparent);
+  }
+
+  .sydney-mobile-glass-item {
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--card) 34%, transparent);
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .sydney-mobile-glass-item:hover,
+  .sydney-mobile-glass-item-selected {
+    border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 72%, transparent) inset,
+      0 6px 16px color-mix(in srgb, black 5%, transparent);
+    backdrop-filter: blur(14px) saturate(1.08);
+  }
+
+  .sydney-mobile-account-popover {
+    border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: var(--popover);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+      0 16px 36px color-mix(in srgb, black 14%, transparent);
+    backdrop-filter: blur(22px) saturate(1.12);
+  }
+
+  .sydney-mobile-account-trigger {
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: color-mix(in srgb, var(--card) 68%, transparent);
+    box-shadow: 0 1px 0 color-mix(in srgb, white 78%, transparent) inset;
+    backdrop-filter: blur(14px) saturate(1.1);
+  }
+
+  [data-slot="dialog-content"]:not(.sydney-settings-dialog):not(.sydney-create-bot):not(
+      .sydney-integrations-dialog
+    ),
+  [data-slot="popover-content"]:not(.sydney-mobile-account-popover) {
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: var(--popover);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+      0 16px 36px color-mix(in srgb, black 12%, transparent);
+    backdrop-filter: blur(20px) saturate(1.1);
+  }
+
+  [data-slot="dialog-content"] .sydney-mobile-glass-input,
+  [data-slot="dialog-content"] [data-slot="input"] {
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    backdrop-filter: blur(14px) saturate(1.08);
+  }
+
   [data-mobile-chat="true"] .sydney-grok-header {
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding-inline: 16px;
@@ -125,13 +280,13 @@
     padding: 16px 20px max(18px, env(safe-area-inset-bottom));
     border: 0;
     border-radius: 30px 30px 0 0;
-    background: rgb(255 255 255 / 88%);
+    background: color-mix(in srgb, var(--dialog) 86%, transparent);
     box-shadow:
       0 -1px 0 rgb(255 255 255 / 92%),
       0 -18px 48px rgb(0 0 0 / 12%);
     gap: 18px;
     animation: sydney-create-bot-enter 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both !important;
-    backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px) saturate(1.15);
   }
 
   [data-slot="dialog-overlay"] {
@@ -216,9 +371,9 @@
 
   .sydney-create-bot [data-slot="input"] {
     height: 76px;
-    border: 0;
+    border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
     border-radius: 20px;
-    background: rgb(255 255 255 / 72%);
+    background: color-mix(in srgb, var(--card) 72%, transparent);
     padding: 0 24px;
     font-family: var(--font-serif);
     font-size: 18px;
@@ -231,51 +386,33 @@
     color: rgb(130 130 130 / 68%);
   }
 
-  .sydney-create-bot .sydney-bot-shapes {
-    grid-template-columns: repeat(3, 72px);
-    justify-content: start;
-    gap: 14px;
-    padding: 0;
+  .sydney-create-bot .sydney-avatar-library {
+    padding: 0 16px;
   }
 
-  .sydney-create-bot .sydney-bot-shape {
-    width: 72px;
-    height: 72px;
-    border: 0;
-    border-radius: 22px;
-    background: rgb(255 255 255 / 70%);
+  .sydney-create-bot .sydney-avatar-library-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .sydney-create-bot .sydney-avatar-library-option {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--card) 70%, transparent);
     box-shadow:
       0 1px 0 rgb(255 255 255 / 95%) inset,
       0 9px 16px rgb(0 0 0 / 8%);
   }
 
-  .sydney-create-bot .sydney-bot-shape[aria-pressed="true"] {
-    outline: 2px solid rgb(65 65 65 / 72%);
-    outline-offset: -2px;
+  .sydney-create-bot .sydney-avatar-library-option .sydney-bot-avatar,
+  .sydney-create-bot .sydney-avatar-library-option .rakazo-bot-avatar {
+    width: 58px !important;
+    height: 58px !important;
   }
 
-  .sydney-create-bot .sydney-bot-shape .sydney-bot-avatar {
-    width: 44px !important;
-    height: 44px !important;
-  }
-
-  .sydney-create-bot .border-t {
-    border-top: 0;
-    padding-top: 0;
-  }
-
-  .sydney-create-bot .grid.grid-cols-6 {
-    justify-content: start;
-    gap: 14px;
-  }
-
-  .sydney-create-bot .grid.grid-cols-6 > button {
-    width: 48px;
-    height: 48px;
-    border: 0;
-    box-shadow:
-      0 1px 0 rgb(255 255 255 / 95%) inset,
-      0 8px 14px rgb(0 0 0 / 8%);
+  .sydney-create-bot .sydney-avatar-library-upload {
+    min-height: 52px;
   }
 
   .sydney-create-bot-footer {
@@ -290,15 +427,16 @@
     width: 100%;
     height: 70px;
     border-radius: 999px;
-    border: 1px solid rgb(210 210 210 / 76%);
-    background: rgb(255 255 255 / 52%);
-    color: rgb(54 54 54 / 90%);
+    border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+    background: color-mix(in srgb, var(--card) 62%, transparent);
+    color: var(--foreground);
     font-family: var(--font-serif);
     font-size: 20px;
     font-weight: 600;
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 95%) inset,
-      0 10px 20px rgb(0 0 0 / 8%);
+      0 1px 0 color-mix(in srgb, white 88%, transparent) inset,
+      0 10px 20px color-mix(in srgb, black 8%, transparent);
+    backdrop-filter: blur(16px) saturate(1.1);
   }
 
   .sydney-create-bot-cancel {

@@ -57,6 +57,9 @@ export function shellFiles(bundle: Rolldown.OutputBundle): string[] {
     "/mobile-startup.css",
     "/mobile-startup.js",
     "/sydney-mark.png",
+    "/avatar-library/lilac-dragon.webp",
+    "/avatar-library/orange-flower.webp",
+    "/avatar-library/blue-maid.webp",
     "/theme.js",
   ]);
   const visit = (fileName: string) => {

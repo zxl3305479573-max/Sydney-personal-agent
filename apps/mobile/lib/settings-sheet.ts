@@ -12,6 +12,7 @@ const settingsScreens = new Set([
   "approvals",
   "archived-bots",
   "change-password",
+  "chat-appearance",
   "integration-setup",
   "integrations",
   "messaging",

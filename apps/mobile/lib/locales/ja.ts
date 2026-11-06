@@ -1297,6 +1297,23 @@ export const JA_MESSAGES: Record<string, string> = {
     "{count}個のボットがスペースのデフォルトを使用するようになりました。",
   "Could not switch {failedNames}. Try again.":
     "{failedNames}を切り替えられませんでした。もう一度お試しください。",
+  "A custom background is active.": "A custom background is active.",
+  "A custom bubble style is active.": "A custom bubble style is active.",
+  "Background and bubbles": "Background and bubbles",
+  "Bubble presets": "Bubble presets",
+  "Bubble style": "Bubble style",
+  Change: "Change",
+  "Chat appearance": "Chat appearance",
+  "Chat appearance is saved on this device and is not uploaded.":
+    "Chat appearance is saved on this device and is not uploaded.",
+  "Chat background": "Chat background",
+  Custom: "Custom",
+  "Default bubbles": "Default bubbles",
+  "Remove background": "Remove background",
+  "The image could not be removed.": "The image could not be removed.",
+  "The image could not be saved on this device.": "The image could not be saved on this device.",
+  "Use the default background.": "Use the default background.",
+  "Use the default bubbles.": "Use the default bubbles.",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };
