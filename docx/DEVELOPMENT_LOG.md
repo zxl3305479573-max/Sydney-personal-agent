@@ -934,3 +934,9 @@
 - 保留并纳入同一批工作区中的页面面包屑、Bot 人格库和移动端玻璃样式后续改动，文档同步记录实际范围。
 - 定向验证：相关 Web、UI、updater、Compose 和移动端测试 59 项通过；Web TypeScript 检查和 `git diff --check` 通过。
 - 本机完整 Vitest 分片受 Windows 文件系统、主机路径和外部 Slack 测试环境影响，出现与本轮无关的失败，未据此修改业务代码；GitHub Linux CI 需以新提交结果为准。
+
+## CI 第三轮测试环境修复（2026-11-06）
+
+- GitHub 第二轮 Linux CI 继续暴露共享 Vitest mock 对聊天外观测试的污染，以及 Expo 57.0.25 事件模块缺少原生全局的问题。
+- 将聊天外观模式切换改为页面内的白色玻璃风格控件，移除对 `@rakazo/ui-web` 的易污染导入；在 testkit 初始化中提供 `__DEV__`、Expo `EventEmitter` 和模块事件桩。
+- 本机 Web 与 testkit 类型检查通过，聊天外观和移动端聊天外观定向测试 7 项通过；第三轮已提交推送，GitHub CI 正在重新运行。

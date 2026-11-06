@@ -970,3 +970,10 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；相关文件的 Biome 检查和 `git diff --check`：通过。
 - `pnpm exec vitest run --shard=2/3`：未作为成功验证，Windows 本地环境触发多个路径、权限、外部服务和 Linux 行为相关的既有失败后已停止；不代表 GitHub Linux 分片结果。
 - GitHub 首轮新提交已确认失败原因并完成本轮修复；第二轮提交后的 CI 尚待运行完成，未将其标记为通过。
+
+## CI 第三轮测试环境修复验证（2026-11-06）
+
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。
+- `pnpm exec tsc --noEmit -p packages/testkit/tsconfig.json`：通过。
+- `pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/mobile/lib/chat-appearance.test.ts --maxWorkers=1`：2 个文件、7 项通过。
+- 第三轮提交 `f956376f9` 已推送；GitHub API 查询随后触发匿名请求限流，CI 最终状态暂未取得，不能标记为通过。
