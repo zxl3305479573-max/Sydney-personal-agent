@@ -1,6 +1,6 @@
 # Sydney 开发总计划
 
-GitHub Actions Runner 修复（PA-018，进行中）：GitHub Actions 的通用检查任务从长期无可用实例的 `incredibuild-ubuntu-latest` 切换到 GitHub 托管的 `ubuntu-latest`，覆盖 CI、Playwright 和 PostgreSQL/单测任务；已完成本地 workflow 标签替换，待推送后确认任务能正常启动并通过。
+GitHub Actions Runner 修复（PA-018，进行中）：GitHub Actions 的通用检查任务从长期无可用实例的 `incredibuild-ubuntu-latest` 切换到 GitHub 托管的 `ubuntu-latest`，并让主分支新提交取消旧的检查排队任务，覆盖 CI、Playwright 和 PostgreSQL/单测任务；已完成本地 workflow 修复，待推送后确认最新任务能正常启动并通过。
 
 移动网页单 Bot 聊天布局（PA-018，进行中）：将单 Bot 移动网页聊天的消息正文、顶部标题栏和底部输入栏调整为群聊同款布局；保留单 Bot 顶部头像，并让群聊专属 `@` 成员入口继续只在群聊显示。已完成静态接线，需完成定向检查和真实手机视觉验收。
 

@@ -5,7 +5,9 @@
 - 关联 PA-018。GitHub Actions `ci #14` 的 6 个通用检查任务从 2026 年 11 月 6 日 15:08（北京时间）起一直等待 `incredibuild-ubuntu-latest`，同一运行中的 6 个镜像构建和 3 个镜像发布任务已成功。
 - 将 CI 与 Playwright 复用 workflow 的通用 Linux 任务切换为 GitHub 托管的 `ubuntu-latest`，保留 macOS、Windows、arm64 和镜像专用任务的原有 Runner 选择。
 - 旧运行的 Docker 构建失败日志因 GitHub Actions 日志接口匿名返回 403 无法读取；最新提交的镜像构建链已通过，因此本次修复针对当前可复现的 Runner 排队问题。
-- 本地 workflow 差异检查待完成；推送后的 GitHub Actions 运行和完整检查结果待确认。
+- 新提交的 6 个镜像构建/发布任务已成功；6 个通用检查任务虽已进入 GitHub 队列，但被旧主分支运行占用的检查并发锁阻塞。
+- 为 `ci-checks-main`、`ci-unit-*` 和 `ci-postgres-*` 增加主分支新提交取消旧排队任务的设置，避免失效 Runner 的历史任务永久占锁。
+- 本地 workflow 差异检查待完成；再次推送后的 GitHub Actions 运行和完整检查结果待确认。
 
 ## 2026-11-06：移动网页单 Bot 聊天布局对齐群聊
 

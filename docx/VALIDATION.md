@@ -5,7 +5,9 @@
 - 范围：`.github/workflows/ci.yml` 和 `.github/workflows/playwright.yml` 的通用 Linux 检查任务。
 - 线上证据：`ci #14` 的镜像构建 6 项和镜像发布 3 项均成功；Lint、3 个单测分片和 2 个 PostgreSQL 分片均因 `incredibuild-ubuntu-latest` 无可用 Runner 保持 pending。
 - 本地改动：10 个通用 Linux 任务改用 `ubuntu-latest`；macOS/Windows 原生任务、arm64 镜像任务和镜像发布逻辑未改动。
-- 未执行：推送后的 GitHub Actions 复跑、完整工作区构建和真实 Runner 资源验证；需以新提交的线上运行结果为准。
+- 推送后观察：`ci #15` 的镜像构建/发布 9 项成功；6 个公共检查任务进入 pending，随后确认旧 queued 运行仍占用 `ci-checks-main`、`ci-unit-*` 和 `ci-postgres-*` 并发锁。
+- 补充修复：主分支上述检查锁启用 `cancel-in-progress`，新提交会取消旧排队任务，让最新 revision 优先执行。
+- 未执行：补充修复推送后的 GitHub Actions 复跑、完整工作区构建和真实 Runner 资源验证；需以最新提交的线上运行结果为准。
 
 ## 2026-11-06：移动网页单 Bot 聊天布局对齐群聊
 

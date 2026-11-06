@@ -88,6 +88,7 @@ jobs:
     timeout-minutes: 25
     concurrency:
       group: ci-checks-${{ github.ref == 'refs/heads/main' && 'main' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -165,6 +166,7 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: ci-unit-${{ matrix.shard }}-${{ github.ref == 'refs/heads/main' && 'main' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -258,6 +260,7 @@ jobs:
         shard: [1, 2]
     concurrency:
       group: ci-postgres-${{ matrix.shard }}-${{ github.ref == 'refs/heads/main' && 'main' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
