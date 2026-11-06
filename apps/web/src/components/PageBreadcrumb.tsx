@@ -18,7 +18,35 @@ function pageLabel(pathname: string) {
   return "Page";
 }
 
-export function PageBreadcrumb() {
+export function PageBreadcrumb({
+  label: explicitLabel,
+  inline = false,
+}: {
+  label?: string;
+  inline?: boolean;
+}) {
+  if (inline) return <InlinePageBreadcrumb label={explicitLabel ?? "Page"} />;
+  return <RoutePageBreadcrumb />;
+}
+
+function InlinePageBreadcrumb({ label }: { label: string }) {
+  const { i18n } = useLingui();
+  const translatedLabel =
+    typeof i18n?._ === "function" ? i18n._({ id: label, message: label }) : label;
+
+  return (
+    <nav
+      aria-label={`Sydney / ${translatedLabel}`}
+      className="mb-5 px-1 text-[15px] text-muted-foreground md:hidden"
+    >
+      <span className="rk-script-type text-foreground/70">Sydney</span>
+      <span className="mx-2 text-border">/</span>
+      <span>{translatedLabel}</span>
+    </nav>
+  );
+}
+
+function RoutePageBreadcrumb() {
   const { i18n } = useLingui();
   const { pathname } = useLocation();
   if (pathname === "/") return null;
@@ -29,7 +57,7 @@ export function PageBreadcrumb() {
   return (
     <nav
       aria-label={`Sydney / ${translatedLabel}`}
-      className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden px-6 text-[15px] text-muted-foreground md:hidden"
+      className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-10 hidden px-6 text-[15px] text-muted-foreground md:hidden"
     >
       <span className="rk-script-type text-foreground/70">Sydney</span>
       <span className="mx-2 text-border">/</span>

@@ -49,6 +49,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+import { PageBreadcrumb } from "../components/PageBreadcrumb";
 import { cronLabels } from "../lib/cron";
 import {
   connectedModelOptions,
@@ -457,6 +458,7 @@ export function RoutineEditor({
           <X />
         </Button>
       </div>
+      <PageBreadcrumb label="Routine" inline />
 
       <div className="mb-5 flex items-center justify-between gap-3">
         <label

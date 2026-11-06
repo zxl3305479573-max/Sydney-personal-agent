@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll } from "vitest";
 
+Object.assign(globalThis, { __DEV__: true });
+
 const dom = (
   globalThis as typeof globalThis & {
     jsdom?: { window: { localStorage: unknown } };

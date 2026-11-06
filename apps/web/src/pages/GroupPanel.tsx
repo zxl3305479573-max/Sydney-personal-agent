@@ -2,8 +2,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { Bot, Group } from "@rakazo/contracts";
 import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN, GROUP_NAME_MAX_LENGTH } from "@rakazo/contracts";
 import { BotAvatar, Button, Checkbox, Input } from "@rakazo/ui-web";
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { PageBreadcrumb } from "../components/PageBreadcrumb";
 import { errorText } from "../lib/user-error";
 import { DeleteItemDialog } from "./shell/dialogs";
 
@@ -171,20 +172,21 @@ export function CreateGroupForm({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">
-          <Trans>New group</Trans>
-        </span>
+      <div className="mb-1 flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={t`Cancel new group`}
+          aria-label={t`Back`}
           onClick={onCancel}
           className="text-muted-foreground"
         >
-          <X />
+          <ChevronLeft />
         </Button>
+        <h1 className="text-[22px] font-medium text-foreground">
+          <Trans>Create group</Trans>
+        </h1>
       </div>
+      <PageBreadcrumb label="Create group" inline />
       {error ? (
         <p role="alert" className="mb-3 text-sm text-destructive">
           {error}
@@ -325,6 +327,7 @@ export function GroupSettings({
           <X size={16} strokeWidth={1.8} />
         </Button>
       </div>
+      <PageBreadcrumb label="Group settings" inline />
       {error ? (
         <p role="alert" className="mb-3 text-sm text-destructive">
           {error}

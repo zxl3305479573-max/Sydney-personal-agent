@@ -45,6 +45,7 @@ import {
 import { ArrowLeft, ChevronDown, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { PageBreadcrumb } from "../../components/PageBreadcrumb";
 import { readAgentDocument } from "../../lib/agent-document";
 import { agentImportErrorText } from "../../lib/agent-import-errors";
 import { rpc } from "../../lib/rpc";
@@ -526,6 +527,7 @@ export function AgentImportForm({
           <X size={16} strokeWidth={1.8} />
         </Button>
       </div>
+      <PageBreadcrumb label="Import an agent" inline />
       {error ? (
         <p
           role="alert"

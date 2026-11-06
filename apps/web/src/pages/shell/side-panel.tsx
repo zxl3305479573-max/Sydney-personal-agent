@@ -10,6 +10,7 @@ import { Button } from "@rakazo/ui-web";
 import { X } from "lucide-react";
 import type { ComponentProps, Dispatch, ReactNode, SetStateAction } from "react";
 import { ComputerMaintenanceActions } from "../../components/ComputerMaintenanceActions";
+import { PageBreadcrumb } from "../../components/PageBreadcrumb";
 import type { Panel } from "../../lib/right-panel-state";
 import type { createSpaceRpc } from "../../lib/rpc";
 import { computerPanelNeedsMaintenance } from "../../lib/thread-events";
@@ -82,6 +83,8 @@ export function ShellSidePanel({
   const open = Boolean(panel && (active || activeGroup || panel === "import-agent"));
   const botTab =
     panel === "computer" || panel === "routines" || panel === "settings" ? panel : null;
+  const botPanelLabel =
+    panel === "computer" ? "Computer" : panel === "routines" ? "Routines" : "Bot settings";
 
   async function createGroup(input: { name: string; botIds: string[] }) {
     const group = await rpc.groups.create(input);
@@ -131,6 +134,7 @@ export function ShellSidePanel({
               </div>
             </div>
           ) : null}
+          {botTab && active ? <PageBreadcrumb label={botPanelLabel} inline /> : null}
           {panel === "create-group" ? (
             <CreateGroupForm
               bots={bots}

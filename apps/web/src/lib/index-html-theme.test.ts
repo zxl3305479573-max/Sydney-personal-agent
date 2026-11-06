@@ -21,7 +21,7 @@ describe("index.html theme bootstrap", () => {
   });
 
   it("loads the bootstrap as a file so the CSP needs no inline scripts", () => {
-    expect(html).toContain('<script src="/theme.js"></script>');
+    expect(html).toContain('<script defer src="/theme.js" fetchpriority="high"></script>');
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/);
   });
 

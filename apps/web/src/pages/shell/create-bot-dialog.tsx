@@ -13,7 +13,10 @@ import {
 } from "@rakazo/ui-web";
 import { X } from "lucide-react";
 import { useRef, useState } from "react";
+import { PersonalityPicker } from "../../components/PersonalityPicker";
 import { avatarSourceToDataUrl, BUILT_IN_AVATARS } from "../../lib/avatar-library";
+import type { PersonalityId } from "../../lib/personality-library";
+import { personalityPreset } from "../../lib/personality-library";
 import { errorText } from "../../lib/user-error";
 import { BotLookPicker } from "./avatar-studio-popover";
 
@@ -21,6 +24,7 @@ export interface CreateBotDialogInput {
   name: string;
   color: string;
   avatarSet: BotAvatarSet;
+  instructions: string;
 }
 
 /** Mounted only while open; the parent unmounts it from `onCancel` or after `onCreate`. */
@@ -36,6 +40,7 @@ export function CreateBotDialog({
   const closeRef = useRef<HTMLButtonElement>(null);
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState(BUILT_IN_AVATARS[0]!.src);
+  const [personality, setPersonality] = useState<PersonalityId | null>("balanced");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmed = name.trim();
@@ -50,6 +55,7 @@ export function CreateBotDialog({
         name: trimmed,
         color: avatarDataUrl,
         avatarSet: "organic",
+        instructions: personality ? personalityPreset(personality).instructions : "",
       });
     } catch (err) {
       setError(errorText(err, t`Could not create bot`));
@@ -118,6 +124,16 @@ export function CreateBotDialog({
               value={name}
               maxLength={BOT_NAME_MAX_LENGTH}
               onChange={(event) => setName(event.target.value)}
+            />
+          </div>
+          <div className="sydney-create-bot-field">
+            <span className="sydney-create-bot-label">
+              <Trans>Personality</Trans>
+            </span>
+            <PersonalityPicker
+              value={personality ?? "custom"}
+              onChange={setPersonality}
+              disabled={submitting}
             />
           </div>
           {error ? (

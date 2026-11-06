@@ -116,6 +116,59 @@
   text-align: center;
 }
 
+.sydney-personality-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sydney-personality-option {
+  display: flex;
+  width: 100%;
+  min-height: 66px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--muted);
+  padding: 10px 12px;
+  color: var(--foreground);
+  text-align: start;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.sydney-personality-option:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sydney-personality-option[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--foreground) 36%, transparent);
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+    0 6px 16px color-mix(in srgb, black 7%, transparent);
+}
+
+.sydney-personality-option-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sydney-personality-option-description {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 @media (max-width: 767px) {
   .sydney-create-bot,
   .sydney-integrations-dialog {
@@ -413,6 +466,20 @@
 
   .sydney-create-bot .sydney-avatar-library-upload {
     min-height: 52px;
+  }
+
+  .sydney-create-bot .sydney-personality-picker-grid {
+    gap: 10px;
+  }
+
+  .sydney-create-bot .sydney-personality-option {
+    min-height: 72px;
+    border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+    background: color-mix(in srgb, var(--card) 66%, transparent);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, white 82%, transparent) inset,
+      0 8px 16px color-mix(in srgb, black 6%, transparent);
+    backdrop-filter: blur(14px) saturate(1.08);
   }
 
   .sydney-create-bot-footer {

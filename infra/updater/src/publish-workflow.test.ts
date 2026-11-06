@@ -160,6 +160,7 @@ describe("server image publish workflow", () => {
   });
 
   it("lets only the newest waiting main revision replace a queued one, never a running one", () => {
+    const mainCancelInProgress = ["$", "{{ github.ref == 'refs/heads/main' }}"].join("");
     const locks = [
       "static-checks",
       "unit-tests-shard",
@@ -167,10 +168,10 @@ describe("server image publish workflow", () => {
       "publish-server-image",
     ].map((name) => ci.jobs[name]?.concurrency);
     expect(new Set(locks.map((lock) => lock?.group)).size).toBe(locks.length);
-    for (const lock of locks) {
+    for (const [index, lock] of locks.entries()) {
       expect(lock?.group).toMatch(/main/);
       expect(lock?.queue).toBeUndefined();
-      expect(lock?.["cancel-in-progress"]).toBeUndefined();
+      expect(lock?.["cancel-in-progress"]).toBe(index < 3 ? mainCancelInProgress : undefined);
     }
     // Release prerequisites start with their run, so they reach these locks in push order and an
     // older revision cannot replace a newer one that is already waiting.

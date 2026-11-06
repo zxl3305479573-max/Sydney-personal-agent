@@ -6,8 +6,10 @@ import { Button, Disclosure, Textarea } from "@rakazo/ui-web";
 import { Popover, PopoverContent, PopoverTrigger } from "@rakazo/ui-web/components/ui/popover";
 import { History } from "lucide-react";
 import { useId, useState } from "react";
+import { personalityIdForInstructions, personalityPreset } from "../lib/personality-library";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
+import { PersonalityPicker } from "./PersonalityPicker";
 
 export function InstructionSettings({ bot }: { bot: Bot }) {
   const { t } = useLingui();
@@ -43,6 +45,7 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
       setPending(false);
     }
   }
+  const personality = personalityIdForInstructions(instructions);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between pe-1">
@@ -96,6 +99,27 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
             </PopoverContent>
           </Popover>
         ) : null}
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">
+          <Trans>Personality library</Trans>
+        </p>
+        <PersonalityPicker
+          value={personality}
+          disabled={pending}
+          onChange={(next) => {
+            if (!next) return;
+            const preset = personalityPreset(next);
+            if (preset.instructions === instructions) return;
+            void save(() =>
+              rpc.bots.update({
+                botId: bot.id,
+                instructions: preset.instructions,
+                expectedInstructions: baseline,
+              }),
+            );
+          }}
+        />
       </div>
       <Textarea
         id={`${id}-instructions`}

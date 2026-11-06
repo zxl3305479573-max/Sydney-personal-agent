@@ -1,5 +1,12 @@
 # 验证记录
 
+## 2026-11-06：移动网页页面面包屑
+
+- 静态核对：路由页面继续由 `PageBreadcrumb` 按路径显示具体界面，根路径欢迎页返回空结果。
+- 静态核对：创建群聊、群聊设置、Bot 设置、电脑、例行任务、例行任务编辑和导入 Agent 均在移动面板内显示对应 `Sydney / 具体界面`。
+- 已执行：相关 Biome 检查、`pnpm exec tsc --noEmit -p apps/web/tsconfig.json`、`git diff --check`。
+- 待执行：真实手机浏览器视觉检查。
+
 ## 2026-11-06：固定头像与个人头像库
 
 - 头像库、Bot 创建、头像编辑、PWA 和共享头像渲染共 6 个定向测试文件通过，合计 45 项；Web 与 ui-web TypeScript 检查通过。
@@ -935,8 +942,18 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；覆盖本轮新增的组件样式类名和 JSX 接线。
 - `git diff --check`：通过；未发现补丁空白错误。
 - `pnpm exec vitest run apps/web/src/components/SidebarFooter.test.tsx apps/web/src/pages/shell/create-bot-dialog.test.tsx apps/web/src/App.test.tsx --maxWorkers=1`：3 个文件、37 项通过。
+- `pnpm --config.engine-strict=false --filter @rakazo/web build`：生产构建成功，Vite 完成 6,119 个模块转换；构建仅提示当前 Node `22.22.0` 低于仓库要求 `22.22.2`。
 - 未启动 Web 服务，未执行真实浏览器截图、手机实机、软键盘、深色主题、`backdrop-filter` 降级和部署验证；因此不能将视觉效果标记为实机验收完成。
 - 本轮没有修改安装、配置、启动、服务、权限或数据路径，也没有运行 Docker、数据库或全工作区构建。
+
+## Bot 人格库验证（2026-11-06）
+
+- 范围：人格预设库、新建 Bot 人格选择、Bot 设置中的人格切换和现有自定义指令兼容。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过。
+- `pnpm exec vitest run apps/web/src/lib/personality-library.test.ts apps/web/src/pages/shell/create-bot-dialog.test.tsx apps/web/src/pages/shell/bot-panel.test.tsx --maxWorkers=1`：3 个文件、35 项通过；覆盖人格预设识别、新建 Bot 请求包含所选人格指令以及原 Bot 设置回归。
+- 相关新增和修改文件的 `pnpm exec biome check ...`：通过；`git diff --check`：通过。
+- `pnpm --config.engine-strict=false --filter @rakazo/web build`：生产构建成功，Vite 完成 6,121 个模块转换；当前 Node `22.22.0` 低于仓库要求 `22.22.2`，构建输出保留引擎警告。
+- 未运行真实 API/数据库、真实模型、浏览器视觉、手机实机、人格文案本地化和部署；没有验证人格指令对不同模型的实际输出质量。
 
 ## CI 失败修复离线验证（2026-11-06）
 
@@ -946,3 +963,10 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：通过；`pnpm exec turbo check --continue` 中除本地旧 Expo 依赖检查外的 21 个任务通过。
 - 相关改动执行 `pnpm exec biome check`：通过；`git diff --check`：通过。
 - 未完成：本机 `node_modules` 仍是 Expo 57.0.31 等旧补丁版本，移动端 `expo install --check` 因本机 Node 22.22.0 和旧安装失败；未重装依赖、未运行 PostgreSQL、Docker、浏览器 E2E、移动端实机或生产部署。锁文件已更新，需由 GitHub CI 的干净安装确认。
+
+## CI 第二轮回归修复验证（2026-11-06）
+
+- `pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/components/ai/CollaborationMarker.test.tsx apps/web/src/lib/index-html-theme.test.ts packages/ui-web/src/logo-avatar.test.tsx infra/updater/src/publish-workflow.test.ts infra/updater/src/compose-env.test.ts apps/mobile/lib/chat-appearance.test.ts --maxWorkers=1`：7 个文件、59 项通过。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；相关文件的 Biome 检查和 `git diff --check`：通过。
+- `pnpm exec vitest run --shard=2/3`：未作为成功验证，Windows 本地环境触发多个路径、权限、外部服务和 Linux 行为相关的既有失败后已停止；不代表 GitHub Linux 分片结果。
+- GitHub 首轮新提交已确认失败原因并完成本轮修复；第二轮提交后的 CI 尚待运行完成，未将其标记为通过。

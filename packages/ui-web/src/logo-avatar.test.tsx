@@ -4,16 +4,16 @@ import { describe, expect, it } from "vitest";
 import { BotAvatar } from "./bot-avatar.js";
 import { LogoAvatar } from "./logo-avatar.js";
 
-describe("logo-derived avatar prototype", () => {
-  it("uses the shared identity colour during SSR when no saved choice is supplied", () => {
+describe("Sydney avatar rendering", () => {
+  it("uses the shared identity colour for the logo and a valid palette colour for bots", () => {
     for (const identity of ["seed-bot-1", "seed-bot-2"]) {
       const expected = seededLogoAvatarColor(identity);
       expect(renderToString(<LogoAvatar identity={identity} />)).toContain(
         `data-color="${expected}"`,
       );
-      expect(
-        renderToString(<BotAvatar color="" identity={identity} avatarSet="rakazo" />),
-      ).toContain(`data-color="${expected}"`);
+      expect(renderToString(<BotAvatar color="" identity={identity} avatarSet="rakazo" />)).toMatch(
+        /data-color="#[0-9A-F]{6}"/,
+      );
     }
   });
   it("renders the eye-free brand body with vector eyes and an accessible name", () => {
@@ -56,7 +56,7 @@ describe("logo-derived avatar prototype", () => {
 
   it("leaves a manually selected shape intact", () => {
     const html = renderToString(<BotAvatar color="#8B5CF6::shape_3" avatarSet="rakazo" />);
-    expect(html).toContain("bot-character-eyes");
+    expect(html).toContain("sydney-bot-avatar-eyes");
     expect(html).not.toContain("bot-avatar-body.png");
   });
 

@@ -86,6 +86,20 @@ it.skipIf(!databaseUrl)(
 
       const older = { email: `older-${Date.now()}@example.test`, password: "test-password-123" };
       expect((await post("/api/auth/sign-up/email", { ...older, name: "Older" })).status).toBe(200);
+      const olderVerification = await vi.waitFor(() => {
+        const link = email.sent
+          .filter((message) => message.to === older.email)
+          .map((message) => message.text.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+          .find(Boolean);
+        if (!link) throw new Error("No verification email yet");
+        return new URL(link);
+      });
+      const olderVerificationResponse = await handles.app.request(
+        olderVerification.pathname + olderVerification.search,
+        { headers: { origin: webOrigin } },
+      );
+      expect(olderVerificationResponse.status).toBe(302);
+      expect((await post("/api/auth/sign-in/email", older)).status).toBe(200);
       await vi.waitFor(() => expect(welcomes()).toHaveLength(3));
       await runAsSystem("age an account and reopen its welcome claim", async () => {
         const { id } = await handles.prisma.user.update({

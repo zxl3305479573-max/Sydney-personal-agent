@@ -54,6 +54,9 @@ describe("CreateBotDialog", () => {
     await act(async () =>
       document.querySelector<HTMLButtonElement>('[aria-label="橙花"]')!.click(),
     );
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[data-testid="personality-concise"]')!.click(),
+    );
 
     const input = document.querySelector<HTMLInputElement>('input[placeholder="Name your Bot"]')!;
     await act(async () => {
@@ -74,6 +77,7 @@ describe("CreateBotDialog", () => {
       name: "Scout",
       color: "data:image/webp;base64,avatar",
       avatarSet: "organic",
+      instructions: expect.stringContaining("简洁高效"),
     });
     expect(CreateBotInput.parse(create.mock.calls[0]![0])).toMatchObject(create.mock.calls[0]![0]);
     await act(async () => root.unmount());
