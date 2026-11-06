@@ -1,5 +1,13 @@
 # 开发过程记录
 
+## 2026-11-06：GitHub Actions GHCR 镜像名修复
+
+- 关联 CI 镜像发布。连续三次 main 推送中，app、updater、computer 的 amd64/arm64 构建均在 `docker/build-push-action` 立即失败；失败集中发生在镜像发布回退 job，其他检查因排队或并发取消未能提供代码失败证据。
+- 根因：仓库名 `Sydney-personal-agent` 含大写字母，工作流直接使用 `${{ github.repository }}` 生成 GHCR/Docker 镜像引用；Docker 镜像仓库路径必须使用小写。
+- 修复：在 validate、GitHub native build、Depot build 和 publish jobs 中统一生成小写 `ghcr.io/<owner>/<repo>/<image>`，并将同一值用于 metadata、Buildx/Depot 输出、app 镜像检查和 digest 合并发布。
+- 验证：工作流通过本地 PyYAML 解析，`git diff --check` 通过，已确认工作流不再保留直接拼接 `${{ github.repository }}` 的镜像引用。未推送，需下一次 GitHub Actions 运行复验。
+- 运维影响：仅修改 CI 镜像命名，未修改服务器、数据库、环境变量、依赖或部署服务；当前工作区其他未提交改动均保留。
+
 ## 2026-11-06：手机新建 Bot 弹窗按参考图复刻
 
 - 关联 PA-018。移动端新建 Bot 弹窗改为贴底全宽抽屉：白色半透明玻璃背景、顶部拖动条、右上关闭按钮、标题和副标题、放大的头像预览、名称标签与输入框、头像形状/颜色分组以及底部全宽创建按钮。

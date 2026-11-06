@@ -132,8 +132,8 @@ application traffic queued indefinitely.
 ## Published images and tags
 
 `.github/workflows/publish-server-image.yml` publishes to `ghcr.io/<owner>/<repo>/…`, derived from
-`${{ github.repository }}` rather than hardcoded, so a fork's CI fills the fork's own namespace. For
-this repository that is:
+`${{ github.repository }}` rather than hardcoded, and lowercases the repository path for GHCR
+compatibility. A fork's CI therefore fills the fork's own namespace. For this repository that is:
 
 | Image | Contents |
 | --- | --- |

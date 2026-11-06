@@ -1,5 +1,14 @@
 # 验证记录
 
+## 2026-11-06：GitHub Actions GHCR 镜像名修复
+
+- 检查范围：`.github/workflows/publish-server-image.yml` 的 validate、GitHub native build、Depot build 和 publish jobs。
+- 失败证据：GitHub 运行 `42015640320`、`42014768764` 和 `41990556951` 中，app、updater、computer 的 amd64/arm64 job 均在构建步骤失败；Job 日志接口返回 403，未取得具体构建输出，但失败时间接近启动时间且跨镜像、跨架构一致。
+- 代码核对：仓库 `zxl3305479573-max/Sydney-personal-agent` 的 `github.repository` 含大写 `Sydney`；原工作流直接将其拼入 GHCR 镜像路径。已改为各 job 运行 Bash 小写化 `${REPOSITORY,,}`，并复用输出值完成镜像标签、推送、检查和 digest 发布。
+- 实际执行：`python -c "import yaml; yaml.safe_load(...)"` 解析工作流通过；`git diff --check -- .github/workflows/publish-server-image.yml` 通过；检索确认没有遗留直接拼接 `${{ github.repository }}` 的镜像引用。
+- 未执行：未推送、未重跑 GitHub Actions，未在本机执行 Docker 多架构构建；因此尚未证明 GHCR 权限、Depot 项目或 runner 网络状态已恢复。
+- 限制：根因判断基于工作流引用、仓库名和六个 job 的一致性失败模式；由于 GitHub Job 日志受 403 限制，仍需下一次 CI 运行的真实日志作最终确认。
+
 ## 2026-11-06：手机新建 Bot 弹窗视觉复刻
 
 - `apps/web/src/pages/shell/create-bot-dialog.test.tsx`：2 项通过，覆盖形状与颜色联动、流体头像颜色及创建输入契约。
