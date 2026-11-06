@@ -14,7 +14,7 @@ import {
   ContextMenuTrigger,
   GroupAvatar,
 } from "@rakazo/ui-web";
-import { ChevronDown, CircleAlert, Lock, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, CircleAlert, Lock, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { Suspense } from "react";
 import { IconTooltip } from "../../components/IconTooltip";
@@ -27,6 +27,13 @@ import {
 import type { RosterDropAction, RosterDropTarget } from "./roster-drop";
 import type { sidebarGroupsForSpaces } from "./space-sidebar";
 import { useRedrawAtMidnight } from "./use-redraw-at-midnight";
+
+type MobileSidebarGroups = ReturnType<
+  typeof sidebarGroupsForSpaces<Space["bots"][number], Space["groups"][number]>
+>;
+type MobileSidebarItem = MobileSidebarGroups[number]["bots"][number];
+type MobileBotItem = Extract<MobileSidebarItem, { kind: "bot" }>;
+type MobileGroupItem = Extract<MobileSidebarItem, { kind: "group" }>;
 
 export function SidebarRoster({
   sidebarGroups,
@@ -58,6 +65,9 @@ export function SidebarRoster({
   activeSnapshot,
   botMenuContent,
   mini = false,
+  mobile = false,
+  onCreateBot,
+  onCreateGroup,
 }: {
   sidebarGroups: ReturnType<
     typeof sidebarGroupsForSpaces<Space["bots"][number], Space["groups"][number]>
@@ -90,9 +100,24 @@ export function SidebarRoster({
   activeSnapshot: ThreadSnapshot | null;
   botMenuContent: ReactNode;
   mini?: boolean;
+  mobile?: boolean;
+  onCreateBot?: () => void;
+  onCreateGroup?: () => void;
 }) {
   useRedrawAtMidnight();
   const { t } = useLingui();
+  if (mobile) {
+    return (
+      <MobileSidebarRoster
+        sidebarGroups={sidebarGroups}
+        active={active}
+        activeGroup={activeGroup}
+        openSpaceChat={openSpaceChat}
+        onCreateBot={onCreateBot}
+        onCreateGroup={onCreateGroup}
+      />
+    );
+  }
   return (
     <>
       {sidebarGroups.map((group, groupIndex) => {
@@ -477,7 +502,7 @@ export function SidebarRoster({
                       <span
                         dir="auto"
                         data-roster-bot-name=""
-                        className="max-w-full truncate text-center text-body2 font-medium text-foreground"
+                        className="rk-script-type max-w-full truncate text-center text-body2 font-medium text-foreground"
                       >
                         {item.chat.name}
                       </span>
@@ -488,7 +513,7 @@ export function SidebarRoster({
                             <span
                               dir="auto"
                               data-roster-bot-name={item.kind === "bot" ? "" : undefined}
-                              className={`max-w-full shrink-0 truncate text-body2 text-foreground ${
+                              className={`rk-script-type max-w-full shrink-0 truncate text-body2 text-foreground ${
                                 item.chat.unread ? "font-semibold" : "font-medium"
                               }`}
                             >
@@ -608,6 +633,158 @@ export function SidebarRoster({
         );
       })}
     </>
+  );
+}
+
+function MobileSidebarRoster({
+  sidebarGroups,
+  active,
+  activeGroup,
+  openSpaceChat,
+  onCreateBot,
+  onCreateGroup,
+}: {
+  sidebarGroups: ReturnType<
+    typeof sidebarGroupsForSpaces<Space["bots"][number], Space["groups"][number]>
+  >;
+  active: Pick<Bot, "id"> | undefined;
+  activeGroup: Pick<Group, "id"> | undefined;
+  openSpaceChat: (spaceId: string, path: string) => void;
+  onCreateBot?: () => void;
+  onCreateGroup?: () => void;
+}) {
+  const { t } = useLingui();
+  const items = sidebarGroups.flatMap((group) => group.bots);
+  const botItems = items.filter((item) => item.kind === "bot");
+  const groupItems = items.filter((item) => item.kind === "group");
+
+  return (
+    <div className="flex flex-col gap-5 pb-4 pt-2">
+      {onCreateBot ? (
+        <button
+          type="button"
+          data-testid="mobile-create-bot"
+          onClick={onCreateBot}
+          className="flex h-14 w-full items-center gap-3 rounded-full border border-border bg-background px-5 text-start text-[17px] text-foreground shadow-sm"
+        >
+          <Plus size={24} strokeWidth={1.7} aria-hidden="true" />
+          <Trans>New bot</Trans>
+        </button>
+      ) : null}
+      <MobileRosterSection title={t`Bots`}>
+        {botItems.map((item) => (
+          <MobileRosterRow
+            key={`bot:${item.chat.id}`}
+            item={item}
+            selected={active?.id === item.chat.id}
+            openSpaceChat={openSpaceChat}
+          />
+        ))}
+      </MobileRosterSection>
+      <MobileRosterSection
+        title={t`Group`}
+        action={
+          onCreateGroup ? (
+            <button
+              type="button"
+              data-testid="mobile-create-group"
+              aria-label={t`New group chat`}
+              onClick={onCreateGroup}
+              className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <Plus size={28} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+          ) : null
+        }
+      >
+        {groupItems.map((item) => (
+          <MobileRosterRow
+            key={`group:${item.chat.id}`}
+            item={item}
+            selected={activeGroup?.id === item.chat.id}
+            openSpaceChat={openSpaceChat}
+          />
+        ))}
+        {groupItems.length === 0 ? (
+          <p className="px-1 text-[15px] text-muted-foreground">
+            <Trans>No group chats yet.</Trans>
+          </p>
+        ) : null}
+      </MobileRosterSection>
+    </div>
+  );
+}
+
+function MobileRosterSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-[20px] font-semibold tracking-tight text-foreground">{title}</h2>
+        {action}
+      </div>
+      <div className="flex flex-col gap-1">{children}</div>
+    </section>
+  );
+}
+
+function MobileRosterRow({
+  item,
+  selected,
+  openSpaceChat,
+}: {
+  item: MobileSidebarItem;
+  selected: boolean;
+  openSpaceChat: (spaceId: string, path: string) => void;
+}) {
+  const chat = item.chat;
+  const avatar =
+    item.kind === "bot" ? (
+      <BotAvatar
+        avatarSet={(item as MobileBotItem).chat.avatarSet}
+        color={(item as MobileBotItem).chat.color}
+        identity={chat.id}
+        size={56}
+        status={(item as MobileBotItem).chat.status}
+      />
+    ) : (
+      <GroupAvatar members={(item as MobileGroupItem).chat.members} size={56} />
+    );
+  const preview =
+    item.kind === "bot"
+      ? chat.preview ||
+        ((item as MobileBotItem).chat.status !== "idle" ? (item as MobileBotItem).chat.status : "")
+      : chat.preview ||
+        (item as MobileGroupItem).chat.members.map((member) => member.name).join(", ");
+  return (
+    <button
+      type="button"
+      aria-current={selected ? "page" : undefined}
+      onClick={() =>
+        openSpaceChat(chat.spaceId, item.kind === "bot" ? `/app/${chat.id}` : `/app/g/${chat.id}`)
+      }
+      className={`flex w-full items-center gap-4 rounded-2xl px-1 py-2 text-start ${
+        selected ? "bg-sidebar-accent" : "hover:bg-accent"
+      }`}
+    >
+      <span className="shrink-0">{avatar}</span>
+      <span className="min-w-0 flex-1">
+        <span className="rk-script-type block truncate text-[18px] font-medium text-foreground">
+          {chat.name}
+        </span>
+        {preview ? (
+          <span className="mt-0.5 block truncate text-[15px] text-muted-foreground">{preview}</span>
+        ) : null}
+      </span>
+      {chat.unread ? <span className="size-2 shrink-0 rounded-full bg-unread" /> : null}
+    </button>
   );
 }
 

@@ -62,6 +62,7 @@ vi.mock("../lib/auth-capabilities", () => ({ fetchAuthCapabilities: vi.fn() }));
 vi.mock("../lib/auth", () => ({
   authClient: {
     signIn: { social: vi.fn(async () => ({})), email: vi.fn(), emailOtp: vi.fn() },
+    signUp: { email: vi.fn() },
     emailOtp: { sendVerificationOtp: vi.fn() },
   },
 }));
@@ -270,6 +271,33 @@ it("names a new account and keeps the email when going back from the code", asyn
   // The session refetch moves a signed-in user on; until then the form stays busy.
   expect(clearSpaceSelection).toHaveBeenCalled();
   expect(button("Working…").disabled).toBe(true);
+});
+
+it("requires an emailed code before a signup can enter the app", async () => {
+  vi.mocked(fetchAuthCapabilities).mockResolvedValue(codeCapabilities);
+  vi.mocked(authClient.emailOtp.sendVerificationOtp).mockResolvedValue({
+    data: { success: true },
+    error: null,
+  } as never);
+  vi.mocked(authClient.signIn.emailOtp).mockResolvedValue({ data: {}, error: null } as never);
+  await render("up");
+  expect(host.querySelector('input[type="password"]')).toBeNull();
+  await enter(host.querySelector('input[name="name"]'), "Ada");
+  await enter(host.querySelector('input[name="email"]'), "ada@example.com");
+  await submit();
+  expect(authClient.signUp.email).not.toHaveBeenCalled();
+  expect(authClient.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
+    email: "ada@example.com",
+    type: "sign-in",
+  });
+  expect(host.querySelector("h1")!.textContent).toBe("Check your email");
+  await enter(host.querySelector('input[aria-label="Code"]'), "123456");
+  expect(authClient.signIn.emailOtp).toHaveBeenCalledWith({
+    email: "ada@example.com",
+    otp: "123456",
+    name: "Ada",
+  });
+  expect(clearSpaceSelection).toHaveBeenCalled();
 });
 
 it("sends the code on the first Continue but never submits an unfinished code", async () => {

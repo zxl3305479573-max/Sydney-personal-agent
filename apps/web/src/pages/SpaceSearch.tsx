@@ -44,7 +44,7 @@ export function SpaceSearchResults({
     );
   }
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="sydney-list-surface flex flex-col gap-0.5">
       {hits.map((hit) => (
         <button
           key={searchHitListKey(hit)}
@@ -61,7 +61,7 @@ export function SpaceSearchResults({
             </span>
           </div>
           <div className="mt-0.5 flex min-w-0 gap-2 text-[13px] text-muted-foreground" dir="auto">
-            <span className="max-w-[40%] shrink-0 truncate text-foreground/75">
+            <span className="rk-script-type max-w-[40%] shrink-0 truncate text-foreground/75">
               {hit.groupName ?? hit.botName}
             </span>
             <span className="truncate">{hit.snippet}</span>

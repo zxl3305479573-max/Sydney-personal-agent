@@ -1,6 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { BotAvatarSet } from "@rakazo/contracts";
+import { SHIPPED_BOT_AVATAR_SHAPE_KEYS } from "@rakazo/core";
 import {
   BOT_AVATAR_COLORS,
   BotAvatar,
@@ -34,6 +35,7 @@ export function BotLookPicker({
   identity,
   organicIdentities,
   avatarSet = "organic",
+  colorLabel,
   onAvatarSetChange,
   onChange,
 }: {
@@ -41,14 +43,20 @@ export function BotLookPicker({
   identity?: string;
   organicIdentities?: readonly string[];
   avatarSet?: BotAvatarSet;
+  colorLabel?: string;
   onAvatarSetChange?: (set: BotAvatarSet, value: string) => void;
   onChange: (value: string, identity?: string) => void;
 }) {
   const parsed = parseBotAvatar(value);
   const fluidMatch = /^(#[0-9a-fA-F]{3,6})::fluid_(#[0-9a-fA-F]{6})$/.exec(value);
   const fluidBase = fluidMatch?.[1] ?? defaultBotAvatarValue(value);
-  const fluidColor = fluidMatch?.[2] ?? (/^#[0-9a-fA-F]{6}$/.test(fluidBase) ? fluidBase : "#8B5CF6");
+  const fluidColor =
+    fluidMatch?.[2] ?? (/^#[0-9a-fA-F]{6}$/.test(fluidBase) ? fluidBase : "#8B5CF6");
   function selectColor(color: string) {
+    if (parsed.shapeIndex !== undefined) {
+      onChange(`${color}::shape_${parsed.shapeIndex}`);
+      return;
+    }
     const next = `${fluidBase}::fluid_${color}`;
     if (avatarSet !== "fluid" && onAvatarSetChange) onAvatarSetChange("fluid", next);
     else onChange(next);
@@ -56,12 +64,35 @@ export function BotLookPicker({
 
   return (
     <div className="space-y-4">
+      {organicIdentities ? (
+        <fieldset className="sydney-bot-shapes" aria-label={t`Bot shape`}>
+          <button
+            type="button"
+            aria-label={t`Default shape`}
+            aria-pressed={parsed.shapeIndex === undefined}
+            onClick={() => onAvatarSetChange?.("fluid", `${fluidBase}::fluid_${fluidColor}`)}
+            className="sydney-bot-shape"
+          >
+            <BotAvatar color={`${fluidBase}::fluid_${fluidColor}`} size={38} />
+          </button>
+          {SHIPPED_BOT_AVATAR_SHAPE_KEYS.map((shape, index) => (
+            <button
+              key={shape}
+              type="button"
+              aria-label={t`Shape ${index + 1}`}
+              aria-pressed={parsed.shapeIndex === index}
+              onClick={() => onAvatarSetChange?.("organic", `${fluidColor}::shape_${index}`)}
+              className="sydney-bot-shape"
+            >
+              <BotAvatar color={`${fluidColor}::shape_${index}`} size={38} />
+            </button>
+          ))}
+        </fieldset>
+      ) : null}
       <div className="border-t border-border pt-2">
-        {organicIdentities ? null : (
-          <div className="mb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            <Trans>Color</Trans>
-          </div>
-        )}
+        <div className="mb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+          {colorLabel ?? <Trans>Color</Trans>}
+        </div>
         <div className="grid grid-cols-6 place-items-center gap-2">
           {BOT_AVATAR_COLORS.map((color) => {
             const selected = fluidColor.toLowerCase() === color.toLowerCase() && !parsed.isImage;
@@ -83,7 +114,11 @@ export function BotLookPicker({
           })}
         </div>
         <div className="mt-3">
-          <AppearanceColorPicker label={t`Custom color`} value={fluidColor} onChange={selectColor} />
+          <AppearanceColorPicker
+            label={t`Custom color`}
+            value={fluidColor}
+            onChange={selectColor}
+          />
         </div>
       </div>
     </div>

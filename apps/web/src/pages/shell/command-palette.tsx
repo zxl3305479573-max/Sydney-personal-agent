@@ -134,7 +134,7 @@ export function CommandPalette({
                     status={bot.status}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-foreground" dir="auto">
+                    <div className="rk-script-type truncate font-medium text-foreground" dir="auto">
                       {bot.name}
                     </div>
                     {subtitle ? (

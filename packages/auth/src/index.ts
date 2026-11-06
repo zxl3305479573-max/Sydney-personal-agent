@@ -203,6 +203,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     });
   // SSO-only deployments keep every email credential closed, codes included.
   const emailCodeSignIn = Boolean(env.email) && env.passwordAuth !== false;
+  const requireSignupEmailCode = emailCodeSignIn;
   // SSO-only deployments keep the identity provider as the only way in.
   const relyingParty =
     env.passwordAuth === false
@@ -268,7 +269,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         : undefined,
     },
     emailVerification: {
-      // Open signups get a session at once; the link only marks the address verified.
+      // Email-capable signups wait for mailbox proof before receiving a session.
       sendOnSignUp: Boolean(env.email),
       sendOnSignIn: true,
       autoSignInAfterVerification: false,
@@ -511,7 +512,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               message: "Registration requires email delivery",
             });
           }
-          requireEmailVerification = policy.allowlist.length > 0;
+          requireEmailVerification = requireSignupEmailCode;
         } else if (policy) {
           requireEmailVerification = policy.allowlist.length > 0;
         }
@@ -554,7 +555,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
                     if (accounts.some((account) => account.providerId === "oidc")) return session;
                   }
                   policy ??= signupPolicyFromEnv(env);
-                  return policy.allowlist.length === 0 ? session : null;
+                  return policy.allowlist.length > 0 || requireSignupEmailCode ? null : session;
                 },
               },
             },
@@ -619,7 +620,11 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
                 message: "Email verification required",
               });
             }
-            if (!user.emailVerified && policy.allowlist.length > 0 && !bypassAllowlist) {
+            if (
+              !user.emailVerified &&
+              (policy.allowlist.length > 0 || requireSignupEmailCode) &&
+              !bypassAllowlist
+            ) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_VERIFICATION_REQUIRED",
                 message: "Email verification required",

@@ -54,6 +54,8 @@ it("applies a preset and rejects incomplete HEX input", async () => {
       'button[aria-label="背景：#000000"]',
     )!;
     await act(async () => trigger.click());
+    const positioner = document.querySelector('[data-slot="popover-content"]')?.parentElement;
+    expect(positioner?.getAttribute("data-side")).toBe("bottom");
     const white = document.querySelector<HTMLButtonElement>(
       'button[aria-label="选择 #FFFFFF"]',
     )!;

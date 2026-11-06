@@ -1,5 +1,61 @@
 # 运维手册
 
+## 2026-11-05 手机首屏白屏优化发布
+
+Web 版本 `20261105134933` 基于上一版 `20261105134539` 快照，仅加入首屏 HTML、启动脚本及样式和 PWA 插件调整。构建将启动样式与标志嵌入 HTML，手机主样式由 `mobile-startup.js` 在下载完成后启用；必须将完整 HTML、启动脚本、样式和 `sw.js` 一并发布，不可单独替换 HTML。`theme.js` 加入 PWA 预缓存；未改变 CSP、后台或依赖。
+
+上一版完整产物保留于 `/opt/sydney-web-stage/apps/web/dist.before-first-paint-20261105`，新目录保留旧版哈希资源。回退前核对后续发布、保留当前产物，再恢复备份、重启 `sydney-web-cloud` 并核对版本及接口；完整回退未演练。预览期间使用的回环临时 HTTP 服务和 SSH 转发已停止；公网首屏、会话及健康接口正常，真实 iPhone 与 PWA 缓存更新待验收。
+
+## 2026-11-05 手机新建 Bot 更新
+
+当时云电脑 Web 版本为 `20261105134539`，基于此前在线的 `20261105133934` 快照构建，仅叠加本次新建弹窗、头像选择与侧栏修复。前一版完整目录位于 `/opt/sydney-web-stage/apps/web/dist.before-mobile-bot-sheet-20261105`，新目录保留旧版哈希资源；后台未重新发布。回退需恢复备份、重启 `sydney-web-cloud` 并复查版本及服务，尚未演练。手机 PWA 缓存更新和真实创建尚未验证。
+
+## 2026-11-05 iPhone 搜索栏底部间距发布
+
+Web 版本 `20261105133934` 仅更新手机搜索栏底部间距；上一版完整产物保留于 `/opt/sydney-web-stage/apps/web/dist.before-iphone-bottom-20261105`，新版本保留旧哈希资源。回退前核对后续发布、保留当前产物，再恢复备份并重启 `sydney-web-cloud`，核对公网版本及接口；回退未演练。Web 及隧道 active，公网首页、健康接口、认证会话和新资源返回 200；真实 iPhone 与 PWA 更新待验收。
+
+## 2026-11-05 iPhone 首页视口定位发布
+
+Web 版本 `20261105132910` 基于上一版发布快照更新手机侧栏视口定位；上一版产物保留于 `/opt/sydney-web-stage/apps/web/dist.before-iphone-viewport-20261105`，新版本保留旧哈希资源。回退前需核对后续发布并保留当前产物，再恢复备份、重启 `sydney-web-cloud` 并核对版本和接口；回退尚未演练。云端 Web、隧道和公网首页、健康接口、认证会话及新资源均正常；真实 iPhone 和 PWA 缓存更新尚未验证。
+
+## 2026-11-05 手机首页安全区修复发布
+
+Web 版本 `20261105131952` 基于上一版发布快照，仅更新侧栏和账号入口的重复安全区偏移；上一版完整产物保留在 `/opt/sydney-web-stage/apps/web/dist.before-mobile-safe-area-20261105`，新版本保留旧哈希资源。回退前应核对后续发布并保留当前产物，再恢复备份、重启 `sydney-web-cloud`、核对版本和接口；回退尚未演练。
+
+发布后公网静态资源正常，认证会话接口超时；排查发现云端到后台的隧道无响应，后台 API 健康和会话接口正常。重启 `sydney-web-cloud-link` 和 `sydney-web-cloud` 后，隧道与公网会话接口均返回 200。真实手机及 PWA 缓存更新尚未验证。
+
+## 2026-11-05 手机首页布局发布
+
+当时云电脑 Web 版本为 `20261105131324`，基于上一版发布源码快照仅更新手机首页侧栏、账号入口及样式并在云端构建；运行目录为 `/opt/sydney-web-stage/apps/web/dist`，上一版完整产物保留于 `/opt/sydney-web-stage/apps/web/dist.before-mobile-layout-20261105`，新产物保留旧版哈希资源。后台 API 和 Worker 未更新。
+
+回退时先确认没有后续发布，保留当前产物，再恢复上述备份、重启 `sydney-web-cloud` 并检查公网版本和接口；完整回退尚未演练。公网首页、认证会话、健康接口和新资源返回 200；已安装 PWA 的缓存更新和真实手机视觉尚未验证。
+
+## 2026-11-05 手机启动体验更新
+
+当时云电脑 Web 版本为 `20261105130710`，基于上一版发布快照仅更新 `mobile-startup.js` 和 `mobile-startup.css` 后重新构建；前一版完整目录位于 `/opt/sydney-web-stage/apps/web/dist.before-mobile-startup-20261105-2107`，新版保留旧版哈希资源。后台未重新发布。回退需恢复该目录、重启 `sydney-web-cloud` 并核对版本与资源；尚未演练。已安装 PWA 的缓存更新和真实手机效果尚未验证。
+
+## 2026-11-05 Web 与后台发布
+
+本次运行版本基于 `5e6c5be05` 和部署时的未提交工作区快照。Web 构建版本为 `20261105124011`，运行目录为云电脑 `/opt/sydney-web-stage/apps/web/dist`，旧版完整目录为同级 `dist.before-release-20261105-2036`；新版资源目录同时保留旧版哈希资源。API 和 Worker 运行产物位于后台 `/opt/sydney/apps/{api,worker}/dist/index.js`，旧文件及旧 source map 备份于 `/var/backups/sydney-release-20261105-2036`。新版 source map 名为 `index.release-20261105.js.map`。
+
+后台候选构建的外部依赖指向 `/opt/sydney-release-20261105-2036/source` 中的依赖快照，该目录是运行依赖，不得清理；生产环境文件和数据目录未更改，数据库 schema 一致，未执行迁移。Web 和后台已分别重启并完成基础健康检查。回滚需协调恢复旧 Web 目录及 API、Worker 备份，重启对应服务并复查健康；完整回滚尚未演练。原生手机应用未发布。
+
+本次启用了邮箱验证相关逻辑，已有未验证账户可能无法继续使用旧会话；公网能力接口显示邮箱验证码可用，真实 QQ 邮件收取和账号验证尚未验收。下方较早记录中的产物哈希、待部署状态均为历史状态。
+
+## 手机网页启动动画（历史记录）
+
+网页构建需一并发布 `mobile-startup.js`、`mobile-startup.css` 与 `sydney-mark.png`，它们加入 PWA 首屏预缓存；首次启动仍受现有网页资源及网络条件影响。当前仅完成本地离线验证，未构建或部署；需在授权服务器构建后核对资源、PWA 更新、手机首屏及加载失败恢复。回滚沿用既有完整 Web 产物回退流程，尚未针对本次演练。
+
+## Bot 创建兼容修复（API 已部署）
+
+API 已切换至 SHA-256 为 `e77b86f1ff58663ac18142168cfc733969b6cdfbc4a635047f13b2c1649d69a0` 的候选产物，source map 保留为 `index.bot-avatar-candidate.js.map`；头像契约源码也已同步。旧产物、source map 和源码分别保存在原目录下的 `.before-bot-avatar-20261105` 文件。切换脚本条件分支解析失败，随后手动重启服务并确认健康；回滚需要恢复上述备份、重启 API 并验证，尚未演练。真实账号创建和 Worker 运行待验。
+
+Worker 随后基于旧运行产物应用头像契约最小补丁并重启，当前产物 SHA-256 为 `7351ea7cde000a84665bd752a79217a89e43657c7491fb83a70f42c0874c7713`，旧 Worker 产物及 source map 保存在对应的 `.before-bot-avatar-20261105` 文件。补丁不改变行数，但旧 source map 在修改行的列位置可能不精确；下次正常发布应从同步源码完整重建。回滚需恢复 Worker 备份并重启、检查心跳，尚未演练；若 API 仍接受 `fluid`，旧 Worker 契约可能不兼容，应协调回滚。真实账号创建和任务运行仍待验收。
+
+## 注册验证码修复（待部署）
+
+本次修改尚未部署。上线需同时更新 Web 产物与后台认证代码并重启相关服务，部署后用受控真实邮箱验收验证码收取、错误码拒绝及成功登录。已有未验证账号在启用邮件能力后不能使用旧会话；邮箱验证码证明所有权时会清理此前未证明的密码及其他凭据。部署前应核对现有账号状态并准备回滚；未执行服务器操作。
+
 ## 注册开放配置（2026-11-05）
 
 注册开放步骤和验收顺序见 [注册开放实施清单](design/REGISTRATION_ROLLOUT.md)。后台 `/etc/sydney/backend.env` 原先使用 `SIGNUPS_ENABLED=false`，本次备份为 `/etc/sydney/backend.env.before-signups-20261105` 后只改为 `SIGNUPS_ENABLED=true` 并重启 `sydney-api`；不把 SMTP、Resend API key 或真实发件人凭据写入仓库和文档。

@@ -1,0 +1,120 @@
+#mobile-startup {
+  display: none;
+}
+
+@media (max-width: 767px) and (pointer: coarse) {
+  #mobile-startup {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #161616;
+    color: #f5f5f4;
+    font-family: system-ui, sans-serif;
+    transition: opacity 180ms ease-out;
+  }
+
+  #mobile-startup[data-finishing] {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  :root[data-theme="light"] #mobile-startup {
+    background: #fff;
+    color: #171717;
+  }
+
+  .mobile-startup-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(45vw, 210px);
+    height: auto;
+    filter: invert(1);
+  }
+
+  :root[data-theme="light"] .mobile-startup-mark {
+    filter: none;
+  }
+
+  .mobile-startup-stroke {
+    fill: none;
+    stroke: white;
+    stroke-width: 34;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: mobile-startup-draw 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .mobile-startup-stroke-two {
+    animation-delay: 0.15s;
+  }
+  .mobile-startup-stroke-three {
+    animation-delay: 0.3s;
+  }
+
+  .mobile-startup-finished {
+    opacity: 0;
+    animation: mobile-startup-reveal 0.1s ease-out 0.5s forwards;
+  }
+
+  .mobile-startup-error {
+    position: absolute;
+    top: calc(50% + min(22.5vw, 105px) + 24px);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .mobile-startup-error button {
+    padding: 8px 16px;
+    border: 1px solid #777;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  @keyframes mobile-startup-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes mobile-startup-reveal {
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) #mobile-startup {
+    background: #fff;
+    color: #171717;
+  }
+
+  :root:not([data-theme]) .mobile-startup-mark {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #mobile-startup {
+    transition: none;
+  }
+  .mobile-startup-stroke {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .mobile-startup-finished {
+    animation: none;
+    opacity: 1;
+  }
+}

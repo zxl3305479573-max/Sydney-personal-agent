@@ -142,7 +142,7 @@ const ICON = "data:image/png;base64,iVBORw0KGgo=";
 async function renderLinks(
   markdown: string,
   favicons: LinkFavicons,
-  options: { streaming?: boolean } = {},
+  options: { streaming?: boolean; showWebsiteUrls?: boolean } = {},
 ) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -152,7 +152,9 @@ async function renderLinks(
     await act(async () => {
       root.render(
         <LinkFaviconsContext.Provider value={source}>
-          <ChatMarkdown streaming={streaming}>{markdown}</ChatMarkdown>
+          <ChatMarkdown streaming={streaming} showWebsiteUrls={options.showWebsiteUrls}>
+            {markdown}
+          </ChatMarkdown>
         </LinkFaviconsContext.Provider>,
       );
     });
@@ -232,6 +234,36 @@ describe("web markdown website links", () => {
     expect(labels).toEqual(["icon-b.example.test/status/123", "icon-b.example.test"]);
     expect(view.container.querySelector("a")?.getAttribute("href")).toBe(
       "https://www.icon-b.example.test/status/123?s=20",
+    );
+    await view.cleanup();
+  });
+
+  it("shows full source URLs with icons while preserving titled links", async () => {
+    const load = vi.fn(async () => ({ icon: ICON }));
+    const view = await renderLinks(
+      "[Documentation](https://source.example.test/a/long/path?q=1#section) and https://source.example.test/other",
+      { load },
+      { showWebsiteUrls: true },
+    );
+    const links = [...view.container.querySelectorAll("a")];
+    expect(links.map((link) => link.textContent)).toEqual([
+      "https://source.example.test/a/long/path?q=1#section",
+      "https://source.example.test/other",
+    ]);
+    expect(view.container.textContent).toContain("Documentation");
+    expect(links[0]?.querySelector("img")?.getAttribute("src")).toBe(ICON);
+    expect(load).toHaveBeenCalledWith("https://source.example.test");
+    await view.cleanup();
+  });
+
+  it("does not expose URL credentials in the visible source address", async () => {
+    const view = await renderLinks(
+      "[Source](https://name:secret@private.example.test/path)",
+      { load: async () => ({ icon: null }) },
+      { showWebsiteUrls: true },
+    );
+    expect(view.container.querySelector(".rk-chat-link-label")?.textContent).toBe(
+      "https://private.example.test/path",
     );
     await view.cleanup();
   });

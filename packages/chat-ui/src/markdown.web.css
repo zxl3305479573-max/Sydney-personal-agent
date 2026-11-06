@@ -329,6 +329,15 @@ a.rk-chat-link {
   white-space: nowrap;
 }
 
+a.rk-chat-link-full {
+  color: var(--link);
+}
+
+a.rk-chat-link-full .rk-chat-link-label {
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
 .rk-chat-link-tile {
   display: inline-block;
   box-sizing: border-box;

@@ -55,6 +55,8 @@ const COMPOSER_TEXT = "rk-scroll rk-chat-type whitespace-pre-wrap break-words px
 export const Composer = memo(function Composer({
   artifactTarget,
   activeName,
+  mobile = false,
+  inGroup = false,
   running,
   disabled,
   pendingAttachments,
@@ -88,6 +90,8 @@ export const Composer = memo(function Composer({
   enterToSend,
 }: {
   activeName?: string;
+  mobile?: boolean;
+  inGroup?: boolean;
   running: boolean;
   disabled?: boolean;
   pendingAttachments: PendingAttachment[];
@@ -265,6 +269,7 @@ export const Composer = memo(function Composer({
   }, []);
   const canSend =
     draft.trim().length > 0 || selectedSkill !== null || pendingAttachments.length > 0;
+  const showMentionButton = mobile && inGroup && Boolean(mentionTargets?.length);
 
   function markEdited() {
     onDraftEdited?.();
@@ -285,6 +290,21 @@ export const Composer = memo(function Composer({
   function pickAttachments(files: FileList | readonly File[] | null) {
     if (!files?.length) return;
     if (onAttachmentPick(files)) markEdited();
+  }
+
+  function openMentionPicker() {
+    const field = textareaRef.current;
+    if (!field) return;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    const prefix = start > 0 && !/\s/.test(draft[start - 1] ?? "") ? " " : "";
+    const insertion = `${prefix}@`;
+    rememberSelection(field);
+    updateDraft(
+      `${draft.slice(0, start)}${insertion}${draft.slice(end)}`,
+      start + insertion.length,
+    );
+    pendingCaret.current = { start: start + insertion.length, end: start + insertion.length };
   }
 
   const knownMentions = [...(mentionTargets ?? []), ...selectedMentions];
@@ -726,6 +746,7 @@ export const Composer = memo(function Composer({
         ref={composerBarRef}
         data-testid="composer-bar"
         data-expanded={expanded}
+        data-mobile-group={mobile && inGroup ? "true" : undefined}
         className={`grid grid-cols-[auto_minmax(0,1fr)_auto] content-end items-center rounded-[26px] border border-border bg-background pe-2.5 ps-3 transition-colors focus-within:border-input ${
           expanded ? "gap-x-2 gap-y-2 pb-[9px] pt-3" : "gap-x-3.5 py-[9px]"
         }`}
@@ -738,19 +759,37 @@ export const Composer = memo(function Composer({
           className="hidden"
           onChange={(event) => pickAttachments(event.target.files)}
         />
-        <Button
-          ref={attachButtonRef}
-          variant="ghost"
-          size="icon"
-          aria-label={t`Attach file`}
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          className={`col-start-1 size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
-            expanded ? "row-start-2" : ""
-          }`}
+        <div
+          className={`col-start-1 flex shrink-0 items-center gap-1 ${expanded ? "row-start-2" : ""}`}
+          data-composer-attachments=""
         >
-          <Plus size={16} strokeWidth={2} />
-        </Button>
+          <Button
+            ref={attachButtonRef}
+            variant="ghost"
+            size="icon"
+            aria-label={t`Attach file`}
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            className="size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Plus size={16} strokeWidth={2} />
+          </Button>
+          {showMentionButton ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-testid="composer-mention-button"
+              aria-label={t`Mention a group member`}
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={openMentionPicker}
+              className="size-8 shrink-0 rounded-full border border-border bg-muted text-base font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              @
+            </Button>
+          ) : null}
+        </div>
         <div
           ref={composerFieldRef}
           data-testid="composer-field"

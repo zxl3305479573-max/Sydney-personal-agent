@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-05 选色及注册验证：当前窗口负责选色组件、Web/手机注册、认证策略及相关测试和文档；另一窗口的 `packages/ui-web/src/bot-avatar.tsx`、`styles.css` 和头像测试改动保留，不纳入本窗口写集。
+
 2026-11-05 手机网页首页列表：当前窗口负责 `apps/web/src/pages/shell/use-mobile-sidebar.ts`、`shell-sidebar.tsx`、`use-space-roster.ts` 及定向测试；复用 Bot 列表，不修改 `Shell.tsx`、侧栏布局或 Bot 列表展示组件。
 
 2026-11-05 手机网页首屏优化：当前窗口负责 `apps/web/src/App.tsx`、`apps/web/src/lib/i18n.ts` 和相关定向测试；共享文档仅追加结果。

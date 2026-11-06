@@ -1539,6 +1539,24 @@ async function renderNativeLinks(
 describe("native website links", () => {
   const globe = createElement("rn-globe");
 
+  it("shows the full source address and icon in assistant messages", async () => {
+    const view = await renderNativeLinks(
+      () => (
+        <ChatMarkdown showWebsiteUrls>
+          {"[Source](https://native-source.example.test/path?q=1#section)"}
+        </ChatMarkdown>
+      ),
+      { load: async () => ({ icon: ICON }), globe },
+    );
+    const [link] = view.links();
+    expect(view.container.textContent).toContain("Source");
+    expect(link?.getAttribute("data-accessibility-label")).toBe(
+      "https://native-source.example.test/path?q=1#section",
+    );
+    expect(link?.querySelector("rn-image")).not.toBeNull();
+    await view.cleanup();
+  });
+
   it("draws the API's icon in a hidden tile joined to the author's label", async () => {
     const load = vi.fn(async () => ({ icon: ICON }));
     const view = await renderNativeLinks(

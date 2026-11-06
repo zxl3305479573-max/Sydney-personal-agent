@@ -114,7 +114,7 @@ function MemberPicker({
                   size={32}
                   status={bot.status}
                 />
-                <span className="flex-1 text-[15px] text-foreground" dir="auto">
+                <span className="rk-script-type flex-1 text-[15px] text-foreground" dir="auto">
                   {bot.name}
                 </span>
               </button>

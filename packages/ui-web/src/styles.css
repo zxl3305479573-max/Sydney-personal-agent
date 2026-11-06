@@ -6,12 +6,20 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Web type: the system font and a 14/20 base scale. Mobile sets its own type natively. */
+/* Web type: a serif UI face and a 14/20 base scale. Mobile sets its own type natively. */
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-chat:
-    Inter, "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* UI face: a Latin serif first, then the Songti-style CJK serifs that render Chinese headings
+     and body copy. Keeping one stack for both scripts preserves the title/body weight ladder. */
+  --font-serif:
+    "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman",
+    "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong, SimSun, serif;
+  /* Display face for the brand wordmark, chat names and avatar initials. Latin uses an elegant
+     serif stack; CJK falls through to the Songti-style serif stack below. */
+  --font-script:
+    "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman",
+    "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong, SimSun, serif;
+  --font-sans: var(--font-serif);
+  --font-chat: var(--font-serif);
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -123,6 +131,11 @@
     line-height: var(--text-chat--line-height);
     letter-spacing: var(--text-chat--letter-spacing);
   }
+  /* Display face: call sites keep their own size and weight so the title/body ladder still reads. */
+  .rk-script-type {
+    font-family: var(--font-script);
+    font-style: italic;
+  }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -154,6 +167,22 @@
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+.sydney-bot-avatar[data-working="true"] .sydney-bot-avatar-eyes {
+  animation: sydney-avatar-working 1.6s ease-in-out infinite;
+}
+
+@keyframes sydney-avatar-working {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sydney-bot-avatar[data-working="true"] .sydney-bot-avatar-eyes {
+    animation: none;
   }
 }
 

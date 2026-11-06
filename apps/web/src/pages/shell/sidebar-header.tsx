@@ -10,6 +10,7 @@ import { BotCreatePicker } from "./bot-picker";
 
 export function SidebarHeader({
   mini = false,
+  mobile = false,
   createMenuOpen,
   setCreateMenuOpen,
   activityMode,
@@ -25,6 +26,7 @@ export function SidebarHeader({
   setCreateBotOpen,
 }: {
   mini?: boolean;
+  mobile?: boolean;
   createMenuOpen: boolean;
   setCreateMenuOpen: (open: boolean) => void;
   activityMode: boolean;
@@ -42,9 +44,12 @@ export function SidebarHeader({
   const { t } = useLingui();
   const hasWindowChrome = Boolean(desktopBridge());
   const toggleLabel = mini ? t`Show bots` : t`Minimize bots`;
+  if (mobile && !mini) {
+    return <div aria-hidden="true" className="h-[68px] shrink-0" />;
+  }
   return (
     <div
-      className={`app-drag flex items-center ${mini ? `flex-col gap-2 px-0 pb-2 ${hasWindowChrome ? "pt-4" : "pt-2"}` : "justify-between px-[18px] pb-3 pt-4"}`}
+      className={`app-drag flex items-center ${mini ? `flex-col gap-2 px-0 pb-2 ${hasWindowChrome ? "pt-4" : "pt-2"}` : mobile ? "h-[68px] justify-end px-[18px]" : "justify-between px-[18px] pb-3 pt-4"}`}
     >
       {!mini || hasWindowChrome ? <WindowChrome /> : null}
       <div className={`relative flex items-center ${mini ? "flex-col gap-0.5" : "gap-2.5"}`}>
@@ -121,7 +126,6 @@ export function SidebarHeader({
                 bots={bots}
                 onCreateBot={() => {
                   setCreateMenuOpen(false);
-                  setMobileSidebarOpen(false);
                   setCreateBotOpen(true);
                 }}
                 onOpenBot={(id) => {

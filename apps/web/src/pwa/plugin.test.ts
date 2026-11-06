@@ -1,7 +1,7 @@
 import { webDarkTokens } from "@rakazo/ui-tokens";
 import type { Rolldown } from "vite";
 import { describe, expect, it } from "vitest";
-import { injectShell, shellFiles, webManifest } from "./plugin.js";
+import { injectShell, inlineMobileStartup, shellFiles, webManifest } from "./plugin.js";
 
 function chunk(fileName: string, imports: string[], css: string[] = [], isEntry = false) {
   return {
@@ -31,7 +31,24 @@ describe("PWA build", () => {
       "/assets/index.css",
       "/assets/index.js",
       "/assets/react.js",
+      "/mobile-startup.css",
+      "/mobile-startup.js",
+      "/sydney-mark.png",
+      "/theme.js",
     ]);
+  });
+
+  it("embeds the first visible mark and lets mobile paint before app styles finish", () => {
+    const html = inlineMobileStartup(
+      '<head><link rel="stylesheet" href="/mobile-startup.css" /><link rel="stylesheet" crossorigin href="/assets/app.css"></head><div id="mobile-startup"><image href="/sydney-mark.png" /></div>',
+      "#mobile-startup{display:flex}",
+      "test-mark",
+    );
+    expect(html).toContain("<style>#mobile-startup{display:flex}</style>");
+    expect(html).toContain('href="data:image/png;base64,test-mark"');
+    expect(html).toContain('media="(min-width: 768px), (pointer: fine)" data-mobile-styles');
+    expect(html).not.toContain('href="/mobile-startup.css"');
+    expect(inlineMobileStartup("<html></html>", "css", "mark")).toBe("<html></html>");
   });
 
   it("names the cache after the build id the client-update handshake uses", () => {

@@ -47,6 +47,7 @@ import {
   remoteMarkdownImage,
   sanitizeMarkdownUrl,
   useLinkFavicon,
+  visibleWebsiteUrl,
 } from "./markdown";
 
 import {
@@ -1110,6 +1111,37 @@ const renderRules: RenderRules = {
 };
 
 const MentionContext = createContext<ChatMarkdownProps["renderMention"]>(undefined);
+const ShowWebsiteUrlsContext = createContext(false);
+
+function NativeWebsiteLink({
+  href,
+  text,
+  children,
+  styleMap,
+}: {
+  href: string;
+  text: string | undefined;
+  children: ReactNode;
+  styleMap: MarkdownStyleMap;
+}) {
+  const showWebsiteUrls = useContext(ShowWebsiteUrlsContext);
+  const label = showWebsiteUrls ? visibleWebsiteUrl(href) : text && linkLabel(text, href);
+  return (
+    <Text>
+      {showWebsiteUrls &&
+      (text === undefined || (text && !/^(?:https?:\/\/|www\.)/i.test(text))) ? (
+        <>{children} </>
+      ) : null}
+      <NativeLink href={href} accessibilityLabel={label || undefined} style={styleMap.website_link}>
+        <LinkFavicon href={href} plate={styleMap.link_favicon_plate} />
+        {WORD_JOINER}
+        {ISOLATE}
+        {label === undefined ? children : <Text style={styleMap.website_link_label}>{label}</Text>}
+        {POP_ISOLATE}
+      </NativeLink>
+    </Text>
+  );
+}
 
 function MarkdownMention({
   id,
@@ -1156,22 +1188,9 @@ function renderMarkdownLink(
   if (!block && isWebsiteLink(node)) {
     const text = astText(node);
     return (
-      <NativeLink
-        href={href}
-        accessibilityLabel={text === undefined ? undefined : linkLabel(text, href)}
-        key={node.key}
-        style={styleMap.website_link}
-      >
-        <LinkFavicon href={href} plate={styleMap.link_favicon_plate} />
-        {WORD_JOINER}
-        {ISOLATE}
-        {text === undefined ? (
-          children
-        ) : (
-          <Text style={styleMap.website_link_label}>{linkLabel(text, href)}</Text>
-        )}
-        {POP_ISOLATE}
-      </NativeLink>
+      <NativeWebsiteLink key={node.key} href={href} text={text} styleMap={styleMap}>
+        {children}
+      </NativeWebsiteLink>
     );
   }
   if (!block) {
@@ -1378,6 +1397,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   renderMention,
   palette = darkTokens,
   colorScheme = "dark",
+  showWebsiteUrls = false,
 }: ChatMarkdownProps & { palette?: ColorTokens; colorScheme?: ResolvedAppearance }) {
   const openLink = useNativeLinkConfirm();
   const styles = useMemo(() => markdownStyles(palette), [palette]);
@@ -1399,19 +1419,21 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   return (
     <OpenLinkContext.Provider value={openLink}>
       <MentionContext.Provider value={renderMention}>
-        <View style={layout.wrap}>
-          <LinkFaviconsPausedContext.Provider value={streaming}>
-            <DiagramSurfaceContext.Provider value={diagramSurface}>
-              {streaming ? (
-                <MarkdownStream {...sharedProps} cursorColor={palette.mutedForeground} streaming>
-                  {children}
-                </MarkdownStream>
-              ) : (
-                <Markdown {...sharedProps}>{children}</Markdown>
-              )}
-            </DiagramSurfaceContext.Provider>
-          </LinkFaviconsPausedContext.Provider>
-        </View>
+        <ShowWebsiteUrlsContext.Provider value={showWebsiteUrls}>
+          <View style={layout.wrap}>
+            <LinkFaviconsPausedContext.Provider value={streaming}>
+              <DiagramSurfaceContext.Provider value={diagramSurface}>
+                {streaming ? (
+                  <MarkdownStream {...sharedProps} cursorColor={palette.mutedForeground} streaming>
+                    {children}
+                  </MarkdownStream>
+                ) : (
+                  <Markdown {...sharedProps}>{children}</Markdown>
+                )}
+              </DiagramSurfaceContext.Provider>
+            </LinkFaviconsPausedContext.Provider>
+          </View>
+        </ShowWebsiteUrlsContext.Provider>
       </MentionContext.Provider>
     </OpenLinkContext.Provider>
   );

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isBuildId } from "@rakazo/contracts/client-build";
 import { webDarkTokens } from "@rakazo/ui-tokens";
@@ -8,6 +9,19 @@ const SERVICE_WORKER_FILE = "sw.js";
 const MANIFEST_FILE = "site.webmanifest";
 const PRECACHE_PLACEHOLDER = "__RAKAZO_SW_PRECACHE__";
 const CACHE_PLACEHOLDER = "__RAKAZO_SW_CACHE__";
+
+export function inlineMobileStartup(html: string, css: string, mark: string): string {
+  if (!html.includes('id="mobile-startup"')) return html;
+  return html
+    .replace('<link rel="stylesheet" href="/mobile-startup.css" />', () => `<style>${css}</style>`)
+    .replaceAll('href="/sydney-mark.png"', `href="data:image/png;base64,${mark}"`)
+    .replace(/<link\b[^>]*rel="stylesheet"[^>]*href="\/assets\/[^"]+"[^>]*>/g, (tag) =>
+      tag.replace(
+        'rel="stylesheet"',
+        'rel="stylesheet" media="(min-width: 768px), (pointer: fine)" data-mobile-styles',
+      ),
+    );
+}
 
 export function webManifest() {
   const icons = [192, 512].map((size) => ({
@@ -38,7 +52,13 @@ export function webManifest() {
  * import graph, stylesheets and fonts. Lazy chunks are cached as they load.
  */
 export function shellFiles(bundle: Rolldown.OutputBundle): string[] {
-  const files = new Set(["/"]);
+  const files = new Set([
+    "/",
+    "/mobile-startup.css",
+    "/mobile-startup.js",
+    "/sydney-mark.png",
+    "/theme.js",
+  ]);
   const visit = (fileName: string) => {
     const chunk = bundle[fileName];
     if (chunk?.type !== "chunk" || files.has(`/${fileName}`)) return;
@@ -77,6 +97,20 @@ export function injectShell(code: string, precache: readonly string[], buildId: 
 export function rakazoPwa(buildId: string): Plugin[] {
   const manifest = () => JSON.stringify(webManifest(), null, 2);
   return [
+    {
+      name: "rakazo-mobile-startup-shell",
+      transformIndexHtml: {
+        order: "post",
+        handler: (html) =>
+          inlineMobileStartup(
+            html,
+            readFileSync(new URL("../../public/mobile-startup.css", import.meta.url), "utf8"),
+            readFileSync(new URL("../../public/sydney-mark.png", import.meta.url)).toString(
+              "base64",
+            ),
+          ),
+      },
+    },
     {
       name: "rakazo-pwa-manifest",
       configureServer(server) {

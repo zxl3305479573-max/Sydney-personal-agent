@@ -13,11 +13,31 @@
     <link rel="icon" href="/favicon.png?v=sydney-1" type="image/png" sizes="128x128" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=sydney-1" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="/mobile-startup.css" />
     <title>Sydney</title>
-    <script src="/theme.js"></script>
+    <script defer src="/theme.js" fetchpriority="high"></script>
+    <script defer src="/mobile-startup.js" fetchpriority="high"></script>
   </head>
   <body>
     <div id="root"></div>
+    <div id="mobile-startup" role="status" aria-label="Sydney 正在启动">
+      <svg class="mobile-startup-mark" viewBox="0 0 256 256" aria-hidden="true">
+        <defs>
+          <mask id="mobile-startup-drawing">
+            <path class="mobile-startup-stroke" pathLength="1" d="M43 98 C73 85 108 94 130 111 C151 129 150 166 158 190 C166 210 202 209 237 201" />
+            <path class="mobile-startup-stroke mobile-startup-stroke-two" pathLength="1" d="M128 111 C150 79 173 45 195 47 C218 46 226 68 210 87 C193 106 171 114 148 125" />
+            <path class="mobile-startup-stroke mobile-startup-stroke-three" pathLength="1" d="M130 113 C91 118 37 126 25 151 C7 187 35 211 62 196 C90 181 111 146 130 122" />
+          </mask>
+        </defs>
+        <image href="/sydney-mark.png" width="256" height="256" mask="url(#mobile-startup-drawing)" />
+        <image class="mobile-startup-finished" href="/sydney-mark.png" width="256" height="256" />
+      </svg>
+      <div class="mobile-startup-error" hidden>
+        <p>加载时间较长，请检查网络后重试。</p>
+        <button type="button">刷新页面</button>
+      </div>
+      <noscript>请启用 JavaScript 后重新打开 Sydney。</noscript>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

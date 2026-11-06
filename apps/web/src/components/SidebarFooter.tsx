@@ -1,12 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { NavLink } from "@rakazo/contracts";
-import {
-  AppMarkStack,
-  Button,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@rakazo/ui-web";
+import { AppMarkStack, Button, Popover, PopoverContent, PopoverTrigger } from "@rakazo/ui-web";
 import {
   Download,
   FolderOpen,
@@ -27,6 +21,7 @@ import { IconTooltip } from "./IconTooltip";
 
 type Props = {
   mini?: boolean;
+  mobile?: boolean;
   name: string;
   initials: string | null;
   image?: string | null;
@@ -55,6 +50,7 @@ export function sidebarMarkCount(availableWidth: number) {
 
 export function SidebarFooter({
   mini = false,
+  mobile = false,
   name,
   initials,
   image,
@@ -98,7 +94,7 @@ export function SidebarFooter({
   return (
     <div
       data-testid="sidebar-footer"
-      className={`flex shrink-0 items-center gap-2 bg-transparent ${mini ? "flex-col px-1 py-2" : "px-2.5 py-3"}`}
+      className={`flex shrink-0 items-center gap-2 bg-transparent ${mobile ? "absolute start-[18px] top-[calc(env(safe-area-inset-top)+12px)] z-10 p-0" : mini ? "flex-col px-1 py-2" : "px-2.5 py-3"}`}
     >
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger
@@ -114,14 +110,14 @@ export function SidebarFooter({
               onError={() => setFailedImage(image)}
             />
           ) : initials ? (
-            initials
+            <span className="rk-script-type">{initials}</span>
           ) : (
             <UserRound size={18} aria-hidden="true" />
           )}
         </PopoverTrigger>
         {open ? (
           <PopoverContent
-            side="top"
+            side={mobile ? "bottom" : "top"}
             sideOffset={8}
             align="start"
             className="max-h-(--available-height) w-[295px] max-w-[calc(100vw-69px)] gap-0 overflow-y-auto p-1 *:shrink-0 data-closed:animate-none"
@@ -130,7 +126,7 @@ export function SidebarFooter({
               data-testid="account-menu-header"
               className="mb-1 min-w-0 border-b border-border px-2.5 py-2.5"
             >
-              <p className="truncate text-sm font-medium">{name}</p>
+              <p className="rk-script-type truncate text-sm font-medium">{name}</p>
               {email && email !== name ? (
                 <p className="truncate text-xs text-muted-foreground">{email}</p>
               ) : null}
@@ -228,7 +224,10 @@ export function SidebarFooter({
           </PopoverContent>
         ) : null}
       </Popover>
-      {!mini ? (
+      {!mini && mobile ? (
+        <span className="min-w-0 truncate text-[17px] font-medium text-foreground">{name}</span>
+      ) : null}
+      {!mini && !mobile ? (
         <>
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
             {name}
@@ -249,7 +248,10 @@ export function SidebarFooter({
               aria-hidden="true"
               className="flex w-full min-w-0 items-center justify-between gap-2 px-3 opacity-0 transition-opacity duration-150 group-hover/connect:opacity-100 group-focus-visible/connect:opacity-100 motion-reduce:transition-none"
             >
-              <span ref={labelRef} className="min-w-0 truncate whitespace-nowrap text-sm font-medium">
+              <span
+                ref={labelRef}
+                className="min-w-0 truncate whitespace-nowrap text-sm font-medium"
+              >
                 <Trans>Connect apps</Trans>
               </span>
               <AppMarkStack marks={logos.slice(0, markCount)} ringClassName="ring-sidebar-accent" />

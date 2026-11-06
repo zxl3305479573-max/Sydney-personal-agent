@@ -216,6 +216,40 @@ function pressEnter(textarea: HTMLTextAreaElement) {
 }
 
 describe("Composer", () => {
+  it("opens the group member mention picker from the mobile @ button", () => {
+    const textarea = renderComposer(vi.fn(), { mobile: true, inGroup: true });
+    const mentionButton = container?.querySelector<HTMLButtonElement>(
+      '[data-testid="composer-mention-button"]',
+    );
+    expect(mentionButton).not.toBeNull();
+    act(() => mentionButton?.click());
+    expect(textarea.value).toBe("@");
+    expect(container?.querySelector('[data-testid="mention-picker"]')).not.toBeNull();
+    act(() => container?.querySelector<HTMLButtonElement>('[role="option"]')?.click());
+    expect(textarea.value).toBe("@Bob ");
+  });
+
+  it("does not show the mobile group mention button in a bot chat", () => {
+    renderComposer(vi.fn(), { mobile: true });
+    expect(container?.querySelector('[data-testid="composer-mention-button"]')).toBeNull();
+  });
+
+  it("inserts a mention at the caret after existing text", () => {
+    const textarea = renderComposer(vi.fn(), { mobile: true, inGroup: true });
+    type(textarea, "hello world");
+    act(() => textarea.setSelectionRange(5, 5));
+    act(() =>
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="composer-mention-button"]')
+        ?.click(),
+    );
+    expect(textarea.value).toBe("hello @ world");
+    expect(textarea.selectionStart).toBe(7);
+    expect(container?.querySelector('[data-testid="mention-picker"]')).not.toBeNull();
+    act(() => container?.querySelector<HTMLButtonElement>('[role="option"]')?.click());
+    expect(textarea.value).toBe("hello @Bob world");
+  });
+
   it.each(["Enter", "Tab", "pointer"])(
     "completes an inline bot at the caret with %s",
     async (method) => {

@@ -1,5 +1,151 @@
 # 验证记录
 
+## 2026-11-06：手机新建 Bot 弹窗视觉复刻
+
+- `apps/web/src/pages/shell/create-bot-dialog.test.tsx`：2 项通过，覆盖形状与颜色联动、流体头像颜色及创建输入契约。
+- `apps/web` TypeScript 检查通过。
+- Biome 已格式化 `create-bot-dialog.tsx`、`avatar-studio-popover.tsx` 和 `grok-workbench.css`；检查仍报告该 CSS 文件既有 `!important` 与选择器降级告警，以及两个既有头像默认色硬编码提示，未处理无关告警。
+- 未执行真实手机、软键盘、弹窗滚动、视觉截图、深色主题和部署验证，不能标记为移动端视觉验收完成。
+
+## 2026-11-06：网页端移动页面顶部标识
+
+- Web TypeScript 检查通过；`PageBreadcrumb.tsx` 与 `App.tsx` 的 Biome 检查通过，`git diff --check` 通过。
+- 未执行真实浏览器、移动视口截图、深浅色、页面长标题和部署验证。
+
+## 2026-11-06：网页端移动群聊输入与成员提及
+
+- `pnpm exec vitest run apps/web/src/pages/shell/composer.test.tsx apps/web/src/pages/shell/use-composer-mentions.test.tsx apps/web/src/pages/shell/message-view.test.tsx`：3 个文件、104 项通过，覆盖移动群聊 `@` 按钮、光标处插入、成员选择、Bot 对话不显示该按钮及消息正文无气泡。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过；6 个改动文件的 Biome 检查通过，`git diff --check` 通过。
+- 未执行真实浏览器 E2E、网页手机键盘和截图对照、深浅色视觉、PWA 更新或部署验证；原生 `apps/mobile` 不属于本轮范围。
+
+## 2026-11-06：界面字体统一（衬线 + 英文斜体）
+
+- `@rakazo/web` 与 `@rakazo/ui-web` 的 `tsc --noEmit` 通过。`SidebarFooter`、`Auth`、`Artifacts`、`ActivityList`、`GroupPanel`、`SpaceSearch`、`bot-avatar`、`sydney-bot-avatar` 共 8 个测试文件、86 项通过。
+- `packages/ui-web/src/bot-avatar.test.tsx` 10 项失败：断言的是工作区中未完成的头像渲染重构产物（`rakazo-organic-avatar`、`bot-character-eyes`），当前实现已不再渲染。该测试文件与对应源码同属未完成改动，与本次字体变更无关，未处理。
+- 使用本机 Tailwind 4.3.3 编译字体片段核对：`@theme` 内的 `var()` 字体引用可用，`font-sans`、`font-serif`、`font-script` 三个工具类均按预期生成，`--default-font-family` 继承 `--font-sans`。
+- 19 个改动文件 Biome 检查通过（`bot-picker.tsx` 既有未使用导入告警保留），`git diff --check` 通过。
+- 浏览器核对：在本机临时启动 `apps/web` 的 Vite 预览（`127.0.0.1:4173`），用本机 Chrome 以 393×852 视口访问；`/api/auth/get-session` 和 `/api/monitoring/config` 分别以空会话和禁用监控的本地响应替代，未启动 API、Worker、数据库或 Docker，临时预览在核对后关闭。
+- Chrome 平台字体接口实测（当前 Windows 环境，修改前）：欢迎页品牌字标与 `.rk-script-type` 使用 `Segoe Script`，中文段落 23 个字形落在 `STSong`，拉丁部分落在 `Palatino Linotype`/`Book Antiqua`；随后根据用户参考图将 `.rk-script-type` 改为同一衬线栈并启用斜体。登录页同样命中衬线基础字体。
+- 已登录界面：`/app` 在仅模拟会话、接口返回空数据时进入错误边界，但错误页中文仍渲染为 `STSong`，说明衬线基础字体已覆盖应用外壳；侧栏名称、聊天标题栏等斜体应用点只做了静态核对（类名与类型检查），未取得登录态视觉证据。
+- 未执行：真实手机、软键盘、深色主题、已登录界面视觉和部署验证，不能标记为视觉验收完成。
+
+## 2026-11-06：手机首页列表布局复修
+
+- Web TypeScript 检查通过；空间分组、账户页和移动侧栏相关定向测试共 3 个文件、44 项通过。移动侧栏新增布局测试选择器，相关新增测试文件和移动列表文件的 Biome 检查通过，`git diff --check` 通过。
+- 已静态核对移动侧栏的 DOM 顺序为账户入口、新建 Bot、Bot 区、群聊区、底部连接应用和搜索；群聊新建按钮触发现有 `create-group` 面板，Bot 新建按钮复用现有创建弹窗。
+- 未运行真实浏览器 E2E、手机实机、软键盘、深浅色视觉、PWA 更新或部署验证；当前改动不能标记为移动端视觉验收完成。
+
+## 2026-11-05：手机首屏白屏优化
+
+- 启动、PWA 插件、Service Worker 和 App 定向 Vitest 共 4 个文件、34 项通过，覆盖慢页面、迟到脚本、未完成/已缓存样式、回调、错误及减少动态效果；Web 类型检查、5 个相关文件 Biome 及 `git diff --check` 通过。首轮格式和测试清理回调检查问题已修正。
+- 云端候选构建成功。临时预览使用 Chromium 模拟 393×852 手机并额外延迟样式 2 秒：首次内容绘制约 168ms，两个样式分别约 2.8 和 3.2 秒完成，随后启用样式并进入登录页；桌面预览亦进入登录页，无应用脚本异常。该数据来自本机转发预览，不代表手机或公网加载时长。
+- 公网检查确认启动图标早于主样式绘制，匿名访问进入登录页，两张样式均启用；第二次样本首次内容绘制约 576ms、最后样式约 1.4 秒完成，非稳定性能承诺。首次检查脚本因站点注入的 Cloudflare 分析脚本被既有 CSP 拒绝而报错，调整为检验应用异常后通过，未放宽 CSP。
+- Web 版本 `20261105134933` 已发布，Web 及隧道 active，健康接口、会话及启动脚本返回 200。真实 iPhone、登录后 Bot 列表、PWA 更新和回退未验收。
+
+## 2026-11-05：手机新建 Bot 弹窗
+
+- 新建 Bot、Sydney 头像及手机侧栏的 3 个定向测试文件共 12 项通过，覆盖形状与颜色提交、契约解析及已保存形状渲染；Web 和 ui-web TypeScript 检查通过。
+- 云电脑 Web 构建成功，公网和后台转发均返回版本 `20261105134539`，公网首页返回 200；Web、连接服务、API、Worker 和隧道状态正常，API `/ready` 正常。
+- 新增手机端端到端场景用于检查弹窗打开时侧栏保持及关闭后状态，但未运行该场景；未验证真实手机动画、键盘、不同屏幕尺寸、实际 Bot 创建或回滚。相关文件 Biome 检查仍报告既有格式和颜色规则问题，未整体改写。
+
+## 2026-11-05：iPhone 搜索栏底部间距
+
+- 定向 Vitest 共 2 个文件、32 项通过；端到端断言已更新但未运行，最初格式检查提示的新差异已修正。
+- 使用新构建 CSS、静态结构和 Chromium 模拟 393×852 视口，模拟底部安全区为 34px 与 0px 时，搜索框底距分别为 34px 与 12px，头像顶部仍为 71px；并非实际 iOS 或完整应用测试。
+- 云端构建与发布成功，公网版本 `20261105133934`，首页、健康接口、认证会话、新 CSS 和脚本均返回 200，服务 active；实机、软键盘及 PWA 缓存更新待验收。
+
+## 2026-11-05：iPhone 首页视口定位复修
+
+- 侧栏和账号定向 Vitest 共 2 个文件、32 项通过；相关 Biome 检查通过并提示既有冗余片段，`git diff --check` 通过。
+- 使用 Chromium 模拟 393×852 视口，以新构建 CSS 和静态结构人为模拟 59px 顶部、34px 底部安全区：侧栏顶部为 0、底部为 852px，头像顶部为 71px，搜索框底部距视口底部 46px。该测试不等于实际 iOS Safari 或完整应用测试；端到端断言未运行。
+- 云端构建成功并发布 `20261105132910`，Web 及隧道服务 active，公网首页、健康接口、会话接口和新样式、脚本返回 200。真实手机、软键盘和 PWA 更新仍待用户验证。
+
+## 2026-11-05：手机首页安全区修复
+
+- 侧栏和账号定向 Vitest 共 2 个文件、32 项通过；修改的端到端测试和侧栏源码通过 Biome 检查（提示既有冗余片段），`git diff --check` 通过。模拟安全区的端到端断言已添加但未运行。
+- 云端构建和发布成功；公网首页、新 CSS、Shell 脚本及健康接口返回 200。认证会话接口最初因云端隧道无响应而超时，后台直接访问正常；重启云端隧道与 Web 后，隧道及公网会话接口返回 200。
+- 未进行手机实机、软键盘或 PWA 缓存更新验证；回退未演练。
+
+## 2026-11-05：手机首页布局发布
+
+- 云端 Web 构建成功；`sydney-web-cloud`、`sydney-web-cloud-link` 为 active。公网版本为 `20261105131324`，首页、`/ready`、认证会话、新 CSS 和 Shell 脚本及启动脚本均返回 200。
+- 未进行真实手机视觉、登录后操作或 PWA 更新验证；人工回退未演练。
+
+## 2026-11-05：手机首页字号和图标
+
+- 账号菜单和搜索相关 Vitest 共 2 个文件、29 项通过；修改的侧栏及样式通过 Biome 检查，提示原有冗余片段；`git diff --check` 通过。
+- 未执行浏览器或手机实机视觉验证，图标缩放、长文字截断和窄屏布局效果待验收；未部署。
+
+## 2026-11-05：手机网页首页布局
+
+- 账号菜单和搜索相关 Vitest 共 2 个文件、29 项通过；Web TypeScript 检查通过。侧栏、标题、测试及样式的 Biome 检查通过并提示原有冗余片段；账号组件有既有格式差异。
+- 未运行真实浏览器或手机实机验证，视觉、软键盘、深浅色及部署效果待验收。
+
+## 2026-11-05：手机启动居中与等待修复
+
+- 启动交接、PWA 插件及根应用的 3 个定向测试文件共 19 项通过，覆盖快速加载、延迟加载、加载界面晚出现、失败、恢复入口及减少动态效果。首次运行有 1 项定时器边界断言失败，调整测试等待后重跑通过。
+- 云电脑 Web 构建成功，公网及后台转发版本均为 `20261105130710`；公网启动脚本和样式包含新等待与居中逻辑。Web、连接服务、API、Worker 和隧道状态正常，API `/ready` 正常。
+- 未进行真实手机视觉、实际加载耗时、弱网、PWA 更新或回滚演练；定向测试不代表网络请求或 Bot 列表加载本身变快。
+
+## 2026-11-05：Web 与后台上线验证
+
+- Web 在云电脑构建成功，版本 `20261105124011`；API 和 Worker 候选构建及 `node --check` 通过，候选中的相对外部依赖路径均存在。上线前查询 Run 状态，未发现运行或排队任务。
+- 后台 API、Worker、隧道与 Web 转发 socket 以及云电脑 Web 和连接服务 active；API `/ready` 正常，Worker 心跳检查成功。公网首页、启动脚本与样式返回 200，公网和后台转发的版本号一致；PWA 脚本包含启动资源和标志。
+- 公网认证能力接口显示邮箱验证码和密码找回可用，但未发送真实邮件；也未操作真实账号验证登录、Bot 创建或联网回答，未做手机实机、PWA 更新、负载和回滚演练。
+- 上线前定向测试 176 项通过、10 项失败；失败位于旧头像测试，断言原版渐变、形状和动画，当前 Sydney 新头像测试通过。不同 Bot 身份的视觉区分仍需单独验收。
+
+## 2026-11-05：手机网页启动动画
+
+- 手机启动交接、PWA 清单、Web 根路由及桌面就绪检测的 4 个定向测试文件共 27 项通过；覆盖慢加载、快速加载、错误、减少动态效果及超时刷新入口。
+- Web TypeScript 检查和本次相关文件 Biome 检查通过；未执行真实手机浏览器、PWA 安装、弱网视觉或部署验收。
+
+## 2026-11-05：联网来源网址展示
+
+- Web/原生 Markdown、模型指令、手机消息及 Web 聊天 Markdown 的 5 个定向测试文件共 324 项通过；Web 和手机 TypeScript 检查通过。
+- 测试覆盖完整地址、带标题的链接、图标加载及 URL 凭据隐藏；未执行实际联网搜索、真机和浏览器视觉验证，未部署。
+
+## 2026-11-05：Worker 头像契约兼容
+
+- Worker 最小候选通过 `node --check` 及契约执行检查，覆盖 `fluid` 类型、颜色解析、合法和非法头像值；差异仅限头像契约。
+- 部署前查询无排队或运行中的 Run；部署后 API、Worker active，API `/ready` 正常，Worker 心跳检查退出码为 0；Worker 运行文件哈希与候选一致。
+- 未执行真实 Bot 创建和任务运行的端到端验证。
+
+## 2026-11-05：Bot 创建契约部署
+
+- 部署前查询无排队或运行中 Run；部署后 API、Worker 均 active，API `/ready` 返回 `ok: true`、`degraded: false`。运行文件 SHA-256 与候选一致。
+- 重启后首次健康重试耗尽，随后复查 API 已监听且健康；切换脚本条件分支未运行，已手动完成重启与健康复核。
+- 未用真实账号创建 Bot；Worker 当前仍是旧契约，其候选构建存在无关变化未部署，因此尚未验证完整任务链。
+
+## 2026-11-05：Bot 创建兼容性续查
+
+- 创建对话框、共享头像契约与数据库头像选择的三个测试文件合计 28 项通过。
+- 服务器当前 API/Worker 均 active，`/ready` 正常；当前运行产物只接受 `organic`、`rakazo`。候选产物 `node --check` 通过，与当前运行产物的差异限头像契约和 source map 文件名。
+- 候选产物尚未部署；没有捕获用户实际创建失败请求，也没有执行真实账号创建，尚不能判定全部故障已解决。
+
+## 2026-11-05：Grok Bot UI 首批接入
+
+- `pnpm exec vitest run apps/web/src/pages/shell/composer.test.tsx`：90 项通过；`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过。
+- `pnpm --filter @rakazo/web check` 未执行成功：本机 Node.js 22.22.0 低于仓库要求的 22.22.2；未安装或升级依赖。
+- 未进行真实浏览器、移动端、截图对照或部署验收；动态头像与完整界面迁移尚未完成。
+
+## 2026-11-05：Bot 创建与头像透明排查
+
+- 线上 `sydney-api`、`sydney-worker` 均 active，后台 `/ready` 返回正常。只读检查显示线上 API 源码的头像类型仅含 `organic`、`rakazo`，运行产物没有 `fluid_`；400 日志未识别具体请求，真实创建故障仍需结合用户操作验证。
+- 上传头像圆形裁切与透明容器相关定向测试 4 项通过。此前同轮创建和头像相关测试有 15 项失败；运行期间相关文件被其他窗口修改，不能据此认定全部失败的当前状态或将旧测试断言直接视为产品需求。
+- 未部署本次头像修改，未验证真实浏览器、流体图像背景透明、Bot 创建或登录后的完整流程。
+
+## 2026-11-05：选色和注册验证修复
+
+- `identity-trust.test.ts` 60 项、单独执行的 `index.test.ts` 21 项通过；选色、Web 注册、手机注册及密码策略 4 个文件共 54 项通过。认证、Web 和手机 TypeScript 检查通过。
+- 首次将认证测试合并运行时，不同文件的数据库适配器模拟互相污染；拆开运行后通过。Biome 对选色组件及认证文件报告既有颜色常量、ARIA 和格式问题，本次未整体重排或修改其既有交互。
+- 未运行真实浏览器定位、SMTP 收件、线上注册或部署验证。
+
+## 2026-11-05：Web Bot 头像视觉调整
+
+- 定向 Vitest：新增默认头像兼容、独立颜色、图片、安全回退、浅色辨识及群聊成员测试，并运行头像选择和新建 Bot 测试，共 3 文件 6 项通过。
+- `pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json` 与 `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过。未运行旧头像全量回归：既有部分测试仍期待此前有机头像，须另行更新；本次不将其算作通过。
+- 未运行浏览器视觉、手机网页、原生移动端、生产构建或部署；运行中动效和减少动态效果尚未在浏览器实测。
+
 ## 2026-11-05：Arc 小组件续做与聊天字体
 
 - 定向命令：`pnpm exec vitest run --root . packages/ui-web/src/segmented-control.test.tsx packages/ui-web/src/icon-morph.test.tsx packages/ui-web/src/rolling-number.test.tsx apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/components/ToolActivityDisclosure.test.tsx apps/web/src/pages/shell/composer.test.tsx apps/web/src/pages/shell/message-view.test.tsx --maxWorkers=1`；首次运行发现受控分段控件的键盘测试未更新值、工具卡片运行结束后展开状态未同步，修复后 7 文件 132 项通过。测试环境仍提示未实现 Canvas 上下文，未阻止通过。
@@ -720,3 +866,11 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec vitest run packages/adapters/src/hot-plugin-pilot.test.ts packages/core/src/hot-plugin-lifecycle.test.ts --maxWorkers=1`：2 个文件 12 项通过；覆盖真实子进程启停、在途排空、崩溃、超时、协议错误、输出上限和另一实例继续处理。
 - 对新增文件运行 Biome 并修复格式；`pnpm exec tsc --ignoreConfig --noEmit --skipLibCheck --types node --target es2022 --module nodenext --moduleResolution nodenext packages/adapters/src/hot-plugin-pilot.ts packages/core/src/hot-plugin-lifecycle.ts` 通过。首次单文件类型检查缺少 `--ignoreConfig`，第二次缺少 `--types node`，修正参数后通过；不等同工作区类型检查。
 - 未验证真实 Linux 权限、网络或资源隔离、进程树清理、强制终止竞态、目标服务器部署、持久化、安装升级和现有 Agent/审批链；pnpm 提示根配置部分字段不再读取，未更改或安装依赖。
+
+## 移动端其他页面玻璃风格统一验证（2026-11-06）
+
+- 范围：`SettingsRows`、`SettingsOverlay`、模型角色与供应商列表，以及活动、空间搜索、文件、消息设置和插件提交页面的移动端样式接线。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`：通过；覆盖本轮新增的 React 类名和共享样式接入。
+- `git diff --check`：通过；未发现尾随空格或补丁空白错误。
+- 未运行 Web 服务、浏览器 E2E、截图对照、手机实机、软键盘、深色主题和部署验证；因此仅确认静态接线正确，不能标记为视觉验收完成。
+- 未启动 Docker、数据库、桌面服务或真实模型；无安装、配置、权限、数据和运维路径变化。

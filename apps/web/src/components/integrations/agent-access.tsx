@@ -95,7 +95,7 @@ export function AgentAccessControl({
               onCheckedChange={() => toggle(bot.id)}
             >
               <BotAvatar color={bot.color} avatarSet={bot.avatarSet} identity={bot.id} size={18} />
-              {bot.name}
+              <span className="rk-script-type">{bot.name}</span>
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

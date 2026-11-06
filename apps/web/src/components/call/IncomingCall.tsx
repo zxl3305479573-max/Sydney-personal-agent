@@ -200,7 +200,10 @@ export function IncomingCall({
           </span>
         </span>
         <span className="flex flex-col items-center gap-1 md:items-start">
-          <span className="text-2xl font-semibold text-foreground md:text-lg" dir="auto">
+          <span
+            className="rk-script-type text-2xl font-semibold text-foreground md:text-lg"
+            dir="auto"
+          >
             {bot.name}
           </span>
         </span>

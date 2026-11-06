@@ -96,8 +96,7 @@ describe("attachment captions", () => {
   it("formats bot Markdown through ChatMarkdown", () => {
     render("bot");
 
-    // A bare address shows as host and path, joined to its site icon and isolated.
-    expect(container.textContent).toBe("important \u2060\u2068example.test/docs\u2069");
+    expect(container.textContent).toBe("important \u2060\u2068https://example.test/docs\u2069");
     expect(container.querySelector('[style*="font-weight: 600"]')?.textContent).toBe("important");
     expect(container.textContent).not.toContain("**");
   });

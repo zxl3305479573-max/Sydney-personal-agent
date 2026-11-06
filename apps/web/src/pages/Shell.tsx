@@ -576,6 +576,13 @@ function SpaceShell() {
     integrationsOpen: overlay?.kind === "integrations",
     initialBotsLoaded,
   });
+  const displayedMentionTargets = useMemo(() => {
+    if (!isMobileView || !inGroup) return composerMentionTargets;
+    const memberIds = new Set(transcriptMembers?.map((member) => member.botId) ?? []);
+    return composerMentionTargets.filter(
+      (target) => target.kind === "everyone" || (target.kind === "bot" && memberIds.has(target.id)),
+    );
+  }, [composerMentionTargets, inGroup, isMobileView, transcriptMembers]);
   const shellReady =
     initialBotsLoaded &&
     (inGroup
@@ -971,6 +978,7 @@ function SpaceShell() {
         roster={
           <SidebarRoster
             mini={miniSidebar}
+            mobile={isMobileSidebar}
             sidebarGroups={sidebarGroups}
             collapsedSidebarSections={collapsedSidebarSections}
             bootstrapMe={bootstrapMe}
@@ -999,6 +1007,8 @@ function SpaceShell() {
             reorderRosterBot={roster.reorderRosterBot}
             activeSnapshot={activeSnapshot}
             botMenuContent={botMenuContent}
+            onCreateBot={() => dialogs.setCreateBotOpen(true)}
+            onCreateGroup={() => setPanel("create-group")}
           />
         }
         archived={
@@ -1024,6 +1034,7 @@ function SpaceShell() {
       {/* Keep the composer's z-index inside the chat so phone overlays like the side panel cover it. */}
       <main
         data-space-switch="main"
+        data-mobile-group={isMobileView && inGroup ? "true" : undefined}
         aria-hidden={mobileSidebarOpen || undefined}
         inert={mobileSidebarOpen}
         className="isolate flex min-w-0 flex-1 flex-col bg-background"
@@ -1132,6 +1143,8 @@ function SpaceShell() {
             <Composer
               key={inGroup ? `group:${groupId}` : `bot:${active?.id}`}
               draftKey={inGroup ? `group:${groupId}` : `bot:${active?.id}`}
+              mobile={isMobileView}
+              inGroup={inGroup}
               enterToSend={enterToSend}
               activeName={inGroup ? (activeGroup?.name ?? activeSnapshot?.groupName) : active?.name}
               running={composerRunning}
@@ -1171,7 +1184,7 @@ function SpaceShell() {
               replyQuote={composer.replyQuote}
               replyTargetName={replyTargetName}
               onClearReply={composer.clearReply}
-              mentionTargets={composerMentionTargets}
+              mentionTargets={displayedMentionTargets}
               agentSkills={agentSkills}
               onSlashOpen={refreshAgentSkills}
               onSlashAction={(action) => {

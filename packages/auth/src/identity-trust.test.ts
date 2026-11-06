@@ -209,6 +209,12 @@ function fixture({
     const url = new URL(messages.at(-1)!.text.match(/http:\/\/\S+/)![0]);
     return request(`${url.pathname.replace("/api/auth", "")}${url.search}`);
   };
+  const verifiedAccount = async (email = "approved@example.test") => {
+    const { token } = await legacyAccount(email);
+    const user = data.user!.find((row) => row.email === email)!;
+    user.emailVerified = true;
+    return { token };
+  };
   const sendCode = (email = "approved@example.test", type = "sign-in") =>
     request("/email-otp/send-verification-otp", { email, type });
   const lastCode = () => messages.at(-1)!.text.match(/\b\d{6}\b/)![0];
@@ -257,6 +263,7 @@ function fixture({
     signup,
     signin,
     verify,
+    verifiedAccount,
     sendCode,
     lastCode,
     codeSignIn,
@@ -489,7 +496,7 @@ describe("identity trust through auth endpoints", () => {
   });
 
   it("gates existing unverified sessions and auth mutations when the live allowlist is enabled", async () => {
-    const f = fixture();
+    const f = fixture({ delivery: false });
     const { token } = await f.legacyAccount();
     expect(await f.sessionFor(token)).not.toBeNull();
     f.policy.signupAllowlist = "@example.test";
@@ -499,7 +506,7 @@ describe("identity trust through auth endpoints", () => {
     ).toBeNull();
     expect((await f.request("/update-user", { name: "Changed" }, token)).status).toBe(401);
     expect((await f.signin()).status).toBe(403);
-    await f.verify();
+    f.data.user![0]!.emailVerified = true;
     expect((await f.signin()).status).toBe(200);
   });
 
@@ -571,7 +578,8 @@ describe("session credentials", () => {
 
   it("stores password reset tokens hashed and accepts one stored before hashing", async () => {
     const f = fixture();
-    const { user } = (await (await f.signup()).json()) as { user: { id: string } };
+    const { token: _token } = await f.verifiedAccount();
+    const user = f.data.user![0]!;
     expect(
       (await f.request("/request-password-reset", { email: "approved@example.test" })).status,
     ).toBe(200);
@@ -762,7 +770,7 @@ describe("identity confirmation", () => {
 
   it("keeps password accounts on their password", async () => {
     const f = fixture();
-    const { token } = (await (await f.signup()).json()) as { token: string };
+    const { token } = await f.verifiedAccount();
     const requested = await f.request("/request-identity-code", {}, token);
     expect(await requested.json()).toMatchObject({ code: "EMAIL_CODE_UNAVAILABLE" });
     expect((await f.request("/confirm-identity", { code: "123456" }, token)).status).toBe(400);
@@ -770,29 +778,38 @@ describe("identity confirmation", () => {
   });
 });
 
-describe("verification email without blocking", () => {
-  it("signs an open password signup in at once and lets the emailed link mark it verified", async () => {
+describe("verification email blocking", () => {
+  it("requires mailbox proof before an open signup can create a session", async () => {
     const f = fixture();
     const response = await f.signup();
     expect(response.status).toBe(200);
-    const { token } = (await response.json()) as { token: string };
-    expect(await f.sessionFor(token)).toMatchObject({ user: { emailVerified: false } });
-    expect(bootstrapUserSpace).toHaveBeenCalledTimes(1);
+    expect(await response.json()).toMatchObject({ token: null, user: { emailVerified: false } });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(f.data.session).toHaveLength(0);
+    expect(bootstrapUserSpace).not.toHaveBeenCalled();
     expect(f.messages).toHaveLength(1);
     expect(f.messages[0]).toMatchObject({ subject: "Verify your Sydney email" });
-    expect((await f.signin()).status).toBe(200);
-    expect(f.messages).toHaveLength(1);
-    await f.verify();
+    await f.sendCode();
+    expect(f.messages.at(-1)).toMatchObject({ subject: "Your Sydney sign-in code" });
+    const owner = await f.codeSignIn(f.lastCode());
+    expect(owner.status).toBe(200);
+    const { token } = (await owner.json()) as { token: string };
     expect(await f.sessionFor(token)).toMatchObject({ user: { emailVerified: true } });
+    expect(bootstrapUserSpace).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps existing unverified accounts signing in with a password", async () => {
+  it("refuses existing unverified accounts signing in with a password", async () => {
     const f = fixture();
     const { token } = await f.legacyAccount();
-    expect(await f.sessionFor(token)).toMatchObject({ user: { emailVerified: false } });
-    expect((await f.signin()).status).toBe(200);
-    expect(await f.sessionFor(token)).not.toBeNull();
-    expect(f.messages).toHaveLength(0);
+    expect(f.data.session).toHaveLength(1);
+    expect((await f.signin()).status).toBe(403);
+    expect(await f.sessionFor(token)).toBeNull();
+    await f.sendCode();
+    const owner = await f.codeSignIn(f.lastCode());
+    expect(owner.status).toBe(200);
+    expect(await f.sessionFor(((await owner.json()) as { token: string }).token)).toMatchObject({
+      user: { emailVerified: true },
+    });
   });
 });
 
@@ -880,10 +897,9 @@ describe("email code sign-in", () => {
   it("drops access an unverified account gained before its mailbox owner signed in", async () => {
     const f = fixture();
     // Someone registers the owner's address with their own password and keeps a session.
-    const squatter = await f.signup();
-    const { token } = (await squatter.json()) as { token: string };
+    const { token } = await f.legacyAccount();
     const userId = f.data.user![0]!.id as string;
-    expect(await f.sessionFor(token)).not.toBeNull();
+    expect(await f.sessionFor(token)).toBeNull();
     f.data.account!.push({
       id: "oidc-link",
       userId,
@@ -906,8 +922,7 @@ describe("email code sign-in", () => {
 
   it("keeps a verified account's password and sessions on code sign-in", async () => {
     const f = fixture();
-    const { token } = (await (await f.signup()).json()) as { token: string };
-    await f.verify();
+    const { token } = await f.verifiedAccount();
     await f.sendCode();
     expect((await f.codeSignIn(f.lastCode())).status).toBe(200);
     expect(await f.sessionFor(token)).not.toBeNull();
@@ -1025,19 +1040,21 @@ describe("passkeys", () => {
   });
 
   it("applies the sign-in gates to passkey sessions", async () => {
-    const f = passkeyFixture();
-    const { token } = (await (await f.signup()).json()) as { token: string };
+    const f = passkeyFixture({ delivery: false });
+    const { token } = await f.verifiedAccount();
     expect((await f.register(token)).status).toBe(200);
     const sessions = f.data.session!.length;
 
     // An unverified email under a live allowlist, exactly like password sign-in.
     f.policy.signupAllowlist = "@example.test";
+    f.data.user![0]!.emailVerified = false;
     const unverified = await f.signInWithPasskey();
     expect(unverified.status).toBe(403);
     expect(await unverified.json()).toMatchObject({ code: "EMAIL_VERIFICATION_REQUIRED" });
     expect(f.data.session).toHaveLength(sessions);
 
     f.policy.signupAllowlist = "";
+    f.data.user![0]!.emailVerified = true;
     f.data.user![0]!.email = "msg-taken@messaging.invalid";
     expect((await f.signInWithPasskey()).status).toBe(403);
     expect(f.data.session).toHaveLength(sessions);
@@ -1058,9 +1075,10 @@ describe("passkeys", () => {
 
   it("drops credentials an unverified account added before its mailbox owner signed in", async () => {
     const f = passkeyFixture();
-    const { token } = (await (await f.signup()).json()) as { token: string };
+    const { token } = await f.verifiedAccount();
     expect((await f.register(token)).status).toBe(200);
     const userId = f.data.user![0]!.id;
+    f.data.user![0]!.emailVerified = false;
     await f.sendCode();
     expect((await f.codeSignIn(f.lastCode())).status).toBe(200);
     expect(f.data.user![0]).toMatchObject({ id: userId, emailVerified: true });
@@ -1077,9 +1095,8 @@ describe("passkeys", () => {
 
   it("keeps a verified account's passkeys on code sign-in", async () => {
     const f = passkeyFixture();
-    const { token } = (await (await f.signup()).json()) as { token: string };
+    const { token } = await f.verifiedAccount();
     expect((await f.register(token)).status).toBe(200);
-    f.data.user![0]!.emailVerified = true;
     await f.sendCode();
     expect((await f.codeSignIn(f.lastCode())).status).toBe(200);
     expect(f.data.passkey).toHaveLength(1);
@@ -1276,7 +1293,8 @@ describe("single-person deployments", () => {
 
   it("does not create an account from an emailed code once there is one", async () => {
     const f = fixture({ singleAccount: true });
-    expect((await f.signup("owner@example.test")).status).toBe(200);
+    await f.sendCode("owner@example.test");
+    expect((await f.codeSignIn(f.lastCode(), "owner@example.test")).status).toBe(200);
     const sent = f.messages.length;
     expect((await f.sendCode("someone@example.test")).status).toBe(200);
     expect(f.messages).toHaveLength(sent);
@@ -1330,7 +1348,7 @@ describe("ending sessions", () => {
       ) => {},
     );
     const f = fixture({ afterDeleteSession, afterReplaceSession });
-    const { token: first } = (await (await f.signup()).json()) as { token: string };
+    const { token: first } = await f.verifiedAccount();
     const { token: second } = (await (await f.signin()).json()) as { token: string };
     const ids = sessionIds(f.data.session!);
     expect(ids).toHaveLength(2);

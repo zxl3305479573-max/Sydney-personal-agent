@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, useSyncExternalStore } from "reac
 export type ChatMarkdownProps = {
   children: string;
   streaming?: boolean;
+  showWebsiteUrls?: boolean;
   /** Draws a mention link from `withMentions`; returning nothing leaves its plain name. */
   renderMention?: (id: string, name: string) => ReactNode;
 };
@@ -403,6 +404,13 @@ export function linkLabel(text: string, href: string): string {
 /** The origin a link's site icon is looked up by, or undefined for links that get no icon. */
 export function linkFaviconOrigin(href: string): string | undefined {
   return httpUrl(href)?.origin;
+}
+
+export function visibleWebsiteUrl(href: string): string {
+  const url = new URL(href);
+  url.username = "";
+  url.password = "";
+  return url.href;
 }
 
 /**

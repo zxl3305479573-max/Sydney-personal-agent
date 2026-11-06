@@ -187,7 +187,10 @@ export function AppearanceColorPicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[min(19rem,calc(100vw-2rem))] gap-3 rounded-2xl p-3.5 motion-reduce:animate-none"
+        side="bottom"
+        sideOffset={8}
+        collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+        className="max-h-[var(--available-height)] w-[min(19rem,calc(100vw-2rem))] gap-3 overflow-y-auto rounded-2xl p-3.5 motion-reduce:animate-none"
       >
         <div className="flex items-center justify-between">
           <PopoverTitle>{label}</PopoverTitle>

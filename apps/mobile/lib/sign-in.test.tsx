@@ -304,6 +304,23 @@ it.each(["in", "up"])("signs in with an emailed code by default in %s mode", asy
   expect(router.replace).toHaveBeenCalledWith("/");
 });
 
+it("hides the password field and requires a code for signup", async () => {
+  route.mode = "up";
+  vi.mocked(passwordResetCapabilities).mockResolvedValue({ ...capabilities, emailCode: true });
+  vi.mocked(sendSignInCode).mockResolvedValue();
+  vi.mocked(signInWithCode).mockResolvedValue();
+  vi.mocked(rpc).mockResolvedValue({ needsSetup: false } as never);
+  await render();
+  expect(input("Password")).toBeNull();
+  await type(input("Name")!, "Ada");
+  await type(input("Email")!, "ada@example.test");
+  await press("Continue");
+  expect(signUp).not.toHaveBeenCalled();
+  expect(sendSignInCode).toHaveBeenCalledWith("ada@example.test");
+  await type(input("Code")!, "123456");
+  expect(signInWithCode).toHaveBeenCalledWith("ada@example.test", "123456", "Ada");
+});
+
 it("returns from the code step with the email kept", async () => {
   vi.mocked(passwordResetCapabilities).mockResolvedValue({ ...capabilities, emailCode: true });
   vi.mocked(sendSignInCode).mockResolvedValue();

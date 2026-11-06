@@ -160,7 +160,7 @@ export default function PeerChat() {
                   >
                     {sent ? botName : peerName}
                   </Text>
-                  <ChatMarkdown palette={tokens} colorScheme={colorScheme}>
+                  <ChatMarkdown palette={tokens} colorScheme={colorScheme} showWebsiteUrls>
                     {item.text}
                   </ChatMarkdown>
                 </View>

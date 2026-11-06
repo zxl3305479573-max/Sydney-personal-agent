@@ -210,8 +210,8 @@ export function ArtifactsPage() {
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background text-foreground/90">
-      <header className="app-drag border-b border-border px-4 py-4 md:px-6">
+    <div className="sydney-page-surface flex h-full min-w-0 flex-col bg-background text-foreground/90">
+      <header className="sydney-page-header app-drag border-b border-border px-4 py-4 md:px-6">
         {/* Wraps so window controls and the way back stay on screen with Filters. */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex items-center gap-2">
@@ -623,7 +623,7 @@ function BotFilterChip({
         size={16}
         status={bot.status}
       />
-      <span className="max-w-[120px] truncate">{bot.name}</span>
+      <span className="rk-script-type max-w-[120px] truncate">{bot.name}</span>
     </Button>
   );
 }
@@ -677,7 +677,7 @@ function ArtifactCard({
                 size={20}
                 status={bot.status}
               />
-              <span className="min-w-0 flex-1 truncate">{bot.name}</span>
+              <span className="rk-script-type min-w-0 flex-1 truncate">{bot.name}</span>
             </>
           ) : (
             <span className="flex-1" />
@@ -745,7 +745,7 @@ function ArtifactRow({
                 size={14}
                 status={bot.status}
               />
-              <span className="me-1 max-w-[140px] truncate">{bot.name}</span>
+              <span className="rk-script-type me-1 max-w-[140px] truncate">{bot.name}</span>
             </>
           ) : null}
           <span>{formatRelativeTime(artifact.createdAt)}</span>

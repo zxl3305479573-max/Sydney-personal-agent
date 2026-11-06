@@ -55,6 +55,7 @@ export function MessageCaption({
       colorScheme={colorScheme}
       streaming={streaming}
       renderMention={renderMention}
+      showWebsiteUrls
     >
       {text}
     </ChatMarkdown>

@@ -72,7 +72,7 @@ export function ExternalConversationSettings({
   return (
     <div data-testid="external-conversation-settings">
       <div className="mb-6">
-        <h2 className="truncate text-[17px] font-medium text-foreground" dir="auto">
+        <h2 className="rk-script-type truncate text-[17px] font-medium text-foreground" dir="auto">
           {conversation.displayName || t`External conversation`}
         </h2>
         <p className="mt-1 truncate text-[12.5px] text-muted-foreground">

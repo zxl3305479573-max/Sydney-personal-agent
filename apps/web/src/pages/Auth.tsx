@@ -48,8 +48,9 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
   const useCode = Boolean(reset?.passwordAuth && reset.emailCode) && mode !== "forgot";
-  // A blank password asks for an emailed code, so code-only accounts need no toggle.
-  const codeMode = useCode && !password;
+  const signupCodeOnly = mode === "up" && useCode;
+  // A blank password asks for an emailed code; email-capable signups always require one.
+  const codeMode = useCode && (signupCodeOnly || !password);
   const codeStep = useCode && codeSent;
   const passwordFieldId = mode === "in" ? "current-password" : "new-password";
   const title =
@@ -347,7 +348,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   ) : null}
                 </div>
               )}
-              {mode !== "forgot" && !codeStep ? (
+              {mode !== "forgot" && !signupCodeOnly && !codeStep ? (
                 <div className="mt-4 w-full">
                   <Label htmlFor={passwordFieldId} className="text-muted-foreground">
                     <Trans>Password</Trans>
@@ -360,7 +361,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t`Password`}
                     type="password"
-                    required={!useCode}
+                    required={!codeMode}
                     minLength={mode === "up" ? MIN_PASSWORD_LENGTH : undefined}
                     maxLength={MAX_PASSWORD_LENGTH}
                     className={fieldClass}
@@ -565,7 +566,7 @@ export function AuthFrame({
       <header className="flex items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex items-center gap-2 font-medium">
           <span aria-hidden="true" className="sydney-brand-mark h-7 w-7" />
-          <span>Sydney</span>
+          <span className="rk-script-type">Sydney</span>
         </div>
         {mode === "in" || mode === "up" ? (
           <p className="text-right text-sm text-muted-foreground">

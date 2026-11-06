@@ -16,6 +16,7 @@ import { LoadingState } from "./components/ai/primitives";
 import { CallLayout } from "./components/call/CallLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MarkdownLinkPrompt } from "./components/markdown-link-prompt";
+import { PageBreadcrumb } from "./components/PageBreadcrumb";
 import { PageLoading } from "./components/PageLoading";
 import { SubscriptionGate } from "./components/SubscriptionGate";
 import { authClient } from "./lib/auth";
@@ -184,6 +185,7 @@ function SessionApp() {
     <QueryUserProvider value={user?.id ?? null}>
       <MarkdownLinkPrompt>
         <div className="h-full" data-rakazo-app-state="ready">
+          <PageBreadcrumb />
           <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route path="/" element={user ? <Navigate to="/app" replace /> : <WelcomePage />} />
@@ -323,7 +325,10 @@ function SessionUnavailable({ refetch }: { refetch: () => Promise<void> }) {
   }, [attempt, retryKey]);
 
   return (
-    <div className="grid h-full place-items-center bg-background px-6 text-center">
+    <div
+      className="grid h-full place-items-center bg-background px-6 text-center"
+      data-mobile-startup-terminal
+    >
       <div className="flex flex-col items-center">
         <LoadingState label={t`Reconnecting`} />
         <p className="mt-3 text-[13.5px] text-muted-foreground/80">

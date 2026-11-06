@@ -41,6 +41,13 @@ describe("pickLeastUsed", () => {
 });
 
 describe("chooseBotAvatar", () => {
+  it("preserves the fluid avatar color selected during creation", () => {
+    const color = "#123456::fluid_#10B981";
+    expect(chooseBotAvatar([], color, { avatarSet: "fluid", random: seeded(1), now: 0 }).color).toBe(
+      color,
+    );
+  });
+
   it("derives a Rakazo colour from the chosen persistent id, independently of roster order", () => {
     for (let seed = 1; seed <= 30; seed++) {
       const chosen = chooseBotAvatar([], undefined, {

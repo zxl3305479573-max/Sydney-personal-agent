@@ -173,41 +173,40 @@ export const MessageView = memo(function MessageView({
   const speak = () => onSpeak(message);
   const replyBotId = message.replyPreview?.botId ?? replyParent?.botId;
   const speakerBot = message.botId ? peerBot?.(message.botId) : undefined;
-  const speakerColorDef = useMemo(
-    () => resolvePersonaColorDef(message.botId ?? "bot", speakerBot?.color),
-    [message.botId, speakerBot?.color],
+  const replyLine = (
+    <ReplyLine
+      target={artifactTarget}
+      message={message}
+      fallbackText={replyParent ? previewMessageText(replyParent) : undefined}
+      author={
+        (message.replyPreview?.role ?? replyParent?.role) === "user"
+          ? t`You`
+          : ((replyBotId ? peerBot(replyBotId)?.name : undefined) ??
+            memberName?.(replyBotId) ??
+            t`Bot`)
+      }
+      onJump={onJumpToMessage}
+    />
   );
-  const messageContext = (
-    <>
-      {speakerName ? (
+  const messageContext = speakerName ? (
+    <div className="sydney-assistant-context" dir="auto">
+      <BotAvatar
+        color={speakerBot?.color ?? FALLBACK_BOT_COLOR}
+        avatarSet={speakerBot?.avatarSet}
+        identity={message.botId}
+        size={68}
+      />
+      <div className="min-w-0 pt-1">
         <div
-          className="mb-1.5 flex items-center gap-2 text-[13px] font-semibold tracking-tight"
-          dir="auto"
-          style={{ color: speakerColorDef.light }}
+          className="mb-1 text-[17px] font-semibold tracking-tight text-foreground"
         >
-          <BotAvatar
-            color={speakerBot?.color ?? FALLBACK_BOT_COLOR}
-            avatarSet={speakerBot?.avatarSet}
-            identity={message.botId}
-            size={22}
-          />
           {speakerName}
         </div>
-      ) : null}
-      <ReplyLine
-        target={artifactTarget}
-        message={message}
-        fallbackText={replyParent ? previewMessageText(replyParent) : undefined}
-        author={
-          (message.replyPreview?.role ?? replyParent?.role) === "user"
-            ? t`You`
-            : ((replyBotId ? peerBot(replyBotId)?.name : undefined) ??
-              memberName?.(replyBotId) ??
-              t`Bot`)
-        }
-        onJump={onJumpToMessage}
-      />
-    </>
+        {replyLine}
+      </div>
+    </div>
+  ) : (
+    replyLine
   );
   // Anchored below the speaker and reply line so the rail centers on the bubble itself.
   // A message with text and attachments anchors it on its first text bubble.
@@ -246,10 +245,10 @@ export const MessageView = memo(function MessageView({
       <>
         {messageContext}
         <div className="relative w-fit max-w-full [@media(hover:none)]:w-full">
-          <div className="flex w-fit max-w-full justify-start [@media(hover:none)]:w-full">
+          <div className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full">
             <div
               data-testid="message-bot-bubble"
-              className="rk-chat-type max-w-full space-y-2.5 rounded-[20px] bg-muted px-[18px] py-3 text-foreground"
+              className="rk-chat-type max-w-full space-y-2.5 text-foreground/80"
               dir="auto"
             >
               {visibleNarrationBlocks.map((block, i) => {
@@ -282,6 +281,7 @@ export const MessageView = memo(function MessageView({
                       <ChatMarkdown
                         streaming={block.kind === "progress"}
                         renderMention={renderMention}
+                        showWebsiteUrls
                       >
                         {block.text}
                       </ChatMarkdown>
@@ -419,14 +419,14 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
-                className="flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
+                className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full rounded-[20px] bg-muted px-[18px] py-3 text-foreground"
+                  className="rk-chat-type max-w-full text-foreground/80"
                   dir="auto"
                 >
-                  <ChatMarkdown streaming renderMention={renderMention}>
+                  <ChatMarkdown streaming renderMention={renderMention} showWebsiteUrls>
                     {block.text}
                   </ChatMarkdown>
                 </div>
@@ -556,7 +556,7 @@ export const MessageView = memo(function MessageView({
             );
           }
           if (block.kind === "text" && message.role === "user") {
-            // User bubbles stay literal text on web and mobile. Only explicit URLs
+            // User messages stay literal text on web and mobile. Only explicit URLs
             // and email addresses are links, so a sent address is tappable without
             // formatting bold or headings.
             return (
@@ -567,19 +567,7 @@ export const MessageView = memo(function MessageView({
                 <div
                   data-testid="message-user-bubble"
                   data-quote-message-id={quoteMessageId}
-                  className="rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere rounded-[20px] bg-chat-user px-[18px] py-3 text-chat-user-foreground"
-                  style={{
-                    backgroundColor:
-                      "var(--custom-chat-user-background, var(--chat-user))",
-                    backgroundImage: "var(--custom-chat-user-image, none)",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    color:
-                      "var(--custom-chat-user-foreground, var(--chat-user-foreground))",
-                    borderRadius: "var(--custom-chat-user-radius, 20px)",
-                    boxShadow:
-                      "inset 0 0 0 1px var(--custom-chat-user-border, transparent)",
-                  }}
+                  className="rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
                   dir="auto"
                 >
                   <LinkifiedText>{block.text}</LinkifiedText>
@@ -592,27 +580,19 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
-                className="relative flex w-fit max-w-full justify-start [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
+                className="sydney-assistant-content relative flex w-fit max-w-full justify-start [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full rounded-[20px] bg-muted px-[18px] py-3 text-foreground"
+                  className="rk-chat-type max-w-full text-foreground/80"
                   style={{
-                    backgroundColor:
-                      "var(--custom-chat-bot-background, var(--muted))",
-                    backgroundImage: "var(--custom-chat-bot-image, none)",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
                     color:
                       "var(--custom-chat-bot-foreground, var(--foreground))",
-                    borderRadius: "var(--custom-chat-bot-radius, 20px)",
-                    boxShadow:
-                      "inset 0 0 0 1px var(--custom-chat-bot-border, transparent)",
                   }}
                   dir="auto"
                 >
                   <div data-quote-message-id={quoteMessageId}>
-                    <ChatMarkdown renderMention={renderMention}>
+                    <ChatMarkdown renderMention={renderMention} showWebsiteUrls>
                       {block.text}
                     </ChatMarkdown>
                   </div>

@@ -2,11 +2,9 @@ import type { BotAvatarSet } from "@rakazo/contracts";
 import type { BotColorDef, LogoAvatarActivity } from "@rakazo/core";
 import {
   ACTIVE_RUN_STATUSES,
-  avatarIdentitySeed,
   BOT_AVATAR_COLORS,
   BOT_COLOR_LIST,
   DEFAULT_BOT_AVATAR_COLOR,
-  organicAvatarPath,
   resolvePersonaColorDef,
   SHIPPED_BOT_AVATAR_CENTER,
   SHIPPED_BOT_AVATAR_SHAPE_KEYS,
@@ -14,14 +12,8 @@ import {
   SHIPPED_BOT_AVATAR_VIEWBOX,
   shippedBotAvatarShapePath,
 } from "@rakazo/core";
-import { tokens } from "@rakazo/ui-tokens";
-import type { ComponentProps, CSSProperties } from "react";
-import { memo, useEffect, useId, useMemo, useSyncExternalStore } from "react";
-import { useBotAvatarActivity } from "./bot-avatar-activity.js";
-import { useAvatarMotionVisibility } from "./hooks/use-avatar-motion-visibility.js";
+import { memo, useMemo } from "react";
 import { cn } from "./lib/utils.js";
-import { LogoAvatar } from "./logo-avatar.js";
-import { FluidAvatar } from "./fluid-avatar.js";
 import "./styles.css";
 
 export type { BotColorDef };
@@ -50,8 +42,6 @@ export function parseBotAvatar(
   if (!rawColor) return { color: "#F97316", isImage: false };
   const fluid = /^(#[0-9a-fA-F]{3,6})::fluid_#[0-9a-fA-F]{6}$/.exec(rawColor);
   if (fluid) return { color: fluid[1]!, isImage: false };
-  // Only data: image URLs are rendered. Arbitrary http(s)/blob values in `color`
-  // must not become <img src> (SSRF / tracking when other members view the bot).
   if (rawColor.startsWith("data:image/")) {
     return { color: "#F97316", isImage: true, imageUrl: rawColor };
   }
@@ -80,37 +70,32 @@ export function defaultBotAvatarValue(rawColor: string): string {
 export interface BotAvatarProps {
   color: string;
   avatarSet?: BotAvatarSet;
-  activity?: LogoAvatarActivity;
   size?: number;
   status?: string;
   identity?: string;
   className?: string;
+  activity?: LogoAvatarActivity;
 }
 
 export const BotAvatar = memo(function BotAvatar({
   color,
-  avatarSet,
-  activity,
   size = 36,
   status,
   identity = "",
   className,
 }: BotAvatarProps) {
-  const id = useId().replace(/[^a-zA-Z0-9-_]/g, "");
-  const isWorking = ACTIVE_RUN_STATUSES.some((s) => s === status);
+  const isWorking = ACTIVE_RUN_STATUSES.some((activeStatus) => activeStatus === status);
 
   const parsed = useMemo(() => parseBotAvatar(color, identity), [color, identity]);
   const effectiveId = identity || parsed.color || "agent";
+  const avatarColor = /::fluid_(#[0-9a-fA-F]{6})$/.exec(color)?.[1] ?? parsed.color;
+  const variant = parsed.shapeIndex === undefined ? 0 : (parsed.shapeIndex + 1) % 5;
+  const offset = (variant - 2) * 2;
 
   const colorDef = useMemo(
-    () => resolvePersonaColorDef(effectiveId, parsed.color),
-    [effectiveId, parsed.color],
+    () => resolvePersonaColorDef(effectiveId, avatarColor),
+    [effectiveId, avatarColor],
   );
-
-  if (!parsed.isImage) {
-    const fluidColor = /::fluid_(#[0-9a-fA-F]{6})$/.exec(color)?.[1] ?? parsed.color;
-    return <FluidAvatar color={fluidColor} size={size} className={className} />;
-  }
 
   if (parsed.isImage && parsed.imageUrl) {
     return (
@@ -119,7 +104,7 @@ export const BotAvatar = memo(function BotAvatar({
         data-working={isWorking}
         style={{ width: size, height: size }}
       >
-        <div className="rakazo-bot-avatar-picture relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-secondary">
+        <div className="rakazo-bot-avatar-picture relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-transparent">
           <img src={parsed.imageUrl} alt="" className="h-full w-full object-cover" />
         </div>
         {isWorking ? (
@@ -149,217 +134,36 @@ export const BotAvatar = memo(function BotAvatar({
     );
   }
 
-  if (parsed.shapeIndex === undefined && avatarSet === "rakazo") {
-    const Avatar = activity === undefined ? LiveLogoAvatar : LogoAvatar;
-    return (
-      <Avatar
-        avatarValue={color ? colorDef.hex : undefined}
-        identity={effectiveId}
-        size={size}
-        activity={activity}
-        status={status}
-        className={className}
-      />
-    );
-  }
-  if (parsed.shapeIndex === undefined) {
-    return (
-      <OrganicAvatar
-        color={colorDef.hex}
-        identity={effectiveId}
-        size={size}
-        isWorking={isWorking}
-        className={className}
-      />
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        "rakazo-bot-avatar bot-avatar-container relative inline-flex items-center justify-center shrink-0 select-none",
-        className,
-      )}
-      style={{
-        width: size,
-        height: size,
-      }}
-      data-working={isWorking}
-    >
-      <svg
-        className="rakazo-bot-avatar-ring absolute pointer-events-none"
-        style={{
-          inset: -4,
-          width: size + 8,
-          height: size + 8,
-          filter: `drop-shadow(0 0 6px ${colorDef.light}) drop-shadow(0 0 10px #ffffff)`,
-        }}
-        viewBox="0 0 48 48"
-        fill="none"
-        aria-hidden="true"
-      >
-        <circle
-          cx="24"
-          cy="24"
-          r="22"
-          stroke={`url(#${id}-ring)`}
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeDasharray="45 80"
-        />
-        <circle cx="43" cy="24" r="2.8" fill="#ffffff" />
-        <defs>
-          <linearGradient id={`${id}-ring`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-            <stop offset="60%" stopColor={colorDef.light} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={colorDef.light} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <svg
-        viewBox={VIEWBOX}
-        aria-hidden="true"
-        className={cn(
-          "overflow-visible transition-transform duration-300",
-          isWorking
-            ? "animate-pulse scale-[1.04] motion-reduce:animate-none"
-            : "hover:scale-[1.03] motion-reduce:hover:scale-100",
-        )}
-        // Inline size so a parent's icon sizing (Button sizes bare SVGs) cannot shrink it.
-        style={{
-          width: size,
-          height: size,
-          filter: isWorking
-            ? `drop-shadow(0 0 8px ${colorDef.light}) drop-shadow(0 0 2px #ffffff)`
-            : "drop-shadow(0 2px 4px rgba(0,0,0,0.45))",
-        }}
-      >
-        <defs>
-          <linearGradient id={`bot-ink-${id}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={colorDef.light} />
-            <stop offset="100%" stopColor={colorDef.dark} />
-          </linearGradient>
-        </defs>
-        <g>
-          <path d={shippedBotAvatarShapePath(parsed.shapeIndex)} fill={`url(#bot-ink-${id})`} />
-          <g fill={colorDef.eyeColor} className="bot-character-eyes">
-            <ellipse cx={CENTER - 29} cy={CENTER - 8} rx={10} ry={7} />
-            <ellipse cx={CENTER + 29} cy={CENTER - 8} rx={10} ry={7} />
-          </g>
-        </g>
-      </svg>
-    </div>
-  );
-});
-
-/** Only live Rakazo consumers subscribe to public activity updates. */
-function LiveLogoAvatar({
-  status,
-  ...props
-}: ComponentProps<typeof LogoAvatar> & { status?: string }) {
-  const activity = useBotAvatarActivity(props.identity ?? "", status);
-  return <LogoAvatar {...props} activity={activity} />;
-}
-
-function OrganicAvatar({
-  color,
-  identity,
-  size,
-  isWorking,
-  className,
-}: {
-  color: string;
-  identity?: string;
-  size: number;
-  isWorking: boolean;
-  className?: string;
-}) {
-  const reducedMotion = useSyncExternalStore(
-    subscribeToReducedMotion,
-    reducedMotionSnapshot,
-    () => false,
-  );
-  const { ref, visible } = useAvatarMotionVisibility(!reducedMotion);
-  useEffect(() => {
-    // jsdom has no SMIL clock, so these are optional.
-    if (visible) ref.current?.unpauseAnimations?.();
-    else ref.current?.pauseAnimations?.();
-  }, [ref, visible]);
-  const seed = avatarIdentitySeed(identity || color || DEFAULT_BOT_AVATAR_COLOR);
-  const duration = `${4.8 + (seed % 24) / 10}s`;
-  const shapeA = organicAvatarPath(seed);
-  const shapeB = organicAvatarPath(seed, 0.42);
-
   return (
     <svg
-      ref={ref}
-      viewBox="-60 -60 120 120"
+      viewBox="0 0 64 64"
       aria-hidden="true"
-      className={cn("rakazo-organic-avatar overflow-visible select-none", className)}
+      className={cn("sydney-bot-avatar shrink-0 select-none", className)}
       data-working={isWorking}
-      data-paused={!visible}
-      data-shape-family={seed % 10}
-      data-eye-pattern={seed % 4}
-      style={{
-        width: size,
-        height: size,
-        flex: "none",
-      }}
+      data-color={colorDef.hex}
+      data-variant={variant}
+      style={{ width: size, height: size, flex: "none" }}
     >
-      {(["idle", "working"] as const).map((mode) => (
-        <path
-          key={mode}
-          className={`rakazo-organic-avatar-body rakazo-organic-avatar-body-${mode}`}
-          d={shapeA}
-          fill={color}
-          style={
-            {
-              "--rakazo-organic-path": `path("${shapeA}")`,
-              filter:
-                mode === "working"
-                  ? `drop-shadow(0 0 ${Math.round(size * 0.16)}px ${color})`
-                  : "drop-shadow(0 2px 3px rgba(0,0,0,.34))",
-            } as CSSProperties
-          }
-        >
-          {/* Only a working body morphs. A late <animate> joins the svg clock mid-loop. */}
-          {!reducedMotion && mode === "working" && isWorking ? (
-            <animate
-              attributeName="d"
-              values={`${shapeA};${shapeB};${shapeA}`}
-              dur={duration}
-              repeatCount="indefinite"
-            />
-          ) : null}
-        </path>
-      ))}
-      <g transform={`rotate(${(seed % 9) - 4})`}>
-        {(["idle", "working"] as const).map((mode) => (
-          <g
-            key={mode}
-            className={`rakazo-organic-avatar-eyes rakazo-organic-avatar-eyes-${mode}`}
-            fill={tokens.background}
-          >
-            <rect x="-14" y="-12" width="7" height="24" rx="3.5" />
-            <rect x="7" y="-12" width="7" height="24" rx="3.5" />
-          </g>
-        ))}
+      <path
+        d={
+          parsed.shapeIndex === undefined
+            ? `M32 ${5 + Math.abs(offset)} C46 ${4 + offset} 59 15 60 30 C61 46 48 59 32 60 C16 61 4 49 5 33 C6 18 18 ${6 + Math.abs(offset)} 32 ${5 + Math.abs(offset)} Z`
+            : shippedBotAvatarShapePath(parsed.shapeIndex)
+        }
+        transform={parsed.shapeIndex === undefined ? undefined : "translate(4 4) scale(0.245)"}
+        fill={colorDef.hex}
+      />
+      <g
+        className="sydney-bot-avatar-eyes"
+        fill={colorDef.eyeColor}
+        transform={`rotate(${30 + offset} 32 32)`}
+      >
+        <rect x={21 + offset} y="19" width="7" height="17" rx="3.5" />
+        <rect x={36 + offset} y="27" width="7" height="17" rx="3.5" />
       </g>
     </svg>
   );
-}
-
-const reducedMotionMedia = "(prefers-reduced-motion: reduce)";
-
-function reducedMotionSnapshot(): boolean {
-  return window.matchMedia(reducedMotionMedia).matches;
-}
-
-function subscribeToReducedMotion(onChange: () => void): () => void {
-  const media = window.matchMedia(reducedMotionMedia);
-  media.addEventListener("change", onChange);
-  return () => media.removeEventListener("change", onChange);
-}
+});
 
 export function BotShapePreview({
   shapeIndex,
@@ -415,9 +219,7 @@ export function Wordmark({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <span aria-hidden="true" className="sydney-brand-mark h-11 w-11" />
-      <span className="font-[Aeonik,ui-sans-serif] text-[28px] tracking-tight text-foreground">
-        Sydney
-      </span>
+      <span className="rk-script-type text-[28px] tracking-tight text-foreground">Sydney</span>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export function WelcomePage() {
       <main className="flex flex-1 flex-col items-center justify-center gap-11 px-5 pb-[90px]">
         <div className="flex items-center gap-[18px] sm:gap-[26px]">
           <span aria-hidden="true" className="sydney-brand-mark size-16 sm:size-[88px]" />
-          <h1 className="text-[56px] leading-none tracking-[-0.03em] text-foreground sm:text-[76px]">
+          <h1 className="rk-script-type text-[56px] leading-none tracking-[-0.03em] text-foreground sm:text-[76px]">
             Sydney
           </h1>
         </div>

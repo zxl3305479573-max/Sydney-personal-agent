@@ -48,11 +48,11 @@ export function ProvidersSection({
   panelAt?: string | null;
 }) {
   return (
-    <section className="mb-8" data-testid="model-providers">
+    <section className="sydney-settings-section mb-8" data-testid="model-providers">
       <SectionHeading className="mb-2.5">
         <Trans>Providers</Trans>
       </SectionHeading>
-      <ul className="divide-y divide-border rounded-xl border border-border">
+      <ul className="sydney-glass-list divide-y divide-border rounded-xl border border-border">
         {[...credentials]
           // Saving a key reorders the account's connections; this list stays put.
           .sort((left, right) => nameOf(left).localeCompare(nameOf(right)))

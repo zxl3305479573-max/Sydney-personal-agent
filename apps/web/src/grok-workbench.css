@@ -1,0 +1,324 @@
+.sydney-grok-header {
+  min-height: 44px;
+  padding-inline: 8px;
+}
+
+.sydney-assistant-context {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.sydney-assistant-content {
+  margin-left: 86px;
+}
+
+.sydney-create-bot-close {
+  display: none;
+}
+
+.sydney-create-bot-handle,
+.sydney-create-bot-intro,
+.sydney-create-bot-description,
+.sydney-create-bot-field,
+.sydney-create-bot-label {
+  display: none;
+}
+
+.sydney-bot-shapes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sydney-bot-shape {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 16px;
+}
+
+.sydney-bot-shape[aria-pressed="true"] {
+  border-color: var(--muted-foreground);
+}
+
+@media (max-width: 767px) {
+  [data-mobile-group="true"] .sydney-grok-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-inline: 16px;
+  }
+
+  [data-mobile-group="true"] .sydney-grok-header button {
+    box-shadow: none;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  [data-mobile-group="true"] .sydney-group-header-avatar,
+  [data-mobile-group="true"] .sydney-assistant-context > :first-child {
+    display: none;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-context {
+    margin-bottom: 6px;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-content {
+    margin-left: 0;
+  }
+
+  [data-testid="composer-bar"][data-mobile-group="true"] {
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  [data-testid="composer-bar"][data-mobile-group="true"] [data-testid="composer-field"] {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-inline: 0;
+  }
+
+  [data-testid="composer-bar"][data-mobile-group="true"] [data-composer-attachments],
+  [data-testid="composer-bar"][data-mobile-group="true"]
+    [data-composer-attachments]
+    ~ div:last-child {
+    grid-row: 2;
+  }
+
+  .sydney-assistant-context {
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .sydney-assistant-context > :first-child {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .sydney-assistant-content {
+    margin-left: 60px;
+  }
+
+  .sydney-create-bot {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    translate: 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    padding: 16px 20px max(18px, env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 30px 30px 0 0;
+    background: rgb(255 255 255 / 88%);
+    box-shadow:
+      0 -1px 0 rgb(255 255 255 / 92%),
+      0 -18px 48px rgb(0 0 0 / 12%);
+    gap: 18px;
+    animation: sydney-create-bot-enter 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both !important;
+    backdrop-filter: blur(24px);
+  }
+
+  [data-slot="dialog-overlay"] {
+    background: rgb(25 25 25 / 32%);
+    backdrop-filter: blur(5px);
+  }
+
+  .sydney-create-bot-handle {
+    display: block;
+    width: 62px;
+    height: 6px;
+    margin: 0 auto 2px;
+    border-radius: 999px;
+    background: rgb(210 210 210 / 72%);
+  }
+
+  .sydney-create-bot-intro {
+    display: block;
+    padding: 0 16px;
+  }
+
+  .sydney-create-bot-title {
+    font-family: var(--font-serif);
+    font-size: 27px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: left;
+  }
+
+  .sydney-create-bot-description {
+    display: block;
+    margin-top: 8px;
+    color: rgb(120 120 120 / 72%);
+    font-family: var(--font-serif);
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .sydney-create-bot-close {
+    position: absolute;
+    top: 42px;
+    right: 18px;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: rgb(92 92 92 / 72%);
+    background: transparent;
+  }
+
+  .sydney-create-bot-preview {
+    padding: 10px 0 18px;
+  }
+
+  .sydney-create-bot-preview .sydney-bot-avatar,
+  .sydney-create-bot-preview .rakazo-logo-avatar {
+    width: 128px !important;
+    height: 128px !important;
+    padding: 22px;
+    border-radius: 32px;
+    background: rgb(255 255 255 / 72%);
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 95%) inset,
+      0 12px 22px rgb(0 0 0 / 10%);
+  }
+
+  .sydney-create-bot-field {
+    display: block;
+    padding: 0 16px;
+  }
+
+  .sydney-create-bot-label {
+    display: block;
+    margin-bottom: 12px;
+    color: rgb(45 45 45 / 86%);
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .sydney-create-bot [data-slot="input"] {
+    height: 76px;
+    border: 0;
+    border-radius: 20px;
+    background: rgb(255 255 255 / 72%);
+    padding: 0 24px;
+    font-family: var(--font-serif);
+    font-size: 18px;
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 95%) inset,
+      0 10px 22px rgb(0 0 0 / 8%);
+  }
+
+  .sydney-create-bot [data-slot="input"]::placeholder {
+    color: rgb(130 130 130 / 68%);
+  }
+
+  .sydney-create-bot .sydney-bot-shapes {
+    grid-template-columns: repeat(3, 72px);
+    justify-content: start;
+    gap: 14px;
+    padding: 0;
+  }
+
+  .sydney-create-bot .sydney-bot-shape {
+    width: 72px;
+    height: 72px;
+    border: 0;
+    border-radius: 22px;
+    background: rgb(255 255 255 / 70%);
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 95%) inset,
+      0 9px 16px rgb(0 0 0 / 8%);
+  }
+
+  .sydney-create-bot .sydney-bot-shape[aria-pressed="true"] {
+    outline: 2px solid rgb(65 65 65 / 72%);
+    outline-offset: -2px;
+  }
+
+  .sydney-create-bot .sydney-bot-shape .sydney-bot-avatar {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .sydney-create-bot .border-t {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .sydney-create-bot .grid.grid-cols-6 {
+    justify-content: start;
+    gap: 14px;
+  }
+
+  .sydney-create-bot .grid.grid-cols-6 > button {
+    width: 48px;
+    height: 48px;
+    border: 0;
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 95%) inset,
+      0 8px 14px rgb(0 0 0 / 8%);
+  }
+
+  .sydney-create-bot-footer {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    gap: 0;
+  }
+
+  .sydney-create-bot-footer button[type="submit"] {
+    width: 100%;
+    height: 70px;
+    border-radius: 999px;
+    border: 1px solid rgb(210 210 210 / 76%);
+    background: rgb(255 255 255 / 52%);
+    color: rgb(54 54 54 / 90%);
+    font-family: var(--font-serif);
+    font-size: 20px;
+    font-weight: 600;
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 95%) inset,
+      0 10px 20px rgb(0 0 0 / 8%);
+  }
+
+  .sydney-create-bot-cancel {
+    display: none;
+  }
+
+  @keyframes sydney-create-bot-enter {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .sydney-create-bot {
+    animation: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .sydney-grok-header {
+    grid-template-columns: 0 minmax(0, auto) 1fr;
+  }
+}

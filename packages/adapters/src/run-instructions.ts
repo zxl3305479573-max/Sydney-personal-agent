@@ -150,11 +150,13 @@ export function dockerComputerToolInstruction(
 function webLookupClause(disabled?: ReadonlySet<string>): string | undefined {
   const search = builtinOffered(disabled, "web_search");
   const fetch = builtinOffered(disabled, "web_fetch");
+  const sources =
+    " When reporting information from web sources, include the exact public URL for each relevant source near the supported information. Use URLs actually returned by tools or visited pages; never invent a source or present an unused search result as evidence.";
   if (search && fetch) {
-    return "Use web_search and web_fetch to look something up or read a page without a computer.";
+    return `Use web_search and web_fetch to look something up or read a page without a computer.${sources}`;
   }
-  if (search) return "Use web_search to look something up without a computer.";
-  if (fetch) return "Use web_fetch to read a page without a computer.";
+  if (search) return `Use web_search to look something up without a computer.${sources}`;
+  if (fetch) return `Use web_fetch to read a page without a computer.${sources}`;
   return undefined;
 }
 

@@ -50,6 +50,7 @@ import {
   remoteMarkdownImage,
   sanitizeMarkdownUrl,
   useLinkFavicon,
+  visibleWebsiteUrl,
 } from "./markdown";
 import { useMarkdownCopy } from "./markdown-copy";
 import { useMarkdownLinkCopy, useMarkdownLinkTrust } from "./markdown-link-prompt";
@@ -503,6 +504,8 @@ function hastHasImage(node: MarkdownHast | undefined): boolean {
   return (node?.children ?? []).some((child) => child.tagName === "img" || hastHasImage(child));
 }
 
+const ShowWebsiteUrlsContext = createContext(false);
+
 function LinkFavicon({ href }: { href: string }) {
   const { icon, unusable } = useLinkFavicon(href);
   return (
@@ -555,6 +558,7 @@ function MarkdownAnchor({
 }: React.ComponentPropsWithoutRef<"a"> & { node?: MarkdownHast }) {
   const loadRemote = useContext(RemoteImagesContext);
   const renderMention = useContext(MentionContext);
+  const showWebsiteUrls = useContext(ShowWebsiteUrlsContext);
   const href = typeof props.href === "string" ? props.href : "";
   const mentionId = markdownMentionId(href);
   if (mentionId) {
@@ -570,9 +574,20 @@ function MarkdownAnchor({
   const text = hastText(node);
   const link =
     opens && linkFaviconOrigin(href) && !hastHasImage(node) ? (
-      <WebsiteLink {...props} href={href}>
-        {text === undefined ? props.children : linkLabel(text, href)}
-      </WebsiteLink>
+      showWebsiteUrls ? (
+        <>
+          {text === undefined || (text && !/^(?:https?:\/\/|www\.)/i.test(text)) ? (
+            <>{props.children} </>
+          ) : null}
+          <WebsiteLink {...props} href={href} className="rk-chat-link-full">
+            {visibleWebsiteUrl(href)}
+          </WebsiteLink>
+        </>
+      ) : (
+        <WebsiteLink {...props} href={href}>
+          {text === undefined ? props.children : linkLabel(text, href)}
+        </WebsiteLink>
+      )
     ) : opens ? (
       <ConfirmableAnchor {...props} />
     ) : (
@@ -726,6 +741,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   children,
   streaming = false,
   renderMention,
+  showWebsiteUrls = false,
 }: ChatMarkdownProps) {
   const { request, dialog } = useExternalLinkConfirm();
   // A streamed reply stays split once it finishes, so its blocks are not drawn again.
@@ -741,29 +757,33 @@ export const ChatMarkdown = memo(function ChatMarkdown({
   return (
     <ConfirmLinkContext.Provider value={request}>
       <MentionContext.Provider value={renderMention}>
-        <div
-          className={streaming ? "rk-chat-markdown rk-chat-markdown-streaming" : "rk-chat-markdown"}
-        >
-          <LinkFaviconsPausedContext.Provider value={streaming}>
-            <PlainTextOnFailure text={children}>
-              {blocks ? (
-                blocks.map((block, index) => (
-                  <Fragment key={block.start}>
-                    {/* The line break react-markdown puts between blocks, so the DOM matches. */}
-                    {index > 0 ? "\n" : null}
-                    <MarkdownBlock
-                      source={block.source}
-                      streaming={streaming && index === blocks.length - 1}
-                    />
-                  </Fragment>
-                ))
-              ) : (
-                <MarkdownBlock source={children} streaming={streaming} />
-              )}
-            </PlainTextOnFailure>
-          </LinkFaviconsPausedContext.Provider>
-          {streaming ? <span aria-hidden="true" className="rk-chat-markdown-cursor" /> : null}
-        </div>
+        <ShowWebsiteUrlsContext.Provider value={showWebsiteUrls}>
+          <div
+            className={
+              streaming ? "rk-chat-markdown rk-chat-markdown-streaming" : "rk-chat-markdown"
+            }
+          >
+            <LinkFaviconsPausedContext.Provider value={streaming}>
+              <PlainTextOnFailure text={children}>
+                {blocks ? (
+                  blocks.map((block, index) => (
+                    <Fragment key={block.start}>
+                      {/* The line break react-markdown puts between blocks, so the DOM matches. */}
+                      {index > 0 ? "\n" : null}
+                      <MarkdownBlock
+                        source={block.source}
+                        streaming={streaming && index === blocks.length - 1}
+                      />
+                    </Fragment>
+                  ))
+                ) : (
+                  <MarkdownBlock source={children} streaming={streaming} />
+                )}
+              </PlainTextOnFailure>
+            </LinkFaviconsPausedContext.Provider>
+            {streaming ? <span aria-hidden="true" className="rk-chat-markdown-cursor" /> : null}
+          </div>
+        </ShowWebsiteUrlsContext.Provider>
       </MentionContext.Provider>
       {dialog}
     </ConfirmLinkContext.Provider>

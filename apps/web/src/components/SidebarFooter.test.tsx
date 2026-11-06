@@ -34,12 +34,14 @@ async function render(
   onIntegrations = vi.fn(),
   onBoard?: () => void,
   logos?: Array<{ name: string; logo?: string }>,
+  mobile = false,
 ) {
   const email = "account@rakazo.test";
   await act(async () =>
     root.render(
       <DesktopUpdatesProvider>
         <SidebarFooter
+          mobile={mobile}
           logos={logos}
           name={name}
           initials={name
@@ -67,6 +69,14 @@ async function render(
     ),
   );
 }
+it("keeps the account menu available at the top on mobile", async () => {
+  await render("Demo User", undefined, vi.fn(), undefined, undefined, true);
+  const footer = document.querySelector('[data-testid="sidebar-footer"]')!;
+  expect(footer.className).toContain("absolute");
+  expect(footer.querySelector('[data-testid="user-menu-trigger"]')).not.toBeNull();
+  expect(footer.querySelector('[aria-label="Connect apps"]')).toBeNull();
+  expect(document.querySelector('[aria-label="Settings"]')).not.toBeNull();
+});
 function bridge(phase: DesktopUpdateState["phase"]) {
   const state: DesktopUpdateState = {
     phase,

@@ -20,6 +20,7 @@ import {
   Input,
   parseBotAvatar,
 } from "@rakazo/ui-web";
+import { X } from "lucide-react";
 import { useRef, useState } from "react";
 import { errorText } from "../../lib/user-error";
 import { BotLookPicker } from "./avatar-studio-popover";
@@ -51,6 +52,7 @@ export function CreateBotDialog({
 }) {
   const { t } = useLingui();
   const nameRef = useRef<HTMLInputElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [name, setName] = useState("");
   const [previewId] = useState(() => {
     let id: string;
@@ -97,8 +99,12 @@ export function CreateBotDialog({
       <DialogContent
         showCloseButton={false}
         aria-describedby={undefined}
-        initialFocus={nameRef}
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md"
+        initialFocus={
+          typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+            ? closeRef
+            : nameRef
+        }
+        className="sydney-create-bot max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md"
         data-testid="create-bot-dialog"
       >
         <form
@@ -109,11 +115,27 @@ export function CreateBotDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle className="text-center">
+            <button
+              ref={closeRef}
+              type="button"
+              aria-label={t`Close`}
+              className="sydney-create-bot-close"
+              disabled={submitting}
+              onClick={onCancel}
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </DialogHeader>
+          <div className="sydney-create-bot-handle" aria-hidden="true" />
+          <div className="sydney-create-bot-intro">
+            <DialogTitle className="sydney-create-bot-title">
               <Trans>New bot</Trans>
             </DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center py-2">
+            <p className="sydney-create-bot-description">
+              <Trans>Give your assistant a unique identity</Trans>
+            </p>
+          </div>
+          <div className="sydney-create-bot-preview flex justify-center py-2">
             <BotAvatar
               color={look.value}
               identity={avatarSet === "rakazo" ? previewId : look.identity}
@@ -121,35 +143,52 @@ export function CreateBotDialog({
               avatarSet={avatarSet}
             />
           </div>
-          <Input
-            ref={nameRef}
-            aria-label={t`Name`}
-            placeholder={t`Name your Bot`}
-            value={name}
-            maxLength={BOT_NAME_MAX_LENGTH}
-            onChange={(event) => setName(event.target.value)}
-            className="text-center"
-          />
+          <div className="sydney-create-bot-field">
+            <label htmlFor="create-bot-name" className="sydney-create-bot-label">
+              <Trans>Bot name</Trans>
+            </label>
+            <Input
+              ref={nameRef}
+              id="create-bot-name"
+              aria-label={t`Name`}
+              placeholder={t`Name your Bot`}
+              value={name}
+              maxLength={BOT_NAME_MAX_LENGTH}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
           {error ? (
             <p role="alert" data-testid="create-bot-error" className="text-[13px] text-destructive">
               {error}
             </p>
           ) : null}
-          <BotLookPicker
-            value={look.value}
-            identity={avatarSet === "rakazo" ? previewId : look.identity}
-            organicIdentities={ORGANIC_IDENTITIES}
-            avatarSet={avatarSet}
-            onAvatarSetChange={(set, value) => {
-              setAvatarSet(set);
-              setLook((current) => ({ ...current, value }));
-            }}
-            onChange={(value, identity) => {
-              setLook((current) => ({ value, identity: identity ?? current.identity }));
-            }}
-          />
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
+          <div className="sydney-create-bot-field">
+            <span className="sydney-create-bot-label">
+              <Trans>Avatar shape</Trans>
+            </span>
+            <BotLookPicker
+              value={look.value}
+              identity={avatarSet === "rakazo" ? previewId : look.identity}
+              organicIdentities={ORGANIC_IDENTITIES}
+              avatarSet={avatarSet}
+              colorLabel={t`Avatar color`}
+              onAvatarSetChange={(set, value) => {
+                setAvatarSet(set);
+                setLook((current) => ({ ...current, value }));
+              }}
+              onChange={(value, identity) => {
+                setLook((current) => ({ value, identity: identity ?? current.identity }));
+              }}
+            />
+          </div>
+          <DialogFooter className="sydney-create-bot-footer">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={onCancel}
+              className="sydney-create-bot-cancel"
+            >
               <Trans>Cancel</Trans>
             </Button>
             <Button type="submit" disabled={!trimmed || submitting}>

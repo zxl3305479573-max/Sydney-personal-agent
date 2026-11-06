@@ -141,8 +141,9 @@ export default function SignIn() {
   if (hasSession) return <Redirect href={hasIncomingShare() ? "/share" : "/"} />;
 
   const codeFlow = Boolean(reset?.passwordAuth && reset.emailCode && mode !== "forgot");
-  // A blank password asks for an emailed code, so code-only accounts need no toggle.
-  const usingCode = codeFlow && (codeSent || !password);
+  const signupCodeOnly = mode === "up" && codeFlow;
+  // A blank password asks for an emailed code; email-capable signups always require one.
+  const usingCode = codeFlow && (signupCodeOnly || codeSent || !password);
   const codeStep = codeFlow && codeSent;
 
   async function submit(enteredCode = code) {
@@ -421,7 +422,7 @@ export default function SignIn() {
                           </Text>
                         </Pressable>
                       ) : null}
-                      {mode !== "forgot" ? (
+                      {mode !== "forgot" && !signupCodeOnly ? (
                         <View
                           style={{
                             marginTop: 12,

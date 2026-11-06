@@ -83,7 +83,7 @@ export function PluginSubmissionsPanel() {
   const list = submissions.data ?? [];
 
   return (
-    <div data-testid="plugin-submissions" className="space-y-6">
+    <div data-testid="plugin-submissions" className="sydney-settings-panel space-y-6">
       <Tabs value={status} onValueChange={(value) => setStatus(value as PluginSubmissionStatus)}>
         <TabsList>
           <TabsTrigger value="pending" className="px-3">

@@ -86,6 +86,16 @@ describe("BotAvatar", () => {
     expect(html).not.toContain("bot-character-eyes");
   });
 
+  it("clips uploaded avatars to a circle without adding an opaque background", () => {
+    const html = renderToString(<BotAvatar color="data:image/png;base64,abc" size={32} />);
+    const picture = html.match(/<div class="rakazo-bot-avatar-picture[^"]*"/)?.[0];
+    expect(picture).toContain("overflow-hidden");
+    expect(picture).toContain("rounded-full");
+    expect(picture).toContain("bg-transparent");
+    expect(picture).not.toContain("border-border");
+    expect(picture).not.toContain("bg-secondary");
+  });
+
   it("keeps a working photo ring outside the clipped image and uses the status token", () => {
     const html = renderToString(
       <BotAvatar color="data:image/png;base64,abc" identity="maya" size={32} status="running" />,

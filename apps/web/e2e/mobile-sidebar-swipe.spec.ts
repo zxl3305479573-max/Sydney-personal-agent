@@ -5,7 +5,7 @@ import { captureScreenshot, completeOnboarding, signup } from "./helpers";
 test.use({
   hasTouch: true,
   isMobile: true,
-  viewport: { width: 390, height: 844 },
+  viewport: { width: 393, height: 852 },
 });
 
 async function prepareOnboarding(page: Page) {
@@ -71,7 +71,48 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(edge).toHaveCount(0);
   await expect(sidebar).toContainText("Chief");
+  await expect(page.getByTestId("mobile-create-bot")).toBeVisible();
+  await expect(page.getByTestId("mobile-create-group")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect apps" })).toBeVisible();
+  await expect(page.getByTestId("sidebar-search")).toBeVisible();
+  await page.addStyleTag({
+    content: "#root { padding-top: 59px; padding-bottom: 34px; }",
+  });
+  const bounds = await sidebar.evaluate((element) => {
+    const sidebarRect = element.getBoundingClientRect();
+    const avatarRect = element
+      .querySelector('[data-testid="user-menu-trigger"]')
+      ?.getBoundingClientRect();
+    const searchRect = element
+      .querySelector('[data-testid="sidebar-search"]')
+      ?.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      sidebarTop: sidebarRect.top,
+      sidebarBottom: sidebarRect.bottom,
+      viewportHeight: window.innerHeight,
+      topPadding: parseFloat(style.paddingTop),
+      bottomPadding: parseFloat(style.paddingBottom),
+      avatarTop: avatarRect ? avatarRect.top - sidebarRect.top : null,
+      searchBottom: searchRect ? sidebarRect.bottom - searchRect.bottom : null,
+    };
+  });
+  expect(bounds.sidebarTop).toBeCloseTo(0, 0);
+  expect(bounds.sidebarBottom).toBeCloseTo(bounds.viewportHeight, 0);
+  expect(bounds.avatarTop).toBeCloseTo(bounds.topPadding + 12, 0);
+  expect(bounds.searchBottom).toBeCloseTo(bounds.bottomPadding, 0);
   await captureScreenshot(page, testInfo, "mobile-chat-list");
+
+  await page.getByTestId("mobile-create-bot").click();
+  await expect(page.getByTestId("create-bot-dialog")).toBeVisible();
+  await expect(sidebar).not.toHaveClass(/-translate-x-full/);
+  await expect(page.getByRole("group", { name: /Bot shape|Bot 形状/ })).toBeVisible();
+  await captureScreenshot(page, testInfo, "mobile-create-bot");
+  await page
+    .getByTestId("create-bot-dialog")
+    .getByRole("button", { name: /Close|关闭/ })
+    .click();
+  await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
 
   await page.getByRole("button", { name: /Chief/ }).first().click();
   await expect(page).toHaveURL(/\/app\/[^/]+$/);

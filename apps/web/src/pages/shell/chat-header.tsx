@@ -1,7 +1,7 @@
 import { useLingui } from "@lingui/react/macro";
 import type { Bot, Group, ThreadSnapshot } from "@rakazo/contracts";
 import { BotAvatar, Button, GroupAvatar } from "@rakazo/ui-web";
-import { Menu, Phone } from "lucide-react";
+import { ChevronLeft, Menu, MoreHorizontal, Phone } from "lucide-react";
 import { IconTooltip } from "../../components/IconTooltip";
 
 /** The floating header over the transcript: navigation, the chat's name and call. */
@@ -33,7 +33,10 @@ export function ChatHeader({
 }) {
   const { t } = useLingui();
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 px-3 py-[13px] md:px-[22px] [&_button]:pointer-events-auto">
+    <div
+      data-group={inGroup || undefined}
+      className="sydney-grok-header pointer-events-none absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 py-[6px] [&_button]:pointer-events-auto"
+    >
       <div className="flex items-center">
         <Button
           variant="floating"
@@ -42,7 +45,11 @@ export function ChatHeader({
           onClick={onOpenNavigation}
           className="app-no-drag md:hidden"
         >
-          <Menu strokeWidth={1.7} className="size-[19px]" />
+          {inGroup ? (
+            <ChevronLeft strokeWidth={1.7} className="size-[19px]" />
+          ) : (
+            <Menu strokeWidth={1.7} className="size-[19px]" />
+          )}
         </Button>
       </div>
       <Button
@@ -53,7 +60,12 @@ export function ChatHeader({
         className="app-no-drag h-auto min-w-0 gap-2 py-1 ps-1 pe-3.5"
       >
         {inGroup ? (
-          <GroupAvatar members={activeSnapshot?.members ?? activeGroup?.members ?? []} size={26} />
+          <span className="sydney-group-header-avatar">
+            <GroupAvatar
+              members={activeSnapshot?.members ?? activeGroup?.members ?? []}
+              size={26}
+            />
+          </span>
         ) : active ? (
           <BotAvatar
             avatarSet={active.avatarSet}
@@ -64,7 +76,10 @@ export function ChatHeader({
           />
         ) : null}
         <span className="min-w-0">
-          <span className="block truncate text-[15px] font-medium text-foreground" dir="auto">
+          <span
+            className="rk-script-type block truncate text-[15px] font-medium text-foreground"
+            dir="auto"
+          >
             {inGroup
               ? (activeGroup?.name ?? activeSnapshot?.groupName ?? t`Group`)
               : (active?.name ?? t`Select a bot`)}
@@ -72,6 +87,18 @@ export function ChatHeader({
         </span>
       </Button>
       <div className="flex items-center justify-self-end gap-2">
+        {inGroup ? (
+          <Button
+            variant="floating"
+            size="icon-lg"
+            aria-label={t`Group settings`}
+            aria-expanded={panelOpen}
+            onClick={onTogglePanel}
+            className="app-no-drag md:hidden"
+          >
+            <MoreHorizontal className="size-5" />
+          </Button>
+        ) : null}
         {phoneCallsEnabled && !inGroup && active ? (
           <IconTooltip label={inCall ? t`Open call` : t`Call`}>
             <Button

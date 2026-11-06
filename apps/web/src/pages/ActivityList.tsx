@@ -91,9 +91,9 @@ export function ActivityList({
 
   return (
     <div
-      className={
-        hasAnyRuns || filtersOn || filtersExpanded ? "mb-2 border-b border-border pb-2" : undefined
-      }
+      className={`sydney-list-surface ${
+        hasAnyRuns || filtersOn || filtersExpanded ? "mb-2 border-b border-border pb-2" : ""
+      }`}
       data-testid="activity-list"
     >
       <ActivityFilters
@@ -348,9 +348,9 @@ function ActivityRow({ run, onOpen }: { run: RunActivityRow; onOpen: () => void 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="flex min-w-0 gap-2 text-sm font-medium">
-            <span className="truncate text-foreground">{run.botName}</span>
+            <span className="rk-script-type truncate text-foreground">{run.botName}</span>
             {run.groupName ? (
-              <span className="truncate text-muted-foreground">{run.groupName}</span>
+              <span className="rk-script-type truncate text-muted-foreground">{run.groupName}</span>
             ) : null}
           </span>
           <span className="shrink-0 text-xs text-muted-foreground/80">

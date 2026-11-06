@@ -138,7 +138,7 @@ export function AvailabilityControl({
               checked={chosen.includes(space.id)}
               onCheckedChange={() => toggle(space.id)}
             >
-              {space.name}
+              <span className="rk-script-type">{space.name}</span>
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

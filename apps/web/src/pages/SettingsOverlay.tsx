@@ -265,7 +265,7 @@ export function SettingsOverlay({
             ? (usageRef.current ?? panelRef.current)
             : panelRef.current
         }
-        className="flex h-[min(760px,calc(100%-2rem))] max-h-[calc(100%-2rem)] w-[min(1080px,calc(100%-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[calc(100%-5rem)] sm:max-w-[1080px]"
+        className="sydney-settings-dialog flex h-[min(760px,calc(100%-2rem))] max-h-[calc(100%-2rem)] w-[min(1080px,calc(100%-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[calc(100%-5rem)] sm:max-w-[1080px]"
       >
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 md:contents">
@@ -284,7 +284,7 @@ export function SettingsOverlay({
               ref={navRef}
               data-testid="settings-nav"
               aria-label={t`Settings`}
-              className="flex min-w-0 flex-1 flex-row gap-1 overflow-x-auto py-3 md:w-[200px] md:shrink-0 md:flex-none md:flex-col md:overflow-y-auto md:border-e md:border-border md:px-3 md:py-4"
+              className="sydney-settings-nav flex min-w-0 flex-1 flex-row gap-1 overflow-x-auto py-3 md:w-[200px] md:shrink-0 md:flex-none md:flex-col md:overflow-y-auto md:border-e md:border-border md:px-3 md:py-4"
             >
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -326,7 +326,7 @@ export function SettingsOverlay({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div
               data-testid="settings-header"
-              className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
+              className="sydney-settings-header flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 pb-5 pt-6 sm:px-8 sm:pt-7"
             >
               <div className="flex min-w-0 items-center gap-2">
                 {section === "space" ? (
@@ -358,7 +358,7 @@ export function SettingsOverlay({
               <div
                 key={spaceId ?? "selected"}
                 data-testid="settings-scroll"
-                className={`min-h-0 flex-1 ${
+                className={`sydney-settings-scroll min-h-0 flex-1 ${
                   section === "memory"
                     ? "flex flex-col overflow-hidden"
                     : "rk-scroll overflow-y-auto overscroll-contain px-6 pb-6 pt-6 sm:px-8 sm:pb-8"

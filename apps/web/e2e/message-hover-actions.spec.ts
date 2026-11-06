@@ -223,9 +223,7 @@ test("message hover shows beside-bubble actions; reply links to parent", async (
 
   const userSurface = parentRow.getByTestId("message-user-bubble");
   await expect(userSurface).toBeVisible();
-  await expect
-    .poll(async () => userSurface.evaluate((el) => getComputedStyle(el).backgroundColor))
-    .not.toMatch(/^rgb\(241,\s*241,\s*239\)$/); // not cream primary foreground
+  await expect(userSurface).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   const longText = `hover-long-${stamp}-${"x".repeat(220)}`;
   await sendComposerMessage(page, composer, longText);

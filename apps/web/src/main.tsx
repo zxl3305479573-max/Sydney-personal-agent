@@ -21,6 +21,7 @@ import { resolveUiLocale } from "./lib/ui-locale";
 import { registerServiceWorker } from "./pwa/register";
 import { lockStandaloneZoom } from "./pwa/standalone";
 import "./styles.css";
+import "./grok-workbench.css";
 
 markOnce("rk:renderer:module-evaluated");
 installPreloadRecovery();

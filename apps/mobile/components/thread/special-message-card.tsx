@@ -162,7 +162,12 @@ function HelperMessageCard({
       </Pressable>
       {subagentOpen && (special.result || special.progress) ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 14, marginTop: -6 }}>
-          <ChatMarkdown palette={tokens} colorScheme={colorScheme} streaming={running}>
+          <ChatMarkdown
+            palette={tokens}
+            colorScheme={colorScheme}
+            streaming={running}
+            showWebsiteUrls
+          >
             {special.result || special.progress || ""}
           </ChatMarkdown>
         </View>

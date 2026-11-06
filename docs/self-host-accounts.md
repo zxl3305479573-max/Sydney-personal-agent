@@ -29,13 +29,16 @@ received.
 
 ## Email verification and sign-in codes
 
-With a nonempty signup allowlist and SMTP configured, users—including existing accounts—must
-verify their email to sign in. Without an allowlist, verification never blocks: a password signup
-signs in at once and is sent a verification link that only marks the address verified.
+With SMTP configured, new email accounts must prove their mailbox before receiving a session: the
+sign-up form uses a six-digit code. Direct password signup instead sends a verification link and
+does not create a session before verification. Existing unverified email accounts cannot obtain or
+use a session until their mailbox is verified; the configured OIDC bypass retains its existing
+exception. Without SMTP and an allowlist, password signup behaves as before.
 
 SMTP also enables sign-in with a six-digit emailed code, which expires after ten minutes and allows
 three attempts. A code can create an account, so it follows the same registration and allowlist
-rules as password signup. Signing in with a code to an existing unverified account removes that
+rules as password signup; on email-capable deployments it is the required registration path. Signing
+in with a code to an existing unverified account removes that
 account's password, SSO links and sessions, since nothing proved they belonged to the mailbox
 owner. This is what stops someone who registered another person's address from keeping access.
 A password reset proves the mailbox the same way, so resetting an unverified account's password

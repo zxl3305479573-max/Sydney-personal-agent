@@ -275,7 +275,7 @@ export function MessagingSettingsPanel() {
   );
 
   return (
-    <div data-testid="messaging-settings" className="space-y-8">
+    <div data-testid="messaging-settings" className="sydney-settings-panel space-y-8">
       {shownError ? <p className="text-[13px] text-destructive">{shownError}</p> : null}
 
       {hasRequests ? (
@@ -512,7 +512,7 @@ export function MessagingSettingsPanel() {
               return (
                 <li key={conversation.id} className="text-[14px] text-foreground/75">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate">
+                    <span className="rk-script-type min-w-0 truncate">
                       {conversation.displayName || t`External conversation`}
                       <Meta>{providerLabel(conversation.provider)}</Meta>
                     </span>
