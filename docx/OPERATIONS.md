@@ -1,5 +1,17 @@
 # 运维手册
 
+## 2026-11-06 提交 ce7ecaeb8 上线
+
+提交 `ce7ecaeb8` 的 Web、API 和 Worker 已部署；当前仓库随后新增的 `ea2821720` 只包含 GitHub Actions 与文档修订，不包含运行时代码。Web 在云电脑 `/opt/sydney-web-stage/apps/web` 使用现有 Node 22.23.2 和依赖构建，构建标识为 `20261106063543`，运行目录已切换到 `dist`。
+
+切换前旧 Web 目录保留为 `/opt/sydney-web-stage/apps/web/dist.before-ce7ecaeb8`。后台 API 和 Worker 产物切换前备份到 `/var/backups/sydney-release-ce7ecaeb8/{api,worker}`。本次没有执行数据库迁移，没有修改环境文件、端口、权限或数据目录。
+
+部署后重启 `sydney-web-cloud-link.service`、`sydney-web-cloud.service`、`sydney-worker.service` 和 `sydney-api.service`。云电脑 Web、链路、驱动、VNC、noVNC 和 HTTPS 代理均 active；后台 API、Worker、转发 socket 和屏幕隧道均 active。后台 `/ready` 返回 `{"ok":true,"degraded":false}`，Worker 心跳检查通过。
+
+公网 `https://pc.zxlup.xin/build-id` 返回 `20261106063543`，首页、认证会话接口和 POST `/rpc/health` 均正常。部署期间后台资源紧张，首次 API/Worker 构建无输出并导致 SSH banner 暂时超时；未在服务未核对前重启，待后台恢复连接后完成构建、语法检查、服务重启和健康复核。
+
+回滚时先确认没有后续发布，保留当前 `dist`，恢复 `dist.before-ce7ecaeb8` 并重启 `sydney-web-cloud.service`；API 和 Worker 恢复 `/var/backups/sydney-release-ce7ecaeb8/{api,worker}` 后分别重启并复查 `/ready`、Worker 心跳和公网 RPC。完整人工回滚未演练。
+
 ## 2026-11-05 手机首屏白屏优化发布
 
 Web 版本 `20261105134933` 基于上一版 `20261105134539` 快照，仅加入首屏 HTML、启动脚本及样式和 PWA 插件调整。构建将启动样式与标志嵌入 HTML，手机主样式由 `mobile-startup.js` 在下载完成后启用；必须将完整 HTML、启动脚本、样式和 `sw.js` 一并发布，不可单独替换 HTML。`theme.js` 加入 PWA 预缓存；未改变 CSP、后台或依赖。

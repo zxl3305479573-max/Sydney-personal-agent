@@ -1,5 +1,16 @@
 # 验证记录
 
+## V-056：提交 ce7ecaeb8 部署验证
+
+- 日期：2026-11-06；关联需求：PA-018；状态：基础上线验证通过。
+- Web：云电脑使用现有 Node 22.23.2 和依赖完成生产构建，构建标识 `20261106063543`；切换前旧目录保留为 `dist.before-ce7ecaeb8`，新目录共 326 个构建文件并保留旧 assets 资源。
+- API/Worker：同一提交源码在后台完成构建；两个入口通过 `node --check`。旧产物备份到 `/var/backups/sydney-release-ce7ecaeb8`；未执行数据库迁移。
+- 服务：云电脑 `sydney-web-cloud`、`sydney-web-cloud-link`、`sydney-driver`、`sydney-screen-vnc`、`sydney-screen-websockify`、`sydney-pc-nginx` active；后台 `sydney-api`、`sydney-worker`、`sydney-web-forward.socket`、`sydney-screen-tunnel` active。
+- 健康检查：公网 `/build-id` 返回 `20261106063543`；首页返回 200；POST `/rpc/health` 返回 `{"json":{"ok":true,"version":"0.1.0"}}`；认证会话接口返回 `null`；后台 `/ready` 返回 `{"ok":true,"degraded":false}`；Worker 心跳检查退出 0。
+- 数据安全检查：部署前 PostgreSQL Run 状态仅有 `cancelled=1`、`completed=24`、`failed=3`，没有 queued/running Run；没有变更数据库、环境配置、端口、权限或数据目录。
+- 过程失败：首次后台构建长时间无输出并造成 SSH banner 暂时超时；未重启或切换不确定产物。后台连接恢复后构建、服务重启和健康复核完成。
+- 未执行：真实账户登录、Bot 创建、联网回答、手机实机、PWA 缓存刷新、Electron、WebSocket 长连接稳定性和人工回滚演练；线上基础检查不等同完整验收。
+
 ## 2026-11-06：GitHub Actions GHCR 镜像名修复
 
 - 检查范围：`.github/workflows/publish-server-image.yml` 的 validate、GitHub native build、Depot build 和 publish jobs。

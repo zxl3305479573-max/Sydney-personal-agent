@@ -1,5 +1,16 @@
 # 开发过程记录
 
+## 2026-11-06：提交 ce7ecaeb8 部署上线
+
+- 关联需求：PA-018；用户要求将已推送代码部署上线。
+- 使用提交 `ce7ecaeb8` 制作源码归档，云电脑构建 Web 并发布到 `/opt/sydney-web-stage/apps/web/dist`；构建标识为 `20261106063543`，旧 Web 产物保留为 `dist.before-ce7ecaeb8`。
+- 后台同步同一提交源码，构建并切换 API、Worker，旧产物备份到 `/var/backups/sydney-release-ce7ecaeb8`；未执行数据库迁移，未修改环境文件、服务配置、权限或数据目录。
+- 部署后重启云端 Web/链路和后台 API/Worker；后台 Run 状态核对为 `cancelled=1`、`completed=24`、`failed=3`，没有 `queued` 或 `running` 记录。
+- 验证：Web 构建成功；API/Worker `node --check` 通过；公网 build id、首页、认证会话、POST `/rpc/health`、后台 `/ready`、Worker 心跳和相关 systemd 服务检查通过。
+- 过程问题：后台资源紧张导致 API/Worker 构建阶段暂时没有输出且 SSH banner 超时；没有在服务状态不明时切换运行产物，连接恢复后完成后续构建和复核。
+- 当前工作区随后出现提交 `ea2821720`，其内容仅为 GitHub Actions 与文档修订，不包含运行时代码；本次线上运行时代码对应 `ce7ecaeb8`。
+- 提交状态：部署记录待本次文档提交并推送；未执行回滚演练，真实登录、手机实机、PWA 缓存和实时屏幕长连接仍未验收。
+
 ## 2026-11-06：GitHub Actions GHCR 镜像名修复
 
 - 关联 CI 镜像发布。连续三次 main 推送中，app、updater、computer 的 amd64/arm64 构建均在 `docker/build-push-action` 立即失败；失败集中发生在镜像发布回退 job，其他检查因排队或并发取消未能提供代码失败证据。
