@@ -231,6 +231,9 @@ describe("Composer", () => {
 
   it("does not show the mobile group mention button in a bot chat", () => {
     renderComposer(vi.fn(), { mobile: true });
+    expect(
+      container?.querySelector('[data-testid="composer-bar"]')?.getAttribute("data-mobile-chat"),
+    ).toBe("true");
     expect(container?.querySelector('[data-testid="composer-mention-button"]')).toBeNull();
   });
 

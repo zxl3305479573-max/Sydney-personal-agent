@@ -51,46 +51,52 @@
 }
 
 @media (max-width: 767px) {
-  [data-mobile-group="true"] .sydney-grok-header {
+  [data-mobile-chat="true"] .sydney-grok-header {
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding-inline: 16px;
   }
 
-  [data-mobile-group="true"] .sydney-grok-header button {
+  [data-mobile-chat="true"] .sydney-grok-header button {
     box-shadow: none;
     border-color: transparent;
     background: transparent;
   }
 
   [data-mobile-group="true"] .sydney-group-header-avatar,
-  [data-mobile-group="true"] .sydney-assistant-context > :first-child {
+  [data-mobile-chat="true"] .sydney-assistant-context > :first-child {
     display: none;
   }
 
-  [data-mobile-group="true"] .sydney-assistant-context {
+  [data-mobile-chat="true"] .sydney-assistant-context {
     margin-bottom: 6px;
   }
 
-  [data-mobile-group="true"] .sydney-assistant-content {
+  [data-mobile-chat="true"] .sydney-assistant-content {
     margin-left: 0;
   }
 
-  [data-testid="composer-bar"][data-mobile-group="true"] {
+  [data-testid="composer-bar"][data-mobile-chat="true"] {
     gap: 8px;
     padding: 12px 16px;
   }
 
-  [data-testid="composer-bar"][data-mobile-group="true"] [data-testid="composer-field"] {
+  [data-testid="composer-bar"][data-mobile-chat="true"] [data-testid="composer-field"] {
     grid-column: 1 / -1;
     grid-row: 1;
     padding-inline: 0;
   }
 
-  [data-testid="composer-bar"][data-mobile-group="true"] [data-composer-attachments],
-  [data-testid="composer-bar"][data-mobile-group="true"]
+  [data-testid="composer-bar"][data-mobile-chat="true"] [data-composer-attachments],
+  [data-testid="composer-bar"][data-mobile-chat="true"]
     [data-composer-attachments]
     ~ div:last-child {
     grid-row: 2;
+  }
+
+  [data-testid="composer-bar"][data-mobile-chat="true"] textarea {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
   }
 
   .sydney-assistant-context {

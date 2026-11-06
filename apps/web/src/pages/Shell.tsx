@@ -1034,6 +1034,7 @@ function SpaceShell() {
       {/* Keep the composer's z-index inside the chat so phone overlays like the side panel cover it. */}
       <main
         data-space-switch="main"
+        data-mobile-chat={isMobileView ? "true" : undefined}
         data-mobile-group={isMobileView && inGroup ? "true" : undefined}
         aria-hidden={mobileSidebarOpen || undefined}
         inert={mobileSidebarOpen}

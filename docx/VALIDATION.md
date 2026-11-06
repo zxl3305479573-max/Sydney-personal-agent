@@ -1,5 +1,20 @@
 # 验证记录
 
+## 2026-11-06：GitHub Actions Runner 修复
+
+- 范围：`.github/workflows/ci.yml` 和 `.github/workflows/playwright.yml` 的通用 Linux 检查任务。
+- 线上证据：`ci #14` 的镜像构建 6 项和镜像发布 3 项均成功；Lint、3 个单测分片和 2 个 PostgreSQL 分片均因 `incredibuild-ubuntu-latest` 无可用 Runner 保持 pending。
+- 本地改动：10 个通用 Linux 任务改用 `ubuntu-latest`；macOS/Windows 原生任务、arm64 镜像任务和镜像发布逻辑未改动。
+- 未执行：推送后的 GitHub Actions 复跑、完整工作区构建和真实 Runner 资源验证；需以新提交的线上运行结果为准。
+
+## 2026-11-06：移动网页单 Bot 聊天布局对齐群聊
+
+- 代码核对：`Shell.tsx` 和 `composer.tsx` 为移动聊天增加 `data-mobile-chat` 标记；`grok-workbench.css` 将标题栏、助手正文和输入栏的共用移动样式从群聊条件扩展到所有移动聊天。
+- 保留行为：单 Bot 继续显示顶部 Bot 头像；群聊继续隐藏群组头像并显示移动 `@` 成员按钮，普通 Bot 对话不显示该按钮。
+- 输入栏核对：移动聊天范围内的 textarea 清除通用半透明背景、阴影和边框，由外层输入栏统一提供视觉表面，避免内部出现色差框。
+- 实际执行：Composer 与 MessageView 定向测试 2 个文件、103 项通过；`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过；`Shell.tsx` 与 `composer.tsx` 的 Biome 检查通过；`git diff --check` 通过。
+- 未执行：真实浏览器、手机键盘、截图对照和部署验证。
+
 ## V-056：提交 ce7ecaeb8 部署验证
 
 - 日期：2026-11-06；关联需求：PA-018；状态：基础上线验证通过。
