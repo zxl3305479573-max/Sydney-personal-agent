@@ -17,14 +17,17 @@ describe("web locale activation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("rebrands Chinese messages and uses English brand fallbacks", async () => {
+  it("rebrands Chinese messages and uses English fallbacks for missing entries", async () => {
     setCatalogLoadersForTests({
-      en: async () => ({ messages: { signIn: "Sign in to Rakazo", welcome: "Welcome to Rakazo" } }),
+      en: async () => ({
+        messages: { signIn: "Sign in to Rakazo", welcome: "Welcome to Rakazo", group: "Group" },
+      }),
       "zh-CN": async () => ({ messages: { signIn: "登录 Rakazo" } }),
     });
     await activateUiLocale("zh-CN");
     expect(i18n._({ id: "signIn" })).toBe("登录 Sydney");
     expect(i18n._({ id: "welcome" })).toBe("Welcome to Sydney");
+    expect(i18n._({ id: "group" })).toBe("Group");
   });
 
   it("falls back to English when Chinese fails", async () => {
