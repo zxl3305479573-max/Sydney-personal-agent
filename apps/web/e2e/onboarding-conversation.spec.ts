@@ -24,7 +24,9 @@ test("focus choice suggests apps and preserves a completed connection", async ({
   await page.getByRole("button", { name: /Day-to-day work/ }).click();
   // The focus step suggests apps but must not rename the bot: the name the
   // user chose during creation ("Chief") is preserved.
-  await expect(page.locator("main").getByText("Sydney", { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId("bot-settings-trigger").getByText("Sydney", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByPlaceholder("Message Sydney")).toBeVisible();
   await expect(page.getByText("Slack", { exact: true })).toBeVisible();
   await expect(page.getByText("Gmail", { exact: true })).toBeVisible();

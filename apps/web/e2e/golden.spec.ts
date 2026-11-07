@@ -331,7 +331,7 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/chief-export\.json/i);
+  expect(download.suggestedFilename()).toMatch(/sydney-export\.json/i);
   await page.getByRole("button", { name: "Close panel" }).click();
 
   await page

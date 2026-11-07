@@ -19,10 +19,7 @@
 }
 
 .sydney-create-bot-handle,
-.sydney-create-bot-intro,
-.sydney-create-bot-description,
-.sydney-create-bot-field,
-.sydney-create-bot-label {
+.sydney-create-bot-description {
   display: none;
 }
 
@@ -530,6 +527,6 @@
 
 @media (min-width: 768px) {
   .sydney-grok-header {
-    grid-template-columns: 0 minmax(0, auto) 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   }
 }
