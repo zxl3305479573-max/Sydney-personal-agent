@@ -1035,3 +1035,10 @@
 - 将 GitHub production environment 展示地址、桌面默认云端地址、Passkey 域名测试、官网入口、账号说明和部署验证记录统一切换为 `https://pc.zxlup.xin`。
 - 保留 `pc` 子域名，不改为根域名 `zxlup.xin`；服务器实际 `RAKAZO_HOST`、DNS、Caddy/TLS 和认证回调仍需在生产机复核。
 - 验证：Passkey 测试 9 项通过；桌面 setup-config 测试 50 项通过；官网 `astro check` 在关闭本机 Node 引擎门禁后 0 错误、0 警告、1 个已有提示；`git diff --check` 通过。
+# 2026-11-07：生产 Compose 本地 overlay 支持（未部署）
+
+- 现状核对：当前生产部署入口由持久 `deploy-launcher.sh` 从目标 revision 读取 `deploy-main.sh`；主脚本原先只使用 `docker-compose.prod.yml`，reset checkout 会覆盖仓库内额外文件。
+- 实现：新增 `RAKAZO_COMPOSE_OVERLAY_FILE`，限定 `/etc/rakazo/compose` 下的普通私有 YAML；部署脚本改用基础文件加 overlay 的数组，所有 Compose 调用和自动恢复复用该数组。
+- 安全：去除部署入口对 `/etc/rakazo/deploy.env` 的 shell `source`，改用受控 `RAKAZO_*` 赋值解析；launcher 对旧 revision 的支持标记做兼容检查；updater 只读挂载 overlay 目录并隐藏带 overlay 的 Compose 错误输出。
+- 测试：core/updater 定向测试通过；Windows 本机无法执行仓库已有 `/bin/bash` 部署模拟测试，使用本机 MSYS Bash 对两个部署脚本做 `-n` 语法检查通过。
+- 未做：未连接生产、未修改线上 `.env`、未创建 overlay、未启动 Docker/systemd、未启用 Provider、未做 sidecar/socket/屏幕实机验证。

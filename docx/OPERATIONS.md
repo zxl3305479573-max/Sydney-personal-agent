@@ -1,5 +1,37 @@
 # 运维手册
 
+## 2026-11-07 生产 Compose 本地 overlay（代码已实现，未部署）
+
+生产本地 overlay 的持久路径是 `/etc/rakazo/compose/production.overlay.yml`，位于
+checkout 外部，不会被部署脚本的 `git reset` 覆盖。安装时由管理员创建目录和文件，建议
+`root:deploy`、`0640`；文件必须是普通 YAML 文件，不能是符号链接，不能 group/world
+可写或 world 可读。生产 `.env` 中设置：
+
+```env
+RAKAZO_COMPOSE_OVERLAY_FILE=/etc/rakazo/compose/production.overlay.yml
+```
+
+部署 launcher、`deploy-main.sh`、Compose 配置检查、滚出、健康恢复、失败恢复和 updater
+都使用基础生产 Compose 文件加该 overlay 的相同顺序。updater 将目录只读挂载。变量留空
+时保持旧的单文件行为；配置缺失、路径非法、权限不合规或 Compose 合并失败必须中止并
+保留明确错误。
+
+安装或更新持久 launcher：
+
+```bash
+sudo install -m 0755 infra/compose/deploy-launcher.sh /usr/local/sbin/rakazo-deploy-main
+```
+
+回滚前确认目标 revision 包含 `RAKAZO_LOCAL_COMPOSE_OVERLAY_SUPPORT=1`。目标是旧
+revision 且 overlay 已配置时，launcher 会拒绝执行，不能临时删掉 overlay 继续回滚；
+应先升级部署脚本或准备经过审阅的兼容入口。overlay 内容和密钥不写入日志，线上真实
+权限、Compose 合并、安装和回滚尚未验证。
+
+后续 native-linux 同机 sidecar 应放在该 overlay 中，但继续通过现有 Provider、授权、
+租约和 generation 校验接入。sidecar 只能连接受限 socket 代理，不能挂载
+`/var/lib/sydney-tunnel-jail/run/driver.sock`、修改 `0600` 或开放公网端口。屏幕链路
+仍需单独验证，因宿主机 `127.0.0.1:6080` 不等于容器内的 loopback。
+
 ## 2026-11-07 云电脑桌面链路模板（未部署）
 
 仓库新增 `infra/native-linux/sydney-screen-vnc.service`、`sydney-screen-websockify.service` 和 `sydney-screen-tunnel.service`，并提供 `screen.env.example` 与 `screen-tunnel.env.example`。云电脑侧服务只监听回环地址，VNC 使用 `-viewonly`；后台屏幕隧道只把本机 `127.0.0.1:16080` 转发到云电脑回环 `127.0.0.1:6080`。隧道目标、SSH 配置、主机密钥和私钥必须放在服务器 `/etc/sydney/`，不写入仓库。

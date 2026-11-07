@@ -30,13 +30,33 @@ afterEach(async () => {
   );
 });
 
-async function deployment(env = "RAKAZO_IMAGE_TAG=v1.0.0\nRAKAZO_IMAGE_TAG_PREVIOUS=v0.9.0\n") {
+async function deployment(
+  env = "RAKAZO_IMAGE_TAG=v1.0.0\nRAKAZO_IMAGE_TAG_PREVIOUS=v0.9.0\n",
+  options: { overlay?: boolean } = {},
+) {
   const deployDir = await mkdtemp(path.join(os.tmpdir(), "rakazo-updater-test-"));
   temporaryDirectories.push(deployDir);
   await writeFile(path.join(deployDir, ".env"), env);
   return {
     deployDir,
-    config: resolveUpdaterConfig({ RAKAZO_DEPLOY_DIR: deployDir, RAKAZO_UPDATER_TOKEN: token }),
+    config: resolveUpdaterConfig(
+      {
+        RAKAZO_DEPLOY_DIR: deployDir,
+        RAKAZO_UPDATER_TOKEN: token,
+        RAKAZO_COMPOSE_OVERLAY_FILE: options.overlay
+          ? "/etc/rakazo/compose/production.overlay.yml"
+          : undefined,
+      },
+      {
+        inspect: () =>
+          ({
+            mode: 0o640,
+            uid: 0,
+            isFile: () => true,
+            isSymbolicLink: () => false,
+          }) as never,
+      },
+    ),
   };
 }
 
@@ -367,6 +387,20 @@ describe("updater orchestration", () => {
     expect(calls.some((args) => args.includes("pull"))).toBe(false);
     expect(calls.find((args) => args.includes("up"))).toEqual(
       expect.arrayContaining(["--pull", "never"]),
+    );
+  });
+
+  it("uses the persistent overlay for rollback recovery", async () => {
+    const fixture = await deployment(undefined, { overlay: true });
+    const calls: string[][] = [];
+    const run: UpdaterCommandRunner = async (_command, args) => {
+      calls.push(args);
+      return ok();
+    };
+    const response = await request(createUpdaterApp(fixture.config, { run }), "/rollback");
+    expect(response.status).toBe(200);
+    expect(calls.find((args) => args.includes("up"))).toEqual(
+      expect.arrayContaining(["--file", "/etc/rakazo/compose/production.overlay.yml"]),
     );
   });
 

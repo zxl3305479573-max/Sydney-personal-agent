@@ -133,12 +133,19 @@ describe("the updater compose service", () => {
     expect(updater.environment?.RAKAZO_COMPOSE_FILE).toBe(
       interpolated("RAKAZO_COMPOSE_FILE", "infra/compose/docker-compose.prod.yml"),
     );
+    expect(updater.environment?.RAKAZO_COMPOSE_OVERLAY_FILE).toBe(
+      interpolated("RAKAZO_COMPOSE_OVERLAY_FILE"),
+    );
     expect(updater.environment?.RAKAZO_UPDATE_SERVICES).toBe(
       interpolated("RAKAZO_UPDATE_SERVICES"),
     );
     expect(updater.environment?.COMPOSE_PATH_SEPARATOR).toBe(
       interpolated("COMPOSE_PATH_SEPARATOR"),
     );
+  });
+
+  it("mounts the persistent local overlay directory read-only", () => {
+    expect(updater.volumes).toContain("/etc/rakazo/compose:/etc/rakazo/compose:ro");
   });
 
   it("injects the actual Compose project name into the updater container", () => {

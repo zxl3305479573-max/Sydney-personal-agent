@@ -557,6 +557,16 @@ describe("production deploy script", () => {
     expect(rollout(deploy.commands())).toContain("docker rm --force api-new");
   });
 
+  it("fails before Compose when the configured local overlay is missing", () => {
+    const deploy = fixture();
+    const result = deploy.run({
+      RAKAZO_COMPOSE_OVERLAY_FILE: "/etc/rakazo/compose/production.overlay.yml",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("missing, unreadable, or a symlink");
+    expect(deploy.commands()).toEqual([]);
+  });
+
   it("recreates Caddy when its config changed", () => {
     const deploy = fixture();
     write(path.join(deploy.upstream, "infra/compose/Caddyfile.prod"), ":80\n");
@@ -596,12 +606,21 @@ describe("production deploy launcher", () => {
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
   function launch(command?: string, ...args: string[]) {
+    return launchWithEnv(command, {}, ...args);
+  }
+
+  function launchWithEnv(
+    command: string | undefined,
+    overrides: Record<string, string>,
+    ...args: string[]
+  ) {
     return spawnSync("/bin/bash", [launcher, ...args], {
       cwd: root,
       env: {
         PATH: process.env.PATH,
         HOME: root,
         RAKAZO_DEPLOY_DIR: checkout,
+        ...overrides,
         ...(command === undefined ? {} : { SSH_ORIGINAL_COMMAND: command }),
       },
       encoding: "utf8",
@@ -652,5 +671,19 @@ describe("production deploy launcher", () => {
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("absolute path");
+  });
+
+  it("refuses an older deploy script when a local overlay is configured", () => {
+    const result = launchWithEnv(
+      `deploy-main ${tested}`,
+      { RAKAZO_COMPOSE_OVERLAY_FILE: "/etc/rakazo/compose/production.overlay.yml" },
+      "--unused",
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("does not support the configured local Compose overlay");
+  });
+
+  it("does not execute deploy.env as shell code", () => {
+    expect(readFileSync(launcher, "utf8")).not.toContain("source /etc/rakazo/deploy.env");
   });
 });
