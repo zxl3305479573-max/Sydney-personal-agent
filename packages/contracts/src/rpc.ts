@@ -12,6 +12,7 @@ import {
 } from "./agent-import.js";
 import { AgentImportSetupStateInput, AgentImportSetupStateSchema } from "./agent-import-setup.js";
 import { AiConsentQuerySchema, AiConsentStatusSchema } from "./ai-consent.js";
+import { CreatePersonalityInput, PersonalityPresetSchema, UpdatePersonalityInput } from "./personality.js";
 import { AnalyticsScreenInput } from "./analytics.js";
 import {
   ARTIFACT_DESCRIPTION_MAX_LENGTH,
@@ -507,6 +508,12 @@ export const appContract = {
         webhookConfigured: z.literal(true),
       }),
     ),
+  },
+  personalities: {
+    list: oc.output(z.array(PersonalityPresetSchema)),
+    create: oc.input(CreatePersonalityInput).output(PersonalityPresetSchema),
+    update: oc.input(UpdatePersonalityInput).output(PersonalityPresetSchema),
+    remove: oc.input(z.object({ personalityId: Id })).output(z.object({ ok: z.literal(true) })),
   },
   groups: {
     create: oc.input(CreateGroupInput).output(GroupSchema),

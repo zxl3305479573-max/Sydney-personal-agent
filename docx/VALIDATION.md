@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-07（PA-018）：Hersona 属性目录、账号作用域 RPC、人格库组件、新建 Bot 和 Bot 指令设置的定向 Vitest 共 5 个文件、7 项通过；包含冲突属性拒绝、越权更新和删除被拒、保存后应用快照。contracts、API 和 Web TypeScript 检查通过，新增文件的 Biome 检查通过。当前 Node 为 22.22.0，低于项目声明的 22.22.2；`pnpm --filter @rakazo/db generate` 因引擎限制失败，改用已安装 Prisma CLI 直接生成客户端用于本地检查。未启动数据库、执行迁移、验证 PostgreSQL 行级策略或真实跨设备/手机行为，未部署。
+
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：adapters 类型检查通过；工厂、环境、API/Web 屏幕代理和屏幕票据定向测试共 5 个文件、118 项通过。原生 Provider 相关核心用例另行通过 12 项，覆盖新 Bot 屏幕授权、越权用户拒绝、未配置屏幕错误和驱动代次。完整原生测试文件在 Windows 下有 2 个 Unix socket 用例失败，报 `Server is not running`；Python 驱动测试 16 项通过、2 项跳过，Web bridge 测试因 Windows `socketserver` 缺少 `ThreadingUnixStreamServer` 失败。`git diff --check` 通过；Biome 检查发现原生文件既有导入/格式及 `exportWorkspace` 生成器规则问题，本轮未扩大范围修复；Windows 没有 `systemd-analyze`，服务单元语法未执行。未启动 Linux systemd、Docker、数据库或真实桌面，未部署。
 
 2026-11-07（PA-009、PA-018）：adapters TypeScript 检查通过，媒体 Provider 和生成工具定向测试 35 项通过，包含私网及重定向检查；无真实外部媒体生成测试，未部署。

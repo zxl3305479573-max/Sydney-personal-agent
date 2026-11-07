@@ -10,6 +10,7 @@ import { personalityIdForInstructions, personalityPreset } from "../lib/personal
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
 import { PersonalityPicker } from "./PersonalityPicker";
+import { PersonalPersonalityLibrary } from "./PersonalPersonalityLibrary";
 
 export function InstructionSettings({ bot }: { bot: Bot }) {
   const { t } = useLingui();
@@ -115,6 +116,19 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
               rpc.bots.update({
                 botId: bot.id,
                 instructions: preset.instructions,
+                expectedInstructions: baseline,
+              }),
+            );
+          }}
+        />
+        <PersonalPersonalityLibrary
+          disabled={pending || conflict}
+          onApply={(nextInstructions) => {
+            if (nextInstructions === instructions) return;
+            void save(() =>
+              rpc.bots.update({
+                botId: bot.id,
+                instructions: nextInstructions,
                 expectedInstructions: baseline,
               }),
             );

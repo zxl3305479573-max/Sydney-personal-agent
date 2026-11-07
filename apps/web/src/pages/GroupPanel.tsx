@@ -182,11 +182,11 @@ export function CreateGroupForm({
         >
           <ChevronLeft />
         </Button>
-        <h1 className="text-[22px] font-medium text-foreground">
+        <h1 className="hidden text-[22px] font-medium text-foreground md:block">
           <Trans>Create group</Trans>
         </h1>
+        <PageBreadcrumb label="Create group" inline />
       </div>
-      <PageBreadcrumb label="Create group" inline />
       {error ? (
         <p role="alert" className="mb-3 text-sm text-destructive">
           {error}
@@ -314,9 +314,10 @@ export function GroupSettings({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-4 flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">
+        <span className="hidden text-sm text-muted-foreground md:block">
           <Trans>Group settings</Trans>
         </span>
+        <PageBreadcrumb label="Group settings" inline />
         <Button
           variant="ghost"
           size="icon-sm"
@@ -327,7 +328,6 @@ export function GroupSettings({
           <X size={16} strokeWidth={1.8} />
         </Button>
       </div>
-      <PageBreadcrumb label="Group settings" inline />
       {error ? (
         <p role="alert" className="mb-3 text-sm text-destructive">
           {error}

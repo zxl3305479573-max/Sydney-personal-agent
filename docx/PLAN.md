@@ -1,5 +1,9 @@
 # Sydney 开发总计划
 
+native-linux 同机 overlay（PA-018，进行中）：已编写三 sidecar 的受限部署草案及定向测试，继续保留现有 overlay launcher；依赖核对主机 UID、目录权限和屏幕端口。双 web 滚动部署时网络命名空间绑定、updater 更新及回滚仍需 Linux Docker 实测，生产未变更，未达到启用条件。
+
+Hersona 人格库（PA-018，进行中）：固定上游提交 `75146c9126e1614750eeead3da165d61a3fc2188` 的 300 条性格、语气、角色和兴趣属性；用户可组合属性及强度、填写自定义指令，保存到账户并用于新建或设置 Bot。Bot 使用指令快照，模板后续修改不自动影响已有 Bot。目录来源、用户隔离及实现范围见 ADR-0017；数据库迁移、真实 PostgreSQL 行级隔离、跨设备及中英文界面实机验收尚未执行，未部署。上游属性名称和部分内容仍为英文或日文；上游完整混合算法、外观属性及账户导出尚未接入。
+
 生产 Compose 本地 overlay 持久化（PA-018，代码已完成，未部署）：部署 launcher、主部署脚本和 updater
 统一读取 checkout 外 `/etc/rakazo/compose` 下的受控 overlay；部署、健康检查、失败恢复和回滚复用同一
 Compose 文件集合；旧 revision 不支持标记时明确失败。已补定向测试和运维/ADR 文档，未在生产创建或加载

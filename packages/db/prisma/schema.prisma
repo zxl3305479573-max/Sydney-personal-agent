@@ -54,6 +54,7 @@ model User {
   modelRoleChoices            UserModelRoleChoice[]
   modelPreferences            UserModelPreference[]
   voicePreferences            UserVoicePreference[]
+  personalityPresets          PersonalityPreset[]
   approvalRules               UserActionApprovalRule[]
   autoReviewPreference        UserActionAutoReviewPreference?
   createdSpaces               Space[]                      @relation("SpaceCreator")
@@ -763,6 +764,24 @@ model Bot {
   @@map("bots")
   messagingInstallations MessagingInstallation[]
   messagingInstallSessions MessagingInstallSession[]
+}
+
+model PersonalityPreset {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  description  String   @default("")
+  selections   Json     @default("[]")
+  instructions String
+  customInstructions String @default("")
+  source       String   @default("custom")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+  @@map("personality_presets")
 }
 
 model BotSection {

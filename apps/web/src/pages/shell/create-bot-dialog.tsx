@@ -14,6 +14,7 @@ import {
 import { X } from "lucide-react";
 import { useRef, useState } from "react";
 import { PersonalityPicker } from "../../components/PersonalityPicker";
+import { PersonalPersonalityLibrary } from "../../components/PersonalPersonalityLibrary";
 import { avatarSourceToDataUrl, BUILT_IN_AVATARS } from "../../lib/avatar-library";
 import type { PersonalityId } from "../../lib/personality-library";
 import { personalityPreset } from "../../lib/personality-library";
@@ -41,6 +42,8 @@ export function CreateBotDialog({
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState(BUILT_IN_AVATARS[0]!.src);
   const [personality, setPersonality] = useState<PersonalityId | null>("balanced");
+  const [personalInstructions, setPersonalInstructions] = useState<string | null>(null);
+  const [personalName, setPersonalName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmed = name.trim();
@@ -55,7 +58,7 @@ export function CreateBotDialog({
         name: trimmed,
         color: avatarDataUrl,
         avatarSet: "organic",
-        instructions: personality ? personalityPreset(personality).instructions : "",
+        instructions: personalInstructions ?? (personality ? personalityPreset(personality).instructions : ""),
       });
     } catch (err) {
       setError(errorText(err, t`Could not create bot`));
@@ -132,9 +135,23 @@ export function CreateBotDialog({
             </span>
             <PersonalityPicker
               value={personality ?? "custom"}
-              onChange={setPersonality}
+              onChange={(value) => {
+                setPersonalInstructions(null);
+                setPersonalName("");
+                setPersonality(value);
+              }}
               disabled={submitting}
+              allowCustom={false}
             />
+            <PersonalPersonalityLibrary
+              disabled={submitting}
+              onApply={(instructions, name) => {
+                setPersonality(null);
+                setPersonalInstructions(instructions);
+                setPersonalName(name);
+              }}
+            />
+            {personalName && <p className="text-xs">{personalName}</p>}
           </div>
           {error ? (
             <p role="alert" data-testid="create-bot-error" className="text-[13px] text-destructive">

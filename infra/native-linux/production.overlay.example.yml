@@ -1,0 +1,47 @@
+services:
+  api:
+    group_add: ["986"]
+    volumes:
+      - /var/lib/rakazo-native/run:/run/rakazo-native:ro
+
+  worker:
+    group_add: ["986"]
+    volumes:
+      - /var/lib/rakazo-native/run:/run/rakazo-native:ro
+
+  native-driver-proxy:
+    image: alpine/socat@sha256:a6be4c0262b339c53ddad723cdd178a1a13271e1137c65e27f90a08c16de02b8
+    user: "996:986"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    volumes:
+      - /var/lib/sydney-tunnel-jail/run:/driver:ro
+      - /var/lib/rakazo-native/run:/run/rakazo-native
+    command: ["UNIX-LISTEN:/run/rakazo-native/driver.sock,fork,unlink-early,mode=0660", "UNIX-CONNECT:/driver/driver.sock"]
+
+  native-screen-host-bridge:
+    image: alpine/socat@sha256:a6be4c0262b339c53ddad723cdd178a1a13271e1137c65e27f90a08c16de02b8
+    user: "996:986"
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    volumes:
+      - /var/lib/rakazo-native/run:/run/rakazo-native
+    command: ["UNIX-LISTEN:/run/rakazo-native/screen.sock,fork,unlink-early,mode=0660", "TCP:127.0.0.1:6080"]
+
+  native-screen-web-loopback:
+    image: alpine/socat@sha256:a6be4c0262b339c53ddad723cdd178a1a13271e1137c65e27f90a08c16de02b8
+    user: "996:986"
+    network_mode: service:web
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    volumes:
+      - /var/lib/rakazo-native/run:/run/rakazo-native:ro
+    command: ["TCP-LISTEN:16080,bind=127.0.0.1,reuseaddr,fork", "UNIX-CONNECT:/run/rakazo-native/screen.sock"]

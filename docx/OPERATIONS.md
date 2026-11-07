@@ -1,6 +1,30 @@
 # 运维手册
 
+## Hersona 人格库（待部署验证）
+
+人格卡片保存在新增的 `personality_presets` 数据库表，按账号隔离；已应用到 Bot 的指令是独立快照。部署此版本需要使用项目现有数据库迁移流程执行对应 Prisma 迁移，先按既有流程备份数据库，再核对迁移结果、运行角色权限与行级隔离；本次未执行迁移。回滚应用版本不会删除新表，但旧版本无法管理人格卡片；不要为回滚直接删除表。整库备份应包含该表，目前应用账户导出尚未包含人格卡片，不能依赖账户导出备份它们。真实部署、两账号隔离和跨设备使用均待验证。
+
 ## 2026-11-07 生产 Compose 本地 overlay（代码已实现，未部署）
+
+native-linux 草案位于 `infra/native-linux/production.overlay.example.yml`，不是已安装的生产配置。它以
+`996:986` 运行代理，将真实驱动 socket 的目录只读挂载给代理；API/Worker 只读挂载代理目录并通过
+附加组 `986` 连接。宿主机屏幕桥使用 Unix socket 连接 host 网络的 `127.0.0.1:6080`，web 网络命名空间内
+另一个桥只监听 `127.0.0.1:16080`。无公开端口。目录的属主、组、遍历及写入权限必须在目标机确认：
+代理需要创建 socket，应用用户需要遍历并连接；应用不得能修改代理目录或访问真实 socket。核对 Docker
+是否使用用户命名空间映射及实际应用 UID/附加组，不能仅凭示例数字假定权限正确。
+
+维护窗口中先核对生产版本、现有 launcher 和环境配置，再安装包含支持标记的 launcher；管理员审阅草案后
+将其安装为 `/etc/rakazo/compose/production.overlay.yml`，属主 root、权限 0640，并确保部署用户可读。
+在持久 `.env` 中配置 `RAKAZO_COMPOSE_OVERLAY_FILE`、`RAKAZO_UPDATE_SERVICES=native-screen-web-loopback`、
+`SYDNEY_NATIVE_DRIVER_SOCKET=/run/rakazo-native/driver.sock`、`SYDNEY_NATIVE_SCREEN_PORT=16080` 和
+`SYDNEY_NATIVE_SCREEN_USER_ID`、`SYDNEY_NATIVE_SCREEN_SPACE_ID`；按授权需要设置可选的
+`SYDNEY_NATIVE_SCREEN_BOT_ID`，沿用现有 `SCREEN_PROXY_SECRET`。实际值不得写入仓库。
+先验证合并结果、代理权限、屏幕票据和回滚，再经授权切换 `SANDBOX_PROVIDER=native-linux`。
+上述配置及次序为待验证草案，不是已执行操作。
+
+关键阻塞：`network_mode: service:web` 与现有 deploy-main 双 web 滚动替换及 updater 重建的实际行为尚未
+验证；updater 当前执行的是普通 `compose up`，不显式强制重建该桥，即使服务列表包含它，也不能证明其绑定新的 web 容器。必须在隔离 Linux 环境实测
+首次部署、web 替换、更新失败恢复和回滚，确认每个服务流量可达且无旧命名空间残留；未解决前不得上线。
 
 生产本地 overlay 的持久路径是 `/etc/rakazo/compose/production.overlay.yml`，位于
 checkout 外部，不会被部署脚本的 `git reset` 覆盖。安装时由管理员创建目录和文件，建议

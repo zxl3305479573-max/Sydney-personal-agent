@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-07（PA-018）：接入 Hersona 模板数据的固定快照，用 Sydney 本地组合逻辑处理属性强度和冲突，并通过账号级 RPC 保存人格卡片。新建 Bot 和 Bot 设置可应用保存的指令快照；模板更新或删除不改写已有 Bot。采用 Hersona 的 CC0 属性数据，不调用其 Python 服务或 MCP；此实现并非上游完整混合引擎，数据来源与许可见 ADR-0017。尚未部署、运行数据库迁移或实机验证。
+
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：排查云电脑无法打开链路，确认原生 Provider、屏幕能力票据、Web `/novnc` 代理和双机回环隧道均已有代码，但仓库缺少云电脑侧 VNC/noVNC 与后台屏幕隧道的可部署服务模板；同时原生屏幕默认要求固定 Bot，导致新建 Bot 或账号切换后屏幕绑定可能失效。
 
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：原生屏幕改为必须匹配用户和空间，Bot 绑定改为可选；保留配置 Bot 时的单 Bot 限制，未配置时允许同一授权范围内的新 Bot 使用桌面。补充驱动 socket 缺失和屏幕未配置的明确错误，更新 Provider 工厂说明、环境示例及 VNC、noVNC、屏幕 SSH 隧道 systemd 模板。未部署、未修改线上配置或端口。
@@ -1042,3 +1044,12 @@
 - 安全：去除部署入口对 `/etc/rakazo/deploy.env` 的 shell `source`，改用受控 `RAKAZO_*` 赋值解析；launcher 对旧 revision 的支持标记做兼容检查；updater 只读挂载 overlay 目录并隐藏带 overlay 的 Compose 错误输出。
 - 测试：core/updater 定向测试通过；Windows 本机无法执行仓库已有 `/bin/bash` 部署模拟测试，使用本机 MSYS Bash 对两个部署脚本做 `-n` 语法检查通过。
 - 未做：未连接生产、未修改线上 `.env`、未创建 overlay、未启动 Docker/systemd、未启用 Provider、未做 sidecar/socket/屏幕实机验证。
+
+## 2026-11-07：native-linux 同机 overlay 草案
+
+- 范围：PA-018 本地 sidecar 草案、Compose 合并及 updater 服务列表验证；不改变生产。
+- 新增 driver Unix socket 代理和两段屏幕桥，应用只读挂载代理目录；三项 sidecar 运行于 996:986，不发布端口。
+- 远端 `main` 经只读查询为 `747dbb522`；本机 `.git` 不可写，无法 fetch/rebase，本地仍为包含 overlay 支持的 `fa87868da`。既有其他未提交改动保留。
+- Windows 本机 Docker Compose `config --no-interpolate --quiet` 合并草案通过；Linux 权限、网络命名空间随 web 滚动替换、updater 更新与恢复、真实驱动和屏幕链路均未验证，生产启用仍阻塞。
+- 本地直接运行已安装 Vitest：overlay 与 updater 配置定向测试 57 项通过；包含 updater HTTP 测试的运行共 68 项通过、15 项失败，其中 14 项因 Windows 临时路径不符合生产代码的 POSIX 路径要求，1 项因 Windows 无法运行测试用 shell 脚本，新增的 HTTP 回滚断言尚未在 Linux 验证。pnpm 版本切换因无法访问 registry 校验签名而失败；未安装依赖。
+- updater 的 `compose up` 未显式强制重建网络桥；仅将桥加入更新服务列表并不能证明其随 web 重建，仍需实现或验证可靠的重建顺序后才能上线。
