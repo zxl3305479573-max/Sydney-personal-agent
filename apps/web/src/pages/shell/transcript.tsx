@@ -23,7 +23,7 @@ import {
 import type { GroupAvatarMember } from "@rakazo/ui-web";
 import { Button, cn, Spinner } from "@rakazo/ui-web";
 import { ArrowDown } from "lucide-react";
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties, RefObject, TouchEvent } from "react";
 import {
   Fragment,
   memo,
@@ -156,6 +156,48 @@ export const Transcript = memo(function Transcript({
   onOpenImportSetup?: (target: ImportSetupTarget) => void;
 }) {
   const { t } = useLingui();
+  const [touchActionsId, setTouchActionsId] = useState<string | null>(null);
+  const touchHold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const cancelTouchHold = useCallback(() => {
+    if (touchHold.current) clearTimeout(touchHold.current.timer);
+    touchHold.current = null;
+  }, []);
+  useEffect(() => {
+    function dismiss(event: PointerEvent) {
+      if (event.pointerType !== "touch" || !(event.target instanceof Element)) return;
+      if (event.target.closest('[role="menu"], [role="dialog"]')) return;
+      const messageId = event.target.closest<HTMLElement>("[data-message-id]")?.dataset.messageId;
+      setTouchActionsId((current) => (current === messageId ? current : null));
+    }
+    document.addEventListener("pointerdown", dismiss);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      cancelTouchHold();
+    };
+  }, [cancelTouchHold]);
+  function startTouchHold(event: TouchEvent<HTMLDivElement>, messageId: string) {
+    cancelTouchHold();
+    if (event.touches.length !== 1 || !(event.target instanceof Element)) return;
+    if (event.target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+    setTouchActionsId(null);
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchHold.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      timer: setTimeout(() => {
+        setTouchActionsId(messageId);
+        touchHold.current = null;
+      }, 500),
+    };
+  }
+  function moveTouchHold(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0];
+    const hold = touchHold.current;
+    if (!hold || !touch || Math.hypot(touch.clientX - hold.x, touch.clientY - hold.y) > 10) {
+      cancelTouchHold();
+    }
+  }
   const appearance = useChatAppearance();
   const background =
     appearance.mode === "simple"
@@ -653,7 +695,16 @@ export const Transcript = memo(function Transcript({
                 <UnreadDivider afterSeparator={separatorIds.has(message.id)} />
               ) : null}
               <div
+                role="group"
                 data-message-id={message.id}
+                data-touch-actions={touchActionsId === message.id ? "open" : undefined}
+                onTouchStart={peerReceipt ? undefined : (event) => startTouchHold(event, message.id)}
+                onTouchMove={moveTouchHold}
+                onTouchEnd={cancelTouchHold}
+                onTouchCancel={cancelTouchHold}
+                onContextMenu={(event) => {
+                  if (touchActionsId === message.id) event.preventDefault();
+                }}
                 className={
                   peerReceipt
                     ? "relative py-0.5"

@@ -18,6 +18,7 @@ describe("MessageHoverMetadata", () => {
     expect(html).not.toContain("ms-1.5");
     expect(html).not.toContain("bottom-0");
     expect(html).toContain("opacity-0");
+    expect(html).toContain("pointer-events-none opacity-0");
     expect(html).toContain("@media(hover:hover)_and_(pointer:fine)");
     expect(html).toContain("group-hover/message:opacity-100");
     expect(html).toContain("focus-within:opacity-100");
@@ -51,6 +52,8 @@ describe("MessageHoverMetadata", () => {
       expect(html).toContain("[@media(hover:none)]:static");
       expect(html).toContain("[@media(hover:none)]:w-full");
       expect(html).toContain("[@media(hover:none)]:translate-y-0");
+      expect(html).toContain("[@media(hover:none)]:max-h-0");
+      expect(html).toContain("group-data-[touch-actions=open]/message:opacity-100");
     }
     expect(bot).toContain("[@media(hover:none)]:justify-start");
     expect(user).toContain("[@media(hover:none)]:justify-end");

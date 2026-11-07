@@ -399,7 +399,7 @@ test("a message with an attachment centers hover actions on its text bubble", as
 test.describe("touch message actions", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
-  test("More exposes actions without simulated hover", async ({ page }, testInfo) => {
+  test("long press reveals message actions without simulated hover", async ({ page }, testInfo) => {
     await signup(page, `touch-actions-${Date.now()}@rakazo.test`, "password12", "Touch Actions");
     await completeOnboarding(page);
     expect(
@@ -417,7 +417,15 @@ test.describe("touch message actions", () => {
       .filter({ has: botText })
       .first();
     const rail = row.getByTestId("message-hover-rail");
+    await expect(rail).toHaveCSS("opacity", "0");
+    await row.evaluate((element) => {
+      const touch = new Touch({ identifier: 1, target: element, clientX: 100, clientY: 100 });
+      element.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [touch] }));
+    });
     await expect(rail).toHaveCSS("opacity", "1");
+    await row.evaluate((element) => {
+      element.dispatchEvent(new TouchEvent("touchend", { bubbles: true, touches: [] }));
+    });
     await expect(rail.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
     const botBubble = row.getByTestId("message-bot-bubble").first();
     const bubbleBox = await botBubble.boundingBox();

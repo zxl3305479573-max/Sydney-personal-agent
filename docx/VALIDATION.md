@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-11-07：消息操作栏显示条件
+
+- `MessageHoverMetadata.test.tsx`、`message-view.test.tsx` 共 14 项测试通过；Web TypeScript 检查和 `git diff --check` 通过。
+- 更新手机端 Playwright 场景以检查默认隐藏及长按显示，但没有运行该场景；未验证真实手机、iOS 文字选择或菜单交互。
+- Biome 检查仍报告消息行 `role="group"` 的语义元素建议；`transcript.tsx` 还存在原有格式差异，未进行整文件格式化。
+
 ## 2026-11-07：SidebarFooter 焦点测试修复验证
 
 - 失败证据：Run `42345018949` 的 Unit tests shard 1 仅在 `apps/web/src/components/SidebarFooter.test.tsx` 的连接按钮焦点断言失败；其他单元测试分片、静态检查、Postgres journeys 和镜像发布均通过。
