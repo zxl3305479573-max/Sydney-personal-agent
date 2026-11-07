@@ -1,5 +1,12 @@
 # 验证记录
 
+## 2026-11-07：生产部署通道修复验证
+
+- 线上失败证据：GitHub Actions Run `42343223472` 的检查、Postgres journeys、单元测试和镜像发布均成功；`deploy-production` 在 `Join the tailnet` 步骤失败，后续 SSH 步骤被跳过。
+- 失败信息：Tailscale Action 连续重试后报告 `sudo failed with exit code 1`；没有进入服务器，因此不能据此判断 SSH 私钥、服务器部署脚本或 `pc.zxlup.xin` 健康状态有误。
+- 代码修复：`.github/workflows/ci.yml` 删除 Tailscale 加入步骤和 OIDC 权限，保留 `PRODUCTION_SSH_HOST`、`PRODUCTION_SSH_USER`、`PRODUCTION_SSH_PRIVATE_KEY`、`PRODUCTION_SSH_KNOWN_HOSTS` 的直接 SSH 部署。
+- 已执行：读取并核对失败 Job 的公开步骤状态、工作流依赖和提交差异；修复后 CI 重跑、服务器部署和 `https://pc.zxlup.xin/health` 检查待推送后执行。
+
 ## 2026-11-07：提交 f7297933c 全量部署验证
 
 - 提交验证：工作区干净，`main` 与 `origin/main` 同步到 `f7297933c580131e8473cafff1159bdd215a536c`；执行 `git push origin main` 返回 `Everything up-to-date`。

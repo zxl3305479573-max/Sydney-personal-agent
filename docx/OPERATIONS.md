@@ -1,5 +1,11 @@
 # 运维手册
 
+## 2026-11-07：CI 生产部署通道修复
+
+提交 `59b5cfe58` 的源码已将生产入口统一为 `pc.zxlup.xin`。该提交触发的 GitHub Actions Run `42343223472` 中，检查和镜像发布成功，但 `deploy-production` 在 Tailscale OIDC 加入步骤失败，未连接生产机，也未执行回滚或服务变更。
+
+当前部署工作流已恢复直接 SSH 方式：使用 `production` Environment 中的 `PRODUCTION_SSH_HOST`、`PRODUCTION_SSH_USER`、`PRODUCTION_SSH_PRIVATE_KEY` 和 `PRODUCTION_SSH_KNOWN_HOSTS`，连接后执行服务器上的 `deploy-main <commit>`。本机和仓库不保存这些字段的真实值；修复后的 CI 运行负责验证字段是否有效。Tailscale 变量不再是该部署流程的依赖。
+
 ## 2026-11-07 提交 f7297933c 全量部署
 
 提交 `f7297933c580131e8473cafff1159bdd215a536c` 已确认工作区干净并推送到 `origin/main`。云电脑在 `/opt/sydney-web-build-f7297933c` 使用现有 Node `22.23.2` 和依赖构建 Web，构建标识为 `20261107042307`，运行目录已切换到 `/opt/sydney-web-stage/apps/web/dist`。
