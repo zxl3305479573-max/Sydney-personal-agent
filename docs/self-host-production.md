@@ -169,6 +169,36 @@ settings) in a root-owned `/etc/rakazo/deploy.env` readable by the deploy user. 
 a change to the launcher itself needs
 `sudo install -m 0755 infra/compose/deploy-launcher.sh /usr/local/sbin/rakazo-deploy-main`.
 
+### Persistent local Compose overlay
+
+Keep a host-specific overlay outside the checkout so `git checkout` and the deploy rollback
+cannot remove it. The supported location is `/etc/rakazo/compose/production.overlay.yml`, owned by
+root and readable by the deploy user, with mode `0640` (use `0600` only when the deploy user can
+read it). Put the absolute path in the persistent production `.env`:
+
+```env
+RAKAZO_COMPOSE_OVERLAY_FILE=/etc/rakazo/compose/production.overlay.yml
+```
+
+The launcher and deployment script load this value without executing the file. The deployment
+uses the base file followed by the overlay for configuration validation, rollout, health recovery,
+and rollback. The updater receives the same value and mounts `/etc/rakazo/compose` read-only.
+Leave the variable empty or absent to preserve the original single-file behavior.
+
+The overlay must be a regular non-symlink `.yml` or `.yaml` file under `/etc/rakazo/compose`,
+with no group/world write permission and no world read permission. Compose syntax and merged
+service definitions are validated before replacement. Do not put credentials in the overlay;
+pass secrets through the existing environment and secret mechanisms.
+
+The persistent launcher refuses a target revision that lacks
+`RAKAZO_LOCAL_COMPOSE_OVERLAY_SUPPORT=1` while an overlay is configured. This is the rollback
+boundary for old revisions: deployment stops with an explicit compatibility error instead of
+silently dropping the overlay. Install the updated launcher once on the server:
+
+```bash
+sudo install -m 0755 infra/compose/deploy-launcher.sh /usr/local/sbin/rakazo-deploy-main
+```
+
 ## Docker computers on the production stack
 
 Layer `infra/compose/docker-compose.prod.docker.yml` after the base file in every Compose

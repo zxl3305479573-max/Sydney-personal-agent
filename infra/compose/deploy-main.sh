@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# RAKAZO_LOCAL_COMPOSE_OVERLAY_SUPPORT=1
 # Roll out origin/main on the single-VM production stack.
 #
 # Runs as the deploy user through deploy-launcher.sh, which is installed as the CI forced command
@@ -9,14 +10,50 @@
 # the checkout instead when the pull fails or times out, or when no image repository is configured.
 set -Eeuo pipefail
 
+load_deploy_config() {
+  local config_file=/etc/rakazo/deploy.env line key value
+  [[ -r "${config_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if [[ "${line}" =~ ^(RAKAZO_[A-Z0-9_]+)=([A-Za-z0-9_./:@+,%=&?-]*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if [[ "${key}" == RAKAZO_COMPOSE_OVERLAY_FILE ]]; then
+        echo "Set RAKAZO_COMPOSE_OVERLAY_FILE in the persistent .env so the updater uses the same file." >&2
+        return 1
+      fi
+      printf -v "${key}" '%s' "${value}"
+      export "${key}"
+    else
+      echo "Invalid /etc/rakazo/deploy.env entry; refusing to execute it." >&2
+      return 1
+    fi
+  done <"${config_file}"
+}
+
+load_env_assignment() {
+  local config_file="$1" wanted="$2" line key value
+  [[ -r "${config_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if [[ "${line}" =~ ^([A-Z][A-Z0-9_]*)=([A-Za-z0-9_./:@+,%=&?-]*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      if [[ "${key}" == "${wanted}" ]]; then
+        value="${BASH_REMATCH[2]}"
+        printf -v "${wanted}" '%s' "${value}"
+        export "${wanted}"
+      fi
+    elif [[ "${line}" == "${wanted}="* ]]; then
+      echo "Invalid ${wanted} entry; refusing to use it." >&2
+      return 1
+    fi
+  done <"${config_file}"
+}
+
 # A forced SSH command carries no environment, so read the checkout path from a root-owned file.
-if [[ -z "${RAKAZO_DEPLOY_DIR:-}" && -r /etc/rakazo/deploy.env ]]; then
-  # shellcheck disable=SC1091
-  source /etc/rakazo/deploy.env
-fi
+load_deploy_config
 APP_DIR="${RAKAZO_DEPLOY_DIR:-/srv/rakazo}"
 [[ "${APP_DIR}" == /* ]] || { echo "RAKAZO_DEPLOY_DIR must be an absolute path" >&2; exit 1; }
-COMPOSE_FILE="infra/compose/docker-compose.prod.yml"
 # CI allows 140 minutes: 5m pull + 15m fallback build + 5m start + ~1m of health retries + 8m
 # rollback, which only pulls or builds when the previous image is gone, + up to 50m (the worker's
 # stop_grace_period) twice: for a worker an earlier deploy left draining, then for this one's.
@@ -31,6 +68,30 @@ BUILD_CACHE_GB="${RAKAZO_DEPLOY_BUILD_CACHE_GB:-8}"
 [[ "${MIN_FREE_GB}" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "RAKAZO_DEPLOY_MIN_FREE_GB must be a whole number" >&2; exit 1; }
 
 cd "${APP_DIR}"
+if [[ -z "${RAKAZO_COMPOSE_OVERLAY_FILE:-}" ]]; then
+  load_env_assignment .env RAKAZO_COMPOSE_OVERLAY_FILE
+fi
+COMPOSE_FILES=("infra/compose/docker-compose.prod.yml")
+if [[ -n "${RAKAZO_COMPOSE_OVERLAY_FILE:-}" ]]; then
+  overlay_file="${RAKAZO_COMPOSE_OVERLAY_FILE}"
+  [[ "${overlay_file}" == /etc/rakazo/compose/* ]] ||
+    { echo "RAKAZO_COMPOSE_OVERLAY_FILE must be under /etc/rakazo/compose." >&2; exit 1; }
+  [[ "${overlay_file}" != */../* && "${overlay_file}" != */.. ]] ||
+    { echo "RAKAZO_COMPOSE_OVERLAY_FILE must not contain parent traversal." >&2; exit 1; }
+  [[ "${overlay_file}" =~ ^/etc/rakazo/compose/[A-Za-z0-9._-]+\.(yml|yaml)$ ]] ||
+    { echo "RAKAZO_COMPOSE_OVERLAY_FILE must name a .yml or .yaml file." >&2; exit 1; }
+  [[ -f "${overlay_file}" && ! -L "${overlay_file}" && -r "${overlay_file}" ]] ||
+    { echo "Configured Compose overlay is missing, unreadable, or a symlink." >&2; exit 1; }
+  overlay_mode="$(stat -c '%a' "${overlay_file}")"
+  [[ "${overlay_mode}" =~ ^[0-7]{3}$ ]] ||
+    { echo "Configured Compose overlay permissions could not be checked." >&2; exit 1; }
+  overlay_owner="$(stat -c '%u' "${overlay_file}")"
+  [[ "${overlay_owner}" == "0" ]] ||
+    { echo "Configured Compose overlay must be owned by root." >&2; exit 1; }
+  (( (8#${overlay_mode:1:1} & 2) == 0 && (8#${overlay_mode:2:1} & 6) == 0 )) ||
+    { echo "Configured Compose overlay must not be group/world writable or world readable." >&2; exit 1; }
+  COMPOSE_FILES+=("${overlay_file}")
+fi
 # Where CI publishes the app image. Unset: the GHCR app image of the GitHub repository the checkout
 # tracks, which is where publish-server-image.yml pushes. Empty: always build on the host.
 if [[ -z "${RAKAZO_DEPLOY_IMAGE+set}" ]]; then
@@ -50,7 +111,12 @@ fi
 compose() {
   local limit="$1"
   shift
-  timeout --kill-after=30s "${limit}" sudo docker compose --env-file .env -f "${COMPOSE_FILE}" "$@"
+  local args=(docker compose --env-file .env)
+  local compose_file
+  for compose_file in "${COMPOSE_FILES[@]}"; do
+    args+=(-f "${compose_file}")
+  done
+  timeout --kill-after=30s "${limit}" sudo "${args[@]}" "$@"
 }
 
 healthy() {
@@ -320,7 +386,7 @@ if [[ "${postgres_state}" == upgrade ]]; then
   exit 1
 fi
 app_image="$(compose_app_image)"
-[[ -n "${app_image}" ]] || { echo "Could not find the api image in ${COMPOSE_FILE}." >&2; false; }
+[[ -n "${app_image}" ]] || { echo "Could not find the api image in the configured Compose files." >&2; false; }
 use_revision_image "${target_revision}" "${BUILD_TIMEOUT}"
 # A worker still draining from a deploy that stopped early runs code older than the previous
 # release, which these migrations need not support.

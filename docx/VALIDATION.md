@@ -1079,3 +1079,10 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm --config.engine-strict=false --filter @rakazo/www check`：0 错误、0 警告、1 个 Astro/Zod deprecation hint；普通命令因本机 Node `22.22.0` 低于仓库要求 `22.22.2` 被引擎门禁拒绝。
 - 源码检索：未发现运行配置和用户入口仍使用上游默认域名。
 - 未执行生产服务器 `.env`、DNS、Caddy/TLS、认证回调或真实浏览器 Passkey 的线上复核；本次只完成源码和文档切换。
+# V-Overlay：生产 Compose 本地 overlay 离线验证
+
+- 日期：2026-11-07；范围：部署 launcher、`deploy-main.sh`、Compose updater、失败恢复和旧 revision 兼容边界。
+- 通过：`pnpm exec vitest run packages/core/src/compose-update.test.ts infra/updater/src/updater-logic.test.ts infra/updater/src/compose-service.test.ts --maxWorkers=1`，3 个文件、148 项通过；覆盖无 overlay 默认、有效 overlay 路径契约、缺失/非法路径、Compose 文件顺序、只读挂载、回滚和恢复参数复用。
+- 通过：updater 相关新增恢复断言已写入 `infra/updater/src/fork-recovery.test.ts` 和 `infra/updater/src/index.test.ts`；Windows 下 fork recovery 被既有 `skipIf` 跳过。
+- 未通过/未执行：`packages/testkit/src/deploy-script.test.ts` 在本机 Windows 因 `/bin/bash` 不存在无法执行，31 项均在进程启动阶段失败；不是脚本行为断言。使用 `C:\msys64\usr\bin\bash.exe -n infra/compose/deploy-main.sh` 和对应 launcher 命令检查通过。
+- 未执行：Docker Compose 合并、真实文件所有权/权限、生产 launcher 安装、线上部署/回滚、native-linux socket sidecar、截图、输入、websockify 容器链路和断线恢复。

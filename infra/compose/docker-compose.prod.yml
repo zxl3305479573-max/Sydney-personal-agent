@@ -643,6 +643,7 @@ services:
       # same services the operator runs by hand, so these are read from the environment rather
       # than pinned to the base stack. Defaults reproduce the previous behaviour exactly.
       RAKAZO_COMPOSE_FILE: ${RAKAZO_COMPOSE_FILE:-infra/compose/docker-compose.prod.yml}
+      RAKAZO_COMPOSE_OVERLAY_FILE: ${RAKAZO_COMPOSE_OVERLAY_FILE:-}
       RAKAZO_UPDATE_SERVICES: ${RAKAZO_UPDATE_SERVICES:-}
       COMPOSE_PATH_SEPARATOR: ${COMPOSE_PATH_SEPARATOR:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -657,6 +658,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${RAKAZO_DEPLOY_DIR:-/srv/rakazo}:${RAKAZO_DEPLOY_DIR:-/srv/rakazo}
+      - /etc/rakazo/compose:/etc/rakazo/compose:ro
     networks:
       - control
     healthcheck:
