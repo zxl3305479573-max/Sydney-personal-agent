@@ -86,7 +86,14 @@ export async function signup(
   await page.goto("/onboarding");
 }
 
-type CapturedEmail = { to?: string; text?: string };
+type CapturedEmail = { to?: string; text?: string; subject?: string };
+
+async function testEmails(page: Page): Promise<CapturedEmail[]> {
+  const api = process.env.API_URL?.replace(/\/$/, "");
+  const response = await page.request.get(api ? `${api}/__e2e/emails` : "/__e2e/emails");
+  if (!response.ok()) return [];
+  return (await response.json()) as CapturedEmail[];
+}
 
 /** The harness keeps emulator mail at this path. Production does not expose it. */
 async function verificationLink(page: Page, email: string): Promise<URL> {
@@ -94,10 +101,7 @@ async function verificationLink(page: Page, email: string): Promise<URL> {
   await expect
     .poll(
       async () => {
-        const api = process.env.API_URL?.replace(/\/$/, "");
-        const response = await page.request.get(api ? `${api}/__e2e/emails` : "/__e2e/emails");
-        if (!response.ok()) return false;
-        const messages = (await response.json()) as CapturedEmail[];
+        const messages = await testEmails(page);
         const raw = messages
           .filter((message) => message.to === email)
           .map((message) => message.text?.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
@@ -146,14 +150,38 @@ export async function signupThroughForm(
   testInfo?: TestInfo,
 ) {
   await page.goto("/sign-up");
-  await expect(page.getByRole("heading", { name: "Create your Rakazo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create your Sydney" })).toBeVisible();
   if (testInfo) await captureScreenshot(page, testInfo, "01-sign-up");
   await page.getByPlaceholder("Your name").fill(name);
   await page.getByPlaceholder("Your email address").fill(email);
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await finishEmailVerification(page, email, password);
-  await page.goto("/onboarding");
+  const passwordInput = page.getByPlaceholder("Password");
+  if (await passwordInput.isVisible()) {
+    await passwordInput.fill(password);
+    await page.getByRole("button", { name: "Create account" }).click();
+    if (await page.getByRole("heading", { name: "Check your email" }).isVisible()) {
+      await finishEmailVerification(page, email, password);
+      await page.goto("/onboarding");
+    }
+  } else {
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+    let code: string | undefined;
+    await expect
+      .poll(async () => {
+        const messages = await testEmails(page);
+        code = messages
+          .filter(
+            (message) => message.to === email && message.subject === "Your Sydney sign-in code",
+          )
+          .at(-1)
+          ?.text?.match(/\b\d{6}\b/)?.[0];
+        return Boolean(code);
+      })
+      .toBe(true);
+    if (!code) throw new Error("No sign-in code in the test mailbox");
+    await page.locator('input[autocomplete="one-time-code"]').fill(code);
+  }
+  await page.waitForURL(/\/(onboarding|app)/, { timeout: 20_000 });
 }
 
 /** Opens Integrations' add menu and picks one of its custom sources. */
