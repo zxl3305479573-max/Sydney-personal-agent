@@ -31,7 +31,23 @@ vi.mock("react-native-reanimated", () => ({
   withTiming: (value: number) => value,
 }));
 
-vi.mock("expo-secure-store", () => ({}));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async () => null,
+  setItemAsync: async () => undefined,
+  deleteItemAsync: async () => undefined,
+  isAvailableAsync: async () => true,
+}));
+vi.mock("expo-file-system", () => ({
+  File: class {
+    uri: string;
+    exists = true;
+    constructor(...parts: string[]) {
+      this.uri = parts.join("/");
+    }
+  },
+  Paths: { document: "file://documents" },
+}));
+vi.mock("expo-image-picker", () => ({}));
 vi.mock("./live-notifications", () => ({ resumeLiveNotifications: vi.fn() }));
 vi.mock("./network-cache", () => ({ clearNetworkCache: vi.fn() }));
 vi.mock("./artifact-open", () => ({ openMobileArtifact: vi.fn() }));

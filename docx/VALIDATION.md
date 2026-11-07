@@ -977,3 +977,12 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec tsc --noEmit -p packages/testkit/tsconfig.json`：通过。
 - `pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/mobile/lib/chat-appearance.test.ts --maxWorkers=1`：2 个文件、7 项通过。
 - 第三轮提交 `f956376f9` 已推送；GitHub API 查询随后触发匿名请求限流，CI 最终状态暂未取得，不能标记为通过。
+
+## CI 第四轮回归修复验证（2026-11-07）
+
+- `pnpm exec vitest run apps/mobile/lib/thread-sender-colors.test.tsx apps/mobile/lib/thread-card-width.test.tsx apps/mobile/lib/message-mention-accessibility.test.tsx packages/ui-web/src/group-avatar.test.tsx`：4 个文件、42 项通过。
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：通过。
+- `pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json`：通过。
+- `pnpm exec turbo run check --filter=@rakazo/mobile --filter=@rakazo/ui-web --filter=@rakazo/desktop`：桌面、ui-web 及其依赖检查通过；移动端在本机 `node_modules` 的 Expo 补丁版本落后于锁文件时被 `expo install --check` 拒绝，随后直接运行移动端 TypeScript 检查通过。
+- 批量移动端与 ui-web 测试的本地失败文件在共享测试环境中不稳定；与未改动基线比较，本轮没有新增失败。未将 Windows 本地批量结果作为 Linux CI 结论。
+- 未执行生产部署；需推送后等待 GitHub CI，再确认 `deploy-production` 和 `https://app.rakazo.com` 健康状态。
