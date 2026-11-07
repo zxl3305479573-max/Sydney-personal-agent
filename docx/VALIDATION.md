@@ -1,11 +1,11 @@
 # 验证记录
 
-## 2026-11-07：生产部署通道修复验证
+## 2026-11-07：生产部署通道核对
 
-- 线上失败证据：GitHub Actions Run `42343223472` 的检查、Postgres journeys、单元测试和镜像发布均成功；`deploy-production` 在 `Join the tailnet` 步骤失败，后续 SSH 步骤被跳过。
-- 失败信息：Tailscale Action 连续重试后报告 `sudo failed with exit code 1`；没有进入服务器，因此不能据此判断 SSH 私钥、服务器部署脚本或 `pc.zxlup.xin` 健康状态有误。
-- 代码修复：`.github/workflows/ci.yml` 删除 Tailscale 加入步骤和 OIDC 权限，保留 `PRODUCTION_SSH_HOST`、`PRODUCTION_SSH_USER`、`PRODUCTION_SSH_PRIVATE_KEY`、`PRODUCTION_SSH_KNOWN_HOSTS` 的直接 SSH 部署。
-- 已执行：读取并核对失败 Job 的公开步骤状态、工作流依赖和提交差异；修复后 CI 重跑、服务器部署和 `https://pc.zxlup.xin/health` 检查待推送后执行。
+- 线上失败证据：Run `42343223472` 的检查、Postgres journeys、单元测试和镜像发布均成功；`deploy-production` 在 `Join the tailnet` 步骤失败，后续 SSH 步骤被跳过。
+- 直接 SSH 对照：临时移除 Tailnet 后的 Run `42344169631` 成功完成 SSH 密钥准备，但部署步骤以退出码 `255` 失败；`pc.zxlup.xin` 的 Cloudflare 公网入口 TCP 22 不可用。
+- 结论：生产 SSH 主机不能从 GitHub Runner 直接访问，不能继续使用无 Tailnet 的部署方式；工作流已恢复 Tailscale OIDC 加入和 `tag:ci` 配置。
+- 待处理：在 Tailscale 管理控制台确认 `tag:ci` 已创建且信任凭据允许该标签，并核对 GitHub OIDC audience/subject；修正后重新运行 CI，再检查 `https://pc.zxlup.xin/health`。
 
 ## 2026-11-07：提交 f7297933c 全量部署验证
 

@@ -1,6 +1,6 @@
 # Sydney 开发总计划
 
-2026-11-07 部署通道修复：`deploy-production` 曾因 Tailscale OIDC 加入步骤失败而未连接生产机，已恢复直接 SSH 部署并保留 `https://pc.zxlup.xin`；修复后的 CI 和公网健康检查待验证。
+2026-11-07 部署通道核对：`deploy-production` 的 Tailscale OIDC 加入步骤失败；临时直接 SSH 也以 `255` 失败，确认生产机需要 Tailnet。已恢复 Tailnet 部署路径并保留 `https://pc.zxlup.xin`，待修正 `tag:ci` 或 OIDC 信任配置后重跑。
 
 2026-11-07 全量部署状态：提交 `f7297933c580131e8473cafff1159bdd215a536c` 已推送并部署到云电脑 Web 与后台 API/Worker，公网版本为 `20261107042307`，基础健康检查通过。真实登录、Bot 创建、邮箱收件、联网回答、手机实机、PWA 更新和人工回滚仍按各专题验收条件单独保留。
 

@@ -1,11 +1,11 @@
 # 开发过程记录
 
-## 2026-11-07：恢复生产部署的直接 SSH 路径
+## 2026-11-07：确认生产部署需要 Tailnet
 
-- 关联 PA-018。提交 `59b5cfe58` 的域名切换已完成，但 GitHub Actions 的 `deploy-production` 在 `Join the tailnet` 步骤失败，未进入服务器 SSH 部署。
-- 根因是当前生产环境没有可用的 Tailscale GitHub OIDC 加入路径；失败发生在 Tailscale `sudo` 启动阶段，和 `pc.zxlup.xin` 的 Web 配置无关。
-- 移除 CI 中的 Tailscale Action 及 `id-token: write` 权限，恢复仓库原有的生产 SSH 密钥、已知主机指纹和 `deploy-main <commit>` 部署流程；生产环境地址仍为 `https://pc.zxlup.xin`。
-- 本次只修改部署通道和记录，不读取或写入任何 SSH 私钥、Tailscale 凭据或服务器配置；修复后的 CI 运行和公网健康检查待推送后验证。
+- 关联 PA-018。为排除 Tailscale 加入失败，临时尝试直接 SSH 部署；新 CI Run `42344169631` 的 SSH 步骤以退出码 `255` 失败，说明生产 SSH 主机不能从 GitHub 托管 Runner 直接访问。
+- `pc.zxlup.xin` 的 DNS 指向 Cloudflare 代理，公网 TCP 22 不可用，不能把应用域名当作 SSH 主机；生产 SSH 仍需要 Tailnet 或另外的公网 SSH 入口。
+- 恢复 CI 中的 Tailscale GitHub OIDC 加入步骤并保留 `pc.zxlup.xin` 作为生产展示地址；当前阻塞点是 Tailscale 的 `tag:ci`、OIDC audience/subject 或对应信任凭据配置。
+- 本次没有读取或写入任何 SSH 私钥、Tailscale 凭据或服务器配置；待 Tailscale 配置修正后再重跑部署。
 
 ## 2026-11-07：提交 f7297933c 全量部署上线
 

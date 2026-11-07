@@ -1,10 +1,10 @@
 # 运维手册
 
-## 2026-11-07：CI 生产部署通道修复
+## 2026-11-07：确认生产部署需要 Tailnet
 
-提交 `59b5cfe58` 的源码已将生产入口统一为 `pc.zxlup.xin`。该提交触发的 GitHub Actions Run `42343223472` 中，检查和镜像发布成功，但 `deploy-production` 在 Tailscale OIDC 加入步骤失败，未连接生产机，也未执行回滚或服务变更。
+提交 `59b5cfe58` 的源码已将生产入口统一为 `pc.zxlup.xin`。Run `42343223472` 的检查和镜像发布成功，但 `deploy-production` 在 Tailscale OIDC 加入步骤失败，未连接生产机，也未执行回滚或服务变更。随后临时移除 Tailnet 的 Run `42344169631` 进入 SSH 步骤，但以退出码 `255` 失败。
 
-当前部署工作流已恢复直接 SSH 方式：使用 `production` Environment 中的 `PRODUCTION_SSH_HOST`、`PRODUCTION_SSH_USER`、`PRODUCTION_SSH_PRIVATE_KEY` 和 `PRODUCTION_SSH_KNOWN_HOSTS`，连接后执行服务器上的 `deploy-main <commit>`。本机和仓库不保存这些字段的真实值；修复后的 CI 运行负责验证字段是否有效。Tailscale 变量不再是该部署流程的依赖。
+当前部署工作流恢复使用 Tailnet：GitHub Runner 先通过 OIDC 加入 Tailscale，再使用 `production` Environment 中的 SSH 字段连接服务器并执行 `deploy-main <commit>`。`pc.zxlup.xin` 只作为应用和 GitHub Environment 展示地址，不作为 SSH 主机。Tailscale 变量和 `tag:ci` 信任配置需要在外部管理控制台修正后才能继续部署。
 
 ## 2026-11-07 提交 f7297933c 全量部署
 
