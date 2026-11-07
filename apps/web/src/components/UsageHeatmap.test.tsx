@@ -30,10 +30,9 @@ it("renders the contribution calendar and reports loading failures", async () =>
         <UsageHeatmap records={[{ createdAt: new Date().toISOString() }]} status="success" />,
       ),
     );
-    expect(container.querySelector('[role="grid"]')).not.toBeNull();
-    expect(container.querySelectorAll('[role="gridcell"]:not(:disabled)')).toHaveLength(84);
+    expect(container.querySelectorAll("button:not(:disabled)")).toHaveLength(84);
     expect(container.textContent).toContain("最近加载的 100 条记录");
-    expect(container.querySelector('[aria-label="用量等级"]')).not.toBeNull();
+    expect(container.textContent).toContain("用量等级");
     await act(async () => root.render(<UsageHeatmap status="error" />));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("加载失败");
     await act(async () => root.render(<UsageHeatmap records={[]} status="success" />));

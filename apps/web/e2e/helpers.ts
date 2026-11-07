@@ -93,7 +93,8 @@ async function verificationLink(page: Page, email: string): Promise<URL> {
   await expect
     .poll(
       async () => {
-        const response = await page.request.get("/__e2e/emails");
+        const api = process.env.API_URL?.replace(/\/$/, "");
+        const response = await page.request.get(api ? `${api}/__e2e/emails` : "/__e2e/emails");
         if (!response.ok()) return false;
         const messages = (await response.json()) as CapturedEmail[];
         const raw = messages
