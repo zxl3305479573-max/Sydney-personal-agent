@@ -230,6 +230,9 @@ test("connects, lists, and uses an OpenAI-compatible endpoint", async ({ page },
     await providerSearch.fill("compatible");
     await captureScreenshot(page, testInfo, "add-provider-list-search");
     await providerSearch.press("Escape");
+    await expect(providerSearch).toHaveValue("");
+    await providerSearch.press("Escape");
+    await expect(providerSearch).toBeHidden();
     await openModelConnection(page, "OpenAI-compatible");
     await expect(
       page.getByText("Paste the OpenAI-compatible address", { exact: false }),

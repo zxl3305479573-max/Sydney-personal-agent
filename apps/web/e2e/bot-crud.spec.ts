@@ -81,10 +81,14 @@ test("bot creation, editing, and deletion persist", async ({ page }, testInfo) =
   await page.getByTestId("avatar-studio-trigger").click();
   const studio = page.getByTestId("avatar-studio");
   await expect(studio).toBeVisible();
-  await expect(studio.getByTestId("avatar-studio-bot-tab")).toBeVisible();
-  await studio.getByRole("button", { name: "Color #EAB308" }).click();
+  const chosenAvatar = studio.getByRole("button", { name: "橙花", exact: true });
+  await chosenAvatar.click();
+  await expect(chosenAvatar).toHaveAttribute("aria-pressed", "true");
   await studio.getByRole("button", { name: "Done", exact: true }).click();
   await expect(studio).toBeHidden();
+  const avatarImage = page.getByTestId("avatar-studio-trigger").locator("img");
+  await expect(avatarImage).toHaveAttribute("src", /^data:image\//);
+  const savedAvatar = await avatarImage.getAttribute("src");
   await expect(botList.getByRole("button", { name: /^Researcher/ })).toBeVisible();
   await expect(page.getByPlaceholder("Message Researcher")).toBeVisible();
 
@@ -99,7 +103,7 @@ test("bot creation, editing, and deletion persist", async ({ page }, testInfo) =
   const settings = page.getByTestId("bot-settings");
   await settings.getByTestId("avatar-studio-trigger").click();
   await expect(studio).toBeVisible();
-  await expect(studio.getByRole("button", { name: "Color #EAB308" })).toHaveClass(/ring-2/);
+  await expect(studio.locator("img").first()).toHaveAttribute("src", savedAvatar!);
   await studio.getByRole("button", { name: "Done", exact: true }).click();
   const modelSelect = settings.getByRole("combobox", { name: "Model", exact: true });
   const teamComputer = settings.getByRole("button", { name: "Team" });
