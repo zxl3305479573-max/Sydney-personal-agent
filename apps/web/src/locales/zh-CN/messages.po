@@ -1103,6 +1103,10 @@ msgstr "小伙伴名称"
 msgid "Bot screen"
 msgstr "小伙伴屏幕"
 
+#: src/pages/shell/computer-panel.tsx
+msgid "Bot screen preview"
+msgstr "小伙伴屏幕预览"
+
 #: src/components/PageBreadcrumb.tsx
 msgid "Bot settings"
 msgstr "小伙伴设置"

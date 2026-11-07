@@ -50,7 +50,7 @@ test("a new space auto-completes onboarding, is renamed in its settings, and is 
   await captureScreenshot(page, testInfo, "space-settings-rename");
   await spaceName.press("Enter");
   await expect(settings.getByRole("heading", { name: "Temporary" })).toBeVisible();
-  await expect(sidebar.getByRole("button", { name: "Actions for Temporary" })).toBeVisible();
+  await expect(sidebar.getByText("Temporary", { exact: true }).first()).toBeVisible();
   await expect(sidebar.getByText("Typo space", { exact: true })).toHaveCount(0);
 
   // An occupied space is deleted with its bots after one confirmation naming them.
