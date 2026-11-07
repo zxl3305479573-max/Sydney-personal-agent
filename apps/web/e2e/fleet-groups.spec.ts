@@ -14,7 +14,7 @@ test("a group a bot creates after approval appears in the sidebar without a relo
   }
 
   const sidebar = page.locator("aside").first();
-  const composer = page.getByPlaceholder("Message Chief");
+  const composer = page.getByPlaceholder("Message Sydney");
   await expect(composer).toBeEnabled();
   await composer.fill("create a group named Crew with Alpha, Beta");
   await page.keyboard.press("Enter");
@@ -62,7 +62,7 @@ test(
     await page.waitForURL(/\/app\/[^/]+$/);
     const chiefId = activeBotId(page);
     await rpc(page, "bots/update", { botId: chiefId, fleetManagement: true });
-    const composer = page.getByPlaceholder("Message Chief");
+    const composer = page.getByPlaceholder("Message Sydney");
     await composer.fill("spawn a bot named Scout to research venues");
     await page.keyboard.press("Enter");
     await expect(page.locator("[data-roster-bot-name]").filter({ hasText: /^Scout$/ })).toBeVisible(

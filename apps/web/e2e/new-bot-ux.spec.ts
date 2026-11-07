@@ -6,7 +6,7 @@ test("a stale roster refresh started before creation keeps the new bot selected"
 }, testInfo) => {
   await signup(page, `stale-create-${Date.now()}@rakazo.test`, "password12", "Stale Create");
   await completeOnboarding(page);
-  await expect(page.getByPlaceholder("Message Chief")).toBeVisible();
+  await expect(page.getByPlaceholder("Message Sydney")).toBeVisible();
 
   let markReady!: () => void;
   let releaseList!: () => void;
