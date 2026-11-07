@@ -29,5 +29,4 @@ CREATE POLICY personality_presets_tenant ON "personality_presets"
   USING ("userId" = NULLIF(current_setting('app.user_id', true), ''))
   WITH CHECK ("userId" = NULLIF(current_setting('app.user_id', true), ''));
 CREATE POLICY personality_presets_system ON "personality_presets"
-  USING (current_setting('app.rls_bypass', true) = 'on')
-  WITH CHECK (current_setting('app.rls_bypass', true) = 'on');
+  USING (current_setting('app.rls_bypass', true) = 'on');
