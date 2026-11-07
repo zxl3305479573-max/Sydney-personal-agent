@@ -1,0 +1,18 @@
+[Unit]
+Description=Sydney control host screen SSH tunnel
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=sydney-control
+Group=sydney-control
+EnvironmentFile=/etc/sydney/screen-tunnel.env
+ExecStart=/usr/bin/ssh -F /etc/sydney/screen-tunnel.ssh_config -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -L 127.0.0.1:16080:127.0.0.1:6080 ${SYDNEY_SCREEN_TUNNEL_TARGET}
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

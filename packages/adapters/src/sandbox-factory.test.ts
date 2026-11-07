@@ -111,8 +111,28 @@ describe("createSandboxProvider", () => {
 
   it("throws on unknown provider", async () => {
     await expect(createSandboxProvider("bogus", {})).rejects.toThrow(
-      'Unknown SANDBOX_PROVIDER "bogus". Use none | docker | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | wuying | desktop | fake.',
+      'Unknown SANDBOX_PROVIDER "bogus". Use none | docker | native-linux | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | wuying | desktop | fake.',
     );
+  });
+
+  it("selects native Linux when its driver socket is configured", async () => {
+    const sandbox = await createSandboxProvider("native-linux", {
+      nativeLinuxSocketPath: "/run/sydney-driver.sock",
+    });
+
+    expect(sandbox.describe()).toMatchObject({
+      id: "native-linux",
+      capabilities: { graphical: true, persistentHome: true, takeover: false },
+    });
+  });
+
+  it("keeps native Linux unavailable with an actionable socket error", async () => {
+    const sandbox = await createSandboxProvider("native-linux", {});
+
+    expect(sandbox.describe().id).toBe("none");
+    await expect(
+      sandbox.provision({ botId: "bot", homePath: "/tmp" }, ctx),
+    ).rejects.toThrow("SYDNEY_NATIVE_DRIVER_SOCKET");
   });
 
   it("accepts only sandbox kinds, including none", async () => {

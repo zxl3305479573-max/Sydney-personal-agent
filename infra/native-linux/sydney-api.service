@@ -1,7 +1,7 @@
 [Unit]
 Description=Sydney API
-After=network-online.target postgresql.service sydney-driver.socket
-Wants=network-online.target
+After=network-online.target postgresql.service sydney-driver.socket sydney-screen-tunnel.service
+Wants=network-online.target sydney-screen-tunnel.service
 
 [Service]
 User=sydney-control

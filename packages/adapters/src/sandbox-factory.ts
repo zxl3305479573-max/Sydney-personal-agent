@@ -82,7 +82,7 @@ export async function createSandboxProvider(
   const parsed = SandboxKind.safeParse(kind);
   if (!parsed.success) {
     throw new Error(
-      `Unknown SANDBOX_PROVIDER "${kind}". Use none | docker | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | wuying | desktop | fake.`,
+      `Unknown SANDBOX_PROVIDER "${kind}". Use none | docker | native-linux | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | wuying | desktop | fake.`,
     );
   }
   const sandboxKind = parsed.data;
@@ -179,7 +179,9 @@ export async function createSandboxProvider(
       });
     case "native-linux":
       if (!opts.nativeLinuxSocketPath?.trim()) {
-        return new NoneSandboxProvider("Native Linux driver socket is not configured.");
+        return new NoneSandboxProvider(
+          "Native Linux computer is unavailable: SYDNEY_NATIVE_DRIVER_SOCKET is not configured.",
+        );
       }
       {
         return new NativeLinuxSandbox(
@@ -200,12 +202,13 @@ export async function createSandboxProvider(
           createNativeLinuxTransport(opts.nativeLinuxSocketPath),
           opts.nativeLinuxScreenUserId &&
           opts.nativeLinuxScreenSpaceId &&
-          opts.nativeLinuxScreenBotId &&
           opts.nativeLinuxScreenPort
             ? {
                 userId: opts.nativeLinuxScreenUserId,
                 spaceId: opts.nativeLinuxScreenSpaceId,
-                botId: opts.nativeLinuxScreenBotId,
+                ...(opts.nativeLinuxScreenBotId
+                  ? { botId: opts.nativeLinuxScreenBotId }
+                  : {}),
                 port: opts.nativeLinuxScreenPort,
               }
             : undefined,

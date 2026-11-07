@@ -115,7 +115,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
   constructor(
     private readonly runLeaseValid: (context: AdapterContext) => Promise<number | null>,
     private readonly transport: Transport,
-    private readonly screen?: { userId: string; spaceId: string; botId: string; port: number },
+    private readonly screen?: {
+      userId: string;
+      spaceId: string;
+      botId?: string;
+      port: number;
+    },
   ) {}
 
   describe(): AdapterDescriptor<SandboxCapabilities> {
@@ -240,13 +245,15 @@ export class NativeLinuxSandbox implements SandboxProvider {
       !this.screen ||
       context.userId !== this.screen.userId ||
       context.spaceId !== this.screen.spaceId ||
-      context.botId !== this.screen.botId ||
+      (this.screen.botId !== undefined && context.botId !== this.screen.botId) ||
       !Number.isInteger(this.screen.port) ||
       this.screen.port < 1 ||
       this.screen.port > 65535 ||
       context.signal.aborted
     ) {
-      throw new Error("native_screen_unsupported");
+      throw new Error(
+        !this.screen ? "native_screen_not_configured" : "native_screen_unsupported",
+      );
     }
     await this.transport("status", {}, context, computer);
     if (context.signal.aborted) throw new Error("native_screen_unsupported");

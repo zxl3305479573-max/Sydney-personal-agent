@@ -1,5 +1,37 @@
 # 运维手册
 
+## 2026-11-07 云电脑桌面链路模板（未部署）
+
+仓库新增 `infra/native-linux/sydney-screen-vnc.service`、`sydney-screen-websockify.service` 和 `sydney-screen-tunnel.service`，并提供 `screen.env.example` 与 `screen-tunnel.env.example`。云电脑侧服务只监听回环地址，VNC 使用 `-viewonly`；后台屏幕隧道只把本机 `127.0.0.1:16080` 转发到云电脑回环 `127.0.0.1:6080`。隧道目标、SSH 配置、主机密钥和私钥必须放在服务器 `/etc/sydney/`，不写入仓库。
+
+部署前必须在授权维护窗口核对当前桌面 `DISPLAY`、`XAUTHORITY`、服务账号、noVNC 静态目录和 SSH 转发账号权限；模板默认使用仓库内 Xvfb 的 `:99`，历史 XRDP `:10` 环境需要通过服务器环境文件调整并实测。部署后按 API 屏幕票据、`/novnc` 页面、WebSocket、RFB 握手、截图、输入拒绝和断线恢复顺序验收。本轮未执行安装、启用、重启、端口修改或线上配置变更。
+
+## 2026-11-07 媒体出站限制（未部署）
+
+候选代码对媒体队列提交和轮询增加公网 DNS/IP 出站校验，并禁止自动跟随重定向。原先依赖私网、回环或重定向的 `MEDIA_GENERATION_BASE_URL` 部署在升级后可能无法工作；升级前核对端点及网络策略并在目标环境验证。尚未部署、未执行真实媒体生成和回滚演练。
+
+## 2026-11-07 生产注册邮件配置
+
+复用用户旧项目中保留的 QQ SMTP 配置，在生产 `/srv/rakazo/.env` 配置 SMTP 提供方、隐式 TLS 地址和发件人；凭据不进入仓库。变更前配置保存在 `/srv/rakazo/.env.before-qq-smtp-20261107`，两个文件均为 `0600`。API 容器已重建，其他容器未重建。
+
+部署后公网认证能力显示邮箱验证码和密码找回已启用，健康检查正常；SMTP 服务连接及认证验证通过，未发送真实邮件。回滚前先核对是否有后续配置变更，保留当前配置，再恢复备份并重建 API、复查健康及认证能力；回滚未演练。真实验证码收取、注册和登录尚待验收。
+
+## 2026-11-07 旧后台停用与数据删除
+
+用户明确要求删除旧后台及其数据。旧后台 `sydney-api`、`sydney-worker`、`sydney-tunnel`、`sydney-screen-tunnel` 和 `sydney-web-forward.socket` 已停止并禁用；旧 `sydney` PostgreSQL 数据库、`/var/lib/sydney-control`、`/opt/sydney`、`/etc/sydney`、旧发布快照及指定 Sydney 备份已删除。旧后台系统 PostgreSQL 和独立的 `super-sydney-cloud` 服务保留并 active。
+
+云电脑已删除隔离数据库 `sydney_migration_drill_20261107` 和旧数据迁移副本 `/var/backups/sydney-migration-20261107/source`，该目录下新生产数据库及数据卷的备份仍保留。旧 `sydney-web-cloud` 和 `sydney-web-cloud-link` 已停止并禁用；桌面驱动、VNC/noVNC 保留运行，旧 Web 程序目录和已停用服务定义尚未删除。当前生产 Compose API、Web、Worker 和 PostgreSQL healthy，Caddy 运行中，公网 `/health` 正常。
+
+旧账号、聊天、附件与模型凭据未迁入新生产；已删除的旧数据不能依赖上述迁移备份恢复。未审计其他位置或外部备份，不能保证不存在其他历史副本。当前生产的电脑 Provider 为 `none`，桌面驱动保留不代表新生产已接入云电脑。
+
+## 2026-11-07 旧后台迁移备份与隔离演练
+
+旧后台数据库和数据目录备份位于旧后台 `/var/backups/sydney-migration-20261107/{source.dump,source-data.tgz}`，受限权限副本保存在生产服务器同目录的 `source/` 下。生产数据库及应用数据备份位于生产服务器 `/var/backups/sydney-migration-20261107/{production.dump,production-data.tgz}`。这些备份含敏感数据，应限制访问并安排加密异地保存；源库在备份后仍可写，正式迁移时须重新捕获一致性快照。
+
+旧数据库备份已恢复到生产 PostgreSQL 内的隔离数据库 `sydney_migration_drill_20261107`，并核对 89 条消息和 4 个空间密钥。该隔离库包含真实敏感数据，仅限管理员访问，不是生产库；待演练完成并确认无需保留后安全清理。两端 `ENCRYPTION_KEY` 不同，旧空间密钥、模型凭据和附件不能直接依靠新环境密钥解密；不能覆盖生产密钥或盲目整体恢复。两端备份仅检查归档可读性和隔离恢复，未完成包含文件及解密的恢复演练。
+
+本次尚未向生产数据库或应用数据卷导入任何旧数据，没有改变生产服务或配置。需先验证空间密钥重封装、凭据迁移、附件可读性、现有生产记录合并及 `waiting_input` 任务处理；登录方式和受控真实登录也尚未恢复。
+
 ## 2026-11-07 消息操作栏部署
 
 提交 `3dcac9a956b1545cafc6d8039aa2ea9c0ecc2f6b` 通过 GitHub Actions 运行 `42352970919` 发布到生产 Compose 栈，Tailnet 加入和 `deploy-production` 均成功；公网 Web 构建标识 `20261107075223`。服务器 `/srv/rakazo/.last-deployed-revision` 确认为该提交，API、Web、Worker 和 PostgreSQL 容器 healthy，Caddy 运行中；公网首页、`/health` 和认证会话接口返回 200。

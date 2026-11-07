@@ -70,7 +70,34 @@ it("restricts the live screen to the configured identity and validates the drive
   await expect(sandbox.connectScreen(computer, { view: "stream" }, { ...viewer, botId: "other" })).rejects.toThrow();
   transport.mockRejectedValueOnce(new Error("generation changed"));
   await expect(sandbox.connectScreen(computer, { view: "stream" }, viewer)).rejects.toThrow("generation changed");
-  await expect(new NativeLinuxSandbox(async () => null, transport).connectScreen(computer, { view: "stream" }, viewer)).rejects.toThrow("native_screen_unsupported");
+  await expect(
+    new NativeLinuxSandbox(async () => null, transport).connectScreen(computer, { view: "stream" }, viewer),
+  ).rejects.toThrow("native_screen_not_configured");
+});
+
+it("allows the configured user and space to use a newly provisioned bot", async () => {
+  const transport = vi.fn().mockResolvedValue({ generation: "0123456789abcdef" });
+  const sandbox = new NativeLinuxSandbox(async () => null, transport, {
+    userId: "user",
+    spaceId: "space",
+    port: 16080,
+  });
+  const newBotComputer = { ...computer, botId: "new-bot" };
+
+  await expect(
+    sandbox.connectScreen(newBotComputer, { view: "stream" }, { ...context, botId: "new-bot" }),
+  ).resolves.toMatchObject({ url: "http://127.0.0.1:16080/vnc.html" });
+  await expect(
+    sandbox.connectScreen(newBotComputer, { view: "stream" }, { ...context, botId: "new-bot", userId: "other" }),
+  ).rejects.toThrow("native_screen_unsupported");
+});
+
+it("reports an unconfigured native screen distinctly", async () => {
+  const sandbox = new NativeLinuxSandbox(async () => null, vi.fn());
+
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, context)).rejects.toThrow(
+    "native_screen_not_configured",
+  );
 });
 
 it("rejects a computer owned by another bot", async () => {

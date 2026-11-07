@@ -1,0 +1,20 @@
+[Unit]
+Description=Sydney noVNC screen bridge
+Requires=sydney-screen-vnc.service
+After=sydney-screen-vnc.service
+
+[Service]
+User=sydney-desktop
+Group=sydney-desktop
+Environment=HOME=/var/lib/sydney-desktop
+EnvironmentFile=-/etc/sydney/desktop-proxy.env
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc 127.0.0.1:6080 127.0.0.1:5900
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sydney-desktop
+PrivateTmp=no
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
