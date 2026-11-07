@@ -445,7 +445,7 @@ export function RoutineEditor({
         >
           <ChevronLeft />
         </Button>
-        <div className="hidden text-[15.5px] font-medium text-foreground md:block">
+        <div className="sr-only">
           <Trans>Routine</Trans>
         </div>
         <PageBreadcrumb label="Routine" inline />

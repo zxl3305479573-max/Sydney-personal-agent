@@ -33,12 +33,12 @@ function render(path: string, content = <PageBreadcrumb />) {
   return container;
 }
 
-it("shows a translated mobile route label in the layout", () => {
+it("shows a translated route label at all screen sizes", () => {
   const container = render("/app/artifacts/123");
   const nav = container.querySelector("nav");
   expect(nav?.getAttribute("aria-label")).toBe("Sydney / 产物");
   expect(nav?.classList.contains("hidden")).toBe(false);
-  expect(nav?.className).toContain("md:hidden");
+  expect(nav?.className).not.toContain("md:hidden");
 });
 
 it("does not overlay the chat or sidebar on mobile", () => {

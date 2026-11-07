@@ -49,6 +49,10 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
   await page.reload();
   await expect(page).toHaveURL(groupUrl);
   await expect(page.getByRole("combobox", { name: "Message Draft team" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Sydney / Draft team" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("navigation", { name: "Sydney / Draft team" })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   const groups = await rpc<
     Array<{

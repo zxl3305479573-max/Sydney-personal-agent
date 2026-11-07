@@ -322,9 +322,7 @@ export function SettingsOverlay({
                   </Button>
                 ) : null}
                 <PageBreadcrumb label={sectionTitle} translated inline />
-                <DialogTitle className="min-w-0 break-words text-heading2 font-medium text-foreground max-md:sr-only">
-                  {sectionTitle}
-                </DialogTitle>
+                <DialogTitle className="sr-only">{sectionTitle}</DialogTitle>
               </div>
               <DialogClose
                 aria-label={closeLabel}
