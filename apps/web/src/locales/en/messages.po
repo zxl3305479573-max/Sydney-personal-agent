@@ -13,6 +13,87 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+msgid "Give your assistant a unique identity"
+msgstr "Give your assistant a unique identity"
+
+msgid "Bot name"
+msgstr "Bot name"
+
+msgid "Personality"
+msgstr "Personality"
+
+msgid "Avatar"
+msgstr "Avatar"
+
+msgid "Avatar library"
+msgstr "Avatar library"
+
+msgid "Custom"
+msgstr "Custom"
+
+msgid "Use the instructions below"
+msgstr "Use the instructions below"
+
+msgid "Balanced"
+msgstr "Balanced"
+
+msgid "Reliable for everyday conversations"
+msgstr "Reliable for everyday conversations"
+
+msgid "Professional"
+msgstr "Professional"
+
+msgid "Structured and precise"
+msgstr "Structured and precise"
+
+msgid "Friendly"
+msgstr "Friendly"
+
+msgid "Warm and patient"
+msgstr "Warm and patient"
+
+msgid "Concise"
+msgstr "Concise"
+
+msgid "Short and action focused"
+msgstr "Short and action focused"
+
+msgid "Creative"
+msgstr "Creative"
+
+msgid "Ideas and fresh directions"
+msgstr "Ideas and fresh directions"
+
+msgid "Teacher"
+msgstr "Teacher"
+
+msgid "Patient explanations and examples"
+msgstr "Patient explanations and examples"
+
+msgid "Choose an avatar or add your own image"
+msgstr "Choose an avatar or add your own image"
+
+msgid "Add from device"
+msgstr "Add from device"
+
+msgid "Your uploaded avatars are saved in this browser."
+msgstr "Your uploaded avatars are saved in this browser."
+
+msgid "Password recovery"
+msgstr "Password recovery"
+
+msgid "Get started"
+msgstr "Get started"
+
+msgid "Access management"
+msgstr "Access management"
+
+msgid "Connect a model before continuing."
+msgstr "Connect a model before continuing."
+
+msgid "Bot settings"
+msgstr "Bot settings"
+
 #: src/pages/shell/sidebar-roster.tsx
 msgid " (unread)"
 msgstr " (unread)"

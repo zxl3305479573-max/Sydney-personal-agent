@@ -184,8 +184,9 @@ function SessionApp() {
   return (
     <QueryUserProvider value={user?.id ?? null}>
       <MarkdownLinkPrompt>
-        <div className="h-full" data-rakazo-app-state="ready">
+        <div className="flex h-full min-h-0 flex-col" data-rakazo-app-state="ready">
           <PageBreadcrumb />
+          <div className="min-h-0 flex-1">
           <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route path="/" element={user ? <Navigate to="/app" replace /> : <WelcomePage />} />
@@ -290,6 +291,7 @@ function SessionApp() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
+          </div>
         </div>
       </MarkdownLinkPrompt>
     </QueryUserProvider>

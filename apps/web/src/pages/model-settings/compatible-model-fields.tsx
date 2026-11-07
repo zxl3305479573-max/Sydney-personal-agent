@@ -131,7 +131,7 @@ export function CompatibleModelFields({
           value={baseUrl}
           onChange={(event) => updateBaseUrl(event.target.value)}
           aria-label={t`OpenAI-compatible server URL`}
-          placeholder="http://127.0.0.1:8000/v1"
+          placeholder="https://example.com/v1"
           autoComplete="off"
           className="mt-2 h-10 text-foreground"
         />

@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApprovalRulesSettings } from "../components/ApprovalRulesSettings";
 import { computersAreUnavailable } from "../components/ComputersUnavailableHint";
+import { PageBreadcrumb } from "../components/PageBreadcrumb";
 import {
   SETTINGS_CONTENT_WIDTH,
   SettingsGroup,
@@ -341,7 +342,8 @@ export function SettingsOverlay({
                     <ChevronLeft className="rtl:rotate-180" />
                   </Button>
                 ) : null}
-                <DialogTitle className="min-w-0 break-words text-heading2 font-medium text-foreground">
+                <PageBreadcrumb label={sectionTitle} translated inline />
+                <DialogTitle className="min-w-0 break-words text-heading2 font-medium text-foreground max-md:sr-only">
                   {sectionTitle}
                 </DialogTitle>
               </div>

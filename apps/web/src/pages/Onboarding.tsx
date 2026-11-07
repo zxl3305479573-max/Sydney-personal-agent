@@ -11,7 +11,6 @@ import {
   MAX_MODEL_MAX_TOKENS,
   ModelHeaderRowsSchema,
   modelHeadersInput,
-  OLLAMA_CLOUD_BASE_URL,
   OPENAI_COMPATIBLE_PROVIDER_ID,
   openAiCompatibleConnectReady,
   openAiCompatibleProbeSuccessMessage,
@@ -73,19 +72,10 @@ const CREDITS_OPTION = "__rakazo_credits__";
 /** A provider whose catalog entry offers both sign-in and a key appears once per way to connect. */
 type ProviderAuth = "sign-in" | "key";
 
-const MAIN_PROVIDER_OPTIONS: ReadonlyArray<{ provider: string; auth?: ProviderAuth }> = [
-  { provider: "openai-codex" },
-  { provider: "anthropic", auth: "sign-in" },
-  { provider: "openai" },
-  { provider: "anthropic", auth: "key" },
-  { provider: "openrouter" },
-  { provider: "google" },
-];
-
 function providerOptionValue(provider: string, auth?: ProviderAuth): string {
   return auth ? `${provider}:${auth}` : provider;
 }
-const FIRST_BOT_NAME = "Chief";
+const FIRST_BOT_NAME = "Sydney";
 const FIRST_BOT_SPAWN_KEY = "onboarding:first";
 const FIRST_BOT_LOCK = "rakazo:onboarding-first-bot";
 
@@ -98,7 +88,7 @@ function findFirstBot(
   const bySpawnKey = bots.find((bot) => bot.spawnKey === FIRST_BOT_SPAWN_KEY);
   if (bySpawnKey) return { id: bySpawnKey.id };
   // Legacy first-run Chief created before spawnKey was set.
-  const byName = bots.find((bot) => bot.name === FIRST_BOT_NAME);
+  const byName = bots.find((bot) => bot.name === "Chief" || bot.name === FIRST_BOT_NAME);
   return byName ? { id: byName.id } : undefined;
 }
 
@@ -107,10 +97,20 @@ async function createOrReuseFirstBot(): Promise<{ id: string }> {
   const reuse = findFirstBot(existing);
   if (reuse) return reuse;
   try {
+    const image = new Image();
+    image.src = "/deepseek.svg";
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare the default avatar");
+    context.drawImage(image, 0, 0, 256, 256);
     const created = await rpc.bots.create({
       name: FIRST_BOT_NAME,
+      color: canvas.toDataURL("image/png"),
       description: "",
-      instructions: "",
+      instructions: "默认使用中文回复，除非用户要求使用其他语言。",
       notifyOnFinish: true,
       spawnKey: FIRST_BOT_SPAWN_KEY,
     });
@@ -155,7 +155,7 @@ export function OnboardingPage() {
   // The step after the survey; null until me loads.
   const [afterSurvey, setAfterSurvey] = useState<"model" | "bot" | null>(null);
   const [catalog, setCatalog] = useState<ModelCatalogEntry[]>([]);
-  const [provider, setProvider] = useState("");
+  const [provider, setProvider] = useState(OPENAI_COMPATIBLE_PROVIDER_ID);
   const [providerAuth, setProviderAuth] = useState<ProviderAuth | undefined>();
   const [credits, setCredits] = useState(false);
   const [modelId, setModelId] = useState("");
@@ -209,13 +209,13 @@ export function OnboardingPage() {
       .then(([me, models]) => {
         setBillingEnabled(me.billingEnabled);
         setCatalog(models);
-        const next = me.needsModel ? "model" : "bot";
+        const next = me.needsModel || !me.defaultModel ? "model" : "bot";
         setAfterSurvey(next);
         if (!linkedStep) goTo(me.needsSignupSurvey ? "survey" : next);
       })
       .catch(() => {
-        setAfterSurvey("bot");
-        if (!linkedStep) goTo("bot");
+        setAfterSurvey("model");
+        if (!linkedStep) goTo("model");
       });
     return () => {
       modelProbe.invalidate();
@@ -277,23 +277,9 @@ export function OnboardingPage() {
       if (id === "openai") return t`OpenAI API`;
       return providerDisplayName(id, byId.get(id)?.providerName ?? id, auth);
     };
-    const main = [
-      ...(billingEnabled ? [{ value: CREDITS_OPTION, label: t`Rakazo credits` }] : []),
-      ...MAIN_PROVIDER_OPTIONS.filter((option) => byId.has(option.provider)).map((option) => ({
-        value: providerOptionValue(option.provider, option.auth),
-        label: optionLabel(option.provider, option.auth),
-      })),
-    ];
-    const rest = providers
-      .filter(
-        (entry) => !MAIN_PROVIDER_OPTIONS.some((option) => option.provider === entry.provider),
-      )
-      .flatMap((entry) => {
-        const item = { value: entry.provider, label: entry.providerName ?? entry.provider };
-        return entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID
-          ? [item, { value: "ollama-preset", label: t`Ollama Cloud` }]
-          : [item];
-      });
+    const main = [] as { value: string; label: string }[];
+    const rest = providers.filter((entry) => entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID)
+      .map((entry) => ({ value: entry.provider, label: optionLabel(entry.provider) }));
     return { main, rest };
   }, [billingEnabled, providers, t]);
   // Base UI Select.Value only resolves labels when Root gets `items`.
@@ -486,6 +472,7 @@ export function OnboardingPage() {
           maxImagesPerPrompt: maxImagesPerPromptInput,
           apiKey: apiKey.trim() || undefined,
           label: selected?.providerName ?? provider,
+          makeDefault: true,
         });
       } else if (apiKey) {
         await rpc.models.connect({
@@ -495,6 +482,11 @@ export function OnboardingPage() {
           modelId,
           label: selected?.providerName ?? provider,
         });
+      }
+      const refreshed = await rpc.me();
+      if (refreshed.needsModel || !refreshed.defaultModel) {
+        setError(t`Connect a model before continuing.`);
+        return;
       }
       goTo("bot");
     } catch (err) {
@@ -569,9 +561,7 @@ export function OnboardingPage() {
                 value={
                   credits
                     ? CREDITS_OPTION
-                    : isOpenAiCompatible && isOllamaCloudBaseUrl(baseUrl)
-                      ? "ollama-preset"
-                      : provider
+                    : provider
                         ? providerOptionValue(provider, providerAuth)
                         : null
                 }
@@ -586,9 +576,7 @@ export function OnboardingPage() {
                     return;
                   }
                   setCredits(false);
-                  if (value === "ollama-preset")
-                    selectProvider(OPENAI_COMPATIBLE_PROVIDER_ID, OLLAMA_CLOUD_BASE_URL);
-                  else selectProvider(value);
+                  selectProvider(value);
                 }}
                 items={providerItems}
               >
@@ -627,7 +615,7 @@ export function OnboardingPage() {
                         value={baseUrl}
                         onChange={(e) => updateBaseUrl(e.target.value)}
                         aria-label={t`OpenAI-compatible server URL`}
-                        placeholder="http://127.0.0.1:8000/v1"
+                        placeholder="https://example.com/v1"
                         autoComplete="off"
                         className="mt-2"
                       />

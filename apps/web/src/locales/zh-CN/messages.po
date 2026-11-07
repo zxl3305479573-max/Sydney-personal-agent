@@ -13,6 +13,84 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+msgid "Password recovery"
+msgstr "找回密码"
+
+msgid "Get started"
+msgstr "开始使用"
+
+msgid "Access management"
+msgstr "访问管理"
+
+msgid "Connect a model before continuing."
+msgstr "请先连接文本模型，再继续。"
+
+msgid "Give your assistant a unique identity"
+msgstr "为你的小伙伴设置专属形象"
+
+msgid "Bot name"
+msgstr "小伙伴名称"
+
+msgid "Personality"
+msgstr "人格"
+
+msgid "Avatar"
+msgstr "头像"
+
+msgid "Avatar library"
+msgstr "头像库"
+
+msgid "Custom"
+msgstr "自定义"
+
+msgid "Use the instructions below"
+msgstr "使用下方自定义指令"
+
+msgid "Balanced"
+msgstr "通用"
+
+msgid "Reliable for everyday conversations"
+msgstr "适合日常交流"
+
+msgid "Professional"
+msgstr "专业"
+
+msgid "Structured and precise"
+msgstr "条理清晰，严谨准确"
+
+msgid "Friendly"
+msgstr "亲切"
+
+msgid "Warm and patient"
+msgstr "温暖友善，耐心倾听"
+
+msgid "Concise"
+msgstr "简洁"
+
+msgid "Short and action focused"
+msgstr "简明扼要，注重行动"
+
+msgid "Creative"
+msgstr "创意"
+
+msgid "Ideas and fresh directions"
+msgstr "激发灵感，探索新思路"
+
+msgid "Teacher"
+msgstr "老师"
+
+msgid "Patient explanations and examples"
+msgstr "耐心讲解，结合实例"
+
+msgid "Choose an avatar or add your own image"
+msgstr "选择头像或上传自己的图片"
+
+msgid "Add from device"
+msgstr "从设备添加"
+
+msgid "Your uploaded avatars are saved in this browser."
+msgstr "上传的头像保存在当前浏览器中。"
+
 #: src/pages/shell/sidebar-roster.tsx
 msgid " (unread)"
 msgstr "（未读）"
@@ -1094,7 +1172,10 @@ msgstr "两者"
 
 #: src/pages/Artifacts.tsx
 msgid "Bots"
-msgstr "机器人"
+msgstr "小伙伴"
+
+msgid "Bot settings"
+msgstr "小伙伴设置"
 
 #: src/components/ModelCredits.tsx
 msgid "Bots and browser automation"
@@ -3105,7 +3186,7 @@ msgstr ""
 #: src/pages/shell/side-panel.tsx
 #: src/pages/SpaceSearch.tsx
 msgid "Group"
-msgstr "群组"
+msgstr "群聊"
 
 #: src/pages/GroupPanel.tsx
 msgid "Group settings"

@@ -511,9 +511,10 @@ export function AgentImportForm({
           >
             <ArrowLeft size={16} strokeWidth={1.8} />
           </Button>
-          <span className="text-[13.5px] text-muted-foreground">
+          <span className="hidden text-[13.5px] text-muted-foreground md:block">
             <Trans>Import an agent</Trans>
           </span>
+          <PageBreadcrumb label="Import an agent" inline />
         </div>
         <Button
           variant="ghost"
@@ -527,7 +528,6 @@ export function AgentImportForm({
           <X size={16} strokeWidth={1.8} />
         </Button>
       </div>
-      <PageBreadcrumb label="Import an agent" inline />
       {error ? (
         <p
           role="alert"
