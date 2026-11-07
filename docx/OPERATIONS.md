@@ -1,5 +1,11 @@
 # 运维手册
 
+## 2026-11-07 消息操作栏部署
+
+提交 `3dcac9a956b1545cafc6d8039aa2ea9c0ecc2f6b` 通过 GitHub Actions 运行 `42352970919` 发布到生产 Compose 栈，Tailnet 加入和 `deploy-production` 均成功；公网 Web 构建标识 `20261107075223`。服务器 `/srv/rakazo/.last-deployed-revision` 确认为该提交，API、Web、Worker 和 PostgreSQL 容器 healthy，Caddy 运行中；公网首页、`/health` 和认证会话接口返回 200。
+
+部署使用现有 `infra/compose/deploy-main.sh` 镜像发布与回滚流程；未手动修改配置或数据。真实手机长按、桌面鼠标交互和人工回滚尚未验收。
+
 ## 2026-11-07：确认生产部署需要 Tailnet
 
 提交 `59b5cfe58` 的源码已将生产入口统一为 `pc.zxlup.xin`。Run `42343223472` 的检查和镜像发布成功，但 `deploy-production` 在 Tailscale OIDC 加入步骤失败，未连接生产机，也未执行回滚或服务变更。随后临时移除 Tailnet 的 Run `42344169631` 进入 SSH 步骤，但以退出码 `255` 失败。

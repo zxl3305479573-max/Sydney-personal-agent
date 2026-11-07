@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-11-07：消息操作栏部署验证
+
+- GitHub Actions `42352970919` 中 Lint and typecheck、三个单测分片、两个 PostgreSQL 分片、镜像发布及 `deploy-production` 成功；Web E2E 跳过。
+- 服务器 `/srv/rakazo/.last-deployed-revision` 为 `3dcac9a956b1545cafc6d8039aa2ea9c0ecc2f6b`；API、Web、Worker、PostgreSQL healthy，Caddy 运行中。
+- 公网 `/health` 返回 `{"ok":true}`，首页和认证会话接口返回 200，`/build-id` 为 `20261107075223`；真实设备交互与回滚未验证。
+
 ## 2026-11-07：消息操作栏显示条件
 
 - `MessageHoverMetadata.test.tsx`、`message-view.test.tsx` 共 14 项测试通过；Web TypeScript 检查和 `git diff --check` 通过。
