@@ -985,4 +985,6 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec tsc --noEmit -p packages/ui-web/tsconfig.json`：通过。
 - `pnpm exec turbo run check --filter=@rakazo/mobile --filter=@rakazo/ui-web --filter=@rakazo/desktop`：桌面、ui-web 及其依赖检查通过；移动端在本机 `node_modules` 的 Expo 补丁版本落后于锁文件时被 `expo install --check` 拒绝，随后直接运行移动端 TypeScript 检查通过。
 - 批量移动端与 ui-web 测试的本地失败文件在共享测试环境中不稳定；与未改动基线比较，本轮没有新增失败。未将 Windows 本地批量结果作为 Linux CI 结论。
-- 未执行生产部署；需推送后等待 GitHub CI，再确认 `deploy-production` 和 `https://app.rakazo.com` 健康状态。
+- GitHub CI 运行 `42337317748`（提交 `f7297933c`）：Lint/typecheck、Unit tests 1/3 至 3/3、Postgres journeys、服务器镜像构建和发布、Checks、移动端更新全部通过；不适用的 E2E/生产构建任务按变更范围跳过。
+- `deploy-production` 被跳过：仓库没有 `PRODUCTION_DEPLOY_ENABLED=true`，且没有 `production` environment、生产部署变量或部署凭据；因此本次没有执行生产发布。
+- `Invoke-WebRequest https://app.rakazo.com/health`：返回 HTTP 200 和 `{"ok":true}`；这是现有线上服务的健康检查，不是本次提交的部署证据。
