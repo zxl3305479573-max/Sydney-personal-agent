@@ -15,7 +15,7 @@ type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
 };
 
 const inputClass =
-  "h-10 w-full min-w-0 rounded-[var(--radius)] border border-input bg-background px-3 text-sm leading-5 tracking-[-0.01em] text-foreground shadow-none transition-[border-color,background-color] duration-150 outline-none motion-reduce:transition-none [@media(hover:hover)]:hover:border-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:disabled:bg-input/80 data-[size=xl]:h-12 data-[size=xl]:rounded-xl data-[size=xl]:px-4 data-[size=xl]:md:text-base";
+  "h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm leading-5 tracking-[-0.01em] text-foreground shadow-none transition-[border-color,background-color] duration-150 outline-none motion-reduce:transition-none [@media(hover:hover)]:hover:border-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:disabled:bg-input/80 data-[size=xl]:h-12 data-[size=xl]:rounded-xl data-[size=xl]:px-4 data-[size=xl]:md:text-base";
 
 /** The labels of the show/hide button on hidden fields; the kit itself is not translated. */
 const RevealLabelsContext = React.createContext({

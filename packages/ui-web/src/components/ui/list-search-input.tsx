@@ -63,7 +63,7 @@ export function ListSearchInput({
       >
         {label}
       </label>
-      <div className="flex h-10 min-w-0 items-center gap-2 rounded-[var(--radius)] border border-input bg-background px-3 transition-[border-color] duration-150 group-focus-within/search-field:border-foreground [@media(hover:hover)]:hover:border-foreground motion-reduce:transition-none">
+      <div className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-input bg-background px-3 transition-[border-color] duration-150 group-focus-within/search-field:border-foreground [@media(hover:hover)]:hover:border-foreground motion-reduce:transition-none">
         <Search
           className="size-[18px] shrink-0 text-muted-foreground transition-colors duration-150 group-focus-within/search-field:text-foreground motion-reduce:transition-none"
           aria-hidden="true"

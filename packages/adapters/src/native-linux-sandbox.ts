@@ -323,12 +323,17 @@ export class NativeLinuxSandbox implements SandboxProvider {
     );
   }
 
-  async *exportWorkspace(
-    computer: ComputerRef,
-    context: AdapterContext,
-  ): AsyncIterable<PortableFile> {
-    await this.guard(context, computer);
-    throw new Error("native_workspace_export_unsupported");
+  exportWorkspace(computer: ComputerRef, context: AdapterContext): AsyncIterable<PortableFile> {
+    const unsupported = this.guard(context, computer).then(() => {
+      throw new Error("native_workspace_export_unsupported");
+    });
+    const iterator: AsyncIterator<PortableFile> & AsyncIterable<PortableFile> = {
+      [Symbol.asyncIterator]() {
+        return iterator;
+      },
+      next: () => unsupported.then(() => ({ done: true as const, value: undefined })),
+    };
+    return iterator;
   }
 
   async importWorkspace(

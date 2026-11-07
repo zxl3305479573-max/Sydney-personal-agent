@@ -168,7 +168,7 @@ export const Transcript = memo(function Transcript({
       cancelTouchHold();
     };
   }, [cancelTouchHold]);
-  function startTouchHold(event: TouchEvent<HTMLDivElement>, messageId: string) {
+  function startTouchHold(event: TouchEvent<HTMLElement>, messageId: string) {
     cancelTouchHold();
     if (event.touches.length !== 1 || !(event.target instanceof Element)) return;
     if (event.target.closest('button, a, input, textarea, select, [contenteditable="true"]'))
@@ -185,7 +185,7 @@ export const Transcript = memo(function Transcript({
       }, 500),
     };
   }
-  function moveTouchHold(event: TouchEvent<HTMLDivElement>) {
+  function moveTouchHold(event: TouchEvent<HTMLElement>) {
     const touch = event.touches[0];
     const hold = touchHold.current;
     if (!hold || !touch || Math.hypot(touch.clientX - hold.x, touch.clientY - hold.y) > 10) {
@@ -650,8 +650,7 @@ export const Transcript = memo(function Transcript({
               {message.id === unreadDividerId ? (
                 <UnreadDivider afterSeparator={separatorIds.has(message.id)} />
               ) : null}
-              <div
-                role="group"
+              <fieldset
                 data-message-id={message.id}
                 data-touch-actions={touchActionsId === message.id ? "open" : undefined}
                 onTouchStart={
@@ -663,7 +662,11 @@ export const Transcript = memo(function Transcript({
                 onContextMenu={(event) => {
                   if (touchActionsId === message.id) event.preventDefault();
                 }}
-                className={peerReceipt ? "relative py-0.5" : "group/message relative hover:z-[1]"}
+                className={
+                  peerReceipt
+                    ? "relative m-0 min-w-0 border-0 p-0 py-0.5"
+                    : "group/message relative m-0 min-w-0 border-0 p-0 hover:z-[1]"
+                }
               >
                 <div
                   className={
@@ -750,7 +753,7 @@ export const Transcript = memo(function Transcript({
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </fieldset>
             </Fragment>
           );
         })}

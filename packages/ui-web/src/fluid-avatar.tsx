@@ -143,12 +143,11 @@ export function FluidAvatar({
   return (
     <canvas
       ref={ref}
-      aria-hidden="true"
       className={cn("shrink-0 rounded-full", className)}
       style={{
         width: size,
         height: size,
-        background: `#040b2c url("${fluidImage}") center / cover`,
+        background: `rgb(4 11 44) url("${fluidImage}") center / cover`,
       }}
     />
   );
