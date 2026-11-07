@@ -84,7 +84,7 @@ export const SELF_HOST_FAQS: readonly FaqItem[] = [
   {
     question: "Is hosted Rakazo available?",
     answer:
-      "Yes. Rakazo Cloud is in beta at app.rakazo.com. Self-hosting is available too.",
+      "Yes. Rakazo Cloud is in beta at pc.zxlup.xin. Self-hosting is available too.",
   },
   {
     question: "How does this compare with OpenClaw?",

@@ -955,4 +955,11 @@
 - 保留生产代码行为不变，改动仅限测试契约和测试隔离，避免本地测试加载 Electron/Expo 原生入口。
 - 本机定向回归 4 个文件、42 项通过；移动端与 ui-web 类型检查通过；批量移动端测试相较未改动基线未新增失败。
 - `f7297933c` 已提交并推送；GitHub CI 运行 `42337317748` 全部通过，生产部署 job 因仓库未启用生产部署开关而跳过。
-- 线上 `https://app.rakazo.com/health` 返回 `200 {"ok":true}`，仅证明现有线上服务健康，不证明本次提交已上线；仓库当前没有可用的 production environment、部署变量或部署凭据。
+- 线上 `https://pc.zxlup.xin/health` 返回 `200 {"ok":true}`，仅证明现有线上服务健康，不证明本次提交已上线；仓库当前没有可用的 production environment、部署变量或部署凭据。
+
+## 生产域名切换（2026-11-07）
+
+- 关联需求：用户确认继续使用 `pc.zxlup.xin`，移除上游默认入口。
+- 将 GitHub production environment 展示地址、桌面默认云端地址、Passkey 域名测试、官网入口、账号说明和部署验证记录统一切换为 `https://pc.zxlup.xin`。
+- 保留 `pc` 子域名，不改为根域名 `zxlup.xin`；服务器实际 `RAKAZO_HOST`、DNS、Caddy/TLS 和认证回调仍需在生产机复核。
+- 验证：Passkey 测试 9 项通过；桌面 setup-config 测试 50 项通过；官网 `astro check` 在关闭本机 Node 引擎门禁后 0 错误、0 警告、1 个已有提示；`git diff --check` 通过。

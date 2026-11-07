@@ -996,4 +996,13 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - 批量移动端与 ui-web 测试的本地失败文件在共享测试环境中不稳定；与未改动基线比较，本轮没有新增失败。未将 Windows 本地批量结果作为 Linux CI 结论。
 - GitHub CI 运行 `42337317748`（提交 `f7297933c`）：Lint/typecheck、Unit tests 1/3 至 3/3、Postgres journeys、服务器镜像构建和发布、Checks、移动端更新全部通过；不适用的 E2E/生产构建任务按变更范围跳过。
 - `deploy-production` 被跳过：仓库没有 `PRODUCTION_DEPLOY_ENABLED=true`，且没有 `production` environment、生产部署变量或部署凭据；因此本次没有执行生产发布。
-- `Invoke-WebRequest https://app.rakazo.com/health`：返回 HTTP 200 和 `{"ok":true}`；这是现有线上服务的健康检查，不是本次提交的部署证据。
+- `Invoke-WebRequest https://pc.zxlup.xin/health`：返回 HTTP 200 和 `{"ok":true}`；这是现有线上服务的健康检查，不是本次提交的部署证据。
+
+## 生产域名切换验证（2026-11-07）
+
+- 范围：GitHub production environment 链接、桌面默认云端地址、Web Passkey 域名测试、官网入口和部署验证记录。
+- `pnpm exec vitest run apps/web/src/lib/passkeys.test.ts`：1 个文件、9 项通过。
+- `pnpm exec vitest run apps/desktop/src/setup-config.test.ts`：1 个文件、50 项通过。
+- `pnpm --config.engine-strict=false --filter @rakazo/www check`：0 错误、0 警告、1 个 Astro/Zod deprecation hint；普通命令因本机 Node `22.22.0` 低于仓库要求 `22.22.2` 被引擎门禁拒绝。
+- 源码检索：未发现运行配置和用户入口仍使用上游默认域名。
+- 未执行生产服务器 `.env`、DNS、Caddy/TLS、认证回调或真实浏览器 Passkey 的线上复核；本次只完成源码和文档切换。

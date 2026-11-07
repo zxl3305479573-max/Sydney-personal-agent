@@ -590,7 +590,7 @@ jobs:
       queue: max
     environment:
       name: production
-      url: https://app.rakazo.com
+      url: https://pc.zxlup.xin
     permissions:
       contents: read
       id-token: write
