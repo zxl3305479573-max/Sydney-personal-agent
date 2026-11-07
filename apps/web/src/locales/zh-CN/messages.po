@@ -20,7 +20,7 @@ msgstr "（未读）"
 #. placeholder {0}: pinned.length
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "{0, plural, one {# bot has its own model:} other {# bots have their own model:}}"
-msgstr "{0, plural, one {# 个 Bot 使用自己的模型：} other {# 个 Bot 使用自己的模型：}}"
+msgstr "{0, plural, one {# 个小伙伴使用自己的模型：} other {# 个小伙伴使用自己的模型：}}"
 
 #. placeholder {0}: servers.length
 #: src/pages/PluginsOverlay.tsx
@@ -40,7 +40,7 @@ msgstr "{0, plural, one {已获得 # 个月免费} other {已获得 # 个月免�
 #. placeholder {0}: item.freeMonths
 #: src/pages/AdminAccessPage.tsx
 msgid "{0, plural, one {# free month} other {# free months}}"
-msgstr ""
+msgstr "{0, plural, other {# 个月免费}}"
 
 #. placeholder {0}: skills.length - shownSkills.length
 #: src/components/integrations/plugin-marketplace.tsx
@@ -61,12 +61,12 @@ msgstr "{0, plural, one {# 个工作区} other {# 个工作区}}"
 #. placeholder {0}: server.health.toolCount
 #: src/pages/McpServersOverlay.tsx
 msgid "{0, plural, one {# tool} other {# tools}}"
-msgstr ""
+msgstr "{0, plural, other {# 个工具}}"
 
 #. placeholder {0}: pinned.length
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "{0, plural, one {Switch # bot to the space default?} other {Switch # bots to the space default?}}"
-msgstr "{0, plural, one {将 # 个 Bot 切换为工作区默认？} other {将 # 个 Bot 切换为工作区默认？}}"
+msgstr "{0, plural, one {将 # 个小伙伴切换为工作区默认？} other {将 # 个小伙伴切换为工作区默认？}}"
 
 #. placeholder {0}: Math.ceil(oauth.expiresInSeconds / 60)
 #: src/pages/model-settings/connection-controls.tsx
@@ -162,7 +162,7 @@ msgstr "{amount} / {period}"
 
 #: src/pages/shell/dialogs.tsx
 msgid "{botCount, plural, one {Delete {name} and its # bot?} other {Delete {name} and its # bots?}}"
-msgstr "{botCount, plural, other {删除 {name} 及其 # 个机器人？}}"
+msgstr "{botCount, plural, other {删除 {name} 及其 # 个小伙伴？}}"
 
 #: src/pages/shell/computer-view.tsx
 msgid "{botName}’s computer"
@@ -222,7 +222,7 @@ msgstr "{hidden, plural, one {+# 个更早的步骤} other {+# 个更早的步�
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "{hiddenSelectedCount, plural, one {# selected model is hidden by your search.} other {# selected models are hidden by your search.}}"
-msgstr ""
+msgstr "{hiddenSelectedCount, plural, other {# 个已选模型被搜索条件隐藏。}}"
 
 #: src/lib/relative-time.ts
 msgid "{hours}h ago"
@@ -238,11 +238,11 @@ msgstr "{minutes} 分钟前"
 
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "{moved, plural, one {# bot now uses the space default.} other {# bots now use the space default.}}"
-msgstr "{moved, plural, one {# 个 Bot 已改用工作区默认。} other {# 个 Bot 已改用工作区默认。}}"
+msgstr "{moved, plural, one {# 个小伙伴已改用工作区默认。} other {# 个小伙伴已改用工作区默认。}}"
 
 #: src/components/integrations/plugin-marketplace.tsx
 msgid "{name} (same name as a built-in skill)"
-msgstr ""
+msgstr "{name}（与内置技能同名）"
 
 #: src/lib/activity-list-filters.ts
 msgid "{name} asked"
@@ -448,7 +448,7 @@ msgstr "订阅凭据已安全存储。"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "About {kb} KB of memory no longer reaches the bot."
-msgstr ""
+msgstr "约 {kb} KB 的记忆不再提供给小伙伴。"
 
 #: src/components/InfoTooltip.tsx
 msgid "About {label}"
@@ -516,7 +516,7 @@ msgstr "添加"
 #. placeholder {0}: bot.name
 #: src/pages/GroupPanel.tsx
 msgid "Add {0} to the group"
-msgstr "把 {0} 加入群组"
+msgstr "把 {0} 加入群聊"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Add a command to run"
@@ -553,7 +553,7 @@ msgstr "添加触发器以运行此例程。"
 
 #: src/lib/tts.ts
 msgid "Add a voice provider key and pick a voice in Voice settings."
-msgstr ""
+msgstr "请在语音设置中添加语音服务密钥并选择声音。"
 
 #: src/pages/McpServersOverlay.tsx
 msgid "Add an HTTPS server URL."
@@ -664,7 +664,7 @@ msgstr "高级..."
 
 #: src/components/AccountDataSettings.tsx
 msgid "Agent from another app"
-msgstr ""
+msgstr "来自其他应用的智能体"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "All"
@@ -678,7 +678,7 @@ msgstr "全部 {credit} 都用于模型用量。"
 #: src/pages/Artifacts.tsx
 #: src/pages/shell/agent-import.tsx
 msgid "All bots"
-msgstr "全部 Bot"
+msgstr "全部小伙伴"
 
 #: src/components/integrations/space-availability.tsx
 msgid "All spaces"
@@ -698,11 +698,11 @@ msgstr "允许"
 
 #: src/pages/shell/bot-panel.tsx
 msgid "Allow cross-space bot communication"
-msgstr "允许跨空间机器人通信"
+msgstr "允许跨空间小伙伴通信"
 
 #: src/components/AskCard.tsx
 msgid "Allow in this space"
-msgstr ""
+msgstr "允许在此空间使用"
 
 #: src/components/AskCard.tsx
 msgid "Allow once"
@@ -710,7 +710,7 @@ msgstr "允许一次"
 
 #: src/lib/dictation.ts
 msgid "Allow Rakazo to use Speech Recognition and the microphone in System Settings."
-msgstr ""
+msgstr "请在系统设置中允许 Sydney 使用语音识别和麦克风。"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
@@ -718,7 +718,7 @@ msgstr "允许写入"
 
 #: src/components/AskCard.tsx
 msgid "Allowed in this space"
-msgstr ""
+msgstr "已允许在此空间使用"
 
 #: src/components/AskCard.tsx
 msgid "Allowed once"
@@ -803,7 +803,7 @@ msgstr "Anthropic API"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Anthropic Messages"
-msgstr ""
+msgstr "Anthropic Messages"
 
 #: src/pages/Paywall.tsx
 msgid "Any model, with your own key"
@@ -837,7 +837,7 @@ msgstr "外观"
 
 #: src/pages/Shell.tsx
 msgid "Appearance: {label}"
-msgstr ""
+msgstr "外观：{label}"
 
 #: src/components/AskCard.tsx
 msgid "Apply"
@@ -1071,7 +1071,7 @@ msgstr "正在启动实时桌面…"
 
 #: src/pages/shell/message-view.tsx
 msgid "bot"
-msgstr "Bot"
+msgstr "小伙伴"
 
 #: src/lib/identity-display.ts
 #: src/pages/IntegrationSetup.tsx
@@ -1080,20 +1080,20 @@ msgstr "Bot"
 #: src/pages/shell/message-view.tsx
 #: src/pages/SpaceSearch.tsx
 msgid "Bot"
-msgstr "Bot"
+msgstr "小伙伴"
 
 #. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "Bot"
-msgstr "Bot"
+msgstr "小伙伴"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Bot is watching, not acting"
-msgstr "Bot 只看不操作"
+msgstr "小伙伴只看不操作"
 
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "Bot models"
-msgstr "Bot 模型"
+msgstr "小伙伴模型"
 
 #: src/pages/shell/create-bot-dialog.tsx
 msgid "Bot name"
@@ -1101,7 +1101,7 @@ msgstr "小伙伴名称"
 
 #: src/pages/shell/computer-overlay.tsx
 msgid "Bot screen"
-msgstr "Bot 屏幕"
+msgstr "小伙伴屏幕"
 
 #: src/components/PageBreadcrumb.tsx
 msgid "Bot settings"
@@ -1109,7 +1109,7 @@ msgstr "小伙伴设置"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Bot's model"
-msgstr "Bot 的模型"
+msgstr "小伙伴的模型"
 
 #: src/components/SignupSurvey.tsx
 msgid "Both"
@@ -1122,11 +1122,11 @@ msgstr "小伙伴"
 
 #: src/components/ModelCredits.tsx
 msgid "Bots and browser automation"
-msgstr "Bot 和浏览器自动化"
+msgstr "小伙伴和浏览器自动化"
 
 #: src/pages/Paywall.tsx
 msgid "Bots with their own computer and browser"
-msgstr "每个 Bot 都有自己的电脑和浏览器"
+msgstr "每个小伙伴都有自己的电脑和浏览器"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Brain label"
@@ -1205,7 +1205,7 @@ msgstr "取消"
 
 #: src/pages/shell/agent-import.tsx
 msgid "Cancel new bot"
-msgstr "取消新建 Bot"
+msgstr "取消新建小伙伴"
 
 #: src/pages/shell/chat-context.tsx
 msgid "Cancel reply"
@@ -1254,11 +1254,11 @@ msgstr "图表渲染失败：{error}"
 
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Chat"
-msgstr ""
+msgstr "聊天"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Chat Completions"
-msgstr ""
+msgstr "Chat Completions"
 
 #: src/pages/shell/composer-mentions.tsx
 msgid "Chat Settings"
@@ -1266,7 +1266,7 @@ msgstr "聊天设置"
 
 #: src/pages/MessagingSettingsPanel.tsx
 msgid "Chat with your bot from Slack."
-msgstr "在 Slack 中与你的机器人聊天。"
+msgstr "在 Slack 中与你的小伙伴聊天。"
 
 #: src/lib/localized-provider-hint.ts
 msgid "ChatGPT subscription"
@@ -1497,7 +1497,7 @@ msgstr "命令"
 
 #: src/pages/shell/command-palette.tsx
 msgid "Command menu"
-msgstr ""
+msgstr "命令菜单"
 
 #: src/components/AskCard.tsx
 #: src/components/VaultSettings.tsx
@@ -1526,7 +1526,7 @@ msgstr "已完成"
 
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "Composio consumer key"
-msgstr ""
+msgstr "Composio 消费者密钥"
 
 #: src/components/PageBreadcrumb.tsx
 #: src/pages/settings-nav.ts
@@ -1564,7 +1564,7 @@ msgstr "电脑"
 
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Computers are available. Reload or open a bot to continue."
-msgstr "电脑已经可用。重新加载，或打开一个 Bot 继续。"
+msgstr "电脑已经可用。重新加载，或打开一个小伙伴继续。"
 
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, novita, daytona, or boat with its API key. Recreate the stack after changing .env."
@@ -1631,7 +1631,7 @@ msgstr "请先连接文本模型，再继续。"
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "Connect a model in Settings before running bots."
-msgstr "运行机器人前，请先在设置中连接模型。"
+msgstr "运行小伙伴前，请先在设置中连接模型。"
 
 #: src/pages/model-settings/connection-controls.tsx
 msgid "Connect API key"
@@ -1646,7 +1646,7 @@ msgstr "连接应用"
 
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "Connect Composio"
-msgstr ""
+msgstr "连接 Composio"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Connect MCP server “{name}”"
@@ -1896,11 +1896,11 @@ msgstr "无法继续"
 #: src/pages/shell/agent-import.tsx
 #: src/pages/shell/create-bot-dialog.tsx
 msgid "Could not create bot"
-msgstr "无法创建 Bot"
+msgstr "无法创建小伙伴"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not create group"
-msgstr "无法创建群组"
+msgstr "无法创建群聊"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Could not create section"
@@ -1912,15 +1912,15 @@ msgstr "无法创建工作区"
 
 #: src/pages/Onboarding.tsx
 msgid "Could not create your bot"
-msgstr "无法创建你的 Bot"
+msgstr "无法创建你的小伙伴"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Could not delete bot"
-msgstr "无法删除 Bot"
+msgstr "无法删除小伙伴"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Could not delete group"
-msgstr "无法删除群组"
+msgstr "无法删除群聊"
 
 #: src/pages/McpServersOverlay.tsx
 msgid "Could not delete MCP server"
@@ -1985,7 +1985,7 @@ msgstr "无法启用工具"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Could not grant access"
-msgstr ""
+msgstr "无法授予访问权限"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not install connector"
@@ -2020,7 +2020,7 @@ msgstr "无法加载账单"
 
 #: src/pages/IntegrationSetup.tsx
 msgid "Could not load bots. Reload to try again."
-msgstr "无法加载 Bot。请重新加载后再试。"
+msgstr "无法加载小伙伴。请重新加载后再试。"
 
 #: src/components/VaultSettings.tsx
 msgid "Could not load credentials."
@@ -2164,7 +2164,7 @@ msgstr "无法撤销连接"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Could not revoke grant"
-msgstr ""
+msgstr "无法撤销授权"
 
 #: src/pages/shell/use-routine-editor.ts
 msgid "Could not run routine"
@@ -2186,7 +2186,7 @@ msgstr "无法保存自动审核"
 
 #: src/pages/GroupPanel.tsx
 msgid "Could not save group"
-msgstr "无法保存群组"
+msgstr "无法保存群聊"
 
 #: src/pages/Onboarding.tsx
 msgid "Could not save model"
@@ -2276,7 +2276,7 @@ msgstr "无法测试 MCP 服务器"
 
 #: src/lib/dictation.ts
 msgid "Could not transcribe that recording."
-msgstr ""
+msgstr "无法转写该录音。"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not update"
@@ -2288,7 +2288,7 @@ msgstr "无法更新账单"
 
 #: src/pages/McpServersOverlay.tsx
 msgid "Could not update bot access"
-msgstr ""
+msgstr "无法更新小伙伴的访问权限"
 
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Could not update computer"
@@ -2312,7 +2312,7 @@ msgstr "无法确认电脑是否就绪（{failureMessage}）。请修复连接�
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Couldn't load grants"
-msgstr ""
+msgstr "无法加载授权"
 
 #: src/pages/MessagingSettingsPanel.tsx
 msgid "Couldn't load messaging settings"
@@ -2358,7 +2358,7 @@ msgstr "创建账户"
 #: src/components/PageBreadcrumb.tsx
 #: src/pages/GroupPanel.tsx
 msgid "Create group"
-msgstr "创建群组"
+msgstr "创建群聊"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Create Routine"
@@ -2409,7 +2409,7 @@ msgstr "额度金额"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Credits ($)"
-msgstr ""
+msgstr "额度（美元）"
 
 #: src/lib/cron.ts
 msgid "Cron"
@@ -2446,7 +2446,7 @@ msgstr "自定义{label}"
 
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Customize bot avatar"
-msgstr "自定义机器人头像"
+msgstr "自定义小伙伴头像"
 
 #: src/pages/shell/bot-panel.tsx
 msgid "Daily check-ins on unfinished work"
@@ -2549,7 +2549,7 @@ msgstr "删除账户"
 
 #: src/pages/GroupPanel.tsx
 msgid "Delete group"
-msgstr "删除群组"
+msgstr "删除群聊"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Delete memories too"
@@ -2618,15 +2618,15 @@ msgstr "开发"
 
 #: src/lib/dictation.ts
 msgid "Dictation ended unexpectedly."
-msgstr ""
+msgstr "听写意外结束。"
 
 #: src/lib/dictation.ts
 msgid "Dictation failed: {code}"
-msgstr ""
+msgstr "听写失败：{code}"
 
 #: src/lib/dictation.ts
 msgid "Dictation failed."
-msgstr ""
+msgstr "听写失败。"
 
 #: src/pages/Auth.tsx
 msgid "Did you mean <0>{emailSuggestion}</0>?"
@@ -2705,7 +2705,7 @@ msgstr "Docker 已配置，但电脑没有响应。请确认 sandbox supervisor 
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "Docker limits access to your computer for added security. Using {hostLabel} lets bots work with your local files and tools."
-msgstr "Docker 限制对你电脑的访问，以提高安全性。使用{hostLabel}时，Bot 可以处理你的本地文件并使用本地工具。"
+msgstr "Docker 限制对你电脑的访问，以提高安全性。使用{hostLabel}时，小伙伴可以处理你的本地文件并使用本地工具。"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Document changed. Reopen to edit the latest version."
@@ -2766,7 +2766,7 @@ msgstr "每个名称只能使用一次。"
 #: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/use-space-roster.ts
 msgid "Each space can have at most 4 main bots"
-msgstr "每个空间顶部最多放置 4 个机器人"
+msgstr "每个空间顶部最多放置 4 个小伙伴"
 
 #: src/components/AskCard.tsx
 #: src/pages/AccountSettingsOverlay.tsx
@@ -2882,7 +2882,7 @@ msgstr "每{n}小时{minute}分"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Every bot in this space reads these notes and keeps them up to date."
-msgstr "此空间中的所有机器人都会读取并更新这些笔记。"
+msgstr "此空间中的所有小伙伴都会读取并更新这些笔记。"
 
 #: src/lib/cron.ts
 #: src/pages/RoutineEditor.tsx
@@ -3013,7 +3013,7 @@ msgstr "文件或文件夹，每行一个"
 
 #: src/pages/GroupPanel.tsx
 msgid "Filter bots"
-msgstr "筛选 Bot"
+msgstr "筛选小伙伴"
 
 #: src/pages/Artifacts.tsx
 msgid "Filter by date"
@@ -3069,11 +3069,11 @@ msgstr "免费"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Free access"
-msgstr ""
+msgstr "免费访问"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Free months"
-msgstr ""
+msgstr "免费月数"
 
 #: src/pages/shell/shell-sidebar.tsx
 msgid "Free plan ends {day}"
@@ -3141,11 +3141,11 @@ msgstr "返回首页"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Grant"
-msgstr ""
+msgstr "授权"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Granting…"
-msgstr ""
+msgstr "正在授权…"
 
 #: src/lib/identity-display.ts
 #: src/pages/MessagingSettingsPanel.tsx
@@ -3159,7 +3159,7 @@ msgstr "群聊"
 #: src/pages/GroupPanel.tsx
 #: src/pages/shell/chat-header.tsx
 msgid "Group settings"
-msgstr "群组设置"
+msgstr "群聊设置"
 
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Group updates"
@@ -3267,7 +3267,7 @@ msgstr "频率"
 
 #: src/pages/shell/bot-panel.tsx
 msgid "How other bots see it"
-msgstr "其他机器人如何了解它"
+msgstr "其他小伙伴如何了解它"
 
 #: src/components/teach/SkillDraftCard.tsx
 msgid "How to check"
@@ -3304,7 +3304,7 @@ msgstr "此模型尚未配置图片输入。"
 
 #: src/components/AccountDataSettings.tsx
 msgid "Import"
-msgstr ""
+msgstr "导入"
 
 #: src/components/AccountDataSettings.tsx
 #: src/components/PageBreadcrumb.tsx
@@ -3326,7 +3326,7 @@ msgstr "审核中"
 
 #: src/components/integrations/plugin-marketplace.tsx
 msgid "In this bot"
-msgstr "已在此 Bot"
+msgstr "已在此小伙伴"
 
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Inactive"
@@ -3440,11 +3440,11 @@ msgstr "隔离预览，访问不了你的账户"
 
 #: src/pages/shell/shell-dialogs.tsx
 msgid "Its bots and groups are kept and leave the section."
-msgstr "其中的 Bot 和群组会保留，并移出该分组。"
+msgstr "其中的小伙伴和群聊会保留，并移出该分组。"
 
 #: src/pages/shell/dialogs.tsx
 msgid "Its conversation, files, and routines will be permanently deleted. Bots it created stay in your list."
-msgstr "它的对话、文件和例行任务将被永久删除。它创建的 Bot 仍留在列表中。"
+msgstr "它的对话、文件和例行任务将被永久删除。它创建的小伙伴仍留在列表中。"
 
 #: src/pages/shell/transcript.tsx
 msgid "Jump to latest"
@@ -3464,7 +3464,7 @@ msgstr "保留记忆"
 
 #: src/pages/McpServersOverlay.tsx
 msgid "Keep tool results whole"
-msgstr ""
+msgstr "保留完整工具结果"
 
 #: src/pages/RoutineEditor.tsx
 msgid "key"
@@ -3498,11 +3498,11 @@ msgstr "退出"
 
 #: src/components/ComputerDeviceSettings.tsx
 msgid "Let bots use this computer"
-msgstr "允许 Bot 使用这台电脑"
+msgstr "允许小伙伴使用这台电脑"
 
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Lets bots save and recall facts by meaning, alongside MEMORY.md."
-msgstr "让机器人在 MEMORY.md 之外，按语义保存和回忆事实。"
+msgstr "让小伙伴在 MEMORY.md 之外，按语义保存和回忆事实。"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Shell.tsx
@@ -3511,7 +3511,7 @@ msgstr "浅色"
 
 #: src/pages/SpaceSearch.tsx
 msgid "Link"
-msgstr ""
+msgstr "链接"
 
 #: src/pages/MessagingSettingsPanel.tsx
 msgid "Link DMs"
@@ -3602,7 +3602,7 @@ msgstr "加载中…"
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "Local access lets bots run commands without asking. Avoid it on shared or public servers."
-msgstr "本地访问权限允许 Bot 无需询问就执行命令。请勿在共享或公开服务器上启用。"
+msgstr "本地访问权限允许小伙伴无需询问就执行命令。请勿在共享或公开服务器上启用。"
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "Local computer access requires the latest desktop app."
@@ -3634,7 +3634,7 @@ msgstr "只能用小写字母、数字、连字符和下划线，并且以字母
 
 #: src/pages/Shell.tsx
 msgid "Main bots"
-msgstr "主 Bot"
+msgstr "主小伙伴"
 
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Main model"
@@ -3663,7 +3663,7 @@ msgstr "管理 MCP 服务器"
 
 #: src/pages/shell/bot-panel.tsx
 msgid "Manage other bots"
-msgstr "管理其他机器人"
+msgstr "管理其他小伙伴"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Manual"
@@ -3771,7 +3771,7 @@ msgstr "记忆范围"
 
 #: src/pages/shell/composer.tsx
 msgid "Mention a group member"
-msgstr ""
+msgstr "提及群聊成员"
 
 #: src/pages/shell/composer.tsx
 msgid "Mentions"
@@ -3853,7 +3853,7 @@ msgstr "最小化"
 
 #: src/pages/shell/sidebar-header.tsx
 msgid "Minimize bots"
-msgstr "最小化 Bot"
+msgstr "最小化小伙伴"
 
 #: src/components/call/CallCard.tsx
 msgid "Minimize call"
@@ -3999,11 +3999,11 @@ msgstr "名称"
 
 #: src/pages/shell/agent-import.tsx
 msgid "Name this bot"
-msgstr "给这个 Bot 命名"
+msgstr "给这个小伙伴命名"
 
 #: src/pages/GroupPanel.tsx
 msgid "Name this group"
-msgstr "给这个群组命名"
+msgstr "给这个群聊命名"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Name this routine"
@@ -4011,7 +4011,7 @@ msgstr "给这个例行任务命名"
 
 #: src/pages/shell/create-bot-dialog.tsx
 msgid "Name your Bot"
-msgstr "给 Bot 命名"
+msgstr "给小伙伴命名"
 
 #: src/lib/roster-status.ts
 msgid "Needs an answer"
@@ -4053,7 +4053,7 @@ msgstr "新消息"
 #: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/shell/sidebar-roster.tsx
 msgid "New bot"
-msgstr "新建 Bot"
+msgstr "新建小伙伴"
 
 #: src/pages/Shell.tsx
 #: src/pages/shell/bot-picker.tsx
@@ -4122,16 +4122,16 @@ msgstr "无认证"
 
 #: src/components/integrations/agent-access.tsx
 msgid "No bots"
-msgstr ""
+msgstr "暂无小伙伴"
 
 #: src/pages/GroupPanel.tsx
 #: src/pages/shell/bot-picker.tsx
 msgid "No bots match"
-msgstr "没有匹配的 Bot"
+msgstr "没有匹配的小伙伴"
 
 #: src/pages/shell/sidebar-roster.tsx
 msgid "No group chats yet."
-msgstr ""
+msgstr "暂无群聊。"
 
 #: src/components/AskCard.tsx
 msgid "No longer active"
@@ -4328,7 +4328,7 @@ msgstr "单次购买，额度不会过期。"
 
 #: src/components/AskCard.tsx
 msgid "Only enter a code {codeHost} sent you."
-msgstr ""
+msgstr "只输入 {codeHost} 发给你的验证码。"
 
 #: src/components/markdown-link-prompt.tsx
 #: src/pages/PaymentWalletSettingsPanel.tsx
@@ -4541,7 +4541,7 @@ msgstr "人格"
 
 #: src/components/InstructionSettings.tsx
 msgid "Personality library"
-msgstr ""
+msgstr "人格库"
 
 #: src/components/call/VoiceChatCard.tsx
 msgid "Phone call"
@@ -4646,7 +4646,7 @@ msgstr "私有"
 
 #: src/pages/shell/bot-picker.tsx
 msgid "Private workspace with its own bots and groups."
-msgstr "单独的工作区，有自己的 Bot 和群组。"
+msgstr "单独的工作区，有自己的小伙伴和群聊。"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Productivity"
@@ -4666,7 +4666,7 @@ msgstr "受保护输入"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Protocol"
-msgstr ""
+msgstr "协议"
 
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -4729,7 +4729,7 @@ msgstr "只读取"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Received"
-msgstr ""
+msgstr "已收到"
 
 #: src/pages/ActivityList.tsx
 msgid "Recent"
@@ -4891,11 +4891,11 @@ msgstr "移除 {0}"
 #. placeholder {0}: bot.name
 #: src/pages/GroupPanel.tsx
 msgid "Remove {0} from the group"
-msgstr "把 {0} 移出群组"
+msgstr "把 {0} 移出群聊"
 
 #: src/components/VaultSettings.tsx
 msgid "Remove {secretName}? Bots will no longer be able to use it."
-msgstr "要移除 {secretName} 吗？机器人将无法再使用它。"
+msgstr "要移除 {secretName} 吗？小伙伴将无法再使用它。"
 
 #: src/components/TrustedLinkSitesSettings.tsx
 msgid "Remove {site}"
@@ -5038,7 +5038,7 @@ msgstr "正在重置…"
 
 #: src/pages/shell/sidebar-layout.tsx
 msgid "Resize bots sidebar"
-msgstr "调整 Bot 侧边栏大小"
+msgstr "调整小伙伴侧边栏大小"
 
 #: src/pages/ResizableSidePanel.tsx
 msgid "Resize panel"
@@ -5046,7 +5046,7 @@ msgstr "调整面板大小"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Responses"
-msgstr ""
+msgstr "Responses"
 
 #: src/components/DesktopUpdates.tsx
 msgid "Restart to update"
@@ -5116,7 +5116,7 @@ msgstr "撤销"
 
 #: src/pages/AdminAccessPage.tsx
 msgid "Revoked"
-msgstr ""
+msgstr "已撤销"
 
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Room guidance"
@@ -5150,7 +5150,7 @@ msgstr "行"
 
 #: src/components/ApprovalRulesSettings.tsx
 msgid "Rules"
-msgstr ""
+msgstr "规则"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Run at"
@@ -5184,7 +5184,7 @@ msgstr "运行"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Runs when this bot receives a verified message from this provider."
-msgstr "这个 Bot 收到该提供方发来的已验证消息时会运行。"
+msgstr "这个小伙伴收到该提供方发来的已验证消息时会运行。"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Sales & CRM"
@@ -5307,7 +5307,7 @@ msgstr "搜索产物…"
 
 #: src/pages/shell/command-palette.tsx
 msgid "Search bots, actions, and settings"
-msgstr ""
+msgstr "搜索小伙伴、操作和设置"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Search by domain"
@@ -5352,7 +5352,7 @@ msgstr "安全与运维"
 
 #: src/pages/shell/chat-header.tsx
 msgid "Select a bot"
-msgstr "选择 Bot"
+msgstr "选择小伙伴"
 
 #: src/pages/memory-providers/ConnectionModeFields.tsx
 msgid "Self-hosted"
@@ -5437,7 +5437,7 @@ msgstr "设置已更新"
 
 #: src/pages/Shell.tsx
 msgid "Settings: {label}"
-msgstr ""
+msgstr "设置：{label}"
 
 #: src/pages/shell/composer-mentions.tsx
 msgid "Settings: General"
@@ -5478,7 +5478,7 @@ msgstr "显示全部"
 
 #: src/pages/shell/sidebar-header.tsx
 msgid "Show bots"
-msgstr "显示 Bot"
+msgstr "显示小伙伴"
 
 #: src/pages/Artifacts.tsx
 msgid "Show list"
@@ -5585,7 +5585,7 @@ msgstr "技能"
 
 #: src/pages/shell/agent-import.tsx
 msgid "Skills join the library all your bots share."
-msgstr "技能会加入所有 Bot 共享的技能库。"
+msgstr "技能会加入所有小伙伴共享的技能库。"
 
 #: src/pages/shell/computer-release-actions.tsx
 msgid "Skip"
@@ -5597,7 +5597,7 @@ msgstr "跳过或使用部署密钥"
 
 #: src/pages/shell/message-view.tsx
 msgid "Skipped"
-msgstr ""
+msgstr "已跳过"
 
 #. placeholder {0}: skipped.join(", ")
 #: src/pages/shell/use-composer-actions.ts
@@ -5905,11 +5905,11 @@ msgstr "正在测试…"
 
 #: src/pages/shell/composer-error.tsx
 msgid "The bot can use the file but won't see the picture."
-msgstr "Bot 可以使用该文件，但看不到图片内容。"
+msgstr "小伙伴可以使用该文件，但看不到图片内容。"
 
 #: src/lib/dictation.ts
 msgid "The browser keeps dropping the microphone. Start dictation again to retry."
-msgstr ""
+msgstr "浏览器持续断开麦克风连接。请重新开始听写。"
 
 #: src/lib/model-connection-preflight.ts
 msgid "The connection timed out."
@@ -5952,7 +5952,7 @@ msgstr "所选记忆提供方在此构建中不可用。"
 
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "Their own model is cleared. You can pick one again in each bot."
-msgstr "已清除各自的模型。你可以在每个 Bot 里重新选择。"
+msgstr "已清除各自的模型。你可以在每个小伙伴里重新选择。"
 
 #: src/pages/shell/agent-import.tsx
 msgid "These files are too large to import."
@@ -5988,19 +5988,19 @@ msgstr "无法读取此备份。"
 
 #: src/pages/shell/agent-import.tsx
 msgid "This bot"
-msgstr "此 Bot"
+msgstr "此小伙伴"
 
 #: src/pages/shell/computer-view.tsx
 msgid "This bot runs on this computer, not a Linux desktop. Shell and files use your home folder."
-msgstr "此 Bot 运行在这台电脑上，而不是 Linux 桌面。Shell 和文件使用你的主目录。"
+msgstr "此小伙伴运行在这台电脑上，而不是 Linux 桌面。Shell 和文件使用你的主目录。"
 
 #: src/lib/dictation.ts
 msgid "This browser can't detect when you stop talking. Use Chrome, the desktop app, or hold-to-talk in the composer."
-msgstr ""
+msgstr "此浏览器无法检测说话何时结束。请使用 Chrome、桌面应用或输入框中的按住说话功能。"
 
 #: src/lib/dictation.ts
 msgid "This browser has no on-device dictation. Connect a voice provider with transcription, or use Chrome / the desktop app."
-msgstr ""
+msgstr "此浏览器不支持设备端听写。请连接支持转写的语音服务，或使用 Chrome / 桌面应用。"
 
 #: src/components/call/IncomingCall.tsx
 msgid "This call is no longer ringing."
@@ -6091,7 +6091,7 @@ msgstr "此重置链接无效或已过期"
 
 #: src/pages/shell/message-cards.tsx
 msgid "This server cannot be assigned without a bot."
-msgstr "没有 Bot 就无法分配此服务器。"
+msgstr "没有小伙伴就无法分配此服务器。"
 
 #: src/pages/McpServersOverlay.tsx
 msgid "This server did not request browser authorization."
@@ -6104,7 +6104,7 @@ msgstr "此服务器已连接。请先断开再重新授权。"
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "This server's tool result does not fit the model. Turn off Keep tool results whole for that server, or choose another model."
-msgstr ""
+msgstr "此服务器的工具结果超出模型容量。请关闭该服务器的“保留完整工具结果”，或选择其他模型。"
 
 #: src/pages/model-settings/connection-controls.tsx
 msgid "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
@@ -6195,11 +6195,11 @@ msgstr "转写模型"
 
 #: src/lib/dictation.ts
 msgid "Transcription request timed out."
-msgstr ""
+msgstr "转写请求超时。"
 
 #: src/lib/dictation.ts
 msgid "Transcription response is too large."
-msgstr ""
+msgstr "转写响应过大。"
 
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Treat like a person"
@@ -6392,7 +6392,7 @@ msgstr "{label}使用默认设置"
 
 #: src/components/integrations/plugin-marketplace.tsx
 msgid "Use in this bot"
-msgstr "用于此 Bot"
+msgstr "用于此小伙伴"
 
 #: src/components/ModelCredits.tsx
 msgid "Use my subscription or API key"
@@ -6420,7 +6420,7 @@ msgstr "最多 512 个字母、数字、_ 或 -。"
 
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "Use your Composio MCP consumer key to connect apps to this Bot."
-msgstr ""
+msgstr "使用你的 Composio MCP 消费者密钥为此小伙伴连接应用。"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "User peer"
@@ -6491,7 +6491,7 @@ msgstr "语音"
 
 #: src/lib/tts.ts
 msgid "Voice request timed out."
-msgstr ""
+msgstr "语音请求超时。"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Wait a moment and test again."
@@ -6581,7 +6581,7 @@ msgstr "每次运行时，这个例行任务应做什么？"
 
 #: src/pages/shell/bot-panel.tsx
 msgid "What this bot is for"
-msgstr "这个 Bot 是做什么的"
+msgstr "这个小伙伴是做什么的"
 
 #: src/components/teach/SkillDraftCard.tsx
 msgid "What to return"
@@ -6613,7 +6613,7 @@ msgstr "何时使用"
 
 #: src/pages/HostComputerPrompt.tsx
 msgid "Where should bots run?"
-msgstr "Bot 应在哪里运行？"
+msgstr "小伙伴应在哪里运行？"
 
 #: src/lib/ticket-status.ts
 msgid "Won't do"
@@ -6690,7 +6690,7 @@ msgstr "今天将从你的卡中扣款 {annualPrice}，并抵扣本月未使用�
 
 #: src/components/AccountDataSettings.tsx
 msgid "Your data"
-msgstr ""
+msgstr "你的数据"
 
 #: src/pages/SpaceSettingOverrides.tsx
 msgid "Your defaults"

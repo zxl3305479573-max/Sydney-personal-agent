@@ -57,4 +57,13 @@ describe("web language catalogs", () => {
       );
     }
   });
+
+  it("keeps Chinese messages translated and uses the selected product terms", () => {
+    const chinese = readFileSync(
+      fileURLToPath(new URL("../locales/zh-CN/messages.po", import.meta.url)),
+      "utf8",
+    );
+    expect(chinese).not.toMatch(/^msgid ".+"\r?\nmsgstr ""(?:\r?\n|$)/m);
+    expect(chinese).not.toMatch(/^msgstr ".*(?:机器人|群组)/m);
+  });
 });

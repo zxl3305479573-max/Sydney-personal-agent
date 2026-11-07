@@ -85,9 +85,9 @@ export function ComputerOverlay({
       >
         <div
           data-testid="computer-chrome"
-          className="app-no-drag flex items-center justify-between gap-4 border-b border-sidebar-border px-[18px] py-3.5"
+          className="app-no-drag flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-sidebar-border px-[18px] py-3.5"
         >
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 max-sm:basis-full">
             <BotAvatar
               avatarSet={bot.avatarSet}
               color={bot.color}
@@ -110,17 +110,17 @@ export function ComputerOverlay({
             )}
             {!recordingSkill && hasControl ? (
               computer?.takeoverRequested ? (
-                <span className="rounded-full bg-warning/15 px-[11px] py-1 text-[13px] text-warning">
+                <span className="shrink-0 whitespace-nowrap rounded-full bg-warning/15 px-[11px] py-1 text-[13px] text-warning">
                   <Trans>Needs you</Trans>
                 </span>
               ) : (
-                <span className="rounded-full bg-success/15 px-[11px] py-1 text-[13px] text-success">
+                <span className="shrink-0 whitespace-nowrap rounded-full bg-success/15 px-[11px] py-1 text-[13px] text-success">
                   <Trans>You have control</Trans>
                 </span>
               )
             ) : null}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:gap-3">
             {composerRunning ? (
               <Button
                 type="button"
