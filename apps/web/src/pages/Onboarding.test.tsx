@@ -6,7 +6,10 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const account = vi.hoisted(() => ({ load: (_me: unknown) => {}, connect: vi.fn(async () => ({})) }));
+const account = vi.hoisted(() => ({
+  load: (_me: unknown) => {},
+  connect: vi.fn(async () => ({})),
+}));
 
 vi.mock("../lib/rpc", () => ({
   rpc: {
@@ -66,21 +69,36 @@ afterEach(() => {
 it("does not enter the app when the saved connection is not a usable default", async () => {
   const host = document.body.appendChild(document.createElement("div"));
   const root = createRoot(host);
-  await act(async () => root.render(
-    <MemoryRouter initialEntries={["/onboarding"]}>
-      <Routes><Route path="/onboarding/:step?" element={<OnboardingPage />} /></Routes>
-    </MemoryRouter>,
-  ));
-  await act(async () => account.load({ needsModel: true, needsSignupSurvey: false, billingEnabled: false }));
-  for (const [label, value] of [["OpenAI-compatible server URL", "https://example.test/v1"], ["Model id", "my-model"]]) {
+  await act(async () =>
+    root.render(
+      <MemoryRouter initialEntries={["/onboarding"]}>
+        <Routes>
+          <Route path="/onboarding/:step?" element={<OnboardingPage />} />
+        </Routes>
+      </MemoryRouter>,
+    ),
+  );
+  await act(async () =>
+    account.load({ needsModel: true, needsSignupSurvey: false, billingEnabled: false }),
+  );
+  for (const [label, value] of [
+    ["OpenAI-compatible server URL", "https://example.test/v1"],
+    ["Model id", "my-model"],
+  ]) {
     const input = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Continue")!.click());
-  expect(account.connect).toHaveBeenCalledWith(expect.objectContaining({ makeDefault: true, modelId: "my-model" }));
+  await act(async () =>
+    [...host.querySelectorAll("button")]
+      .find((button) => button.textContent === "Continue")!
+      .click(),
+  );
+  expect(account.connect).toHaveBeenCalledWith(
+    expect.objectContaining({ makeDefault: true, modelId: "my-model" }),
+  );
   await act(async () => account.load({ needsModel: true, defaultModel: null }));
   expect(host.textContent).toContain("Connect a model before continuing.");
   expect(host.querySelector("h1")?.textContent).toBe("Connect a model");
@@ -107,8 +125,13 @@ it("marks onboarding as usable for the desktop only once a step shows", async ()
     account.load({ needsModel: true, needsSignupSurvey: false, billingEnabled: false }),
   );
   expect(host.querySelector("h1")?.textContent).toBe("Connect a model");
-  expect(host.querySelector<HTMLInputElement>('[aria-label="OpenAI-compatible server URL"]')?.value).toBe("");
-  expect([...host.querySelectorAll("button")].find((button) => button.textContent === "Continue")?.disabled).toBe(true);
+  expect(
+    host.querySelector<HTMLInputElement>('[aria-label="OpenAI-compatible server URL"]')?.value,
+  ).toBe("");
+  expect(
+    [...host.querySelectorAll("button")].find((button) => button.textContent === "Continue")
+      ?.disabled,
+  ).toBe(true);
   expect(marked()).not.toBeNull();
   act(() => root.unmount());
 });

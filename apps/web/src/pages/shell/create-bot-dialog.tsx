@@ -58,7 +58,8 @@ export function CreateBotDialog({
         name: trimmed,
         color: avatarDataUrl,
         avatarSet: "organic",
-        instructions: personalInstructions ?? (personality ? personalityPreset(personality).instructions : ""),
+        instructions:
+          personalInstructions ?? (personality ? personalityPreset(personality).instructions : ""),
       });
     } catch (err) {
       setError(errorText(err, t`Could not create bot`));

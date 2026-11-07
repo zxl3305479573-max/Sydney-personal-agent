@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-07（分支整合，未部署）：把远端 `codex/compose-local-overlay` 上尚未进入 `main` 的人格库、网页文案和 native-linux overlay 草案合并到整合分支。没有改写已推送历史，没有删除分支，没有把 `infra/native-linux/production.overlay.example.yml` 安装到生产。合入文件按现有 Biome 规则整理，人格目录 JSON 解析结果不变；overlay 示例测试在服务缺失时直接失败，以通过索引检查。网页目录按 `lingui extract --clean` 与源码对齐，源码里已删除的旧词条被清理，现存译文保留。未合入 `main`，因此没有触发生产部署。
+
 2026-11-07（PA-018）：接入 Hersona 模板数据的固定快照，用 Sydney 本地组合逻辑处理属性强度和冲突，并通过账号级 RPC 保存人格卡片。新建 Bot 和 Bot 设置可应用保存的指令快照；模板更新或删除不改写已有 Bot。采用 Hersona 的 CC0 属性数据，不调用其 Python 服务或 MCP；此实现并非上游完整混合引擎，数据来源与许可见 ADR-0017。尚未部署、运行数据库迁移或实机验证。
 
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：排查云电脑无法打开链路，确认原生 Provider、屏幕能力票据、Web `/novnc` 代理和双机回环隧道均已有代码，但仓库缺少云电脑侧 VNC/noVNC 与后台屏幕隧道的可部署服务模板；同时原生屏幕默认要求固定 Bot，导致新建 Bot 或账号切换后屏幕绑定可能失效。

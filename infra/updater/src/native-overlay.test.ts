@@ -23,15 +23,20 @@ const overlay = parse(
   >;
 };
 
+function requiredService(name: string) {
+  const service = overlay.services[name];
+  if (!service) throw new Error(`overlay example is missing ${name}`);
+  return service;
+}
+
 describe("native Linux production overlay draft", () => {
   it("keeps the real driver socket out of application containers", () => {
     for (const name of ["api", "worker"]) {
-      expect(overlay.services[name].volumes).toEqual([
-        "/var/lib/rakazo-native/run:/run/rakazo-native:ro",
-      ]);
-      expect(overlay.services[name].group_add).toEqual(["986"]);
+      const service = requiredService(name);
+      expect(service.volumes).toEqual(["/var/lib/rakazo-native/run:/run/rakazo-native:ro"]);
+      expect(service.group_add).toEqual(["986"]);
     }
-    expect(overlay.services["native-driver-proxy"]).toMatchObject({
+    expect(requiredService("native-driver-proxy")).toMatchObject({
       user: "996:986",
       network_mode: "none",
       volumes: expect.arrayContaining(["/var/lib/sydney-tunnel-jail/run:/driver:ro"]),
@@ -39,14 +44,14 @@ describe("native Linux production overlay draft", () => {
   });
 
   it("bridges host loopback through a Unix socket into web loopback", () => {
-    const host = overlay.services["native-screen-host-bridge"];
-    const web = overlay.services["native-screen-web-loopback"];
+    const host = requiredService("native-screen-host-bridge");
+    const web = requiredService("native-screen-web-loopback");
     expect(host.network_mode).toBe("host");
     expect(host.command).toContain("TCP:127.0.0.1:6080");
     expect(web.network_mode).toBe("service:web");
     expect(web.command).toContain("TCP-LISTEN:16080,bind=127.0.0.1,reuseaddr,fork");
     expect(web.command).toContain("UNIX-CONNECT:/run/rakazo-native/screen.sock");
-    for (const service of [host, web, overlay.services["native-driver-proxy"]]) {
+    for (const service of [host, web, requiredService("native-driver-proxy")]) {
       expect(service.ports).toBeUndefined();
       expect(service.user).toBe("996:986");
       expect(service.cap_drop).toContain("ALL");

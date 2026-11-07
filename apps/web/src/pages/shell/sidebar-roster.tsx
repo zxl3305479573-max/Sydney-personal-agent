@@ -776,7 +776,9 @@ function MobileRosterRow({
     >
       <span className="shrink-0">{avatar}</span>
       <span className="min-w-0 flex-1">
-        <span className={`${item.kind === "bot" ? "rk-script-type " : ""}block truncate text-[18px] font-medium text-foreground`}>
+        <span
+          className={`${item.kind === "bot" ? "rk-script-type " : ""}block truncate text-[18px] font-medium text-foreground`}
+        >
           {chat.name}
         </span>
         {preview ? (

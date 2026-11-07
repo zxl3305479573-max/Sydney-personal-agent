@@ -278,7 +278,8 @@ export function OnboardingPage() {
       return providerDisplayName(id, byId.get(id)?.providerName ?? id, auth);
     };
     const main = [] as { value: string; label: string }[];
-    const rest = providers.filter((entry) => entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID)
+    const rest = providers
+      .filter((entry) => entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID)
       .map((entry) => ({ value: entry.provider, label: optionLabel(entry.provider) }));
     return { main, rest };
   }, [billingEnabled, providers, t]);
@@ -562,8 +563,8 @@ export function OnboardingPage() {
                   credits
                     ? CREDITS_OPTION
                     : provider
-                        ? providerOptionValue(provider, providerAuth)
-                        : null
+                      ? providerOptionValue(provider, providerAuth)
+                      : null
                 }
                 onValueChange={(value) => {
                   if (typeof value !== "string" || !value) return;

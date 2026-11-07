@@ -39,8 +39,13 @@ const catalog = (locale: string) =>
 describe("agent import translations", () => {
   it("covers every catalog the app ships", () => {
     const shipped = readdirSync(fileURLToPath(localesDir), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && readdirSync(fileURLToPath(new URL(`${entry.name}/`, localesDir))).includes("messages.po"))
-      .map((entry) => entry.name).sort();
+      .filter(
+        (entry) =>
+          entry.isDirectory() &&
+          readdirSync(fileURLToPath(new URL(`${entry.name}/`, localesDir))).includes("messages.po"),
+      )
+      .map((entry) => entry.name)
+      .sort();
     expect(shipped).toEqual([...UI_LOCALES].sort());
   });
 

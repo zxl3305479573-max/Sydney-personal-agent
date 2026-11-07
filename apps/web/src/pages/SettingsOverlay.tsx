@@ -1,25 +1,13 @@
 import { useLingui } from "@lingui/react/macro";
-import type {
-  SpaceMemoryConfig,
-  UsageSummary,
-} from "@rakazo/contracts";
-import {
-  Button,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-} from "@rakazo/ui-web";
+import type { SpaceMemoryConfig, UsageSummary } from "@rakazo/contracts";
+import { Button, Dialog, DialogClose, DialogContent, DialogTitle } from "@rakazo/ui-web";
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApprovalRulesSettings } from "../components/ApprovalRulesSettings";
 import { computersAreUnavailable } from "../components/ComputersUnavailableHint";
 import { PageBreadcrumb } from "../components/PageBreadcrumb";
-import {
-  SETTINGS_CONTENT_WIDTH,
-  SettingsGroup,
-  SettingsRow,
-} from "../components/SettingsRows";
+import { SETTINGS_CONTENT_WIDTH, SettingsGroup, SettingsRow } from "../components/SettingsRows";
+import type { UsageEvent } from "../components/UsageHeatmap";
 import { VaultSettings } from "../components/VaultSettings";
 import { desktopBridge } from "../lib/desktop";
 import { SpaceRpcProvider } from "../lib/space-rpc";
@@ -39,7 +27,6 @@ import { useSettingsNavItems } from "./settings-nav";
 import type { SettingsSpace } from "./shell/dialogs";
 import type { SettingsSection } from "./shell-overlay";
 import { VoiceSettingsOverlay } from "./VoiceSettingsOverlay";
-import type { UsageEvent } from "../components/UsageHeatmap";
 
 export function SettingsOverlay({
   space,
@@ -112,8 +99,7 @@ export function SettingsOverlay({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [keepComputerRecovery, setKeepComputerRecovery] = useState(false);
   const recoveryHoldTimer = useRef<number | undefined>(undefined);
-  const showComputer =
-    keepComputerRecovery || computersAreUnavailable(sandboxProvider);
+  const showComputer = keepComputerRecovery || computersAreUnavailable(sandboxProvider);
   const showUpdates = Boolean(desktopBridge()?.update);
   // A section that isn't available yet (billing before its flag loads) shows General until it is.
   const section =
@@ -174,21 +160,17 @@ export function SettingsOverlay({
     };
     const revealSection = () => {
       if (nav.scrollWidth > nav.clientWidth) {
-        nav
-          .querySelector<HTMLElement>('[aria-current="page"]')
-          ?.scrollIntoView?.({
-            block: "nearest",
-            inline: "nearest",
-          });
+        nav.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({
+          block: "nearest",
+          inline: "nearest",
+        });
       }
       measure();
     };
     revealSection();
     nav.addEventListener("scroll", measure);
     const observer =
-      typeof ResizeObserver === "undefined"
-        ? undefined
-        : new ResizeObserver(revealSection);
+      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(revealSection);
     observer?.observe(nav);
     return () => {
       nav.removeEventListener("scroll", measure);
@@ -262,9 +244,7 @@ export function SettingsOverlay({
         data-settings-section={section}
         showCloseButton={false}
         initialFocus={() =>
-          section === "usage"
-            ? (usageRef.current ?? panelRef.current)
-            : panelRef.current
+          section === "usage" ? (usageRef.current ?? panelRef.current) : panelRef.current
         }
         className="sydney-settings-dialog flex h-[min(760px,calc(100%-2rem))] max-h-[calc(100%-2rem)] w-[min(1080px,calc(100%-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[calc(100%-5rem)] sm:max-w-[1080px]"
       >
@@ -290,8 +270,7 @@ export function SettingsOverlay({
               {navItems.map((item) => {
                 const Icon = item.icon;
                 // A space's page is reached from General, so General stays marked.
-                const active =
-                  item.id === (section === "space" ? "general" : section);
+                const active = item.id === (section === "space" ? "general" : section);
                 return (
                   <button
                     key={item.id}
@@ -387,16 +366,11 @@ export function SettingsOverlay({
                       />
                       {/* One space is just the app, so there is nothing to tell apart or manage. */}
                       {spaces.length > 1 && onOpenSpace ? (
-                        <SettingsGroup
-                          title={t`Spaces`}
-                          data-testid="settings-spaces"
-                        >
+                        <SettingsGroup title={t`Spaces`} data-testid="settings-spaces">
                           {spaces.map((option) => (
                             <SettingsRow
                               key={option.id}
-                              label={
-                                <p className="break-words">{option.name}</p>
-                              }
+                              label={<p className="break-words">{option.name}</p>}
                               control={
                                 <Button
                                   variant="ghost"
@@ -418,29 +392,17 @@ export function SettingsOverlay({
                     <SpaceSettingsPanel
                       key={space.id}
                       space={space}
-                      onRename={(name) =>
-                        onRenameSpace?.(space.id, name) ?? Promise.resolve()
-                      }
-                      onDelete={() =>
-                        onDeleteSpace?.(space.id) ?? Promise.resolve()
-                      }
+                      onRename={(name) => onRenameSpace?.(space.id, name) ?? Promise.resolve()}
+                      onDelete={() => onDeleteSpace?.(space.id) ?? Promise.resolve()}
                       onClose={requestClose}
                       onBusyChange={setVoiceBusy}
                     />
                   ) : null}
-                  {section === "confirmations" ? (
-                    <ApprovalRulesSettings scope="account" />
-                  ) : null}
-                  {section === "vault" ? (
-                    <VaultSettings scope="account" />
-                  ) : null}
-                  {section === "messaging" && messagingEnabled ? (
-                    <MessagingSettingsPanel />
-                  ) : null}
+                  {section === "confirmations" ? <ApprovalRulesSettings scope="account" /> : null}
+                  {section === "vault" ? <VaultSettings scope="account" /> : null}
+                  {section === "messaging" && messagingEnabled ? <MessagingSettingsPanel /> : null}
                   {section === "wallet" && paymentWalletProvider ? (
-                    <PaymentWalletSettingsPanel
-                      provider={paymentWalletProvider}
-                    />
+                    <PaymentWalletSettingsPanel provider={paymentWalletProvider} />
                   ) : null}
                   {section === "usage" ? (
                     <UsageSettingsPanel
@@ -460,18 +422,10 @@ export function SettingsOverlay({
                       onRecoveryDismissed={releaseComputerRecovery}
                     />
                   ) : null}
-                  {section === "billing" && billingEnabled ? (
-                    <BillingSettingsPanel />
-                  ) : null}
-                  {section === "updates" && showUpdates ? (
-                    <UpdatesSettingsPanel />
-                  ) : null}
+                  {section === "billing" && billingEnabled ? <BillingSettingsPanel /> : null}
+                  {section === "updates" && showUpdates ? <UpdatesSettingsPanel /> : null}
                   {section === "models" ? (
-                    <ModelSettingsOverlay
-                      embedded
-                      scope="account"
-                      onClose={requestClose}
-                    />
+                    <ModelSettingsOverlay embedded scope="account" onClose={requestClose} />
                   ) : null}
                   {section === "memory" ? (
                     <MemorySettingsOverlay

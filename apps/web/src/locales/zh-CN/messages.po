@@ -13,84 +13,6 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-msgid "Password recovery"
-msgstr "找回密码"
-
-msgid "Get started"
-msgstr "开始使用"
-
-msgid "Access management"
-msgstr "访问管理"
-
-msgid "Connect a model before continuing."
-msgstr "请先连接文本模型，再继续。"
-
-msgid "Give your assistant a unique identity"
-msgstr "为你的小伙伴设置专属形象"
-
-msgid "Bot name"
-msgstr "小伙伴名称"
-
-msgid "Personality"
-msgstr "人格"
-
-msgid "Avatar"
-msgstr "头像"
-
-msgid "Avatar library"
-msgstr "头像库"
-
-msgid "Custom"
-msgstr "自定义"
-
-msgid "Use the instructions below"
-msgstr "使用下方自定义指令"
-
-msgid "Balanced"
-msgstr "通用"
-
-msgid "Reliable for everyday conversations"
-msgstr "适合日常交流"
-
-msgid "Professional"
-msgstr "专业"
-
-msgid "Structured and precise"
-msgstr "条理清晰，严谨准确"
-
-msgid "Friendly"
-msgstr "亲切"
-
-msgid "Warm and patient"
-msgstr "温暖友善，耐心倾听"
-
-msgid "Concise"
-msgstr "简洁"
-
-msgid "Short and action focused"
-msgstr "简明扼要，注重行动"
-
-msgid "Creative"
-msgstr "创意"
-
-msgid "Ideas and fresh directions"
-msgstr "激发灵感，探索新思路"
-
-msgid "Teacher"
-msgstr "老师"
-
-msgid "Patient explanations and examples"
-msgstr "耐心讲解，结合实例"
-
-msgid "Choose an avatar or add your own image"
-msgstr "选择头像或上传自己的图片"
-
-msgid "Add from device"
-msgstr "从设备添加"
-
-msgid "Your uploaded avatars are saved in this browser."
-msgstr "上传的头像保存在当前浏览器中。"
-
 #: src/pages/shell/sidebar-roster.tsx
 msgid " (unread)"
 msgstr "（未读）"
@@ -532,6 +454,10 @@ msgstr ""
 msgid "About {label}"
 msgstr "关于{label}"
 
+#: src/components/PageBreadcrumb.tsx
+msgid "Access management"
+msgstr "访问管理"
+
 #: src/pages/McpServersOverlay.tsx
 msgid "Access token (optional)"
 msgstr "访问令牌（可选）"
@@ -657,6 +583,10 @@ msgstr "添加备用模型"
 msgid "Add field"
 msgstr "添加字段"
 
+#: src/pages/shell/avatar-studio-popover.tsx
+msgid "Add from device"
+msgstr "从设备添加"
+
 #: src/components/ModelHeadersEditor.tsx
 msgid "Add header"
 msgstr "添加请求头"
@@ -714,6 +644,7 @@ msgstr "已添加"
 #: src/components/integrations/plugin-marketplace.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
+#: src/pages/shell/avatar-studio-popover.tsx
 msgid "Adding…"
 msgstr "正在添加…"
 
@@ -968,6 +899,7 @@ msgstr "已归档"
 msgid "Arguments"
 msgstr "参数"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/components/SidebarFooter.tsx
 #: src/pages/Artifacts.tsx
 msgid "Artifacts"
@@ -1060,9 +992,13 @@ msgstr "可用于"
 msgid "Available to shell commands as {commandVariable}"
 msgstr "Shell 命令可通过 {commandVariable} 使用"
 
+#: src/pages/shell/create-bot-dialog.tsx
+msgid "Avatar"
+msgstr "头像"
+
 #: src/pages/shell/avatar-studio-popover.tsx
-msgid "Avatar Studio"
-msgstr "头像工作室"
+msgid "Avatar library"
+msgstr "头像库"
 
 #: src/components/integrations/plugin-marketplace.tsx
 #: src/components/integrations/skills-dialog.tsx
@@ -1070,6 +1006,7 @@ msgstr "头像工作室"
 #: src/pages/AdminPluginsPage.tsx
 #: src/pages/Auth.tsx
 #: src/pages/Board.tsx
+#: src/pages/GroupPanel.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/NavLinkPage.tsx
 #: src/pages/PluginsOverlay.tsx
@@ -1082,6 +1019,10 @@ msgstr "返回"
 #: src/pages/Auth.tsx
 msgid "Back to sign in"
 msgstr "返回登录"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Balanced"
+msgstr "通用"
 
 #: src/pages/memory-providers/ConnectionModeFields.tsx
 msgid "Base URL"
@@ -1117,6 +1058,7 @@ msgstr "阻止"
 msgid "Blocked"
 msgstr "已阻塞"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/components/SidebarFooter.tsx
 #: src/pages/Board.tsx
 msgid "Board"
@@ -1135,7 +1077,6 @@ msgstr "Bot"
 #: src/pages/IntegrationSetup.tsx
 #: src/pages/MessagingSettingsPanel.tsx
 #: src/pages/Shell.tsx
-#: src/pages/shell/avatar-studio-popover.tsx
 #: src/pages/shell/message-view.tsx
 #: src/pages/SpaceSearch.tsx
 msgid "Bot"
@@ -1154,13 +1095,17 @@ msgstr "Bot 只看不操作"
 msgid "Bot models"
 msgstr "Bot 模型"
 
+#: src/pages/shell/create-bot-dialog.tsx
+msgid "Bot name"
+msgstr "小伙伴名称"
+
 #: src/pages/shell/computer-overlay.tsx
 msgid "Bot screen"
 msgstr "Bot 屏幕"
 
-#: src/pages/shell/computer-panel.tsx
-msgid "Bot screen preview"
-msgstr "Bot 屏幕预览"
+#: src/components/PageBreadcrumb.tsx
+msgid "Bot settings"
+msgstr "小伙伴设置"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Bot's model"
@@ -1171,11 +1116,9 @@ msgid "Both"
 msgstr "两者"
 
 #: src/pages/Artifacts.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "Bots"
 msgstr "小伙伴"
-
-msgid "Bot settings"
-msgstr "小伙伴设置"
 
 #: src/components/ModelCredits.tsx
 msgid "Bots and browser automation"
@@ -1263,10 +1206,6 @@ msgstr "取消"
 #: src/pages/shell/agent-import.tsx
 msgid "Cancel new bot"
 msgstr "取消新建 Bot"
-
-#: src/pages/GroupPanel.tsx
-msgid "Cancel new group"
-msgstr "取消新建群组"
 
 #: src/pages/shell/chat-context.tsx
 msgid "Cancel reply"
@@ -1389,10 +1328,6 @@ msgstr "正在检查连接…"
 msgid "Checking…"
 msgstr "正在检查…"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Choose a bot shape, color, or upload an image"
-msgstr "选择机器人形状和颜色，或上传图片"
-
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/shell/composer-error.tsx
 msgid "Choose a model"
@@ -1406,12 +1341,15 @@ msgstr "设置新密码"
 msgid "Choose a provider"
 msgstr "选择提供方"
 
+#: src/pages/shell/avatar-studio-popover.tsx
+msgid "Choose an avatar or add your own image"
+msgstr "选择头像或上传自己的图片"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Choose backup"
 msgstr "选择备份"
 
 #: src/pages/shell/agent-import.tsx
-#: src/pages/shell/avatar-studio-popover.tsx
 msgid "Choose file"
 msgstr "选择文件"
 
@@ -1429,7 +1367,13 @@ msgid "Claude subscription"
 msgstr "Claude 订阅"
 
 #: src/components/AskCard.tsx
+#: src/components/FoundModelPicker.tsx
+#: src/pages/model-settings/compatible-model-fields.tsx
+#: src/pages/model-settings/providers-section.tsx
+#: src/pages/model-settings/role-model-picker.tsx
+#: src/pages/shell/chat-model-picker.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/shell/shell-sidebar.tsx
 msgid "Clear"
 msgstr "清空"
 
@@ -1458,6 +1402,7 @@ msgstr "正在清空…"
 #: src/pages/PeerMessagesOverlay.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
+#: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/WindowChrome.tsx
 msgid "Close"
 msgstr "关闭"
@@ -1491,10 +1436,6 @@ msgstr "关闭记忆设置"
 #: src/pages/SettingsOverlay.tsx
 msgid "Close model settings"
 msgstr "关闭模型设置"
-
-#: src/pages/shell/shell-sidebar.tsx
-msgid "Close navigation"
-msgstr "关闭导航"
 
 #: src/pages/GroupPanel.tsx
 #: src/pages/shell/side-panel.tsx
@@ -1541,14 +1482,6 @@ msgstr "验证码"
 msgid "Collapse {0}"
 msgstr "折叠 {0}"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Color"
-msgstr "颜色"
-
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Color {color}"
-msgstr "颜色 {color}"
-
 #: src/components/markdown-copy.tsx
 msgid "column {index}"
 msgstr "第 {index} 列"
@@ -1591,6 +1524,11 @@ msgstr "完成"
 msgid "Completed"
 msgstr "已完成"
 
+#: src/components/integrations/IntegrationSetup.tsx
+msgid "Composio consumer key"
+msgstr ""
+
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/settings-nav.ts
 #: src/pages/shell/bot-panel.tsx
 #: src/pages/shell/message-view.tsx
@@ -1631,6 +1569,10 @@ msgstr "电脑已经可用。重新加载，或打开一个 Bot 继续。"
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, novita, daytona, or boat with its API key. Recreate the stack after changing .env."
 msgstr "电脑未开启。请设置 SANDBOX_PROVIDER=docker 并提供 SANDBOX_SUPERVISOR_TOKEN，或将 SANDBOX_PROVIDER 设为 e2b、novita、daytona 或 boat 并提供对应 API 密钥。更改 .env 后请重建环境。"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Concise"
+msgstr "简洁"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Configure a plugin catalog on the server to connect apps."
@@ -1682,6 +1624,10 @@ msgstr "连接聊天应用"
 msgid "Connect a model"
 msgstr "连接模型"
 
+#: src/pages/Onboarding.tsx
+msgid "Connect a model before continuing."
+msgstr "请先连接文本模型，再继续。"
+
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "Connect a model in Settings before running bots."
@@ -1691,10 +1637,16 @@ msgstr "运行机器人前，请先在设置中连接模型。"
 msgid "Connect API key"
 msgstr "连接 API 密钥"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/components/SidebarFooter.tsx
 #: src/pages/Shell.tsx
+#: src/pages/shell/shell-sidebar.tsx
 msgid "Connect apps"
 msgstr "连接应用"
+
+#: src/components/integrations/IntegrationSetup.tsx
+msgid "Connect Composio"
+msgstr ""
 
 #: src/pages/shell/message-cards.tsx
 msgid "Connect MCP server “{name}”"
@@ -2222,6 +2174,7 @@ msgstr "无法运行例行任务"
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/shell/bot-panel.tsx
+#: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/dialogs.tsx
 #: src/pages/shell/use-space-roster.ts
 msgid "Could not save"
@@ -2402,6 +2355,7 @@ msgstr "创建分组并把 {0} 移入。"
 msgid "Create account"
 msgstr "创建账户"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/GroupPanel.tsx
 msgid "Create group"
 msgstr "创建群组"
@@ -2428,6 +2382,10 @@ msgstr "已创建"
 #: src/pages/shell/dialogs.tsx
 msgid "Creating…"
 msgstr "正在创建…"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Creative"
+msgstr "创意"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Credential"
@@ -2465,6 +2423,10 @@ msgstr "Cron 表达式"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Current password"
 msgstr "当前密码"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Custom"
+msgstr "自定义"
 
 #: src/components/VaultSettings.tsx
 msgid "Custom header"
@@ -2522,7 +2484,6 @@ msgstr "拒绝"
 #: src/pages/model-settings/role-model-picker.tsx
 #: src/pages/ModelRoleSettings.tsx
 #: src/pages/Onboarding.tsx
-#: src/pages/shell/avatar-studio-popover.tsx
 msgid "Default"
 msgstr "默认"
 
@@ -2565,10 +2526,11 @@ msgid "Delete \"{0}\"?"
 msgstr "删除“{0}”？"
 
 #. placeholder {0}: artifact.name
+#. placeholder {0}: avatar.name
 #. placeholder {0}: bot.name
-#. placeholder {0}: group.name
 #: src/pages/Artifacts.tsx
 #: src/pages/shell/archived-chats.tsx
+#: src/pages/shell/avatar-studio-popover.tsx
 msgid "Delete {0}"
 msgstr "删除 {0}"
 
@@ -2745,10 +2707,6 @@ msgstr "Docker 已配置，但电脑没有响应。请确认 sandbox supervisor 
 msgid "Docker limits access to your computer for added security. Using {hostLabel} lets bots work with your local files and tools."
 msgstr "Docker 限制对你电脑的访问，以提高安全性。使用{hostLabel}时，Bot 可以处理你的本地文件并使用本地工具。"
 
-#: src/components/SidebarFooter.tsx
-msgid "Docs"
-msgstr "文档"
-
 #: src/pages/KnowledgeSection.tsx
 msgid "Document changed. Reopen to edit the latest version."
 msgstr "文档已更改。请重新打开以编辑最新版本。"
@@ -2797,10 +2755,6 @@ msgstr "正在下载…"
 msgid "Draft skill"
 msgstr "技能草稿"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Drag, drop, or paste an image"
-msgstr "拖放或粘贴图片"
-
 #: src/pages/BotContextMenu.tsx
 msgid "Duplicate"
 msgstr "复制"
@@ -2808,6 +2762,11 @@ msgstr "复制"
 #: src/pages/McpServersOverlay.tsx
 msgid "Each name can be used once."
 msgstr "每个名称只能使用一次。"
+
+#: src/pages/shell/chat-context-menu.tsx
+#: src/pages/shell/use-space-roster.ts
+msgid "Each space can have at most 4 main bots"
+msgstr "每个空间顶部最多放置 4 个机器人"
 
 #: src/components/AskCard.tsx
 #: src/pages/AccountSettingsOverlay.tsx
@@ -2856,10 +2815,6 @@ msgstr "将于 {day} 结束"
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Engage when... Ignore..."
 msgstr "在…时参与，忽略…"
-
-#: src/components/GitHubStarPrompt.tsx
-msgid "Enjoying Rakazo?"
-msgstr ""
 
 #: src/lib/user-error.ts
 msgid "Enter a password"
@@ -3128,6 +3083,10 @@ msgstr "免费方案将于 {day} 结束"
 msgid "Friday"
 msgstr "周五"
 
+#: src/components/PersonalityPicker.tsx
+msgid "Friendly"
+msgstr "亲切"
+
 #: src/pages/ActivityList.tsx
 msgid "From"
 msgstr "从"
@@ -3160,6 +3119,10 @@ msgstr "通用"
 msgid "Get a free month for each friend who starts a trial."
 msgstr "每有一位朋友开始试用，你就能获得一个月免费。"
 
+#: src/components/PageBreadcrumb.tsx
+msgid "Get started"
+msgstr "开始使用"
+
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Getting ready"
 msgstr "正在准备"
@@ -3167,6 +3130,10 @@ msgstr "正在准备"
 #: src/pages/RoutineEditor.tsx
 msgid "Git event"
 msgstr "Git 事件"
+
+#: src/pages/shell/create-bot-dialog.tsx
+msgid "Give your assistant a unique identity"
+msgstr "为你的小伙伴设置专属形象"
 
 #: src/pages/NotFound.tsx
 msgid "Go home"
@@ -3183,12 +3150,14 @@ msgstr ""
 #: src/lib/identity-display.ts
 #: src/pages/MessagingSettingsPanel.tsx
 #: src/pages/shell/chat-header.tsx
-#: src/pages/shell/side-panel.tsx
+#: src/pages/shell/sidebar-roster.tsx
 #: src/pages/SpaceSearch.tsx
 msgid "Group"
 msgstr "群聊"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/GroupPanel.tsx
+#: src/pages/shell/chat-header.tsx
 msgid "Group settings"
 msgstr "群组设置"
 
@@ -3312,9 +3281,9 @@ msgstr "你会如何使用 Rakazo？"
 msgid "I’m done"
 msgstr "我做完了"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Icon set"
-msgstr "图标集"
+#: src/components/PersonalityPicker.tsx
+msgid "Ideas and fresh directions"
+msgstr "激发灵感，探索新思路"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "If you heard that, voice is ready."
@@ -3333,15 +3302,12 @@ msgstr "此模型尚未配置图片输入。"
 msgid "Image input is not configured for this model."
 msgstr "此模型尚未配置图片输入。"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Image upload area"
-msgstr "图片上传区域"
-
 #: src/components/AccountDataSettings.tsx
 msgid "Import"
 msgstr ""
 
 #: src/components/AccountDataSettings.tsx
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/shell/agent-import.tsx
 msgid "Import an agent"
 msgstr "导入 Agent"
@@ -3552,11 +3518,12 @@ msgid "Link DMs"
 msgstr "关联私信"
 
 #: src/components/AccountAccess.tsx
-msgid "Link SSO"
-msgstr "关联 SSO"
-
 msgid "Link Google account"
 msgstr "绑定 Google 账号"
+
+#: src/components/AccountAccess.tsx
+msgid "Link SSO"
+msgstr "关联 SSO"
 
 #: src/pages/Artifacts.tsx
 msgid "List view"
@@ -3664,6 +3631,10 @@ msgstr "低"
 #: src/components/VaultSettings.tsx
 msgid "Lowercase letters, numbers, hyphens and underscores, starting with a letter."
 msgstr "只能用小写字母、数字、连字符和下划线，并且以字母开头。"
+
+#: src/pages/Shell.tsx
+msgid "Main bots"
+msgstr "主 Bot"
 
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Main model"
@@ -3797,6 +3768,10 @@ msgstr "{title} 的记忆"
 #: src/pages/shell/bot-panel.tsx
 msgid "Memory scope"
 msgstr "记忆范围"
+
+#: src/pages/shell/composer.tsx
+msgid "Mention a group member"
+msgstr ""
 
 #: src/pages/shell/composer.tsx
 msgid "Mentions"
@@ -4076,15 +4051,13 @@ msgstr "新消息"
 #: src/pages/Shell.tsx
 #: src/pages/shell/bot-picker.tsx
 #: src/pages/shell/create-bot-dialog.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "New bot"
 msgstr "新建 Bot"
 
-#: src/pages/GroupPanel.tsx
-msgid "New group"
-msgstr "新建群组"
-
 #: src/pages/Shell.tsx
 #: src/pages/shell/bot-picker.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "New group chat"
 msgstr "新建群聊"
 
@@ -4155,6 +4128,10 @@ msgstr ""
 #: src/pages/shell/bot-picker.tsx
 msgid "No bots match"
 msgstr "没有匹配的 Bot"
+
+#: src/pages/shell/sidebar-roster.tsx
+msgid "No group chats yet."
+msgstr ""
 
 #: src/components/AskCard.tsx
 msgid "No longer active"
@@ -4266,7 +4243,6 @@ msgstr "不在 Rakazo 目录中"
 msgid "Not in the plugin catalog"
 msgstr "不在插件目录中"
 
-#: src/components/GitHubStarPrompt.tsx
 #: src/pages/shell/message-cards.tsx
 msgid "Not now"
 msgstr "暂不"
@@ -4328,11 +4304,6 @@ msgstr "离线"
 #: src/pages/Onboarding.tsx
 msgid "Ollama API key"
 msgstr "Ollama API 密钥"
-
-#: src/pages/ModelSettingsOverlay.tsx
-#: src/pages/Onboarding.tsx
-msgid "Ollama Cloud"
-msgstr "Ollama Cloud"
 
 #: src/pages/RoutineEditor.tsx
 msgid "On a schedule"
@@ -4444,10 +4415,6 @@ msgstr "或粘贴 API 密钥"
 msgid "Organization API key"
 msgstr "组织 API 密钥"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Original"
-msgstr "原始"
-
 #: src/pages/shell/chat-context.tsx
 msgid "Original message unavailable"
 msgstr "原消息不可用"
@@ -4494,6 +4461,10 @@ msgstr "密码"
 msgid "Password must be {MAX_PASSWORD_LENGTH} characters or fewer"
 msgstr "密码不能超过 {MAX_PASSWORD_LENGTH} 个字符"
 
+#: src/components/PageBreadcrumb.tsx
+msgid "Password recovery"
+msgstr "找回密码"
+
 #: src/pages/Auth.tsx
 msgid "Password recovery is not configured for this server"
 msgstr "此服务器未配置密码恢复"
@@ -4537,6 +4508,10 @@ msgstr "粘贴你的 API 密钥"
 msgid "Paste your API key, then test again."
 msgstr "请粘贴你的 API 密钥，然后重新测试。"
 
+#: src/components/PersonalityPicker.tsx
+msgid "Patient explanations and examples"
+msgstr "耐心讲解，结合实例"
+
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/import-status.ts
 msgid "Paused"
@@ -4559,6 +4534,14 @@ msgstr "人设"
 #: src/components/SignupSurvey.tsx
 msgid "Personal"
 msgstr "个人"
+
+#: src/pages/shell/create-bot-dialog.tsx
+msgid "Personality"
+msgstr "人格"
+
+#: src/components/InstructionSettings.tsx
+msgid "Personality library"
+msgstr ""
 
 #: src/components/call/VoiceChatCard.tsx
 msgid "Phone call"
@@ -4615,6 +4598,7 @@ msgid "Plugin submissions"
 msgstr "插件提交"
 
 #: src/components/integrations/skills-dialog.tsx
+#: src/components/PageBreadcrumb.tsx
 msgid "Plugins"
 msgstr "插件"
 
@@ -4668,6 +4652,10 @@ msgstr "单独的工作区，有自己的 Bot 和群组。"
 msgid "Productivity"
 msgstr "效率"
 
+#: src/components/PersonalityPicker.tsx
+msgid "Professional"
+msgstr "专业"
+
 #: src/pages/shell/import-status.ts
 msgid "Program: {name}"
 msgstr "程序：{name}"
@@ -4698,12 +4686,7 @@ msgstr "拉取请求"
 msgid "Queued"
 msgstr "排队中"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Rakazo"
-msgstr "Rakazo"
-
 #: src/components/ModelCredits.tsx
-#: src/pages/Onboarding.tsx
 msgid "Rakazo credits"
 msgstr "Rakazo 额度"
 
@@ -4877,6 +4860,10 @@ msgstr "正在拒绝…"
 msgid "Release control"
 msgstr "交还控制权"
 
+#: src/components/PersonalityPicker.tsx
+msgid "Reliable for everyday conversations"
+msgstr "适合日常交流"
+
 #: src/components/InstructionSettings.tsx
 #: src/lib/client-update.ts
 msgid "Reload"
@@ -5021,7 +5008,6 @@ msgid "Research & writing"
 msgstr "调研和写作"
 
 #: src/components/ComputerMaintenanceActions.tsx
-#: src/pages/shell/avatar-studio-popover.tsx
 msgid "Reset"
 msgstr "重置"
 
@@ -5037,6 +5023,7 @@ msgstr "重置电脑"
 msgid "Reset computer?"
 msgstr "重置电脑？"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/Auth.tsx
 msgid "Reset password"
 msgstr "重置密码"
@@ -5139,6 +5126,7 @@ msgstr "房间指引"
 msgid "Rotate key"
 msgstr "轮换密钥"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/lib/identity-display.ts
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/use-routine-editor.ts
@@ -5146,6 +5134,7 @@ msgstr "轮换密钥"
 msgid "Routine"
 msgstr "例行任务"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/shell/agent-import.tsx
 #: src/pages/shell/bot-panel.tsx
 msgid "Routines"
@@ -5410,6 +5399,7 @@ msgid "Send with Enter"
 msgstr "按 Enter 发送"
 
 #: src/components/AskCard.tsx
+#: src/pages/shell/transcript.tsx
 msgid "Sending…"
 msgstr "正在发送…"
 
@@ -5465,15 +5455,6 @@ msgstr "设置完成"
 msgid "Setup help"
 msgstr "设置帮助"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Shape"
-msgstr "形状"
-
-#. placeholder {0}: index + 1
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Shape {0}"
-msgstr "形状 {0}"
-
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/shell/bot-panel.tsx
 msgid "Shared"
@@ -5482,6 +5463,10 @@ msgstr "共享"
 #: src/pages/KnowledgeSection.tsx
 msgid "Shared memory"
 msgstr "共享记忆"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Short and action focused"
+msgstr "简明扼要，注重行动"
 
 #: src/components/VaultSettings.tsx
 msgid "Show"
@@ -5526,6 +5511,7 @@ msgid "Sidebar density"
 msgstr "侧栏密度"
 
 #: src/components/integrations/plugin-marketplace.tsx
+#: src/components/PageBreadcrumb.tsx
 #: src/lib/localized-provider-hint.ts
 #: src/pages/Auth.tsx
 #: src/pages/model-settings/connection-controls.tsx
@@ -5566,6 +5552,7 @@ msgstr "使用通行密钥登录"
 msgid "Sign in with the subscription, or test the API key instead."
 msgstr "请使用订阅登录，或改为测试 API 密钥。"
 
+#: src/components/PageBreadcrumb.tsx
 #: src/pages/Auth.tsx
 #: src/pages/Welcome.tsx
 msgid "Sign up"
@@ -5696,17 +5683,9 @@ msgstr "正在说话"
 msgid "Speech model"
 msgstr "语音模型"
 
-#: src/components/AccountAccess.tsx
-msgid "SSO"
-msgstr ""
-
 #: src/lib/user-error.ts
 msgid "SSO is temporarily unavailable. Try again."
 msgstr "SSO 暂时不可用，请重试。"
-
-#: src/components/GitHubStarPrompt.tsx
-msgid "Star on GitHub"
-msgstr ""
 
 #: src/pages/shell/computer-overlay.tsx
 msgid "Start"
@@ -5788,6 +5767,10 @@ msgstr "已加密存储"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Stream replies"
 msgstr "流式回复"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Structured and precise"
+msgstr "条理清晰，严谨准确"
 
 #: src/lib/identity-display.ts
 msgid "subagent"
@@ -5874,6 +5857,10 @@ msgstr "接管控制权"
 #: src/components/teach/TeachComputerOverlay.tsx
 msgid "Teach a task"
 msgstr "示范任务"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Teacher"
+msgstr "老师"
 
 #: src/pages/Shell.tsx
 msgid "Teaching in progress. Stop teaching before sending a new message."
@@ -6359,10 +6346,6 @@ msgstr "升级"
 msgid "Upgrade now"
 msgstr "立即升级"
 
-#: src/pages/shell/avatar-studio-popover.tsx
-msgid "Upload"
-msgstr "上传"
-
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr "紧急"
@@ -6427,9 +6410,17 @@ msgstr "使用 Rakazo 额度"
 msgid "Use space default"
 msgstr "使用工作区默认"
 
+#: src/components/PersonalityPicker.tsx
+msgid "Use the instructions below"
+msgstr "使用下方自定义指令"
+
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Use up to 512 letters, digits, _ or -."
 msgstr "最多 512 个字母、数字、_ 或 -。"
+
+#: src/components/integrations/IntegrationSetup.tsx
+msgid "Use your Composio MCP consumer key to connect apps to this Bot."
+msgstr ""
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "User peer"
@@ -6521,6 +6512,10 @@ msgstr "唤醒"
 #: src/pages/settings-nav.ts
 msgid "Wallet"
 msgstr "钱包"
+
+#: src/components/PersonalityPicker.tsx
+msgid "Warm and patient"
+msgstr "温暖友善，耐心倾听"
 
 #: src/components/ModelCredits.tsx
 msgid "Web, desktop and mobile"
@@ -6748,6 +6743,10 @@ msgstr "试用将结束，今天将从你的卡中扣款 {price}。"
 msgid "Your trial ends and your card is charged today."
 msgstr "试用将结束，今天将从你的卡中扣款。"
 
+#: src/pages/shell/avatar-studio-popover.tsx
+msgid "Your uploaded avatars are saved in this browser."
+msgstr "上传的头像保存在当前浏览器中。"
+
 #: src/lib/user-error.ts
 msgid "Your voice provider is out of credit."
 msgstr "你的语音提供方额度已用完。"
@@ -6755,141 +6754,3 @@ msgstr "你的语音提供方额度已用完。"
 #: src/lib/user-error.ts
 msgid "Your voice provider key was rejected."
 msgstr "你的语音提供方拒绝了该密钥。"
-
-msgid "Tasks"
-msgstr "任务工作台"
-
-msgid "New task"
-msgstr "新建任务"
-
-msgid "Recent tasks"
-msgstr "最近的任务"
-
-msgid "Select a task"
-msgstr "选择一个任务"
-
-msgid "Back to chat"
-msgstr "返回对话"
-
-msgid "Select an agent"
-msgstr "选择一个助手"
-
-msgid "Agent"
-msgstr "助手"
-
-msgid "Request"
-msgstr "任务内容"
-
-msgid "State"
-msgstr "状态"
-
-msgid "Create a task, choose its permissions, and follow its progress."
-msgstr "创建任务、设置授权范围，并随时查看执行进度。"
-
-msgid "Create an agent in chat before starting a task."
-msgstr "开始任务前，请先在对话页面创建助手。"
-
-msgid "New tasks will appear here."
-msgstr "创建的任务会显示在这里。"
-
-msgid "Choose a recent task to review its status, permissions, and desktop preview."
-msgstr "选择最近的任务，查看状态、授权范围和电脑预览。"
-
-msgid "Authorize execution"
-msgstr "授权执行"
-
-msgid "Allowed HTTPS page"
-msgstr "允许访问的 HTTPS 页面"
-
-msgid "Read workspace files"
-msgstr "读取工作区文件"
-
-msgid "Write workspace files"
-msgstr "写入工作区文件"
-
-msgid "Save memory"
-msgstr "保存记忆"
-
-msgid "Refresh desktop preview"
-msgstr "刷新电脑预览"
-
-msgid "Desktop preview"
-msgstr "电脑预览"
-
-msgid "Pause"
-msgstr "暂停"
-
-msgid "Files and artifacts"
-msgstr "文件与产物"
-
-msgid "Open chat and approvals"
-msgstr "打开对话与审批"
-
-msgid "Measured usage"
-msgstr "查看用量"
-
-msgid "Reserved tokens"
-msgstr "预留 Token"
-
-msgid "Model calls"
-msgstr "模型调用"
-
-msgid "Attempts"
-msgstr "尝试次数"
-
-msgid "Waiting for input"
-msgstr "等待输入"
-
-msgid "Waiting for takeover"
-msgstr "等待接管"
-
-msgid "Run commands and operate the desktop with the desktop user’s file and network access"
-msgstr "运行命令并操作桌面，可访问桌面用户拥有权限的文件和网络"
-
-msgid "Questions during managed tasks are not available yet."
-msgstr "受管任务暂不支持执行中向用户提问。"
-
-msgid "I allow the configured model to receive the request, relevant history, and tool results."
-msgstr "我同意将任务内容、相关历史和工具结果发送给已配置的模型。"
-
-msgid "Retry with these permissions"
-msgstr "使用这些权限重试"
-
-msgid "Start with these permissions"
-msgstr "使用这些权限开始"
-
-msgid "Revoke authorization"
-msgstr "撤销授权"
-
-msgid "Stopping is not confirmed. Server-side verification of background work is not available yet."
-msgstr "尚未确认停止，服务器暂时无法验证后台工作是否已停止。"
-
-msgid "Inspect this effect before recording its outcome"
-msgstr "记录结果前请先检查此操作"
-
-msgid "I checked: completed"
-msgstr "已检查：已完成"
-
-msgid "I checked: not applied"
-msgstr "已检查：未生效"
-
-msgid "Finish review"
-msgstr "完成检查"
-
-msgid "I checked the result"
-msgstr "我已检查结果"
-
-msgid "Renew existing authorization"
-msgstr "延长现有授权"
-
-msgid "Main bots"
-msgstr "主 Bot"
-
-msgid "Set as main bot"
-msgstr "设为主 Bot"
-
-msgid "Remove from main bots"
-msgstr "移出主 Bot"
-
-msgid "Each space can have at most 4 main bots"
-msgstr "每个空间顶部最多放置 4 个机器人"

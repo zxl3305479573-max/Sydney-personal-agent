@@ -12,7 +12,6 @@ import {
 } from "./agent-import.js";
 import { AgentImportSetupStateInput, AgentImportSetupStateSchema } from "./agent-import-setup.js";
 import { AiConsentQuerySchema, AiConsentStatusSchema } from "./ai-consent.js";
-import { CreatePersonalityInput, PersonalityPresetSchema, UpdatePersonalityInput } from "./personality.js";
 import { AnalyticsScreenInput } from "./analytics.js";
 import {
   ARTIFACT_DESCRIPTION_MAX_LENGTH,
@@ -157,6 +156,11 @@ import {
 import { ModelHeadersSchema } from "./model-headers.js";
 import { ModelRoleSchema, ModelRoleUpdateSchema, ModelRoleViewSchema } from "./model-roles.js";
 import { PaymentWalletStatusSchema } from "./payments.js";
+import {
+  CreatePersonalityInput,
+  PersonalityPresetSchema,
+  UpdatePersonalityInput,
+} from "./personality.js";
 import { MessageReactionSchema } from "./reactions.js";
 import { RoutineWatchSchema } from "./routine-watch.js";
 import {

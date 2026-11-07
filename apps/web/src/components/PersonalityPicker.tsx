@@ -43,23 +43,25 @@ export function PersonalityPicker({
             </li>
           );
         })}
-        {allowCustom ? <li>
-          <button
-            type="button"
-            data-testid="personality-custom"
-            aria-pressed={value === "custom"}
-            disabled={disabled}
-            onClick={() => onChange(null)}
-            className="sydney-personality-option"
-          >
-            <span className="sydney-personality-option-title">
-              <Trans>Custom</Trans>
-            </span>
-            <span className="sydney-personality-option-description">
-              <Trans>Use the instructions below</Trans>
-            </span>
-          </button>
-        </li> : null}
+        {allowCustom ? (
+          <li>
+            <button
+              type="button"
+              data-testid="personality-custom"
+              aria-pressed={value === "custom"}
+              disabled={disabled}
+              onClick={() => onChange(null)}
+              className="sydney-personality-option"
+            >
+              <span className="sydney-personality-option-title">
+                <Trans>Custom</Trans>
+              </span>
+              <span className="sydney-personality-option-description">
+                <Trans>Use the instructions below</Trans>
+              </span>
+            </button>
+          </li>
+        ) : null}
       </ul>
     </div>
   );

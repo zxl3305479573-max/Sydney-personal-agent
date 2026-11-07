@@ -7,8 +7,12 @@ import { PageBreadcrumb } from "./PageBreadcrumb";
 
 vi.mock("@lingui/react/macro", () => ({
   useLingui: () => ({
-    t: (strings: TemplateStringsArray) => ({ Artifacts: "产物" })[strings.join("")] ?? strings.join(""),
-    i18n: { _: ({ id }: { id: string }) => ({ Artifacts: "产物", "Access management": "访问管理" })[id] ?? id },
+    t: (strings: TemplateStringsArray) =>
+      ({ Artifacts: "产物" })[strings.join("")] ?? strings.join(""),
+    i18n: {
+      _: ({ id }: { id: string }) =>
+        ({ Artifacts: "产物", "Access management": "访问管理" })[id] ?? id,
+    },
   }),
 }));
 
@@ -21,7 +25,11 @@ function render(path: string, content = <PageBreadcrumb />) {
   const root = createRoot(container);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   act(() => root.render(<MemoryRouter initialEntries={[path]}>{content}</MemoryRouter>));
-  cleanup = () => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); };
+  cleanup = () => {
+    act(() => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  };
   return container;
 }
 

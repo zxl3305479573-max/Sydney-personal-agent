@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-07（分支整合，未部署）：云端只看到远端 `main`（`747dbb52`）和 `codex/compose-local-overlay`（`e4a43af4`）。二者在 `fa87868d` 后分叉，`main` 的合并提交与 `fa87868d` 树相同，因此把 overlay 分支合并到以 `main` 为第一父提交的整合分支没有冲突，合并结果树与 `e4a43af4` 相同。随后只做检查所需的格式、目录提取和 overlay 测试类型收窄。Node 22.23.4 下定向 Vitest 17 个文件、148 项通过，覆盖人格目录、人格 RPC、人格库、新建 Bot、指令设置、面包屑、中英文目录、引导和模型设置、媒体出站校验、updater 与 native overlay 示例。`@rakazo/contracts`、`@rakazo/api`、`@rakazo/web`、`@rakazo/adapters`、`@rakazo/updater`、`@rakazo/db` 及被它们带上的依赖类型检查通过。`lingui extract --clean` 可重复，仍在源码中的译文没有被改写；中文目录仍有 55 条缺译。没有启动数据库、执行人格迁移、跑浏览器 E2E、连接生产或加载示例 overlay。
+
 2026-11-07（PA-018）：Hersona 属性目录、账号作用域 RPC、人格库组件、新建 Bot 和 Bot 指令设置的定向 Vitest 共 5 个文件、7 项通过；包含冲突属性拒绝、越权更新和删除被拒、保存后应用快照。contracts、API 和 Web TypeScript 检查通过，新增文件的 Biome 检查通过。当前 Node 为 22.22.0，低于项目声明的 22.22.2；`pnpm --filter @rakazo/db generate` 因引擎限制失败，改用已安装 Prisma CLI 直接生成客户端用于本地检查。未启动数据库、执行迁移、验证 PostgreSQL 行级策略或真实跨设备/手机行为，未部署。
 
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：adapters 类型检查通过；工厂、环境、API/Web 屏幕代理和屏幕票据定向测试共 5 个文件、118 项通过。原生 Provider 相关核心用例另行通过 12 项，覆盖新 Bot 屏幕授权、越权用户拒绝、未配置屏幕错误和驱动代次。完整原生测试文件在 Windows 下有 2 个 Unix socket 用例失败，报 `Server is not running`；Python 驱动测试 16 项通过、2 项跳过，Web bridge 测试因 Windows `socketserver` 缺少 `ThreadingUnixStreamServer` 失败。`git diff --check` 通过；Biome 检查发现原生文件既有导入/格式及 `exportWorkspace` 生成器规则问题，本轮未扩大范围修复；Windows 没有 `systemd-analyze`，服务单元语法未执行。未启动 Linux systemd、Docker、数据库或真实桌面，未部署。

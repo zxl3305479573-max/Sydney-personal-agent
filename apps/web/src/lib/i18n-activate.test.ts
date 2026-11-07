@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { activateUiLocale, getActiveUiLocale, i18n, setCatalogLoadersForTests, setUiLocale } from "./i18n";
+import {
+  activateUiLocale,
+  getActiveUiLocale,
+  i18n,
+  setCatalogLoadersForTests,
+  setUiLocale,
+} from "./i18n";
 
 vi.mock("./apply-ui-direction", () => ({ applyUiDirection: vi.fn() }));
 
@@ -24,7 +30,9 @@ describe("web locale activation", () => {
   it("falls back to English when Chinese fails", async () => {
     setCatalogLoadersForTests({
       en: async () => ({ messages: { Settings: "Settings" } }),
-      "zh-CN": async () => { throw new Error("missing catalog"); },
+      "zh-CN": async () => {
+        throw new Error("missing catalog");
+      },
     });
     expect(await activateUiLocale("zh-CN")).toBe("en");
     expect(i18n._({ id: "Settings" })).toBe("Settings");
@@ -32,7 +40,9 @@ describe("web locale activation", () => {
 
   it("does not let a pending selection override a later selection", async () => {
     let resolveChinese!: (value: { messages: Record<string, string> }) => void;
-    const chinese = new Promise<{ messages: Record<string, string> }>((resolve) => { resolveChinese = resolve; });
+    const chinese = new Promise<{ messages: Record<string, string> }>((resolve) => {
+      resolveChinese = resolve;
+    });
     setCatalogLoadersForTests({ en: async () => ({ messages: {} }), "zh-CN": () => chinese });
     await activateUiLocale("en");
     const pending = activateUiLocale("zh-CN");
@@ -45,8 +55,13 @@ describe("web locale activation", () => {
 
   it("persists the selected supported language", async () => {
     const storage = new Map<string, string>();
-    vi.stubGlobal("localStorage", { setItem: (key: string, value: string) => storage.set(key, value) });
-    setCatalogLoadersForTests({ en: async () => ({ messages: {} }), "zh-CN": async () => ({ messages: {} }) });
+    vi.stubGlobal("localStorage", {
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    setCatalogLoadersForTests({
+      en: async () => ({ messages: {} }),
+      "zh-CN": async () => ({ messages: {} }),
+    });
     expect(await setUiLocale("zh-CN")).toBe("zh-CN");
     expect(storage.get("rakazo.uiLocale")).toBe("zh-CN");
   });

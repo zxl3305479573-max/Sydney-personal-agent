@@ -1,5 +1,7 @@
 # Sydney 开发总计划
 
+远端分支整合（进行中，未部署）：云端可见的远端分支只有 `main` 与 `codex/compose-local-overlay`。overlay 分支在已合并的生产 Compose overlay 之上还有人格库和 native-linux 草案，已汇总到指向 `main` 的整合分支。示例 overlay 不是生产配置。合入 `main` 会启动现有生产部署，在用户确认前保持未合并。
+
 native-linux 同机 overlay（PA-018，进行中）：已编写三 sidecar 的受限部署草案及定向测试，继续保留现有 overlay launcher；依赖核对主机 UID、目录权限和屏幕端口。双 web 滚动部署时网络命名空间绑定、updater 更新及回滚仍需 Linux Docker 实测，生产未变更，未达到启用条件。
 
 Hersona 人格库（PA-018，进行中）：固定上游提交 `75146c9126e1614750eeead3da165d61a3fc2188` 的 300 条性格、语气、角色和兴趣属性；用户可组合属性及强度、填写自定义指令，保存到账户并用于新建或设置 Bot。Bot 使用指令快照，模板后续修改不自动影响已有 Bot。目录来源、用户隔离及实现范围见 ADR-0017；数据库迁移、真实 PostgreSQL 行级隔离、跨设备及中英文界面实机验收尚未执行，未部署。上游属性名称和部分内容仍为英文或日文；上游完整混合算法、外观属性及账户导出尚未接入。
