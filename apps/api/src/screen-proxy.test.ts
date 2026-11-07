@@ -1,3 +1,4 @@
+import type { SandboxProvider } from "@rakazo/adapter-kit";
 import {
   addScreenProxyCapability,
   resetRemoteScreenCapabilityReuse,
@@ -6,7 +7,6 @@ import {
 import type { PrismaClient } from "@rakazo/db";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
-import type { SandboxProvider } from "@rakazo/adapter-kit";
 import { mountScreenTarget } from "./screen-proxy.js";
 
 const secret = "fake-screen-secret";

@@ -71,10 +71,7 @@ export function ListSearchInput({
         {command ? (
           <CommandPrimitive.Input {...props} onValueChange={setQuery} />
         ) : (
-          <input
-            {...props}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <input {...props} onChange={(event) => setQuery(event.target.value)} />
         )}
         <span className="flex size-6 shrink-0 items-center justify-center">
           {query ? (

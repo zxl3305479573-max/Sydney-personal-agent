@@ -1,4 +1,9 @@
-import type { AgentRunRequest, AgentRunModel, ComputerRef, SemanticMemoryProvider } from "@rakazo/adapter-kit";
+import type {
+  AgentRunModel,
+  AgentRunRequest,
+  ComputerRef,
+  SemanticMemoryProvider,
+} from "@rakazo/adapter-kit";
 import {
   DEFAULT_CONTEXT_STRATEGY,
   isModelCredentialRejected,
@@ -40,6 +45,7 @@ import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
   effectiveMemoryScope,
+  guardManagedRun,
   isPartialReplyClientNonce,
   isTooManyDatabaseConnections,
   loadRunHistoryMessages,
@@ -48,11 +54,10 @@ import {
   RunHistoryWriteError,
   readRunTimingFields,
   recordUsage,
+  runAsTenant,
   settleReleasedTakeoverCards,
   spaceHasModelAccess,
   teamChatRunFromOwner,
-  guardManagedRun,
-  runAsTenant,
 } from "@rakazo/db";
 import { enrichLogContext, getLogger } from "@rakazo/logging";
 import { sanitizedError } from "@rakazo/logging/monitoring";
@@ -60,8 +65,6 @@ import { formatAgentEnvironmentInstruction } from "./agent-environment.js";
 import { createApprovedEffectReplayQueue } from "./approval-effect.js";
 import { PARTIAL_REPLY_NOTE } from "./automated-messages.js";
 import { loadBotMessageContext } from "./bot-messages.js";
-import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
-import { filterManagedTaskTools } from "./managed-task-tools.js";
 import {
   commandCredentialRedactions,
   loadBotCommandEnvironment,
@@ -112,6 +115,8 @@ import {
   neutralizeSpeakerLabels,
   USER_SPEAKER,
 } from "./history-speakers.js";
+import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
+import { filterManagedTaskTools } from "./managed-task-tools.js";
 import { createMediaGenerationProvider } from "./media-generation-factory.js";
 import { loadAgentMemoryContext } from "./memory-context.js";
 import { HostedModelCreditsRequiredError } from "./model-credit-observer.js";
@@ -715,8 +720,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                   },
                   select: { expiresAt: true },
                 });
-                if (!ownedComputer || !lease.valid || runAbortController?.signal.aborted) return null;
-                return Math.min(ownedRun.leaseExpiresAt.getTime(), ownedComputer.expiresAt.getTime());
+                if (!ownedComputer || !lease.valid || runAbortController?.signal.aborted)
+                  return null;
+                return Math.min(
+                  ownedRun.leaseExpiresAt.getTime(),
+                  ownedComputer.expiresAt.getTime(),
+                );
               }
               return ownedRun.leaseExpiresAt.getTime();
             },
@@ -1710,29 +1719,32 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const managedCallObserver = (observer: AgentRunModel["callObserver"]) => {
           if (!managedTaskId) throw new Error("managed_task_missing_task_id");
           return {
-            beforeCall: async (call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0]) => {
-              await runAsTenant(
-                { userId: run.userId, spaceId: run.spaceId },
-                () =>
-                  guardManagedRun(
-                    deps.prisma,
-                    { userId: run.userId, spaceId: run.spaceId },
-                    managedTaskId,
-                    {
-                      runId,
-                      workerId,
-                      fence,
-                      action: { tool: "model_call", action: "execute", resource: "model" },
-                      reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
-                      executionId: call.callId,
-                    },
-                    0,
-                  ),
+            beforeCall: async (
+              call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0],
+            ) => {
+              await runAsTenant({ userId: run.userId, spaceId: run.spaceId }, () =>
+                guardManagedRun(
+                  deps.prisma,
+                  { userId: run.userId, spaceId: run.spaceId },
+                  managedTaskId,
+                  {
+                    runId,
+                    workerId,
+                    fence,
+                    action: { tool: "model_call", action: "execute", resource: "model" },
+                    reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
+                    executionId: call.callId,
+                  },
+                  0,
+                ),
               );
               const reservation = await observer?.beforeCall(call);
               return reservation ? `managed:${reservation}` : "managed-task-call";
             },
-            afterCall: async (reservationId: string, usage: Parameters<NonNullable<AgentRunModel["callObserver"]>["afterCall"]>[1]) => {
+            afterCall: async (
+              reservationId: string,
+              usage: Parameters<NonNullable<AgentRunModel["callObserver"]>["afterCall"]>[1],
+            ) => {
               if (reservationId === "managed-task-call") return;
               if (reservationId.startsWith("managed:")) {
                 await observer?.afterCall(reservationId.slice(8), usage);

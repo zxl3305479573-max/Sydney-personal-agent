@@ -34,16 +34,11 @@ function InputRevealLabelsProvider({
   children: React.ReactNode;
 }) {
   const labels = React.useMemo(() => ({ show, hide }), [show, hide]);
-  return (
-    <RevealLabelsContext.Provider value={labels}>
-      {children}
-    </RevealLabelsContext.Provider>
-  );
+  return <RevealLabelsContext.Provider value={labels}>{children}</RevealLabelsContext.Provider>;
 }
 
 function Input({ className, type, size = "default", ...props }: InputProps) {
-  if (type === "password")
-    return <HiddenInput className={className} size={size} {...props} />;
+  if (type === "password") return <HiddenInput className={className} size={size} {...props} />;
   return (
     <InputPrimitive
       type={type}
@@ -72,11 +67,7 @@ function TextField({
   const inputId = id ?? generatedId;
   const descriptionId = `${inputId}-description`;
   const errorId = `${inputId}-error`;
-  const describedByIds = [
-    describedBy,
-    description ? descriptionId : null,
-    error ? errorId : null,
-  ]
+  const describedByIds = [describedBy, description ? descriptionId : null, error ? errorId : null]
     .filter(Boolean)
     .join(" ");
   return (
@@ -109,12 +100,7 @@ function TextField({
  * input like any other field. The input is a block, so its margins pass through the wrapper and
  * the button stays centred on the field.
  */
-function HiddenInput({
-  className,
-  size,
-  disabled,
-  ...props
-}: Omit<InputProps, "type">) {
+function HiddenInput({ className, size, disabled, ...props }: Omit<InputProps, "type">) {
   const labels = React.useContext(RevealLabelsContext);
   const [shown, setShown] = React.useState(false);
   // Disabling the field, say while a form submits, hides the value again, and it stays hidden
@@ -128,12 +114,7 @@ function HiddenInput({
         data-slot="input"
         data-size={size}
         disabled={disabled}
-        className={cn(
-          inputClass,
-          "block",
-          className,
-          "pr-9 data-[size=xl]:pr-12",
-        )}
+        className={cn(inputClass, "block", className, "pr-9 data-[size=xl]:pr-12")}
         {...props}
       />
       <Button

@@ -241,8 +241,8 @@
   }
 
   [data-slot="dialog-content"]:not(.sydney-settings-dialog):not(.sydney-create-bot):not(
-      .sydney-integrations-dialog
-    ),
+    .sydney-integrations-dialog
+  ),
   [data-slot="popover-content"]:not(.sydney-mobile-account-popover) {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
     background: var(--popover);

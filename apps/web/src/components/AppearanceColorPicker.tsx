@@ -1,12 +1,7 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@rakazo/ui-web";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@rakazo/ui-web";
 import { Check, Pipette, Plus } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 type Hsva = { h: number; s: number; v: number };
 type Format = "hex" | "rgb" | "hsl";
@@ -22,8 +17,7 @@ const PRESETS = [
   "#A855F7",
 ];
 const HEX = /^#[0-9a-f]{6}$/i;
-const clamp = (value: number, min = 0, max = 1) =>
-  Math.min(max, Math.max(min, value));
+const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
 function hexToHsva(value: string): Hsva {
   const hex = HEX.test(value) ? value.slice(1) : "000000";
@@ -60,15 +54,11 @@ function hsvaToHex({ h, s, v }: Hsva): string {
 function colorToFormat(value: string, format: Format): string {
   if (format === "hex") return value.toUpperCase();
   const { h, s, v } = hexToHsva(value);
-  const rgb = [5, 3, 1].map((offset) =>
-    Math.round(hsvChannel(h, s, v, offset) * 255),
-  );
+  const rgb = [5, 3, 1].map((offset) => Math.round(hsvChannel(h, s, v, offset) * 255));
   if (format === "rgb") return `rgb(${rgb.join(", ")})`;
   const lightness = v * (1 - s / 2);
   const saturation =
-    lightness === 0 || lightness === 1
-      ? 0
-      : (v - lightness) / Math.min(lightness, 1 - lightness);
+    lightness === 0 || lightness === 1 ? 0 : (v - lightness) / Math.min(lightness, 1 - lightness);
   return `hsl(${Math.round(h)} ${Math.round(saturation * 100)}% ${Math.round(lightness * 100)}%)`;
 }
 
@@ -76,13 +66,9 @@ export function colorContrast(first: string, second: string): number {
   function luminance(hex: string) {
     const channels = [1, 3, 5].map((index) => {
       const value = Number.parseInt(hex.slice(index, index + 2), 16) / 255;
-      return value <= 0.04045
-        ? value / 12.92
-        : ((value + 0.055) / 1.055) ** 2.4;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
     });
-    return (
-      0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
-    );
+    return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
   }
   const light = luminance(first);
   const dark = luminance(second);
@@ -111,13 +97,9 @@ export function AppearanceColorPicker({
   const errorId = useId();
   const invalid = !HEX.test(draft);
   const contrast =
-    contrastWith && HEX.test(contrastWith)
-      ? colorContrast(value, contrastWith)
-      : null;
+    contrastWith && HEX.test(contrastWith) ? colorContrast(value, contrastWith) : null;
   const eyedropper =
-    typeof window === "undefined"
-      ? undefined
-      : (window as EyeDropperWindow).EyeDropper;
+    typeof window === "undefined" ? undefined : (window as EyeDropperWindow).EyeDropper;
   const hueColor = hsvaToHex({ h: hsva.h, s: 1, v: 1 });
 
   useEffect(() => {
@@ -125,10 +107,7 @@ export function AppearanceColorPicker({
     setHsva(hexToHsva(value));
   }, [value]);
 
-  const displayValue = useMemo(
-    () => colorToFormat(value, format),
-    [format, value],
-  );
+  const displayValue = useMemo(() => colorToFormat(value, format), [format, value]);
 
   function commit(next: Hsva) {
     setHsva(next);
@@ -137,10 +116,7 @@ export function AppearanceColorPicker({
     onChange(hex);
   }
 
-  function pointToValue(
-    event: ReactPointerEvent<HTMLDivElement>,
-    kind: "area" | "hue",
-  ) {
+  function pointToValue(event: ReactPointerEvent<HTMLDivElement>, kind: "area" | "hue") {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = clamp((event.clientX - rect.left) / rect.width);
     const y = clamp((event.clientY - rect.top) / rect.height);
@@ -173,16 +149,11 @@ export function AppearanceColorPicker({
           aria-hidden="true"
           className="relative size-8 overflow-hidden rounded-full border border-foreground/15 [background:repeating-conic-gradient(#d4d4d4_0_25%,#fff_0_50%)_0_0/8px_8px]"
         >
-          <span
-            className="absolute inset-0"
-            style={{ backgroundColor: value }}
-          />
+          <span className="absolute inset-0" style={{ backgroundColor: value }} />
         </span>
         <span className="grid min-w-0 text-start leading-tight">
           <span className="text-xs text-muted-foreground">{label}</span>
-          <span className="font-mono text-sm font-medium tabular-nums">
-            {value.toUpperCase()}
-          </span>
+          <span className="font-mono text-sm font-medium tabular-nums">{value.toUpperCase()}</span>
         </span>
       </PopoverTrigger>
       <PopoverContent
@@ -223,8 +194,7 @@ export function AppearanceColorPicker({
             pointToValue(event, "area");
           }}
           onPointerMove={(event) => {
-            if (event.currentTarget.hasPointerCapture(event.pointerId))
-              pointToValue(event, "area");
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) pointToValue(event, "area");
           }}
         >
           <span
@@ -245,8 +215,7 @@ export function AppearanceColorPicker({
             pointToValue(event, "hue");
           }}
           onPointerMove={(event) => {
-            if (event.currentTarget.hasPointerCapture(event.pointerId))
-              pointToValue(event, "hue");
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) pointToValue(event, "hue");
           }}
         >
           <span
@@ -290,10 +259,7 @@ export function AppearanceColorPicker({
           </p>
         ) : null}
         <div className="flex items-center justify-between gap-2">
-          <div
-            aria-label={`${label}预设颜色`}
-            className="flex flex-wrap gap-1.5"
-          >
+          <div aria-label={`${label}预设颜色`} className="flex flex-wrap gap-1.5">
             {[...PRESETS, ...swatches].map((color, index) => (
               <button
                 key={`${color}-${index}`}
@@ -305,10 +271,7 @@ export function AppearanceColorPicker({
                 style={{ backgroundColor: color }}
               >
                 {color.toLowerCase() === value.toLowerCase() ? (
-                  <Check
-                    className="m-auto size-3 text-white drop-shadow"
-                    aria-hidden="true"
-                  />
+                  <Check className="m-auto size-3 text-white drop-shadow" aria-hidden="true" />
                 ) : null}
               </button>
             ))}
@@ -319,10 +282,7 @@ export function AppearanceColorPicker({
             className="grid size-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none"
             onClick={() =>
               setSwatches((current) =>
-                [value, ...current.filter((color) => color !== value)].slice(
-                  0,
-                  7,
-                ),
+                [value, ...current.filter((color) => color !== value)].slice(0, 7),
               )
             }
           >
