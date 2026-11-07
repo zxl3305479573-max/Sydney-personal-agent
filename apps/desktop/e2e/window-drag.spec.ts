@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
+import { foregroundWindow } from "./foreground-window";
 
 const styles = readFileSync(path.resolve(import.meta.dirname, "../../web/src/styles.css"), "utf8");
 const fixture = `<!doctype html>
@@ -32,7 +33,7 @@ test("an active Electron window keeps header dragging selection-free and control
   });
 
   try {
-    const page = await app.firstWindow();
+    const page = await foregroundWindow(app);
     const active = await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
       window?.show();

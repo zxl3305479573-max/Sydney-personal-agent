@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-07（PR #2 失败修复，未合并、未部署）：隔离库 `rakazo_rls` 跑完迁移后，`personality_presets_system` 的 `qual` 为 `app_rls_bypass()` 且没有 `WITH CHECK`；行级安全 Vitest 17 项通过。Biome `check` 退出码 0（仍有既有 warning/info，不再有 error）。桌面 Electron 套件 44 项在本机 xvfb 通过：启动闪屏关闭后才取窗口，可见文案按现有 `t()` 显示 Sydney。网页端到端注册修复还没在本机跑完整浏览器套件。
+
 2026-11-07（PR #2 检查，未合并、未部署）：人格表的系统策略改为只有 `USING`，以便既有 `20261114120000` 迁移把它改写成 `app_rls_bypass()`；`PersonalityPreset` 列入行级安全模型。网页听写测试改为只断言仍保留的中文和 English。本地听写测试 86 项通过。没有在本机重跑 PostgreSQL 行级安全测试，也没有合并或部署。
 
 2026-11-07（分支整合，未部署）：云端只看到远端 `main`（`747dbb52`）和 `codex/compose-local-overlay`（`e4a43af4`）。二者在 `fa87868d` 后分叉，`main` 的合并提交与 `fa87868d` 树相同，因此把 overlay 分支合并到以 `main` 为第一父提交的整合分支没有冲突，合并结果树与 `e4a43af4` 相同。随后只做检查所需的格式、目录提取和 overlay 测试类型收窄。Node 22.23.4 下定向 Vitest 17 个文件、148 项通过，覆盖人格目录、人格 RPC、人格库、新建 Bot、指令设置、面包屑、中英文目录、引导和模型设置、媒体出站校验、updater 与 native overlay 示例。`@rakazo/contracts`、`@rakazo/api`、`@rakazo/web`、`@rakazo/adapters`、`@rakazo/updater`、`@rakazo/db` 及被它们带上的依赖类型检查通过。`lingui extract --clean` 可重复，仍在源码中的译文没有被改写；中文目录仍有 55 条缺译。没有启动数据库、执行人格迁移、跑浏览器 E2E、连接生产或加载示例 overlay。
