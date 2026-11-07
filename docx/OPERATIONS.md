@@ -1,5 +1,15 @@
 # 运维手册
 
+## 2026-11-07 提交 f7297933c 全量部署
+
+提交 `f7297933c580131e8473cafff1159bdd215a536c` 已确认工作区干净并推送到 `origin/main`。云电脑在 `/opt/sydney-web-build-f7297933c` 使用现有 Node `22.23.2` 和依赖构建 Web，构建标识为 `20261107042307`，运行目录已切换到 `/opt/sydney-web-stage/apps/web/dist`。
+
+切换前 Web 完整目录保留为 `/opt/sydney-web-stage/apps/web/dist.before-f7297933c`，新产物合并保留上一版 `assets` 哈希资源。后台在 `/opt/sydney-release-f7297933c` 构建 API 和 Worker，运行产物切换前备份到 `/var/backups/sydney-release-f7297933c/{api-dist.before,worker-dist.before}`。本次没有执行数据库迁移，没有修改环境文件、端口、权限或数据目录；数据库 Run 状态没有 `queued` 或 `running`，保留 1 条 `waiting_input` 记录。
+
+部署后云电脑 `sydney-web-cloud`、`sydney-web-cloud-link`、`sydney-pc-nginx` active；后台 `sydney-api`、`sydney-worker`、`sydney-tunnel`、`sydney-screen-tunnel` active。后台 `/ready` 返回 `{"ok":true,"degraded":false}`，Worker 心跳检查通过；公网 `/build-id` 返回 `20261107042307`，首页、认证会话接口和三张 `/avatar-library/{blue-maid,lilac-dragon,orange-flower}.webp` 素材均返回 200，素材类型为 `image/webp`。
+
+回滚时先确认没有后续发布，保留当前 Web 与后台产物，再恢复 `dist.before-f7297933c` 和 `/var/backups/sydney-release-f7297933c/{api-dist.before,worker-dist.before}`，分别重启云电脑 Web、API 和 Worker，并复查公网 `/build-id`、首页、认证会话、后台 `/ready` 及 Worker 心跳；本次未演练人工回滚。
+
 ## 2026-11-06 固定头像与个人头像库发布
 
 Web 版本 `20261106131423` 已切换到云电脑 `/opt/sydney-web-stage/apps/web/dist`；前一版完整目录保留为 `/opt/sydney-web-stage/apps/web/dist.before-avatar-library-20261106-r3`，更早候选备份为同级 `dist.before-avatar-library-20261106-r2`。本次发布包含三张 `avatar-library/*.webp` 固定素材、头像库界面和 Web 端 IndexedDB 头像保存逻辑，后台 API、Worker、数据库和环境文件未修改。

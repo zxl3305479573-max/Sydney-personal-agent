@@ -1,5 +1,14 @@
 # 验证记录
 
+## 2026-11-07：提交 f7297933c 全量部署验证
+
+- 提交验证：工作区干净，`main` 与 `origin/main` 同步到 `f7297933c580131e8473cafff1159bdd215a536c`；执行 `git push origin main` 返回 `Everything up-to-date`。
+- Web：云电脑构建成功，版本 `20261107042307`；切换前完整产物保留为 `dist.before-f7297933c`，新产物保留上一版 `assets` 哈希资源。
+- API/Worker：后台构建成功，两个入口 `node --check` 通过；产物切换前备份到 `/var/backups/sydney-release-f7297933c`，未执行数据库迁移。
+- 服务：云电脑 Web、Web 链路和 HTTPS 代理 active；后台 API、Worker、隧道和屏幕隧道 active；后台 `/ready` 返回 `{"ok":true,"degraded":false}`，Worker 心跳退出码为 0。
+- 公网：`https://pc.zxlup.xin/build-id` 返回 `20261107042307`；首页和 `/api/auth/get-session` 返回 200；`avatar-library/blue-maid.webp`、`lilac-dragon.webp`、`orange-flower.webp` 返回 200 且类型为 `image/webp`。
+- 任务安全：部署前数据库 Run 仅有 `cancelled=1`、`completed=24`、`failed=3`、`waiting_input=1`，没有 `queued` 或 `running`；未进行人工回滚、真实用户流程和手机实机验收。
+
 ## 2026-11-06：移动网页页面面包屑
 
 - 静态核对：路由页面继续由 `PageBreadcrumb` 按路径显示具体界面，根路径欢迎页返回空结果。
