@@ -36,6 +36,10 @@ def inspect_environment() -> dict:
         "x11vnc",
         "websockify",
         "xdotool",
+        "xclip",
+        "import",
+        "dbus-run-session",
+        "xfce4-session",
     )
     return {
         "system": system,

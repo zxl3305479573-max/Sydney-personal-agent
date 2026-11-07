@@ -8,7 +8,9 @@
 
 当前 `native-linux` Provider 使用服务配置中的单个驱动 socket；已有驱动、SSH 转发和屏幕服务样例，但多目标配置、自动准备和安全切换尚未实现。现有服务样例不能直接视作任意 Linux 主机的安装器。
 
-已新增独立的只读环境检查脚本 `infra/native-linux/inspect_environment.py`，报告系统、架构、发行版、用户主目录剩余空间、当前进程是否配置 `DISPLAY` 及部分程序是否在 PATH 中。它尚未接入远程连接或界面，程序存在不代表服务可用；`DISPLAY` 缺失也不能证明没有桌面。
+已新增独立的只读环境检查脚本 `infra/native-linux/inspect_environment.py`，报告系统、架构、发行版、用户主目录剩余空间、当前进程是否配置 `DISPLAY` 及部分程序是否在 PATH 中。它尚未接入应用界面，程序存在不代表服务可用；`DISPLAY` 缺失也不能证明没有桌面。
+
+独立工具 `infra/native-linux/inspect_remote.py` 可通过指定身份文件和已核验的 `known_hosts` 运行固定检查脚本；未接入应用，也不会安装依赖。信任边界见 [ADR-0018](../../docs/adr/0018-linux-computer-inspection.md)；远端返回的数据不能作为服务可用或授权的证明。
 
 ## 用户流程
 
