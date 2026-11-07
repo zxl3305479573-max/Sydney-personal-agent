@@ -79,8 +79,61 @@ export async function signup(
     headers: { origin: new URL(baseURL).origin },
   });
   if (!response.ok()) throw new Error(`sign-up ${response.status()}: ${await response.text()}`);
-  const verify = signupRequiresEmailVerification(await response.json());
-  await page.goto(verify ? "/sign-up?verify=email" : "/onboarding");
+  if (signupRequiresEmailVerification(await response.json())) {
+    await finishEmailVerification(page, email, password);
+  }
+  await page.goto("/onboarding");
+}
+
+type CapturedEmail = { to?: string; text?: string };
+
+/** The harness keeps emulator mail at this path. Production does not expose it. */
+async function verificationLink(page: Page, email: string): Promise<URL> {
+  let found: URL | undefined;
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get("/__e2e/emails");
+        if (!response.ok()) return false;
+        const messages = (await response.json()) as CapturedEmail[];
+        const raw = messages
+          .filter((message) => message.to === email)
+          .map((message) => message.text?.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+          .find(Boolean);
+        if (!raw) return false;
+        found = new URL(raw.replace(/[)>.,]+$/, ""));
+        return true;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  if (!found) throw new Error(`No verification email for ${email}`);
+  return found;
+}
+
+/**
+ * Email-capable signups return no session until the mailbox is proved. The e2e
+ * harness records that mail locally; open the link, then sign in with the password.
+ */
+async function finishEmailVerification(page: Page, email: string, password: string) {
+  const link = await verificationLink(page, email);
+  const baseURL = test.info().project.use.baseURL;
+  if (!baseURL) throw new Error("signup needs a baseURL");
+  const origin = new URL(baseURL).origin;
+  const proof = await page.request.get(`${link.pathname}${link.search}`, {
+    headers: { origin },
+    maxRedirects: 0,
+  });
+  if (proof.status() >= 400) {
+    throw new Error(`email verification ${proof.status()}: ${await proof.text()}`);
+  }
+  const signIn = await page.request.post("/api/auth/sign-in/email", {
+    data: { email, password },
+    headers: { origin },
+  });
+  if (!signIn.ok()) {
+    throw new Error(`sign-in after verification ${signIn.status()}: ${await signIn.text()}`);
+  }
 }
 
 export async function signupThroughForm(
@@ -97,6 +150,8 @@ export async function signupThroughForm(
   await page.getByPlaceholder("Your email address").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
+  await finishEmailVerification(page, email, password);
+  await page.goto("/onboarding");
 }
 
 /** Opens Integrations' add menu and picks one of its custom sources. */
