@@ -114,7 +114,10 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
     .click();
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
 
-  await page.getByRole("button", { name: /Sydney/ }).first().click();
+  await page
+    .getByRole("button", { name: /Sydney/ })
+    .first()
+    .click();
   await expect(page).toHaveURL(/\/app\/[^/]+$/);
   await expect(sidebar).toHaveAttribute("aria-hidden", "true");
   await expect(edge).toHaveCSS("touch-action", "none");

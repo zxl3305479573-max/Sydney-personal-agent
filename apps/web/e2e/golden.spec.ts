@@ -334,9 +334,14 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   expect(download.suggestedFilename()).toMatch(/chief-export\.json/i);
   await page.getByRole("button", { name: "Close panel" }).click();
 
-  await page.locator("aside").first().getByRole("button", { name: /Sydney/ }).first().click({
-    button: "right",
-  });
+  await page
+    .locator("aside")
+    .first()
+    .getByRole("button", { name: /Sydney/ })
+    .first()
+    .click({
+      button: "right",
+    });
   const botMenu = page.getByRole("menu", { name: "Actions for Sydney" });
   await expect(botMenu.getByRole("menuitem", { name: "Archive" })).toBeVisible();
   await botMenu.getByRole("menuitem", { name: "Delete" }).click();

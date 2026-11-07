@@ -1,5 +1,7 @@
 # Sydney 开发总计划
 
+2026-11-08 PR #2 检查修复（PA-018，进行中）：以远端 `8ad5977a` 的检查为准，修复两处格式错误和两处过期的网页测试定位；网页 E2E 仍有其他失败，桌面完整检查及注册两条路径仍需在同一提交复验。电脑预览、移动布局、术语及翻译仍在修复和验收中；未合并、未部署。
+
 远端分支整合（进行中，未部署）：云端可见的远端分支只有 `main` 与 `codex/compose-local-overlay`。overlay 分支在已合并的生产 Compose overlay 之上还有人格库和 native-linux 草案，已汇总到指向 `main` 的整合分支。示例 overlay 不是生产配置。合入 `main` 会启动现有生产部署，在用户确认前保持未合并。
 
 native-linux 同机 overlay（PA-018，进行中）：已编写三 sidecar 的受限部署草案及定向测试，继续保留现有 overlay launcher；依赖核对主机 UID、目录权限和屏幕端口。双 web 滚动部署时网络命名空间绑定、updater 更新及回滚仍需 Linux Docker 实测，生产未变更，未达到启用条件。

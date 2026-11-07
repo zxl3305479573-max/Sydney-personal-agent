@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-08（PR #2 检查排查）：`8ad5977a` 的单元测试三分片和 PostgreSQL journeys 两分片通过；Lint 因两处格式失败，Web E2E 两分片分别失败 16 项和 3 项。已修正两处格式和两处过期定位，尚未重新运行完整 E2E 或确认最新 CI。
+
 2026-11-07（PR #2 第二轮检查修复，未合并、未部署）：模拟邮箱改从 `API_URL/__e2e/emails` 读取，避免打到网页返回的 HTML。用量热力图测试改为断言 84 个可用日期按钮和“用量等级”文字。未登录 RPC 穷举补上人格四个入口，testkit 类型检查通过。macOS 截图工作流里的应用包名从已不存在的 `Rakazo.app` 改为当前 `productName` `Sydney.app`，并匹配已改名的首启测试。网页端到端整套仍未在本机跑。
 
 2026-11-07（PR #2 失败修复，未合并、未部署）：隔离库 `rakazo_rls` 跑完迁移后，`personality_presets_system` 的 `qual` 为 `app_rls_bypass()` 且没有 `WITH CHECK`；行级安全 Vitest 17 项通过。Biome `check` 退出码 0（仍有既有 warning/info，不再有 error）。桌面 Electron 套件 44 项在本机 xvfb 通过：启动闪屏关闭后才取窗口，可见文案按现有 `t()` 显示 Sydney。网页端到端注册修复还没在本机跑完整浏览器套件。

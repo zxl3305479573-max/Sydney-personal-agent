@@ -30,7 +30,7 @@ test("a new space auto-completes onboarding, is renamed in its settings, and is 
   // Model is already connected, so onboarding skips the form and lands in Chief.
   await completeOnboarding(page);
   await expect(page).toHaveURL(/\/app\//);
-  await expect(sidebar.getByText("Typo space", { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "Actions for Typo space" })).toBeVisible();
   const occupied = sidebar
     .locator('[data-sidebar-group^="space:"]')
     .filter({ hasText: "Typo space" });
@@ -50,7 +50,7 @@ test("a new space auto-completes onboarding, is renamed in its settings, and is 
   await captureScreenshot(page, testInfo, "space-settings-rename");
   await spaceName.press("Enter");
   await expect(settings.getByRole("heading", { name: "Temporary" })).toBeVisible();
-  await expect(sidebar.getByText("Temporary", { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "Actions for Temporary" })).toBeVisible();
   await expect(sidebar.getByText("Typo space", { exact: true })).toHaveCount(0);
 
   // An occupied space is deleted with its bots after one confirmation naming them.
