@@ -369,8 +369,13 @@ export async function openModelConnection(
 export async function pickReopenedModel(page: Page, model?: string) {
   const search = page.getByRole("combobox", { name: "Search models" });
   await expect(search).toBeVisible();
-  if (model === undefined) await search.press("Escape");
-  else
+  if (model === undefined) {
+    if (await search.inputValue()) {
+      await search.press("Escape");
+      await expect(search).toHaveValue("");
+    }
+    await search.press("Escape");
+  } else
     await page
       .getByRole("listbox", { name: "Model options" })
       .getByRole("option", { name: model, exact: true })
