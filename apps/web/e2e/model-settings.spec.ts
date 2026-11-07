@@ -263,7 +263,7 @@ test("connects, lists, and uses an OpenAI-compatible endpoint", async ({ page },
 
     expandedModels = true;
     await page.getByRole("button", { name: "Find models" }).click();
-    const modelSearch = page.getByRole("textbox", { name: "Search models", exact: true });
+    const modelSearch = page.getByRole("searchbox", { name: "Search models", exact: true });
     await expect(modelSearch).toBeVisible();
     await captureScreenshot(page, testInfo, "compatible-model-list-search");
     await modelSearch.fill("fixture-extra-8");

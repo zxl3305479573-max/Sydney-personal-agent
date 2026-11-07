@@ -269,8 +269,10 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
   expect(transcriptBox?.x).toBeLessThanOrEqual(16);
   expect(transcriptBox?.width).toBeGreaterThan(390 - 24);
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await expect(page.getByRole("button", { name: "Close navigation" })).toBeVisible();
-  await page.getByRole("button", { name: "Close navigation" }).click();
+  const mobileSidebar = page.getByTestId("bots-sidebar");
+  await expect(mobileSidebar).toBeVisible();
+  await mobileSidebar.getByRole("button", { name: /^Draft team/ }).click();
+  await expect(mobileSidebar).toHaveAttribute("aria-hidden", "true");
   await page.getByTestId("bot-settings-trigger").click();
   const settings = page.getByTestId("side-panel");
   await expect(settings).toHaveAttribute("data-panel", "group-settings");
