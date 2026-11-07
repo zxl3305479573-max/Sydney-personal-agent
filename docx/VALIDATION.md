@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-11-07：SidebarFooter 焦点测试修复验证
+
+- 失败证据：Run `42345018949` 的 Unit tests shard 1 仅在 `apps/web/src/components/SidebarFooter.test.tsx` 的连接按钮焦点断言失败；其他单元测试分片、静态检查、Postgres journeys 和镜像发布均通过。
+- 修复验证：为测试提供 `menuOpen` 参数，并在该可访问性测试中关闭默认账户菜单；本地该测试文件 27 项通过。
+- 已执行：`pnpm exec vitest run apps/web/src/components/SidebarFooter.test.tsx`、`git diff --check`；完整 CI、生产部署和公网版本检查待新提交后执行。
+
 ## 2026-11-07：生产部署通道核对
 
 - 线上失败证据：Run `42343223472` 的检查、Postgres journeys、单元测试和镜像发布均成功；`deploy-production` 在 `Join the tailnet` 步骤失败，后续 SSH 步骤被跳过。

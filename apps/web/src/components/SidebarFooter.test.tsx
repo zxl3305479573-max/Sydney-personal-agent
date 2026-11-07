@@ -35,6 +35,7 @@ async function render(
   onBoard?: () => void,
   logos?: Array<{ name: string; logo?: string }>,
   mobile = false,
+  menuOpen = true,
 ) {
   const email = "account@rakazo.test";
   await act(async () =>
@@ -52,7 +53,7 @@ async function render(
             .toUpperCase()}
           image={image}
           email={email}
-          open
+          open={menuOpen}
           onOpenChange={() => {}}
           onIntegrations={onIntegrations}
           onSkills={vi.fn()}
@@ -164,7 +165,7 @@ it("opens integrations and keeps the existing account actions and links", async 
 });
 
 it("keeps the account name and an accessible, keyboard-focusable connection control", async () => {
-  await render("Sydney");
+  await render("Sydney", undefined, vi.fn(), undefined, undefined, false, false);
   const footer = host.querySelector('[data-testid="sidebar-footer"]')!;
   const connect = footer.querySelector<HTMLButtonElement>('button[aria-label="Connect apps"]')!;
   expect(footer.textContent).toContain("Sydney");
