@@ -386,11 +386,18 @@ test("answers a message sent while the bot works on another bot's request", asyn
   const peerRunId = held.messages.find((message) =>
     message.blocks.some((block) => block.kind === "bot_message_received"),
   )?.runId;
-  const sent = held.messages.find((message) =>
-    message.blocks.some((block) => block.text === "remember peer-busy-alpha"),
-  );
   expect(peerRunId).toBeTruthy();
-  expect(sent?.runId).toBe(peerRunId);
+  await expect
+    .poll(async () => {
+      const history = await rpc<typeof held>(page, "threads/messages", {
+        botId: researcher.id,
+        includePeerRuns: true,
+      });
+      return history.messages.find((message) =>
+        message.blocks.some((block) => block.text === "remember peer-busy-alpha"),
+      )?.runId;
+    })
+    .toBe(peerRunId);
   // The answer is the user's own: inline in the chat, never folded under Chief's request.
   const answer = transcript.getByText("i will keep that in memory.");
   await expect(answer).toBeVisible({ timeout: 60_000 });
