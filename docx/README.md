@@ -18,6 +18,7 @@
 | [原生 Linux 设计](design/NATIVE_LINUX_DESIGN.md) | 同机账号、驱动协议、能力、清理与服务器验收清单 | 原生 Provider 或部署边界变化时 |
 | [双机实施方案](design/TWO_HOST_DEPLOYMENT.md) | 后台与云电脑分离部署、连接安全和验收 | 双机设计、部署或验证变化时 |
 | [Linux 云电脑接入与切换](design/LINUX_COMPUTER_ONBOARDING.md) | 多台已有 Linux 电脑的接入、自动准备与安全切换草案 | 范围、实现或验收变化时 |
+| [Linux 依赖准备决策](../docs/adr/0019-linux-package-preparation.md) | 版本计划、明确授权和系统安装边界 | 依赖准备方案或验收变化时 |
 | [存储划分与迁移方案](design/STORAGE_SPLIT_MIGRATION.md) | 后台控制数据、云电脑工作区和对象存储的划分与迁移 | 存储布局、迁移、清理或回滚变化时 |
 | [PC 客户端联调计划](design/PC_CLIENT_INTEGRATION.md) | Electron 客户端与后台、模型和云电脑的联调及 Web 服务移除顺序 | PC 客户端开发、打包或入口调整时 |
 | [PC 后台部署决策](../docs/adr/0015-pc-backend-on-cloud-computer.md) | 云电脑 PC 后台与主后台控制服务的边界和权限 | PC 后台部署、认证或资源边界变化时 |

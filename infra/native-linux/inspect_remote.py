@@ -29,7 +29,14 @@ def validate_host(host):
     return host
 
 
-def inspect_remote(host, user, port, identity, known_hosts, timeout=30):
+def run_remote_script(host, user, port, identity, known_hosts, payload, command, timeout=30):
+    if command not in {"python3 -", "python3 - plan"} and not re.fullmatch(
+        r"python3 - apply [A-Za-z0-9+/=]{1,16384}", command
+    ):
+        raise InspectionError("invalid_remote_operation")
+    script_name = "inspect_environment.py" if command == "python3 -" else "package_setup.py"
+    if payload != Path(__file__).with_name(script_name).read_bytes():
+        raise InspectionError("invalid_remote_operation")
     validate_host(host)
     if not USER.fullmatch(user):
         raise InspectionError("invalid_user")
@@ -40,7 +47,6 @@ def inspect_remote(host, user, port, identity, known_hosts, timeout=30):
             raise InspectionError("credential_file_unavailable")
     if any(character.isspace() or ord(character) < 32 for character in str(known_hosts)):
         raise InspectionError("invalid_known_hosts_path")
-    payload = Path(__file__).with_name("inspect_environment.py").read_bytes()
     args = [
         "ssh",
         "-F", "/dev/null",
@@ -60,7 +66,7 @@ def inspect_remote(host, user, port, identity, known_hosts, timeout=30):
         "-p", str(port),
         "-i", str(identity),
         f"{user}@{host}",
-        "python3 -",
+        command,
     ]
     try:
         process = subprocess.Popen(
@@ -91,12 +97,20 @@ def inspect_remote(host, user, port, identity, known_hosts, timeout=30):
         reader.join(timeout=1)
         if not reader.is_alive():
             process.stdout.close()
-    if status != 0:
-        raise InspectionError("connection_or_inspection_failed")
     if not output or len(output[0]) > MAX_OUTPUT:
         raise InspectionError("invalid_response")
+    return status, output[0]
+
+
+def inspect_remote(host, user, port, identity, known_hosts, timeout=30):
+    payload = Path(__file__).with_name("inspect_environment.py").read_bytes()
+    status, response = run_remote_script(
+        host, user, port, identity, known_hosts, payload, "python3 -", timeout
+    )
+    if status != 0:
+        raise InspectionError("connection_or_inspection_failed")
     try:
-        result = json.loads(output[0])
+        result = json.loads(response)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise InspectionError("invalid_response") from exc
     if not isinstance(result, dict) or result.get("system") != "Linux":
