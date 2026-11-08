@@ -13,15 +13,16 @@ test("focus choice suggests apps and preserves a completed connection", async ({
   await signup(page, `onboarding-${stamp}@rakazo.test`, "password12", "Robin");
   await completeOnboarding(page);
 
-  await expect(page.getByText("What do you want me on first?", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Day-to-day work/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Research & writing/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /A bit of everything/ })).toBeVisible();
+  await expect(page.getByText("你希望我先帮你做什么？", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /日常工作/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /研究和写作/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /各种事情/ })).toBeVisible();
   await page.mouse.move(1, 1);
   await captureScreenshot(page, testInfo, "01-focus-choice");
   await captureScreenshot(page, testInfo, "choice-card-onboarding");
 
-  await page.getByRole("button", { name: /Day-to-day work/ }).click();
+  await rpc(page, "preferences/update", { locale: "zh-CN" });
+  await page.getByRole("button", { name: /日常工作/ }).click();
   // The focus step suggests apps but must not rename the bot: the name the
   // user chose during creation ("Chief") is preserved.
   await expect(
@@ -42,7 +43,7 @@ test("focus choice suggests apps and preserves a completed connection", async ({
   expect(cardBoxes[2].top - cardBoxes[1].bottom).toBeGreaterThanOrEqual(8);
   await page
     .getByTestId("transcript")
-    .getByText("Hit those three and I’ll start pulling the picture.")
+    .getByText("连接这些应用后，我就可以开始了解情况。")
     .scrollIntoViewIfNeeded();
   await page.mouse.move(1, 1);
   await captureScreenshot(page, testInfo, "02-app-suggestions");
@@ -85,7 +86,7 @@ test("choice refresh failures leave options available for retry", { tag: "@night
 }) => {
   await signup(page, `choice-refresh-${Date.now()}@rakazo.test`, "password12", "Choice Retry");
   await completeOnboarding(page);
-  const choice = page.getByRole("button", { name: /Day-to-day work/ });
+  const choice = page.getByRole("button", { name: /日常工作/ });
   await expect(choice).toBeEnabled();
   // Keep the existing choice rendered while its save succeeds and navigation refresh fails.
   await page.route("**/rpc/onboarding/choose", (route) =>

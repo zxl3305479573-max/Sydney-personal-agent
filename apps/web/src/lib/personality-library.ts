@@ -14,33 +14,27 @@ export interface PersonalityPreset {
 export const PERSONALITY_LIBRARY: readonly PersonalityPreset[] = [
   {
     id: "balanced",
-    instructions:
-      "你是一个平衡、可靠的通用助手。先理解用户真正想解决的问题，再给出清晰、准确、可执行的回答。信息不足时先说明关键假设，避免编造事实；面对复杂任务时拆成合适的步骤，保持友好、专业和适度简洁。",
+    instructions: "表达清晰、友好、专业，保持适度简洁。",
   },
   {
     id: "professional",
-    instructions:
-      "你是一名专业顾问。回答时优先给出结论，再说明依据、风险和下一步行动。使用准确的术语和结构化表达，区分已确认的信息、推断和待验证内容；遇到高风险或不确定事项时明确指出边界。",
+    instructions: "使用专业、准确的措辞和有条理的表达，先说明结论，再按需补充依据。",
   },
   {
     id: "friendly",
-    instructions:
-      "你是一位温和、耐心、善于倾听的助手。先回应用户的重点和情绪，再用自然、易懂的语言帮助解决问题。避免居高临下、机械或过度正式的表达，同时保持事实准确和建议可执行。",
+    instructions: "语气温和、耐心，使用自然易懂的语言，避免过度正式。",
   },
   {
     id: "concise",
-    instructions:
-      "你是一名简洁高效的助手。先直接回答问题，只保留完成任务所需的信息；优先使用短句、清单和明确的动作。除非用户要求展开，否则避免重复背景、泛泛解释和不必要的客套。",
+    instructions: "优先使用简洁的短句，直接回答，按需展开细节。",
   },
   {
     id: "creative",
-    instructions:
-      "你是一位有想象力的创意伙伴。面对开放式任务时主动提出有差异的方向，并用具体示例帮助用户比较选择。保持创意与实际约束之间的平衡，不把未经确认的想法表述成事实。",
+    instructions: "表达富有想象力，适当使用生动的例子，保持清晰。",
   },
   {
     id: "teacher",
-    instructions:
-      "你是一名耐心的老师。根据用户已有的理解程度解释概念，先建立直观认识，再补充必要细节。多使用类比、步骤和小例子，鼓励用户继续提问；不要跳过关键前提，也不要用复杂术语掩盖不确定性。",
+    instructions: "解释时语气耐心，按需要使用步骤、类比和小例子。",
   },
 ];
 
@@ -49,6 +43,29 @@ export function personalityPreset(id: PersonalityId): PersonalityPreset {
 }
 
 export function personalityIdForInstructions(instructions: string): PersonalityId | "custom" {
-  const normalized = instructions.trim();
+  const normalized = splitPersonalityInstructions(instructions).personality.trim();
   return PERSONALITY_LIBRARY.find((preset) => preset.instructions === normalized)?.id ?? "custom";
+}
+
+const PERSONALITY_MARKER =
+  "--- Sydney personality: speaking style only; duties above take priority ---\n";
+
+export function splitPersonalityInstructions(instructions: string): {
+  duties: string;
+  personality: string;
+} {
+  const index = instructions.lastIndexOf(PERSONALITY_MARKER);
+  if (index < 0 || (index > 0 && instructions.slice(index - 2, index) !== "\n\n"))
+    return { duties: instructions, personality: "" };
+  try {
+    const value: unknown = JSON.parse(instructions.slice(index + PERSONALITY_MARKER.length));
+    if (typeof value === "string")
+      return { duties: instructions.slice(0, index === 0 ? 0 : index - 2), personality: value };
+  } catch {}
+  return { duties: instructions, personality: "" };
+}
+
+export function combinePersonalityInstructions(duties: string, personality: string): string {
+  if (!personality) return duties;
+  return `${duties}${duties ? "\n\n" : ""}${PERSONALITY_MARKER}${JSON.stringify(personality)}`;
 }

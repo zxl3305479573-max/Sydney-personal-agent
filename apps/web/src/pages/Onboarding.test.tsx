@@ -11,6 +11,10 @@ const account = vi.hoisted(() => ({
   connect: vi.fn(async () => ({})),
 }));
 
+vi.mock("../lib/auth", () => ({
+  authClient: { useSession: () => ({ data: null }) },
+}));
+
 vi.mock("../lib/rpc", () => ({
   rpc: {
     me: vi.fn(

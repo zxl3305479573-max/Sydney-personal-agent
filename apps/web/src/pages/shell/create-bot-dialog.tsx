@@ -17,7 +17,7 @@ import { PersonalityPicker } from "../../components/PersonalityPicker";
 import { PersonalPersonalityLibrary } from "../../components/PersonalPersonalityLibrary";
 import { avatarSourceToDataUrl, BUILT_IN_AVATARS } from "../../lib/avatar-library";
 import type { PersonalityId } from "../../lib/personality-library";
-import { personalityPreset } from "../../lib/personality-library";
+import { combinePersonalityInstructions, personalityPreset } from "../../lib/personality-library";
 import { errorText } from "../../lib/user-error";
 import { BotLookPicker } from "./avatar-studio-popover";
 
@@ -58,8 +58,10 @@ export function CreateBotDialog({
         name: trimmed,
         color: avatarDataUrl,
         avatarSet: "organic",
-        instructions:
+        instructions: combinePersonalityInstructions(
+          "",
           personalInstructions ?? (personality ? personalityPreset(personality).instructions : ""),
+        ),
       });
     } catch (err) {
       setError(errorText(err, t`Could not create bot`));

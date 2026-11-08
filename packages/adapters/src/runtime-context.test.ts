@@ -737,7 +737,7 @@ describe("runtime context policy", () => {
   it("preserves an existing rolling summary when it fits", () => {
     const { request, context } = fixture();
     const summary =
-      "Rakazo-owned compacted context through message sequence 10.\n<compacted_thread_summary>Durable approval constraint</compacted_thread_summary>";
+      "Sydney-owned compacted context through message sequence 10.\n<compacted_thread_summary>Durable approval constraint</compacted_thread_summary>";
     request.history.unshift({ role: "user", content: summary });
     context.messages.unshift({
       role: "user",

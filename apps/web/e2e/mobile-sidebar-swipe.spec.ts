@@ -73,6 +73,15 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
   await expect(sidebar).toContainText("Sydney");
   await expect(page.getByTestId("mobile-create-bot")).toBeVisible();
   await expect(page.getByTestId("mobile-create-group")).toBeVisible();
+  await page.getByTestId("mobile-create-group").click();
+  await expect(sidebar).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByTestId("side-panel")).toHaveAttribute("data-panel", "create-group");
+  await expect(page.getByPlaceholder(/Name this group|群聊名称/)).toBeVisible();
+  await page
+    .getByTestId("side-panel")
+    .getByRole("button", { name: /Back|返回/ })
+    .click();
+  await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.getByRole("button", { name: "Connect apps" })).toBeVisible();
   await expect(page.getByTestId("sidebar-search")).toBeVisible();
   await page.addStyleTag({
@@ -102,6 +111,21 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
   expect(bounds.avatarTop).toBeCloseTo(bounds.topPadding + 12, 0);
   expect(bounds.searchBottom).toBeCloseTo(bounds.bottomPadding, 0);
   await captureScreenshot(page, testInfo, "mobile-chat-list");
+
+  await page.getByTestId("user-menu-trigger").click();
+  await page.getByRole("button", { name: "Skills", exact: true }).click();
+  const skills = page.getByRole("dialog", { name: "Skills", exact: true });
+  await expect(skills.getByTestId("your-skills")).toBeVisible();
+  const skillColumns = await skills
+    .getByTestId("skill-packs")
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  expect(skillColumns).toBe(1);
+  const titleBox = await skills.getByRole("heading", { name: "Skills", exact: true }).boundingBox();
+  const contentBox = await skills.getByTestId("your-skills").boundingBox();
+  expect(titleBox).not.toBeNull();
+  expect(contentBox).not.toBeNull();
+  expect(contentBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height);
+  await skills.getByRole("button", { name: "Close skills", exact: true }).click();
 
   await page.getByTestId("mobile-create-bot").click();
   await expect(page.getByTestId("create-bot-dialog")).toBeVisible();

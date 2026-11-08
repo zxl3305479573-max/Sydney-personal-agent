@@ -10,8 +10,9 @@
   margin-bottom: 14px;
 }
 
-.sydney-assistant-content {
-  margin-left: 86px;
+.sydney-assistant-content[data-speaker="true"] {
+  margin-inline-start: 86px;
+  max-width: calc(100% - 86px);
 }
 
 .sydney-create-bot-close {
@@ -123,6 +124,7 @@
 }
 
 .sydney-personality-option {
+  position: relative;
   display: flex;
   width: 100%;
   min-height: 66px;
@@ -133,7 +135,7 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--muted);
-  padding: 10px 12px;
+  padding: 10px 36px 10px 12px;
   color: var(--foreground);
   text-align: start;
   transition:
@@ -148,11 +150,24 @@
 }
 
 .sydney-personality-option[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--foreground) 36%, transparent);
-  background: color-mix(in srgb, var(--card) 82%, transparent);
+  border-color: #5275e8;
+  background: color-mix(in srgb, #5275e8 12%, var(--card));
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+    0 0 0 1px #5275e8,
     0 6px 16px color-mix(in srgb, black 7%, transparent);
+}
+
+.sydney-personality-option-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5275e8;
+  color: white;
 }
 
 .sydney-personality-option-title {
@@ -259,6 +274,8 @@
   [data-mobile-chat="true"] .sydney-grok-header {
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding-inline: 16px;
+    background: var(--background);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
   }
 
   [data-mobile-chat="true"] .sydney-grok-header button {
@@ -276,8 +293,9 @@
     margin-bottom: 6px;
   }
 
-  [data-mobile-chat="true"] .sydney-assistant-content {
-    margin-left: 0;
+  [data-mobile-chat="true"] .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 0;
+    max-width: 100%;
   }
 
   [data-testid="composer-bar"][data-mobile-chat="true"] {
@@ -314,8 +332,9 @@
     height: 48px !important;
   }
 
-  .sydney-assistant-content {
-    margin-left: 60px;
+  .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 60px;
+    max-width: calc(100% - 60px);
   }
 
   .sydney-create-bot {
@@ -477,6 +496,14 @@
       0 1px 0 color-mix(in srgb, white 82%, transparent) inset,
       0 8px 16px color-mix(in srgb, black 6%, transparent);
     backdrop-filter: blur(14px) saturate(1.08);
+  }
+
+  .sydney-create-bot .sydney-personality-option[aria-pressed="true"] {
+    border-color: #5275e8;
+    background: color-mix(in srgb, #5275e8 12%, var(--card));
+    box-shadow:
+      0 0 0 1px #5275e8,
+      0 6px 16px color-mix(in srgb, black 7%, transparent);
   }
 
   .sydney-create-bot-footer {

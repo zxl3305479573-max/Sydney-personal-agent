@@ -1528,10 +1528,6 @@ msgstr "Complete"
 msgid "Completed"
 msgstr "Completed"
 
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Composio consumer key"
-msgstr "Composio consumer key"
-
 #: src/components/PageBreadcrumb.tsx
 #: src/pages/settings-nav.ts
 #: src/pages/shell/bot-panel.tsx
@@ -1647,10 +1643,6 @@ msgstr "Connect API key"
 #: src/pages/shell/shell-sidebar.tsx
 msgid "Connect apps"
 msgstr "Connect apps"
-
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Connect Composio"
-msgstr "Connect Composio"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Connect MCP server “{name}”"
@@ -2177,6 +2169,7 @@ msgstr "Could not run routine"
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
+#: src/pages/Shell.tsx
 #: src/pages/shell/bot-panel.tsx
 #: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/dialogs.tsx
@@ -2518,6 +2511,7 @@ msgstr "Default scope"
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/archived-chats.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/shell/sidebar-roster.tsx
 #: src/pages/SpaceSettingOverrides.tsx
 msgid "Delete"
 msgstr "Delete"
@@ -2767,6 +2761,7 @@ msgstr "Duplicate"
 msgid "Each name can be used once."
 msgstr "Each name can be used once."
 
+#: src/pages/Shell.tsx
 #: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/use-space-roster.ts
 msgid "Each space can have at most 4 main bots"
@@ -4573,6 +4568,7 @@ msgid "Pick a tool to check"
 msgstr "Pick a tool to check"
 
 #: src/pages/BotContextMenu.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "Pin"
 msgstr "Pin"
 
@@ -6277,6 +6273,7 @@ msgid "Unmute"
 msgstr "Unmute"
 
 #: src/pages/BotContextMenu.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "Unpin"
 msgstr "Unpin"
 
@@ -6421,10 +6418,6 @@ msgstr "Use the instructions below"
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Use up to 512 letters, digits, _ or -."
 msgstr "Use up to 512 letters, digits, _ or -."
-
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Use your Composio MCP consumer key to connect apps to this Bot."
-msgstr "Use your Composio MCP consumer key to connect apps to this Bot."
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "User peer"

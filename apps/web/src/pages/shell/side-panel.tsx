@@ -28,6 +28,7 @@ export function ShellSidePanel({
   rpc,
   panel,
   setPanel,
+  onCancelCreateGroup,
   active,
   activeGroup,
   bots,
@@ -55,6 +56,7 @@ export function ShellSidePanel({
   rpc: ReturnType<typeof createSpaceRpc>;
   panel: Panel;
   setPanel: (panel: Panel) => void;
+  onCancelCreateGroup: () => void;
   active: Bot | undefined;
   activeGroup: Group | undefined;
   bots: Bot[];
@@ -80,7 +82,9 @@ export function ShellSidePanel({
   onClearBot: (bot: Bot) => void;
 }) {
   const { t } = useLingui();
-  const open = Boolean(panel && (active || activeGroup || panel === "import-agent"));
+  const open = Boolean(
+    panel && (active || activeGroup || panel === "import-agent" || panel === "create-group"),
+  );
   const botTab =
     panel === "computer" || panel === "routines" || panel === "settings" ? panel : null;
   const botPanelLabel =
@@ -133,7 +137,7 @@ export function ShellSidePanel({
           {panel === "create-group" ? (
             <CreateGroupForm
               bots={bots}
-              onCancel={() => setPanel(null)}
+              onCancel={onCancelCreateGroup}
               onCreate={(input) => createGroup(input)}
               onOpenBot={(botId) => {
                 setPanel(null);

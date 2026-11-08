@@ -14,9 +14,19 @@ import {
   ContextMenuTrigger,
   GroupAvatar,
 } from "@rakazo/ui-web";
-import { ChevronDown, CircleAlert, Lock, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  CircleAlert,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  Plus,
+  Trash2,
+  UserRoundPlus,
+} from "lucide-react";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import { Suspense } from "react";
+import { Suspense, useRef, useState } from "react";
 import { IconTooltip } from "../../components/IconTooltip";
 import type { BotsSidebarDensity } from "../../lib/bots-sidebar-density-pref";
 import {
@@ -68,6 +78,9 @@ export function SidebarRoster({
   mobile = false,
   onCreateBot,
   onCreateGroup,
+  onToggleBotPinned,
+  onDeleteBot,
+  mobileBotActionError,
 }: {
   sidebarGroups: ReturnType<
     typeof sidebarGroupsForSpaces<Space["bots"][number], Space["groups"][number]>
@@ -103,6 +116,9 @@ export function SidebarRoster({
   mobile?: boolean;
   onCreateBot?: () => void;
   onCreateGroup?: () => void;
+  onToggleBotPinned: (bot: Space["bots"][number]) => void;
+  onDeleteBot: (bot: Space["bots"][number]) => void;
+  mobileBotActionError: string | null;
 }) {
   useRedrawAtMidnight();
   const { t } = useLingui();
@@ -115,6 +131,9 @@ export function SidebarRoster({
         openSpaceChat={openSpaceChat}
         onCreateBot={onCreateBot}
         onCreateGroup={onCreateGroup}
+        onToggleBotPinned={onToggleBotPinned}
+        onDeleteBot={onDeleteBot}
+        mobileBotActionError={mobileBotActionError}
       />
     );
   }
@@ -643,6 +662,9 @@ function MobileSidebarRoster({
   openSpaceChat,
   onCreateBot,
   onCreateGroup,
+  onToggleBotPinned,
+  onDeleteBot,
+  mobileBotActionError,
 }: {
   sidebarGroups: ReturnType<
     typeof sidebarGroupsForSpaces<Space["bots"][number], Space["groups"][number]>
@@ -652,8 +674,12 @@ function MobileSidebarRoster({
   openSpaceChat: (spaceId: string, path: string) => void;
   onCreateBot?: () => void;
   onCreateGroup?: () => void;
+  onToggleBotPinned: (bot: Space["bots"][number]) => void;
+  onDeleteBot: (bot: Space["bots"][number]) => void;
+  mobileBotActionError: string | null;
 }) {
   const { t } = useLingui();
+  const [openBotId, setOpenBotId] = useState<string | null>(null);
   const items = sidebarGroups.flatMap((group) => group.bots);
   const botItems = items.filter((item) => item.kind === "bot");
   const groupItems = items.filter((item) => item.kind === "group");
@@ -661,23 +687,33 @@ function MobileSidebarRoster({
   return (
     <div className="flex flex-col gap-5 pb-4 pt-2">
       {onCreateBot ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           data-testid="mobile-create-bot"
           onClick={onCreateBot}
-          className="sydney-mobile-glass flex h-14 w-full items-center gap-3 rounded-full px-5 text-start text-[17px] text-foreground"
+          className="sydney-mobile-glass h-14 w-full justify-start gap-3 rounded-full px-5 text-start text-[17px] text-foreground"
         >
-          <Plus size={24} strokeWidth={1.7} aria-hidden="true" />
+          <UserRoundPlus className="size-5" strokeWidth={1.8} aria-hidden="true" />
           <Trans>New bot</Trans>
-        </button>
+        </Button>
       ) : null}
       <MobileRosterSection title={t`Bots`}>
+        {mobileBotActionError ? (
+          <p role="alert" className="px-1 text-sm text-destructive">
+            {mobileBotActionError}
+          </p>
+        ) : null}
         {botItems.map((item) => (
           <MobileRosterRow
             key={`bot:${item.chat.id}`}
             item={item}
             selected={active?.id === item.chat.id}
             openSpaceChat={openSpaceChat}
+            actionsOpen={openBotId === item.chat.id}
+            setActionsOpen={(open) => setOpenBotId(open ? item.chat.id : null)}
+            onToggleBotPinned={onToggleBotPinned}
+            onDeleteBot={onDeleteBot}
           />
         ))}
       </MobileRosterSection>
@@ -685,15 +721,17 @@ function MobileSidebarRoster({
         title={t`Group`}
         action={
           onCreateGroup ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               data-testid="mobile-create-group"
               aria-label={t`New group chat`}
               onClick={onCreateGroup}
-              className="grid size-10 place-items-center text-muted-foreground hover:text-foreground"
+              className="size-11 rounded-md bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground"
             >
-              <Plus size={28} strokeWidth={1.5} aria-hidden="true" />
-            </button>
+              <Plus className="size-5" strokeWidth={2} aria-hidden="true" />
+            </Button>
           ) : null
         }
       >
@@ -735,15 +773,26 @@ function MobileRosterSection({
   );
 }
 
-function MobileRosterRow({
+export function MobileRosterRow({
   item,
   selected,
   openSpaceChat,
+  actionsOpen = false,
+  setActionsOpen,
+  onToggleBotPinned,
+  onDeleteBot,
 }: {
   item: MobileSidebarItem;
   selected: boolean;
   openSpaceChat: (spaceId: string, path: string) => void;
+  actionsOpen?: boolean;
+  setActionsOpen?: (open: boolean) => void;
+  onToggleBotPinned?: (bot: Space["bots"][number]) => void;
+  onDeleteBot?: (bot: Space["bots"][number]) => void;
 }) {
+  const { t } = useLingui();
+  const gesture = useRef<{ x: number; y: number } | null>(null);
+  const suppressClick = useRef(false);
   const chat = item.chat;
   const avatar =
     item.kind === "bot" ? (
@@ -763,16 +812,54 @@ function MobileRosterRow({
         ((item as MobileBotItem).chat.status !== "idle" ? (item as MobileBotItem).chat.status : "")
       : chat.preview ||
         (item as MobileGroupItem).chat.members.map((member) => member.name).join(", ");
-  return (
+  const row = (
     <button
       type="button"
+      data-testid={item.kind === "bot" ? `mobile-bot-trigger-${chat.id}` : undefined}
       aria-current={selected ? "page" : undefined}
-      onClick={() =>
-        openSpaceChat(chat.spaceId, item.kind === "bot" ? `/app/${chat.id}` : `/app/g/${chat.id}`)
-      }
+      onTouchStart={(event) => {
+        suppressClick.current = false;
+        const touch = event.touches.length === 1 ? event.touches[0] : undefined;
+        gesture.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+      }}
+      onTouchEnd={(event) => {
+        const start = gesture.current;
+        gesture.current = null;
+        const touch = event.changedTouches[0];
+        if (!start || !touch || item.kind !== "bot") return;
+        const horizontal = touch.clientX - start.x;
+        const vertical = Math.abs(touch.clientY - start.y);
+        if (Math.abs(horizontal) < 50 || Math.abs(horizontal) <= vertical * 1.25) return;
+        suppressClick.current = true;
+        setActionsOpen?.(horizontal < 0);
+      }}
+      onTouchCancel={() => {
+        gesture.current = null;
+      }}
+      onClick={() => {
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          return;
+        }
+        if (actionsOpen) {
+          setActionsOpen?.(false);
+          return;
+        }
+        openSpaceChat(chat.spaceId, item.kind === "bot" ? `/app/${chat.id}` : `/app/g/${chat.id}`);
+      }}
       className={`sydney-mobile-glass-item flex w-full items-center gap-4 rounded-2xl px-1 py-2 text-start ${
         selected ? "sydney-mobile-glass-item-selected" : "hover:bg-accent"
       }`}
+      style={
+        item.kind === "bot"
+          ? {
+              transform: actionsOpen ? "translateX(-144px)" : undefined,
+              background: actionsOpen ? "var(--sidebar)" : undefined,
+              transition: "transform 160ms ease",
+              touchAction: "pan-y",
+            }
+          : undefined
+      }
     >
       <span className="shrink-0">{avatar}</span>
       <span className="min-w-0 flex-1">
@@ -787,6 +874,38 @@ function MobileRosterRow({
       </span>
       {chat.unread ? <span className="size-2 shrink-0 rounded-full bg-unread" /> : null}
     </button>
+  );
+  if (item.kind !== "bot") return row;
+  return (
+    <div className="relative overflow-hidden rounded-2xl" data-testid={`mobile-bot-row-${chat.id}`}>
+      {actionsOpen ? (
+        <div className="absolute inset-y-0 right-0 flex w-36">
+          <button
+            type="button"
+            className="flex w-1/2 flex-col items-center justify-center gap-1 bg-muted text-foreground"
+            onClick={() => {
+              setActionsOpen?.(false);
+              onToggleBotPinned?.(item.chat);
+            }}
+          >
+            <Pin size={19} aria-hidden="true" />
+            <span className="text-xs">{item.chat.pinned ? t`Unpin` : t`Pin`}</span>
+          </button>
+          <button
+            type="button"
+            className="flex w-1/2 flex-col items-center justify-center gap-1 bg-destructive text-white"
+            onClick={() => {
+              setActionsOpen?.(false);
+              onDeleteBot?.(item.chat);
+            }}
+          >
+            <Trash2 size={19} aria-hidden="true" />
+            <span className="text-xs">{t`Delete`}</span>
+          </button>
+        </div>
+      ) : null}
+      {row}
+    </div>
   );
 }
 

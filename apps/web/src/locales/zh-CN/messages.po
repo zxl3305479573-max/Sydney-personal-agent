@@ -1528,10 +1528,6 @@ msgstr "完成"
 msgid "Completed"
 msgstr "已完成"
 
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Composio consumer key"
-msgstr "Composio 消费者密钥"
-
 #: src/components/PageBreadcrumb.tsx
 #: src/pages/settings-nav.ts
 #: src/pages/shell/bot-panel.tsx
@@ -1647,10 +1643,6 @@ msgstr "连接 API 密钥"
 #: src/pages/shell/shell-sidebar.tsx
 msgid "Connect apps"
 msgstr "连接应用"
-
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Connect Composio"
-msgstr "连接 Composio"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Connect MCP server “{name}”"
@@ -2177,6 +2169,7 @@ msgstr "无法运行例行任务"
 #: src/pages/ExternalConversationSettings.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/McpServersOverlay.tsx
+#: src/pages/Shell.tsx
 #: src/pages/shell/bot-panel.tsx
 #: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/dialogs.tsx
@@ -2518,6 +2511,7 @@ msgstr "默认范围"
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/archived-chats.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/shell/sidebar-roster.tsx
 #: src/pages/SpaceSettingOverrides.tsx
 msgid "Delete"
 msgstr "删除"
@@ -2767,6 +2761,7 @@ msgstr "复制"
 msgid "Each name can be used once."
 msgstr "每个名称只能使用一次。"
 
+#: src/pages/Shell.tsx
 #: src/pages/shell/chat-context-menu.tsx
 #: src/pages/shell/use-space-roster.ts
 msgid "Each space can have at most 4 main bots"
@@ -4573,6 +4568,7 @@ msgid "Pick a tool to check"
 msgstr "选择要检查的工具"
 
 #: src/pages/BotContextMenu.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "Pin"
 msgstr "置顶"
 
@@ -6277,6 +6273,7 @@ msgid "Unmute"
 msgstr "取消静音"
 
 #: src/pages/BotContextMenu.tsx
+#: src/pages/shell/sidebar-roster.tsx
 msgid "Unpin"
 msgstr "取消置顶"
 
@@ -6421,10 +6418,6 @@ msgstr "使用下方自定义指令"
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Use up to 512 letters, digits, _ or -."
 msgstr "最多 512 个字母、数字、_ 或 -。"
-
-#: src/components/integrations/IntegrationSetup.tsx
-msgid "Use your Composio MCP consumer key to connect apps to this Bot."
-msgstr "使用你的 Composio MCP 消费者密钥为此小伙伴连接应用。"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "User peer"

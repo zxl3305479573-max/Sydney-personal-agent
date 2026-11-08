@@ -256,7 +256,7 @@ export function PersonalPersonalityLibrary({
             <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs">{preview}</pre>
           )}
           <label className="block">
-            {text("自定义指令", "Custom instructions")}
+            {text("自定义表达风格", "Custom speaking style")}
             <textarea
               className="min-h-20 w-full rounded-lg border bg-transparent p-2"
               value={instructions}
@@ -286,8 +286,8 @@ export function PersonalPersonalityLibrary({
           </div>
           <p className="text-xs text-muted-foreground">
             {text(
-              "应用人格会复制指令；编辑或删除模板不会改变已有小伙伴。",
-              "Applying a personality copies its instructions. Editing or deleting it will not change existing bots.",
+              "人格只调整表达风格，不改变小伙伴的职责；编辑或删除模板不会改变已应用的人格。",
+              "Personalities adjust speaking style without changing duties. Editing or deleting a template does not change existing bots.",
             )}
           </p>
         </div>
