@@ -21,6 +21,7 @@ test("focus choice suggests apps and preserves a completed connection", async ({
   await captureScreenshot(page, testInfo, "01-focus-choice");
   await captureScreenshot(page, testInfo, "choice-card-onboarding");
 
+  await rpc(page, "preferences/update", { locale: "zh-CN" });
   await page.getByRole("button", { name: /日常工作/ }).click();
   // The focus step suggests apps but must not rename the bot: the name the
   // user chose during creation ("Chief") is preserved.
