@@ -39,6 +39,45 @@ function setup(...responses: Response[]) {
 }
 
 describe("media generation connection", () => {
+  it("rejects private media endpoints before sending credentials", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const provider = new FalMediaGenerationProvider({
+      apiKey: "fake-key",
+      baseUrl: "http://127.0.0.1:8080",
+      imageModel: "provider/model",
+      fetch,
+    });
+    await expect(provider.generateImage({ prompt: "test" }, context)).rejects.toMatchObject({
+      code: "provider_failure",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects hostnames resolving to private addresses before sending credentials", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const provider = new FalMediaGenerationProvider({
+      apiKey: "fake-key",
+      baseUrl: "https://media.example.test",
+      imageModel: "provider/model",
+      fetch,
+      resolveHostname: async () => [{ address: "10.0.0.5", family: 4 }],
+    });
+    await expect(provider.generateImage({ prompt: "test" }, context)).rejects.toMatchObject({
+      code: "provider_failure",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not follow redirects with media credentials", async () => {
+    const { provider, fetch } = setup(
+      new Response(null, { status: 302, headers: { location: "https://other.example.test" } }),
+    );
+    await expect(provider.generateImage({ prompt: "test" }, context)).rejects.toMatchObject({
+      code: "provider_failure",
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("defaults to disabled and requires explicit models and credentials", () => {
     expect(createMediaGenerationProvider({})).toBeUndefined();
     expect(

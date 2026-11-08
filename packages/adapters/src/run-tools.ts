@@ -1,6 +1,6 @@
 import type { AgentToolExecutionObserver } from "@rakazo/adapter-kit";
-import { taskToolResource, toolResultTaintsRun } from "@rakazo/core";
 import { StoredTaskMandateSchema } from "@rakazo/contracts";
+import { taskToolResource, toolResultTaintsRun } from "@rakazo/core";
 import { guardManagedRun, runAsTenant } from "@rakazo/db";
 import { isTerminatingReplyResult } from "./approval-effect.js";
 import { IMAGE_RETURNING_COMPUTER_TOOLS, MODEL_CANNOT_SEE_MESSAGE } from "./model-vision.js";
@@ -140,28 +140,27 @@ async function dispatchTool(
   if (ctx.run.trigger === "managed_task") {
     try {
       const mandate = StoredTaskMandateSchema.parse(ctx.run.taskMandate);
-      const resource = taskToolResource(
-        gate.call.name,
-        gate.call.args,
-        { taskId: mandate.taskId, botId: mandate.botId, grants: mandate.scopes },
-      );
-      if (!resource) return { error: "Managed task permission does not allow this tool or resource." };
-      await runAsTenant(
-        { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
-        () =>
-          guardManagedRun(
-            ctx.deps.prisma,
-            { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
-            mandate.taskId,
-            {
-              runId: ctx.runId,
-              workerId: ctx.workerId,
-              fence: ctx.fence,
-              action: { tool: gate.call.name, action: "execute", resource },
-              executionId,
-            },
-            0,
-          ),
+      const resource = taskToolResource(gate.call.name, gate.call.args, {
+        taskId: mandate.taskId,
+        botId: mandate.botId,
+        grants: mandate.scopes,
+      });
+      if (!resource)
+        return { error: "Managed task permission does not allow this tool or resource." };
+      await runAsTenant({ userId: ctx.run.userId, spaceId: ctx.run.spaceId }, () =>
+        guardManagedRun(
+          ctx.deps.prisma,
+          { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
+          mandate.taskId,
+          {
+            runId: ctx.runId,
+            workerId: ctx.workerId,
+            fence: ctx.fence,
+            action: { tool: gate.call.name, action: "execute", resource },
+            executionId,
+          },
+          0,
+        ),
       );
     } catch {
       ctx.context.signal.throwIfAborted();

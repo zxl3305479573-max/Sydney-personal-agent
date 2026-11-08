@@ -75,6 +75,7 @@ it("keeps the account menu available at the top on mobile", async () => {
   const footer = document.querySelector('[data-testid="sidebar-footer"]')!;
   expect(footer.className).toContain("absolute");
   expect(footer.querySelector('[data-testid="user-menu-trigger"]')).not.toBeNull();
+  expect(document.querySelector('[data-slot="popover-content"]')?.className).toContain("w-[230px]");
   expect(footer.querySelector('[aria-label="Connect apps"]')).toBeNull();
   expect(document.querySelector('[aria-label="Settings"]')).not.toBeNull();
 });

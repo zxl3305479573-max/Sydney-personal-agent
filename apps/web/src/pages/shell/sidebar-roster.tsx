@@ -690,7 +690,7 @@ function MobileSidebarRoster({
               data-testid="mobile-create-group"
               aria-label={t`New group chat`}
               onClick={onCreateGroup}
-              className="sydney-mobile-glass grid size-10 place-items-center rounded-full text-muted-foreground hover:text-foreground"
+              className="grid size-10 place-items-center text-muted-foreground hover:text-foreground"
             >
               <Plus size={28} strokeWidth={1.5} aria-hidden="true" />
             </button>
@@ -776,7 +776,9 @@ function MobileRosterRow({
     >
       <span className="shrink-0">{avatar}</span>
       <span className="min-w-0 flex-1">
-        <span className="rk-script-type block truncate text-[18px] font-medium text-foreground">
+        <span
+          className={`${item.kind === "bot" ? "rk-script-type " : ""}block truncate text-[18px] font-medium text-foreground`}
+        >
           {chat.name}
         </span>
         {preview ? (

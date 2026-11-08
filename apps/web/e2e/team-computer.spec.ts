@@ -49,12 +49,40 @@ test("opening and releasing the computer keep a view-only stream; a failed relea
   await expect(screen).toHaveAttribute("src", /view_only=false/);
   await expect(screen).toHaveCSS("pointer-events", "auto");
   expect(takeovers).toBe(1);
+  const originalViewport = page.viewportSize();
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(chrome.getByText("You have control", { exact: true })).toHaveCSS(
+      "white-space",
+      "nowrap",
+    );
+    await expect(release).toBeVisible();
+    expect(await chrome.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
   await more.click();
   await expect(page.getByRole("menuitem", { name: "Recover computer" })).toBeVisible();
   await more.click();
   await captureScreenshot(page, testInfo, "computer-controlling");
   await release.click();
   await checkViewOnly();
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(take).toBeVisible();
+    await expect(chrome.getByText("You have control", { exact: true })).toHaveCount(0);
+    expect(await chrome.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
   expect(takeovers).toBe(1);
   await captureScreenshot(page, testInfo, "computer-released-view-only");
   await page.getByRole("button", { name: "Close computer" }).click();

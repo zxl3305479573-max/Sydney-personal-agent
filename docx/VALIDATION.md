@@ -1,5 +1,47 @@
 # 验证记录
 
+2026-11-08（PR #2）：`8c3091f6a` 的 macOS 打包截图通过，Linux Electron 43 项通过、1 项在另一条旧地址验证场景未找到暂态设置界面；原先恢复测试通过。第二条测试时序修正尚需复验。
+
+2026-11-08（PR #2）：`6aea667d0` 的 macOS 打包截图、网页两分片及其他静态、单元和数据库检查通过；Linux Electron 43 项通过、1 项未找到暂态设置界面。已调整模拟下载时序，尚未在 Linux CI 复测。
+
+2026-11-08（PR #2）：`d54637760` 的网页两组、PostgreSQL 两组、静态检查、单元、原生电脑与 Linux Electron 构建测试通过；独立 macOS 打包截图任务未找到设置页。测试窗口识别修正及诊断上传需下一轮 CI 复验，不能认定 macOS 问题已解决。
+
+2026-11-08（PR #2）：`693bdda5c` 的静态检查、三组单元、两组 PostgreSQL、原生电脑、生产构建和网页第二分片通过；网页第一分片 48 项通过、1 项失败，失败于预填模型搜索的关闭操作，助手修正尚待 CI。
+
+2026-11-08（PR #2）：`4fe549865` 的 Lint、类型检查、三组单元测试、两组 PostgreSQL 旅程、Windows/macOS 原生电脑及生产构建通过；隔离 PostgreSQL 行级安全测试 18 项、Electron 44 项和网页第二分片 47 项通过。网页第一分片 47 项通过、2 项失败：模型搜索角色和手机导航返回方式与当前界面不符；修正后尚待复测。
+
+2026-11-08（PR #2 模型设置）：从搜索输入组件确认首次 Escape 清空搜索并阻止事件冒泡；已更新 E2E 检查清空和关闭，浏览器执行待 CI。
+
+2026-11-08（PR #2 网页跟进）：根据 `72a9ca6c` 的失败日志及样式检查定位桌面表单隐藏、标题首列零宽；变更文件 Biome 检查通过（13 条原有样式警告），`git diff --check` 通过。修正后的完整浏览器验证尚未运行。上游推广组件已在 `77530d28c` 删除，相关遗留测试随之移除。
+
+2026-11-08（PR #2 跟进）：`72a9ca6c` 的静态检查、三组单元测试、PostgreSQL 两组旅程、桌面生产构建与 Electron 测试通过；网页第二分片的同伴消息断言读取到空 runId。已调整为等待后核对，尚待新 CI 复测，不能排除实际消息归属问题；网页第一分片仍在运行。
+
+2026-11-08（PA-018 人格隔离）：隔离工作区生成 Prisma 客户端后，DB TypeScript 检查及新增测试文件的 Biome 检查通过；本机 Docker 引擎未运行，新增 PostgreSQL 隔离断言尚未执行，需等待 Linux CI。
+
+2026-11-08（PA-018 手机电脑接管）：新增横竖屏视口下接管和释放状态的 Playwright 断言；测试文件 Biome 检查通过，新增断言尚未运行，仍需 CI 浏览器及真实手机验证。
+
+2026-11-08（PA-018 语言回退）：中文目录、语言加载和认证定向 Vitest 共 3 文件、24 项通过；测试覆盖缺失中文的普通文案回退。完整浏览器回归和线上缓存更新仍未验证。
+
+2026-11-08（PA-018 页面标识）：Web TypeScript 和修改文件的 Biome 检查通过；页面标识、设置和群聊相关定向 Vitest 3 文件、26 项通过。新增群聊桌面及 390px 宽度的 Playwright 断言尚未运行；各路由和真实设备的视觉布局仍待验收。
+
+2026-11-08（PR #2 跟进）：`8d790460` 的电脑接管、释放、关闭并重新打开 E2E 通过；空间 E2E 在设置打开时的背景按钮角色定位失败。Lint 的 Lingui 提取检查发现电脑预览新增文案遗漏；本地 `lingui extract --clean` 后中英文目录与提取结果一致，中文缺译为 0。空间调整和新目录仍需提交后复跑 CI。
+
+2026-11-08（PR #2 注册测试）：相关 6 个测试文件及助手的 Biome 检查通过；Playwright `--list` 成功枚举 5 个相关文件的 15 项测试，只验证发现和加载，不表示测试已执行。Windows Docker 引擎未运行，未执行邮箱验证或浏览器注册链路；待 Linux CI 对本次提交验证。
+
+2026-11-08（PA-018）：Node 24.15.0 下 Web TypeScript 检查通过；电脑面板、电脑窗口、语言激活、中文目录和页面标题的定向 Vitest 共 5 文件、17 项通过。Lingui 中文及英文目录编译成功，改动文件 Biome 检查通过。Windows 本机 Docker 引擎未运行，没有启动 PostgreSQL 或执行完整浏览器 E2E；真实屏幕、手机横竖屏和所有页面标题未验收。
+
+2026-11-08（PR #2 检查排查）：`8ad5977a` 的单元测试三分片和 PostgreSQL journeys 两分片通过；Lint 因两处格式失败，Web E2E 两分片分别失败 16 项和 3 项。已修正两处格式和两处过期定位，尚未重新运行完整 E2E 或确认最新 CI。
+
+2026-11-07（PR #2 第二轮检查修复，未合并、未部署）：模拟邮箱改从 `API_URL/__e2e/emails` 读取，避免打到网页返回的 HTML。用量热力图测试改为断言 84 个可用日期按钮和“用量等级”文字。未登录 RPC 穷举补上人格四个入口，testkit 类型检查通过。macOS 截图工作流里的应用包名从已不存在的 `Rakazo.app` 改为当前 `productName` `Sydney.app`，并匹配已改名的首启测试。网页端到端整套仍未在本机跑。
+
+2026-11-07（PR #2 失败修复，未合并、未部署）：隔离库 `rakazo_rls` 跑完迁移后，`personality_presets_system` 的 `qual` 为 `app_rls_bypass()` 且没有 `WITH CHECK`；行级安全 Vitest 17 项通过。Biome `check` 退出码 0（仍有既有 warning/info，不再有 error）。桌面 Electron 套件 44 项在本机 xvfb 通过：启动闪屏关闭后才取窗口，可见文案按现有 `t()` 显示 Sydney。网页端到端注册修复还没在本机跑完整浏览器套件。
+
+2026-11-07（PR #2 检查，未合并、未部署）：人格表的系统策略改为只有 `USING`，以便既有 `20261114120000` 迁移把它改写成 `app_rls_bypass()`；`PersonalityPreset` 列入行级安全模型。网页听写测试改为只断言仍保留的中文和 English。本地听写测试 86 项通过。没有在本机重跑 PostgreSQL 行级安全测试，也没有合并或部署。
+
+2026-11-07（分支整合，未部署）：云端只看到远端 `main`（`747dbb52`）和 `codex/compose-local-overlay`（`e4a43af4`）。二者在 `fa87868d` 后分叉，`main` 的合并提交与 `fa87868d` 树相同，因此把 overlay 分支合并到以 `main` 为第一父提交的整合分支没有冲突，合并结果树与 `e4a43af4` 相同。随后只做检查所需的格式、目录提取和 overlay 测试类型收窄。Node 22.23.4 下定向 Vitest 17 个文件、148 项通过，覆盖人格目录、人格 RPC、人格库、新建 Bot、指令设置、面包屑、中英文目录、引导和模型设置、媒体出站校验、updater 与 native overlay 示例。`@rakazo/contracts`、`@rakazo/api`、`@rakazo/web`、`@rakazo/adapters`、`@rakazo/updater`、`@rakazo/db` 及被它们带上的依赖类型检查通过。`lingui extract --clean` 可重复，仍在源码中的译文没有被改写；中文目录仍有 55 条缺译。没有启动数据库、执行人格迁移、跑浏览器 E2E、连接生产或加载示例 overlay。
+
+2026-11-07（PA-018）：Hersona 属性目录、账号作用域 RPC、人格库组件、新建 Bot 和 Bot 指令设置的定向 Vitest 共 5 个文件、7 项通过；包含冲突属性拒绝、越权更新和删除被拒、保存后应用快照。contracts、API 和 Web TypeScript 检查通过，新增文件的 Biome 检查通过。当前 Node 为 22.22.0，低于项目声明的 22.22.2；`pnpm --filter @rakazo/db generate` 因引擎限制失败，改用已安装 Prisma CLI 直接生成客户端用于本地检查。未启动数据库、执行迁移、验证 PostgreSQL 行级策略或真实跨设备/手机行为，未部署。
+
 2026-11-07（PA-010、PA-012、PA-017、PA-018）：adapters 类型检查通过；工厂、环境、API/Web 屏幕代理和屏幕票据定向测试共 5 个文件、118 项通过。原生 Provider 相关核心用例另行通过 12 项，覆盖新 Bot 屏幕授权、越权用户拒绝、未配置屏幕错误和驱动代次。完整原生测试文件在 Windows 下有 2 个 Unix socket 用例失败，报 `Server is not running`；Python 驱动测试 16 项通过、2 项跳过，Web bridge 测试因 Windows `socketserver` 缺少 `ThreadingUnixStreamServer` 失败。`git diff --check` 通过；Biome 检查发现原生文件既有导入/格式及 `exportWorkspace` 生成器规则问题，本轮未扩大范围修复；Windows 没有 `systemd-analyze`，服务单元语法未执行。未启动 Linux systemd、Docker、数据库或真实桌面，未部署。
 
 2026-11-07（PA-009、PA-018）：adapters TypeScript 检查通过，媒体 Provider 和生成工具定向测试 35 项通过，包含私网及重定向检查；无真实外部媒体生成测试，未部署。

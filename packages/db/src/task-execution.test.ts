@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
 import type { TaskExecutionState } from "@rakazo/contracts";
+import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "./client.js";
-import { runAsTenant } from "./row-security.js";
 import { appendEventInTransaction } from "./events.js";
+import { runAsTenant } from "./row-security.js";
 import {
   confirmManagedTaskStopped,
   controlManagedTask,
@@ -25,8 +25,14 @@ describe("managed task creation replay", () => {
   it("rejects changed budgets and reuses an identical request", async () => {
     const state = harness().state();
     const task = {
-      id: "task-1", ...actor, botId: "bot-1", threadId: "thread-1",
-      prompt: "prompt", status: "queued", createdAt: new Date(0), updatedAt: new Date(0),
+      id: "task-1",
+      ...actor,
+      botId: "bot-1",
+      threadId: "thread-1",
+      prompt: "prompt",
+      status: "queued",
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
       executionState: state,
     };
     const tx = {
@@ -39,14 +45,19 @@ describe("managed task creation replay", () => {
       ),
     } as unknown as PrismaClient;
     const input = {
-      botId: task.botId, prompt: task.prompt, clientNonce: "nonce-1", budget: state.budget,
+      botId: task.botId,
+      prompt: task.prompt,
+      clientNonce: "nonce-1",
+      budget: state.budget,
     };
 
     await runAsTenant(actor, async () => {
       await expect(createManagedTask(prisma, actor, input)).resolves.toMatchObject({ id: task.id });
       for (const key of Object.keys(state.budget) as (keyof typeof state.budget)[]) {
         const changed = { ...input, budget: { ...input.budget, [key]: input.budget[key] + 1 } };
-        await expect(createManagedTask(prisma, actor, changed)).rejects.toThrow("nonce_payload_mismatch");
+        await expect(createManagedTask(prisma, actor, changed)).rejects.toThrow(
+          "nonce_payload_mismatch",
+        );
       }
     });
   });
@@ -64,8 +75,14 @@ describe("managed task retry budget", () => {
       toolCalls: [{ id: "old-call", tool: "read_file", reservedTokens: 0 }],
     };
     const task = {
-      id: "task-1", ...actor, botId: "bot-1", threadId: "thread-1",
-      prompt: "prompt", status: "running", createdAt: new Date(0), updatedAt: new Date(0),
+      id: "task-1",
+      ...actor,
+      botId: "bot-1",
+      threadId: "thread-1",
+      prompt: "prompt",
+      status: "running",
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
       executionState: state,
     };
     const tx = {
@@ -88,29 +105,38 @@ describe("managed task retry budget", () => {
       ),
     } as unknown as PrismaClient;
     const input = {
-      taskId: task.id, expectedVersion: state.version, clientNonce: "retry-1",
-      retry: true, expiresAt: now + 60_000, modelDataConsent: true,
+      taskId: task.id,
+      expectedVersion: state.version,
+      clientNonce: "retry-1",
+      retry: true,
+      expiresAt: now + 60_000,
+      modelDataConsent: true,
       scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
     };
 
     await runAsTenant(actor, async () => {
       if (expired) {
-        await expect(dispatchManagedTask(prisma, actor, input)).rejects.toThrow("task_deadline_exceeded");
+        await expect(dispatchManagedTask(prisma, actor, input)).rejects.toThrow(
+          "task_deadline_exceeded",
+        );
         expect(tx.run.create).not.toHaveBeenCalled();
       } else {
         await expect(dispatchManagedTask(prisma, actor, input)).resolves.toEqual({
-          runId: "run-2", reused: false,
+          runId: "run-2",
+          reused: false,
         });
-        expect(tx.task.update).toHaveBeenCalledWith(expect.objectContaining({
-          data: expect.objectContaining({
-            executionState: expect.objectContaining({
-              deadline: state.deadline,
-              modelCalls: 2,
-              reservedTokens: 1000,
-              toolCalls: state.toolCalls,
+        expect(tx.task.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              executionState: expect.objectContaining({
+                deadline: state.deadline,
+                modelCalls: 2,
+                reservedTokens: 1000,
+                toolCalls: state.toolCalls,
+              }),
             }),
           }),
-        }));
+        );
       }
     });
   });
@@ -279,9 +305,11 @@ describe("managed task state transitions", () => {
         renewManagedTaskMandate(db.prisma, actor, "task-1", "run-1", 2, now + 60_000),
       ).rejects.toThrow(new TaskExecutionError("run_state_changed"));
     });
-    expect(db.tx.run.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "run-1", taskId: "task-1", ...actor, status: "running" },
-    }));
+    expect(db.tx.run.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "run-1", taskId: "task-1", ...actor, status: "running" },
+      }),
+    );
     expect(db.tx.task.update).not.toHaveBeenCalled();
   });
 
@@ -402,12 +430,18 @@ describe("managed task state transitions", () => {
     });
     await runAsTenant(actor, async () => {
       await expect(
-        guardManagedRun(db.prisma, actor, "task-1", {
-          runId: "run-1",
-          workerId: "worker-1",
-          fence: 2,
-          action: { tool: "model_call", action: "execute", resource: "model" },
-        }, 0),
+        guardManagedRun(
+          db.prisma,
+          actor,
+          "task-1",
+          {
+            runId: "run-1",
+            workerId: "worker-1",
+            fence: 2,
+            action: { tool: "model_call", action: "execute", resource: "model" },
+          },
+          0,
+        ),
       ).rejects.toThrow(new TaskExecutionError("lease_expired"));
     });
     expect(db.tx.task.update).not.toHaveBeenCalled();

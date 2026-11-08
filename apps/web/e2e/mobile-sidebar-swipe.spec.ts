@@ -70,7 +70,7 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
   await expect(sidebar).toBeVisible();
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(edge).toHaveCount(0);
-  await expect(sidebar).toContainText("Chief");
+  await expect(sidebar).toContainText("Sydney");
   await expect(page.getByTestId("mobile-create-bot")).toBeVisible();
   await expect(page.getByTestId("mobile-create-group")).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect apps" })).toBeVisible();
@@ -114,7 +114,10 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
     .click();
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
 
-  await page.getByRole("button", { name: /Chief/ }).first().click();
+  await page
+    .getByRole("button", { name: /Sydney/ })
+    .first()
+    .click();
   await expect(page).toHaveURL(/\/app\/[^/]+$/);
   await expect(sidebar).toHaveAttribute("aria-hidden", "true");
   await expect(edge).toHaveCSS("touch-action", "none");
@@ -127,5 +130,5 @@ test("shows the mobile chat list first and reopens it from a chat", async ({ pag
   await expect(page).toHaveURL(/\/app\/?$/);
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await page.locator("html").evaluate((html) => html.setAttribute("dir", "rtl"));
-  await expect(sidebar).toContainText("Chief");
+  await expect(sidebar).toContainText("Sydney");
 });

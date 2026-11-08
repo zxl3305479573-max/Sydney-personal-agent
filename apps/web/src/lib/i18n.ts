@@ -13,19 +13,7 @@ type CatalogLoader = () => Promise<CatalogModule>;
 
 const defaultCatalogLoaders: Record<UiLocale, CatalogLoader> = {
   en: () => import("../locales/en/messages.po") as Promise<CatalogModule>,
-  de: () => import("../locales/de/messages.po") as Promise<CatalogModule>,
-  ko: () => import("../locales/ko/messages.po") as Promise<CatalogModule>,
-  tr: () => import("../locales/tr/messages.po") as Promise<CatalogModule>,
-  hi: () => import("../locales/hi/messages.po") as Promise<CatalogModule>,
-  "pt-BR": () => import("../locales/pt-BR/messages.po") as Promise<CatalogModule>,
-  "zh-TW": () => import("../locales/zh-TW/messages.po") as Promise<CatalogModule>,
   "zh-CN": () => import("../locales/zh-CN/messages.po") as Promise<CatalogModule>,
-  es: () => import("../locales/es/messages.po") as Promise<CatalogModule>,
-  ru: () => import("../locales/ru/messages.po") as Promise<CatalogModule>,
-  fr: () => import("../locales/fr/messages.po") as Promise<CatalogModule>,
-  he: () => import("../locales/he/messages.po") as Promise<CatalogModule>,
-  nl: () => import("../locales/nl/messages.po") as Promise<CatalogModule>,
-  ja: () => import("../locales/ja/messages.po") as Promise<CatalogModule>,
 };
 
 let catalogLoaders: Record<UiLocale, CatalogLoader> = defaultCatalogLoaders;
@@ -50,9 +38,6 @@ async function loadCatalog(locale: UiLocale): Promise<CatalogMessages> {
   ]);
   const messages = preferred.messages;
   const english = fallback?.messages ?? (locale === "en" ? messages : ({} as CatalogMessages));
-  const brandFallbacks = Object.fromEntries(
-    Object.entries(english).filter(([, value]) => JSON.stringify(value).includes("Rakazo")),
-  );
   const rebrand = (value: unknown): unknown =>
     typeof value === "string"
       ? value.replaceAll("Rakazo", "Sydney")
@@ -60,7 +45,7 @@ async function loadCatalog(locale: UiLocale): Promise<CatalogMessages> {
         ? value.map(rebrand)
         : value;
   return Object.fromEntries(
-    Object.entries({ ...brandFallbacks, ...messages }).map(([key, value]) => [key, rebrand(value)]),
+    Object.entries({ ...english, ...messages }).map(([key, value]) => [key, rebrand(value)]),
   ) as CatalogMessages;
 }
 

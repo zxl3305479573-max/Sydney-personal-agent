@@ -86,7 +86,8 @@ export function mountScreenTarget(
           current.protocol !== target.protocol ||
           current.hostname !== target.hostname ||
           Number(current.port || (current.protocol === "https:" ? 443 : 80)) !== target.port
-        ) return c.body(null, 403);
+        )
+          return c.body(null, 403);
       } catch {
         return c.body(null, 403);
       }

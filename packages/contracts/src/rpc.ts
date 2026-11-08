@@ -156,6 +156,11 @@ import {
 import { ModelHeadersSchema } from "./model-headers.js";
 import { ModelRoleSchema, ModelRoleUpdateSchema, ModelRoleViewSchema } from "./model-roles.js";
 import { PaymentWalletStatusSchema } from "./payments.js";
+import {
+  CreatePersonalityInput,
+  PersonalityPresetSchema,
+  UpdatePersonalityInput,
+} from "./personality.js";
 import { MessageReactionSchema } from "./reactions.js";
 import { RoutineWatchSchema } from "./routine-watch.js";
 import {
@@ -507,6 +512,12 @@ export const appContract = {
         webhookConfigured: z.literal(true),
       }),
     ),
+  },
+  personalities: {
+    list: oc.output(z.array(PersonalityPresetSchema)),
+    create: oc.input(CreatePersonalityInput).output(PersonalityPresetSchema),
+    update: oc.input(UpdatePersonalityInput).output(PersonalityPresetSchema),
+    remove: oc.input(z.object({ personalityId: Id })).output(z.object({ ok: z.literal(true) })),
   },
   groups: {
     create: oc.input(CreateGroupInput).output(GroupSchema),

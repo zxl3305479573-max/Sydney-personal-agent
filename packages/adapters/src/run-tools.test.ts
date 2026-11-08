@@ -28,8 +28,8 @@ vi.mock("./run-tool-gate.js", async (importOriginal) => ({
   }),
 }));
 
-import { applyTool, isToolError } from "./run-tools.js";
 import { gateToolCall } from "./run-tool-gate.js";
+import { applyTool, isToolError } from "./run-tools.js";
 
 function dispatchContext(tainted: boolean) {
   return {
@@ -96,8 +96,9 @@ describe("dispatchTool audit outcomes", () => {
       controller.abort(new Error("stopped"));
       return outcome;
     });
-    await expect(applyTool(managed as never, "read_file", { path: "note.txt" }, "call-1"))
-      .rejects.toThrow("stopped");
+    await expect(
+      applyTool(managed as never, "read_file", { path: "note.txt" }, "call-1"),
+    ).rejects.toThrow("stopped");
     expect(audited).toEqual([]);
   });
 

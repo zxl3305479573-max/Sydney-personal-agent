@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import type { TaskExecutionState } from "@rakazo/contracts";
-import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import {
   StoredTaskMandateSchema,
   TaskExecutionStateSchema,
   taskExecutionContract,
 } from "@rakazo/contracts";
+import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "./client.js";
 import { appendEventInTransaction } from "./events.js";
 import { currentDbContext } from "./row-security.js";
@@ -340,9 +340,7 @@ export async function guardManagedRun(
       modelCalls: state.modelCalls + (modelCall ? 1 : 0),
       toolCalls: [
         ...state.toolCalls,
-        ...(!modelCall
-          ? [{ id: toolCallId, tool: input.action.tool, reservedTokens: 0 }]
-          : []),
+        ...(!modelCall ? [{ id: toolCallId, tool: input.action.tool, reservedTokens: 0 }] : []),
       ],
     });
     return { allowed: true as const, toolCallId };

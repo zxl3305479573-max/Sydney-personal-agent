@@ -50,6 +50,10 @@ describe("CreateBotDialog", () => {
       root.render(<CreateBotDialog onCancel={() => undefined} onCreate={create} />),
     );
 
+    expect(document.querySelector('[data-testid="personality-custom"]')).toBeNull();
+    expect(document.querySelector('[data-testid="personality-balanced"]')?.textContent).toContain(
+      "Balanced",
+    );
     expect(document.querySelector('[aria-label="Color #10B981"]')).toBeNull();
     await act(async () =>
       document.querySelector<HTMLButtonElement>('[aria-label="橙花"]')!.click(),

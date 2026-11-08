@@ -46,6 +46,7 @@ import { memoryRoutes } from "./routes/memory.js";
 import { messagingRoutes } from "./routes/messaging.js";
 import { modelsRoutes } from "./routes/models.js";
 import { paymentWalletRoutes } from "./routes/payment-wallet.js";
+import { personalityRoutes } from "./routes/personalities.js";
 import { routinesRoutes } from "./routes/routines.js";
 import { spacesRoutes } from "./routes/spaces.js";
 import { tasksRoutes } from "./routes/tasks.js";
@@ -151,6 +152,7 @@ export function createRouter(deps: RouterDeps) {
     ...tasksRoutes(ctx),
     ...modelsRoutes(ctx),
     ...botsRoutes(ctx),
+    ...personalityRoutes(ctx),
     ...threadsRoutes(ctx),
     ...computerRoutes(ctx),
     ...memoryRoutes(ctx),

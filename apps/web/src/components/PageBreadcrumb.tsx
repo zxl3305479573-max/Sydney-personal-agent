@@ -1,43 +1,44 @@
 import { useLingui } from "@lingui/react/macro";
 import { useLocation } from "react-router-dom";
 
-function pageLabel(pathname: string) {
-  if (pathname === "/sign-in") return "Sign in";
-  if (pathname === "/sign-up") return "Sign up";
-  if (pathname === "/forgot-password") return "Forgot password";
-  if (pathname === "/reset-password") return "Reset password";
-  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) return "Onboarding";
-  if (pathname === "/app/artifacts" || pathname.startsWith("/app/artifacts/")) return "Artifacts";
-  if (pathname === "/app/board") return "Board";
-  if (pathname === "/integrations/setup") return "Connect apps";
-  if (pathname === "/admin/plugins") return "Plugins";
-  if (pathname === "/admin/access") return "Access";
-  if (/^\/app\/g\/[^/]+$/.test(pathname)) return "Group chat";
-  if (/^\/app\/[^/]+$/.test(pathname)) return "Chat";
-  if (pathname.startsWith("/app")) return "Home";
-  return "Page";
-}
-
 export function PageBreadcrumb({
   label: explicitLabel,
   inline = false,
+  translated = false,
 }: {
   label?: string;
   inline?: boolean;
+  translated?: boolean;
 }) {
-  if (inline) return <InlinePageBreadcrumb label={explicitLabel ?? "Page"} />;
+  if (inline)
+    return <InlinePageBreadcrumb label={explicitLabel ?? "Page"} translated={translated} />;
   return <RoutePageBreadcrumb />;
 }
 
-function InlinePageBreadcrumb({ label }: { label: string }) {
-  const { i18n } = useLingui();
-  const translatedLabel =
-    typeof i18n?._ === "function" ? i18n._({ id: label, message: label }) : label;
+function InlinePageBreadcrumb({ label, translated }: { label: string; translated: boolean }) {
+  const { t } = useLingui();
+  const translatedLabel = translated
+    ? label
+    : label === "Bot settings"
+      ? t`Bot settings`
+      : label === "Computer"
+        ? t`Computer`
+        : label === "Routines"
+          ? t`Routines`
+          : label === "Create group"
+            ? t`Create group`
+            : label === "Group settings"
+              ? t`Group settings`
+              : label === "Routine"
+                ? t`Routine`
+                : label === "Import an agent"
+                  ? t`Import an agent`
+                  : label;
 
   return (
     <nav
       aria-label={`Sydney / ${translatedLabel}`}
-      className="mb-5 px-1 text-[15px] text-muted-foreground md:hidden"
+      className="min-w-0 truncate text-[15px] text-muted-foreground"
     >
       <span className="rk-script-type text-foreground/70">Sydney</span>
       <span className="mx-2 text-border">/</span>
@@ -47,17 +48,36 @@ function InlinePageBreadcrumb({ label }: { label: string }) {
 }
 
 function RoutePageBreadcrumb() {
-  const { i18n } = useLingui();
+  const { t } = useLingui();
   const { pathname } = useLocation();
-  if (pathname === "/") return null;
-  const label = pageLabel(pathname);
   const translatedLabel =
-    typeof i18n?._ === "function" ? i18n._({ id: label, message: label }) : label;
+    pathname === "/sign-in"
+      ? t`Sign in`
+      : pathname === "/sign-up"
+        ? t`Sign up`
+        : pathname === "/forgot-password"
+          ? t`Password recovery`
+          : pathname === "/reset-password"
+            ? t`Reset password`
+            : pathname === "/onboarding" || pathname.startsWith("/onboarding/")
+              ? t`Get started`
+              : pathname === "/app/artifacts" || pathname.startsWith("/app/artifacts/")
+                ? t`Artifacts`
+                : pathname === "/app/board"
+                  ? t`Board`
+                  : pathname.startsWith("/app/x/") || pathname === "/integrations/setup"
+                    ? t`Connect apps`
+                    : pathname === "/admin/plugins"
+                      ? t`Plugins`
+                      : pathname === "/admin/access"
+                        ? t`Access management`
+                        : null;
+  if (!translatedLabel) return null;
 
   return (
     <nav
       aria-label={`Sydney / ${translatedLabel}`}
-      className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-10 hidden px-6 text-[15px] text-muted-foreground md:hidden"
+      className="shrink-0 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 text-[15px] text-muted-foreground"
     >
       <span className="rk-script-type text-foreground/70">Sydney</span>
       <span className="mx-2 text-border">/</span>

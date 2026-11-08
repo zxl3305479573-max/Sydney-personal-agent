@@ -31,7 +31,9 @@ describe("bot avatar values", () => {
     expect(isBotAvatarValue(value)).toBe(true);
     expect(parseBotAvatarValue(value)).toEqual({ kind: "color", color: "#123456" });
     expect(isBotAvatarValue("#123456::fluid_bad")).toBe(false);
-    expect(CreateBotInput.parse({ name: "Scout", avatarSet: "fluid", color: value }).color).toBe(value);
+    expect(CreateBotInput.parse({ name: "Scout", avatarSet: "fluid", color: value }).color).toBe(
+      value,
+    );
     expect(resolveBotAvatarSet("fluid")).toBe("fluid");
   });
 

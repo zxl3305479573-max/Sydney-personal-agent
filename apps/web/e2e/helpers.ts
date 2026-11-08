@@ -35,11 +35,12 @@ export async function rpc<T>(page: Page, procedure: string, body: unknown): Prom
 export async function completeOnboarding(page: Page, testInfo?: TestInfo) {
   await page.waitForURL(/\/(onboarding|app)/, { timeout: 20_000 });
   // Optional Server integrations step (needsSetup). Skip when shown, then the
-  // first bot is created automatically — land in Chief's chat with no form.
+  // first bot is created automatically. New accounts are named Sydney; Chief remains
+  // for older fixtures.
   const integrations = page.getByRole("heading", { name: "Server integrations", exact: true });
-  const chief = page.getByText("Chief").first();
-  await integrations.or(chief).waitFor({ timeout: 20_000 });
-  if ((await chief.isVisible().catch(() => false)) && page.url().includes("/app")) {
+  const firstBot = page.getByRole("combobox", { name: /Message (Sydney|Chief)/ });
+  await integrations.or(firstBot).waitFor({ timeout: 20_000 });
+  if ((await firstBot.isVisible().catch(() => false)) && page.url().includes("/app")) {
     if (testInfo) {
       await captureScreenshot(page, testInfo, "03-create-first-bot");
       await captureScreenshot(page, testInfo, "06-onboarding-complete");
@@ -51,7 +52,7 @@ export async function completeOnboarding(page: Page, testInfo?: TestInfo) {
     await page.getByRole("button", { name: "Skip", exact: true }).click();
   }
   await page.waitForURL(/\/app\//, { timeout: 20_000 });
-  await expect(page.getByText("Chief").first()).toBeVisible();
+  await expect(firstBot).toBeVisible();
   if (testInfo) {
     await captureScreenshot(page, testInfo, "03-create-first-bot");
     await captureScreenshot(page, testInfo, "06-onboarding-complete");
@@ -79,8 +80,66 @@ export async function signup(
     headers: { origin: new URL(baseURL).origin },
   });
   if (!response.ok()) throw new Error(`sign-up ${response.status()}: ${await response.text()}`);
-  const verify = signupRequiresEmailVerification(await response.json());
-  await page.goto(verify ? "/sign-up?verify=email" : "/onboarding");
+  if (signupRequiresEmailVerification(await response.json())) {
+    await finishEmailVerification(page, email, password);
+  }
+  await page.goto("/onboarding");
+}
+
+type CapturedEmail = { to?: string; text?: string; subject?: string };
+
+async function testEmails(page: Page): Promise<CapturedEmail[]> {
+  const api = process.env.API_URL?.replace(/\/$/, "");
+  const response = await page.request.get(api ? `${api}/__e2e/emails` : "/__e2e/emails");
+  if (!response.ok()) return [];
+  return (await response.json()) as CapturedEmail[];
+}
+
+/** The harness keeps emulator mail at this path. Production does not expose it. */
+async function verificationLink(page: Page, email: string): Promise<URL> {
+  let found: URL | undefined;
+  await expect
+    .poll(
+      async () => {
+        const messages = await testEmails(page);
+        const raw = messages
+          .filter((message) => message.to === email)
+          .map((message) => message.text?.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+          .find(Boolean);
+        if (!raw) return false;
+        found = new URL(raw.replace(/[)>.,]+$/, ""));
+        return true;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  if (!found) throw new Error(`No verification email for ${email}`);
+  return found;
+}
+
+/**
+ * Email-capable signups return no session until the mailbox is proved. The e2e
+ * harness records that mail locally; open the link, then sign in with the password.
+ */
+async function finishEmailVerification(page: Page, email: string, password: string) {
+  const link = await verificationLink(page, email);
+  const baseURL = test.info().project.use.baseURL;
+  if (!baseURL) throw new Error("signup needs a baseURL");
+  const origin = new URL(baseURL).origin;
+  const proof = await page.request.get(`${link.pathname}${link.search}`, {
+    headers: { origin },
+    maxRedirects: 0,
+  });
+  if (proof.status() >= 400) {
+    throw new Error(`email verification ${proof.status()}: ${await proof.text()}`);
+  }
+  const signIn = await page.request.post("/api/auth/sign-in/email", {
+    data: { email, password },
+    headers: { origin },
+  });
+  if (!signIn.ok()) {
+    throw new Error(`sign-in after verification ${signIn.status()}: ${await signIn.text()}`);
+  }
 }
 
 export async function signupThroughForm(
@@ -91,12 +150,38 @@ export async function signupThroughForm(
   testInfo?: TestInfo,
 ) {
   await page.goto("/sign-up");
-  await expect(page.getByRole("heading", { name: "Create your Rakazo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create your Sydney" })).toBeVisible();
   if (testInfo) await captureScreenshot(page, testInfo, "01-sign-up");
   await page.getByPlaceholder("Your name").fill(name);
   await page.getByPlaceholder("Your email address").fill(email);
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
+  const passwordInput = page.getByPlaceholder("Password");
+  if (await passwordInput.isVisible()) {
+    await passwordInput.fill(password);
+    await page.getByRole("button", { name: "Create account" }).click();
+    if (await page.getByRole("heading", { name: "Check your email" }).isVisible()) {
+      await finishEmailVerification(page, email, password);
+      await page.goto("/onboarding");
+    }
+  } else {
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+    let code: string | undefined;
+    await expect
+      .poll(async () => {
+        const messages = await testEmails(page);
+        code = messages
+          .filter(
+            (message) => message.to === email && message.subject === "Your Sydney sign-in code",
+          )
+          .at(-1)
+          ?.text?.match(/\b\d{6}\b/)?.[0];
+        return Boolean(code);
+      })
+      .toBe(true);
+    if (!code) throw new Error("No sign-in code in the test mailbox");
+    await page.locator('input[autocomplete="one-time-code"]').fill(code);
+  }
+  await page.waitForURL(/\/(onboarding|app)/, { timeout: 20_000 });
 }
 
 /** Opens Integrations' add menu and picks one of its custom sources. */
@@ -284,8 +369,13 @@ export async function openModelConnection(
 export async function pickReopenedModel(page: Page, model?: string) {
   const search = page.getByRole("combobox", { name: "Search models" });
   await expect(search).toBeVisible();
-  if (model === undefined) await search.press("Escape");
-  else
+  if (model === undefined) {
+    if (await search.inputValue()) {
+      await search.press("Escape");
+      await expect(search).toHaveValue("");
+    }
+    await search.press("Escape");
+  } else
     await page
       .getByRole("listbox", { name: "Model options" })
       .getByRole("option", { name: model, exact: true })

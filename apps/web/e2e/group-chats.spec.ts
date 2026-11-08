@@ -49,6 +49,10 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
   await page.reload();
   await expect(page).toHaveURL(groupUrl);
   await expect(page.getByRole("combobox", { name: "Message Draft team" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Sydney / Draft team" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("navigation", { name: "Sydney / Draft team" })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   const groups = await rpc<
     Array<{
@@ -95,12 +99,12 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
     .getByRole("button", { name: /^Draft team/ })
     .locator(".rakazo-group-avatar");
   await expect(groupAvatar).toBeVisible();
-  await expect(groupAvatar.locator(".rakazo-organic-avatar")).toHaveCount(2);
+  await expect(groupAvatar.locator(".sydney-bot-avatar")).toHaveCount(2);
   const workingAvatar = groupAvatar.locator('[data-working="true"]');
   await expect(workingAvatar).toHaveCount(1);
-  await expect(workingAvatar.locator(".rakazo-organic-avatar-body-working")).toHaveCSS(
+  await expect(workingAvatar.locator(".sydney-bot-avatar-eyes")).toHaveCSS(
     "animation-name",
-    /rakazo-organic-/,
+    "sydney-avatar-working",
   );
   await captureScreenshot(page, testInfo, "group-avatar-active");
   await page.unroute("**/rpc/groups/list");
@@ -265,8 +269,10 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
   expect(transcriptBox?.x).toBeLessThanOrEqual(16);
   expect(transcriptBox?.width).toBeGreaterThan(390 - 24);
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await expect(page.getByRole("button", { name: "Close navigation" })).toBeVisible();
-  await page.getByRole("button", { name: "Close navigation" }).click();
+  const mobileSidebar = page.getByTestId("bots-sidebar");
+  await expect(mobileSidebar).toBeVisible();
+  await mobileSidebar.getByRole("button", { name: /^Draft team/ }).click();
+  await expect(mobileSidebar).toHaveAttribute("aria-hidden", "true");
   await page.getByTestId("bot-settings-trigger").click();
   const settings = page.getByTestId("side-panel");
   await expect(settings).toHaveAttribute("data-panel", "group-settings");

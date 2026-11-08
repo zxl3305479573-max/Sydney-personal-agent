@@ -32,7 +32,7 @@ afterEach(async () => {
 
 async function deployment(
   env = "RAKAZO_IMAGE_TAG=v1.0.0\nRAKAZO_IMAGE_TAG_PREVIOUS=v0.9.0\n",
-  options: { overlay?: boolean } = {},
+  options: { overlay?: boolean; updateServices?: string } = {},
 ) {
   const deployDir = await mkdtemp(path.join(os.tmpdir(), "rakazo-updater-test-"));
   temporaryDirectories.push(deployDir);
@@ -46,6 +46,7 @@ async function deployment(
         RAKAZO_COMPOSE_OVERLAY_FILE: options.overlay
           ? "/etc/rakazo/compose/production.overlay.yml"
           : undefined,
+        RAKAZO_UPDATE_SERVICES: options.updateServices,
       },
       {
         inspect: () =>
@@ -391,7 +392,10 @@ describe("updater orchestration", () => {
   });
 
   it("uses the persistent overlay for rollback recovery", async () => {
-    const fixture = await deployment(undefined, { overlay: true });
+    const fixture = await deployment(undefined, {
+      overlay: true,
+      updateServices: "native-screen-web-loopback",
+    });
     const calls: string[][] = [];
     const run: UpdaterCommandRunner = async (_command, args) => {
       calls.push(args);
@@ -400,7 +404,12 @@ describe("updater orchestration", () => {
     const response = await request(createUpdaterApp(fixture.config, { run }), "/rollback");
     expect(response.status).toBe(200);
     expect(calls.find((args) => args.includes("up"))).toEqual(
-      expect.arrayContaining(["--file", "/etc/rakazo/compose/production.overlay.yml"]),
+      expect.arrayContaining([
+        "--file",
+        "/etc/rakazo/compose/production.overlay.yml",
+        "web",
+        "native-screen-web-loopback",
+      ]),
     );
   });
 

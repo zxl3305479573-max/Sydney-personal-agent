@@ -1,4 +1,4 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import type {
   AgentSkillCatalogEntry,
   Bot,
@@ -105,11 +105,7 @@ export function ShellSidePanel({
           panel !== "group-settings" &&
           panel !== "import-agent" ? (
             <div className="mb-4 flex items-center justify-between">
-              {!active && panel !== "settings" ? (
-                <span className="text-[13.5px] text-muted-foreground">
-                  <Trans>Group</Trans>
-                </span>
-              ) : null}
+              {botTab && active ? <PageBreadcrumb label={botPanelLabel} inline /> : null}
               <div className="ml-auto flex gap-1">
                 {active &&
                 panel === "computer" &&
@@ -134,7 +130,6 @@ export function ShellSidePanel({
               </div>
             </div>
           ) : null}
-          {botTab && active ? <PageBreadcrumb label={botPanelLabel} inline /> : null}
           {panel === "create-group" ? (
             <CreateGroupForm
               bots={bots}
