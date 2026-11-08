@@ -130,3 +130,72 @@ it("offers background and separate text colors without bubble settings", async (
     await act(async () => root.unmount());
   }
 });
+
+it("adjusts an uploaded background's transparency in the preview and saves it", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const stored = mockIndexedDb();
+  vi.stubGlobal(
+    "Image",
+    class {
+      src = "";
+      naturalWidth = 10;
+      naturalHeight = 10;
+      decode = async () => undefined;
+    },
+  );
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static override createObjectURL = vi.fn(() => "blob:background");
+      static override revokeObjectURL = vi.fn();
+    },
+  );
+  await loadChatAppearance();
+  await saveChatAppearance(EMPTY_CHAT_APPEARANCE);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<ChatAppearanceSettings />));
+    const file = new File(["image"], "background.png", { type: "image/png" });
+    Object.defineProperty(file, "slice", {
+      value: () => ({
+        arrayBuffer: async () => Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
+      }),
+    });
+    const upload = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(upload, "files", { configurable: true, value: [file] });
+    await act(async () => upload.dispatchEvent(new Event("change", { bubbles: true })));
+    const slider = container.querySelector<HTMLInputElement>('input[type="range"]')!;
+    expect(slider.value).toBe("0");
+    expect(container.textContent).toContain("背景透明度");
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      setValue.call(slider, "60");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const preview = container.querySelector<HTMLElement>('[aria-label="聊天外观预览"]')!;
+    expect(preview.querySelector("img")?.style.opacity).toBe("0.4");
+    expect(preview.querySelector<HTMLDivElement>(".bg-black")?.style.opacity).toBe("0.12");
+    await act(async () =>
+      [...container.querySelectorAll("button")]
+        .find((item) => item.textContent === "保存外观")
+        ?.click(),
+    );
+    expect(getSavedChatAppearance().backgrounds[0]?.opacity).toBe(40);
+    expect(stored()).toMatchObject({ backgrounds: [{ name: "background.png", opacity: 40 }] });
+    await act(async () => {
+      setValue.call(slider, "100");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(preview.querySelector("img")?.style.opacity).toBe("0");
+    expect(preview.querySelector<HTMLDivElement>(".bg-black")?.style.opacity).toBe("0");
+    await act(async () =>
+      [...container.querySelectorAll("button")]
+        .find((item) => item.textContent === "取消预览")
+        ?.click(),
+    );
+    expect(slider.value).toBe("60");
+  } finally {
+    await act(async () => root.unmount());
+  }
+});

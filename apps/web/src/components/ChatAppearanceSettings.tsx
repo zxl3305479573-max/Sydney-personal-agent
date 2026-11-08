@@ -133,7 +133,7 @@ export function ChatAppearanceSettings() {
               />
               <div
                 className="absolute inset-0 bg-black"
-                style={{ opacity: background.overlay / 100 }}
+                style={{ opacity: (background.overlay * background.opacity) / 10_000 }}
               />
             </div>
           ) : null}
@@ -218,15 +218,17 @@ export function ChatAppearanceSettings() {
                   </select>
                 </label>
                 <label>
-                  图片不透明度{" "}
+                  背景透明度{" "}
                   <input
                     type="range"
                     min="0"
                     max="100"
-                    value={background.opacity}
-                    onChange={(event) => updateBackground({ opacity: Number(event.target.value) })}
+                    value={100 - background.opacity}
+                    onChange={(event) =>
+                      updateBackground({ opacity: 100 - Number(event.target.value) })
+                    }
                   />{" "}
-                  {background.opacity}%
+                  {100 - background.opacity}%
                 </label>
                 <label>
                   暗色遮罩{" "}

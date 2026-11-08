@@ -533,7 +533,7 @@ export const Transcript = memo(function Transcript({
           />
           <div
             className="absolute inset-0 bg-black"
-            style={{ opacity: background.overlay / 100 }}
+            style={{ opacity: (background.overlay * background.opacity) / 10_000 }}
           />
         </div>
       ) : null}
