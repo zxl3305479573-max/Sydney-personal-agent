@@ -48,6 +48,7 @@ import { agentImportSetupState, createImportedBot, previewAgentImport } from "..
 import { deleteAgentSecret, listAgentSecrets, putAgentSecret } from "../agent-secrets.js";
 import { changedBotSettings } from "../bot-setting-analytics.js";
 import { requireIdentityConfirmation } from "../identity-confirmation.js";
+import { onboardingLanguage } from "../onboarding-language.js";
 import type { RouterDeps } from "../router.js";
 import { loadMessagePage } from "../thread-message-pages.js";
 import type { RouterContext } from "./context.js";
@@ -163,12 +164,16 @@ export function botIntroPrompt(input: {
   userName: string;
   spaceName: string | null;
   disabledBuiltinTools: readonly string[];
+  locale?: string | null;
 }): string {
   const canAsk = !input.disabledBuiltinTools.includes("ask_user");
   const canUpdate = !input.disabledBuiltinTools.includes("update_bot");
   const options =
     "two to four short options that fit your name, anything your description or instructions already say, and what you know about them, never a stock list";
   return [
+    onboardingLanguage(input.locale) === "en"
+      ? "Write the entire introduction, question, and all answer options in English."
+      : "Write the entire introduction, question, and all answer options in Simplified Chinese (简体中文).",
     [
       "You were just created.",
       input.userName ? `${input.userName} made you.` : undefined,
@@ -204,7 +209,10 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
   if (deps.env.agentRuntime === "scripted") return;
   if ((await modelSetup(deps, actor)).needsModel) return;
   const [user, space] = await Promise.all([
-    deps.prisma.user.findUnique({ where: { id: actor.userId }, select: { name: true } }),
+    deps.prisma.user.findUnique({
+      where: { id: actor.userId },
+      select: { name: true, locale: true },
+    }),
     deps.prisma.space.findUnique({
       where: { id: actor.spaceId },
       select: { name: true, isDefault: true },
@@ -214,6 +222,7 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
     userName: displayName(user?.name, ""),
     spaceName: space && !space.isDefault ? space.name.trim() || null : null,
     disabledBuiltinTools: bot.disabledBuiltinTools ?? [],
+    locale: user?.locale,
   });
   const run = await deps.prisma.$transaction(async (tx) => {
     // An idempotent create (spawnKey) returns the bot it already made; it gets one intro.

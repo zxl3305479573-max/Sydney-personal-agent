@@ -6,7 +6,12 @@ import { Button, Disclosure, Textarea } from "@rakazo/ui-web";
 import { Popover, PopoverContent, PopoverTrigger } from "@rakazo/ui-web/components/ui/popover";
 import { History } from "lucide-react";
 import { useId, useState } from "react";
-import { personalityIdForInstructions, personalityPreset } from "../lib/personality-library";
+import {
+  combinePersonalityInstructions,
+  personalityIdForInstructions,
+  personalityPreset,
+  splitPersonalityInstructions,
+} from "../lib/personality-library";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
 import { PersonalityPicker } from "./PersonalityPicker";
@@ -18,14 +23,16 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
   const [previousBot, setPreviousBot] = useState(bot);
   const [current, setCurrent] = useState(bot);
   const [baseline, setBaseline] = useState(bot.instructions);
-  const [instructions, setInstructions] = useState(bot.instructions);
+  const [instructions, setInstructions] = useState(
+    () => splitPersonalityInstructions(bot.instructions).duties,
+  );
   const [pending, setPending] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState("");
   if (bot !== previousBot) {
     setPreviousBot(bot);
-    if (instructions === baseline) {
-      setInstructions(bot.instructions);
+    if (instructions === splitPersonalityInstructions(baseline).duties) {
+      setInstructions(splitPersonalityInstructions(bot.instructions).duties);
       setBaseline(bot.instructions);
     }
     setCurrent(bot);
@@ -37,7 +44,7 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
       const updated = await action();
       setConflict(false);
       setCurrent(updated);
-      setInstructions(updated.instructions);
+      setInstructions(splitPersonalityInstructions(updated.instructions).duties);
       setBaseline(updated.instructions);
     } catch (err) {
       setError(errorText(err));
@@ -46,7 +53,7 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
       setPending(false);
     }
   }
-  const personality = personalityIdForInstructions(instructions);
+  const personality = personalityIdForInstructions(current.instructions);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between pe-1">
@@ -107,15 +114,19 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
         </p>
         <PersonalityPicker
           value={personality}
-          disabled={pending}
+          disabled={pending || conflict}
           onChange={(next) => {
             if (!next) return;
             const preset = personalityPreset(next);
-            if (preset.instructions === instructions) return;
+            const nextInstructions = combinePersonalityInstructions(
+              instructions,
+              preset.instructions,
+            );
+            if (nextInstructions === current.instructions) return;
             void save(() =>
               rpc.bots.update({
                 botId: bot.id,
-                instructions: preset.instructions,
+                instructions: nextInstructions,
                 expectedInstructions: baseline,
               }),
             );
@@ -124,11 +135,12 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
         <PersonalPersonalityLibrary
           disabled={pending || conflict}
           onApply={(nextInstructions) => {
-            if (nextInstructions === instructions) return;
+            const combined = combinePersonalityInstructions(instructions, nextInstructions);
+            if (combined === current.instructions) return;
             void save(() =>
               rpc.bots.update({
                 botId: bot.id,
-                instructions: nextInstructions,
+                instructions: combined,
                 expectedInstructions: baseline,
               }),
             );
@@ -143,9 +155,17 @@ export function InstructionSettings({ bot }: { bot: Bot }) {
         disabled={pending}
         onChange={(event) => setInstructions(event.target.value)}
         onBlur={() => {
-          if (!conflict && instructions !== current.instructions)
+          const combined = combinePersonalityInstructions(
+            instructions,
+            splitPersonalityInstructions(current.instructions).personality,
+          );
+          if (!conflict && combined !== current.instructions)
             void save(() =>
-              rpc.bots.update({ botId: bot.id, instructions, expectedInstructions: baseline }),
+              rpc.bots.update({
+                botId: bot.id,
+                instructions: combined,
+                expectedInstructions: baseline,
+              }),
             );
         }}
       />

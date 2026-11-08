@@ -57,6 +57,33 @@ const planner = (status: "created" | "archived" | "deleted" = "created") => ({
   status,
 });
 
+it.each([
+  ["narration", [{ kind: "text", text: "Hello" }]],
+  [
+    "mixed message",
+    [
+      { kind: "text", text: "Hello" },
+      { kind: "meta", text: "Notice" },
+    ],
+  ],
+  [
+    "mixed progress",
+    [
+      { kind: "progress", text: "Working" },
+      { kind: "meta", text: "Notice" },
+    ],
+  ],
+] as const)("only reserves avatar space for a named speaker in %s", (_, blocks) => {
+  renderView("bot", [...blocks]);
+  expect(container.querySelector(".sydney-assistant-content")?.hasAttribute("data-speaker")).toBe(
+    false,
+  );
+  renderView("bot", [...blocks], { speakerName: "Sydney" });
+  expect(container.querySelector(".sydney-assistant-content")?.getAttribute("data-speaker")).toBe(
+    "true",
+  );
+});
+
 function renderView(
   role: ThreadMessage["role"],
   blocks: ThreadMessage["blocks"],

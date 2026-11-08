@@ -1,4 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Check } from "lucide-react";
 import type { PersonalityId } from "../lib/personality-library";
 import { PERSONALITY_LIBRARY } from "../lib/personality-library";
 
@@ -39,6 +40,11 @@ export function PersonalityPicker({
               >
                 <span className="sydney-personality-option-title">{copy.label}</span>
                 <span className="sydney-personality-option-description">{copy.description}</span>
+                {value === preset.id && (
+                  <span className="sydney-personality-option-check" aria-hidden="true">
+                    <Check size={14} strokeWidth={3} />
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -59,6 +65,11 @@ export function PersonalityPicker({
               <span className="sydney-personality-option-description">
                 <Trans>Use the instructions below</Trans>
               </span>
+              {value === "custom" && (
+                <span className="sydney-personality-option-check" aria-hidden="true">
+                  <Check size={14} strokeWidth={3} />
+                </span>
+              )}
             </button>
           </li>
         ) : null}

@@ -286,6 +286,7 @@ function SpaceShell() {
   }, [isMobileSidebar]);
   const miniSidebar = botsSidebarCollapsed && !isMobileSidebar;
   const [botMenu, setBotMenu] = useState<{ kind: "bot" | "group"; id: string } | null>(null);
+  const [mobileBotActionError, setMobileBotActionError] = useState<string | null>(null);
   const closeBotMenu = useCallback(() => setBotMenu(null), []);
   const currentSpaceId = selectedSpaceId() ?? bootstrapMe?.spaceId ?? null;
   // null: settings follow the space the app is showing.
@@ -1007,8 +1008,28 @@ function SpaceShell() {
             reorderRosterBot={roster.reorderRosterBot}
             activeSnapshot={activeSnapshot}
             botMenuContent={botMenuContent}
+            onToggleBotPinned={(bot) => {
+              setMobileBotActionError(null);
+              const space = sidebarSpaces.find((item) => item.id === bot.spaceId);
+              if (!bot.pinned && (space?.bots.filter((item) => item.pinned).length ?? 0) >= 4) {
+                setMobileBotActionError(t`Each space can have at most 4 main bots`);
+                return;
+              }
+              void createSpaceRpc(bot.spaceId)
+                .bots.update({ botId: bot.id, pinned: !bot.pinned })
+                .then(() => refreshBots())
+                .catch(() => {
+                  setMobileBotActionError(t`Could not save`);
+                  void refreshBots().catch(() => undefined);
+                });
+            }}
+            mobileBotActionError={mobileBotActionError}
+            onDeleteBot={dialogs.setDeleteTarget}
             onCreateBot={() => dialogs.setCreateBotOpen(true)}
-            onCreateGroup={() => setPanel("create-group")}
+            onCreateGroup={() => {
+              setMobileSidebarOpen(false);
+              setPanel("create-group");
+            }}
           />
         }
         archived={
@@ -1220,6 +1241,10 @@ function SpaceShell() {
         rpc={rpc}
         panel={panel}
         setPanel={setPanel}
+        onCancelCreateGroup={() => {
+          setPanel(null);
+          if (isMobileSidebar) setMobileSidebarOpen(true);
+        }}
         active={active}
         activeGroup={activeGroup}
         bots={bots}

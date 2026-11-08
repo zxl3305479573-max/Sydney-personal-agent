@@ -245,7 +245,10 @@ export const MessageView = memo(function MessageView({
       <>
         {messageContext}
         <div className="relative w-fit max-w-full [@media(hover:none)]:w-full">
-          <div className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full">
+          <div
+            data-speaker={speakerName ? "true" : undefined}
+            className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
+          >
             <div
               data-testid="message-bot-bubble"
               className="rk-chat-type max-w-full space-y-2.5 text-foreground/80"
@@ -419,6 +422,7 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
+                data-speaker={speakerName ? "true" : undefined}
                 className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
               >
                 <div
@@ -580,6 +584,7 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
+                data-speaker={speakerName ? "true" : undefined}
                 className="sydney-assistant-content relative flex w-fit max-w-full justify-start [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
               >
                 <div

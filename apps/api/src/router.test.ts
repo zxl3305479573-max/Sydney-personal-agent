@@ -5612,6 +5612,17 @@ describe("bot intro run", () => {
     );
   });
 
+  it("passes the saved account language to the intro", async () => {
+    const { create, deps } = introDeps();
+    vi.mocked(deps.prisma.user.findUnique).mockResolvedValue({
+      name: "Ada",
+      locale: "en",
+    } as never);
+    await enqueueBotIntroRun(deps, actor, bot);
+    const [taskCall] = create.mock.calls as Array<[{ data: { prompt?: string } }]>;
+    expect(taskCall?.[0].data.prompt).toContain("in English");
+  });
+
   it("does nothing when the bot has no thread", async () => {
     const { create, enqueue, deps } = introDeps();
 
@@ -5655,6 +5666,13 @@ describe("bot intro run", () => {
     expect(prompt([])).toContain("update_bot");
     expect(prompt(["ask_user", "update_bot"])).not.toContain("ask_user");
     expect(prompt(["ask_user", "update_bot"])).not.toContain("update_bot");
+  });
+
+  it("requests the account language for the intro and its options", () => {
+    const base = { userName: "Ada", spaceName: null, disabledBuiltinTools: [] };
+    expect(botIntroPrompt(base)).toContain("Simplified Chinese");
+    expect(botIntroPrompt({ ...base, locale: "zh-CN" })).toContain("Simplified Chinese");
+    expect(botIntroPrompt({ ...base, locale: "en" })).toContain("in English");
   });
 });
 

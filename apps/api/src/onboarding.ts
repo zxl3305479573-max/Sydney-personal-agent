@@ -13,6 +13,7 @@ import {
   IsolationError,
 } from "@rakazo/db";
 import { requireBotThread } from "./bot-thread.js";
+import { onboardingLanguage } from "./onboarding-language.js";
 import { resolveThreadTarget } from "./thread-target.js";
 
 /**
@@ -32,6 +33,8 @@ type FocusOption = {
   letter: string;
   label: string;
   summary: string;
+  labelZh: string;
+  summaryZh: string;
   apps: string[];
 };
 
@@ -41,6 +44,8 @@ const FOCUS_OPTIONS: FocusOption[] = [
     letter: "A",
     label: "Day-to-day work",
     summary: "Slack, calendar, and email",
+    labelZh: "日常工作",
+    summaryZh: "日常工作",
     apps: ["slack", "gmail", "googlecalendar"],
   },
   {
@@ -48,6 +53,8 @@ const FOCUS_OPTIONS: FocusOption[] = [
     letter: "B",
     label: "Inbox & email",
     summary: "email and calendar",
+    labelZh: "收件箱和邮件",
+    summaryZh: "邮件和日历",
     apps: ["gmail", "googlecalendar", "slack"],
   },
   {
@@ -55,6 +62,8 @@ const FOCUS_OPTIONS: FocusOption[] = [
     letter: "C",
     label: "Research & writing",
     summary: "the web, notes, and docs",
+    labelZh: "研究和写作",
+    summaryZh: "搜索、笔记和文档",
     apps: ["hackernews", "notion", "googledocs"],
   },
   {
@@ -62,6 +71,8 @@ const FOCUS_OPTIONS: FocusOption[] = [
     letter: "D",
     label: "A bit of everything",
     summary: "Slack, calendar, and email",
+    labelZh: "各种事情",
+    summaryZh: "各种事情",
     apps: ["slack", "gmail", "googlecalendar"],
   },
 ];
@@ -122,12 +133,21 @@ export async function promptFocus(
   botId: string,
 ): Promise<void> {
   const { bot, thread } = await requireBotThread(deps, actor, botId);
+  const user = await deps.prisma.user.findUnique({
+    where: { id: actor.userId },
+    select: { locale: true },
+  });
+  const language = onboardingLanguage(user?.locale);
   const target = { spaceId: actor.spaceId, botId: bot.id, threadId: thread.id };
   const blocks: MessageBlock[] = [
     {
       kind: "choice",
-      question: "What do you want me on first?",
-      options: FOCUS_OPTIONS.map(({ id, letter, label }) => ({ id, letter, label })),
+      question: language === "zh" ? "你希望我先帮你做什么？" : "What do you want me on first?",
+      options: FOCUS_OPTIONS.map(({ id, letter, label, labelZh }) => ({
+        id,
+        letter,
+        label: language === "zh" ? labelZh : label,
+      })),
     },
   ];
   // Check + insert + event in one transaction so concurrent promptFocus calls
@@ -216,6 +236,11 @@ export async function chooseFocus(
   const option = FOCUS_OPTIONS.find((entry) => entry.id === optionId);
   if (!option) throw new IsolationError();
   const { bot, thread } = await requireBotThread(deps, actor, botId);
+  const user = await deps.prisma.user.findUnique({
+    where: { id: actor.userId },
+    select: { locale: true },
+  });
+  const language = onboardingLanguage(user?.locale);
   const target = { spaceId: actor.spaceId, botId: bot.id, threadId: thread.id };
 
   const claimed = await deps.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -252,7 +277,10 @@ export async function chooseFocus(
     [
       {
         kind: "text",
-        text: `Got it. ${capitalize(option.summary)}. I’ll see what’s already connected so I don’t make you set something up twice.`,
+        text:
+          language === "zh"
+            ? `明白了，我们先处理${option.summaryZh}。我会先查看已连接的应用，避免重复设置。`
+            : `Got it. ${capitalize(option.summary)}. I’ll see what’s already connected so I don’t make you set something up twice.`,
       },
     ],
     false,
@@ -280,7 +308,12 @@ export async function chooseFocus(
     return entry ? [appConnectCard(entry)] : [];
   });
   if (!cards.length) {
-    await post(deps, target, [{ kind: "text", text: "What would you like to work on first?" }]);
+    await post(deps, target, [
+      {
+        kind: "text",
+        text: language === "zh" ? "你想先做什么？" : "What would you like to work on first?",
+      },
+    ]);
     return;
   }
   const cardNames = cards
@@ -290,14 +323,20 @@ export async function chooseFocus(
   await post(deps, target, [
     {
       kind: "text",
-      text: `${named} are a good place to start. Connect them here and I’ll use what you already have.`,
+      text:
+        language === "zh"
+          ? `可以先连接${cardNames.join("、")}，我会使用你已有的内容。`
+          : `${named} are a good place to start. Connect them here and I’ll use what you already have.`,
     },
   ]);
   await post(deps, target, cards);
   await post(deps, target, [
     {
       kind: "text",
-      text: `Hit those ${cards.length === 1 ? "one" : cards.length === 2 ? "two" : "three"} and I’ll start pulling the picture.`,
+      text:
+        language === "zh"
+          ? "连接这些应用后，我就可以开始了解情况。"
+          : `Hit those ${cards.length === 1 ? "one" : cards.length === 2 ? "two" : "three"} and I’ll start pulling the picture.`,
     },
   ]);
 }

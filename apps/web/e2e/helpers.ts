@@ -80,7 +80,30 @@ export async function signup(
   });
   if (!response.ok()) throw new Error(`sign-up ${response.status()}: ${await response.text()}`);
   const verify = signupRequiresEmailVerification(await response.json());
-  await page.goto(verify ? "/sign-up?verify=email" : "/onboarding");
+  if (verify) {
+    const emailApi = process.env.API_URL ?? "http://127.0.0.1:3110";
+    let verificationUrl: string | undefined;
+    await expect
+      .poll(async () => {
+        const messages = await page.request.get(`${emailApi}/__e2e/emails`);
+        if (!messages.ok()) throw new Error(`test outbox ${messages.status()}`);
+        const sent = (await messages.json()) as Array<{ to: string; text: string }>;
+        verificationUrl = sent
+          .filter((message) => message.to === email)
+          .map((message) => message.text.match(/https?:\/\/\S*\/verify-email\S*/)?.[0])
+          .find(Boolean);
+        return Boolean(verificationUrl);
+      })
+      .toBe(true);
+    const verification = await page.request.get(verificationUrl!, { maxRedirects: 0 });
+    expect(verification.status()).toBe(302);
+    const signIn = await page.request.post("/api/auth/sign-in/email", {
+      data: { email, password },
+      headers: { origin: new URL(baseURL).origin },
+    });
+    if (!signIn.ok()) throw new Error(`sign-in ${signIn.status()}: ${await signIn.text()}`);
+  }
+  await page.goto("/onboarding");
 }
 
 export async function signupThroughForm(
