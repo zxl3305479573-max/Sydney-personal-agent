@@ -9,12 +9,58 @@ const calls = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
 }));
+const locale = vi.hoisted(() => ({ value: "zh-CN" }));
 vi.mock("../lib/rpc", () => ({ rpc: { personalities: calls } }));
-vi.mock("../lib/i18n", () => ({ getActiveUiLocale: () => "zh-CN" }));
+vi.mock("@lingui/react/macro", () => ({
+  useLingui: () => ({ i18n: { locale: locale.value } }),
+}));
 
 import { PersonalPersonalityLibrary } from "./PersonalPersonalityLibrary";
 
 describe("personal personality library", () => {
+  it("shows and searches attributes in the active interface language", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    calls.list.mockResolvedValue([]);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      locale.value = "zh-CN";
+      await act(async () => root.render(<PersonalPersonalityLibrary onApply={vi.fn()} />));
+      await act(async () => container.querySelector("button")!.click());
+      expect(container.textContent).toContain("天然呆");
+      const search = container.querySelector<HTMLInputElement>('[aria-label="搜索属性"]')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          search,
+          "天然呆",
+        );
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(container.querySelector('option[value="personality/airhead"]')).not.toBeNull();
+      locale.value = "en";
+      await act(async () => root.render(<PersonalPersonalityLibrary onApply={vi.fn()} />));
+      const englishSearch = container.querySelector<HTMLInputElement>(
+        '[aria-label="Search attributes"]',
+      )!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          englishSearch,
+          "airhead",
+        );
+        englishSearch.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(container.querySelector('option[value="personality/airhead"]')?.textContent).toBe(
+        "Airhead",
+      );
+    } finally {
+      locale.value = "zh-CN";
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("saves custom instructions and applies a stored snapshot", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const item = {

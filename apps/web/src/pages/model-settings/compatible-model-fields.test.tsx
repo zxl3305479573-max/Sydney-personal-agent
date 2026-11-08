@@ -87,10 +87,13 @@ async function renderFields(initialRows: string[], modelId = "") {
   function Fields() {
     const [enabled, setEnabled] = useState<string[]>([]);
     const [compatibleRows, setCompatibleRows] = useState(initialRows);
+    const [supportsImages, setSupportsImages] = useState(false);
     changeRows = setCompatibleRows;
     return (
       <CompatibleModelFields
         {...props(compatibleRows, enabled, modelId)}
+        supportsImages={supportsImages}
+        setSupportsImages={setSupportsImages}
         setEnabledModelIds={(update) =>
           setEnabled((current) => (typeof update === "function" ? update(current) : update))
         }
@@ -109,6 +112,22 @@ async function renderFields(initialRows: string[], modelId = "") {
     },
   };
 }
+
+it("shows the image capability next to model settings without opening advanced options", async () => {
+  const view = await renderFields([], "gpt-6.1-terra");
+  try {
+    const label = [...view.container.querySelectorAll("label")].find((element) =>
+      element.textContent?.includes("Supports images"),
+    );
+    const checkbox = label?.querySelector<HTMLElement>('[role="checkbox"]');
+    expect(checkbox?.getAttribute("aria-checked")).toBe("false");
+    expect(checkbox?.closest("details")).toBeNull();
+    await act(async () => checkbox?.click());
+    expect(checkbox?.getAttribute("aria-checked")).toBe("true");
+  } finally {
+    await view.unmount();
+  }
+});
 
 function search() {
   return document.querySelector<HTMLInputElement>('input[aria-label="Search models"]');

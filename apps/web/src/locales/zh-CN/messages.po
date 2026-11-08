@@ -1664,6 +1664,10 @@ msgstr "连接 OAuth"
 msgid "Connect this model's provider first."
 msgstr "请先连接此模型的提供方。"
 
+#: src/components/integrations/plugin-marketplace.tsx
+msgid "Connect using the managed app"
+msgstr "使用托管方式连接应用"
+
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
@@ -4237,10 +4241,6 @@ msgstr "未导入"
 #: src/pages/shell/import-status.ts
 msgid "Not in Rakazo's catalog"
 msgstr "不在 Rakazo 目录中"
-
-#: src/pages/PluginsOverlay.tsx
-msgid "Not in the plugin catalog"
-msgstr "不在插件目录中"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Not now"

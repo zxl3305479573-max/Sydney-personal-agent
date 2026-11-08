@@ -50,3 +50,15 @@ test("a failed integrations load offers Retry instead of an empty catalog", asyn
   await expect(page.getByText("Could not reach the server", { exact: true })).toHaveCount(0);
   await expect(retry).toHaveCount(0);
 });
+
+test("an empty catalog does not show unavailable featured apps", async ({ page }) => {
+  await signup(page, `empty-catalog-${Date.now()}@rakazo.test`, "password12", "Empty Catalog");
+  await completeOnboarding(page);
+  await page.route("**/rpc/connections/catalog", (route) => route.fulfill({ json: { json: [] } }));
+  await page.getByRole("button", { name: "Connect apps", exact: true }).click();
+
+  const featured = page.getByTestId("featured-connectors");
+  await expect(featured).toContainText("Configure a plugin catalog on the server to connect apps.");
+  await expect(featured.getByText("Gmail", { exact: true })).toHaveCount(0);
+  await expect(featured.getByText("Not in the plugin catalog", { exact: true })).toHaveCount(0);
+});

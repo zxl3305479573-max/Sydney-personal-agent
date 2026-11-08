@@ -1,4 +1,4 @@
-import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
+import { WAITING_ON_USER_RUN_STATUSES, WORKING_RUN_STATUSES } from "@rakazo/core";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -31,10 +31,17 @@ describe("BotAvatar", () => {
     expect(shape).toContain('style="width:26px;height:26px;flex:none"');
   });
 
-  it.each([...ACTIVE_RUN_STATUSES])("marks active run status %s as working", (status) => {
+  it.each([...WORKING_RUN_STATUSES])("marks active run status %s as working", (status) => {
     const html = renderToString(<BotAvatar color="#3B82F6" status={status} />);
     expect(html).toContain("<svg");
     expect(html).toContain('data-working="true"');
+  });
+
+  it.each([...WAITING_ON_USER_RUN_STATUSES])("does not spin while %s waits on the user", (status) => {
+    const html = renderToString(<BotAvatar color="data:image/png;base64,abc" status={status} />);
+    expect(html).toContain('data-activity="waiting"');
+    expect(html).toContain('data-working="false"');
+    expect(html).not.toContain("rakazo-bot-avatar-ring-working");
   });
 
   it("keeps working attribute false when idle", () => {

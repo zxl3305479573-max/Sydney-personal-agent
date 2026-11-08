@@ -42,7 +42,7 @@ function popupFlow({ focused }: { focused: boolean }) {
     }
   }
   // A popup on a COOP provider page reads as closed to the opener.
-  const popup = { closed: true, close: vi.fn() };
+  const popup = { closed: true, close: vi.fn(), location: { href: "about:blank" }, opener: window };
   vi.stubGlobal("BroadcastChannel", FakeChannel);
   vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
   vi.spyOn(document, "hasFocus").mockReturnValue(focused);
@@ -57,7 +57,7 @@ afterEach(() => {
 
 it("approves the bot after OAuth completes while a COOP popup keeps focus", async () => {
   vi.useFakeTimers();
-  const { channels } = popupFlow({ focused: false });
+  const { channels, popup } = popupFlow({ focused: false });
   const host = document.createElement("div");
   const root = createRoot(host);
   try {
@@ -79,6 +79,7 @@ it("approves the bot after OAuth completes while a COOP popup keeps focus", asyn
       ),
     );
     await act(async () => host.querySelector("button")?.click());
+    expect(popup.location.href).toBe("https://identity.example.test/authorize");
     await act(async () => vi.advanceTimersByTimeAsync(1000));
     expect(calls.approve).not.toHaveBeenCalled();
     await act(async () =>
@@ -105,7 +106,18 @@ it("cancels once the popup is closed and the app has focus again", async () => {
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("opens the OAuth window before requesting a URL and closes it when setup fails", async () => {
+  const { popup } = popupFlow({ focused: false });
+  calls.oauthBegin.mockRejectedValueOnce(new Error("Needs an OAuth client ID"));
+  const flow = connectMcpOauth("server");
+  expect(window.open).toHaveBeenCalledWith("about:blank", "rakazo-mcp-oauth", expect.any(String));
+  expect(popup.opener).toBeNull();
+  await expect(flow).rejects.toThrow("Needs an OAuth client ID");
+  expect(popup.close).toHaveBeenCalledOnce();
+});
+
 it("authorizes a card in a normal chat and marks its thread connected", async () => {
+  const { popup } = popupFlow({ focused: false });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -135,6 +147,7 @@ it("authorizes a card in a normal chat and marks its thread connected", async ()
       connectorId: "fake",
       provider: "gmail",
     });
+    expect(popup.close).toHaveBeenCalledOnce();
     expect(host.textContent).toContain("Connected");
     expect(host.querySelector("button")).toBeNull();
   } finally {

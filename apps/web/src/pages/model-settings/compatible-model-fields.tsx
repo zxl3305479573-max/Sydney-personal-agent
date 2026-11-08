@@ -286,6 +286,18 @@ export function CompatibleModelFields({
           </Button>
         ) : null}
       </div>
+      <Label className="mt-4 font-normal text-foreground">
+        <Checkbox
+          checked={supportsImages}
+          disabled={busy}
+          onCheckedChange={(checked) => {
+            selectionRevisionRef.current += 1;
+            setSupportsImages(checked === true);
+            setNotice(null);
+          }}
+        />
+        <Trans>Supports images</Trans>
+      </Label>
       <ModelThinkingOptions
         reasoning={reasoning}
         onReasoningChange={(value) => {
@@ -324,12 +336,6 @@ export function CompatibleModelFields({
         }}
         contextWindowLabel={t`Context limit`}
         supportsImages={supportsImages}
-        onSupportsImagesChange={(value) => {
-          selectionRevisionRef.current += 1;
-          setSupportsImages(value);
-          setNotice(null);
-        }}
-        imagesLabel={t`Supports images`}
         maxImagesPerPrompt={maxImagesPerPrompt}
         onMaxImagesPerPromptChange={(value) => {
           selectionRevisionRef.current += 1;

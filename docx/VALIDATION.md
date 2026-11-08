@@ -1,5 +1,35 @@
 # 验证记录
 
+2026-11-08（PA-019 换肤插件规划）：静态核对 Web 主题应用、聊天外观存储、现有插件部件定义及安装入口；本轮只有设计文档，未执行代码测试、浏览器或部署验证，未验证现有插件安装能力可直接承载主题。
+
+2026-11-08（PA-018 新兼容模型默认识图）：`pnpm exec vitest run packages/core/src/model-connection-form.test.ts apps/web/src/pages/Onboarding.test.tsx --maxWorkers=1` 通过，2 文件 19 项；覆盖新连接默认及已保存关闭状态，首次配置测试未单独覆盖提交图片能力。相关 TypeScript 文件 Biome 检查通过；未做浏览器、真实模型和部署验证。用户反馈手动开启后已可使用。
+
+2026-11-08（PA-020 旧气泡数据清理）：外观设置、颜色选择器和聊天渲染定向测试 3 文件 10 项通过，模拟 IndexedDB 覆盖清理后背景与颜色保留以及写入失败时旧记录保留；Web TypeScript 检查通过。真实浏览器 IndexedDB、跨标签页、移动端及部署未验证。
+
+2026-11-08（PA-018 图片能力设置入口）：兼容连接界面定向测试 1 文件 6 项通过，包含无需展开高级设置即可找到和切换图片能力；修改的两个文件 Biome 检查通过。最初包含服务端的组合测试启动较慢，已中断，未取得结果；未执行真实连接保存、浏览器、真实图片识别及部署验证。
+
+2026-11-08（PA-018 图片设置核对）：静态检查模型设置界面，确认“支持图片”仅在 OpenAI 兼容连接的高级设置中显示；其他服务商设置未提供该开关。未连接用户账户或验证实际模型。
+
+2026-11-08（PA-018 重复调用停止提示）：`pnpm exec vitest run packages/core/src/loop-guard-message.test.ts packages/adapters/src/tool-loop.test.ts packages/adapters/src/executor-loop-guard.test.ts packages/adapters/src/job-reconciler.test.ts apps/web/src/pages/shell/message-view.test.tsx --maxWorkers=1`：5 文件、82 项通过；覆盖新旧消息识别、停止条件、委派结果处理、中英文显示和点击回复。Web 与 adapters 的 `tsc --noEmit` 通过。未执行真实浏览器、外部消息渠道或部署验证。
+
+2026-11-08（PA-018 聊天图片输入续查）：依据截图及静态代码确认失败位于图片能力准入；未取得具体模型、连接和群聊目标，未复现或改动发送逻辑。
+
+2026-11-08（PA-018、PA-020 聊天外观）：Web 外观设置、聊天渲染和消息视图定向测试复跑 3 文件 22 项通过；Web TypeScript 检查通过。旧背景和气泡数据读取及双方颜色持久化在模拟 IndexedDB 中验证；真实浏览器图片上传、颜色视觉、移动端和部署未验证。
+
+2026-11-08（PA-018 聊天图片输入排查）：只阅读了上传入口、支持格式、模型能力检查和群聊接收者逻辑，未连接用户账号、复现问题或验证真实图片及模型。
+
+2026-11-08（PA-018 手机群聊发言头像）：`pnpm exec vitest run apps/web/src/pages/shell/message-view.test.tsx --maxWorkers=1` 通过，1 文件 13 项；相关 CSS 与浏览器测试文件 Biome 检查通过，报告 17 条样式警告。新增手机群聊头像及正文缩进的浏览器断言尚未执行，真实手机、浏览器布局和部署均待验证。
+
+2026-11-08（PA-018 任务进度续）：定向测试覆盖排队、已领取、其他运行的旧进度和用量结算不计入模型流耗时；同一组 5 文件测试共 89 项通过。Web 和 adapters 的 `tsc --noEmit` 通过。未运行浏览器端到端、真实模型或生产任务前后对比，排队和审批等待的真实体验仍待实测。
+
+2026-11-08（PA-018 头像等待状态）：头像、手机列表和状态定向测试 3 个文件、35 项通过；补充手机等待提示后该文件 4 项通过，Web TypeScript 检查通过。未查询线上运行状态，未部署、未在真实手机验证，排队或运行中的任务仍需按实际状态排查。
+
+2026-11-08（PA-018 任务进度）：`pnpm exec vitest run apps/web/src/pages/shell/transcript-render.test.tsx apps/web/src/lib/live-work-stage.test.ts packages/adapters/src/tool-loop.test.ts packages/adapters/src/executor-loop-guard.test.ts packages/adapters/src/pi-usage.test.ts --maxWorkers=1`：5 文件、87 项通过；覆盖中英文阶段、待确认及已回答状态、相同失败循环、变化结果和模型耗时日志脱敏。Web 与 adapters 的 `tsc --noEmit`、相关文件 Biome 和 `git diff --check` 通过。未进行浏览器端到端、真实模型、生产部署或相同任务的前后耗时对比，不能声称最终完成速度已提升。
+
+2026-11-08（PA-018 人格与职责）：`pnpm exec vitest run apps/web/src/lib/personality-library.test.ts apps/web/src/lib/personality-catalog-zh.test.ts apps/web/src/components/InstructionSettings.test.tsx apps/web/src/components/PersonalPersonalityLibrary.test.tsx packages/contracts/src/bot-personality.test.ts packages/adapters/src/executor-readonly-approval.test.ts packages/adapters/src/fleet-tools.test.ts --maxWorkers=1`：7 文件、350 项通过；随后扩充人格库中英文搜索用例，单独运行该文件 2 项通过。`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 和 `pnpm exec tsc --noEmit -p packages/adapters/tsconfig.json` 通过。未运行真实浏览器、数据库、模型和部署验证，模型对风格优先级的遵循仍需实测。
+
+2026-11-08（PA-018 Gmail 连接）：线上只读检查显示 API 和 Worker 均未配置 Composio；截图对应独立 Gmail MCP 缺少 OAuth 客户端 ID。`pnpm exec vitest run apps/web/src/lib/authorization-popup.test.ts apps/web/src/components/integrations/plugin-marketplace.test.tsx apps/web/src/pages/shell/message-cards.test.tsx apps/desktop/src/window-open.test.ts --maxWorkers=1`：4 文件、28 项通过；相关 11 个代码文件 Biome 检查通过。此前 Web TypeScript 检查通过，中文目录 1503 条、缺译 0。已补空目录浏览器断言，未运行 E2E、真实授权或只读调用；尚未部署，不能据此认定 Gmail 已连接。
+
 2026-11-08（PR #4 发布）：`1eae0e09b` 的全部已运行 PR 检查通过，包括网页两分片、三组单元、两组 PostgreSQL、Lint/类型检查、原生电脑和生产构建；未执行的项目按 CI 条件跳过。合并版本 `3e51aed60` 的自动生产部署成功，日志确认对应镜像版本；公网 `/health` 200、`/build-id` 为 `20261108045522`。真实 Gmail 授权、手机布局、模型职责保持和电脑接管未验收。
 
 2026-11-08（PR #4 测试隔离）：`af357f9b1` 的单元第一分片所有断言通过，但引导页实际认证客户端的延迟清理在 jsdom 销毁后访问 `window`，导致未处理异常。引导页单元测试改为模拟其未测的认证会话依赖，不调整生产行为；本地定向 1 文件、3 项和 Biome 检查通过，仍需 CI 复验。

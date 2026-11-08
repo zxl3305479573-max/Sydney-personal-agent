@@ -1,15 +1,9 @@
 import { createHash } from "node:crypto";
 import type { ToolCallStreak } from "@rakazo/core";
-import { trackToolCallStreak } from "@rakazo/core";
+import { isLoopGuardStopText, trackToolCallStreak } from "@rakazo/core";
 import { toolResultError } from "./tool-result-error.js";
 
-const LOOP_GUARD_STOP_PREFIX = "I got stuck calling ";
-const LOOP_GUARD_STOP_COUNT_PATTERN = " with (?:(?:nearly )?the same input|too many actions) ";
-const LOOP_GUARD_STOP_SUFFIX =
-  " times in a row without making progress, so I stopped early. Try rephrasing this, or ask me to try a different approach.";
-const LOOP_GUARD_STOP_PATTERN = new RegExp(
-  `^${LOOP_GUARD_STOP_PREFIX}.+${LOOP_GUARD_STOP_COUNT_PATTERN}\\d+${LOOP_GUARD_STOP_SUFFIX.replaceAll(".", "\\.")}$`,
-);
+export { isLoopGuardStopText };
 
 export function loopGuardStopText(toolName: string, streak: ToolCallStreak): string {
   // Short of the similar limit, only a repeated failure stops a run, and that is an identical one.
@@ -17,19 +11,15 @@ export function loopGuardStopText(toolName: string, streak: ToolCallStreak): str
     streak.count >= MAX_CONSECUTIVE_SIMILAR_TOOL_CALLS ||
     (streak.shapeCount ?? 0) < MAX_CONSECUTIVE_SIMILAR_TOOL_CALLS;
   const count = identical ? streak.count : toolCallStreakLength(streak);
-  return `${LOOP_GUARD_STOP_PREFIX}${toolName} with ${identical ? "" : "nearly "}the same input ${count}${LOOP_GUARD_STOP_SUFFIX}`;
+  return `任务已停止：工具「${toolName}」连续 ${count} 次使用${identical ? "相同" : "相似"}输入，未能继续推进。此前的部分操作可能已经执行，请先检查结果，再决定是否回复说明下一步。`;
 }
 
 export function overLimitStopText(toolName: string, count: number): string {
-  return `${LOOP_GUARD_STOP_PREFIX}${toolName} with too many actions ${count}${LOOP_GUARD_STOP_SUFFIX}`;
-}
-
-export function isLoopGuardStopText(text: string): boolean {
-  return LOOP_GUARD_STOP_PATTERN.test(text);
+  return `任务已停止：工具「${toolName}」连续 ${count} 次提交过多操作，未能继续推进。此前的部分操作可能已经执行，请先检查结果，再决定是否回复说明下一步。`;
 }
 
 // Same tool, same arguments, failing this many times in a row means the agent is stuck.
-const MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS = 6;
+const MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS = 4;
 // Arguments that differ only by digits in their text (`echo noop-1`, `echo noop-2`) can be a real
 // sequence such as reading a file in chunks or paging through a site, so they get more room. So
 // does an identical call that keeps succeeding with the same answer: it may be waiting on a page.
@@ -76,6 +66,7 @@ export type LoopGuardStreak = ToolCallStreak & {
   response?: number;
   results?: string[];
   failures?: number;
+  lastFailure?: string;
 };
 
 /**
@@ -129,11 +120,19 @@ export function advanceToolCallLoopGuard(
     : seen;
   const failures =
     same && previousResult?.startsWith(FAILED_RESULT)
-      ? (restart ? 0 : (streak.failures ?? 0)) + 1
+      ? previousResult === streak.lastFailure
+        ? (streak.failures ?? 0) + 1
+        : 1
       : 0;
   return {
-    streak: { ...next, response, ...(same ? { results, failures } : {}) },
-    // The first call has no answer yet, so six identical failing calls have five failures.
+    streak: {
+      ...next,
+      response,
+      ...(same
+        ? { results, failures, lastFailure: failures > 0 ? previousResult : undefined }
+        : {}),
+    },
+    // The first call has no answer yet, so four identical failing calls have three failures.
     stuck:
       failures >= MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS - 1 ||
       (next.shapeCount ?? 0) >= MAX_CONSECUTIVE_SIMILAR_TOOL_CALLS,

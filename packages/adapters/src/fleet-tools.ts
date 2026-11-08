@@ -10,6 +10,7 @@ import {
   GROUP_MEMBER_MAX,
   GROUP_MEMBER_MIN,
   isAttachmentImageMimeType,
+  replaceBotDuties,
   ThinkingLevelSchema,
   TimeZoneSchema,
   UpdateGroupInput,
@@ -415,6 +416,10 @@ async function prepareChildInstructions(
     select: { instructions: true, instructionHistory: true },
   });
   if (instructionsVersionOf(current) !== expectedVersion) return refuse(CHILD_CHANGED);
+  const combined = replaceBotDuties(current.instructions, instructions);
+  if (combined.length > BOT_INSTRUCTIONS_MAX_LENGTH) {
+    return refuse(`instructions must be at most ${BOT_INSTRUCTIONS_MAX_LENGTH} characters.`);
+  }
   return {
     ok: true,
     canonical: {
@@ -874,6 +879,9 @@ export async function setChildInstructions(
     select: { instructions: true, instructionHistory: true },
   });
   if (instructionsVersionOf(current) !== expectedVersion) return { error: CHILD_CHANGED };
+  const combined = replaceBotDuties(current.instructions, instructions);
+  if (combined.length > BOT_INSTRUCTIONS_MAX_LENGTH)
+    return { error: `instructions must be at most ${BOT_INSTRUCTIONS_MAX_LENGTH} characters.` };
   const caller = await deps.prisma.bot.findUnique({
     where: { id: run.botId },
     select: { name: true },
@@ -886,7 +894,7 @@ export async function setChildInstructions(
       threadId: child.thread.id,
       botId: child.id,
       emitBotUpdated: true,
-      data: { instructions },
+      data: { instructions: combined },
       expectedInstructions: current.instructions,
       reason: `Updated by ${singleLine(caller?.name ?? "a bot")}`,
     });

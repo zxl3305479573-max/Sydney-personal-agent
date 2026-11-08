@@ -363,7 +363,7 @@ function expectStoppedAt(calls: number, run: { requests: unknown[]; finalText: s
   expect(run.requests.length).toBeGreaterThanOrEqual(calls);
   expect(run.requests.length).toBeLessThanOrEqual(calls + 1);
   expect(run.finalText).toMatch(
-    new RegExp(`^I got stuck calling List files with the same input ${calls} times`),
+    new RegExp(`^任务已停止：工具「List files」连续 ${calls} 次使用相同输入`),
   );
   expect(isLoopGuardStopText(run.finalText)).toBe(true);
 }
@@ -375,9 +375,7 @@ describe("over-limit computer_act batches through the run loop", () => {
     expect(requests).toHaveLength(MAX_CONSECUTIVE_OVER_LIMIT_ACTION_CALLS);
     expect(act).not.toHaveBeenCalled();
     expect(finalizeRun).toHaveBeenCalledTimes(1);
-    expect(finalText).toMatch(
-      /^I got stuck calling Computer act with too many actions 4 times in a row without making progress, so I stopped early\./,
-    );
+    expect(finalText).toMatch(/^任务已停止：工具「Computer act」连续 4 次提交过多操作/);
     expect(isLoopGuardStopText(finalText)).toBe(true);
     for (const request of requests.slice(1)) {
       expect(toolResultTexts(request.messages).at(-1)).toContain(REFUSAL);
@@ -395,7 +393,7 @@ describe("over-limit computer_act batches through the run loop", () => {
     expect(requests.length).toBeLessThan(REQUEST_CAP);
     expect(act).toHaveBeenCalledTimes(1);
     expect(act.mock.calls[0]![1].actions).toHaveLength(24);
-    expect(finalText).toContain("with too many actions 4 times in a row");
+    expect(finalText).toContain("连续 4 次提交过多操作");
     expect(isLoopGuardStopText(finalText)).toBe(true);
   }, 30_000);
 
@@ -404,14 +402,14 @@ describe("over-limit computer_act batches through the run loop", () => {
 
     expect(requests).toHaveLength(MAX_CONSECUTIVE_OVER_LIMIT_ACTION_CALLS);
     expect(act).not.toHaveBeenCalled();
-    expect(finalText).toContain("with too many actions 4 times in a row");
-    expect(finalText).not.toContain("the same input");
+    expect(finalText).toContain("连续 4 次提交过多操作");
+    expect(finalText).not.toContain("相同输入");
   }, 30_000);
 });
 
 describe("repeated identical tool calls through the run loop", () => {
-  it("ends the run at the sixth call that fails the same way", async () => {
-    expectStoppedAt(6, await runLoop(() => ({ calls: [LISTING] }), { listing: unreadable }));
+  it("ends the run at the fourth call that fails the same way", async () => {
+    expectStoppedAt(4, await runLoop(() => ({ calls: [LISTING] }), { listing: unreadable }));
   }, 30_000);
 
   it("lets the bot wait on an unchanged answer until it changes", async () => {
@@ -424,7 +422,7 @@ describe("repeated identical tool calls through the run loop", () => {
     expect(finalText).toBe("The report is ready.");
   }, 30_000);
 
-  it("ends an unchanged answer at the 25th call, not the sixth", async () => {
+  it("ends an unchanged answer at the 25th call, not the fourth", async () => {
     expectStoppedAt(25, await runLoop(() => ({ calls: [LISTING] })));
   }, 30_000);
 
@@ -455,7 +453,7 @@ describe("repeated identical tool calls through the run loop", () => {
     expect(batch.finalText).toBe("Done.");
 
     expectStoppedAt(
-      6,
+      4,
       await runLoop(() => ({ calls: [LISTING, LISTING] }), { listing: unreadable }),
     );
   }, 30_000);

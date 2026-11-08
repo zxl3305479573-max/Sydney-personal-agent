@@ -99,7 +99,8 @@ export const BotAvatar = memo(function BotAvatar({
       parsed.shapeIndex === undefined,
   );
   const renderedActivity = activity ?? liveActivity;
-  const isWorking = renderedActivity !== "idle" && renderedActivity !== "error";
+  const isWorking =
+    renderedActivity !== "idle" && renderedActivity !== "error" && renderedActivity !== "waiting";
   const effectiveId = identity || parsed.color || "agent";
   const avatarColor = /::fluid_(#[0-9a-fA-F]{6})$/.exec(color)?.[1] ?? parsed.color;
   const variant = parsed.shapeIndex === undefined ? 0 : (parsed.shapeIndex + 1) % 5;

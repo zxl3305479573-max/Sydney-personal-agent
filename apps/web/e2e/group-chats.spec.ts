@@ -265,6 +265,21 @@ test("create group from + and see two bots in one transcript", async ({ page }, 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "Open navigation" })).toBeVisible();
   await expect(page.getByTestId("app-rail")).toHaveCount(0);
+  for (const name of ["Researcher", "Research Writer"]) {
+    const context = transcript
+      .locator(".sydney-assistant-context")
+      .filter({
+        has: page.getByText(name, { exact: true }),
+      })
+      .first();
+    const avatar = context.locator(":scope > :first-child");
+    await expect(avatar).toBeVisible();
+    await expect(avatar).toHaveCSS("width", "26px");
+    await expect(avatar).toHaveCSS("height", "26px");
+  }
+  await expect(
+    transcript.locator('.sydney-assistant-content[data-speaker="true"]').first(),
+  ).toHaveCSS("margin-inline-start", "38px");
   const transcriptBox = await transcript.boundingBox();
   expect(transcriptBox?.x).toBeLessThanOrEqual(16);
   expect(transcriptBox?.width).toBeGreaterThan(390 - 24);
