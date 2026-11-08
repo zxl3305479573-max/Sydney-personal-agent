@@ -17,6 +17,7 @@ const COMPOSE_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "infra",
 
 type FakeDockerMode =
   | "ok"
+  | "gated-pull"
   | "daemon-down"
   | "compose-check-fails"
   | "pull-fails"
@@ -117,7 +118,9 @@ async function writeFakeDocker(mode: FakeDockerMode) {
     "  pull)",
     mode === "pull-fails"
       ? '    echo "Error response from daemon: manifest unknown" >&2; exit 1 ;;'
-      : '    echo " a235d761c5d1 Downloading 59.47MB"; echo " a235d761c5d1 Downloading 412.3MB"; echo "app Pulled"; sleep 2; echo "computer Pulled"; exit 0 ;;',
+      : mode === "gated-pull"
+        ? `    echo "app Pulled"; while [ ! -f '${path.join(userData, "release-pull")}' ]; do sleep 0.1; done; echo "computer Pulled"; exit 0 ;;`
+        : '    echo " a235d761c5d1 Downloading 59.47MB"; echo " a235d761c5d1 Downloading 412.3MB"; echo "app Pulled"; sleep 2; echo "computer Pulled"; exit 0 ;;',
     up,
     '  logs) echo "web-1 | listening"; exit 0 ;;',
     "esac",
@@ -340,13 +343,15 @@ test("a saved local stack that is down is started again without asking", async (
     { encoding: "utf8", mode: 0o600 },
   );
 
-  app = await launch("ok");
+  app = await launch("gated-pull");
   const setup = await foregroundWindow(app);
   await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
   await expect(setup.locator("#stack")).toBeVisible();
   await expect(setup.locator("#status")).toBeEmpty();
 
-  const appWindow = await app.waitForEvent("window");
+  const nextWindow = app.waitForEvent("window");
+  await writeFile(path.join(userData, "release-pull"), "");
+  const appWindow = await nextWindow;
   await expect(appWindow.getByText(APP_MARKER)).toBeVisible();
   await expect.poll(savedSetup).toEqual({ mode: "new", serverUrl });
   expect((await readLog()).some((line) => line.includes(" pull"))).toBe(true);
