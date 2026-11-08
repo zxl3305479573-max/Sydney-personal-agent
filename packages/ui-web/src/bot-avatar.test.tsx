@@ -37,12 +37,15 @@ describe("BotAvatar", () => {
     expect(html).toContain('data-working="true"');
   });
 
-  it.each([...WAITING_ON_USER_RUN_STATUSES])("does not spin while %s waits on the user", (status) => {
-    const html = renderToString(<BotAvatar color="data:image/png;base64,abc" status={status} />);
-    expect(html).toContain('data-activity="waiting"');
-    expect(html).toContain('data-working="false"');
-    expect(html).not.toContain("rakazo-bot-avatar-ring-working");
-  });
+  it.each([...WAITING_ON_USER_RUN_STATUSES])(
+    "does not spin while %s waits on the user",
+    (status) => {
+      const html = renderToString(<BotAvatar color="data:image/png;base64,abc" status={status} />);
+      expect(html).toContain('data-activity="waiting"');
+      expect(html).toContain('data-working="false"');
+      expect(html).not.toContain("rakazo-bot-avatar-ring-working");
+    },
+  );
 
   it("keeps working attribute false when idle", () => {
     const html = renderToString(<BotAvatar color="#F59E0B" status="idle" />);

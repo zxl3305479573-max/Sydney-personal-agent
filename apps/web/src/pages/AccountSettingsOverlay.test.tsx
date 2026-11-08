@@ -29,6 +29,10 @@ vi.mock("@rakazo/ui-web", async (importOriginal) => ({
     <label htmlFor={htmlFor}>{children}</label>
   ),
   Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+  Popover: (await importOriginal<typeof UiWeb>()).Popover,
+  PopoverContent: (await importOriginal<typeof UiWeb>()).PopoverContent,
+  PopoverTitle: (await importOriginal<typeof UiWeb>()).PopoverTitle,
+  PopoverTrigger: (await importOriginal<typeof UiWeb>()).PopoverTrigger,
   RollingNumber: (await importOriginal<typeof UiWeb>()).RollingNumber,
   TextField: (await importOriginal<typeof UiWeb>()).TextField,
   Label: ({ children, htmlFor }: { children?: ReactNode; htmlFor?: string }) => (
