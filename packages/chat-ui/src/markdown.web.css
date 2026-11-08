@@ -33,7 +33,7 @@
 .rk-chat-markdown h5,
 .rk-chat-markdown h6 {
   margin: 0.9em 0 0.35em;
-  color: var(--foreground);
+  color: var(--custom-chat-bot-foreground, var(--foreground));
   font-weight: 650;
   line-height: 1.25;
 }

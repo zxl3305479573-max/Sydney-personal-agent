@@ -1,3 +1,4 @@
+import { useLingui } from "@lingui/react/macro";
 import type { PersonalityPreset, PersonalitySelection } from "@rakazo/contracts";
 import {
   BOT_INSTRUCTIONS_MAX_LENGTH,
@@ -5,7 +6,7 @@ import {
   renderPersonalitySelections,
 } from "@rakazo/contracts";
 import { useState } from "react";
-import { getActiveUiLocale } from "../lib/i18n";
+import { personalityCatalogLabel } from "../lib/personality-catalog-zh";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
 
@@ -16,7 +17,10 @@ export function PersonalPersonalityLibrary({
   onApply: (instructions: string, name: string) => void;
   disabled?: boolean;
 }) {
-  const chinese = getActiveUiLocale() === "zh-CN";
+  const { i18n } = useLingui();
+  const chinese = i18n.locale !== "en";
+  const label = (item: (typeof PERSONALITY_CATALOG)[number]) =>
+    personalityCatalogLabel(item, chinese ? "zh-CN" : "en");
   const text = (zh: string, en: string) => (chinese ? zh : en);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PersonalityPreset[]>([]);
@@ -86,7 +90,18 @@ export function PersonalPersonalityLibrary({
   let preview = "";
   let invalidSelection = false;
   try {
-    preview = renderPersonalitySelections(selections);
+    renderPersonalitySelections(selections);
+    preview = selections
+      .map((selection) => {
+        const item = PERSONALITY_CATALOG.find((entry) => entry.id === selection.attributeId);
+        const weights = {
+          mild: text("轻度", "Mild"),
+          moderate: text("适度", "Moderate"),
+          strong: text("明显", "Strong"),
+        };
+        return `${item ? label(item) : selection.attributeId} · ${weights[selection.weight]}`;
+      })
+      .join("\n");
   } catch {
     invalidSelection = true;
     preview = text(
@@ -97,7 +112,9 @@ export function PersonalPersonalityLibrary({
   const matches = PERSONALITY_CATALOG.filter(
     (item) =>
       item.category === category &&
-      `${item.name} ${item.slug} ${item.description}`.toLowerCase().includes(search.toLowerCase()),
+      `${label(item)} ${item.name} ${item.slug} ${item.description}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
   return (
     <div className="space-y-2 text-sm">
@@ -186,7 +203,7 @@ export function PersonalPersonalityLibrary({
           </label>
           <input
             aria-label={text("搜索属性", "Search attributes")}
-            placeholder={text("搜索属性（英文）", "Search attributes")}
+            placeholder={text("搜索属性", "Search attributes")}
             className="w-full rounded-lg border bg-transparent p-2"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -211,16 +228,20 @@ export function PersonalPersonalityLibrary({
               {text("选择属性（最多 12 项）", "Choose an attribute (up to 12)")}
             </option>
             {matches.map((item) => (
-              <option key={item.id} value={item.id} title={item.description}>
-                {item.name}
+              <option key={item.id} value={item.id} title={chinese ? undefined : item.description}>
+                {label(item)}
               </option>
             ))}
           </select>
           {selections.map((selection) => (
             <div key={selection.attributeId} className="flex items-center gap-2">
               <span>
-                {PERSONALITY_CATALOG.find((item) => item.id === selection.attributeId)?.name ??
-                  selection.attributeId}
+                {(() => {
+                  const item = PERSONALITY_CATALOG.find(
+                    (entry) => entry.id === selection.attributeId,
+                  );
+                  return item ? label(item) : selection.attributeId;
+                })()}
               </span>
               <select
                 aria-label={text("属性强度", "Intensity")}

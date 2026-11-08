@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { i18n } from "@lingui/core";
 import type { ThreadMessage } from "@rakazo/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { act } from "react";
@@ -55,6 +56,40 @@ const planner = (status: "created" | "archived" | "deleted" = "created") => ({
   botId: "child",
   name: "Planner",
   status,
+});
+
+it("shows a localized stop and only prepares a reply when asked", () => {
+  const onReply = vi.fn();
+  const text =
+    "任务已停止：工具「Shell」连续 4 次使用相同输入，未能继续推进。此前的部分操作可能已经执行，请先检查结果，再决定是否回复说明下一步。";
+  i18n.load("zh-CN", {});
+  i18n.activate("zh-CN");
+  renderView("bot", [{ kind: "text", text }], { onReply });
+  expect(container.textContent).toContain("此前的部分操作可能已经执行");
+  expect(onReply).not.toHaveBeenCalled();
+  const button = [...container.querySelectorAll("button")].find((item) =>
+    item.textContent?.includes("回复说明下一步"),
+  );
+  expect(button).toBeDefined();
+  act(() => button?.click());
+  expect(onReply).toHaveBeenCalledOnce();
+  i18n.load("en", {});
+  i18n.activate("en");
+  renderView("bot", [{ kind: "text", text }], { onReply });
+  expect(container.textContent).toContain("Some earlier actions may already have happened");
+  renderView("user", [{ kind: "text", text }], { onReply });
+  expect(container.textContent).not.toContain("Reply with next step");
+});
+
+it("recognizes a legacy stop but leaves ordinary messages unchanged", () => {
+  i18n.load("zh-CN", {});
+  i18n.activate("zh-CN");
+  const text =
+    "I got stuck calling Shell with the same input 4 times in a row without making progress, so I stopped early. Try rephrasing this, or ask me to try a different approach.";
+  renderView("bot", [{ kind: "text", text }]);
+  expect(container.textContent).toContain("回复说明下一步");
+  renderView("bot", [{ kind: "text", text: "任务已停止，请稍后重试。" }]);
+  expect(container.textContent).not.toContain("回复说明下一步");
 });
 
 it.each([

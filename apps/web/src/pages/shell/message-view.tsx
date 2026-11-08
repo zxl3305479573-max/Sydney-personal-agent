@@ -1,3 +1,4 @@
+import { i18n } from "@lingui/core";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { ChatMarkdown, LinkifiedText, withBlockMentions } from "@rakazo/chat-ui/web";
@@ -8,7 +9,7 @@ import type {
   ThreadMessage,
 } from "@rakazo/contracts";
 import type { ChildBotBlock, PeerExchange } from "@rakazo/core";
-import { isPeerReceiptBlocks, isToolActivityBlock } from "@rakazo/core";
+import { isLoopGuardStopText, isPeerReceiptBlocks, isToolActivityBlock } from "@rakazo/core";
 import { BotAvatar, Button, cn, resolvePersonaColorDef } from "@rakazo/ui-web";
 import { UserRound } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
@@ -210,6 +211,38 @@ export const MessageView = memo(function MessageView({
         onReact={onReact}
       />
     );
+  const stopBlock = message.blocks.length === 1 ? message.blocks[0] : undefined;
+  if (
+    message.role === "bot" &&
+    !isLive &&
+    stopBlock?.kind === "text" &&
+    isLoopGuardStopText(stopBlock.text)
+  ) {
+    const chinese = !i18n.locale?.toLowerCase().startsWith("en");
+    return (
+      <>
+        {messageContext}
+        <div className="relative w-fit max-w-full">
+          <div role="status" className="rk-chat-type space-y-2 text-foreground/80">
+            <p>
+              {chinese
+                ? "任务因重复尝试未能继续，已停止。此前的部分操作可能已经执行，请先检查结果。"
+                : "The task stopped after repeated attempts. Some earlier actions may already have happened; check the results first."}
+            </p>
+            <p>
+              {chinese
+                ? "确认后，你可以回复说明下一步，或调整任务要求。"
+                : "After checking, reply with the next step or adjust your request."}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => onReply(message)}>
+              {chinese ? "回复说明下一步" : "Reply with next step"}
+            </Button>
+          </div>
+          {hoverActions}
+        </div>
+      </>
+    );
+  }
   if (isNarration) {
     if (visibleNarrationBlocks.length === 0) return null;
     if (isToolOnlyNarration(message.blocks, showToolActivity)) {
@@ -234,6 +267,7 @@ export const MessageView = memo(function MessageView({
             <div
               data-testid="message-bot-bubble"
               className="rk-chat-type max-w-full space-y-2.5 text-foreground/80"
+              style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
               dir="auto"
             >
               {visibleNarrationBlocks.map((block, i) => {
@@ -510,6 +544,7 @@ export const MessageView = memo(function MessageView({
                   data-testid="message-user-bubble"
                   data-quote-message-id={quoteMessageId}
                   className="rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
+                  style={{ color: "var(--custom-chat-user-foreground, var(--foreground))" }}
                   dir="auto"
                 >
                   <LinkifiedText>{block.text}</LinkifiedText>

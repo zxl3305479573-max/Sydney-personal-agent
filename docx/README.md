@@ -25,7 +25,8 @@
 | [P2 策略接口](design/TASK_POLICY_IMPLEMENTATION.md) | 实际纯策略、调用方责任和集成缺口 | 策略实现变化时 |
 | [P2 状态投影与读取](design/TASK_PROJECTION.md) | 已实现的任务状态、历史读取、安全条件和验证局限 | 投影或读取契约变化时 |
 | [任务执行接线](design/TASK_EXECUTION_INTEGRATION.md) | 持久化、用户 API、Pi 门禁与预算 | 执行链路变化时 |
-| [聊天外观方案](design/CHAT_APPEARANCE.md) | 聊天背景、气泡和搭配管理的范围与验收 | 外观需求或实现变化时 |
+| [聊天外观方案](design/CHAT_APPEARANCE.md) | 聊天背景、文字颜色和历史气泡方案 | 外观需求或实现变化时 |
+| [换肤插件设计草案](design/THEME_PLUGIN.md) | 换肤包边界、应用规则、阶段与待决定事项 | 换肤插件需求或设计变化时 |
 | [热插拔插件历史设计](design/HOT_PLUGIN_SYSTEM.md) | 已停止推进的插件方案与离线试点记录 | 仅保留历史参考 |
 | [窗口分工与交接](WORKSTREAMS.md) | 独立对话的实际归属、文件写集和未派发任务 | 分工、交接或窗口能力变化时 |
 

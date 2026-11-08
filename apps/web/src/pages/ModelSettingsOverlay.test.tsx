@@ -909,7 +909,9 @@ it("offers a saved compatible model in the main picker and uses it", async () =>
 it("names each model checkbox by its id alone", async () => {
   const view = await renderCompatibleWithProbe(["model-a", "model-b"]);
   try {
-    const names = [...view.container.querySelectorAll("[role='checkbox']")].map(accessibleName);
+    const names = [
+      ...view.container.querySelectorAll("[data-testid='compatible-model-rows'] [role='checkbox']"),
+    ].map(accessibleName);
     expect(names).toEqual(["model-a", "model-b"]);
   } finally {
     await view.unmount();

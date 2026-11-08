@@ -1664,6 +1664,10 @@ msgstr "Connect OAuth"
 msgid "Connect this model's provider first."
 msgstr "Connect this model's provider first."
 
+#: src/components/integrations/plugin-marketplace.tsx
+msgid "Connect using the managed app"
+msgstr "Connect using the managed app"
+
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
@@ -4238,10 +4242,6 @@ msgstr "Not imported"
 msgid "Not in Rakazo's catalog"
 msgstr "Not in Rakazo's catalog"
 
-#: src/pages/PluginsOverlay.tsx
-msgid "Not in the plugin catalog"
-msgstr "Not in the plugin catalog"
-
 #: src/pages/shell/message-cards.tsx
 msgid "Not now"
 msgstr "Not now"
@@ -6627,7 +6627,6 @@ msgstr "Working instructions"
 #: src/components/ToolActivityDisclosure.tsx
 #: src/lib/roster-status.ts
 #: src/pages/Auth.tsx
-#: src/pages/shell/transcript.tsx
 msgid "Working…"
 msgstr "Working…"
 

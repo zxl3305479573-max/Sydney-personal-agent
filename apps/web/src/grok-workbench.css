@@ -285,7 +285,9 @@
   }
 
   [data-mobile-group="true"] .sydney-group-header-avatar,
-  [data-mobile-chat="true"] .sydney-assistant-context > :first-child {
+  [data-mobile-chat="true"]:not([data-mobile-group="true"])
+    .sydney-assistant-context
+    > :first-child {
     display: none;
   }
 
@@ -293,9 +295,20 @@
     margin-bottom: 6px;
   }
 
-  [data-mobile-chat="true"] .sydney-assistant-content[data-speaker="true"] {
+  [data-mobile-chat="true"]:not([data-mobile-group="true"])
+    .sydney-assistant-content[data-speaker="true"] {
     margin-inline-start: 0;
     max-width: 100%;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-context > :first-child {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 38px;
+    max-width: calc(100% - 38px);
   }
 
   [data-testid="composer-bar"][data-mobile-chat="true"] {

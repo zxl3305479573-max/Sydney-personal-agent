@@ -1470,6 +1470,23 @@ describe("own instructions through update_bot", () => {
       expect.objectContaining({ instructions: "Draft only", reason: "Set in chat" }),
     ]);
   });
+  it.each([true, false])(
+    "keeps the selected personality when chat updates duties (skip approvals: %s)",
+    async (skipApprovals) => {
+      const { combinePersonalityInstructions, splitPersonalityInstructions } = await import(
+        "@rakazo/contracts"
+      );
+      const f = fixture({ name: "update_bot", builtin: true, skipApprovals, autoReview: true });
+      f.instructionState.instructions = combinePersonalityInstructions("旧职责", "温和表达");
+      f.setCalls([{ args: { instructions: "审核合同" }, executionId: "call-1" }]);
+      await f.run();
+      expect(f.results).toEqual([expect.objectContaining(updated)]);
+      expect(splitPersonalityInstructions(f.instructionState.instructions)).toEqual({
+        duties: "审核合同",
+        personality: "温和表达",
+      });
+    },
+  );
   it("sets them after a profile edit earlier in the run", async () => {
     const f = emptyBot({ autoReview: true });
     f.setCalls([

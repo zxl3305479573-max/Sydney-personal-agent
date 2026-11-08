@@ -37,7 +37,8 @@ import {
 import { ActiveBotGlyph } from "../../components/ai/CollaborationMarker";
 import { VoiceChatCard } from "../../components/call/VoiceChatCard";
 import type { ArtifactTarget } from "../../lib/artifact-open";
-import { useAppearanceImage, useChatAppearance } from "../../lib/chat-appearance";
+import { useChatAppearance } from "../../lib/chat-appearance";
+import { liveWorkStage } from "../../lib/live-work-stage";
 import { quoteDraftForSelection } from "../../lib/quote-selection";
 import { messageHasVisibleBlocks } from "../../lib/tool-activity-view";
 import { TRANSCRIPT_CONTENT_PADDING } from "../../lib/transcript-layout";
@@ -68,6 +69,7 @@ export const Transcript = memo(function Transcript({
   answerableAskIds,
   dismissableAskIds,
   running,
+  workingRuns,
   workingBots,
   userBubble,
   onCallBack,
@@ -107,6 +109,7 @@ export const Transcript = memo(function Transcript({
   answerableAskIds: Set<string>;
   dismissableAskIds: Set<string>;
   running: boolean;
+  workingRuns: readonly { id: string; status: string }[];
   workingBots: GroupAvatarMember[];
   /** Your bubbles take the bot's color in its own chat. */
   userBubble?: { background: string; foreground: string };
@@ -197,12 +200,6 @@ export const Transcript = memo(function Transcript({
     appearance.mode === "simple"
       ? undefined
       : appearance.backgrounds.find((item) => item.id === appearance.backgroundId);
-  const bubble =
-    appearance.mode === "simple"
-      ? undefined
-      : appearance.bubbles.find((item) => item.id === appearance.bubbleId);
-  const userBubbleImage = useAppearanceImage(bubble?.user.image);
-  const botBubbleImage = useAppearanceImage(bubble?.bot.image);
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!background?.image || typeof URL.createObjectURL !== "function") {
@@ -286,7 +283,25 @@ export const Transcript = memo(function Transcript({
   );
   const separatorIds = timeSeparatorIds(shownMessages);
   const unreadDividerId = unreadDividerMessageId(shownMessages, unreadAfterSeq, olderCursor);
-  const workingLabel = liveActivityLine(messages) ?? t`Working…`;
+  const chinese = !i18n.locale?.toLowerCase().startsWith("en");
+  const workingRunIds = new Set(workingRuns.map((run) => `progress:${run.id}`));
+  const workingMessages = messages.filter((message) => workingRunIds.has(message.id));
+  const queued = workingRuns.length > 0 && workingRuns.every((run) => run.status === "queued");
+  const workLabels = chinese
+    ? {
+        preparing: queued ? "已收到，正在排队…" : "已收到，正在处理…",
+        web: "正在处理任务 · 最近一步：查询网页",
+        computer: "正在处理任务 · 最近一步：电脑操作",
+        other: "正在处理任务 · 最近一步：使用工具",
+      }
+    : {
+        preparing: queued ? "Received, queued…" : "Received, working on it…",
+        web: "Working on the task · Last step: web",
+        computer: "Working on the task · Last step: computer",
+        other: "Working on the task · Last step: tool",
+      };
+  const workingLabel =
+    liveActivityLine(workingMessages) ?? workLabels[liveWorkStage(workingMessages)];
   const [quoteDraft, setQuoteDraft] = useState<{
     message: ThreadMessage;
     text: string;
@@ -518,7 +533,7 @@ export const Transcript = memo(function Transcript({
           />
           <div
             className="absolute inset-0 bg-black"
-            style={{ opacity: background.overlay / 100 }}
+            style={{ opacity: (background.overlay * background.opacity) / 10_000 }}
           />
         </div>
       ) : null}
@@ -573,29 +588,11 @@ export const Transcript = memo(function Transcript({
                   "--chat-user-foreground": userBubble.foreground,
                 }
               : {}),
-            ...(bubble
-              ? {
-                  "--custom-chat-user-background": `${bubble.user.background}${Math.round(
-                    bubble.user.opacity * 2.55,
-                  )
-                    .toString(16)
-                    .padStart(2, "0")}`,
-                  "--custom-chat-user-foreground": bubble.user.foreground,
-                  "--custom-chat-user-border": bubble.user.border,
-                  "--custom-chat-user-radius": `${bubble.user.radius}px`,
-                  "--custom-chat-user-image": userBubbleImage
-                    ? `url("${userBubbleImage}")`
-                    : "none",
-                  "--custom-chat-bot-background": `${bubble.bot.background}${Math.round(
-                    bubble.bot.opacity * 2.55,
-                  )
-                    .toString(16)
-                    .padStart(2, "0")}`,
-                  "--custom-chat-bot-foreground": bubble.bot.foreground,
-                  "--custom-chat-bot-border": bubble.bot.border,
-                  "--custom-chat-bot-radius": `${bubble.bot.radius}px`,
-                  "--custom-chat-bot-image": botBubbleImage ? `url("${botBubbleImage}")` : "none",
-                }
+            ...(appearance.userTextColor
+              ? { "--custom-chat-user-foreground": appearance.userTextColor }
+              : {}),
+            ...(appearance.botTextColor
+              ? { "--custom-chat-bot-foreground": appearance.botTextColor }
               : {}),
           } as CSSProperties
         }
@@ -687,6 +684,16 @@ export const Transcript = memo(function Transcript({
                           : `relative ${message.blocks.some((block) => block.kind === "app_connect") ? "w-full" : "w-fit"} min-w-0 ${bubbleFrameWidth(message.role)}`
                     }
                   >
+                    {answerableAskIds.has(message.id) &&
+                    message.blocks.some(
+                      (block) =>
+                        (block.kind === "ask" && block.status !== "answered") ||
+                        block.kind === "mcp_approval",
+                    ) ? (
+                      <p role="status" className="mb-2 text-sm font-medium text-muted-foreground">
+                        {chinese ? "等待你的确认或回复" : "Waiting for your confirmation or reply"}
+                      </p>
+                    ) : null}
                     <MessageView
                       artifactTarget={artifactTarget}
                       message={message}
@@ -758,7 +765,7 @@ export const Transcript = memo(function Transcript({
           );
         })}
         {running &&
-        !messages.some(
+        !workingMessages.some(
           (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
         ) ? (
           <ActiveBotGlyph bots={workingBots} label={workingLabel} />

@@ -268,6 +268,36 @@ describe("plugin detail", () => {
     expect(container.textContent).not.toContain("https://notes.example.test/mcp");
   });
 
+  it("offers the managed app alongside an already installed connector", async () => {
+    const onConnect = vi.fn();
+    await act(async () =>
+      root.render(
+        <PluginDetail
+          selection={{ source, installedSource: source, name: "Notes" }}
+          installs={[install]}
+          servers={[server]}
+          assigned={new Set()}
+          activeBotId="bot-1"
+          managed={{
+            name: "Notes",
+            logo: null,
+            connected: false,
+            connecting: false,
+            onConnect,
+            onManage: vi.fn(),
+          }}
+          onBack={onBack}
+          onChanged={onChanged}
+        />,
+      ),
+    );
+    expect(container.textContent).toContain("notes-mcp");
+    expect(button("Sign in")).toBeTruthy();
+    await click("Connect");
+    expect(onConnect).toHaveBeenCalledOnce();
+    expect(api.parts).not.toHaveBeenCalled();
+  });
+
   it("opens an installed plugin skill's saved instructions", async () => {
     api.skills.mockResolvedValue([
       { id: "skill-db-1", name: "skill-1", source: "plugin", description: "", readOnly: true },

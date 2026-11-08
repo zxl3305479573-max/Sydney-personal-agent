@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+
+import { i18n } from "@lingui/core";
 import type { ThreadMessage } from "@rakazo/contracts";
 import type { ReactNode } from "react";
 import { act, useCallback, useMemo, useRef } from "react";
@@ -8,7 +10,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   cancelChatAppearancePreview,
   EMPTY_CHAT_APPEARANCE,
-  newBubbleStyle,
   previewChatAppearance,
 } from "../../lib/chat-appearance";
 import { Transcript } from "./transcript";
@@ -65,7 +66,17 @@ function message(id: string, text: string): ThreadMessage {
   };
 }
 
-function Host({ messages }: { messages: ThreadMessage[] }) {
+function Host({
+  messages,
+  running = false,
+  workingRuns = [{ id: "run", status: "running" }],
+  answerable,
+}: {
+  messages: ThreadMessage[];
+  running?: boolean;
+  workingRuns?: { id: string; status: string }[];
+  answerable?: Set<string>;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const artifactTarget = useMemo(() => ({ botId: "bot" }), []);
   const none = useMemo(() => new Set<string>(), []);
@@ -92,9 +103,10 @@ function Host({ messages }: { messages: ThreadMessage[] }) {
       olderCursor={null}
       unreadAfterSeq={null}
       loadingOlder={false}
-      answerableAskIds={none}
+      answerableAskIds={answerable ?? none}
       dismissableAskIds={none}
-      running={false}
+      running={running}
+      workingRuns={workingRuns}
       workingBots={[]}
       onLoadOlder={reply}
       onOpenBot={reply}
@@ -116,6 +128,94 @@ function Host({ messages }: { messages: ThreadMessage[] }) {
     />
   );
 }
+
+it("shows work stages and pending confirmation in the active language", () => {
+  i18n.load("zh-CN", {});
+  i18n.activate("zh-CN");
+  act(() => root.render(<Host messages={[]} running />));
+  expect(container.textContent).toContain("已收到，正在处理");
+  const live: ThreadMessage = {
+    ...message("progress:run", ""),
+    blocks: [{ kind: "steps", steps: [{ label: "Shell", count: 1 }] }],
+  };
+  act(() => root.render(<Host messages={[live]} running />));
+  expect(container.textContent).toContain("最近一步：电脑操作");
+  const pending: ThreadMessage = {
+    ...message("ask", ""),
+    blocks: [{ kind: "ask", text: "确认吗", status: "pending" }],
+  };
+  act(() => root.render(<Host messages={[pending]} answerable={new Set(["ask"])} />));
+  expect(container.textContent).toContain("等待你的确认或回复");
+  i18n.load("en", {});
+  i18n.activate("en");
+  act(() => root.render(<Host messages={[pending]} answerable={new Set(["ask"])} />));
+  expect(container.textContent).toContain("Waiting for your confirmation or reply");
+  act(() => root.render(<Host messages={[live]} running />));
+  expect(container.textContent).toContain("Last step: computer");
+  const answered: ThreadMessage = {
+    ...pending,
+    blocks: [{ kind: "ask", text: "确认吗", status: "answered" }],
+  };
+  act(() => root.render(<Host messages={[answered]} answerable={new Set(["ask"])} />));
+  expect(container.textContent).not.toContain("Waiting for your confirmation or reply");
+});
+
+it("applies background transparency to both the image and its dark overlay", () => {
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static override createObjectURL = vi.fn(() => "blob:background");
+      static override revokeObjectURL = vi.fn();
+    },
+  );
+  try {
+    act(() =>
+      previewChatAppearance({
+        ...EMPTY_CHAT_APPEARANCE,
+        backgroundId: "bg",
+        backgrounds: [
+          {
+            id: "bg",
+            name: "背景",
+            image: new Blob(["image"], { type: "image/png" }),
+            fit: "cover",
+            opacity: 40,
+            overlay: 30,
+          },
+        ],
+      }),
+    );
+    act(() => root.render(<Host messages={[]} />));
+    expect(container.querySelector("img")?.style.opacity).toBe("0.4");
+    expect(container.querySelector<HTMLDivElement>(".bg-black")?.style.opacity).toBe("0.12");
+  } finally {
+    act(() => cancelChatAppearancePreview());
+  }
+});
+
+it("shows queue status without using progress from another run", () => {
+  i18n.load("zh-CN", {});
+  i18n.activate("zh-CN");
+  const old: ThreadMessage = {
+    ...message("progress:old", ""),
+    blocks: [{ kind: "steps", steps: [{ label: "Shell", count: 1 }] }],
+  };
+  act(() =>
+    root.render(<Host messages={[old]} running workingRuns={[{ id: "new", status: "queued" }]} />),
+  );
+  expect(container.textContent).toContain("已收到，正在排队");
+  expect(container.textContent).not.toContain("最近一步：电脑操作");
+  const oldWriting: ThreadMessage = {
+    ...old,
+    blocks: [{ kind: "progress", text: "旧任务的回复" }],
+  };
+  act(() =>
+    root.render(
+      <Host messages={[oldWriting]} running workingRuns={[{ id: "new", status: "leased" }]} />,
+    ),
+  );
+  expect(container.textContent).toContain("已收到，正在处理");
+});
 
 it.each([false, true])(
   "leaves an unchanged message unrendered when a later one updates (mentions: %s)",
@@ -148,18 +248,22 @@ it.each([false, true])(
   },
 );
 
-it("applies and clears custom bubble variables without changing messages", () => {
+it("applies and clears independent text colors without changing messages", () => {
   act(() => root.render(<Host messages={[message("one", "Hello")]} />));
-  const style = newBubbleStyle();
-  act(() =>
-    previewChatAppearance({ ...EMPTY_CHAT_APPEARANCE, bubbles: [style], bubbleId: style.id }),
-  );
   const transcript = container.querySelector<HTMLElement>('[data-testid="transcript"]');
-  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe(
-    style.user.foreground,
+  const previousUserColor = transcript?.style.getPropertyValue("--custom-chat-user-foreground");
+  act(() =>
+    previewChatAppearance({
+      ...EMPTY_CHAT_APPEARANCE,
+      userTextColor: "#123456",
+      botTextColor: "#abcdef",
+    }),
   );
-  expect(transcript?.style.getPropertyValue("--custom-chat-bot-radius")).toBe("20px");
+  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe("#123456");
+  expect(transcript?.style.getPropertyValue("--custom-chat-bot-foreground")).toBe("#abcdef");
   act(() => cancelChatAppearancePreview());
-  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe("");
+  expect(transcript?.style.getPropertyValue("--custom-chat-user-foreground")).toBe(
+    previousUserColor,
+  );
   expect(messageRenders.get("one")).toBe(1);
 });

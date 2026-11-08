@@ -808,7 +808,8 @@ export function MobileRosterRow({
     );
   const preview =
     item.kind === "bot"
-      ? chat.preview ||
+      ? compactRosterStatusLabel((item as MobileBotItem).chat.status) ||
+        chat.preview ||
         ((item as MobileBotItem).chat.status !== "idle" ? (item as MobileBotItem).chat.status : "")
       : chat.preview ||
         (item as MobileGroupItem).chat.members.map((member) => member.name).join(", ");

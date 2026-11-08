@@ -171,7 +171,7 @@ export function OnboardingPage() {
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel | null>(null);
   const [maxTokens, setMaxTokens] = useState(String(DEFAULT_MODEL_MAX_TOKENS));
   const [contextWindow, setContextWindow] = useState(String(DEFAULT_MODEL_CONTEXT_WINDOW));
-  const [supportsImages, setSupportsImages] = useState(false);
+  const [supportsImages, setSupportsImages] = useState(true);
   const [maxImagesPerPrompt, setMaxImagesPerPrompt] = useState("");
   const [{ models: probeModels, probing }, setProbe] = useState(initialModelProbeState);
   const [modelProbe] = useState(() => createModelProbe(setProbe));
@@ -341,7 +341,7 @@ export function OnboardingPage() {
     setReasoning(false);
     setThinkingLevel(null);
     setManualModelId(false);
-    setSupportsImages(false);
+    setSupportsImages(nextProvider === OPENAI_COMPATIBLE_PROVIDER_ID);
     setMaxTokens(String(DEFAULT_MODEL_MAX_TOKENS));
     setContextWindow(String(DEFAULT_MODEL_CONTEXT_WINDOW));
     setMaxImagesPerPrompt("");

@@ -3,23 +3,13 @@
 import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { newBubbleStyle } from "../lib/chat-appearance";
 import { AppearanceColorPicker, colorContrast } from "./AppearanceColorPicker";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("starts new bubble backgrounds in black with readable white text", () => {
-  const style = newBubbleStyle();
-  expect(style.user).toMatchObject({
-    background: "#000000",
-    foreground: "#ffffff",
-  });
-  expect(style.bot).toMatchObject({
-    background: "#000000",
-    foreground: "#ffffff",
-  });
+it("calculates color contrast", () => {
   expect(colorContrast("#000000", "#ffffff")).toBeCloseTo(21);
   expect(colorContrast("#000000", "#000000")).toBeCloseTo(1);
 });

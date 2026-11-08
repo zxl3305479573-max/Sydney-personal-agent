@@ -1,3 +1,4 @@
+import { navigateAuthorizationPopup, openAuthorizationPopup } from "./authorization-popup";
 import { MCP_OAUTH_CHANNEL } from "./mcp-oauth-channel";
 import { rpc } from "./rpc";
 
@@ -23,29 +24,37 @@ export function mcpOAuthRedirectUri(): string {
 }
 
 export async function connectMcpOauth(serverId: string): Promise<McpOauthResult> {
-  const started = await rpc.mcp.oauth.begin({ serverId, redirectUri: mcpOAuthRedirectUri() });
-  if (started.status !== "authorization_required") return started.status;
-  const popup = window.open(
-    started.authorizationUrl,
-    MCP_OAUTH_CHANNEL,
-    "popup,width=560,height=720",
-  );
+  const popup = openAuthorizationPopup(MCP_OAUTH_CHANNEL);
+  let started: Awaited<ReturnType<typeof rpc.mcp.oauth.begin>>;
+  try {
+    started = await rpc.mcp.oauth.begin({ serverId, redirectUri: mcpOAuthRedirectUri() });
+    if (started.status !== "authorization_required") {
+      popup?.close();
+      return started.status;
+    }
+  } catch (error) {
+    popup?.close();
+    throw error;
+  }
   if (!popup) {
-    // Popup blocked: navigate this tab instead; the callback page returns to /app.
-    window.location.assign(started.authorizationUrl);
+    navigateAuthorizationPopup(null, started.authorizationUrl);
     return "cancelled";
   }
-  return await new Promise<McpOauthResult>((resolve) => {
+  return await new Promise<McpOauthResult>((resolve, reject) => {
     const channel = new BroadcastChannel(MCP_OAUTH_CHANNEL);
     let settled = false;
     let pollTimer = 0;
     let timeoutTimer = 0;
-    const finish = (result: McpOauthResult) => {
+    const cleanup = () => {
       if (settled) return;
       settled = true;
       window.clearInterval(pollTimer);
       window.clearTimeout(timeoutTimer);
       channel.close();
+    };
+    const finish = (result: McpOauthResult) => {
+      if (settled) return;
+      cleanup();
       resolve(result);
     };
     // COOP makes an open popup read as closed, but it keeps focus until the
@@ -61,5 +70,12 @@ export async function connectMcpOauth(serverId: string): Promise<McpOauthResult>
       if ((event.data as { type?: string } | null)?.type !== "mcp-oauth-complete") return;
       finish("connected");
     };
+    try {
+      navigateAuthorizationPopup(popup, started.authorizationUrl);
+    } catch (error) {
+      popup.close();
+      cleanup();
+      reject(error);
+    }
   });
 }

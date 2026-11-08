@@ -117,3 +117,15 @@ it("suppresses the click after a swipe and closes actions on a right swipe", () 
   swipe(110, 50, 200, 50);
   expect(container.textContent).not.toContain("Delete");
 });
+
+it("shows a pending action instead of an old message preview", () => {
+  const waitingItem = {
+    ...item,
+    chat: { ...item.chat, status: "waiting_input", preview: "Previous reply" },
+  } as ComponentProps<typeof MobileRosterRow>["item"];
+  act(() =>
+    root.render(<MobileRosterRow item={waitingItem} selected={false} openSpaceChat={openChat} />),
+  );
+  expect(container.textContent).toContain("Needs an answer");
+  expect(container.textContent).not.toContain("Previous reply");
+});

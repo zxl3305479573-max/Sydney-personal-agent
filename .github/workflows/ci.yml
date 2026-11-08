@@ -63,6 +63,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Ensure Electron is installed
+        run: pnpm --filter @rakazo/desktop exec node node_modules/electron/install.js
       - run: pnpm build
         env:
           DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
@@ -181,6 +183,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Ensure Electron is installed
+        run: pnpm --filter @rakazo/desktop exec node node_modules/electron/install.js
       - run: pnpm db:generate
         env:
           DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
@@ -235,6 +239,8 @@ jobs:
         if: runner.os == 'Windows'
         run: node --test scripts/pnpm.test.mjs
       - run: pnpm install --frozen-lockfile
+      - name: Ensure Electron is installed
+        run: pnpm --filter @rakazo/desktop exec node node_modules/electron/install.js
       - run: pnpm db:generate
         env:
           DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo

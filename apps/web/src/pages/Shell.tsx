@@ -1128,6 +1128,7 @@ function SpaceShell() {
               answerableAskIds={answerableAskIds}
               dismissableAskIds={dismissableAskIds}
               running={transcriptRunning}
+              workingRuns={workingRuns}
               workingBots={workingBots}
               userBubble={userBubble}
               onCallBack={
