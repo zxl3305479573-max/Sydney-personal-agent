@@ -12,6 +12,8 @@
 
 独立工具 `infra/native-linux/inspect_remote.py` 可通过指定身份文件和已核验的 `known_hosts` 运行固定检查脚本；未接入应用，也不会安装依赖。信任边界见 [ADR-0018](../../docs/adr/0018-linux-computer-inspection.md)；远端返回的数据不能作为服务可用或授权的证明。
 
+已编写独立命令行档案管理器 `infra/native-linux/computer_profiles.py` 和指纹核对工具 `infra/native-linux/pin_host_key.py`，用于保存多台电脑的本地连接信息与分别检查；档案不保存私钥内容。两者未接入工作台，档案的选择或检查不等于切换 Agent 的实际电脑，本轮实现和 Linux 实机均待验证。
+
 ## 用户流程
 
 1. 输入连接名称、主机地址、SSH 端口和登录账号，选择专用 SSH 身份。首次连接展示主机密钥指纹，由用户通过可信渠道核对；密钥变更时阻止连接并提示重新核验。
