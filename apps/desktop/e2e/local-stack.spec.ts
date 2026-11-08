@@ -77,6 +77,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
+  await writeFile(path.join(userData, "release-pull"), "");
   await app?.close();
   app = undefined;
   await rm(userData, { recursive: true, force: true });
@@ -414,11 +415,16 @@ test("a saved local target is the exact origin authenticated before reuse", asyn
       { encoding: "utf8", mode: 0o600 },
     );
 
-    app = await launch("ok");
+    app = await launch("gated-pull");
     const setup = await foregroundWindow(app);
     await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
     await expect(setup.locator("#stack")).toBeVisible();
     await expect(setup.getByText("Unchecked listener")).toHaveCount(0);
+    const nextWindow = app.waitForEvent("window");
+    await writeFile(path.join(userData, "release-pull"), "");
+    const appWindow = await nextWindow;
+    await expect(appWindow.getByText(APP_MARKER)).toBeVisible();
+    await expect(appWindow.getByText("Unchecked listener")).toHaveCount(0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       uncheckedServer.close((error) => (error ? reject(error) : resolve()));
