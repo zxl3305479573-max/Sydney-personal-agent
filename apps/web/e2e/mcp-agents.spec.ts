@@ -81,7 +81,7 @@ test("a server the user adds reaches every bot until they pick some", async ({
   await captureScreenshot(page, testInfo, "mcp-agents");
 
   await access.getByRole("button").click();
-  const chief = page.getByRole("menuitemcheckbox", { name: "Chief", exact: true });
+  const chief = page.getByRole("menuitemcheckbox", { name: "Sydney", exact: true });
   await expect(chief).toBeVisible();
   await captureScreenshot(page, testInfo, "mcp-agents-menu");
   await chief.click();

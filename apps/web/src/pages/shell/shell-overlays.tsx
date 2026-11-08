@@ -28,9 +28,7 @@ const PluginsOverlay = lazyOverlay(() =>
   import("../PluginsOverlay").then((module) => module.PluginsOverlay),
 );
 const SkillsDialog = lazyOverlay(() =>
-  import("../../components/integrations/skills-dialog").then(
-    (module) => module.SkillsDialog,
-  ),
+  import("../../components/integrations/skills-dialog").then((module) => module.SkillsDialog),
 );
 const McpServersOverlay = lazyOverlay(() =>
   import("../McpServersOverlay").then((module) => module.McpServersOverlay),
@@ -41,14 +39,9 @@ const VOICE_STATUS_REFRESH_TIMEOUT_MS = 10_000;
 
 function voiceStatusRefreshTimeout(): Promise<never> {
   return new Promise((_, reject) => {
-    AbortSignal.timeout(VOICE_STATUS_REFRESH_TIMEOUT_MS).addEventListener(
-      "abort",
-      () => {
-        reject(
-          new DOMException("Voice status refresh timed out", "TimeoutError"),
-        );
-      },
-    );
+    AbortSignal.timeout(VOICE_STATUS_REFRESH_TIMEOUT_MS).addEventListener("abort", () => {
+      reject(new DOMException("Voice status refresh timed out", "TimeoutError"));
+    });
   });
 }
 
@@ -84,9 +77,7 @@ export function AppOverlays({
           onOpenMcp={() => setOverlay({ kind: "mcp" })}
         />
       ) : null}
-      {overlay?.kind === "skills" ? (
-        <SkillsDialog onClose={() => setOverlay(null)} />
-      ) : null}
+      {overlay?.kind === "skills" ? <SkillsDialog onClose={() => setOverlay(null)} /> : null}
       {overlay?.kind === "mcp" ? (
         <McpServersOverlay
           editServerId={overlay.serverId}
@@ -138,17 +129,13 @@ export function SettingsOverlays({
   user: { name?: string | null; email?: string } | undefined;
   refetchSession: () => Promise<unknown>;
   bootstrapMe: Me | null | undefined;
-  setBootstrapMe: (
-    update: (prev: Me | null | undefined) => Me | null | undefined,
-  ) => void;
+  setBootstrapMe: (update: (prev: Me | null | undefined) => Me | null | undefined) => void;
   messagingEnabled: boolean;
   memoryConfig: SpaceMemoryConfig | null | undefined;
   peerConversation: { peerBotId: string; peerBotName: string } | null;
   setPeerConversation: (peer: null) => void;
   active: Bot | undefined;
-  peerBot: (
-    botId: string,
-  ) => { color: string; avatarSet?: BotAvatarSet } | undefined;
+  peerBot: (botId: string) => { color: string; avatarSet?: BotAvatarSet } | undefined;
 }) {
   // Read when Usage opens; a reopened Usage shows the last summary while it refreshes.
   const usageQuery = useQuery({
@@ -178,9 +165,7 @@ export function SettingsOverlays({
             await removeSpace(spaceId);
             if (alive.current) setOverlay(null);
           }}
-          onOpenSpace={(spaceId) =>
-            setOverlay({ ...overlay, section: "space", spaceId })
-          }
+          onOpenSpace={(spaceId) => setOverlay({ ...overlay, section: "space", spaceId })}
           name={user?.name ?? ""}
           onNameSaved={async () => {
             await refetchSession();
@@ -189,11 +174,7 @@ export function SettingsOverlays({
           usage={usage}
           usageRecords={usageRecordsQuery.data}
           usageRecordsStatus={
-            usageRecordsQuery.isError
-              ? "error"
-              : usageRecordsQuery.data
-                ? "success"
-                : "loading"
+            usageRecordsQuery.isError ? "error" : usageRecordsQuery.data ? "success" : "loading"
           }
           onUsageOpen={refreshUsage}
           section={overlay.section}
@@ -201,18 +182,14 @@ export function SettingsOverlays({
           billingEnabled={bootstrapMe?.billingEnabled === true}
           sandboxProvider={bootstrapMe?.sandboxProvider}
           onSandboxProviderChange={(sandboxProvider) =>
-            setBootstrapMe((prev) =>
-              prev ? { ...prev, sandboxProvider } : prev,
-            )
+            setBootstrapMe((prev) => (prev ? { ...prev, sandboxProvider } : prev))
           }
           messagingEnabled={messagingEnabled}
           paymentWalletProvider={bootstrapMe?.paymentWalletProvider ?? null}
           timezone={bootstrapMe?.timezone ?? null}
           onTimezoneChange={async (timezone) => {
             const nextMe = await rpc.preferences.update({ timezone });
-            setBootstrapMe((prev) =>
-              prev ? { ...prev, timezone: nextMe.timezone } : nextMe,
-            );
+            setBootstrapMe((prev) => (prev ? { ...prev, timezone: nextMe.timezone } : nextMe));
           }}
           onAccountImported={refreshSpaces}
           onImportAgent={() => {
@@ -221,20 +198,13 @@ export function SettingsOverlays({
           }}
           memoryConfig={memoryConfig}
           onMemoryConfigChange={(config) => {
-            void writeSaved(
-              queryClient,
-              queries.memory.providerConfig.queryKey(),
-              () => config,
-            );
+            void writeSaved(queryClient, queries.memory.providerConfig.queryKey(), () => config);
           }}
           onVoiceStatusMaybeChanged={async () => {
             try {
               queryClient.setQueryData(
                 voiceStatusKey,
-                await Promise.race([
-                  rpc.voice.status(),
-                  voiceStatusRefreshTimeout(),
-                ]),
+                await Promise.race([rpc.voice.status(), voiceStatusRefreshTimeout()]),
               );
             } catch {
               // Prefer reopening Voice settings over starting a call with stale readiness.
@@ -252,9 +222,7 @@ export function SettingsOverlays({
           botAvatarSet={active.avatarSet}
           peerBotId={peerConversation.peerBotId}
           peerBotName={peerConversation.peerBotName}
-          peerBotColor={
-            peerBot(peerConversation.peerBotId)?.color ?? FALLBACK_BOT_COLOR
-          }
+          peerBotColor={peerBot(peerConversation.peerBotId)?.color ?? FALLBACK_BOT_COLOR}
           peerBotAvatarSet={peerBot(peerConversation.peerBotId)?.avatarSet}
           onClose={() => setPeerConversation(null)}
         />

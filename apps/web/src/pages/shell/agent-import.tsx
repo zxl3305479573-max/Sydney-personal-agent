@@ -511,7 +511,7 @@ export function AgentImportForm({
           >
             <ArrowLeft size={16} strokeWidth={1.8} />
           </Button>
-          <span className="hidden text-[13.5px] text-muted-foreground md:block">
+          <span className="sr-only">
             <Trans>Import an agent</Trans>
           </span>
           <PageBreadcrumb label="Import an agent" inline />

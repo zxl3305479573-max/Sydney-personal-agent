@@ -40,7 +40,15 @@ function colorFilter(color: string) {
   return `hue-rotate(${hue - 235}deg) saturate(${max ? Math.max(0, delta / max) : 0}) brightness(${Math.max(0.55, max)})`;
 }
 
-export function FluidAvatar({ color, size, className }: { color: string; size: number; className?: string }) {
+export function FluidAvatar({
+  color,
+  size,
+  className,
+}: {
+  color: string;
+  size: number;
+  className?: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -74,7 +82,13 @@ export function FluidAvatar({ color, size, className }: { color: string; size: n
       context.clip();
       context.filter = colorFilter(color);
       const drawn = width * pulse;
-      context.drawImage(image, (width - drawn) / 2 + currentX * width * 0.025, (width - drawn) / 2 + currentY * width * 0.025, drawn, drawn);
+      context.drawImage(
+        image,
+        (width - drawn) / 2 + currentX * width * 0.025,
+        (width - drawn) / 2 + currentY * width * 0.025,
+        drawn,
+        drawn,
+      );
       context.restore();
     }
 
@@ -97,11 +111,17 @@ export function FluidAvatar({ color, size, className }: { color: string; size: n
         mouseY = 0;
       }
     }
-    function leave() { mouseX = 0; mouseY = 0; }
-    const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(([entry]) => {
-      visible = entry?.isIntersecting ?? false;
-      sync();
-    });
+    function leave() {
+      mouseX = 0;
+      mouseY = 0;
+    }
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? undefined
+        : new IntersectionObserver(([entry]) => {
+            visible = entry?.isIntersecting ?? false;
+            sync();
+          });
     observer?.observe(canvas);
     image.onload = sync;
     media.addEventListener("change", sync);
@@ -120,5 +140,15 @@ export function FluidAvatar({ color, size, className }: { color: string; size: n
     };
   }, [color, size]);
 
-  return <canvas ref={ref} aria-hidden="true" className={cn("shrink-0 rounded-full", className)} style={{ width: size, height: size, background: `#040b2c url("${fluidImage}") center / cover` }} />;
+  return (
+    <canvas
+      ref={ref}
+      className={cn("shrink-0 rounded-full", className)}
+      style={{
+        width: size,
+        height: size,
+        background: `rgb(4 11 44) url("${fluidImage}") center / cover`,
+      }}
+    />
+  );
 }

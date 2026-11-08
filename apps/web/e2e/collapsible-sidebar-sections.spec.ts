@@ -9,7 +9,7 @@ test("titled sidebar section expands and collapses", async ({ page }, testInfo) 
   await page.waitForURL(/\/app\/[^/]+$/);
 
   const sidebar = page.locator("aside").first();
-  const bot = sidebar.getByRole("button", { name: /^Chief/ });
+  const bot = sidebar.getByRole("button", { name: /^Sydney/ });
 
   await bot.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Move to", exact: true }).hover();
@@ -20,7 +20,7 @@ test("titled sidebar section expands and collapses", async ({ page }, testInfo) 
 
   const projects = sidebar.locator('[data-sidebar-group^="section:"]');
   await expect(projects).toContainText("Projects");
-  await expect(projects).toContainText("Chief");
+  await expect(projects).toContainText("Sydney");
 
   const toggle = projects.getByRole("button", { name: /Collapse Projects|Expand Projects/ });
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -41,11 +41,11 @@ test("titled sidebar section expands and collapses", async ({ page }, testInfo) 
 
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(projects.getByRole("button", { name: /^Chief/ })).toHaveCount(0);
+  await expect(projects.getByRole("button", { name: /^Sydney/ })).toHaveCount(0);
   await page.mouse.move(1, 1);
   await captureScreenshot(page, testInfo, "sidebar-section-collapsed");
 
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(projects.getByRole("button", { name: /^Chief/ })).toHaveCount(1);
+  await expect(projects.getByRole("button", { name: /^Sydney/ })).toHaveCount(1);
 });

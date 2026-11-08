@@ -38,7 +38,7 @@ function InlinePageBreadcrumb({ label, translated }: { label: string; translated
   return (
     <nav
       aria-label={`Sydney / ${translatedLabel}`}
-      className="min-w-0 truncate text-[15px] text-muted-foreground md:hidden"
+      className="min-w-0 truncate text-[15px] text-muted-foreground"
     >
       <span className="rk-script-type text-foreground/70">Sydney</span>
       <span className="mx-2 text-border">/</span>
@@ -77,7 +77,7 @@ function RoutePageBreadcrumb() {
   return (
     <nav
       aria-label={`Sydney / ${translatedLabel}`}
-      className="shrink-0 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 text-[15px] text-muted-foreground md:hidden"
+      className="shrink-0 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 text-[15px] text-muted-foreground"
     >
       <span className="rk-script-type text-foreground/70">Sydney</span>
       <span className="mx-2 text-border">/</span>

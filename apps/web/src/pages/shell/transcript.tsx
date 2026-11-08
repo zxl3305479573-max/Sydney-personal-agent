@@ -37,17 +37,11 @@ import {
 import { ActiveBotGlyph } from "../../components/ai/CollaborationMarker";
 import { VoiceChatCard } from "../../components/call/VoiceChatCard";
 import type { ArtifactTarget } from "../../lib/artifact-open";
-import {
-  useAppearanceImage,
-  useChatAppearance,
-} from "../../lib/chat-appearance";
+import { useAppearanceImage, useChatAppearance } from "../../lib/chat-appearance";
 import { quoteDraftForSelection } from "../../lib/quote-selection";
 import { messageHasVisibleBlocks } from "../../lib/tool-activity-view";
 import { TRANSCRIPT_CONTENT_PADDING } from "../../lib/transcript-layout";
-import {
-  transcriptIsNearEnd,
-  transcriptMovedDown,
-} from "../../lib/transcript-scroll";
+import { transcriptIsNearEnd, transcriptMovedDown } from "../../lib/transcript-scroll";
 import { TimeSeparator, UnreadDivider } from "./chat-context";
 import type { ImportSetupTarget } from "./import-setup-card";
 import { MessageView } from "./message-view";
@@ -133,10 +127,7 @@ export const Transcript = memo(function Transcript({
   onQuote: (message: ThreadMessage, quote: string) => void;
   onReact: (message: ThreadMessage, reaction: MessageReaction) => Promise<void>;
   onJumpToMessage: (messageId: string) => void;
-  onOpenPeerMessages: (peer: {
-    peerBotId: string;
-    peerBotName: string;
-  }) => void;
+  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
   memberName?: (botId: string | undefined) => string | undefined;
   peerBot: (botId: string) =>
     | {
@@ -157,7 +148,9 @@ export const Transcript = memo(function Transcript({
 }) {
   const { t } = useLingui();
   const [touchActionsId, setTouchActionsId] = useState<string | null>(null);
-  const touchHold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const touchHold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(
+    null,
+  );
   const cancelTouchHold = useCallback(() => {
     if (touchHold.current) clearTimeout(touchHold.current.timer);
     touchHold.current = null;
@@ -175,10 +168,11 @@ export const Transcript = memo(function Transcript({
       cancelTouchHold();
     };
   }, [cancelTouchHold]);
-  function startTouchHold(event: TouchEvent<HTMLDivElement>, messageId: string) {
+  function startTouchHold(event: TouchEvent<HTMLElement>, messageId: string) {
     cancelTouchHold();
     if (event.touches.length !== 1 || !(event.target instanceof Element)) return;
-    if (event.target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+    if (event.target.closest('button, a, input, textarea, select, [contenteditable="true"]'))
+      return;
     setTouchActionsId(null);
     const touch = event.touches[0];
     if (!touch) return;
@@ -191,7 +185,7 @@ export const Transcript = memo(function Transcript({
       }, 500),
     };
   }
-  function moveTouchHold(event: TouchEvent<HTMLDivElement>) {
+  function moveTouchHold(event: TouchEvent<HTMLElement>) {
     const touch = event.touches[0];
     const hold = touchHold.current;
     if (!hold || !touch || Math.hypot(touch.clientX - hold.x, touch.clientY - hold.y) > 10) {
@@ -202,9 +196,7 @@ export const Transcript = memo(function Transcript({
   const background =
     appearance.mode === "simple"
       ? undefined
-      : appearance.backgrounds.find(
-          (item) => item.id === appearance.backgroundId,
-        );
+      : appearance.backgrounds.find((item) => item.id === appearance.backgroundId);
   const bubble =
     appearance.mode === "simple"
       ? undefined
@@ -233,13 +225,12 @@ export const Transcript = memo(function Transcript({
   const lastScrollTop = useRef<number | null>(null);
   const autoScrollTimer = useRef<number | undefined>(undefined);
   const jumpButtonRef = useRef<HTMLButtonElement>(null);
-  const [expandedPeerMarkers, setExpandedPeerMarkers] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
+  const [expandedPeerMarkers, setExpandedPeerMarkers] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   // A jump to a folded reply expands its marker; the scroll effect below then finds the row.
   useLayoutEffect(() => {
-    const markerId =
-      scrollRequest && transcript.markerOf.get(scrollRequest.messageId);
+    const markerId = scrollRequest && transcript.markerOf.get(scrollRequest.messageId);
     if (!markerId) return;
     setExpandedPeerMarkers((expanded) =>
       expanded.has(markerId) ? expanded : new Set(expanded).add(markerId),
@@ -276,9 +267,7 @@ export const Transcript = memo(function Transcript({
   }, [mentionView]);
   const jumpToMessage = useCallback(
     (messageId: string) =>
-      onJumpToMessage(
-        mentionViewRef.current.foldedInto.get(messageId) ?? messageId,
-      ),
+      onJumpToMessage(mentionViewRef.current.foldedInto.get(messageId) ?? messageId),
     [onJumpToMessage],
   );
   const reactionView = useMemo(
@@ -293,15 +282,10 @@ export const Transcript = memo(function Transcript({
     messages: visibleReceipts,
   });
   const shownMessages = visibleReceipts.filter(
-    (message) =>
-      !exchanges.lineOf.has(message.id) || exchanges.lines.has(message.id),
+    (message) => !exchanges.lineOf.has(message.id) || exchanges.lines.has(message.id),
   );
   const separatorIds = timeSeparatorIds(shownMessages);
-  const unreadDividerId = unreadDividerMessageId(
-    shownMessages,
-    unreadAfterSeq,
-    olderCursor,
-  );
+  const unreadDividerId = unreadDividerMessageId(shownMessages, unreadAfterSeq, olderCursor);
   const workingLabel = liveActivityLine(messages) ?? t`Working…`;
   const [quoteDraft, setQuoteDraft] = useState<{
     message: ThreadMessage;
@@ -318,10 +302,9 @@ export const Transcript = memo(function Transcript({
     }
     const range = selection.getRangeAt(0);
     const contentOf = (node: Node) =>
-      (node instanceof Element
-        ? node
-        : node.parentElement
-      )?.closest<HTMLElement>("[data-quote-message-id]") ?? null;
+      (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>(
+        "[data-quote-message-id]",
+      ) ?? null;
     const startContent = contentOf(range.startContainer);
     const endContent = contentOf(range.endContainer);
     // selection.toString() serializes the whole range (a Ctrl+A transcript is
@@ -330,10 +313,7 @@ export const Transcript = memo(function Transcript({
       {
         startContent,
         endContent,
-        text:
-          startContent && startContent === endContent
-            ? selection.toString()
-            : "",
+        text: startContent && startContent === endContent ? selection.toString() : "",
       },
       messageById,
     );
@@ -371,8 +351,7 @@ export const Transcript = memo(function Transcript({
   useEffect(() => {
     const onMouseDown = (event: MouseEvent) => {
       selectingWithMouse.current = true;
-      if ((event.target as Element | null)?.closest?.("[data-quote-selection]"))
-        return;
+      if ((event.target as Element | null)?.closest?.("[data-quote-selection]")) return;
       setQuoteDraft(null);
     };
     const onMouseUp = () => {
@@ -417,9 +396,7 @@ export const Transcript = memo(function Transcript({
   const jumpToLatest = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     following.current = true;
     autoScrolling.current = !reducedMotion;
     setAtEnd(true);
@@ -464,17 +441,12 @@ export const Transcript = memo(function Transcript({
     element.addEventListener("scrollend", endJumpScroll, { once: true });
     window.clearTimeout(jumpScrollTimer.current);
     jumpScrollTimer.current = window.setTimeout(endJumpScroll, 2_000);
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Streaming layout updates can interrupt a smooth jump before it reaches the row.
     row.scrollIntoView({ behavior: "auto", block: "center" });
     row.animate(
       reducedMotion
-        ? [
-            { backgroundColor: "var(--muted)" },
-            { backgroundColor: "var(--muted)" },
-          ]
+        ? [{ backgroundColor: "var(--muted)" }, { backgroundColor: "var(--muted)" }]
         : [
             { backgroundColor: "transparent" },
             { backgroundColor: "var(--muted)" },
@@ -483,14 +455,7 @@ export const Transcript = memo(function Transcript({
       { duration: 1200 },
     );
     onScrollRequestHandled();
-  }, [
-    messages,
-    scrollRequest,
-    scrollRef,
-    endJumpScroll,
-    onScrollRequestHandled,
-    exchanges.lineOf,
-  ]);
+  }, [messages, scrollRequest, scrollRef, endJumpScroll, onScrollRequestHandled, exchanges.lineOf]);
 
   const followedRequest = useRef(followRequest);
   useLayoutEffect(() => {
@@ -541,10 +506,7 @@ export const Transcript = memo(function Transcript({
   return (
     <div className="relative flex min-h-0 flex-1">
       {background && backgroundUrl ? (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-        >
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
           <img
             alt=""
             src={backgroundUrl}
@@ -632,9 +594,7 @@ export const Transcript = memo(function Transcript({
                   "--custom-chat-bot-foreground": bubble.bot.foreground,
                   "--custom-chat-bot-border": bubble.bot.border,
                   "--custom-chat-bot-radius": `${bubble.bot.radius}px`,
-                  "--custom-chat-bot-image": botBubbleImage
-                    ? `url("${botBubbleImage}")`
-                    : "none",
+                  "--custom-chat-bot-image": botBubbleImage ? `url("${botBubbleImage}")` : "none",
                 }
               : {}),
           } as CSSProperties
@@ -679,26 +639,23 @@ export const Transcript = memo(function Transcript({
             );
           }
           const message = item.message;
-          if (!messageHasVisibleBlocks(message.blocks, showToolActivity))
-            return null;
+          if (!messageHasVisibleBlocks(message.blocks, showToolActivity)) return null;
           const peerReceipt = isPeerReceiptBlocks(message.blocks);
           const messageReactions = reactionView.reactions.get(message.id);
           return (
             <Fragment key={message.id}>
               {separatorIds.has(message.id) ? (
-                <TimeSeparator
-                  createdAt={message.createdAt}
-                  locale={i18n.locale || "en"}
-                />
+                <TimeSeparator createdAt={message.createdAt} locale={i18n.locale || "en"} />
               ) : null}
               {message.id === unreadDividerId ? (
                 <UnreadDivider afterSeparator={separatorIds.has(message.id)} />
               ) : null}
-              <div
-                role="group"
+              <fieldset
                 data-message-id={message.id}
                 data-touch-actions={touchActionsId === message.id ? "open" : undefined}
-                onTouchStart={peerReceipt ? undefined : (event) => startTouchHold(event, message.id)}
+                onTouchStart={
+                  peerReceipt ? undefined : (event) => startTouchHold(event, message.id)
+                }
                 onTouchMove={moveTouchHold}
                 onTouchEnd={cancelTouchHold}
                 onTouchCancel={cancelTouchHold}
@@ -707,8 +664,8 @@ export const Transcript = memo(function Transcript({
                 }}
                 className={
                   peerReceipt
-                    ? "relative py-0.5"
-                    : "group/message relative hover:z-[1]"
+                    ? "relative m-0 min-w-0 border-0 p-0 py-0.5"
+                    : "group/message relative m-0 min-w-0 border-0 p-0 hover:z-[1]"
                 }
               >
                 <div
@@ -719,16 +676,12 @@ export const Transcript = memo(function Transcript({
                   }
                 >
                   <div
-                    data-testid={
-                      peerReceipt ? undefined : "message-bubble-frame"
-                    }
+                    data-testid={peerReceipt ? undefined : "message-bubble-frame"}
                     className={
                       peerReceipt
                         ? undefined
                         : message.blocks.some(
-                              (block) =>
-                                block.kind === "ask" ||
-                                block.kind === "mcp_approval",
+                              (block) => block.kind === "ask" || block.kind === "mcp_approval",
                             )
                           ? "relative w-full min-w-0 max-w-xl"
                           : `relative ${message.blocks.some((block) => block.kind === "app_connect") ? "w-full" : "w-fit"} min-w-0 ${bubbleFrameWidth(message.role)}`
@@ -773,7 +726,8 @@ export const Transcript = memo(function Transcript({
                       onMarkUnread={onMarkUnread}
                       onReact={onReact}
                     />
-                    {message.id.startsWith("pending:") && !message.id.startsWith("pending:confirmed:") ? (
+                    {message.id.startsWith("pending:") &&
+                    !message.id.startsWith("pending:confirmed:") ? (
                       <p role="status" className="mt-1 text-right text-xs text-muted-foreground">
                         <Trans>Sending…</Trans>
                       </p>
@@ -799,15 +753,13 @@ export const Transcript = memo(function Transcript({
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </fieldset>
             </Fragment>
           );
         })}
         {running &&
         !messages.some(
-          (message) =>
-            message.id.startsWith("progress:") &&
-            liveMessageComposing(message.blocks),
+          (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
         ) ? (
           <ActiveBotGlyph bots={workingBots} label={workingLabel} />
         ) : null}
@@ -831,9 +783,7 @@ export const Transcript = memo(function Transcript({
         tabIndex={atEnd ? -1 : 0}
         onClick={jumpToLatest}
         className={`absolute bottom-11 left-1/2 z-20 -translate-x-1/2 shadow-md transition-[opacity,transform,background-color] duration-200 ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transition-none ${
-          atEnd
-            ? "pointer-events-none translate-y-2 opacity-0"
-            : "translate-y-0 opacity-100"
+          atEnd ? "pointer-events-none translate-y-2 opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
         <ArrowDown strokeWidth={1.8} className="size-[17px]" />

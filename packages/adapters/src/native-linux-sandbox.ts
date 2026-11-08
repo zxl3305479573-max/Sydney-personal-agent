@@ -1,3 +1,4 @@
+import * as net from "node:net";
 import type {
   AdapterContext,
   AdapterDescriptor,
@@ -17,7 +18,6 @@ import type {
   ScreenSession,
   SnapshotRef,
 } from "@rakazo/adapter-kit";
-import * as net from "node:net";
 import { computerHomeKey } from "@rakazo/db";
 
 type Transport = (
@@ -39,8 +39,7 @@ function socketTransport(socketPath: string) {
     provisionBotId?: string,
   ): Promise<unknown> =>
     new Promise((resolve, reject) => {
-      const signal =
-        method === "cancel" || method === "inspect" ? undefined : context?.signal;
+      const signal = method === "cancel" || method === "inspect" ? undefined : context?.signal;
       if (signal?.aborted) {
         reject(new Error("native_driver_aborted_result_unknown"));
         return;
@@ -171,7 +170,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
     context: AdapterContext,
   ): Promise<ComputerActionResult> {
     const guardedContext = await this.guard(context, computer);
-    const response = (await this.transport("act", { request }, guardedContext, computer)) as ComputerActionResult & {
+    const response = (await this.transport(
+      "act",
+      { request },
+      guardedContext,
+      computer,
+    )) as ComputerActionResult & {
       observation?: ComputerObservation & { imageBase64?: string };
     };
     if (response.observation?.imageBase64) {
@@ -184,7 +188,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
   async observe(computer: ComputerRef, context: AdapterContext): Promise<ComputerObservation> {
     this.assertComputer(context, computer);
     const guardedContext = context.nativeRunLease ? await this.guard(context, computer) : context;
-    const response = (await this.transport("observe", {}, guardedContext, computer)) as ComputerObservation & {
+    const response = (await this.transport(
+      "observe",
+      {},
+      guardedContext,
+      computer,
+    )) as ComputerObservation & {
       imageBase64?: string;
     };
     if (!response.imageBase64) throw new Error("native_driver_missing_image");
@@ -251,9 +260,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
       this.screen.port > 65535 ||
       context.signal.aborted
     ) {
-      throw new Error(
-        !this.screen ? "native_screen_not_configured" : "native_screen_unsupported",
-      );
+      throw new Error(!this.screen ? "native_screen_not_configured" : "native_screen_unsupported");
     }
     await this.transport("status", {}, context, computer);
     if (context.signal.aborted) throw new Error("native_screen_unsupported");
@@ -280,9 +287,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
     context: AdapterContext,
   ): Promise<{ path: string; kind: "file" | "dir"; size: number }[]> {
     const guardedContext = await this.guard(context, computer);
-    return this.transport("list", { path: path === "/" ? "" : path }, guardedContext, computer) as Promise<
-      { path: string; kind: "file" | "dir"; size: number }[]
-    >;
+    return this.transport(
+      "list",
+      { path: path === "/" ? "" : path },
+      guardedContext,
+      computer,
+    ) as Promise<{ path: string; kind: "file" | "dir"; size: number }[]>;
   }
 
   async readFile(
@@ -313,12 +323,17 @@ export class NativeLinuxSandbox implements SandboxProvider {
     );
   }
 
-  async *exportWorkspace(
-    computer: ComputerRef,
-    context: AdapterContext,
-  ): AsyncIterable<PortableFile> {
-    await this.guard(context, computer);
-    throw new Error("native_workspace_export_unsupported");
+  exportWorkspace(computer: ComputerRef, context: AdapterContext): AsyncIterable<PortableFile> {
+    const unsupported = this.guard(context, computer).then(() => {
+      throw new Error("native_workspace_export_unsupported");
+    });
+    const iterator: AsyncIterator<PortableFile> & AsyncIterable<PortableFile> = {
+      [Symbol.asyncIterator]() {
+        return iterator;
+      },
+      next: () => unsupported.then(() => ({ done: true as const, value: undefined })),
+    };
+    return iterator;
   }
 
   async importWorkspace(

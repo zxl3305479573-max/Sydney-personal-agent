@@ -182,7 +182,7 @@ export function CreateGroupForm({
         >
           <ChevronLeft />
         </Button>
-        <h1 className="hidden text-[22px] font-medium text-foreground md:block">
+        <h1 className="sr-only">
           <Trans>Create group</Trans>
         </h1>
         <PageBreadcrumb label="Create group" inline />
@@ -314,7 +314,7 @@ export function GroupSettings({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-4 flex items-center justify-between">
-        <span className="hidden text-sm text-muted-foreground md:block">
+        <span className="sr-only">
           <Trans>Group settings</Trans>
         </span>
         <PageBreadcrumb label="Group settings" inline />

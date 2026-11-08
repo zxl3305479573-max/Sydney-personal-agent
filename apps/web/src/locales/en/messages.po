@@ -1103,6 +1103,10 @@ msgstr "Bot name"
 msgid "Bot screen"
 msgstr "Bot screen"
 
+#: src/pages/shell/computer-panel.tsx
+msgid "Bot screen preview"
+msgstr "Bot screen preview"
+
 #: src/components/PageBreadcrumb.tsx
 msgid "Bot settings"
 msgstr "Bot settings"

@@ -66,7 +66,9 @@ async function runRoutine(
     status: "queued" as string,
     trigger: options.managedControlBlocked
       ? "managed_task"
-      : options.attachments && !options.steering ? "user" : "routine",
+      : options.attachments && !options.steering
+        ? "user"
+        : "routine",
     sourceMessageId: options.attachments && !options.steering ? "message-1" : null,
     routineId: "routine-1",
     retryOfRunId: null,
@@ -365,14 +367,14 @@ describe("run computer provisioning", () => {
     expect(prisma.task.findUniqueOrThrow).not.toHaveBeenCalled();
     expect(prisma.connection.findMany).not.toHaveBeenCalled();
     expect(runtimeRun).not.toHaveBeenCalled();
-    expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
-      runId: "run-1",
-      outcome: "failed",
-      error: "Managed task was stopped or its control state was unavailable.",
-    }));
-    expect(enqueue).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: "run.continue" }),
+    expect(finalizeRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: "run-1",
+        outcome: "failed",
+        error: "Managed task was stopped or its control state was unavailable.",
+      }),
     );
+    expect(enqueue).not.toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
   });
 
   it("retries handed-off setup failures with durable attempt accounting and backoff", async () => {

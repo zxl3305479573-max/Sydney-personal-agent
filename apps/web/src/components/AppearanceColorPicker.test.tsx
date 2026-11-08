@@ -56,26 +56,17 @@ it("applies a preset and rejects incomplete HEX input", async () => {
     await act(async () => trigger.click());
     const positioner = document.querySelector('[data-slot="popover-content"]')?.parentElement;
     expect(positioner?.getAttribute("data-side")).toBe("bottom");
-    const white = document.querySelector<HTMLButtonElement>(
-      'button[aria-label="选择 #FFFFFF"]',
-    )!;
+    const white = document.querySelector<HTMLButtonElement>('button[aria-label="选择 #FFFFFF"]')!;
     expect(white).toBeTruthy();
     await act(async () => white.click());
     expect(trigger.getAttribute("aria-label")).toBe("背景：#FFFFFF");
-    const hex = document.querySelector<HTMLInputElement>(
-      'input[aria-label="背景 HEX"]',
-    )!;
+    const hex = document.querySelector<HTMLInputElement>('input[aria-label="背景 HEX"]')!;
     await act(async () => {
-      Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )!.set!.call(hex, "#12");
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(hex, "#12");
       hex.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(hex.getAttribute("aria-invalid")).toBe("true");
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
-      "六位 HEX",
-    );
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("六位 HEX");
     expect(trigger.getAttribute("aria-label")).toBe("背景：#FFFFFF");
   } finally {
     await act(async () => root.unmount());

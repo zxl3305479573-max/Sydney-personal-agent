@@ -35,7 +35,10 @@ it("does not abort after the watcher is closed while a read is pending", async (
   let resolveRead!: (allowed: boolean) => void;
   const controller = new AbortController();
   const watch = watchManagedTaskControl(
-    () => new Promise<boolean>((resolve) => { resolveRead = resolve; }),
+    () =>
+      new Promise<boolean>((resolve) => {
+        resolveRead = resolve;
+      }),
     controller,
   );
   watch.close();
