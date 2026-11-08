@@ -1,5 +1,9 @@
 # 验证记录
 
+2026-11-08（PR #5 部署受阻）：机器人面板 32 项、机器人设置 17 项、账户设置 23 项定向测试通过，相关文件 Biome 通过；首轮网页 E2E 第一分片及 PostgreSQL 两分片通过。后续检查因 Electron 和浏览器工具下载 HTTP 504 未完成；公网 `/health` 返回 `ok: true`，`/build-id` 为 `20261108045522`，仍是旧版。未部署、未进行新版本实机验收。
+
+2026-11-08（PA-018、PA-020 背景透明度）：`pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx --maxWorkers=1`：2 文件、10 项通过，覆盖模拟图片上传、透明度预览、保存、取消和聊天画面。Web TypeScript 检查通过；真实浏览器、手机及部署尚未验证。
+
 2026-11-08（PA-019 换肤插件规划）：静态核对 Web 主题应用、聊天外观存储、现有插件部件定义及安装入口；本轮只有设计文档，未执行代码测试、浏览器或部署验证，未验证现有插件安装能力可直接承载主题。
 
 2026-11-08（PA-018 新兼容模型默认识图）：`pnpm exec vitest run packages/core/src/model-connection-form.test.ts apps/web/src/pages/Onboarding.test.tsx --maxWorkers=1` 通过，2 文件 19 项；覆盖新连接默认及已保存关闭状态，首次配置测试未单独覆盖提交图片能力。相关 TypeScript 文件 Biome 检查通过；未做浏览器、真实模型和部署验证。用户反馈手动开启后已可使用。
