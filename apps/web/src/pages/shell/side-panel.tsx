@@ -148,14 +148,14 @@ export function ShellSidePanel({
               }}
             />
           ) : null}
-          {chatKey && (panel === "group-settings" || panel === "settings") ? (
-            <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} />
-          ) : null}
           {panel === "group-settings" && activeGroup ? (
             <GroupSettings
               key={activeGroup.id}
               group={activeGroup}
               bots={bots}
+              backgroundSettings={
+                chatKey ? <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} /> : null
+              }
               onSave={async (input) => {
                 const updated = await rpc.groups.update({ groupId: activeGroup.id, ...input });
                 setGroups((current) =>
@@ -198,6 +198,9 @@ export function ShellSidePanel({
               }}
               computer={computerPanel}
               routines={routinesPanel}
+              backgroundSettings={
+                chatKey ? <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} /> : null
+              }
               focusModel={modelFocusRequest}
               onOpenConnections={() => openSettings("models")}
               memoryProviderConfigured={memoryProviderConfigured}

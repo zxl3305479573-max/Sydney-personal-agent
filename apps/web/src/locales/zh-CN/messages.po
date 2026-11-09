@@ -607,6 +607,10 @@ msgstr "添加项目"
 msgid "Add MCP server"
 msgstr "添加 MCP 服务器"
 
+#: src/pages/GroupPanel.tsx
+msgid "Add members"
+msgstr "添加成员"
+
 #: src/pages/ScratchpadSection.tsx
 msgid "Add open work"
 msgstr "添加待办事项"

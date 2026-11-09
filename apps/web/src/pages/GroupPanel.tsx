@@ -3,6 +3,7 @@ import type { Bot, Group } from "@rakazo/contracts";
 import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN, GROUP_NAME_MAX_LENGTH } from "@rakazo/contracts";
 import { BotAvatar, Button, Checkbox, Input } from "@rakazo/ui-web";
 import { ChevronLeft, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { PageBreadcrumb } from "../components/PageBreadcrumb";
 import { errorText } from "../lib/user-error";
@@ -28,12 +29,14 @@ function MemberPicker({
   onChange,
   onOpenBot,
   initiallyExpanded = false,
+  addMembersLabel = false,
 }: {
   bots: Bot[];
   selected: string[];
   onChange: (selected: string[]) => void;
   onOpenBot?: (botId: string) => void;
   initiallyExpanded?: boolean;
+  addMembersLabel?: boolean;
 }) {
   const { t } = useLingui();
   const listId = useId();
@@ -74,7 +77,13 @@ function MemberPicker({
           onClick={() => setExpanded((value) => !value)}
           className="font-normal"
         >
-          {expanded ? <Trans>Show selected</Trans> : <Trans>Show all</Trans>}
+          {expanded ? (
+            <Trans>Show selected</Trans>
+          ) : addMembersLabel ? (
+            <Trans>Add members</Trans>
+          ) : (
+            <Trans>Show all</Trans>
+          )}
         </Button>
       </div>
       {expanded ? (
@@ -228,6 +237,7 @@ export function GroupSettings({
   onRemove,
   onClose,
   onOpenBot,
+  backgroundSettings,
   covered = false,
 }: {
   group: Group;
@@ -236,6 +246,7 @@ export function GroupSettings({
   onRemove: () => Promise<void>;
   onClose: () => void;
   onOpenBot?: (botId: string) => void;
+  backgroundSettings?: ReactNode;
   /** A full-screen overlay is on top, so Escape belongs to it. */
   covered?: boolean;
 }) {
@@ -343,7 +354,13 @@ export function GroupSettings({
           className="mt-2"
         />
       </label>
-      <MemberPicker bots={bots} selected={selected} onChange={setSelected} onOpenBot={onOpenBot} />
+      <MemberPicker
+        bots={bots}
+        selected={selected}
+        onChange={setSelected}
+        onOpenBot={onOpenBot}
+        addMembersLabel
+      />
       <Button
         className="mt-5 w-full"
         disabled={saving || !validSelection(name, selected)}
@@ -359,6 +376,7 @@ export function GroupSettings({
       >
         <Trans>Delete group</Trans>
       </Button>
+      {backgroundSettings ? <div className="mt-5">{backgroundSettings}</div> : null}
       {confirmingDelete ? (
         <DeleteItemDialog
           item={group}

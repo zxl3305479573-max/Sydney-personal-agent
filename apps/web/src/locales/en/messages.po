@@ -607,6 +607,10 @@ msgstr "Add item"
 msgid "Add MCP server"
 msgstr "Add MCP server"
 
+#: src/pages/GroupPanel.tsx
+msgid "Add members"
+msgstr "Add members"
+
 #: src/pages/ScratchpadSection.tsx
 msgid "Add open work"
 msgstr "Add open work"
