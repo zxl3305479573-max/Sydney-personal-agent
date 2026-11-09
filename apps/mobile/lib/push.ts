@@ -13,6 +13,7 @@ async function notificationsAllowed() {
 }
 
 export async function registerPushToken() {
+  if (Constants.expoConfig?.extra?.sydneySideload === true) return;
   if (!(await notificationsAllowed())) return;
   try {
     const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;

@@ -1,0 +1,57 @@
+# iPhone 客户端实施与测评
+
+关联需求：PA-021。更新：2026-11-09。
+
+## 免费方案调整
+
+2026-11-09 用户明确拒绝网页主屏幕方案，交付目标继续是原生 App。现研究 GitHub Actions 的 macOS runner 编译 iPhone 真机架构的未签名产物，之后在 Windows 使用免费 Apple 账号侧载签名；这不是 Expo 官方标准 EAS 签名流程，尚未证明本项目可构建、安装或运行。第三方工具、扩展权限、账号和设备配合及每七天续签是独立约束；私人仓库免费额度和费用必须核实，不能为免费目标擅自触发付费。
+
+用户没有 Expo 账号和 Apple Developer Program 付费会员，要求免费。原来的 EAS 真机签名路线暂停，不能据此承诺可安装的原生 IPA。Expo 官方说明 Windows 可使用云端构建，但其面向 iPhone 的 EAS 开发构建需要签名条件；Apple 的免费 Personal Team 官方路线依赖 Mac 上的 Xcode 且需要周期性重新签名。第三方 Windows 侧载工具提供七天刷新方式，但可用的设备架构 IPA、签名、扩展能力和完整流程均未验证，不承诺能够成功或长期稳定使用。
+
+### 免费原生构建准备
+
+新增 `.github/workflows/mobile-ios-sideload.yml`：当前分支推送工作流变更会触发构建，也支持手动触发。使用公开仓库的标准 macOS 构建机和 iPhone 设备 SDK，生成 Release 应用并封装未签名 IPA；检查 arm64、内置 JS、原生扩展和部分不支持的 entitlement，上传七天保留的产物和 SHA-256。仓库当前公开，但构建机 `xcode-27`、实际 SDK 版本和执行结果尚未验证；产物可被有仓库访问权限者下载，不放入凭据和个人数据。GitHub Actions 公共仓库标准托管 runner 的费用规则见 <https://docs.github.com/en/actions/concepts/billing-and-usage>。
+
+构建专用环境变量 `SYDNEY_SIDELOAD_IOS=1` 启用隔离模式：要求独立 `SYDNEY_IOS_BUNDLE_ID` 和不带路径、凭据及查询参数的 HTTPS `EXPO_PUBLIC_API_URL`；禁用上游 OTA、EAS 项目标识、Associated Domains、远程推送注册及 App Intents/Widget 插件。密码或验证码登录及聊天仍需真机验证；免费包的远程推送、Passkey、快捷指令和录音实时活动不作为已可用功能。保留 `rakazo://` 以兼容现有认证协议，若同机安装其他使用该 scheme 的 App，认证回调可能冲突。
+
+候选安装方式是用户自行在 Windows 使用 AltStore Classic 和普通 Apple 账号对下载产物签名安装；签名工具需要用户自己登录，禁止向聊天或仓库提供密码。免费描述文件一般七天到期，需要按工具要求刷新，安装名额有限；安装、保留数据、开发者模式、证书及刷新均未验证。软件安装或更换方式需遵循用户环境约束；不得声称未签名 IPA 本身可直接安装。
+
+当前仅完成配置及工作流草案，本机受项目约定不安装依赖。iOS prebuild、CocoaPods、Xcode 构建、IPA 产物、签名、实际运行及七天刷新都未执行。主目录 Node 22.22.0 低于项目引擎要求，直接使用 `pnpm --filter @rakazo/mobile exec expo config --json` 被引擎检查拒绝；没有绕过版本检查。
+
+可行的低门槛备选是复用现有移动 Web，在 iPhone Safari 添加至主屏幕并以 Web App 打开；源码已有 manifest、图标和 service worker。它不等于安装原生 IPA，用户登录、推送、后台行为、语音和云电脑等仍须逐项验证；已有服务器和模型可能产生既有费用。用户是否接受 Web App 替代或先行，尚待明确。
+
+独立只读测评发现公网首页、manifest、service worker、Apple 图标及构建号接口均可访问；主屏幕使用仍需在用户自己的 iPhone 上实际打开、添加和登录，不能据此认定真实功能通过。
+
+参考：Apple iOS 26 主屏幕 Web App 说明 <https://support.apple.com/en-az/guide/iphone/iphea86e5236/26/ios/26>；Expo 本地与云端构建说明 <https://docs.expo.dev/develop/development-builds/introduction/>；Apple 免费 Personal Team 限制 <https://developer.apple.com/help/account/basics/about-your-developer-account>；AltStore 七天刷新说明 <https://faq.altstore.io/altstore-classic/your-altstore>。上述内容只说明方案和限制，未执行安装或签名。
+
+## 范围与现状
+
+目标是复用 `apps/mobile`，在 Windows 上开发，通过用户自己的 Expo EAS 项目构建，在用户 iPhone 上安装并验收。第一批验收连接服务器、登录和聊天；通知、附件、语音、云电脑等分别验证，不能用 Web 的手机页面替代原生客户端验收。
+
+现有工程使用 Expo、React Native 和 TypeScript，已有登录、聊天、设置、语音和电脑页面代码，并包含自定义原生模块、插件和 iOS widget。静态存在不代表功能可用。Expo Go 不能承载所有自定义原生代码，也未验证能否启动整个项目；完整测试需包含项目原生代码的 iOS 构建。
+
+`apps/mobile/app.json` 当前仍指向上游 Expo owner、项目 ID、OTA 地址及 `com.rakazo.app` 与 widget 标识。构建前须建立或关联用户有权使用的 Expo 项目，同步主应用、widget 标识和 OTA 地址，并核实 Apple 账号的签名和设备权限。不得把上游项目当成用户项目；具体 ID、账号及签名尚未确定。
+
+应用 scheme、认证 Origin、快捷指令和服务端信任规则多处使用 `rakazo://`；更名需一起评估，不能只改 `app.json`。Passkey 的关联域名取决于构建时 API 地址，还需服务端关联配置及设备验收。原生电脑页面的真实控制能力和授权边界须另行验证。
+
+`preview` 构建使用独立 EAS 环境。服务器缺省值为手机自身的 `127.0.0.1:3100`；本轮代码在读取到 preview profile 时要求 HTTPS 地址并拒绝回环地址，但格式正确不代表服务器可从手机访问，也不证明账号登录成功。EAS 内置 profile 变量在客户端解析时可能不可用，云端是否重新执行检查须通过真实构建验证；其他 profile 和运行时自定义服务器不受此项 preview 检查覆盖。
+
+Windows 当前检测到 Node 22.22.0 和 pnpm 9.15.0，Node 低于仓库声明的 `^22.22.2` 最低补丁版本。本轮不安装或升级依赖；后续构建环境须符合仓库要求。工程为 pnpm monorepo，上传包、锁文件、共享包、补丁和跨目录图标以及云端镜像均需实际构建验证。
+
+本机未发现全局或仓库本地 EAS CLI，进程环境未设置 `EXPO_TOKEN`；这不能证明用户没有 Expo 账号或其他登录方式。由于本机协作约定不重新安装依赖，云构建工具和授权需要可用的用户环境；Apple 付费会员、项目及设备状态尚未核实，不能替用户注册或猜测签名身份。
+
+## 阶段与验收
+
+1. **现状测评：已完成静态子项。** 核对入口、原生模块、构建身份与依赖；两名子代理独立只读测评。未运行云构建或实机。
+2. **构建准备：进行中。** 已增加 preview 地址格式保护；仍需用户自己的 Expo 项目、Apple 签名条件和 iOS 应用标识，检查主应用与 widget 一致性及上传包。配置须在真实 EAS 构建中验证。
+3. **构建与安装：未开始。** 生成内部测试包，在用户设备安装并启动；记录构建结果、安装步骤及失败原因。
+4. **核心流程：未开始。** 在真实 iPhone 验证服务器连接、登录、聊天收发和错误提示，不把模拟测试视为实机通过。
+5. **扩展能力：未开始。** 分项确认附件、通知、语音、设置及云电脑能力，记录授权、平台差异、失败与限制。iOS 外部分享接收和拖放等与 Android 存在差异，不预先承诺支持。
+6. **交付：未开始。** 整理安装、更新、回滚和故障排查，按实际证据完成验收。
+
+## 审查重点和限制
+
+- 当前 widget 插件按主 bundle ID 生成扩展标识，EAS 扩展声明必须同步；关联域名和推送凭据也需对应实际账号配置。
+- 推送注册存在失败不向用户展示的路径；需先检查具体行为，再制定修复与真机投递验收。
+- 移动端部分外部链接和系统文案仍指向上游，需逐项检查；内部存储键和认证协议标识不得盲目全局替换。
+- 任一云构建、账号权限、签名、安装及真机功能均未在本轮验证。每个后续模块同步总计划、开发及验证记录，影响运行时同步运维手册。

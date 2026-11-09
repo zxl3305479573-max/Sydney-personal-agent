@@ -1,5 +1,15 @@
 # 验证记录
 
+2026-11-09（PA-021 免费原生准备）：运行 `pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/endpoint.test.ts apps/mobile/lib/push.test.ts --maxWorkers=1`，3 文件最终 43 项通过；移动端定向 TypeScript 检查和 4 个改动 TypeScript 文件的 Biome 检查通过。PyYAML 解析工作流及作业结构，提取工作流中的 plist 检查逻辑，在空权限和三个禁止权限样本上验证通过；首次结构脚本错误预期 10 步导致断言失败，核对实际 11 步后通过，不能据此证明 GitHub Actions 接受或实际执行。`pnpm --filter @rakazo/mobile exec expo config --json` 由于本机 Node 22.22.0 低于仓库要求失败；未绕过引擎检查。所有结果均受 pnpm 配置警告及本机 Node 版本限制。未执行 macOS 云构建、产物检查、免费签名、安装或 iPhone 实机验证。
+
+2026-11-09（PA-021 免费方案核查）：只读检查 `apps/web/index.html`、PWA manifest 生成和图标文件，并查阅 Expo、Apple、AltStore 公开资料；现有源码包含 Web App 主屏幕元数据，但未验证用户手机、已部署资源、通知或原生侧载。未安装工具、申请账号、签名或构建。
+
+独立子代理补充公网只读检查：首页、manifest、service worker、Apple 图标及 `/build-id` 均返回 200，构建号为 `20261109120539`。这不证明手机主屏幕安装、登录、消息、通知或更新可用；均待实机验证。
+
+2026-11-09（PA-021 iPhone 准备）：静态检查移动端配置、构建配置、认证入口及项目身份；两名子代理分别独立评估功能/原生模块和 EAS/签名，另对预览检查进行了独立复审，未运行构建。使用本机现有依赖执行 `pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/endpoint.test.ts --maxWorkers=1`，修改前 24 项、首次修改后 28 项、补充回环检查后 32 项通过。当前 Node 22.22.0 低于仓库要求的 22.22.2，pnpm 发出配置警告；该结果不等于合规环境验证。未安装依赖、未连接 Expo 或 Apple 账号、未构建、未安装到 iPhone、未验证真实服务。
+
+环境只读检查未发现全局或仓库本地 EAS CLI，当前进程没有 `EXPO_TOKEN`；未查询或推断其他登录状态。改动文件 `git diff --check` 通过。
+
 2026-11-09（外观遗漏补齐）：`GroupPanel.test.tsx`、`bot-panel.test.tsx`、`ChatAppearanceSettings.test.tsx`、`WorkspaceBackground.test.tsx` 共 4 文件 57 项通过，包含已有群新增 Bot 的保存参数和独立背景紧接语音的位置；Web TypeScript 检查通过。Edge 无头浏览器加载实际编译 CSS，在 390/1280 像素、深浅主题、0%/100% 的 8 组简化布局下验证共享表面及新建输入框、创建按钮透明度，检查聊天输入框始终不透明、对话列表不随调节变化，并保留截图。受影响文件 Biome 无错误，有既有 CSS 警告；新完整页面回归 `chat-appearance.spec.ts` 已枚举为 2 项，尚未执行，本机未启动应用或数据库；完整应用与部署结果待 CI。
 
 2026-11-09（PR #7 发布验证）：首轮运行 `42588762814` 的翻译目录步骤失败；清理两条无引用词条后，本机重新提取目录未产生额外变化，暂存补丁空白检查通过。修复提交 `582555ce8` 的运行 `42607880438` 中，格式、翻译目录、类型检查、三个单元测试分片、两个数据库旅程分片、生产构建、Electron 启动检查及 Web E2E 全部通过。合并版本 `343efad7a5008b5a2e3496af969888ba4a509bf4` 的运行 `42608790848` 和 `deploy-production` 均成功；北京时间 2026-11-09 19:31 公网 `/health` 返回 200 和 `{"ok":true}`，`/build-id` 从 `20261109071410` 更新为 `20261109112537`，线上 `/assets/index-C0DRlfBZ.css` 同时包含 `.sydney-settings-nav-row`、`--sydney-surface-alpha` 和 `.workspace-background`。独立截图图库发布失败，未将其记为通过；真实手机视觉、触屏及图片持久化仍未验证。

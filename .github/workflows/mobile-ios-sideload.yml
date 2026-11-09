@@ -1,0 +1,107 @@
+name: iOS unsigned sideload build
+
+on:
+  push:
+    branches:
+      - cursor/integrate-remote-branches-7334
+    paths:
+      - .github/workflows/mobile-ios-sideload.yml
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: HTTPS address reachable from the iPhone
+        required: true
+        default: https://pc.zxlup.xin
+      bundle_id:
+        description: Stable bundle identifier for the sideload build
+        required: true
+        default: xin.zxlup.sydney
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      CI: "1"
+      SYDNEY_SIDELOAD_IOS: "1"
+      EXPO_PUBLIC_API_URL: ${{ inputs.api_url || 'https://pc.zxlup.xin' }}
+      SYDNEY_IOS_BUNDLE_ID: ${{ inputs.bundle_id || 'xin.zxlup.sydney' }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Check Xcode and device SDK
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          /usr/bin/python3 -c 'import sys; assert tuple(map(int, sys.argv[1].split("."))) >= (27, 1), "iOS SDK 27.1 or newer is required"' "$sdk_version"
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate iOS project
+        run: pnpm --filter @rakazo/mobile exec expo prebuild --platform ios --no-install
+
+      - name: Install iOS native dependencies
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Check generated entitlements
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -c '
+          import pathlib, plistlib
+          forbidden = {"aps-environment", "com.apple.developer.associated-domains", "com.apple.developer.siri"}
+          for path in pathlib.Path(".").rglob("*.entitlements"):
+              if "Pods" in path.parts:
+                  continue
+              with path.open("rb") as stream:
+                  found = forbidden.intersection(plistlib.load(stream))
+              if found:
+                  raise SystemExit(f"Unsupported entitlements in {path}: {sorted(found)}")
+          '
+
+      - name: Build unsigned iPhone app
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          xcodebuild -list -workspace Sydney.xcworkspace
+          xcodebuild -workspace Sydney.xcworkspace -scheme Sydney -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/sydney-ios-build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Verify and package unsigned app
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/sydney-ios-build/Build/Products/Release-iphoneos/Sydney.app"
+          test -d "$app"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
+          xcrun lipo -verify_arch arm64 "$app/$executable"
+          test -f "$app/main.jsbundle"
+          test ! -d "$app/PlugIns"
+          mkdir -p "$RUNNER_TEMP/sydney-ipa/Payload" "$GITHUB_WORKSPACE/ios-artifact"
+          ditto "$app" "$RUNNER_TEMP/sydney-ipa/Payload/Sydney.app"
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/sydney-ipa/Payload" "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa"
+          shasum -a 256 "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa" > "$GITHUB_WORKSPACE/ios-artifact/SHA256.txt"
+
+      - name: Upload unsigned IPA for personal signing
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sydney-ios-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-artifact/
+          if-no-files-found: error
+          retention-days: 7
