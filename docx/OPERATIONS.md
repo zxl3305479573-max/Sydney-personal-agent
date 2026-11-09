@@ -1,5 +1,7 @@
 # 运维手册
 
+2026-11-09 PR #6：注册密码和手机深色主题已随合并版本 `6ded1a62ecce62a0df88b9b2771f166dd0695b37` 自动部署；公网健康检查正常，构建标识 `20261109023224`。真实邮箱注册、密码重登及手机实机仍待验收。下方相关条目的未部署状态为发布前记录。
+
 ## Composio 托管应用目录权限（待授权验证）
 
 生产原项目密钥调用会话创建接口时返回 403，缺少 `session_management` 写权限。用户更新受保护配置后，已在 `/srv/rakazo` 使用 `infra/compose/docker-compose.prod.yml` 和 `/etc/rakazo/compose/production.overlay.yml` 滚动重建 API、Worker：新服务健康并加载配置，旧 Worker 完成退出。直接验证会话创建和目录接口成功；应用内目录、真实 Gmail 授权与只读调用仍待验证。确认无误后再由管理员处理旧密钥；不要将密钥写入文档或聊天。原生 MCP OAuth 客户端配置独立于 Composio 项目密钥。
