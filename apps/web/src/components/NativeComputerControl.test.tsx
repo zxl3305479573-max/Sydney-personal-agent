@@ -104,7 +104,7 @@ it("shows failed input, cancels queued actions and never replays uncertain resul
   await value.unmount();
 });
 
-it("accepts keyboard input while the screen frame has focus and ignores the text form", async () => {
+it("accepts keyboard input while the screen frame has focus without a visible text form", async () => {
   const value = await mount();
   await value.report();
   await value.key("a");
@@ -114,13 +114,29 @@ it("accepts keyboard input while the screen frame has focus and ignores the text
     kind: "clipboard",
     payload: { text: "a" },
   });
-  const field = value.host.querySelector("input")!;
+  expect(value.host.querySelector("input")).toBeNull();
+  expect(value.host.querySelector("form")).toBeNull();
+  await value.unmount();
+});
+
+it("forwards a pointer click once when the browser emits pointerup and click", async () => {
+  const value = await mount();
+  await value.report();
   await act(async () => {
-    field.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "b", bubbles: true, cancelable: true }),
+    value.overlay.dispatchEvent(
+      new PointerEvent("pointerup", { bubbles: true, clientX: 480, clientY: 320, button: 0 }),
+    );
+    value.overlay.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, clientX: 480, clientY: 320 }),
     );
   });
-  expect(input).toHaveBeenCalledTimes(1);
+  expect(input).toHaveBeenCalledOnce();
+  expect(input).toHaveBeenCalledWith({
+    botId: "bot",
+    controlLeaseId: "lease",
+    kind: "pointer",
+    payload: { x: 960, y: 540, type: "click", button: "left" },
+  });
   await value.unmount();
 });
 

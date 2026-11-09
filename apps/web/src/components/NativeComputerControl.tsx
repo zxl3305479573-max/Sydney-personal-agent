@@ -16,8 +16,8 @@ export function NativeComputerControl({
   frame: HTMLIFrameElement | null;
 }) {
   const target = useRef<HTMLDivElement>(null);
+  const ignoreNextClick = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [text, setText] = useState("");
   const [ready, setReady] = useState(false);
   const send = useRef<
     (kind: "pointer" | "key" | "clipboard" | "scroll", payload: Record<string, unknown>) => void
@@ -86,12 +86,25 @@ export function NativeComputerControl({
         ? nativeScreenPoint(event.clientX, event.clientY, root.getBoundingClientRect(), geometry)
         : null;
     const onClick = (event: MouseEvent) => {
+      if (ignoreNextClick.current) {
+        ignoreNextClick.current = false;
+        return;
+      }
       if (isLocalInput(event.target)) return;
       root.focus({ preventScroll: true });
       event.preventDefault();
       const at = point(event);
       if (at)
         enqueue("pointer", { ...at, type: "click", button: event.button === 2 ? "right" : "left" });
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.button === 2 || isLocalInput(event.target)) return;
+      const at = point(event);
+      if (!at) return;
+      ignoreNextClick.current = true;
+      root.focus({ preventScroll: true });
+      event.preventDefault();
+      enqueue("pointer", { ...at, type: "click", button: "left" });
     };
     const onWheel = (event: WheelEvent) => {
       if (isLocalInput(event.target)) return;
@@ -166,6 +179,7 @@ export function NativeComputerControl({
     };
     window.addEventListener("message", onMessage);
     root.addEventListener("click", onClick);
+    root.addEventListener("pointerup", onPointerUp);
     root.addEventListener("contextmenu", onClick);
     root.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
@@ -181,6 +195,7 @@ export function NativeComputerControl({
       send.current = () => {};
       window.removeEventListener("message", onMessage);
       root.removeEventListener("click", onClick);
+      root.removeEventListener("pointerup", onPointerUp);
       root.removeEventListener("contextmenu", onClick);
       root.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
@@ -198,30 +213,15 @@ export function NativeComputerControl({
       className="absolute inset-0 z-10 outline-none"
       style={{ touchAction: "manipulation" }}
     >
-      <div className="absolute inset-x-0 bottom-0 bg-background/95 p-2 text-sm">
-        {error ? (
-          <div role="alert">{error}</div>
-        ) : !ready ? (
-          <div role="status">{t`Waiting for screen dimensions…`}</div>
-        ) : null}
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!text || error || !ready) return;
-            send.current("clipboard", { text });
-            setText("");
-          }}
-        >
-          <input
-            aria-label={t`Type text`}
-            className="min-w-0 flex-1 rounded border bg-background px-2 py-1"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-          />
-          <button type="submit" disabled={!ready || Boolean(error) || !text}>{t`Send text`}</button>
-        </form>
-      </div>
+      {error || !ready ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/95 p-2 text-sm">
+          {error ? (
+            <div role="alert">{error}</div>
+          ) : (
+            <div role="status">{t`Waiting for screen dimensions…`}</div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

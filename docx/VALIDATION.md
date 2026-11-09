@@ -1241,3 +1241,10 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - `pnpm exec vitest run packages/core/src/node/screen-capability.test.ts apps/api/src/screen-proxy.test.ts apps/web/src/screen-proxy.test.ts apps/web/src/pages/shell/use-computer.test.tsx apps/api/src/native-computer-control-fence.test.ts apps/api/src/native-computer-input.test.ts apps/api/src/computer-status.test.ts apps/web/src/lib/native-computer-control.test.ts apps/web/src/components/NativeComputerControl.test.tsx apps/web/src/novnc-html.test.ts packages/adapters/src/native-linux-sandbox.test.ts packages/adapters/src/computer-update.test.ts --maxWorkers=1`：12 个文件、197 项通过、2 项 Windows 跳过。
 - `pnpm exec tsc --noEmit -p` 分别检查 `apps/api/tsconfig.json`、`packages/adapters/tsconfig.json`、`packages/core/tsconfig.json`：通过；相关六个文件 Biome 检查及 `git diff --check` 通过。
 - 未执行生产部署、线上日志复核、实际连接慢握手或断线重连；本地发现的风险不等于已确认线上故障原因。后续需在保护链接凭证的前提下逐段检查屏幕地址请求、Web 代理、驱动状态与 VNC 服务，并验证真实桌面和人工输入。
+
+## V-059：人工接管点击层离线验证（2026-11-09）
+
+- 删除常驻文字输入框和就绪后的底部遮罩，保留键盘/剪贴板输入及屏幕内直接点击转发。
+- `pnpm exec vitest run apps/web/src/components/NativeComputerControl.test.tsx apps/web/src/novnc-html.test.ts --maxWorkers=1`：2 个文件、33 项通过。
+- `pnpm exec biome check apps/web/src/components/NativeComputerControl.tsx apps/web/src/components/NativeComputerControl.test.tsx` 和 `git diff --check`：通过。
+- 未执行生产部署前的真实桌面点击、触摸、右键和中文输入；需发布后实机复验。
