@@ -17,6 +17,14 @@ msgstr ""
 msgid " (unread)"
 msgstr "（未读）"
 
+#: src/components/PasswordStrength.tsx
+msgid ", met"
+msgstr "，已满足"
+
+#: src/components/PasswordStrength.tsx
+msgid ", not met"
+msgstr "，未满足"
+
 #. placeholder {0}: pinned.length
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "{0, plural, one {# bot has its own model:} other {# bots have their own model:}}"
@@ -921,6 +929,18 @@ msgstr "{0}"
 #: src/pages/RoutineSchedule.tsx
 msgid "at {timeSelect}"
 msgstr "{timeSelect}"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least 8 characters"
+msgstr "至少 8 个字符"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least one number"
+msgstr "至少一个数字"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least one symbol"
+msgstr "至少一个符号"
 
 #: src/pages/shell/composer.tsx
 msgid "Attach file"
@@ -2993,6 +3013,10 @@ msgstr "失败。"
 msgid "Failure handling"
 msgstr "失败处理"
 
+#: src/components/PasswordStrength.tsx
+msgid "Fair"
+msgstr "一般"
+
 #: src/pages/RoutineEditor.tsx
 msgid "Fields that mark a change"
 msgstr "标记变化的字段"
@@ -3142,6 +3166,10 @@ msgstr "为你的小伙伴设置专属形象"
 msgid "Go home"
 msgstr "返回首页"
 
+#: src/components/PasswordStrength.tsx
+msgid "Good"
+msgstr "较好"
+
 #: src/pages/AdminAccessPage.tsx
 msgid "Grant"
 msgstr "授权"
@@ -3221,6 +3249,7 @@ msgid "Hide"
 msgstr "隐藏"
 
 #: src/components/I18nBootstrap.tsx
+#: src/components/PasswordStrength.tsx
 msgid "Hide password"
 msgstr "隐藏密码"
 
@@ -4174,6 +4203,10 @@ msgstr "未列出模型。"
 msgid "No OpenClaw, Hermes or agent document found."
 msgstr "未找到 OpenClaw、Hermes 或 Agent 文档。"
 
+#: src/components/PasswordStrength.tsx
+msgid "No password"
+msgstr "尚未输入密码"
+
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "No remote MCP servers found"
 msgstr "没有找到远程 MCP 服务器"
@@ -4329,6 +4362,10 @@ msgstr "单次购买，额度不会过期。"
 msgid "Only enter a code {codeHost} sent you."
 msgstr "只输入 {codeHost} 发给你的验证码。"
 
+#: src/components/PasswordStrength.tsx
+msgid "Only the length is required; the other suggestions improve strength."
+msgstr "仅长度为必填要求，其余建议可提高密码强度。"
+
 #: src/components/markdown-link-prompt.tsx
 #: src/pages/PaymentWalletSettingsPanel.tsx
 #: src/pages/shell/computer-panel.tsx
@@ -4376,6 +4413,10 @@ msgstr "在完整窗口中打开"
 #: src/pages/shell/chat-header.tsx
 msgid "Open navigation"
 msgstr "打开导航"
+
+#: src/pages/Auth.tsx
+msgid "Open the verification link in your email, then sign in with your password."
+msgstr "请打开邮件中的验证链接，然后使用密码登录。"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
@@ -4471,6 +4512,10 @@ msgstr "此服务器未配置密码恢复"
 #: src/lib/user-error.ts
 msgid "Password sign-in is turned off on this server"
 msgstr "此服务器已关闭密码登录"
+
+#: src/components/PasswordStrength.tsx
+msgid "Password strength"
+msgstr "密码强度"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -5491,6 +5536,7 @@ msgid "Show more"
 msgstr "显示更多"
 
 #: src/components/I18nBootstrap.tsx
+#: src/components/PasswordStrength.tsx
 msgid "Show password"
 msgstr "显示密码"
 
@@ -5767,6 +5813,10 @@ msgstr "已加密存储"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Stream replies"
 msgstr "流式回复"
+
+#: src/components/PasswordStrength.tsx
+msgid "Strong"
+msgstr "强"
 
 #: src/components/PersonalityPicker.tsx
 msgid "Structured and precise"
@@ -6160,6 +6210,10 @@ msgstr "今天"
 msgid "Tokens"
 msgstr "Token"
 
+#: src/components/PasswordStrength.tsx
+msgid "Too short"
+msgstr "过短"
+
 #: src/pages/RoutineEditor.tsx
 msgid "Tool arguments (JSON)"
 msgstr "工具参数（JSON）"
@@ -6347,6 +6401,10 @@ msgstr "升级"
 msgid "Upgrade now"
 msgstr "立即升级"
 
+#: src/components/PasswordStrength.tsx
+msgid "Uppercase and lowercase letters"
+msgstr "包含大小写字母"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr "紧急"
@@ -6513,6 +6571,10 @@ msgstr "钱包"
 #: src/components/PersonalityPicker.tsx
 msgid "Warm and patient"
 msgstr "温暖友善，耐心倾听"
+
+#: src/components/PasswordStrength.tsx
+msgid "Weak"
+msgstr "弱"
 
 #: src/components/ModelCredits.tsx
 msgid "Web, desktop and mobile"

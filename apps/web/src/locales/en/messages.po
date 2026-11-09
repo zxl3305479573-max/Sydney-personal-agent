@@ -17,6 +17,14 @@ msgstr ""
 msgid " (unread)"
 msgstr " (unread)"
 
+#: src/components/PasswordStrength.tsx
+msgid ", met"
+msgstr ", met"
+
+#: src/components/PasswordStrength.tsx
+msgid ", not met"
+msgstr ", not met"
+
 #. placeholder {0}: pinned.length
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "{0, plural, one {# bot has its own model:} other {# bots have their own model:}}"
@@ -921,6 +929,18 @@ msgstr "at {0}"
 #: src/pages/RoutineSchedule.tsx
 msgid "at {timeSelect}"
 msgstr "at {timeSelect}"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least 8 characters"
+msgstr "At least 8 characters"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least one number"
+msgstr "At least one number"
+
+#: src/components/PasswordStrength.tsx
+msgid "At least one symbol"
+msgstr "At least one symbol"
 
 #: src/pages/shell/composer.tsx
 msgid "Attach file"
@@ -2993,6 +3013,10 @@ msgstr "Failed."
 msgid "Failure handling"
 msgstr "Failure handling"
 
+#: src/components/PasswordStrength.tsx
+msgid "Fair"
+msgstr "Fair"
+
 #: src/pages/RoutineEditor.tsx
 msgid "Fields that mark a change"
 msgstr "Fields that mark a change"
@@ -3142,6 +3166,10 @@ msgstr "Give your assistant a unique identity"
 msgid "Go home"
 msgstr "Go home"
 
+#: src/components/PasswordStrength.tsx
+msgid "Good"
+msgstr "Good"
+
 #: src/pages/AdminAccessPage.tsx
 msgid "Grant"
 msgstr "Grant"
@@ -3221,6 +3249,7 @@ msgid "Hide"
 msgstr "Hide"
 
 #: src/components/I18nBootstrap.tsx
+#: src/components/PasswordStrength.tsx
 msgid "Hide password"
 msgstr "Hide password"
 
@@ -4174,6 +4203,10 @@ msgstr "No models listed."
 msgid "No OpenClaw, Hermes or agent document found."
 msgstr "No OpenClaw, Hermes or agent document found."
 
+#: src/components/PasswordStrength.tsx
+msgid "No password"
+msgstr "No password"
+
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "No remote MCP servers found"
 msgstr "No remote MCP servers found"
@@ -4329,6 +4362,10 @@ msgstr "One-time purchase. Credits do not expire."
 msgid "Only enter a code {codeHost} sent you."
 msgstr "Only enter a code {codeHost} sent you."
 
+#: src/components/PasswordStrength.tsx
+msgid "Only the length is required; the other suggestions improve strength."
+msgstr "Only the length is required; the other suggestions improve strength."
+
 #: src/components/markdown-link-prompt.tsx
 #: src/pages/PaymentWalletSettingsPanel.tsx
 #: src/pages/shell/computer-panel.tsx
@@ -4376,6 +4413,10 @@ msgstr "Open in full window"
 #: src/pages/shell/chat-header.tsx
 msgid "Open navigation"
 msgstr "Open navigation"
+
+#: src/pages/Auth.tsx
+msgid "Open the verification link in your email, then sign in with your password."
+msgstr "Open the verification link in your email, then sign in with your password."
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
@@ -4471,6 +4512,10 @@ msgstr "Password recovery is not configured for this server"
 #: src/lib/user-error.ts
 msgid "Password sign-in is turned off on this server"
 msgstr "Password sign-in is turned off on this server"
+
+#: src/components/PasswordStrength.tsx
+msgid "Password strength"
+msgstr "Password strength"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -5491,6 +5536,7 @@ msgid "Show more"
 msgstr "Show more"
 
 #: src/components/I18nBootstrap.tsx
+#: src/components/PasswordStrength.tsx
 msgid "Show password"
 msgstr "Show password"
 
@@ -5767,6 +5813,10 @@ msgstr "Stored encrypted"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Stream replies"
 msgstr "Stream replies"
+
+#: src/components/PasswordStrength.tsx
+msgid "Strong"
+msgstr "Strong"
 
 #: src/components/PersonalityPicker.tsx
 msgid "Structured and precise"
@@ -6160,6 +6210,10 @@ msgstr "Today"
 msgid "Tokens"
 msgstr "Tokens"
 
+#: src/components/PasswordStrength.tsx
+msgid "Too short"
+msgstr "Too short"
+
 #: src/pages/RoutineEditor.tsx
 msgid "Tool arguments (JSON)"
 msgstr "Tool arguments (JSON)"
@@ -6347,6 +6401,10 @@ msgstr "Upgrade"
 msgid "Upgrade now"
 msgstr "Upgrade now"
 
+#: src/components/PasswordStrength.tsx
+msgid "Uppercase and lowercase letters"
+msgstr "Uppercase and lowercase letters"
+
 #: src/lib/ticket-priority.ts
 msgid "Urgent"
 msgstr "Urgent"
@@ -6513,6 +6571,10 @@ msgstr "Wallet"
 #: src/components/PersonalityPicker.tsx
 msgid "Warm and patient"
 msgstr "Warm and patient"
+
+#: src/components/PasswordStrength.tsx
+msgid "Weak"
+msgstr "Weak"
 
 #: src/components/ModelCredits.tsx
 msgid "Web, desktop and mobile"

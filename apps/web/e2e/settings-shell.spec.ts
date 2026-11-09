@@ -1,6 +1,43 @@
 import { expect, test } from "@playwright/test";
 import { captureScreenshot, completeOnboarding, openUserSettings, signup } from "./helpers";
 
+test("mobile settings keep theme surfaces and text readable when appearance changes", async ({
+  page,
+}) => {
+  await signup(page, `settings-theme-${Date.now()}@rakazo.test`, "password12", "Settings");
+  await completeOnboarding(page);
+  const settings = await openUserSettings(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const group = settings.locator(".sydney-settings-group-list").first();
+  const token = (name: string) =>
+    page.evaluate((variable) => {
+      const probe = document.createElement("span");
+      probe.style.color = `var(${variable})`;
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    }, name);
+
+  await settings.getByTestId("ui-appearance-dark").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("#root")).toHaveCSS("background-color", await token("--background"));
+  await expect(settings).toHaveCSS("background-color", await token("--dialog"));
+  await expect(group).toHaveCSS("background-color", await token("--card"));
+  await expect(group.locator(".sydney-settings-row").first()).toHaveCSS(
+    "color",
+    await token("--foreground"),
+  );
+  await settings.getByRole("button", { name: "Change password" }).click();
+  const password = settings.getByLabel("New password", { exact: true });
+  await expect(password).toHaveCSS("background-color", await token("--card"));
+  await expect(password).toHaveCSS("color", await token("--foreground"));
+
+  await settings.getByTestId("ui-appearance-light").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("#root")).toHaveCSS("background-color", await token("--background"));
+});
+
 test("changing language updates settings overflow without resizing", async ({ page }, testInfo) => {
   const stamp = Date.now();
   await signup(page, `settings-language-${stamp}@rakazo.test`, "password12", "Settings");

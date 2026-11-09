@@ -779,6 +779,18 @@ describe("identity confirmation", () => {
 });
 
 describe("verification email blocking", () => {
+  it("preserves the signup password after email link verification and later sign-ins", async () => {
+    const f = fixture();
+    expect((await f.signup()).status).toBe(200);
+    expect((await f.signin()).status).toBe(403);
+    expect((await f.verify()).status).toBeLessThan(400);
+    const first = await f.signin();
+    expect(first.status).toBe(200);
+    const { token } = (await first.json()) as { token: string };
+    expect((await f.request("/sign-out", {}, token)).status).toBe(200);
+    expect((await f.signin()).status).toBe(200);
+  });
+
   it("requires mailbox proof before an open signup can create a session", async () => {
     const f = fixture();
     const response = await f.signup();

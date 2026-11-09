@@ -2,9 +2,17 @@ import type { Request } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { captureScreenshot, completeOnboarding, signup, signupThroughForm } from "./helpers";
 
-test("a new account completes signup with the emailed code", async ({ page }) => {
-  await signupThroughForm(page, `form-signup-${Date.now()}@rakazo.test`, "password12", "Form User");
+test("a new account verifies its email and signs in again with its password", async ({ page }) => {
+  const email = `form-signup-${Date.now()}@rakazo.test`;
+  await signupThroughForm(page, email, "password12", "Form User");
   await completeOnboarding(page);
+  await expect(page.getByRole("combobox", { name: "Message Sydney" })).toBeVisible();
+  await page.getByRole("button", { name: /Form User/i }).click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password12");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Message Sydney" })).toBeVisible();
 });
 
@@ -67,6 +75,7 @@ test("signup suggests a fix for a mistyped email domain", async ({ page }, testI
   await page.getByLabel("Name").fill("Typo User");
   await page.getByLabel("Email").fill("typo@gmial.com");
   await page.getByLabel("Password", { exact: true }).fill("password12");
+  await page.getByLabel("Confirm password").fill("password12");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   const fix = page.getByRole("button", { name: "typo@gmail.com" });
   await expect(fix).toBeVisible();
@@ -98,6 +107,7 @@ test(
     await page.getByLabel("Name").fill("Pending User");
     await page.getByLabel("Email").fill("pending@example.test");
     await page.getByLabel("Password", { exact: true }).fill("password12");
+    await page.getByLabel("Confirm password").fill("password12");
     await page.getByRole("button", { name: "Create account", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     await expect(page).toHaveURL(/\/sign-up\?verify=email$/);
@@ -152,7 +162,8 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   await page.goto("/sign-up");
   await expect(page.getByLabel("Name")).toHaveAttribute("autocomplete", "name");
   await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "username");
-  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Confirm password", { exact: true })).toBeVisible();
   await signup(page, email, password, userName);
   await completeOnboarding(page);
 

@@ -304,4 +304,64 @@ body,
     box-shadow: 0 1px 0 rgb(255 255 255 / 96%) inset;
     backdrop-filter: blur(18px);
   }
+
+  [data-theme="dark"] body,
+  [data-theme="dark"] #root,
+  [data-theme="dark"] .sydney-page-surface {
+    background: var(--background);
+  }
+
+  [data-theme="dark"] .rounded-xl.border-border,
+  [data-theme="dark"] .rounded-2xl.border-border,
+  [data-theme="dark"] .sydney-settings-group-list,
+  [data-theme="dark"] .sydney-glass-list,
+  [data-theme="dark"] .sydney-settings-panel > section > ul,
+  [data-theme="dark"] .sydney-settings-panel > section > div.rounded-xl,
+  [data-theme="dark"] [data-testid="plugin-submissions"] > ul,
+  [data-theme="dark"] .sydney-list-surface > button,
+  [data-theme="dark"] .sydney-list-surface > section > button {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  }
+
+  [data-theme="dark"] .sydney-settings-dialog {
+    background: var(--dialog);
+  }
+
+  [data-theme="dark"] .sydney-settings-nav,
+  [data-theme="dark"] .sydney-settings-header,
+  [data-theme="dark"] .sydney-page-header {
+    border-color: var(--border);
+    background: var(--dialog);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-nav > button {
+    background: transparent;
+    color: var(--muted-foreground);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-nav > button[aria-current="page"] {
+    border-color: var(--border);
+    background: var(--accent);
+    color: var(--foreground);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-row + .sydney-settings-row,
+  [data-theme="dark"] .sydney-glass-list > li + li {
+    border-top-color: var(--border);
+  }
+
+  [data-theme="dark"] [data-slot="input"],
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] select,
+  [data-theme="dark"] input[type="search"] {
+    border-color: var(--input);
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: none;
+  }
 }

@@ -1,5 +1,17 @@
 # 验证记录
 
+2026-11-09（注册浏览器检查）：PR #6 首轮网页分片 1 的注册测试因异步跳转判断过早而超时，同分片其余 48 项通过；分片 2、单元、类型、数据库和生产构建检查通过。辅助函数调整后，新的网页检查尚待运行。
+
+2026-11-09（发布检查）：PR #6 首轮翻译目录一致性检查失败；本机直接运行已有 Lingui 提取工具成功，英文与简体中文目录各 1518 条，中文缺失 0 条。新提交的 CI 和部署待验证。
+
+2026-11-09（PA-018 手机深色主题）：本机 Edge 无头浏览器以 390×844 加载主题变量和两份实际样式，使用简化页面检查页面、设置导航与分组、输入框、新建小伙伴标签的浅色和深色计算颜色；深色页面为 `rgb(22, 22, 22)`、设置与输入框背景为 `rgb(31, 31, 31)`，主要文字为 `rgb(245, 245, 245)`。`apps/web/src/lib/ui-appearance.test.ts` 2 项通过；相关 CSS 与 E2E 文件 Biome 检查无错误但有样式规则警告。新增实际应用 E2E 尚未运行；真实手机、跟随系统和生产部署未验证。
+
+2026-11-08（PA-018 Composio 权限修复）：生产新 API 和 Worker 均 healthy、配置与环境文件一致；旧 Worker 正常退出。直接调用 Composio v3.1 会话创建获得 HTTP 201，目录接口获得 HTTP 200，首页包含 Gmail；公网 `/health` 为 200，构建版本 `20261108133236`。尚未验证应用内授权窗口、真实 Gmail 登录和工具调用。
+
+2026-11-08（PA-018 插件授权排查）：在生产主机只读核对 API 和 Worker 的 Composio 环境变量均非空；检查经过脱敏的服务日志，托管目录请求返回 403 `APIKey_InsufficientPermissions`，缺少 `session_management` 写权限。尚未验证新密钥、托管目录、Gmail OAuth 回调或只读调用；截图中的原生 MCP 请求仍需结合其单独错误确认。
+
+2026-11-08（PA-018 注册密码与强度）：`pnpm exec vitest run apps/web/src/pages/Auth.test.tsx apps/web/src/pages/AccountSettingsOverlay.test.tsx packages/auth/src/identity-trust.test.ts` 通过，3 文件 103 项；覆盖密码确认、强度变化和显隐、验证码登录、邮件验证后登出及密码重登。Web `pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 和改动代码 Biome 检查通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于要求的 22.22.2 未运行，改用上述直接类型检查；真实邮件、浏览器 E2E、键盘及生产部署未验证。
+
 2026-11-08（PR #5 部署受阻）：机器人面板 32 项、机器人设置 17 项、账户设置 23 项定向测试通过，相关文件 Biome 通过；首轮网页 E2E 第一分片及 PostgreSQL 两分片通过。后续检查因 Electron 和浏览器工具下载 HTTP 504 未完成；公网 `/health` 返回 `ok: true`，`/build-id` 为 `20261108045522`，仍是旧版。未部署、未进行新版本实机验收。
 
 2026-11-08（PA-018、PA-020 背景透明度）：`pnpm exec vitest run apps/web/src/components/ChatAppearanceSettings.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx --maxWorkers=1`：2 文件、10 项通过，覆盖模拟图片上传、透明度预览、保存、取消和聊天画面。Web TypeScript 检查通过；真实浏览器、手机及部署尚未验证。
