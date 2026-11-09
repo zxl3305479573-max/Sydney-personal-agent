@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-09（PA-021 云构建首轮）：GitHub Actions `42624234704` 在 Xcode 27.1/iOS SDK 27.1 上完成依赖安装、Expo prebuild 及 CocoaPods；生成的 `Sydney.entitlements` 含 `aps-environment`，权限检查失败，Xcode 构建、产物和安装均未执行。日志还出现未找到可选 `expo-dev-client/package.json` 的信息，CocoaPods 步骤仍成功，是否影响后续构建待验证。已在构建脚本中针对侧载模式移除生成的推送 entitlement，尚未复跑。
+
 2026-11-09（PA-021 免费原生准备）：运行 `pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/endpoint.test.ts apps/mobile/lib/push.test.ts --maxWorkers=1`，3 文件最终 43 项通过；移动端定向 TypeScript 检查和 4 个改动 TypeScript 文件的 Biome 检查通过。PyYAML 解析工作流及作业结构，提取工作流中的 plist 检查逻辑，在空权限和三个禁止权限样本上验证通过；首次结构脚本错误预期 10 步导致断言失败，核对实际 11 步后通过，不能据此证明 GitHub Actions 接受或实际执行。`pnpm --filter @rakazo/mobile exec expo config --json` 由于本机 Node 22.22.0 低于仓库要求失败；未绕过引擎检查。所有结果均受 pnpm 配置警告及本机 Node 版本限制。未执行 macOS 云构建、产物检查、免费签名、安装或 iPhone 实机验证。
 
 2026-11-09（PA-021 免费方案核查）：只读检查 `apps/web/index.html`、PWA manifest 生成和图标文件，并查阅 Expo、Apple、AltStore 公开资料；现有源码包含 Web App 主屏幕元数据，但未验证用户手机、已部署资源、通知或原生侧载。未安装工具、申请账号、签名或构建。

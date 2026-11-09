@@ -54,6 +54,18 @@ jobs:
       - name: Generate iOS project
         run: pnpm --filter @rakazo/mobile exec expo prebuild --platform ios --no-install
 
+      - name: Remove remote push entitlement from sideload app
+        run: |
+          /usr/bin/python3 -c '
+          import pathlib, plistlib
+          path = pathlib.Path("apps/mobile/ios/Sydney/Sydney.entitlements")
+          with path.open("rb") as stream:
+              entitlements = plistlib.load(stream)
+          entitlements.pop("aps-environment", None)
+          with path.open("wb") as stream:
+              plistlib.dump(entitlements, stream)
+          '
+
       - name: Install iOS native dependencies
         working-directory: apps/mobile/ios
         run: pod install
