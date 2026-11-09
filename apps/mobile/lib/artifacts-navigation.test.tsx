@@ -5,12 +5,7 @@ import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import {
-  InboxCreateBot,
-  InboxHeader,
-  InboxQuickActions,
-  InboxRosterHeading,
-} from "../components/inbox-header";
+import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
 
 const header = vi.hoisted(() => ({
   platform: { OS: "ios" },
@@ -145,13 +140,11 @@ it("opens the existing search and integrations routes from the quick actions", (
   expect(header.push.mock.calls).toEqual([["/integrations"], ["/search"]]);
 });
 
-it("uses the existing creation callbacks for the roster shortcuts", () => {
-  const createBot = vi.fn();
+it("keeps the group creation shortcut in the roster", () => {
   const createGroup = vi.fn();
   act(() =>
     root.render(
       <>
-        <InboxCreateBot onPress={createBot} />
         <InboxRosterHeading kind="bot" onCreateGroup={createGroup} />
         <InboxRosterHeading kind="group" onCreateGroup={createGroup} />
       </>,
@@ -159,9 +152,8 @@ it("uses the existing creation callbacks for the roster shortcuts", () => {
   );
   expect(container.textContent).toContain("Bots");
   expect(container.textContent).toContain("Group");
-  act(() => container.querySelector<HTMLElement>('[aria-label="New bot"]')?.click());
   act(() => container.querySelector<HTMLElement>('[aria-label="New group chat"]')?.click());
-  expect(createBot).toHaveBeenCalledOnce();
+  expect(container.querySelector('[aria-label="New bot"]')).toBeNull();
   expect(createGroup).toHaveBeenCalledOnce();
 });
 
@@ -170,13 +162,11 @@ it("matches the Chinese web roster labels", () => {
   act(() =>
     root.render(
       <>
-        <InboxCreateBot onPress={vi.fn()} />
         <InboxRosterHeading kind="bot" onCreateGroup={vi.fn()} />
         <InboxRosterHeading kind="group" onCreateGroup={vi.fn()} />
       </>,
     ),
   );
-  expect(container.textContent).toContain("新建小伙伴");
   expect(container.textContent).toContain("小伙伴");
   expect(container.textContent).toContain("群聊");
 });

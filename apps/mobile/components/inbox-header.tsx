@@ -65,35 +65,6 @@ export function InboxQuickActions({
   );
 }
 
-export function InboxCreateBot({ onPress }: { onPress: () => void }) {
-  const { t, locale } = useI18n();
-  const label = locale === "zh-CN" ? "新建小伙伴" : t("New bot");
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={{
-        minHeight: 56,
-        borderRadius: 28,
-        paddingHorizontal: 20,
-        marginHorizontal: 16,
-        marginTop: 8,
-        marginBottom: 20,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        backgroundColor: native.fill,
-        borderWidth: 1,
-        borderColor: native.separator,
-      }}
-    >
-      <NativeSymbol ios="person.badge.plus" android="person-add-outline" size={20} />
-      <Text style={{ color: native.label, fontSize: 17 }}>{label}</Text>
-    </Pressable>
-  );
-}
-
 export function InboxRosterHeading({
   kind,
   onCreateGroup,

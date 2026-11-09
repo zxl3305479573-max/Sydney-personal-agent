@@ -27,12 +27,7 @@ import { BotOrganizeModal } from "../components/bot-organize-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
-import {
-  InboxCreateBot,
-  InboxHeader,
-  InboxQuickActions,
-  InboxRosterHeading,
-} from "../components/inbox-header";
+import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, SWIPE_ROWS, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
@@ -867,13 +862,10 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 ListHeaderComponent={
                   <>
                     {!onShareSelect && !showLoadFailure ? (
-                      <>
-                        <InboxCreateBot onPress={() => runCreateAction("bot")} />
-                        <InboxRosterHeading
-                          kind="bot"
-                          onCreateGroup={() => runCreateAction("group")}
-                        />
-                      </>
+                      <InboxRosterHeading
+                        kind="bot"
+                        onCreateGroup={() => runCreateAction("group")}
+                      />
                     ) : null}
                     {inlineError ? <Text style={styles.error}>{inlineError}</Text> : null}
                     {spaceRecoveryId ? (
