@@ -196,25 +196,6 @@ export const Transcript = memo(function Transcript({
     }
   }
   const appearance = useChatAppearance();
-  const background =
-    appearance.mode === "simple"
-      ? undefined
-      : appearance.backgrounds.find((item) => item.id === appearance.backgroundId);
-  const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!background?.image || typeof URL.createObjectURL !== "function") {
-      setBackgroundUrl(null);
-      return;
-    }
-    try {
-      const url = URL.createObjectURL(background.image);
-      setBackgroundUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } catch {
-      setBackgroundUrl(null);
-      return;
-    }
-  }, [background?.image]);
   const [atEnd, setAtEnd] = useState(true);
   const following = useRef(true);
   const jumpScrolling = useRef(false);
@@ -520,23 +501,6 @@ export const Transcript = memo(function Transcript({
 
   return (
     <div className="relative flex min-h-0 flex-1">
-      {background && backgroundUrl ? (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <img
-            alt=""
-            src={backgroundUrl}
-            className="size-full"
-            style={{
-              objectFit: background.fit,
-              opacity: background.opacity / 100,
-            }}
-          />
-          <div
-            className="absolute inset-0 bg-black"
-            style={{ opacity: (background.overlay * background.opacity) / 10_000 }}
-          />
-        </div>
-      ) : null}
       <div
         ref={scrollRef}
         data-testid="transcript"

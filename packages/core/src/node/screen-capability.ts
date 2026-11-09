@@ -129,8 +129,8 @@ export function resetRemoteScreenCapabilityReuse() {
 }
 
 /**
- * Issue a screen capability. Loopback targets stay a fresh seal per call.
- * Remote targets reuse a still-valid seal for the same upstream URL and scope
+ * Issue a screen capability. Loopback targets use a fresh seal unless the
+ * caller opts in for a stable provider target. Other targets reuse a valid seal
  * so an in-flight viewer is not raced by token rotation. Revocation is unchanged:
  * the seal still expires, and a new scope or upstream URL misses the cache.
  */
@@ -141,8 +141,9 @@ export function issueScreenCapability(
   scope: ScreenCapabilityScope,
   now = Date.now(),
   headers?: Record<string, string>,
+  reuseLoopback = false,
 ) {
-  if (isLoopbackScreenTarget(url))
+  if (!reuseLoopback && isLoopbackScreenTarget(url))
     return sealScreenCapability(url, secret, origin, scope, now, headers);
   const key = remoteScreenSealKey(url, secret, origin, scope, headers);
   const cached = remoteScreenSeals.get(key);
@@ -164,12 +165,13 @@ export function addScreenProxyCapability(
   scope: ScreenCapabilityScope,
   now = Date.now(),
   headers?: Record<string, string>,
+  reuseLoopback = false,
 ) {
   // Local/desktop providers return non-http schemes (e.g. desktop://). Those never
   // traverse the web proxy, so seal only http(s) upstream URLs.
   const protocol = new URL(url).protocol;
   if (protocol !== "http:" && protocol !== "https:") return url;
-  return issueScreenCapability(url, secret, origin, scope, now, headers);
+  return issueScreenCapability(url, secret, origin, scope, now, headers, reuseLoopback);
 }
 
 function remoteScreenSealKey(

@@ -1555,6 +1555,10 @@ msgstr "已完成"
 msgid "Computer"
 msgstr "电脑"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Computer control"
+msgstr "云电脑操控"
+
 #: src/pages/shell/computer-view.tsx
 #: src/pages/shell/use-computer.tsx
 msgid "Computer failed to boot"
@@ -1563,6 +1567,10 @@ msgstr "电脑启动失败"
 #: src/components/ModelCredits.tsx
 msgid "Computer hours left"
 msgstr "剩余电脑时长"
+
+#: src/components/NativeComputerControl.tsx
+msgid "Computer input failed. Take control again."
+msgstr "电脑输入失败，请退出后重新接管。"
 
 #: src/pages/shell/computer-overlay.tsx
 msgid "Computer is asleep"
@@ -5439,6 +5447,10 @@ msgstr "发送录音"
 msgid "Send reset link"
 msgstr "发送重置链接"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Send text"
+msgstr "发送文字"
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Send with Enter"
 msgstr "按 Enter 发送"
@@ -6210,6 +6222,10 @@ msgstr "今天"
 msgid "Tokens"
 msgstr "Token"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Too many pending inputs. Take control again."
+msgstr "待发送的操作过多，请退出后重新接管。"
+
 #: src/components/PasswordStrength.tsx
 msgid "Too short"
 msgstr "过短"
@@ -6296,6 +6312,10 @@ msgstr "周二"
 #: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr "类型"
+
+#: src/components/NativeComputerControl.tsx
+msgid "Type text"
+msgstr "输入文字"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Type without recording"
@@ -6551,6 +6571,10 @@ msgstr "语音请求超时。"
 #: src/lib/model-connection-preflight.ts
 msgid "Wait a moment and test again."
 msgstr "请稍候并重新测试。"
+
+#: src/components/NativeComputerControl.tsx
+msgid "Waiting for screen dimensions…"
+msgstr "正在获取画面尺寸…"
 
 #: src/lib/roster-status.ts
 msgid "Waiting in line…"

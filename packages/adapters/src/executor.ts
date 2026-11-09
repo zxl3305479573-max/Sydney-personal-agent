@@ -1281,6 +1281,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             phoneCallsEnabled: deps.phoneCallsEnabled,
             historyRetrievalEnabled: contextStrategy !== "current",
             graphicalToolsAllowed,
+            computerKind,
             pageBrowserAllowed,
             groupId: thread.groupId,
             trigger: run.trigger,
@@ -1370,6 +1371,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           heldForTakeover,
           graphicalToolsAllowed,
           graphical,
+          computerKind,
           disabled: disabledBuiltinTools,
         });
         const dockerToolInstruction = dockerComputerToolInstruction(
@@ -1492,6 +1494,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           },
           computer: {
             stored: storedComputer,
+            kind: computerKind,
             mode: computerMode,
             lease: computerLease,
             lazy: runComputer,

@@ -24,6 +24,82 @@ class NativeDriverPolicyTests(unittest.TestCase):
         self.driver.active = None
         self.driver.fences = {}
         self.driver.generation = "generation"
+        self.driver.control = None
+        self.driver.control_fences = {}
+        self.driver.revoked_controls = {}
+        self.driver.processes = {}
+
+    def control_request(self, lease="human", fence=1, expiry=2000, action=None):
+        return {
+            "method": "control_input", "botId": "bot", "generation": "generation",
+            "control": {"leaseId": lease, "fence": fence, "expiresAt": expiry},
+            "request": {
+                "actions": [action or {"kind": "pointer", "x": 5, "y": 10, "type": "click"}],
+                "observe": False,
+            },
+        }
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_human_click_uses_separate_control_authorization_without_screenshot(self, _clock):
+        with patch.object(self.driver, "desktop_command") as command, \
+             patch.object(self.driver, "observe") as observe:
+            result = self.driver.dispatch(self.control_request(), None)
+            self.assertEqual(result, {"completed": 1})
+            self.assertEqual(command.call_count, 2)
+            observe.assert_not_called()
+            with self.assertRaises(MODULE.Refused):
+                self.driver.authorize_run({
+                    "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+                })
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_human_control_refuses_expired_missing_and_excessive_tickets(self, _clock):
+        with patch.object(self.driver, "desktop_command") as command:
+            for expiry in (1000, 2600, True):
+                with self.subTest(expiry=expiry), self.assertRaises(MODULE.Refused):
+                    self.driver.dispatch(self.control_request(expiry=expiry), None)
+            missing = self.control_request()
+            missing.pop("control")
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(missing, None)
+            command.assert_not_called()
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_revocation_rejects_delayed_first_input_and_does_not_revoke_new_lease(self, _clock):
+        self.driver.dispatch({
+            "method": "control_revoke", "botId": "bot", "generation": "generation",
+            "controlLeaseId": "old",
+        }, None)
+        with patch.object(self.driver, "desktop_command"):
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(self.control_request(lease="old"), None)
+            self.driver.dispatch(self.control_request(lease="new", fence=2), None)
+            self.driver.revoke_control({"controlLeaseId": "old"})
+            self.driver.dispatch(self.control_request(lease="new", fence=2), None)
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(self.control_request(lease="different", fence=2), None)
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(self.control_request(lease="stale", fence=1), None)
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_human_input_refuses_stale_generation_active_run_and_held_buttons(self, _clock):
+        with patch.object(self.driver, "desktop_command") as command:
+            stale = self.control_request()
+            stale["generation"] = "old"
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(stale, None)
+            self.driver.authorize_run({
+                "botId": "bot", "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            })
+            with self.assertRaises(MODULE.ControlBusy):
+                self.driver.dispatch(self.control_request(), None)
+            self.driver.active = None
+            for kind in ("down", "up"):
+                with self.subTest(kind=kind), self.assertRaises(MODULE.Refused):
+                    self.driver.dispatch(self.control_request(action={
+                        "kind": "pointer", "type": kind, "x": 1, "y": 2,
+                    }), None)
+            command.assert_not_called()
 
     def test_workspace_rejects_traversal_and_absolute_paths(self):
         for path in ("../private", "/etc/passwd", "a/../b", "a\\b", "a//b", "a/\0"):

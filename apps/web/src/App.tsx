@@ -19,6 +19,7 @@ import { MarkdownLinkPrompt } from "./components/markdown-link-prompt";
 import { PageBreadcrumb } from "./components/PageBreadcrumb";
 import { PageLoading } from "./components/PageLoading";
 import { SubscriptionGate } from "./components/SubscriptionGate";
+import { WorkspaceBackground } from "./components/WorkspaceBackground";
 import { authClient } from "./lib/auth";
 import { getTicketBoardEnabled, subscribeTicketBoardEnabled } from "./lib/bootstrap";
 import { syncCallIdentity } from "./lib/call-session";
@@ -93,6 +94,7 @@ export function App() {
   return (
     <RemoteImagesContext.Provider value={loadRemoteImages}>
       <LinkFaviconsContext.Provider value={linkFavicons}>
+        <WorkspaceBackground />
         <ErrorBoundary fallback={<AppFailed />}>
           {window.location.pathname === SSO_CALLBACK_PATH ? (
             <SsoCallbackPage />

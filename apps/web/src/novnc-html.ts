@@ -115,6 +115,14 @@ export function injectNovncStorageShim(html: string, { viewOnly = false } = {}) 
   window.addEventListener("message", (event) => {
     const data = event.data;
     if (
+      event.source === window.parent && data && typeof data === "object" &&
+      Object.keys(data).length === 1 && data.rakazoScreenGeometryRequest === true
+    ) {
+      lastGeometry = "";
+      geometry();
+      return;
+    }
+    if (
       event.source !== window.parent ||
       !data ||
       typeof data !== "object" ||
@@ -131,7 +139,27 @@ export function injectNovncStorageShim(html: string, { viewOnly = false } = {}) 
   // Pages that never set noVNC's classes (older Rakazo embed images) still build their viewer
   // canvas, which is as far as they can be followed.
   let classed = false;
+  let lastGeometry = "";
+  const geometry = () => {
+    if (!window.parent || window.parent === window) return;
+    if (!document.documentElement.classList.contains("noVNC_connected")) {
+      lastGeometry = "";
+      return;
+    }
+    const canvas = document.querySelector("#screen canvas, #noVNC_container canvas, canvas");
+    const rect = canvas?.getBoundingClientRect?.();
+    if (!rect || !canvas.width || !canvas.height || !rect.width || !rect.height ||
+        !window.innerWidth || !window.innerHeight) return;
+    const value = { width: canvas.width, height: canvas.height, left: rect.left, top: rect.top,
+      displayWidth: rect.width, displayHeight: rect.height,
+      viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
+    const key = JSON.stringify(value);
+    if (key === lastGeometry) return;
+    lastGeometry = key;
+    try { window.parent.postMessage({ rakazoScreenGeometry: value }, "*"); } catch {}
+  };
   const sync = () => {
+    geometry();
     const root = document.documentElement;
     const status = document.getElementById("noVNC_status");
     const failure = root.getAttribute("data-rakazo-screen-error");
@@ -162,12 +190,13 @@ export function injectNovncStorageShim(html: string, { viewOnly = false } = {}) 
     sync();
     new MutationObserver(sync).observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "data-rakazo-screen-error"],
+      attributeFilter: ["class", "data-rakazo-screen-error", "width", "height", "style"],
       childList: true,
       subtree: true,
     });
   };
   report("loading");
+  window.addEventListener("resize", sync);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", observe);
   else observe();
 })();

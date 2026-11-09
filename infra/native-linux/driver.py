@@ -28,6 +28,10 @@ class Refused(Exception):
     pass
 
 
+class ControlBusy(Refused):
+    pass
+
+
 class Driver:
     def __init__(self, root, control_uid, display, xauthority):
         self.root = os.path.abspath(root)
@@ -39,6 +43,9 @@ class Driver:
         self.active = None
         self.fences = {}
         self.processes = {}
+        self.control = None
+        self.control_fences = {}
+        self.revoked_controls = {}
         os.makedirs(self.root, mode=0o700, exist_ok=True)
 
     def peer_allowed(self, connection):
@@ -97,6 +104,9 @@ class Driver:
         ):
             raise Refused("Invalid or expired run lease")
         with self.lock:
+            control = getattr(self, "control", None)
+            if control and control["expiresAt"] > now:
+                raise Refused("Desktop is held by human control")
             if fence < self.fences.get(run_id, 0):
                 raise Refused("Stale run fence")
             if self.active and self.active["expiresAt"] > now and (
@@ -348,7 +358,70 @@ class Driver:
         }
 
     def act(self, request):
-        self.authorize_run(request)
+        with self.lock:
+            return self.perform_actions(request, self.authorize_run)
+
+    def authorize_control(self, request):
+        control = request.get("control")
+        now = int(time.time() * 1000)
+        if not isinstance(control, dict):
+            raise Refused("Human control lease required")
+        lease_id, fence, expiry = control.get("leaseId"), control.get("fence"), control.get("expiresAt")
+        if (
+            not isinstance(lease_id, str) or not VALID_ID.fullmatch(lease_id)
+            or not isinstance(fence, int) or isinstance(fence, bool) or fence < 1
+            or not isinstance(expiry, int) or isinstance(expiry, bool)
+            or not now < expiry <= now + 1500
+        ):
+            raise Refused("Invalid or expired human control lease")
+        self.revoked_controls = {
+            token: until for token, until in self.revoked_controls.items() if until > now
+        }
+        previous = self.control_fences.get(request["botId"])
+        if lease_id in self.revoked_controls or (previous and fence < previous["fence"]):
+            raise Refused("Revoked human control lease")
+        if previous and fence == previous["fence"] and previous["leaseId"] != lease_id:
+            raise Refused("Human control fence mismatch")
+        if self.control and self.control["expiresAt"] > now and (
+            self.control["botId"] != request["botId"] or self.control["leaseId"] != lease_id
+        ):
+            raise ControlBusy("Desktop is held by another user")
+        if self.active and self.active["expiresAt"] > now:
+            raise ControlBusy("Desktop is held by another run")
+        if any(process.poll() is None for items in self.processes.values() for process in items):
+            raise ControlBusy("Desktop command is still active")
+        self.control_fences[request["botId"]] = {"fence": fence, "leaseId": lease_id}
+        self.control = {**control, "botId": request["botId"]}
+
+    def control_input(self, request):
+        payload = request.get("request") or {}
+        actions = payload.get("actions")
+        if (
+            not isinstance(actions, list) or len(actions) != 1
+            or not isinstance(actions[0], dict)
+            or actions[0].get("kind") not in ("pointer", "key", "clipboard", "scroll")
+            or payload.get("observe") is not False
+            or (actions[0].get("kind") == "pointer" and actions[0].get("type") not in ("click", "move"))
+        ):
+            raise Refused("Unsupported human input")
+        with self.lock:
+            return self.perform_actions(request, self.authorize_control)
+
+    def revoke_control(self, request):
+        lease_id = request.get("controlLeaseId")
+        if not isinstance(lease_id, str) or not VALID_ID.fullmatch(lease_id):
+            raise Refused("Invalid human control lease")
+        with self.lock:
+            now = int(time.time() * 1000)
+            self.revoked_controls = {
+                token: until for token, until in self.revoked_controls.items() if until > now
+            }
+            self.revoked_controls[lease_id] = now + 10_500
+            if self.control and self.control["leaseId"] == lease_id:
+                self.control = None
+
+    def perform_actions(self, request, authorize):
+        authorize(request)
         actions = (request.get("request") or {}).get("actions")
         if not isinstance(actions, list) or len(actions) > 24:
             raise Refused("Invalid desktop actions")
@@ -357,7 +430,7 @@ class Driver:
             raise Refused("Invalid settle time")
         completed = 0
         for action in actions:
-            self.authorize_run(request)
+            authorize(request)
             if not isinstance(action, dict):
                 raise Refused("Invalid desktop action")
             kind = action.get("kind")
@@ -398,7 +471,7 @@ class Driver:
                            for value in (xpos, ypos)):
                         raise Refused("Invalid scroll coordinates")
                     self.desktop_command(["/usr/bin/xdotool", "mousemove", "--", str(xpos), str(ypos)])
-                    self.authorize_run(request)
+                    authorize(request)
                 self.desktop_command(["/usr/bin/xdotool", "click", "--repeat", str(amount), button])
             elif kind == "clipboard":
                 text = action.get("text")
@@ -408,7 +481,7 @@ class Driver:
                     ["/usr/bin/xclip", "-selection", "clipboard"], text.encode("utf-8"),
                     capture_output=False,
                 )
-                self.authorize_run(request)
+                authorize(request)
                 self.desktop_command(["/usr/bin/xdotool", "key", "--", "ctrl+v"])
             else:
                 raise Refused("Unsupported desktop action")
@@ -417,7 +490,7 @@ class Driver:
         if (request.get("request") or {}).get("observe", True):
             if settle_ms:
                 time.sleep(settle_ms / 1000)
-            self.authorize_run(request)
+            authorize(request)
             result["observation"] = self.observe(request)
         return result
 
@@ -443,6 +516,10 @@ class Driver:
             return self.observe(request)
         if method == "act":
             return self.act(request)
+        if method == "control_input":
+            return self.control_input(request)
+        if method == "control_revoke":
+            return self.revoke_control(request)
         if method == "list":
             self.authorize_run(request)
             return self.list_files(bot_id, "" if request.get("path") == "/" else request.get("path", ""))
@@ -495,6 +572,8 @@ class Driver:
                 request = json.loads(chunks)
                 value = self.dispatch(request, connection)
                 response = {"ok": True, "value": value}
+            except ControlBusy:
+                response = {"ok": False, "error": "native_control_busy"}
             except (Refused, OSError, ValueError, TypeError, subprocess.TimeoutExpired):
                 response = {"ok": False, "error": "Native desktop refused the operation; inspect its result before retrying"}
             try:

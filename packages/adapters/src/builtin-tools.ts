@@ -279,8 +279,11 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "computer_observe",
     description:
-      "Capture the current screen of this bot's computer. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop.",
-    inputSchema: { type: "object", properties: {} },
+      "Capture the current screen of this bot's computer for your own inspection. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop. Set share_with_user only when the user explicitly asks to see a screenshot; otherwise do not send screenshots to chat.",
+    inputSchema: {
+      type: "object",
+      properties: { share_with_user: { type: "boolean" } },
+    },
   },
   {
     name: "computer_act",
@@ -557,7 +560,7 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "request_takeover",
     description:
-      "Ask the user to take over the computer screen for CAPTCHA, payment, passkeys, or other protected input request_secret cannot take. Never ask the user to paste protected values in chat.",
+      "Ask the user to take over the computer screen when you are stuck and need human help, or for CAPTCHA, payment, passkeys, or other protected input request_secret cannot take. Never ask the user to paste protected values in chat.",
     inputSchema: {
       type: "object",
       properties: { reason: { type: "string" } },

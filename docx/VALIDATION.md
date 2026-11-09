@@ -1,5 +1,15 @@
 # 验证记录
 
+2026-11-09（PA-012 原生输入协议）：新增定向测试验证有效运行租约下映射为驱动 `act`、缺失租约时不发送请求，单项通过；adapters TypeScript 与修改文件 Biome 通过。Python 驱动单元测试 17 项、跳过 2 项；完整 `native-linux-sandbox.test.ts` 中 15 项通过、2 项依赖本机 socket 服务的测试报 `Server is not running`，未确认其失败原因；未在真实 Linux 驱动或人工接管验证。
+
+2026-11-09（PA-011、PA-012 人工接管点击无响应）：通过 `systemctl show` 只读核对线上正在运行的 VNC 服务带 `-viewonly`；检查当前仓库发现 native-linux 屏幕连接与代理也拒绝交互。后续已在本地补齐独立人工输入协议和离线测试，见 V-057；线上尚未部署、发送鼠标键盘、访问桌面画面、重启服务或修改配置，真实控制通路仍待实机验收。
+
+2026-11-09（PA-011、PA-012 云电脑排查）：只读检查生产原生驱动动作及显示服务，当前桌面为 1920×1080；与本地驱动文件哈希不同，未假定两者完全相同。资源快照负载较低但 swap 已使用，无法据此判断交互时瓶颈。`pnpm exec vitest run packages/adapters/src/native-computer-tools.test.ts packages/adapters/src/computer-screenshot-sharing.test.ts packages/adapters/src/computer-tools.test.ts --maxWorkers=1` 通过 3 文件、18 项；adapters TypeScript 和相关代码 Biome 检查通过。没有测量端到端输入延迟、画面帧率或网络，未验证真实任务、真实接管及部署，不能宣称卡顿已修复。
+
+2026-11-09（PA-018、PA-020 全局与独立对话背景）：本机定向 Vitest 3 文件、12 项通过，覆盖全局预览及取消、透明度、独立选择与跟随全局、失效素材引用清理及原有聊天渲染；`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于项目要求 22.22.2 而未启动；未安装依赖或升级运行时。实际应用浏览器、手机安全区域、键盘和部署未验证。
+
+2026-11-09（PA-011、PA-012、PA-018 电脑截图与接管）：`pnpm exec vitest run packages/adapters/src/computer-screenshot-sharing.test.ts packages/adapters/src/computer-tools.test.ts packages/testkit/src/pi-runtime-checkpoint.test.ts packages/testkit/src/executor-turn-checkpoint.test.ts --maxWorkers=1`：4 文件、56 项通过，覆盖普通截图不发布、明确分享、同帧分享、发送失败、重复动作拦截、接管工具不可用及执行器接管恢复不重放；adapters TypeScript 与相关文件 Biome 检查通过。未运行真实模型、浏览器、云电脑、网络断线或生产验证；用户意图识别和其他类型卡住时的模型行为仍待验收。
+
 2026-11-09（PR #6 生产部署）：提交 `1087d7875` 的网页两分片、单元、类型、数据库和生产构建检查通过；合并版本 `6ded1a62ecce62a0df88b9b2771f166dd0695b37` 的自动部署成功，公网 `/health` 返回 `ok: true`，`/build-id` 为 `20261109023224`。真实手机和真实邮箱注册流程未验收。
 
 2026-11-09（注册浏览器检查）：PR #6 首轮网页分片 1 的注册测试因异步跳转判断过早而超时，同分片其余 48 项通过；分片 2、单元、类型、数据库和生产构建检查通过。辅助函数调整后，新的网页检查尚待运行。
@@ -1215,3 +1225,19 @@ Prisma 7.10.1 客户端生成成功，未启动服务或执行迁移。第一次
 - 通过：updater 相关新增恢复断言已写入 `infra/updater/src/fork-recovery.test.ts` 和 `infra/updater/src/index.test.ts`；Windows 下 fork recovery 被既有 `skipIf` 跳过。
 - 未通过/未执行：`packages/testkit/src/deploy-script.test.ts` 在本机 Windows 因 `/bin/bash` 不存在无法执行，31 项均在进程启动阶段失败；不是脚本行为断言。使用 `C:\msys64\usr\bin\bash.exe -n infra/compose/deploy-main.sh` 和对应 launcher 命令检查通过。
 - 未执行：Docker Compose 合并、真实文件所有权/权限、生产 launcher 安装、线上部署/回滚、native-linux socket sidecar、截图、输入、websockify 容器链路和断线恢复。
+
+## V-057：原生云电脑人工接管输入离线验证（2026-11-09）
+
+- 范围：人工控制栅栏、原生输入事务、坐标映射、键盘/粘贴覆盖层、noVNC 几何上报、native-linux 驱动协议和权限边界。
+- `pnpm exec vitest run apps/api/src/native-computer-control-fence.test.ts apps/api/src/native-computer-input.test.ts apps/api/src/computer-status.test.ts apps/web/src/lib/native-computer-control.test.ts apps/web/src/components/NativeComputerControl.test.tsx apps/web/src/novnc-html.test.ts packages/adapters/src/native-linux-sandbox.test.ts packages/adapters/src/computer-update.test.ts --maxWorkers=1`：8 个文件、103 项通过、2 项在 Windows 跳过；跳过项为真实 Unix socket 服务，Linux 路径需由 CI/服务器复验。
+- `python -m unittest infra/native-linux/test_driver.py`：共 21 项，其中 19 项通过、2 项跳过；覆盖人工租约过期、撤销、旧栅栏、活动 Run 和输入动作限制。
+- `pnpm exec tsc --noEmit -p apps/web/tsconfig.json`、`apps/api`、`packages/adapters`、`packages/contracts`、`packages/adapter-kit`：全部通过。
+- 相关 18 个文件的 `pnpm exec biome check`：通过；`git diff --check`：通过。
+- 未执行：生产部署、驱动服务重启、真实 X11 桌面点击/文本/滚轮、退出后旧租约拒绝、再次接管、Agent 恢复、断线提示的浏览器验收、手机横竖屏和移动端原生 WebView。未验证项不得写成已通过。
+
+## V-058：原生云电脑画面连接离线验证（2026-11-09）
+
+- 范围：原生回环画面链接复用、驱动临时不可用分类、明确拒绝和现有屏幕授权复核。
+- `pnpm exec vitest run packages/core/src/node/screen-capability.test.ts apps/api/src/screen-proxy.test.ts apps/web/src/screen-proxy.test.ts apps/web/src/pages/shell/use-computer.test.tsx apps/api/src/native-computer-control-fence.test.ts apps/api/src/native-computer-input.test.ts apps/api/src/computer-status.test.ts apps/web/src/lib/native-computer-control.test.ts apps/web/src/components/NativeComputerControl.test.tsx apps/web/src/novnc-html.test.ts packages/adapters/src/native-linux-sandbox.test.ts packages/adapters/src/computer-update.test.ts --maxWorkers=1`：12 个文件、197 项通过、2 项 Windows 跳过。
+- `pnpm exec tsc --noEmit -p` 分别检查 `apps/api/tsconfig.json`、`packages/adapters/tsconfig.json`、`packages/core/tsconfig.json`：通过；相关六个文件 Biome 检查及 `git diff --check` 通过。
+- 未执行生产部署、线上日志复核、实际连接慢握手或断线重连；本地发现的风险不等于已确认线上故障原因。后续需在保护链接凭证的前提下逐段检查屏幕地址请求、Web 代理、驱动状态与 VNC 服务，并验证真实桌面和人工输入。

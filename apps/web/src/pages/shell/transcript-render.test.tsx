@@ -160,39 +160,6 @@ it("shows work stages and pending confirmation in the active language", () => {
   expect(container.textContent).not.toContain("Waiting for your confirmation or reply");
 });
 
-it("applies background transparency to both the image and its dark overlay", () => {
-  vi.stubGlobal(
-    "URL",
-    class extends URL {
-      static override createObjectURL = vi.fn(() => "blob:background");
-      static override revokeObjectURL = vi.fn();
-    },
-  );
-  try {
-    act(() =>
-      previewChatAppearance({
-        ...EMPTY_CHAT_APPEARANCE,
-        backgroundId: "bg",
-        backgrounds: [
-          {
-            id: "bg",
-            name: "背景",
-            image: new Blob(["image"], { type: "image/png" }),
-            fit: "cover",
-            opacity: 40,
-            overlay: 30,
-          },
-        ],
-      }),
-    );
-    act(() => root.render(<Host messages={[]} />));
-    expect(container.querySelector("img")?.style.opacity).toBe("0.4");
-    expect(container.querySelector<HTMLDivElement>(".bg-black")?.style.opacity).toBe("0.12");
-  } finally {
-    act(() => cancelChatAppearancePreview());
-  }
-});
-
 it("shows queue status without using progress from another run", () => {
   i18n.load("zh-CN", {});
   i18n.activate("zh-CN");

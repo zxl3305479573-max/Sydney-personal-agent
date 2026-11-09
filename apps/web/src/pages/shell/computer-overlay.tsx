@@ -10,7 +10,9 @@ import type {
 import { BotAvatar, Button } from "@rakazo/ui-web";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { ComputerMaintenanceActions } from "../../components/ComputerMaintenanceActions";
+import { NativeComputerControl } from "../../components/NativeComputerControl";
 import { TeachCaptureOverlay } from "../../components/teach/TeachCaptureOverlay";
 import { TeachComputerOverlayControl } from "../../components/teach/TeachComputerOverlay";
 import { TeachRecordingChrome, TeachStopButton } from "../../components/teach/TeachRecordingChrome";
@@ -73,6 +75,14 @@ export function ComputerOverlay({
   onRefreshComputer,
   onClose,
 }: ComputerOverlayProps) {
+  const [nativeFrame, setNativeFrame] = useState<HTMLIFrameElement | null>(null);
+  const attachFrame = useCallback(
+    (frame: HTMLIFrameElement | null) => {
+      setNativeFrame(frame);
+      screenFrameRef(frame);
+    },
+    [screenFrameRef],
+  );
   return (
     <div className="fixed inset-0 z-30 bg-background">
       <div
@@ -197,15 +207,29 @@ export function ComputerOverlay({
               <iframe
                 key={screenFrameKey}
                 title={t`Bot screen`}
-                ref={screenFrameRef}
+                ref={attachFrame}
                 src={embeddedScreenUrl}
                 sandbox={screenIframeSandbox(embeddedScreenUrl)}
                 className="h-full w-full border-0 bg-black"
                 allow="clipboard-read; clipboard-write; fullscreen"
                 style={{
-                  pointerEvents: recordingSkill || !hasControl ? "none" : "auto",
+                  pointerEvents:
+                    recordingSkill || !hasControl || computer?.kind === "native-linux"
+                      ? "none"
+                      : "auto",
                 }}
               />
+              {computer?.kind === "native-linux" &&
+              hasControl &&
+              computer.controlLeaseId &&
+              !recordingSkill ? (
+                <NativeComputerControl
+                  key={`${bot.id}:${computer.controlLeaseId}:${screenFrameKey ?? ""}`}
+                  botId={bot.id}
+                  leaseId={computer.controlLeaseId}
+                  frame={nativeFrame}
+                />
+              ) : null}
               {bot ? (
                 <TeachCaptureOverlay
                   botId={bot.id}

@@ -1103,6 +1103,7 @@ export async function replaceComputer(
             controlLeaseExpiresAt: null,
             controlBotId: null,
             controlRunId: null,
+            controlFence: { increment: 1 },
           }
         : {}),
     },
@@ -1249,6 +1250,7 @@ export async function replaceComputer(
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
         // The replacement is a new machine; damage to the old one is no reason to hold it back.
         autoRecoveredAt: null,
         updatedAt: claimStamp,

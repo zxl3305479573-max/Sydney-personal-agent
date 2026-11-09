@@ -132,16 +132,15 @@ async function publishObservationImage(
   ctx: RunContext,
   executionId: string,
   observation: Awaited<ReturnType<SandboxProvider["observe"]>>,
-  result: ReturnType<typeof observationToolResult>,
 ) {
-  if (!ctx.deps.artifacts || !result.content.some((part) => part.type === "image")) return;
+  if (!ctx.deps.artifacts) return false;
   if (observation.image.byteLength > (ctx.deps.maxUploadSizeBytes ?? ATTACHMENT_MAX_BYTES)) {
     getLogger().warn("computer screenshot exceeded attachment limit", {
       runId: ctx.runId,
       frameId: observation.frameId,
       bytes: observation.image.byteLength,
     });
-    return;
+    return false;
   }
 
   const frameId = observation.frameId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "latest";
@@ -168,12 +167,14 @@ async function publishObservationImage(
       },
     );
     await publishMessage(ctx.deps, ctx.run, "bot", [attached.block]);
+    return true;
   } catch (error) {
     getLogger().warn("computer screenshot attachment failed", {
       runId: ctx.runId,
       frameId: observation.frameId,
       error,
     });
+    return false;
   }
 }
 
@@ -309,7 +310,7 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
 export const computerTools: ToolHandlers = {
   async computer_observe(ctx, call) {
     const { deps, context } = ctx;
-    const { name, executionId } = call;
+    const { name, executionId, args } = call;
     const blocked = await screenBlocked(ctx);
     if (blocked) return { error: blocked };
     return computerScreenToolResult(async () =>
@@ -319,7 +320,15 @@ export const computerTools: ToolHandlers = {
           context,
         );
         const result = formatObservation(ctx, observation);
-        await publishObservationImage(ctx, executionId, observation, result);
+        if (
+          args.share_with_user === true &&
+          !(await publishObservationImage(ctx, executionId, observation))
+        ) {
+          result.content.push({
+            type: "text",
+            text: "The screenshot could not be sent to the user. Do not claim it was sent.",
+          });
+        }
         return result;
       })(),
     );
@@ -330,8 +339,23 @@ export const computerTools: ToolHandlers = {
     const blocked = await screenBlocked(ctx);
     if (blocked) return { error: blocked };
     const actions = parseComputerActions(args.actions);
+    if (ctx.computer.kind === "native-linux" && actions.some((action) => action.kind === "focus")) {
+      return call.finish({
+        error:
+          "此云电脑不支持 focus 操作，本次操作全部未执行。请使用桌面鼠标和键盘操作，或请求人工接管。",
+      });
+    }
     const visualActionKey = computerVisualActionKey(actions);
     if (unchangedVisualActionBlocked(ctx.state.screen.unchangedVisualStreak, actions)) {
+      if (ctx.tools.offered.some((tool) => tool.name === "request_takeover")) {
+        try {
+          const observation = await deps.sandbox.observe(
+            await ctx.computer.get("tool", name),
+            context,
+          );
+          await publishObservationImage(ctx, call.executionId, observation);
+        } catch {}
+      }
       return call.finish(unchangedVisualLoopToolResult(ctx.state.screen.unchangedVisualStreak));
     }
     ctx.computer.checkpoint.markDirty();
@@ -352,7 +376,6 @@ export const computerTools: ToolHandlers = {
         `completed ${result.completed} computer action${result.completed === 1 ? "" : "s"}`,
         visualActionKey,
       );
-      await publishObservationImage(ctx, call.executionId, result.observation, observation);
       return observation;
     }, call.finish);
   },
@@ -511,6 +534,9 @@ export const computerTools: ToolHandlers = {
     }
   },
   async open_path(ctx, call) {
+    if (ctx.computer.kind === "native-linux") {
+      return call.finish({ error: "此云电脑不支持 open_path，请使用桌面鼠标和键盘操作。" });
+    }
     const { deps, bot, context } = ctx;
     const { name, args } = call;
     const blocked = await screenBlocked(ctx);
@@ -548,6 +574,9 @@ export const computerTools: ToolHandlers = {
     }, call.finish);
   },
   async launch_app(ctx, call) {
+    if (ctx.computer.kind === "native-linux") {
+      return call.finish({ error: "此云电脑不支持 launch_app，请使用桌面鼠标和键盘操作。" });
+    }
     const { deps, context } = ctx;
     const { name, args } = call;
     const blocked = await screenBlocked(ctx);

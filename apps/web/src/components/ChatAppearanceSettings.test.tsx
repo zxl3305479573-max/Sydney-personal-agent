@@ -10,6 +10,7 @@ import {
   saveChatAppearance,
 } from "../lib/chat-appearance";
 import { ChatAppearanceSettings } from "./ChatAppearanceSettings";
+import { ConversationBackgroundSettings } from "./ConversationBackground";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -126,6 +127,48 @@ it("offers background and separate text colors without bubble settings", async (
       userTextColor: null,
       botTextColor: "#abcdef",
     });
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+it("saves a conversation background independently and can follow the global choice again", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  mockIndexedDb();
+  await loadChatAppearance();
+  await saveChatAppearance({
+    ...EMPTY_CHAT_APPEARANCE,
+    backgroundId: "global",
+    backgrounds: [
+      {
+        id: "global",
+        name: "全局",
+        image: new Blob(["a"]),
+        fit: "cover",
+        opacity: 100,
+        overlay: 0,
+      },
+      { id: "local", name: "单独", image: new Blob(["b"]), fit: "cover", opacity: 100, overlay: 0 },
+    ],
+  });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<ConversationBackgroundSettings chatKey="one" />));
+    const select = container.querySelector<HTMLSelectElement>("select")!;
+    await act(async () => {
+      select.value = "local";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(getSavedChatAppearance()).toMatchObject({
+      backgroundId: "global",
+      chatBackgrounds: { one: "local" },
+    });
+    await act(async () => {
+      select.value = "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(getSavedChatAppearance()).toMatchObject({ backgroundId: "global", chatBackgrounds: {} });
   } finally {
     await act(async () => root.unmount());
   }

@@ -1270,6 +1270,7 @@ export const ComputerStatusSchema = z.object({
   state: z.enum(["stopped", "booting", "running", "suspended", "error"]),
   controlHolder: z.enum(["bot", "user", "none"]),
   controlBotId: Id.nullable(),
+  controlLeaseId: Id.nullable().optional(),
   takeoverRequested: z.boolean(),
   screenAvailable: z.boolean(),
   screenWidth: z.number().int().positive(),

@@ -278,6 +278,54 @@
     border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
   }
 
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::before,
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::before {
+    background-image: var(--workspace-background-image);
+    background-position: center;
+    background-size: var(--workspace-background-fit);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    opacity: var(--workspace-background-opacity);
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::after {
+    background: black;
+    opacity: var(--workspace-background-overlay);
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header
+    > * {
+    position: relative;
+    z-index: 1;
+  }
+
   [data-mobile-chat="true"] .sydney-grok-header button {
     box-shadow: none;
     border-color: transparent;

@@ -10,6 +10,7 @@ import { Button } from "@rakazo/ui-web";
 import { X } from "lucide-react";
 import type { ComponentProps, Dispatch, ReactNode, SetStateAction } from "react";
 import { ComputerMaintenanceActions } from "../../components/ComputerMaintenanceActions";
+import { ConversationBackgroundSettings } from "../../components/ConversationBackground";
 import { PageBreadcrumb } from "../../components/PageBreadcrumb";
 import type { Panel } from "../../lib/right-panel-state";
 import type { createSpaceRpc } from "../../lib/rpc";
@@ -31,6 +32,7 @@ export function ShellSidePanel({
   onCancelCreateGroup,
   active,
   activeGroup,
+  chatKey,
   bots,
   groups,
   setBots,
@@ -59,6 +61,7 @@ export function ShellSidePanel({
   onCancelCreateGroup: () => void;
   active: Bot | undefined;
   activeGroup: Group | undefined;
+  chatKey?: string;
   bots: Bot[];
   groups: Group[];
   setBots: Dispatch<SetStateAction<Bot[]>>;
@@ -144,6 +147,9 @@ export function ShellSidePanel({
                 openBot(botId);
               }}
             />
+          ) : null}
+          {chatKey && (panel === "group-settings" || panel === "settings") ? (
+            <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} />
           ) : null}
           {panel === "group-settings" && activeGroup ? (
             <GroupSettings

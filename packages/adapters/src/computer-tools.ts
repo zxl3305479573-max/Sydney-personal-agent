@@ -221,8 +221,11 @@ export function unchangedVisualStreakAfterPageBrowser(
 export function unchangedVisualLoopToolResult(
   streak: UnchangedVisualStreak,
 ): AgentToolExecutionResult {
-  const details = unchangedScreenDetails(streak.frameId, streak.count);
-  const text = `The same visual action left the screen unchanged ${streak.count} times and was not run again. The previous screenshot remains valid. Use browser_snapshot or a different action.`;
+  const details = {
+    ...unchangedScreenDetails(streak.frameId, streak.count),
+    takeoverSuggested: true,
+  };
+  const text = `The same visual action left the screen unchanged ${streak.count} times and was not run again. The previous screenshot remains valid. Ask for human takeover if you cannot safely proceed; do not repeat the action.`;
   return {
     kind: "agent_tool_result",
     content: [{ type: "text", text: `${text}\n${JSON.stringify(details)}` }],

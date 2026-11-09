@@ -78,7 +78,7 @@ describe("noVNC storage shim gate", () => {
       addEventListener: (type: string, listener: (event: unknown) => void) => {
         if (type === "error") listeners.push(listener);
       },
-      parent: { postMessage() {} },
+      parent: { postMessage() {} } as unknown as Window,
     } as unknown as { localStorage: Storage; sessionStorage: Storage };
     const document = {
       documentElement: { classList: { contains: () => false }, getAttribute: () => null },
@@ -95,7 +95,7 @@ describe("noVNC storage shim gate", () => {
     const script = injectNovncStorageShim("<head>").match(/<script>([\s\S]*)<\/script>/)?.[1] ?? "";
     const window: Record<string, unknown> = {
       addEventListener() {},
-      parent: { postMessage() {} },
+      parent: { postMessage() {} } as unknown as Window,
     };
     Object.defineProperty(window, "VideoDecoder", { configurable: true, value: class {} });
     const document = {
@@ -241,8 +241,9 @@ describe("noVNC frame state report", () => {
         listeners[type] = listener;
       },
     };
+    const parent = { postMessage: (data: unknown) => posted.push(data) } as unknown as Window;
     const window = {
-      parent: { postMessage: (data: unknown) => posted.push(data) },
+      parent,
       addEventListener: (type: string, listener: (event: unknown) => void) => {
         windowListeners[type] = listener;
       },
@@ -265,6 +266,7 @@ describe("noVNC frame state report", () => {
     );
     return {
       posted,
+      window,
       nativePosted,
       canvas,
       parent: window.parent,
@@ -277,6 +279,40 @@ describe("noVNC frame state report", () => {
       mutate: () => observer?.(),
     };
   }
+
+  it("reports actual framebuffer geometry on resize and authenticated parent requests", () => {
+    const state = page({ canvas: true });
+    Object.assign(state.window, { innerWidth: 960, innerHeight: 640 });
+    Object.assign(state.canvas, {
+      width: 1920,
+      height: 1080,
+      getBoundingClientRect: () => ({ left: 0, top: 50, width: 960, height: 540 }),
+    });
+    state.classes.add("noVNC_connected");
+    state.mutate();
+    const expected = {
+      rakazoScreenGeometry: {
+        width: 1920,
+        height: 1080,
+        left: 0,
+        top: 50,
+        displayWidth: 960,
+        displayHeight: 540,
+        viewportWidth: 960,
+        viewportHeight: 640,
+      },
+    };
+    expect(state.posted).toContainEqual(expected);
+    const count = state.posted.length;
+    state.windowListeners.message?.({ source: {}, data: { rakazoScreenGeometryRequest: true } });
+    expect(state.posted).toHaveLength(count);
+    state.windowListeners.message?.({
+      source: state.parent,
+      data: { rakazoScreenGeometryRequest: true },
+    });
+    expect(state.posted).toHaveLength(count + 1);
+    expect(state.posted.at(-1)).toEqual(expected);
+  });
 
   it("posts loading at once, then follows noVNC's connection classes", () => {
     const p = page();

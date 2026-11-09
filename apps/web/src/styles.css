@@ -55,6 +55,92 @@ body,
 #root {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
+  isolation: isolate;
+}
+
+.workspace-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+
+.workspace-background img,
+.workspace-background > div {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-background > div {
+  background: black;
+}
+
+.conversation-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+
+.conversation-background img,
+.conversation-background > div {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.conversation-background > div {
+  background: black;
+}
+
+html[data-workspace-background="true"] #root,
+html[data-workspace-background="true"] [data-testid="shell-root"],
+html[data-workspace-background="true"] [data-space-switch="main"],
+html[data-workspace-background="true"] [data-slot="sidebar-inner"],
+html[data-workspace-background="true"] .sydney-page-surface {
+  background: transparent;
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"],
+html[data-workspace-background="true"] [data-testid="side-panel"],
+html[data-workspace-background="true"] .sydney-settings-dialog {
+  isolation: isolate;
+  background: var(--background);
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::before,
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::before,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after,
+html[data-workspace-background="true"] .sydney-settings-dialog::before,
+html[data-workspace-background="true"] .sydney-settings-dialog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::before,
+html[data-workspace-background="true"] [data-testid="side-panel"]::before,
+html[data-workspace-background="true"] .sydney-settings-dialog::before {
+  background:
+    var(--workspace-background-image) center / var(--workspace-background-fit) no-repeat fixed;
+  opacity: var(--workspace-background-opacity);
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after,
+html[data-workspace-background="true"] .sydney-settings-dialog::after {
+  background: black;
+  opacity: var(--workspace-background-overlay);
 }
 
 /* Switching spaces in place (lib/space-switch.ts): the sidebar holds still while the

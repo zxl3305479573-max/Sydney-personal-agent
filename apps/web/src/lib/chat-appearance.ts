@@ -16,6 +16,7 @@ export type ChatAppearance = {
   botTextColor?: string | null;
   backgrounds: ChatBackground[];
   backgroundId: string | null;
+  chatBackgrounds?: Record<string, string>;
 };
 
 export const EMPTY_CHAT_APPEARANCE: ChatAppearance = {
@@ -45,6 +46,7 @@ const appearanceSchema = z.object({
     )
     .max(100),
   backgroundId: idSchema.nullable(),
+  chatBackgrounds: z.record(z.string().min(1).max(500), idSchema).optional(),
 });
 
 export function useAppearanceImage(image: Blob | undefined): string | null {
@@ -71,7 +73,18 @@ export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
     backgrounds,
     backgroundId:
       value.backgroundId && backgroundIds.has(value.backgroundId) ? value.backgroundId : null,
+    ...(value.chatBackgrounds
+      ? {
+          chatBackgrounds: Object.fromEntries(
+            Object.entries(value.chatBackgrounds).filter(([, id]) => backgroundIds.has(id)),
+          ),
+        }
+      : {}),
   };
+}
+
+export function chatBackgroundKey(userId: string, kind: "bot" | "group", id: string): string {
+  return JSON.stringify([userId, kind, id]);
 }
 
 const DB_NAME = "sydney-chat-appearance";

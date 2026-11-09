@@ -1555,6 +1555,10 @@ msgstr "Completed"
 msgid "Computer"
 msgstr "Computer"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Computer control"
+msgstr "Computer control"
+
 #: src/pages/shell/computer-view.tsx
 #: src/pages/shell/use-computer.tsx
 msgid "Computer failed to boot"
@@ -1563,6 +1567,10 @@ msgstr "Computer failed to boot"
 #: src/components/ModelCredits.tsx
 msgid "Computer hours left"
 msgstr "Computer hours left"
+
+#: src/components/NativeComputerControl.tsx
+msgid "Computer input failed. Take control again."
+msgstr "Computer input failed. Take control again."
 
 #: src/pages/shell/computer-overlay.tsx
 msgid "Computer is asleep"
@@ -5439,6 +5447,10 @@ msgstr "Send recording"
 msgid "Send reset link"
 msgstr "Send reset link"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Send text"
+msgstr "Send text"
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Send with Enter"
 msgstr "Send with Enter"
@@ -6210,6 +6222,10 @@ msgstr "Today"
 msgid "Tokens"
 msgstr "Tokens"
 
+#: src/components/NativeComputerControl.tsx
+msgid "Too many pending inputs. Take control again."
+msgstr "Too many pending inputs. Take control again."
+
 #: src/components/PasswordStrength.tsx
 msgid "Too short"
 msgstr "Too short"
@@ -6296,6 +6312,10 @@ msgstr "Tuesday"
 #: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr "Type"
+
+#: src/components/NativeComputerControl.tsx
+msgid "Type text"
+msgstr "Type text"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Type without recording"
@@ -6551,6 +6571,10 @@ msgstr "Voice request timed out."
 #: src/lib/model-connection-preflight.ts
 msgid "Wait a moment and test again."
 msgstr "Wait a moment and test again."
+
+#: src/components/NativeComputerControl.tsx
+msgid "Waiting for screen dimensions…"
+msgstr "Waiting for screen dimensions…"
 
 #: src/lib/roster-status.ts
 msgid "Waiting in line…"

@@ -243,6 +243,7 @@ export async function queueComputerUpdate(
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     if (released.count !== 1) {
@@ -308,6 +309,7 @@ async function undoQueuedMaintenance(
           controlHolder: "user",
           controlBotId: handback.botId,
           controlRunId: null,
+          controlFence: { increment: 1 },
         },
       });
       if (restored.count !== 1) {
@@ -390,6 +392,7 @@ async function releaseConfirmedHandback(
           controlLeaseExpiresAt: null,
           controlBotId: null,
           controlRunId: null,
+          controlFence: { increment: 1 },
         },
       });
       if (cleared.count !== 1) return { cleared: false, runId: null };
@@ -481,6 +484,7 @@ async function clearRevokedTakeover(
       controlLeaseExpiresAt: null,
       controlBotId: null,
       controlRunId: null,
+      controlFence: { increment: 1 },
     },
   });
   if (cleared.count === 1) return;
@@ -654,7 +658,11 @@ export async function reconcileComputerUpdates(deps: Pick<Deps, "prisma" | "jobs
             controlRunId: null,
             controlLeaseId: { not: null },
           },
-          data: { maintenanceId: null, controlHolder: "user" },
+          data: {
+            maintenanceId: null,
+            controlHolder: "user",
+            controlFence: { increment: 1 },
+          },
         });
         if (restored.count === 1) return;
         await tx.computer.updateMany({

@@ -29,6 +29,11 @@ export interface AdapterContext {
     validate: () => Promise<number | null>;
     expiresAt?: number;
   };
+  nativeControlLease?: {
+    leaseId: string;
+    fence: number;
+    validate: () => Promise<number | null>;
+  };
   signal: AbortSignal;
   /** Connected external accounts available to this run, including their owning connector. */
   connectedConnections?: ConnectedConnector[];

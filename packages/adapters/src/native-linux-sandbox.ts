@@ -169,6 +169,37 @@ export class NativeLinuxSandbox implements SandboxProvider {
     request: ComputerActionRequest,
     context: AdapterContext,
   ): Promise<ComputerActionResult> {
+    if (context.nativeControlLease) {
+      this.assertComputer(context, computer);
+      const lease = context.nativeControlLease;
+      if (
+        !this.screen ||
+        context.userId !== this.screen.userId ||
+        context.spaceId !== this.screen.spaceId ||
+        (this.screen.botId !== undefined && context.botId !== this.screen.botId) ||
+        !lease.leaseId ||
+        !Number.isSafeInteger(lease.fence) ||
+        lease.fence < 1 ||
+        request.observe !== false ||
+        request.actions.length !== 1 ||
+        !["pointer", "key", "clipboard", "scroll"].includes(request.actions[0]!.kind)
+      ) {
+        throw new Error("native_control_unsupported");
+      }
+      const expiresAt = Math.min((await lease.validate()) ?? 0, Date.now() + 1_000);
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || context.signal.aborted) {
+        throw new Error("native_control_lease_invalid");
+      }
+      return this.transport(
+        "control_input",
+        {
+          control: { leaseId: lease.leaseId, fence: lease.fence, expiresAt },
+          request: { actions: request.actions, observe: false },
+        },
+        { ...context, nativeRunLease: undefined },
+        computer,
+      ) as Promise<ComputerActionResult>;
+    }
     const guardedContext = await this.guard(context, computer);
     const response = (await this.transport(
       "act",
@@ -257,13 +288,13 @@ export class NativeLinuxSandbox implements SandboxProvider {
       (this.screen.botId !== undefined && context.botId !== this.screen.botId) ||
       !Number.isInteger(this.screen.port) ||
       this.screen.port < 1 ||
-      this.screen.port > 65535 ||
-      context.signal.aborted
+      this.screen.port > 65535
     ) {
       throw new Error(!this.screen ? "native_screen_not_configured" : "native_screen_unsupported");
     }
+    if (context.signal.aborted) throw new Error("native_driver_aborted_result_unknown");
     await this.transport("status", {}, context, computer);
-    if (context.signal.aborted) throw new Error("native_screen_unsupported");
+    if (context.signal.aborted) throw new Error("native_driver_aborted_result_unknown");
     return {
       url: `http://127.0.0.1:${this.screen.port}/vnc.html`,
       mimeType: "text/html",
@@ -274,11 +305,27 @@ export class NativeLinuxSandbox implements SandboxProvider {
   async sendInput(
     computer: ComputerRef,
     input: ComputerInput,
-    _lease: ControlLeaseRef,
+    lease: ControlLeaseRef,
     context: AdapterContext,
   ): Promise<void> {
-    const guardedContext = await this.guard(context, computer);
-    await this.transport("input", input, guardedContext, computer);
+    if (
+      context.nativeControlLease &&
+      (lease.holder !== "user" || lease.leaseId !== context.nativeControlLease.leaseId)
+    ) {
+      throw new Error("native_control_lease_invalid");
+    }
+    await this.act(computer, { actions: [input], observe: false }, context);
+  }
+
+  async setScreenControl(
+    computer: ComputerRef,
+    interactive: boolean,
+    context: AdapterContext,
+    leaseId?: string,
+  ): Promise<void> {
+    this.assertComputer({ ...context, botId: context.botId ?? computer.botId }, computer);
+    if (interactive || !leaseId) throw new Error("native_control_unsupported");
+    await this.transport("control_revoke", { controlLeaseId: leaseId }, context, computer);
   }
 
   async listFiles(

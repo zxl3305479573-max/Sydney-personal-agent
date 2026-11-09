@@ -7,6 +7,17 @@ import { runAsSystem } from "@rakazo/db";
 import type { Hono } from "hono";
 import { requestBodyLimit } from "./request-body-limit.js";
 
+function nativeDriverUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = "code" in error ? error.code : undefined;
+  return (
+    ["ECONNREFUSED", "ECONNRESET", "EPIPE", "ENOENT", "ETIMEDOUT"].includes(String(code)) ||
+    error.message === "native_driver_aborted_result_unknown" ||
+    error.message === "native_driver_disconnected_result_unknown" ||
+    error.message === "native_driver_timeout:status"
+  );
+}
+
 export function mountScreenTarget(
   app: Hono,
   prisma: PrismaClient,
@@ -88,8 +99,8 @@ export function mountScreenTarget(
           Number(current.port || (current.protocol === "https:" ? 443 : 80)) !== target.port
         )
           return c.body(null, 403);
-      } catch {
-        return c.body(null, 403);
+      } catch (error) {
+        return c.body(null, nativeDriverUnavailable(error) ? 503 : 403);
       }
     }
     return c.json(target);

@@ -279,6 +279,17 @@ function fixture(
   const reads = vi.fn(async (_computer: unknown, _path: string) =>
     new TextEncoder().encode("unique-executor-evidence"),
   );
+  const act = vi.fn(async () => ({
+    completed: 1,
+    observation: {
+      frameId: "same-frame",
+      image: new Uint8Array([1, 2, 3]),
+      mimeType: "image/png",
+      width: 100,
+      height: 100,
+      capturedAt: new Date().toISOString(),
+    },
+  }));
   const executor = createRunExecutor({
     prisma,
     artifacts: { get: async () => new Uint8Array([137, 80, 78, 71]) },
@@ -316,6 +327,7 @@ function fixture(
     },
     sandbox: {
       describe: () => ({ id: "fake", capabilities: { graphical: true } }),
+      act,
       readFile: reads,
       writeFile: writes,
       async *exportWorkspace() {},
@@ -364,10 +376,46 @@ function fixture(
     pauseRunForTakeover,
     writes,
     reads,
+    act,
   };
 }
 
 describe("executor paused transcript", () => {
+  it("pauses a stuck desktop run and does not replay its refused action after takeover", async () => {
+    const model = await startModelEmulator({
+      steps: [
+        ...Array.from({ length: 5 }, (_, index) => ({
+          expect() {},
+          response: {
+            type: "tool" as const,
+            id: `click-${index}`,
+            name: "computer_act",
+            arguments: { actions: [{ kind: "click", x: 10, y: 10 }] },
+          },
+        })),
+        { expect() {}, response: { type: "text" as const, text: "Continuing after your help." } },
+      ],
+    });
+    try {
+      const state = fixture(model.model, false, "fixture_write", false, undefined, true);
+      state.run.trigger = "user";
+      await state.executor.continueRun(state.run.id, "fixture-worker");
+      expect(state.pauseRunForTakeover).toHaveBeenCalledOnce();
+      expect(state.act).toHaveBeenCalledTimes(4);
+      expect(state.effects.some((effect) => effect.kind === "runtime_checkpoint")).toBe(false);
+      state.run.status = "queued";
+      state.run.checkpoint = "takeover" as never;
+      await state.executor.continueRun(state.run.id, "fixture-worker");
+      expect(state.act).toHaveBeenCalledTimes(4);
+      expect(state.finalizeRun).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: "completed" }),
+      );
+      model.assertComplete();
+    } finally {
+      await model.close();
+    }
+  });
+
   it.each(["user", "routine"])(
     "delivers a resumed %s reply image through bounded recent history",
     async (trigger) => {

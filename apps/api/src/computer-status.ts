@@ -57,6 +57,8 @@ export function toComputerStatus(
     scope: string;
     controlHolder: string;
     controlBotId?: string | null;
+    controlLeaseId?: string | null;
+    controlFence?: number | null;
     controlRunId?: string | null;
     homeRevision: string;
     maintenanceId?: string | null;
@@ -88,6 +90,16 @@ export function toComputerStatus(
     state,
     controlHolder: (computer?.controlHolder ?? "none") as ComputerStatus["controlHolder"],
     controlBotId: computer?.controlBotId ?? null,
+    ...(kind === "native-linux"
+      ? {
+          controlLeaseId:
+            computer?.controlHolder === "user" &&
+            computer.controlBotId === botId &&
+            (computer.controlFence ?? 0) >= 1
+              ? (computer.controlLeaseId ?? null)
+              : null,
+        }
+      : {}),
     takeoverRequested: Boolean(computer?.controlRunId),
     screenAvailable: !computer?.maintenanceId && (state === "running" || state === "booting"),
     screenWidth: screen.width,

@@ -238,6 +238,7 @@ describe("background computer maintenance", () => {
         controlHolder: "user",
         controlBotId: "bot-1",
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(harness.computerUpdate.deleteMany).toHaveBeenCalledWith({
@@ -341,6 +342,7 @@ describe("background computer maintenance", () => {
         controlHolder: "user",
         controlBotId: "bot-1",
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(harness.computerUpdate.deleteMany).toHaveBeenCalledWith({
@@ -376,6 +378,7 @@ describe("background computer maintenance", () => {
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(harness.computer.updateMany).not.toHaveBeenCalledWith(
@@ -419,7 +422,11 @@ describe("background computer maintenance", () => {
         controlRunId: null,
         controlLeaseId: { not: null },
       },
-      data: { maintenanceId: null, controlHolder: "user" },
+      data: {
+        maintenanceId: null,
+        controlHolder: "user",
+        controlFence: { increment: 1 },
+      },
     });
     expect(computer.updateMany).toHaveBeenCalledOnce();
   });
@@ -439,7 +446,11 @@ describe("background computer maintenance", () => {
         controlRunId: null,
         controlLeaseId: { not: null },
       },
-      data: { maintenanceId: null, controlHolder: "user" },
+      data: {
+        maintenanceId: null,
+        controlHolder: "user",
+        controlFence: { increment: 1 },
+      },
     });
     expect(computer.updateMany).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -469,7 +480,11 @@ describe("background computer maintenance", () => {
         controlRunId: null,
         controlLeaseId: { not: null },
       },
-      data: { maintenanceId: null, controlHolder: "user" },
+      data: {
+        maintenanceId: null,
+        controlHolder: "user",
+        controlFence: { increment: 1 },
+      },
     });
     expect(harness.computer.updateMany).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -495,6 +510,7 @@ describe("background computer maintenance", () => {
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(harness.jobs.cancel).toHaveBeenCalledOnce();
@@ -532,6 +548,7 @@ describe("background computer maintenance", () => {
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(harness.run.updateMany).toHaveBeenCalledWith({
@@ -611,6 +628,7 @@ describe("background computer maintenance", () => {
         controlLeaseExpiresAt: null,
         controlBotId: null,
         controlRunId: null,
+        controlFence: { increment: 1 },
       },
     });
     expect(computer.updateMany).not.toHaveBeenCalledWith(

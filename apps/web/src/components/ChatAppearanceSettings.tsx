@@ -155,7 +155,7 @@ export function ChatAppearanceSettings() {
         <fieldset disabled={!ready || saving} className="space-y-4">
           <div className="space-y-2">
             <label className="block font-medium" htmlFor="chat-background">
-              聊天背景
+              全局背景
             </label>
             <div className="flex flex-wrap gap-2">
               <select

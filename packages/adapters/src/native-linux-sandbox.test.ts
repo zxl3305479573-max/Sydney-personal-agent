@@ -8,6 +8,13 @@ import { computerHomeKey } from "@rakazo/db";
 import { expect, it, vi } from "vitest";
 import { createNativeLinuxTransport, NativeLinuxSandbox } from "./native-linux-sandbox.js";
 
+async function closeServer(server: net.Server) {
+  if (!server.listening) return;
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+}
+
 const context: AdapterContext = {
   operationId: "worker",
   traceId: "trace",
@@ -25,6 +32,73 @@ const computer: ComputerRef = {
   botId: "bot",
   kind: "native-linux",
 };
+
+it("uses a separately validated human lease for RPC input and binds revocation to its token", async () => {
+  const transport = vi.fn().mockResolvedValue({ completed: 1 });
+  const sandbox = new NativeLinuxSandbox(async () => null, transport, {
+    userId: "user",
+    spaceId: "space",
+    port: 16080,
+  });
+  const validate = vi.fn().mockResolvedValue(Date.now() + 60_000);
+  const human = {
+    ...context,
+    nativeRunLease: undefined,
+    nativeControlLease: { leaseId: "human", fence: 4, validate },
+  };
+  const input = { kind: "pointer", x: 10, y: 20, type: "click" } as const;
+  const lease = { leaseId: "human", holder: "user", fence: 4 } as const;
+  await sandbox.sendInput(computer, input, lease, human);
+  expect(validate).toHaveBeenCalledOnce();
+  expect(transport).toHaveBeenCalledWith(
+    "control_input",
+    {
+      control: { leaseId: "human", fence: 4, expiresAt: expect.any(Number) },
+      request: { actions: [input], observe: false },
+    },
+    expect.objectContaining({ nativeRunLease: undefined }),
+    computer,
+  );
+  const ticket = transport.mock.calls[0]![1].control;
+  expect(ticket.expiresAt).toBeLessThanOrEqual(Date.now() + 1000);
+  transport.mockClear();
+  await expect(
+    sandbox.sendInput(computer, input, { ...lease, leaseId: "old" }, human),
+  ).rejects.toThrow("native_control_lease_invalid");
+  validate.mockResolvedValue(null);
+  await expect(sandbox.sendInput(computer, input, lease, human)).rejects.toThrow(
+    "native_control_lease_invalid",
+  );
+  expect(transport).not.toHaveBeenCalled();
+  await sandbox.setScreenControl(computer, false, context, "human");
+  expect(transport).toHaveBeenCalledWith(
+    "control_revoke",
+    { controlLeaseId: "human" },
+    context,
+    computer,
+  );
+});
+
+it("sends native input through the driver's act protocol only with a valid run lease", async () => {
+  const transport = vi.fn().mockResolvedValue({ completed: 1 });
+  const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
+  const input = { kind: "pointer", x: 10, y: 20, type: "click" } as const;
+  const lease = { leaseId: "lease", holder: "user", fence: 1 } as const;
+  await sandbox.sendInput(computer, input, lease, context);
+  expect(transport).toHaveBeenCalledWith(
+    "act",
+    { request: { actions: [input], observe: false } },
+    expect.objectContaining({
+      nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }),
+    }),
+    computer,
+  );
+  transport.mockClear();
+  await expect(
+    sandbox.sendInput(computer, input, lease, { ...context, nativeRunLease: undefined }),
+  ).rejects.toThrow("missing_native_run_lease");
+  expect(transport).not.toHaveBeenCalled();
+});
 
 it("enforces generation and lease guards before transport calls", async () => {
   const transport = vi.fn().mockResolvedValue({});
@@ -88,6 +162,13 @@ it("restricts the live screen to the configured identity and validates the drive
   await expect(
     sandbox.connectScreen(computer, { view: "stream" }, { ...viewer, botId: "other" }),
   ).rejects.toThrow();
+  const abortedViewer = { ...viewer, signal: AbortSignal.abort() };
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, abortedViewer)).rejects.toThrow(
+    "native_driver_aborted_result_unknown",
+  );
+  await expect(
+    sandbox.connectScreen(computer, { view: "stream" }, { ...abortedViewer, userId: "other" }),
+  ).rejects.toThrow("native_screen_unsupported");
   transport.mockRejectedValueOnce(new Error("generation changed"));
   await expect(sandbox.connectScreen(computer, { view: "stream" }, viewer)).rejects.toThrow(
     "generation changed",
@@ -186,45 +267,46 @@ it("refuses unsupported native stop and destroy operations", async () => {
   await expect(sandbox.destroy(computer, context)).rejects.toThrow("native_destroy_unsupported");
 });
 
-it("keeps driver identity and lease fields out of caller-controlled params", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
-  const socketPath = path.join(directory, "driver.sock");
-  const server = net.createServer();
-  let socket: net.Socket | undefined;
-  try {
-    server.listen(socketPath);
-    await once(server, "listening");
-    const transport = createNativeLinuxTransport(socketPath);
-    const response = transport(
-      "write",
-      {
+it.skipIf(process.platform === "win32")(
+  "keeps driver identity and lease fields out of caller-controlled params",
+  async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
+    const socketPath = path.join(directory, "driver.sock");
+    const server = net.createServer();
+    let socket: net.Socket | undefined;
+    try {
+      server.listen(socketPath);
+      await once(server, "listening");
+      const transport = createNativeLinuxTransport(socketPath);
+      const response = transport(
+        "write",
+        {
+          path: "file.txt",
+          botId: "attacker",
+          generation: "attacker",
+          run: { id: "attacker", fence: 0 },
+        },
+        context,
+        computer,
+      );
+      [socket] = (await once(server, "connection")) as [net.Socket];
+      const [data] = (await once(socket, "data")) as [Buffer];
+      expect(JSON.parse(data.toString("utf8"))).toMatchObject({
+        method: "write",
+        botId: "bot",
+        generation: "0123456789abcdef",
+        run: { id: "run", fence: 2 },
         path: "file.txt",
-        botId: "attacker",
-        generation: "attacker",
-        run: { id: "attacker", fence: 0 },
-      },
-      context,
-      computer,
-    );
-    [socket] = (await once(server, "connection")) as [net.Socket];
-    const [data] = (await once(socket, "data")) as [Buffer];
-    expect(JSON.parse(data.toString("utf8"))).toMatchObject({
-      method: "write",
-      botId: "bot",
-      generation: "0123456789abcdef",
-      run: { id: "run", fence: 2 },
-      path: "file.txt",
-    });
-    socket.end('{"ok":true,"value":null}\n');
-    await expect(response).resolves.toBeNull();
-  } finally {
-    socket?.destroy();
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+      });
+      socket.end('{"ok":true,"value":null}\n');
+      await expect(response).resolves.toBeNull();
+    } finally {
+      socket?.destroy();
+      await closeServer(server);
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 it("returns explicit quiescence evidence for native background work", async () => {
   const transport = vi.fn().mockResolvedValueOnce("idle").mockResolvedValueOnce("unknown");
@@ -246,31 +328,32 @@ it("returns explicit quiescence evidence for native background work", async () =
   });
 });
 
-it("closes an in-flight native request when its signal is aborted", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
-  const socketPath = path.join(directory, "driver.sock");
-  const server = net.createServer();
-  let socket: net.Socket | undefined;
-  try {
-    server.listen(socketPath);
-    await once(server, "listening");
-    const controller = new AbortController();
-    const transport = createNativeLinuxTransport(socketPath);
-    const pending = transport("execute", {}, { ...context, signal: controller.signal }, computer);
-    [socket] = (await once(server, "connection")) as [net.Socket];
-    socket.resume();
-    const disconnected = once(socket, "close");
-    controller.abort();
-    await expect(pending).rejects.toThrow("native_driver_aborted_result_unknown");
-    await disconnected;
-  } finally {
-    socket?.destroy();
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+it.skipIf(process.platform === "win32")(
+  "closes an in-flight native request when its signal is aborted",
+  async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
+    const socketPath = path.join(directory, "driver.sock");
+    const server = net.createServer();
+    let socket: net.Socket | undefined;
+    try {
+      server.listen(socketPath);
+      await once(server, "listening");
+      const controller = new AbortController();
+      const transport = createNativeLinuxTransport(socketPath);
+      const pending = transport("execute", {}, { ...context, signal: controller.signal }, computer);
+      [socket] = (await once(server, "connection")) as [net.Socket];
+      socket.resume();
+      const disconnected = once(socket, "close");
+      controller.abort();
+      await expect(pending).rejects.toThrow("native_driver_aborted_result_unknown");
+      await disconnected;
+    } finally {
+      socket?.destroy();
+      await closeServer(server);
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 it("decodes driver images and file payloads", async () => {
   const transport = vi

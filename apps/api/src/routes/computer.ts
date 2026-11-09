@@ -61,6 +61,8 @@ import {
   resolveBusyBotName,
   toComputerStatus,
 } from "../computer-status.js";
+import { ensureNativeControlFence } from "../native-computer-control-fence.js";
+import { applyNativeComputerInput } from "../native-computer-input.js";
 import type { RouterDeps } from "../router.js";
 import type { RouterContext } from "./context.js";
 import { computerContext, isRecordNotFound } from "./shared.js";
@@ -343,7 +345,21 @@ export function computerRoutes(ctx: RouterContext) {
         if (!bot.computer?.providerRef || bot.computer.state !== "running") {
           throw new ORPCError("BAD_REQUEST", { message: "computer must be running" });
         }
+        const reuseActiveControl = async (leaseId: string) => {
+          if (bot.computer?.kind === "native-linux") {
+            const fence = await ensureNativeControlFence(
+              deps.prisma,
+              bot.computer.id,
+              bot.id,
+              leaseId,
+            );
+            if (!fence) {
+              throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
+            }
+          }
+        };
         if (hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id) {
+          await reuseActiveControl(bot.computer.controlLeaseId!);
           await bindWaitingTakeoverToControl(deps, {
             spaceId: context.actor.spaceId,
             threadId: bot.thread?.id,
@@ -419,6 +435,7 @@ export function computerRoutes(ctx: RouterContext) {
             controlHolder: "user",
             controlLeaseId: leaseId,
             controlLeaseExpiresAt: expiresAt,
+            controlFence: { increment: 1 },
             controlBotId: bot.id,
             controlRunId: waitingForTakeover ? executionLease?.runId : null,
             state: "running",
@@ -431,6 +448,7 @@ export function computerRoutes(ctx: RouterContext) {
           if (!hasActiveComputerControl(current) || current.controlBotId !== bot.id) {
             throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
           }
+          await reuseActiveControl(current.controlLeaseId!);
           await bindWaitingTakeoverToControl(deps, {
             spaceId: context.actor.spaceId,
             threadId: bot.thread?.id,
@@ -511,7 +529,14 @@ export function computerRoutes(ctx: RouterContext) {
             : undefined;
         const mapped = {
           ...(input.kind === "key"
-            ? { kind: "key" as const, key: String(input.payload.key ?? ""), sensitive }
+            ? {
+                kind: "key" as const,
+                key: String(input.payload.key ?? ""),
+                ...(Array.isArray(input.payload.modifiers)
+                  ? { modifiers: input.payload.modifiers.map(String) }
+                  : {}),
+                sensitive,
+              }
             : input.kind === "clipboard"
               ? {
                   kind: "clipboard" as const,
@@ -538,6 +563,18 @@ export function computerRoutes(ctx: RouterContext) {
                   }),
           ...(skillId ? { skillId } : {}),
         };
+        if (computer.kind === "native-linux") {
+          await applyNativeComputerInput(
+            deps,
+            context.actor,
+            { computerId: computer.id, botId: bot.id, providerRef: computer.providerRef },
+            input.controlLeaseId,
+            mapped,
+            computerContext(context.actor, bot.id, "input"),
+          );
+          scheduleComputerSleep(deps.jobs, computer.id);
+          return { ok: true as const };
+        }
         const outcome = await taughtSkills.recordInput(context.actor, bot.id, mapped);
         if (outcome === "stale") return { ok: true as const };
         if (outcome !== "recorded") {
@@ -825,6 +862,7 @@ export function computerRoutes(ctx: RouterContext) {
             },
             undefined,
             session.headers,
+            nativeReadOnly,
           ),
         };
       }),

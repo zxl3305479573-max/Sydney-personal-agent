@@ -552,6 +552,21 @@ function toAgentTool(
                   },
                 );
                 if (isAgentToolExecutionResult(result)) {
+                  if (
+                    tool.name === "computer_act" &&
+                    host.depth === 0 &&
+                    host.request.tools.some((candidate) => candidate.name === "request_takeover") &&
+                    result.details &&
+                    typeof result.details === "object" &&
+                    "takeoverSuggested" in result.details &&
+                    result.details.takeoverSuggested === true
+                  ) {
+                    host.pausePending = true;
+                    host.queue.push({
+                      type: "takeover",
+                      reason: "电脑操作多次没有进展，已暂停。请检查当前画面并决定是否接管。",
+                    });
+                  }
                   if (isToolPauseResult(result)) host.pausePending = true;
                   return keepToolResultWhole(tool.name, args)
                     ? result
