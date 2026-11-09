@@ -154,32 +154,12 @@ export async function signupThroughForm(
   if (testInfo) await captureScreenshot(page, testInfo, "01-sign-up");
   await page.getByPlaceholder("Your name").fill(name);
   await page.getByPlaceholder("Your email address").fill(email);
-  const passwordInput = page.getByPlaceholder("Password");
-  if (await passwordInput.isVisible()) {
-    await passwordInput.fill(password);
-    await page.getByRole("button", { name: "Create account" }).click();
-    if (await page.getByRole("heading", { name: "Check your email" }).isVisible()) {
-      await finishEmailVerification(page, email, password);
-      await page.goto("/onboarding");
-    }
-  } else {
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-    let code: string | undefined;
-    await expect
-      .poll(async () => {
-        const messages = await testEmails(page);
-        code = messages
-          .filter(
-            (message) => message.to === email && message.subject === "Your Sydney sign-in code",
-          )
-          .at(-1)
-          ?.text?.match(/\b\d{6}\b/)?.[0];
-        return Boolean(code);
-      })
-      .toBe(true);
-    if (!code) throw new Error("No sign-in code in the test mailbox");
-    await page.locator('input[autocomplete="one-time-code"]').fill(code);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  if (await page.getByRole("heading", { name: "Check your email" }).isVisible()) {
+    await finishEmailVerification(page, email, password);
+    await page.goto("/onboarding");
   }
   await page.waitForURL(/\/(onboarding|app)/, { timeout: 20_000 });
 }

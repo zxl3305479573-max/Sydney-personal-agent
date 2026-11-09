@@ -39,6 +39,7 @@ import { ComputerDeviceSettings } from "../components/ComputerDeviceSettings";
 import { ComputersUnavailableHint } from "../components/ComputersUnavailableHint";
 import { DesktopUpdateSection } from "../components/DesktopUpdates";
 import { PasskeySettings } from "../components/PasskeySettings";
+import { PasswordStrength } from "../components/PasswordStrength";
 import { SettingsGroup, SettingsRow } from "../components/SettingsRows";
 import { TrustedLinkSitesSettings } from "../components/TrustedLinkSitesSettings";
 import type { UsageEvent } from "../components/UsageHeatmap";
@@ -697,9 +698,9 @@ function ChangePasswordRow({ email }: { email?: string | null }) {
               value={currentPassword}
               onChange={setCurrentPassword}
             />
-            <SettingsPasswordInput
+            <PasswordStrength
+              id="settings-new-password"
               label={t`New password`}
-              autoComplete="new-password"
               value={newPassword}
               onChange={setNewPassword}
             />

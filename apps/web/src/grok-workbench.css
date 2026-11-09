@@ -547,6 +547,25 @@
     display: none;
   }
 
+  [data-theme="dark"] .sydney-create-bot-description,
+  [data-theme="dark"] .sydney-create-bot-close {
+    color: var(--muted-foreground);
+  }
+
+  [data-theme="dark"] .sydney-create-bot-label {
+    color: var(--foreground);
+  }
+
+  [data-theme="dark"] .sydney-create-bot-preview .sydney-bot-avatar,
+  [data-theme="dark"] .sydney-create-bot-preview .rakazo-logo-avatar {
+    background: var(--card);
+    box-shadow: 0 12px 22px rgb(0 0 0 / 25%);
+  }
+
+  [data-theme="dark"] .sydney-create-bot [data-slot="input"]::placeholder {
+    color: var(--muted-foreground);
+  }
+
   @keyframes sydney-create-bot-enter {
     from {
       opacity: 0;

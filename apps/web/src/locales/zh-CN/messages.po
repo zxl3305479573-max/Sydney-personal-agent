@@ -4482,6 +4482,51 @@ msgstr "密码已更新"
 msgid "Passwords do not match"
 msgstr "两次密码不一致"
 
+msgid "Open the verification link in your email, then sign in with your password."
+msgstr "请打开邮件中的验证链接，然后使用密码登录。"
+
+msgid "At least 8 characters"
+msgstr "至少 8 个字符"
+
+msgid "Uppercase and lowercase letters"
+msgstr "包含大小写字母"
+
+msgid "At least one number"
+msgstr "至少一个数字"
+
+msgid "At least one symbol"
+msgstr "至少一个符号"
+
+msgid "No password"
+msgstr "尚未输入密码"
+
+msgid "Too short"
+msgstr "过短"
+
+msgid "Weak"
+msgstr "弱"
+
+msgid "Fair"
+msgstr "一般"
+
+msgid "Good"
+msgstr "较好"
+
+msgid "Strong"
+msgstr "强"
+
+msgid "Password strength"
+msgstr "密码强度"
+
+msgid "Only the length is required; the other suggestions improve strength."
+msgstr "仅长度为必填要求，其余建议可提高密码强度。"
+
+msgid ", met"
+msgstr "，已满足"
+
+msgid ", not met"
+msgstr "，未满足"
+
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Past due"
 msgstr "逾期未付"

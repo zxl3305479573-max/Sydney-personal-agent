@@ -238,65 +238,67 @@ it("signs in with an emailed code when the password is blank", async () => {
   expect(button("Working…").disabled).toBe(true);
 });
 
-it("names a new account and keeps the email when going back from the code", async () => {
+it.each([true, false])(
+  "requires matching passwords for signup (email codes: %s)",
+  async (emailCode) => {
+    vi.mocked(fetchAuthCapabilities).mockResolvedValue({ ...codeCapabilities, emailCode });
+    vi.mocked(authClient.signUp.email).mockResolvedValue({
+      data: { token: null, user: { emailVerified: false } },
+      error: null,
+    } as never);
+    await render("up");
+    await enter(host.querySelector('input[name="name"]'), "Ada");
+    await enter(host.querySelector('input[name="email"]'), "ada@example.com");
+    await enter(host.querySelector('input[name="password"]'), "example-password");
+    await enter(host.querySelector('input[name="confirm-password"]'), "different-password");
+    await submit();
+    expect(host.querySelector('[role="alert"]')!.textContent).toBe("Passwords do not match");
+    expect(authClient.signUp.email).not.toHaveBeenCalled();
+    await enter(host.querySelector('input[name="confirm-password"]'), "example-password");
+    await submit();
+    expect(authClient.signUp.email).toHaveBeenCalledWith({
+      email: "ada@example.com",
+      password: "example-password",
+      name: "Ada",
+    });
+    expect(authClient.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
+    expect(host.querySelector("h1")!.textContent).toBe("Check your email");
+    expect(host.textContent).toContain("Open the verification link");
+  },
+);
+
+it("updates password strength and lets a user reveal the new password", async () => {
   vi.mocked(fetchAuthCapabilities).mockResolvedValue(codeCapabilities);
-  vi.mocked(authClient.emailOtp.sendVerificationOtp).mockResolvedValue({
-    data: { success: true },
-    error: null,
-  } as never);
-  vi.mocked(authClient.signIn.emailOtp)
-    .mockResolvedValueOnce({
-      data: null,
-      error: { code: "INVALID_OTP", message: "Invalid OTP", status: 400, statusText: "" },
-    } as never)
-    .mockResolvedValueOnce({ data: {}, error: null } as never);
   await render("up");
-  await enter(host.querySelector('input[name="name"]'), "Ada");
-  await enter(host.querySelector('input[name="email"]'), "ada@example.com");
-  await submit();
-  await enter(host.querySelector('input[aria-label="Code"]'), "111111");
-  expect(host.querySelector('[role="alert"]')!.textContent).toBe("Invalid code");
-  await act(async () => button("Back").click());
-  expect(host.querySelector<HTMLInputElement>('input[name="email"]')!.value).toBe(
-    "ada@example.com",
-  );
-  await submit();
-  expect(authClient.emailOtp.sendVerificationOtp).toHaveBeenCalledTimes(2);
-  await enter(host.querySelector('input[aria-label="Code"]'), "222222");
-  expect(authClient.signIn.emailOtp).toHaveBeenLastCalledWith({
-    email: "ada@example.com",
-    otp: "222222",
-    name: "Ada",
-  });
-  // The session refetch moves a signed-in user on; until then the form stays busy.
-  expect(clearSpaceSelection).toHaveBeenCalled();
-  expect(button("Working…").disabled).toBe(true);
+  const password = host.querySelector<HTMLInputElement>('input[name="password"]')!;
+  const meter = host.querySelector<HTMLMeterElement>("meter")!;
+  expect(meter.value).toBe(0);
+  await enter(password, "abc");
+  expect(meter.value).toBe(1);
+  expect(meter.getAttribute("aria-valuetext")).toBe("Too short");
+  await enter(password, "Abcdef12!");
+  expect(meter.value).toBe(4);
+  expect(meter.getAttribute("aria-valuetext")).toBe("Strong");
+  const reveal = host.querySelector<HTMLButtonElement>('button[aria-label="Show password"]')!;
+  await act(async () => reveal.click());
+  expect(password.type).toBe("text");
+  expect(reveal.getAttribute("aria-pressed")).toBe("true");
+  await act(async () => reveal.click());
+  expect(password.type).toBe("password");
 });
 
-it("requires an emailed code before a signup can enter the app", async () => {
-  vi.mocked(fetchAuthCapabilities).mockResolvedValue(codeCapabilities);
-  vi.mocked(authClient.emailOtp.sendVerificationOtp).mockResolvedValue({
-    data: { success: true },
+it("enters the app after password signup when no email verification is required", async () => {
+  vi.mocked(fetchAuthCapabilities).mockResolvedValue({ ...codeCapabilities, emailCode: false });
+  vi.mocked(authClient.signUp.email).mockResolvedValue({
+    data: { token: "test-session", user: { emailVerified: false } },
     error: null,
   } as never);
-  vi.mocked(authClient.signIn.emailOtp).mockResolvedValue({ data: {}, error: null } as never);
   await render("up");
-  expect(host.querySelector('input[type="password"]')).toBeNull();
-  await enter(host.querySelector('input[name="name"]'), "Ada");
   await enter(host.querySelector('input[name="email"]'), "ada@example.com");
+  await enter(host.querySelector('input[name="password"]'), "example-password");
+  await enter(host.querySelector('input[name="confirm-password"]'), "example-password");
   await submit();
-  expect(authClient.signUp.email).not.toHaveBeenCalled();
-  expect(authClient.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
-    email: "ada@example.com",
-    type: "sign-in",
-  });
-  expect(host.querySelector("h1")!.textContent).toBe("Check your email");
-  await enter(host.querySelector('input[aria-label="Code"]'), "123456");
-  expect(authClient.signIn.emailOtp).toHaveBeenCalledWith({
-    email: "ada@example.com",
-    otp: "123456",
-    name: "Ada",
-  });
+  expect(authClient.signUp.email).toHaveBeenCalled();
   expect(clearSpaceSelection).toHaveBeenCalled();
 });
 

@@ -10,6 +10,7 @@ import { Button, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from "@ra
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PasskeySignIn } from "../components/PasskeySignIn";
+import { PasswordStrength } from "../components/PasswordStrength";
 import { authClient } from "../lib/auth";
 import type { AuthCapabilities } from "../lib/auth-capabilities";
 import { fetchAuthCapabilities } from "../lib/auth-capabilities";
@@ -28,6 +29,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [name, setName] = useState("");
   const [emailBlurred, setEmailBlurred] = useState(false);
   const [warnedEmail, setWarnedEmail] = useState<string | null>(null);
@@ -48,9 +50,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
   const useCode = Boolean(reset?.passwordAuth && reset.emailCode) && mode !== "forgot";
-  const signupCodeOnly = mode === "up" && useCode;
-  // A blank password asks for an emailed code; email-capable signups always require one.
-  const codeMode = useCode && (signupCodeOnly || !password);
+  const codeMode = useCode && mode === "in" && !password;
   const codeStep = useCode && codeSent;
   const passwordFieldId = mode === "in" ? "current-password" : "new-password";
   const title =
@@ -98,6 +98,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     });
     if (issue) {
       setError(credentialIssueText(issue));
+      return;
+    }
+    if (mode === "up" && password !== confirmation) {
+      setError(t`Passwords do not match`);
       return;
     }
     if (emailSuggestion && warnedEmail !== email) {
@@ -231,6 +235,13 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     <AuthFrame onSubmit={submit} title={title} mode={mode}>
       {sent ? (
         <div className="w-full text-center">
+          {searchParams.get("verify") === "email" ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              <Trans>
+                Open the verification link in your email, then sign in with your password.
+              </Trans>
+            </p>
+          ) : null}
           <Link to="/sign-in" className="font-medium text-foreground">
             <Trans>Back to sign in</Trans>
           </Link>
@@ -348,7 +359,16 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   ) : null}
                 </div>
               )}
-              {mode !== "forgot" && !signupCodeOnly && !codeStep ? (
+              {mode === "up" ? (
+                <PasswordStrength
+                  id={passwordFieldId}
+                  name="password"
+                  label={t`Password`}
+                  value={password}
+                  onChange={setPassword}
+                  className="mt-4"
+                />
+              ) : mode === "in" && !codeStep ? (
                 <div className="mt-4 w-full">
                   <Label htmlFor={passwordFieldId} className="text-muted-foreground">
                     <Trans>Password</Trans>
@@ -356,17 +376,16 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   <Input
                     id={passwordFieldId}
                     name="password"
-                    autoComplete={mode === "in" ? "current-password" : "new-password"}
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t`Password`}
                     type="password"
                     required={!codeMode}
-                    minLength={mode === "up" ? MIN_PASSWORD_LENGTH : undefined}
                     maxLength={MAX_PASSWORD_LENGTH}
                     className={fieldClass}
                   />
-                  {mode === "in" && reset?.passwordReset ? (
+                  {reset?.passwordReset ? (
                     <div className="mt-2 text-right text-sm">
                       <Link to="/forgot-password" className="font-medium text-foreground">
                         <Trans>Forgot password?</Trans>
@@ -374,6 +393,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                     </div>
                   ) : null}
                 </div>
+              ) : null}
+              {mode === "up" ? (
+                <PasswordField
+                  id="confirm-password"
+                  label={t`Confirm password`}
+                  value={confirmation}
+                  onChange={setConfirmation}
+                  className="mt-4"
+                />
               ) : null}
               {error ? (
                 <p role="alert" className="mt-3 w-full text-sm text-destructive">
@@ -493,7 +521,7 @@ export function PasswordResetPage() {
         </div>
       ) : (
         <>
-          <PasswordField
+          <PasswordStrength
             id="new-password"
             label={t`New password`}
             value={password}

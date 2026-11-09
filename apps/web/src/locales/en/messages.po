@@ -4482,6 +4482,51 @@ msgstr "Password updated"
 msgid "Passwords do not match"
 msgstr "Passwords do not match"
 
+msgid "Open the verification link in your email, then sign in with your password."
+msgstr "Open the verification link in your email, then sign in with your password."
+
+msgid "At least 8 characters"
+msgstr "At least 8 characters"
+
+msgid "Uppercase and lowercase letters"
+msgstr "Uppercase and lowercase letters"
+
+msgid "At least one number"
+msgstr "At least one number"
+
+msgid "At least one symbol"
+msgstr "At least one symbol"
+
+msgid "No password"
+msgstr "No password"
+
+msgid "Too short"
+msgstr "Too short"
+
+msgid "Weak"
+msgstr "Weak"
+
+msgid "Fair"
+msgstr "Fair"
+
+msgid "Good"
+msgstr "Good"
+
+msgid "Strong"
+msgstr "Strong"
+
+msgid "Password strength"
+msgstr "Password strength"
+
+msgid "Only the length is required; the other suggestions improve strength."
+msgstr "Only the length is required; the other suggestions improve strength."
+
+msgid ", met"
+msgstr ", met"
+
+msgid ", not met"
+msgstr ", not met"
+
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Past due"
 msgstr "Past due"
