@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatAppearance } from "../lib/chat-appearance";
 import {
   cancelChatAppearancePreview,
+  DEFAULT_SURFACE_OPACITY,
   DEFAULT_TEXT_COLOR_PICKER_VALUE,
   EMPTY_CHAT_APPEARANCE,
   getSavedChatAppearance,
@@ -274,6 +275,25 @@ export function ChatAppearanceSettings() {
             </div>
             <p className="text-muted-foreground">请检查文字与背景的对比度，确保消息清晰可读。</p>
           </div>
+          <div className="space-y-2">
+            <label className="flex flex-wrap items-center gap-3" htmlFor="surface-opacity">
+              <span className="font-medium">组件不透明度</span>
+              <input
+                id="surface-opacity"
+                type="range"
+                min="0"
+                max="100"
+                value={draft.surfaceOpacity ?? DEFAULT_SURFACE_OPACITY}
+                onChange={(event) =>
+                  change({ ...draft, surfaceOpacity: Number(event.target.value) })
+                }
+              />
+              <span>{draft.surfaceOpacity ?? DEFAULT_SURFACE_OPACITY}%</span>
+            </label>
+            <p className="text-muted-foreground">
+              统一调整新建小伙伴、连接应用、搜索等玻璃组件；对话列表保持现状。
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={fieldClass} onClick={() => void save()}>
               保存外观
@@ -299,6 +319,7 @@ export function ChatAppearanceSettings() {
                   backgroundId: null,
                   userTextColor: null,
                   botTextColor: null,
+                  surfaceOpacity: DEFAULT_SURFACE_OPACITY,
                 })
               }
             >

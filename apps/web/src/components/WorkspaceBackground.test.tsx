@@ -6,6 +6,7 @@ import { expect, it, vi } from "vitest";
 import {
   cancelChatAppearancePreview,
   chatBackgroundKey,
+  DEFAULT_SURFACE_OPACITY,
   EMPTY_CHAT_APPEARANCE,
   normalizeAppearance,
   previewChatAppearance,
@@ -47,6 +48,8 @@ it("updates and clears the global background when a preview changes", async () =
       host.querySelector<HTMLElement>('[data-testid="workspace-background"] > div')?.style.opacity,
     ).toBe("0.12");
     expect(document.documentElement.dataset.workspaceBackground).toBe("true");
+    expect(document.documentElement.style.getPropertyValue("--sydney-surface-opacity")).toBe("0.8");
+    expect(document.documentElement.style.getPropertyValue("--sydney-surface-alpha")).toBe("80%");
     await act(async () => cancelChatAppearancePreview());
     expect(host.querySelector("img")).toBeNull();
     expect(document.documentElement.dataset.workspaceBackground).toBeUndefined();
@@ -54,6 +57,25 @@ it("updates and clears the global background when a preview changes", async () =
   } finally {
     act(() => root.unmount());
     vi.unstubAllGlobals();
+  }
+});
+
+it("previews a shared surface opacity without changing the saved value", async () => {
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<WorkspaceBackground />));
+    await act(async () => previewChatAppearance({ ...EMPTY_CHAT_APPEARANCE, surfaceOpacity: 35 }));
+    expect(document.documentElement.style.getPropertyValue("--sydney-surface-opacity")).toBe(
+      "0.35",
+    );
+    expect(document.documentElement.style.getPropertyValue("--sydney-surface-alpha")).toBe("35%");
+    await act(async () => cancelChatAppearancePreview());
+    expect(document.documentElement.style.getPropertyValue("--sydney-surface-opacity")).toBe(
+      String(DEFAULT_SURFACE_OPACITY / 100),
+    );
+  } finally {
+    act(() => root.unmount());
   }
 });
 

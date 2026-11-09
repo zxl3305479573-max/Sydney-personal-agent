@@ -17,6 +17,7 @@ export type ChatAppearance = {
   backgrounds: ChatBackground[];
   backgroundId: string | null;
   chatBackgrounds?: Record<string, string>;
+  surfaceOpacity?: number;
 };
 
 export const EMPTY_CHAT_APPEARANCE: ChatAppearance = {
@@ -25,6 +26,7 @@ export const EMPTY_CHAT_APPEARANCE: ChatAppearance = {
 };
 
 export const DEFAULT_TEXT_COLOR_PICKER_VALUE = "#000000";
+export const DEFAULT_SURFACE_OPACITY = 80;
 
 const idSchema = z.string().min(1).max(100);
 const nameSchema = z.string().max(80);
@@ -47,6 +49,7 @@ const appearanceSchema = z.object({
     .max(100),
   backgroundId: idSchema.nullable(),
   chatBackgrounds: z.record(z.string().min(1).max(500), idSchema).optional(),
+  surfaceOpacity: z.number().int().min(0).max(100).optional(),
 });
 
 export function useAppearanceImage(image: Blob | undefined): string | null {
@@ -66,6 +69,10 @@ export function useAppearanceImage(image: Blob | undefined): string | null {
 export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
   const backgrounds = value.backgrounds.filter((item) => item.image instanceof Blob);
   const backgroundIds = new Set(backgrounds.map((item) => item.id));
+  const surfaceOpacity =
+    typeof value.surfaceOpacity === "number" && Number.isFinite(value.surfaceOpacity)
+      ? Math.min(100, Math.max(0, Math.round(value.surfaceOpacity)))
+      : DEFAULT_SURFACE_OPACITY;
   return {
     mode: value.mode,
     userTextColor: value.userTextColor,
@@ -80,6 +87,7 @@ export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
           ),
         }
       : {}),
+    surfaceOpacity,
   };
 }
 
