@@ -185,7 +185,7 @@
   .sydney-create-bot,
   .sydney-integrations-dialog {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--dialog);
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 18px 48px color-mix(in srgb, black 14%, transparent);
@@ -195,7 +195,7 @@
   .sydney-mobile-glass,
   .sydney-mobile-glass-input {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--card);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 8px 20px color-mix(in srgb, black 7%, transparent);
@@ -215,6 +215,12 @@
     box-shadow:
       0 1px 0 color-mix(in srgb, white 88%, transparent) inset,
       0 10px 24px color-mix(in srgb, black 9%, transparent);
+  }
+
+  .sydney-mobile-glass input[data-slot="input-group-control"],
+  [data-theme="dark"] .sydney-mobile-glass input[data-slot="input-group-control"] {
+    background: transparent;
+    box-shadow: none;
   }
 
   .sydney-mobile-glass-item {
@@ -238,7 +244,7 @@
 
   .sydney-mobile-account-popover {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--popover);
+    background: color-mix(in srgb, var(--popover) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 16px 36px color-mix(in srgb, black 14%, transparent);
@@ -247,7 +253,7 @@
 
   .sydney-mobile-account-trigger {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--card) 68%, transparent);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     box-shadow: 0 1px 0 color-mix(in srgb, white 78%, transparent) inset;
     backdrop-filter: blur(14px) saturate(1.1);
   }
@@ -257,7 +263,7 @@
   ),
   [data-slot="popover-content"]:not(.sydney-mobile-account-popover) {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--popover);
+    background: color-mix(in srgb, var(--popover) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 16px 36px color-mix(in srgb, black 12%, transparent);
@@ -267,7 +273,7 @@
   [data-slot="dialog-content"] .sydney-mobile-glass-input,
   [data-slot="dialog-content"] [data-slot="input"] {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--card) 70%, transparent);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     backdrop-filter: blur(14px) saturate(1.08);
   }
 
@@ -410,7 +416,7 @@
     padding: 16px 20px max(18px, env(safe-area-inset-bottom));
     border: 0;
     border-radius: 30px 30px 0 0;
-    background: color-mix(in srgb, var(--dialog) 86%, transparent);
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 -1px 0 rgb(255 255 255 / 92%),
       0 -18px 48px rgb(0 0 0 / 12%);

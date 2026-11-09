@@ -18,19 +18,28 @@ test("mobile settings keep theme surfaces and text readable when appearance chan
       probe.remove();
       return color;
     }, name);
+  const surface = (name: string) =>
+    page.evaluate((variable) => {
+      const probe = document.createElement("span");
+      probe.style.backgroundColor = `color-mix(in srgb, var(${variable}) var(--sydney-surface-alpha), transparent)`;
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    }, name);
 
   await settings.getByTestId("ui-appearance-dark").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("#root")).toHaveCSS("background-color", await token("--background"));
-  await expect(settings).toHaveCSS("background-color", await token("--dialog"));
-  await expect(group).toHaveCSS("background-color", await token("--card"));
+  await expect(settings).toHaveCSS("background-color", await surface("--dialog"));
+  await expect(group).toHaveCSS("background-color", await surface("--card"));
   await expect(group.locator(".sydney-settings-row").first()).toHaveCSS(
     "color",
     await token("--foreground"),
   );
   await settings.getByRole("button", { name: "Change password" }).click();
   const password = settings.getByLabel("New password", { exact: true });
-  await expect(password).toHaveCSS("background-color", await token("--card"));
+  await expect(password).toHaveCSS("background-color", await surface("--card"));
   await expect(password).toHaveCSS("color", await token("--foreground"));
 
   await settings.getByTestId("ui-appearance-light").click();
@@ -80,6 +89,20 @@ test("narrow settings reveals the active section and offers scroll controls", as
 
   for (const width of [640, 390]) {
     await page.setViewportSize({ width, height: 700 });
+    const row = settings.getByTestId("settings-nav-row");
+    await expect
+      .poll(async () => {
+        const panelBounds = await settings.boundingBox();
+        const rowBounds = await row.boundingBox();
+        return Boolean(
+          panelBounds &&
+            rowBounds &&
+            Math.abs(rowBounds.x - panelBounds.x) <= 1 &&
+            Math.abs(rowBounds.width - panelBounds.width) <= 1,
+        );
+      })
+      .toBe(true);
+    await expect(nav).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(usage).toHaveAttribute("aria-current", "page");
     // Deep links and resizing must reveal the whole selected section.
     await expect

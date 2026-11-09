@@ -1,12 +1,16 @@
 # 验证记录
 
+2026-11-09（PA-018 手机设置导航）：`SettingsOverlay.test.tsx` 10 项通过；Edge 无头浏览器以 390 和 640 像素宽加载实际 CSS 与简化结构，检查深浅主题及 35%、100% 不透明度下导航行宽度、背景、滚动区透明和横向滚动，结果符合预期。Biome 检查通过并报告 5 项 CSS 警告；新增应用 E2E 断言未运行，真实手机及部署未验证。
+
 2026-11-09（PA-012 原生输入协议）：新增定向测试验证有效运行租约下映射为驱动 `act`、缺失租约时不发送请求，单项通过；adapters TypeScript 与修改文件 Biome 通过。Python 驱动单元测试 17 项、跳过 2 项；完整 `native-linux-sandbox.test.ts` 中 15 项通过、2 项依赖本机 socket 服务的测试报 `Server is not running`，未确认其失败原因；未在真实 Linux 驱动或人工接管验证。
 
 2026-11-09（PA-011、PA-012 人工接管点击无响应）：通过 `systemctl show` 只读核对线上正在运行的 VNC 服务带 `-viewonly`；检查当前仓库发现 native-linux 屏幕连接与代理也拒绝交互。后续已在本地补齐独立人工输入协议和离线测试，见 V-057；线上尚未部署、发送鼠标键盘、访问桌面画面、重启服务或修改配置，真实控制通路仍待实机验收。
 
 2026-11-09（PA-011、PA-012 云电脑排查）：只读检查生产原生驱动动作及显示服务，当前桌面为 1920×1080；与本地驱动文件哈希不同，未假定两者完全相同。资源快照负载较低但 swap 已使用，无法据此判断交互时瓶颈。`pnpm exec vitest run packages/adapters/src/native-computer-tools.test.ts packages/adapters/src/computer-screenshot-sharing.test.ts packages/adapters/src/computer-tools.test.ts --maxWorkers=1` 通过 3 文件、18 项；adapters TypeScript 和相关代码 Biome 检查通过。没有测量端到端输入延迟、画面帧率或网络，未验证真实任务、真实接管及部署，不能宣称卡顿已修复。
 
-2026-11-09（PA-018、PA-020 全局与独立对话背景）：本机定向 Vitest 3 文件、12 项通过，覆盖全局预览及取消、透明度、独立选择与跟随全局、失效素材引用清理及原有聊天渲染；`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于项目要求 22.22.2 而未启动；未安装依赖或升级运行时。实际应用浏览器、手机安全区域、键盘和部署未验证。
+2026-11-09（PA-018、PA-020 全局与独立对话背景、共用组件透明度）：本机定向 Vitest 3 文件、14 项通过，覆盖全局预览及取消、背景透明度、独立选择与跟随全局、失效素材引用清理、共用组件透明度预览与保存及原有聊天渲染；`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 通过。`pnpm --filter @rakazo/web check` 因本机 Node 22.22.0 低于项目要求 22.22.2 而未启动；未安装依赖或升级运行时。实际应用浏览器、手机安全区域、键盘和部署未验证。
+
+同日共用组件样式补充：本机 Edge 以 390×844 视口加载实际 CSS 和简化页面，检查浅色、深色下不透明度 0% 与 100%：新建及搜索容器随设置变化，搜索内层透明，对话列表选中项及聊天输入区背景不随设置变化；此检查不替代完整应用及真实手机验收。
 
 2026-11-09（PA-011、PA-012、PA-018 电脑截图与接管）：`pnpm exec vitest run packages/adapters/src/computer-screenshot-sharing.test.ts packages/adapters/src/computer-tools.test.ts packages/testkit/src/pi-runtime-checkpoint.test.ts packages/testkit/src/executor-turn-checkpoint.test.ts --maxWorkers=1`：4 文件、56 项通过，覆盖普通截图不发布、明确分享、同帧分享、发送失败、重复动作拦截、接管工具不可用及执行器接管恢复不重放；adapters TypeScript 与相关文件 Biome 检查通过。未运行真实模型、浏览器、云电脑、网络断线或生产验证；用户意图识别和其他类型卡住时的模型行为仍待验收。
 

@@ -249,7 +249,10 @@ export function SettingsOverlay({
         className="sydney-settings-dialog flex h-[min(760px,calc(100%-2rem))] max-h-[calc(100%-2rem)] w-[min(1080px,calc(100%-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[calc(100%-5rem)] sm:max-w-[1080px]"
       >
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 md:contents">
+          <div
+            data-testid="settings-nav-row"
+            className="sydney-settings-nav-row flex shrink-0 items-center gap-1 border-b border-border px-3 md:contents"
+          >
             {/* Reserve arrow space so showing controls does not change the overflow measurement. */}
             <Button
               variant="ghost"

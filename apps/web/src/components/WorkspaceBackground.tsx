@@ -1,7 +1,11 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import type { ChatBackground } from "../lib/chat-appearance";
-import { useAppearanceImage, useChatAppearance } from "../lib/chat-appearance";
+import {
+  DEFAULT_SURFACE_OPACITY,
+  useAppearanceImage,
+  useChatAppearance,
+} from "../lib/chat-appearance";
 
 export function ConversationBackgroundLayer({
   background,
@@ -75,6 +79,12 @@ export function WorkspaceBackground() {
       root.style.removeProperty("--workspace-background-overlay");
     };
   }, [background, url]);
+
+  useEffect(() => {
+    const opacity = appearance.surfaceOpacity ?? DEFAULT_SURFACE_OPACITY;
+    document.documentElement.style.setProperty("--sydney-surface-opacity", String(opacity / 100));
+    document.documentElement.style.setProperty("--sydney-surface-alpha", `${opacity}%`);
+  }, [appearance.surfaceOpacity]);
 
   if (!background || !url) return null;
   return (

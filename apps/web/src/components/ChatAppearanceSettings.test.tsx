@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  DEFAULT_SURFACE_OPACITY,
   EMPTY_CHAT_APPEARANCE,
   getSavedChatAppearance,
   loadChatAppearance,
@@ -169,6 +170,34 @@ it("saves a conversation background independently and can follow the global choi
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(getSavedChatAppearance()).toMatchObject({ backgroundId: "global", chatBackgrounds: {} });
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+it("previews and saves the shared component opacity", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  mockIndexedDb();
+  await loadChatAppearance();
+  await saveChatAppearance(EMPTY_CHAT_APPEARANCE);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<ChatAppearanceSettings />));
+    const slider = container.querySelector<HTMLInputElement>("#surface-opacity")!;
+    expect(slider.value).toBe(String(DEFAULT_SURFACE_OPACITY));
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      setValue.call(slider, "35");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("35%");
+    await act(async () =>
+      [...container.querySelectorAll("button")]
+        .find((item) => item.textContent === "保存外观")
+        ?.click(),
+    );
+    expect(getSavedChatAppearance().surfaceOpacity).toBe(35);
   } finally {
     await act(async () => root.unmount());
   }
