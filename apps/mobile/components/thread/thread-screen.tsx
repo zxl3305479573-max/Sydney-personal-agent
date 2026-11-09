@@ -555,6 +555,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     <View style={{ flex: 1 }}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
+        resizeMode={chatAppearance.backgroundFit}
         imageStyle={{ opacity: chatAppearance.backgroundOpacity }}
         style={{ flex: 1 }}
       >

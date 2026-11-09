@@ -58,3 +58,41 @@ it("keeps the previous appearance when saving fails", async () => {
   expect(mobile.getMobileChatAppearance()).toBe(previous);
   expect(listener).not.toHaveBeenCalled();
 });
+
+it("restores legacy background settings and defaults its display mode to cover", async () => {
+  storage.value = JSON.stringify({
+    backgroundUri: "file://background",
+    backgroundOpacity: 0.6,
+    overlayOpacity: 0.3,
+    bubble: null,
+  });
+  const mobile = await import("./chat-appearance");
+  expect(await mobile.loadMobileChatAppearance()).toMatchObject({
+    backgroundUri: "file://background",
+    backgroundFit: "cover",
+    backgroundOpacity: 0.6,
+    overlayOpacity: 0.3,
+  });
+});
+
+it("persists background display controls without changing the selected bubble", async () => {
+  const mobile = await import("./chat-appearance");
+  const bubble = mobile.MOBILE_BUBBLE_PRESETS[1]!.value;
+  await mobile.saveMobileChatAppearance({
+    ...mobile.getMobileChatAppearance(),
+    backgroundUri: "file://background",
+    backgroundFit: "contain",
+    backgroundOpacity: 0.4,
+    overlayOpacity: 0.7,
+    bubble,
+  });
+  vi.resetModules();
+  const restored = await import("./chat-appearance");
+  expect(await restored.loadMobileChatAppearance()).toMatchObject({
+    backgroundUri: "file://background",
+    backgroundFit: "contain",
+    backgroundOpacity: 0.4,
+    overlayOpacity: 0.7,
+    bubble,
+  });
+});
