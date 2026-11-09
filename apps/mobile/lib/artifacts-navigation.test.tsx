@@ -123,7 +123,7 @@ it.each(["android", "ios"])("omits Artifacts from the %s fallback header", (plat
   act(() => control("Account").click());
   act(() => control("Search").click());
   act(() => control("Activity").click());
-  expect(header.push.mock.calls).toEqual([["/account"], ["/search"]]);
+  expect(header.push.mock.calls).toEqual([["/settings-home"], ["/search"]]);
   expect(toggleActivityMode).toHaveBeenCalledOnce();
 });
 

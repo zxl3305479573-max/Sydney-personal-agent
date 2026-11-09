@@ -99,7 +99,13 @@ export default function Account() {
   const sideInsets = useSideInsets();
   const { t, locale } = useI18n();
   const router = useRouter();
-  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const { focus, section } = useLocalSearchParams<{ focus?: string; section?: string }>();
+  const showAll = !section;
+  const showAccount = showAll || section === "account";
+  const showAppearance = showAll || section === "appearance";
+  const showPermissions = showAll || section === "permissions";
+  const showAdvanced = showAll || section === "advanced";
+  const showUsage = section === "usage" || focus === "usage";
   const [me, setMe] = useState<MobileMe | null>(null);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
@@ -400,175 +406,190 @@ export default function Account() {
         contentContainerStyle={[styles.content, stackOptions && styles.compactContent]}
         contentInsetAdjustmentBehavior="automatic"
       >
-        {focus === "usage" ? (
+        {showUsage ? (
           <>
             <SettingsGroup>{usageBlock}</SettingsGroup>
             {usageModels}
           </>
         ) : null}
-        <SettingsGroup label={t("Account")}>
-          <SettingsRow
-            accessibilityRole="button"
-            accessibilityLabel={t("Edit name")}
-            accessibilityValue={{
-              text:
-                me?.email && account.label !== me.email
-                  ? `${account.label}, ${me.email}`
-                  : account.label,
-            }}
-            chevron="right"
-            disabled={!me}
-            detail={me?.email && account.label !== me.email ? me.email : undefined}
-            title={account.label}
-            dimmed={namePending}
-            onPress={editName}
-          />
-          {focus !== "usage" ? usageBlock : null}
-        </SettingsGroup>
-
-        {(security?.sso && !security.ssoLinked) || canChangePassword ? (
-          <SettingsGroup>
-            {security?.sso && !security.ssoLinked ? (
+        {showAccount ? (
+          <>
+            <SettingsGroup label={t("Account")}>
               <SettingsRow
                 accessibilityRole="button"
+                accessibilityLabel={t("Edit name")}
+                accessibilityValue={{
+                  text:
+                    me?.email && account.label !== me.email
+                      ? `${account.label}, ${me.email}`
+                      : account.label,
+                }}
                 chevron="right"
-                disabled={pending}
-                dimmed={pending}
-                title={t("Link SSO")}
-                onPress={() =>
-                  void securityAction(async () => {
-                    if (await continueWithSso("link")) setSecurity(await fetchAccountSecurity());
-                  })
-                }
+                disabled={!me}
+                detail={me?.email && account.label !== me.email ? me.email : undefined}
+                title={account.label}
+                dimmed={namePending}
+                onPress={editName}
               />
-            ) : null}
-            {canChangePassword ? (
-              <SettingsRow
-                accessibilityRole="button"
-                chevron="right"
-                onPress={() => router.push("/change-password")}
-                title={t("Change password")}
-              />
-            ) : null}
-          </SettingsGroup>
-        ) : null}
+              {showAll && !showUsage ? usageBlock : null}
+            </SettingsGroup>
 
-        {passkeys ? (
-          <SettingsGroup accessibilityLabel={t("Passkeys")} label={t("Passkeys")}>
-            {passkeys.map((passkey) => {
-              const name = passkey.name ?? t("Passkey");
-              const created = passkey.createdAt ? new Date(passkey.createdAt) : null;
-              return (
-                <MenuView
-                  key={passkey.id}
-                  actions={[
-                    // Alert.prompt, which renames, exists only on iOS.
-                    ...(Platform.OS === "ios" ? [{ id: "rename", title: t("Rename") }] : []),
-                    { id: "delete", title: t("Delete"), attributes: { destructive: true } },
-                  ]}
-                  colorScheme={colorScheme}
-                  onPressAction={(event) =>
-                    passkeyMenuAction(passkey, name, event.nativeEvent.event)
-                  }
-                  title={name}
-                >
+            {(security?.sso && !security.ssoLinked) || canChangePassword ? (
+              <SettingsGroup>
+                {security?.sso && !security.ssoLinked ? (
                   <SettingsRow
-                    accessible
                     accessibilityRole="button"
-                    detail={
-                      created && !Number.isNaN(created.getTime())
-                        ? created.toLocaleDateString(dateLocaleForUi(locale), {
-                            dateStyle: "medium",
-                          })
-                        : undefined
+                    chevron="right"
+                    disabled={pending}
+                    dimmed={pending}
+                    title={t("Link SSO")}
+                    onPress={() =>
+                      void securityAction(async () => {
+                        if (await continueWithSso("link"))
+                          setSecurity(await fetchAccountSecurity());
+                      })
                     }
-                    dimmed={passkeyPending}
-                    title={name}
                   />
-                </MenuView>
-              );
-            })}
-            <SettingsRow
-              accessibilityRole="button"
-              disabled={passkeyPending}
-              dimmed={passkeyPending}
-              onPress={() => void passkeyAction(addPasskey)}
-              title={t("Add passkey")}
-            />
-            {passkeyLoadError ? (
-              <>
-                <Text accessibilityRole="alert" style={styles.error}>
-                  {passkeyLoadError}
-                </Text>
+                ) : null}
+                {canChangePassword ? (
+                  <SettingsRow
+                    accessibilityRole="button"
+                    chevron="right"
+                    onPress={() => router.push("/change-password")}
+                    title={t("Change password")}
+                  />
+                ) : null}
+              </SettingsGroup>
+            ) : null}
+
+            {passkeys ? (
+              <SettingsGroup accessibilityLabel={t("Passkeys")} label={t("Passkeys")}>
+                {passkeys.map((passkey) => {
+                  const name = passkey.name ?? t("Passkey");
+                  const created = passkey.createdAt ? new Date(passkey.createdAt) : null;
+                  return (
+                    <MenuView
+                      key={passkey.id}
+                      actions={[
+                        // Alert.prompt, which renames, exists only on iOS.
+                        ...(Platform.OS === "ios" ? [{ id: "rename", title: t("Rename") }] : []),
+                        { id: "delete", title: t("Delete"), attributes: { destructive: true } },
+                      ]}
+                      colorScheme={colorScheme}
+                      onPressAction={(event) =>
+                        passkeyMenuAction(passkey, name, event.nativeEvent.event)
+                      }
+                      title={name}
+                    >
+                      <SettingsRow
+                        accessible
+                        accessibilityRole="button"
+                        detail={
+                          created && !Number.isNaN(created.getTime())
+                            ? created.toLocaleDateString(dateLocaleForUi(locale), {
+                                dateStyle: "medium",
+                              })
+                            : undefined
+                        }
+                        dimmed={passkeyPending}
+                        title={name}
+                      />
+                    </MenuView>
+                  );
+                })}
                 <SettingsRow
                   accessibilityRole="button"
-                  onPress={() => void loadPasskeys()}
-                  title={t("Retry")}
+                  disabled={passkeyPending}
+                  dimmed={passkeyPending}
+                  onPress={() => void passkeyAction(addPasskey)}
+                  title={t("Add passkey")}
                 />
-              </>
+                {passkeyLoadError ? (
+                  <>
+                    <Text accessibilityRole="alert" style={styles.error}>
+                      {passkeyLoadError}
+                    </Text>
+                    <SettingsRow
+                      accessibilityRole="button"
+                      onPress={() => void loadPasskeys()}
+                      title={t("Retry")}
+                    />
+                  </>
+                ) : null}
+                {passkeyError ? (
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    {passkeyError}
+                  </Text>
+                ) : null}
+              </SettingsGroup>
             ) : null}
-            {passkeyError ? (
-              <Text accessibilityRole="alert" style={styles.error}>
-                {passkeyError}
-              </Text>
+
+            {trustedSites.length > 0 ? (
+              <SettingsGroup accessibilityLabel={t("Trusted sites")} label={t("Trusted sites")}>
+                {trustedSites.map((site) => (
+                  <MenuView
+                    key={site}
+                    actions={[
+                      { id: "remove", title: t("Remove"), attributes: { destructive: true } },
+                    ]}
+                    colorScheme={colorScheme}
+                    onPressAction={() => removeTrustedSite(site)}
+                    title={site}
+                  >
+                    <SettingsRow accessible accessibilityRole="button" title={site} />
+                  </MenuView>
+                ))}
+              </SettingsGroup>
             ) : null}
-          </SettingsGroup>
+          </>
         ) : null}
 
-        {trustedSites.length > 0 ? (
-          <SettingsGroup accessibilityLabel={t("Trusted sites")} label={t("Trusted sites")}>
-            {trustedSites.map((site) => (
-              <MenuView
-                key={site}
-                actions={[{ id: "remove", title: t("Remove"), attributes: { destructive: true } }]}
-                colorScheme={colorScheme}
-                onPressAction={() => removeTrustedSite(site)}
-                title={site}
-              >
-                <SettingsRow accessible accessibilityRole="button" title={site} />
-              </MenuView>
-            ))}
-          </SettingsGroup>
+        {showAppearance ? (
+          <>
+            <View accessibilityLabel={t("Appearance")} style={styles.section}>
+              <SettingsLabel>{t("Appearance")}</SettingsLabel>
+              <NativeSegmentedControl
+                accessibilityLabel={t("Appearance")}
+                onChange={(value) => void setAppearancePreference(value)}
+                options={[
+                  { value: "system", label: t("System") },
+                  { value: "light", label: t("Light") },
+                  { value: "dark", label: t("Dark") },
+                ]}
+                value={appearance}
+              />
+            </View>
+
+            {showAll ? (
+              <SettingsGroup>
+                <SettingsRow
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Chat appearance")}
+                  chevron="right"
+                  onPress={() => router.push("/chat-appearance")}
+                  title={t("Chat appearance")}
+                  value={t("Background and bubbles")}
+                />
+              </SettingsGroup>
+            ) : null}
+
+            {showAll ? (
+              <SettingsGroup>
+                <SettingsRow
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Language")}
+                  accessibilityValue={{ text: UI_LOCALE_LABELS[locale] }}
+                  chevron="right"
+                  onPress={() => router.push("/language")}
+                  title={t("Language")}
+                  value={UI_LOCALE_LABELS[locale]}
+                />
+              </SettingsGroup>
+            ) : null}
+          </>
         ) : null}
 
-        <View accessibilityLabel={t("Appearance")} style={styles.section}>
-          <SettingsLabel>{t("Appearance")}</SettingsLabel>
-          <NativeSegmentedControl
-            accessibilityLabel={t("Appearance")}
-            onChange={(value) => void setAppearancePreference(value)}
-            options={[
-              { value: "system", label: t("System") },
-              { value: "light", label: t("Light") },
-              { value: "dark", label: t("Dark") },
-            ]}
-            value={appearance}
-          />
-        </View>
-
-        <SettingsGroup>
-          <SettingsRow
-            accessibilityRole="button"
-            accessibilityLabel={t("Chat appearance")}
-            chevron="right"
-            onPress={() => router.push("/chat-appearance")}
-            title={t("Chat appearance")}
-            value={t("Background and bubbles")}
-          />
-        </SettingsGroup>
-
-        <SettingsGroup>
-          <SettingsRow
-            accessibilityRole="button"
-            accessibilityLabel={t("Language")}
-            accessibilityValue={{ text: UI_LOCALE_LABELS[locale] }}
-            chevron="right"
-            onPress={() => router.push("/language")}
-            title={t("Language")}
-            value={UI_LOCALE_LABELS[locale]}
-          />
-        </SettingsGroup>
-
-        {Platform.OS === "android" ? (
+        {(showAll || section === "notifications") && Platform.OS === "android" ? (
           <SettingsGroup accessibilityLabel={t("Notifications")} label={t("Notifications")}>
             {notificationPermission === "denied" ? (
               <SettingsRow
@@ -626,133 +647,153 @@ export default function Account() {
           </SettingsGroup>
         ) : null}
 
-        <SettingsGroup>
-          {me?.billingEnabled ? (
-            <SettingsRow
-              title={t("Billing")}
-              chevron="right"
-              onPress={() => router.push("/billing")}
-            />
-          ) : null}
-          {(
-            [
-              ...(me?.ticketBoardEnabled ? [{ title: t("Board"), href: "/board" } as const] : []),
-              { title: t("Artifacts"), href: "/artifacts" },
-              { title: t("Models"), href: "/models" },
-              { title: t("Voice"), href: "/voice" },
-            ] as const
-          ).map(settingsLink)}
-          <ApprovalModeRow key="approvals" approvals={approvals} disabled={pending} />
-          {approvals.ruleCount ? (
-            <ApprovalRulesRow
-              key="approval-rules"
-              count={approvals.ruleCount}
-              disabled={pending}
-              onPress={() => router.push("/approvals")}
-            />
-          ) : null}
-          {(
-            [
-              { title: t("Vault"), href: "/vault" },
-              ...(me?.paymentWalletProvider
-                ? [{ title: t("Wallet"), href: "/wallet" } as const]
-                : []),
-              { title: t("Integrations"), href: "/integrations" },
-              { title: t("Skills"), href: "/skills" },
-              { title: t("Messaging"), href: "/messaging" },
-              { title: t("AI data sharing"), href: "/ai-data-sharing" },
-            ] as const
-          ).map(settingsLink)}
-        </SettingsGroup>
-
-        <SettingsGroup>
-          <SettingsRow
-            accessibilityRole="button"
-            accessibilityLabel={t("Advanced")}
-            accessibilityState={{ expanded: advancedOpen }}
-            chevron={advancedOpen ? "down" : "right"}
-            onPress={() => setAdvancedOpen((open) => !open)}
-            title={t("Advanced")}
-          />
-          {advancedOpen ? (
-            <SettingsSwitch
-              label={t("Stream replies")}
-              value={streamReplies}
-              onChange={(checked) => void setResponseStreamingPreference(checked ? "on" : "off")}
-            />
-          ) : null}
-          {advancedOpen ? (
-            <SettingsSwitch
-              label={loadRemoteImagesLabel}
-              value={loadRemoteImages}
-              onChange={(checked) => void setRemoteImagesPreference(checked ? "on" : "off")}
-            />
-          ) : null}
-        </SettingsGroup>
-
-        <View style={styles.section}>
-          <NativeActionButton
-            disabled={pending}
-            fill
-            label={t("Sign out")}
-            onPress={() => void handleSignOut()}
-            prominence="secondary"
-          />
+        {showPermissions ? (
           <SettingsGroup>
-            {signOutError ? (
-              <Text accessibilityRole="alert" style={styles.error}>
-                {signOutError}
-              </Text>
+            {showAll && me?.billingEnabled ? (
+              <SettingsRow
+                title={t("Billing")}
+                chevron="right"
+                onPress={() => router.push("/billing")}
+              />
             ) : null}
-          </SettingsGroup>
-        </View>
-
-        {archivedCount > 0 ? (
-          <SettingsGroup>
-            <SettingsRow
-              accessibilityRole="button"
-              chevron="right"
-              onPress={() => router.push("/archived-bots")}
-              title={t("Archived")}
-              value={String(archivedCount)}
-            />
+            {showAll
+              ? (
+                  [
+                    ...(me?.ticketBoardEnabled
+                      ? [{ title: t("Board"), href: "/board" } as const]
+                      : []),
+                    { title: t("Artifacts"), href: "/artifacts" },
+                    { title: t("Models"), href: "/models" },
+                    { title: t("Voice"), href: "/voice" },
+                  ] as const
+                ).map(settingsLink)
+              : null}
+            <ApprovalModeRow key="approvals" approvals={approvals} disabled={pending} />
+            {approvals.ruleCount ? (
+              <ApprovalRulesRow
+                key="approval-rules"
+                count={approvals.ruleCount}
+                disabled={pending}
+                onPress={() => router.push("/approvals")}
+              />
+            ) : null}
+            {showAll
+              ? (
+                  [
+                    { title: t("Vault"), href: "/vault" },
+                    ...(me?.paymentWalletProvider
+                      ? [{ title: t("Wallet"), href: "/wallet" } as const]
+                      : []),
+                    { title: t("Integrations"), href: "/integrations" },
+                    { title: t("Skills"), href: "/skills" },
+                    { title: t("Messaging"), href: "/messaging" },
+                    { title: t("AI data sharing"), href: "/ai-data-sharing" },
+                  ] as const
+                ).map(settingsLink)
+              : null}
           </SettingsGroup>
         ) : null}
 
-        <View style={styles.about}>
-          <AppMark />
-          {versionInfo.nativeLabel || updateLabel ? (
-            <View
-              accessibilityLabel={versionAccessibility}
-              accessibilityRole="summary"
-              style={styles.versionFooter}
-            >
-              {versionInfo.nativeLabel ? (
-                <Text style={styles.versionLine}>{versionInfo.nativeLabel}</Text>
-              ) : null}
-              {updateLabel ? <Text style={styles.versionLine}>{updateLabel}</Text> : null}
-            </View>
-          ) : null}
-        </View>
+        {showAdvanced ? (
+          <SettingsGroup>
+            {showAll ? (
+              <SettingsRow
+                accessibilityRole="button"
+                accessibilityLabel={t("Advanced")}
+                accessibilityState={{ expanded: advancedOpen }}
+                chevron={advancedOpen ? "down" : "right"}
+                onPress={() => setAdvancedOpen((open) => !open)}
+                title={t("Advanced")}
+              />
+            ) : null}
+            {advancedOpen || !showAll ? (
+              <SettingsSwitch
+                label={t("Stream replies")}
+                value={streamReplies}
+                onChange={(checked) => void setResponseStreamingPreference(checked ? "on" : "off")}
+              />
+            ) : null}
+            {advancedOpen || !showAll ? (
+              <SettingsSwitch
+                label={loadRemoteImagesLabel}
+                value={loadRemoteImages}
+                onChange={(checked) => void setRemoteImagesPreference(checked ? "on" : "off")}
+              />
+            ) : null}
+          </SettingsGroup>
+        ) : null}
 
-        <SettingsGroup>
-          <SettingsRow
-            accessibilityRole="button"
-            destructive
-            dimmed={pending}
-            disabled={pending}
-            onPress={() => void deletion.request()}
-            title={t("Delete account")}
-            trailing={
-              pending ? <ActivityIndicator color={mobileTokens().destructive} /> : undefined
-            }
-          />
-          {deletion.error ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {deletion.error}
-            </Text>
-          ) : null}
-        </SettingsGroup>
+        {showAccount ? (
+          <>
+            <View style={styles.section}>
+              <NativeActionButton
+                disabled={pending}
+                fill
+                label={t("Sign out")}
+                onPress={() => void handleSignOut()}
+                prominence="secondary"
+              />
+              <SettingsGroup>
+                {signOutError ? (
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    {signOutError}
+                  </Text>
+                ) : null}
+              </SettingsGroup>
+            </View>
+
+            {showAll && archivedCount > 0 ? (
+              <SettingsGroup>
+                <SettingsRow
+                  accessibilityRole="button"
+                  chevron="right"
+                  onPress={() => router.push("/archived-bots")}
+                  title={t("Archived")}
+                  value={String(archivedCount)}
+                />
+              </SettingsGroup>
+            ) : null}
+          </>
+        ) : null}
+
+        {showAll ? (
+          <View style={styles.about}>
+            <AppMark />
+            {versionInfo.nativeLabel || updateLabel ? (
+              <View
+                accessibilityLabel={versionAccessibility}
+                accessibilityRole="summary"
+                style={styles.versionFooter}
+              >
+                {versionInfo.nativeLabel ? (
+                  <Text style={styles.versionLine}>{versionInfo.nativeLabel}</Text>
+                ) : null}
+                {updateLabel ? <Text style={styles.versionLine}>{updateLabel}</Text> : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {showAccount ? (
+          <SettingsGroup>
+            <SettingsRow
+              accessibilityRole="button"
+              destructive
+              dimmed={pending}
+              disabled={pending}
+              onPress={() => void deletion.request()}
+              title={t("Delete account")}
+              trailing={
+                pending ? <ActivityIndicator color={mobileTokens().destructive} /> : undefined
+              }
+            />
+            {deletion.error ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {deletion.error}
+              </Text>
+            ) : null}
+          </SettingsGroup>
+        ) : null}
       </ScrollView>
       {nameDialogOpen ? (
         <NameDialog

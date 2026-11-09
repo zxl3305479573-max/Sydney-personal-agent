@@ -137,7 +137,10 @@ export function InboxHeader({
       ]}
     >
       <View style={styles.circleButton}>
-        <HeaderButton accessibilityLabel={t("Account")} onPress={() => router.push("/account")}>
+        <HeaderButton
+          accessibilityLabel={t("Account")}
+          onPress={() => router.push("/settings-home")}
+        >
           <Text style={styles.profileInitials}>{initials}</Text>
         </HeaderButton>
       </View>

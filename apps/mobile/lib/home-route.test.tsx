@@ -132,7 +132,7 @@ it("wires the compact header items to their actions", () => {
   search.onPress();
   activity.onPress();
   for (const item of create.menu.items) item.onPress();
-  expect(home.push.mock.calls).toEqual([["/account"], ["/search"]]);
+  expect(home.push.mock.calls).toEqual([["/settings-home"], ["/search"]]);
   expect(toggleActivityMode).toHaveBeenCalledOnce();
   expect(runCreateAction.mock.calls).toEqual([["bot"], ["group"], ["space"]]);
 });
