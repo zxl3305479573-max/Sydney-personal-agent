@@ -5447,10 +5447,6 @@ msgstr "Send recording"
 msgid "Send reset link"
 msgstr "Send reset link"
 
-#: src/components/NativeComputerControl.tsx
-msgid "Send text"
-msgstr "Send text"
-
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Send with Enter"
 msgstr "Send with Enter"
@@ -6312,10 +6308,6 @@ msgstr "Tuesday"
 #: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr "Type"
-
-#: src/components/NativeComputerControl.tsx
-msgid "Type text"
-msgstr "Type text"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Type without recording"

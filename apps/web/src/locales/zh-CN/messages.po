@@ -5447,10 +5447,6 @@ msgstr "发送录音"
 msgid "Send reset link"
 msgstr "发送重置链接"
 
-#: src/components/NativeComputerControl.tsx
-msgid "Send text"
-msgstr "发送文字"
-
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Send with Enter"
 msgstr "按 Enter 发送"
@@ -6312,10 +6308,6 @@ msgstr "周二"
 #: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr "类型"
-
-#: src/components/NativeComputerControl.tsx
-msgid "Type text"
-msgstr "输入文字"
 
 #: src/components/teach/TeachRecordingChrome.tsx
 msgid "Type without recording"
