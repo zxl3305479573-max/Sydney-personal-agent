@@ -159,13 +159,22 @@ vi.mock("../components/bot-avatar", () => ({
     identity,
     muted,
     motion,
+    size,
   }: {
     identity: string;
     muted?: boolean;
     motion?: string;
+    size?: number;
   }) => {
     ui.avatars.push(identity);
-    return <b data-identity={identity} data-muted={String(Boolean(muted))} data-motion={motion} />;
+    return (
+      <b
+        data-identity={identity}
+        data-muted={String(Boolean(muted))}
+        data-motion={motion}
+        data-size={size}
+      />
+    );
   },
 }));
 vi.mock("../components/group-avatar", () => ({ GroupAvatar: () => null }));
@@ -308,9 +317,9 @@ it.each(["midnight", "focus", "foreground"])(
       } as unknown as InboxItem,
     ]);
     const labels = (todayTime: string, weekTime: string) => [
-      `Helper, ${todayTime}, No messages yet`,
+      `Helper, ${todayTime}`,
       `Team, ${todayTime}`,
-      `Helper, ${weekTime}, No messages yet`,
+      `Helper, ${weekTime}`,
       `Team, ${weekTime}`,
     ];
     try {
@@ -370,15 +379,11 @@ it("renders saved bot rows without a notification setting", () => {
       />
     )),
   );
-  expect(rowLabels()).toEqual([
-    "Alpha, No messages yet",
-    "Beta, No messages yet",
-    "Gamma, notifications silenced, No messages yet",
-  ]);
+  expect(rowLabels()).toEqual(["Alpha", "Beta", "Gamma, notifications silenced"]);
   expect(Array.from(container.querySelectorAll("button"), (row) => row.textContent)).toEqual([
-    "AlphaNo messages yet",
-    "BetaNo messages yet",
-    "GammaNo messages yet",
+    "Alpha",
+    "Beta",
+    "Gamma",
   ]);
   const avatars = Array.from(container.querySelectorAll("i[data-row] > b"));
   expect(avatars.map((avatar) => avatar.parentElement?.dataset.row)).toEqual([
@@ -392,12 +397,19 @@ it("renders saved bot rows without a notification setting", () => {
     "true",
   ]);
   expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.motion === "lazy")).toBe(true);
+  expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.size === "56")).toBe(true);
 });
 
-it("says working only while the bot works, and shows nothing beside the time", () => {
-  const bots = ["running", "waiting_takeover", "waiting_input", "idle"].map(
-    (status) => ({ id: status, name: "Helper", preview: "Hi", status }) as MobileBot,
-  );
+it("shows actionable bot status in place of the message preview", () => {
+  const bots = [
+    "queued",
+    "leased",
+    "running",
+    "waiting_takeover",
+    "waiting_input",
+    "failed",
+    "idle",
+  ].map((status) => ({ id: status, name: "Helper", preview: "Hi", status }) as MobileBot);
   render(
     bots.map((bot) => (
       <BotRow
@@ -411,13 +423,22 @@ it("says working only while the bot works, and shows nothing beside the time", (
       />
     )),
   );
-  // A "Needs you" computer card or an ask card is the state; the row must not claim work.
-  expect(rowLabels()).toEqual(["Helper, Working…, Hi", "Helper, Hi", "Helper, Hi", "Helper, Hi"]);
-  // The avatar's motion and corner dot are the only working sign; the time stands alone.
+  expect(rowLabels()).toEqual([
+    "Helper, Queued",
+    "Helper, Starting…",
+    "Helper, Working…",
+    "Helper, Needs you",
+    "Helper, Needs input",
+    "Helper, Failed",
+    "Helper, Hi",
+  ]);
   expect(Array.from(container.querySelectorAll("button"), (row) => row.textContent)).toEqual([
-    "HelperHi",
-    "HelperHi",
-    "HelperHi",
+    "HelperQueued",
+    "HelperStarting…",
+    "HelperWorking…",
+    "HelperNeeds you",
+    "HelperNeeds input",
+    "HelperFailed",
     "HelperHi",
   ]);
 });

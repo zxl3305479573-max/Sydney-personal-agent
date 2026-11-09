@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { act } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
+import { AccessibilityInfo } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import SignIn from "../app/sign-in";
 import {
@@ -18,10 +19,16 @@ import {
 import type { NativeActionButtonProps } from "./native-controls";
 import { passkeysAvailable, signInWithPasskey } from "./passkey";
 import { continueWithSso } from "./sso";
+import { errorText } from "./user-error";
 
 const route = vi.hoisted(() => ({ mode: "in", waiting: false, redirect: vi.fn() }));
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const server = vi.hoisted(() => ({ base: "https://example.invalid", refocus: () => {} }));
+const display = vi.hoisted(() => ({
+  appearance: "light" as "light" | "dark",
+  fontScale: 1,
+  longTranslation: false,
+}));
 
 vi.mock("expo-router", () => ({
   Redirect: ({ href }: { href: string }) => {
@@ -42,12 +49,36 @@ vi.mock("react-native", () => {
     AccessibilityInfo: { announceForAccessibility: vi.fn() },
     KeyboardAvoidingView: Container,
     TouchableWithoutFeedback: Container,
+    Image: () => null,
     ActivityIndicator: ({ accessibilityLabel }: { accessibilityLabel?: string }) => (
       <div role="progressbar" aria-label={accessibilityLabel} />
     ),
-    View: Container,
-    ScrollView: Container,
-    Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    useWindowDimensions: () => ({ fontScale: display.fontScale }),
+    View: ({ children, style }: { children: ReactNode; style?: object }) => (
+      <div data-native-style={JSON.stringify(style)}>{children}</div>
+    ),
+    ScrollView: ({ children }: { children: ReactNode }) => (
+      <div data-scroll-view="true">{children}</div>
+    ),
+    Text: ({
+      children,
+      style,
+      accessibilityRole,
+      accessibilityLiveRegion,
+    }: {
+      children: ReactNode;
+      style?: object;
+      accessibilityRole?: string;
+      accessibilityLiveRegion?: "none" | "polite" | "assertive";
+    }) => (
+      <span
+        data-native-style={JSON.stringify(style)}
+        role={accessibilityRole}
+        aria-live={accessibilityLiveRegion === "none" ? "off" : accessibilityLiveRegion}
+      >
+        {children}
+      </span>
+    ),
     TextInput: ({
       accessibilityLabel,
       placeholder,
@@ -59,6 +90,8 @@ vi.mock("react-native", () => {
       value,
       onChangeText,
       onSubmitEditing,
+      style,
+      placeholderTextColor,
     }: {
       accessibilityLabel?: string;
       placeholder: string;
@@ -70,11 +103,15 @@ vi.mock("react-native", () => {
       value?: string;
       onChangeText?: (value: string) => void;
       onSubmitEditing?: () => void;
+      style?: object;
+      placeholderTextColor?: string;
     }) => (
       <input
         aria-label={accessibilityLabel ?? placeholder}
         type={secureTextEntry ? "password" : "text"}
         data-text-content-type={textContentType}
+        data-native-style={JSON.stringify(style)}
+        data-placeholder-color={placeholderTextColor}
         autoComplete={autoComplete}
         inputMode={keyboardType === "number-pad" ? "numeric" : undefined}
         maxLength={maxLength}
@@ -114,11 +151,17 @@ vi.mock("../components/native-action-button", () => ({
     </button>
   ),
 }));
-vi.mock("./native", () => ({ useMobileTokens: () => tokensForAppearance("light") }));
+vi.mock("./native", () => ({
+  useMobileTokens: () => tokensForAppearance(display.appearance),
+  useResolvedAppearance: () => display.appearance,
+}));
 vi.mock("./i18n", () => ({
   useI18n: () => ({
     t: (text: string, values?: Record<string, string>) =>
-      text.replace(/\{(\w+)\}/g, (_, key: string) => values?.[key] ?? key),
+      (display.longTranslation && text === "Don’t have an account?"
+        ? "A much longer translated prompt that needs room to wrap across multiple lines"
+        : text
+      ).replace(/\{(\w+)\}/g, (_, key: string) => values?.[key] ?? key),
   }),
 }));
 vi.mock("./api", () => ({
@@ -152,6 +195,9 @@ beforeEach(() => {
   route.mode = "in";
   route.waiting = false;
   server.base = "https://example.invalid";
+  display.appearance = "light";
+  display.fontScale = 1;
+  display.longTranslation = false;
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.mocked(passwordResetCapabilities).mockResolvedValue(capabilities);
@@ -194,6 +240,93 @@ function expectBefore(first: Element, second: Element) {
   expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
+function contrast(foreground: string, background: string) {
+  const channels = (color: string) =>
+    [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16));
+  const backgroundChannels = channels(background);
+  const alpha = foreground.length === 9 ? Number.parseInt(foreground.slice(7, 9), 16) / 255 : 1;
+  const foregroundChannels = channels(foreground).map(
+    (value, index) => value * alpha + backgroundChannels[index]! * (1 - alpha),
+  );
+  const luminance = (values: number[]) =>
+    values.reduce((sum, value, index) => {
+      const channel = value / 255;
+      return (
+        sum +
+        (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4) *
+          [0.2126, 0.7152, 0.0722][index]!
+      );
+    }, 0);
+  const first = luminance(foregroundChannels);
+  const second = luminance(backgroundChannels);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+it("keeps navigation and scalable signup fields inside the scroll view", async () => {
+  route.mode = "up";
+  display.fontScale = 2;
+  await render();
+  const scroll = host.querySelector('[data-scroll-view="true"]')!;
+  expect(scroll.contains(button("Sign in")!)).toBe(true);
+  expect(scroll.contains(button("Use a custom server")!)).toBe(true);
+  for (const label of ["Name", "Email", "Password"]) {
+    const field = input(label)!;
+    const style = JSON.parse(field.dataset.nativeStyle!);
+    expect(scroll.contains(field)).toBe(true);
+    expect(style.height).toBeUndefined();
+    expect(style.minHeight).toBeGreaterThan(48);
+  }
+  const passwordContainer = input("Password")!.parentElement!;
+  const passwordStyle = JSON.parse(passwordContainer.dataset.nativeStyle!);
+  expect(passwordStyle.height).toBeUndefined();
+  expect(passwordStyle.minHeight).toBeGreaterThan(48);
+  const navigation = button("Sign in")!.parentElement!;
+  expect(JSON.parse(navigation.dataset.nativeStyle!).flexWrap).toBe("wrap");
+});
+
+it("allows a long translated header prompt and its action to wrap", async () => {
+  display.longTranslation = true;
+  display.fontScale = 2;
+  await render();
+  const action = button("Sign up")!;
+  const group = action.parentElement!;
+  const header = group.parentElement!;
+  expect(group.textContent).toContain("A much longer translated prompt");
+  expect(JSON.parse(group.dataset.nativeStyle!).flexWrap).toBe("wrap");
+  expect(JSON.parse(header.dataset.nativeStyle!).flexWrap).toBe("wrap");
+  expect(action.closest('[data-scroll-view="true"]')).not.toBeNull();
+});
+
+it.each(["light", "dark"] as const)(
+  "keeps form labels and placeholders readable in %s appearance",
+  async (appearance) => {
+    display.appearance = appearance;
+    await render();
+    const tokens = tokensForAppearance(appearance);
+    const label = [...host.querySelectorAll("span")].find((item) => item.textContent === "Email")!;
+    const labelColor = JSON.parse(label.dataset.nativeStyle!).color;
+    const placeholderColor = input("Email")!.dataset.placeholderColor!;
+    expect(contrast(labelColor, tokens.card)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(placeholderColor, tokens.background)).toBeGreaterThanOrEqual(4.5);
+  },
+);
+
+it("announces repeated authentication errors and exposes an alert", async () => {
+  vi.mocked(signIn)
+    .mockRejectedValueOnce(new Error("failed"))
+    .mockRejectedValueOnce(new Error("failed"));
+  vi.mocked(errorText).mockReturnValueOnce("Sign in failed").mockReturnValueOnce("Sign in failed");
+  await render();
+  await type(input("Email")!, "ada@example.test");
+  await type(input("Password")!, "example-password");
+  await press("Sign in");
+  await press("Sign in");
+  expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith("Sign in failed");
+  expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledTimes(2);
+  const alert = host.querySelector('[role="alert"]')!;
+  expect(alert.textContent).toBe("Sign in failed");
+});
+
 it.each(["in", "up"])(
   "places a single quiet SSO action below the password form in %s mode",
   async (mode) => {
@@ -215,7 +348,7 @@ it.each(["in", "up"])(
     expectBefore(email, password);
     expectBefore(password, submit);
     expectBefore(submit, sso);
-    expectBefore(sso, prompt);
+    expectBefore(prompt, email);
   },
 );
 

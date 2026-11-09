@@ -24,7 +24,7 @@ import { androidRipple } from "../lib/ripple";
 import { BotAvatar } from "./bot-avatar";
 import type { BotOrganizationUpdate } from "./bot-organize-modal";
 import { GroupAvatar } from "./group-avatar";
-import { createHomeStyles, INBOX_ROW } from "./home-styles";
+import { createHomeStyles } from "./home-styles";
 import { InboxSwipeRow } from "./inbox-swipe-row";
 import { NativeSymbol } from "./native-symbol";
 
@@ -46,6 +46,7 @@ export function ConversationRow({
   onAction,
   accessibilityLabel,
   accessibilityHint,
+  roster = false,
 }: {
   chatId?: string;
   title: string;
@@ -59,6 +60,7 @@ export function ConversationRow({
   onAction?: (action: InboxRowAction) => void;
   accessibilityLabel: string;
   accessibilityHint?: string;
+  roster?: boolean;
 }) {
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
@@ -88,6 +90,14 @@ export function ConversationRow({
         styles.row,
         compact ? styles.compactRow : null,
         selected ? styles.rowSelected : null,
+        roster && {
+          marginHorizontal: 0,
+          paddingHorizontal: 4,
+          paddingVertical: 8,
+          gap: 16,
+          borderRadius: 16,
+          backgroundColor: selected ? native.fillPressed : native.quietFill,
+        },
         selected && Platform.OS === "android" && { overflow: "hidden" },
         pressed && Platform.OS !== "android" && styles.rowPressed,
       ]}
@@ -96,19 +106,35 @@ export function ConversationRow({
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <View style={styles.titleRow}>
-            <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.name, roster && { fontSize: 18, fontWeight: "500" }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {title}
             </Text>
           </View>
           <View style={styles.rowMeta}>
-            {time ? <Text style={styles.time}>{time}</Text> : null}
-            {unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
+            {!roster && time ? <Text style={styles.time}>{time}</Text> : null}
+            {!roster && unread ? (
+              <View accessibilityElementsHidden style={styles.unreadDot} />
+            ) : null}
           </View>
         </View>
-        <Text style={[styles.preview, unread && styles.unreadPreview]} numberOfLines={1}>
-          {preview}
-        </Text>
+        {preview ? (
+          <Text
+            style={[
+              styles.preview,
+              !roster && unread && styles.unreadPreview,
+              roster && { fontSize: 15 },
+            ]}
+            numberOfLines={1}
+          >
+            {preview}
+          </Text>
+        ) : null}
       </View>
+      {roster && unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
     </Pressable>
   );
 }
@@ -279,13 +305,28 @@ export const BotRow = memo(function BotRow({
   onAction?: (action: InboxRowAction, bot: MobileBot | SpaceBot) => void;
 } & RowMenuProps) {
   const { t } = useI18n();
-  const preview = previewSnippet(bot.preview, 40) || t("No messages yet");
+  const messagePreview = previewSnippet(bot.preview, 40);
+  const statusLabel =
+    bot.status === "queued"
+      ? t("Queued")
+      : bot.status === "leased"
+        ? t("Starting…")
+        : bot.status === "running"
+          ? t("Working…")
+          : bot.status === "waiting_input"
+            ? t("Needs input")
+            : bot.status === "waiting_takeover"
+              ? t("Needs you")
+              : bot.status === "failed"
+                ? t("Failed")
+                : "";
+  const preview = statusLabel || messagePreview || (bot.status !== "idle" ? bot.status : "") || "";
   const time = bot.updatedAt ? formatThreadTime(bot.updatedAt, new Date(day)) : "";
   const working = isRunWorking(bot.status);
   // Spelled out because an explicit label replaces the one built from the row's children.
   const label = [
     bot.name,
-    working ? t("Working…") : null,
+    working && !statusLabel ? t("Working…") : null,
     bot.notifyOnFinish === false ? t("notifications silenced") : null,
     bot.unread ? t("unread") : null,
     time,
@@ -297,6 +338,7 @@ export const BotRow = memo(function BotRow({
   const row = (
     <ConversationRow
       chatId={bot.id}
+      roster
       title={bot.name}
       preview={preview}
       time={time}
@@ -315,7 +357,7 @@ export const BotRow = memo(function BotRow({
             color={bot.color || FALLBACK_COLOR}
             avatarSet={bot.avatarSet}
             identity={bot.id}
-            size={INBOX_ROW.avatarSize}
+            size={56}
             status={bot.status}
             muted={bot.notifyOnFinish === false}
             motion="lazy"
@@ -379,6 +421,7 @@ export const GroupRow = memo(function GroupRow({
   const row = (
     <ConversationRow
       chatId={group.id}
+      roster
       title={group.name}
       preview={preview}
       time={time}
@@ -393,7 +436,7 @@ export const GroupRow = memo(function GroupRow({
       onLongPress={onLongPress ? () => onLongPress(group) : undefined}
       actions={onAction ? inboxRowActionList(group) : undefined}
       onAction={runAction}
-      avatar={<GroupAvatar members={group.members} size={INBOX_ROW.avatarSize} />}
+      avatar={<GroupAvatar members={group.members} size={56} />}
     />
   );
   return onAction ? (

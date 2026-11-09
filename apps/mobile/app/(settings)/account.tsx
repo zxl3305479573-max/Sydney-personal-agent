@@ -406,7 +406,7 @@ export default function Account() {
             {usageModels}
           </>
         ) : null}
-        <SettingsGroup>
+        <SettingsGroup label={t("Account")}>
           <SettingsRow
             accessibilityRole="button"
             accessibilityLabel={t("Edit name")}
@@ -419,7 +419,6 @@ export default function Account() {
             chevron="right"
             disabled={!me}
             detail={me?.email && account.label !== me.email ? me.email : undefined}
-            prominent
             title={account.label}
             dimmed={namePending}
             onPress={editName}
@@ -785,13 +784,13 @@ function createAccountStyles() {
       paddingHorizontal: 16,
       paddingTop: 16,
       paddingBottom: 32,
-      gap: 28,
+      gap: 24,
     },
     compactContent: {
       paddingHorizontal: 8,
     },
     section: {
-      gap: 7,
+      gap: 10,
     },
     about: {
       alignItems: "center",

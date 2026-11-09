@@ -6,6 +6,7 @@ on:
       - cursor/integrate-remote-branches-7334
     paths:
       - .github/workflows/mobile-ios-sideload.yml
+      - apps/mobile/**
   workflow_dispatch:
     inputs:
       api_url:

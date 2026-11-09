@@ -6,6 +6,8 @@
 
 用户要求原生 iPhone App 按现有手机 Web 的样式构建，目标是保留原生界面与能力，参考现有手机 Web 的布局、视觉与交互。先只读比较登录、会话列表、聊天输入和设置，再分模块调整；需要保留现有账号与用户外观设置，并分别记录代码、定向验证和真实 iPhone 对照结果。两端完全一致及设备兼容性均未验证。
 
+首批已调整登录、会话列表、聊天输入、默认消息正文和设置分组；5 个定向测试文件共 131 项通过，TypeScript 和改动文件格式检查通过。会话分组、搜索方式、其余设置及其他页面仍需继续对照；真实 iPhone 的安全区、键盘、大字体、触控及视觉一致性尚未验证。
+
 独立测评建议优先会话列表、聊天正文和输入区，其次设置与登录。原生已有导航、键盘安全区与独立的外观存储；任何对齐不得静默清理已有背景或气泡选择。当前分派输入区的受限实现，实际界面和其他模块尚未完成。
 
 ## 免费方案调整
@@ -16,13 +18,13 @@
 
 ### 免费原生构建准备
 
-新增 `.github/workflows/mobile-ios-sideload.yml`：当前分支推送工作流变更会触发构建，也支持手动触发。使用公开仓库的标准 macOS 构建机和 iPhone 设备 SDK，生成 Release 应用并封装未签名 IPA；检查 arm64、内置 JS、原生扩展和部分不支持的 entitlement，上传七天保留的产物和 SHA-256。仓库当前公开，但构建机 `xcode-27`、实际 SDK 版本和执行结果尚未验证；产物可被有仓库访问权限者下载，不放入凭据和个人数据。GitHub Actions 公共仓库标准托管 runner 的费用规则见 <https://docs.github.com/en/actions/concepts/billing-and-usage>。
+新增 `.github/workflows/mobile-ios-sideload.yml`：当前分支推送工作流或移动端变更会触发构建，也支持手动触发。使用公开仓库的标准 macOS 构建机和 iPhone 设备 SDK，生成 Release 应用并封装未签名 IPA；检查 arm64、内置 JS、原生扩展和部分不支持的 entitlement，上传七天保留的产物和 SHA-256。运行 `42625236742` 已成功上传未签名 IPA，但该产物早于本轮界面修改；产物可被有仓库访问权限者下载，不放入凭据和个人数据。GitHub Actions 公共仓库标准托管 runner 的费用规则见 <https://docs.github.com/en/actions/concepts/billing-and-usage>。
 
 构建专用环境变量 `SYDNEY_SIDELOAD_IOS=1` 启用隔离模式：要求独立 `SYDNEY_IOS_BUNDLE_ID` 和不带路径、凭据及查询参数的 HTTPS `EXPO_PUBLIC_API_URL`；禁用上游 OTA、EAS 项目标识、Associated Domains、远程推送注册及 App Intents/Widget 插件。密码或验证码登录及聊天仍需真机验证；免费包的远程推送、Passkey、快捷指令和录音实时活动不作为已可用功能。保留 `rakazo://` 以兼容现有认证协议，若同机安装其他使用该 scheme 的 App，认证回调可能冲突。
 
 候选安装方式是用户自行在 Windows 使用 AltStore Classic 和普通 Apple 账号对下载产物签名安装；签名工具需要用户自己登录，禁止向聊天或仓库提供密码。免费描述文件一般七天到期，需要按工具要求刷新，安装名额有限；安装、保留数据、开发者模式、证书及刷新均未验证。软件安装或更换方式需遵循用户环境约束；不得声称未签名 IPA 本身可直接安装。
 
-当前仅完成配置及工作流草案，本机受项目约定不安装依赖。iOS prebuild、CocoaPods、Xcode 构建、IPA 产物、签名、实际运行及七天刷新都未执行。主目录 Node 22.22.0 低于项目引擎要求，直接使用 `pnpm --filter @rakazo/mobile exec expo config --json` 被引擎检查拒绝；没有绕过版本检查。
+云端已完成 iOS prebuild、CocoaPods、Xcode 构建及未签名 IPA 上传；签名、实际运行及七天刷新尚未执行。本机受项目约定不安装依赖，Node 22.22.0 低于项目引擎要求，直接使用 `pnpm --filter @rakazo/mobile exec expo config --json` 被引擎检查拒绝；没有绕过版本检查。
 
 可行的低门槛备选是复用现有移动 Web，在 iPhone Safari 添加至主屏幕并以 Web App 打开；源码已有 manifest、图标和 service worker。它不等于安装原生 IPA，用户登录、推送、后台行为、语音和云电脑等仍须逐项验证；已有服务器和模型可能产生既有费用。用户是否接受 Web App 替代或先行，尚待明确。
 

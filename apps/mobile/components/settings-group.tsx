@@ -50,7 +50,6 @@ export function SettingsGroup({
   children: ReactNode;
 }) {
   const styles = useThemedStyles(createSettingsStyles);
-  const stacked = useStackedSettings();
   const rows = Children.toArray(children).filter(isValidElement);
   if (rows.length === 0) return null;
   return (
@@ -59,9 +58,7 @@ export function SettingsGroup({
       <View style={styles.card}>
         {rows.map((row, index) => (
           <Fragment key={row.key}>
-            {index > 0 ? (
-              <View style={[styles.separator, stacked && styles.compactSeparator]} />
-            ) : null}
+            {index > 0 ? <View style={styles.separator} /> : null}
             {row}
           </Fragment>
         ))}
@@ -79,7 +76,7 @@ export function SettingsInputRow(props: Omit<TextInputProps, "style">) {
     <TextInput
       placeholderTextColor={native.tertiaryLabel}
       {...props}
-      style={[styles.row, styles.title, stacked && styles.compactRow]}
+      style={[styles.row, styles.title, styles.inputTitle, stacked && styles.compactRow]}
     />
   );
 }
@@ -226,11 +223,14 @@ export function SettingsSwitch({
 function createSettingsStyles() {
   const tokens = mobileTokens();
   return StyleSheet.create({
-    group: { gap: 7 },
+    group: { gap: 10 },
     groupLabel: {
-      color: native.secondaryLabel,
-      ...typeScale.caption,
-      paddingStart: 16,
+      color: native.label,
+      fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+      fontSize: 18,
+      fontWeight: "600",
+      lineHeight: 24,
+      paddingStart: 4,
     },
     footer: {
       color: native.secondaryLabel,
@@ -238,8 +238,10 @@ function createSettingsStyles() {
       paddingHorizontal: 16,
     },
     card: {
-      borderRadius: 16,
+      borderRadius: 12,
       borderCurve: "continuous",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: native.separator,
       overflow: "hidden",
       backgroundColor: native.groupedCell,
     },
@@ -247,28 +249,27 @@ function createSettingsStyles() {
       // iOS draws sheets scaled down slightly, which makes a one-pixel line fall between
       // pixels and vanish at some offsets. Two pixels always leave at least one visible.
       height: StyleSheet.hairlineWidth * 2,
-      marginStart: 16,
       backgroundColor: native.separator,
     },
     row: {
       minHeight: 52,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 18,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
     },
-    compactLabel: { paddingStart: 12 },
-    compactSeparator: { marginStart: 12 },
+    compactLabel: { paddingStart: 4 },
     compactRow: { paddingHorizontal: 12, gap: 8 },
     titleColumn: { flex: 1, flexShrink: 1, gap: 2 },
     stackedSwitch: { alignSelf: "flex-start", marginTop: 6 },
-    title: { color: native.label, fontSize: 17 },
+    title: { color: native.label, fontSize: 14 },
+    inputTitle: { fontSize: 17 },
     prominent: { fontSize: 20, fontWeight: "600" },
     detail: { color: native.secondaryLabel, ...typeScale.caption },
     destructive: { color: tokens.destructive },
     tinted: { color: tokens.link },
-    value: { flexShrink: 1, color: native.secondaryLabel, fontSize: 17 },
+    value: { flexShrink: 1, color: native.secondaryLabel, fontSize: 14 },
     // A long value truncates instead of pushing the title out of the row.
     inlineValue: { maxWidth: "60%" },
     pressed: { backgroundColor: native.fillPressed },

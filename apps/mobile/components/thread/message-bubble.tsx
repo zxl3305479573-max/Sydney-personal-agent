@@ -748,6 +748,7 @@ function MessageTextCard({
   const colorScheme = useResolvedAppearance();
   const chatAppearance = useMobileChatAppearance();
   const baseTokens = withUserBubble(mobileTokens(), userBubble);
+  const plainText = !chatAppearance.bubble && (message.role !== "user" || !userBubble);
   const tokens = chatAppearance.bubble
     ? {
         ...baseTokens,
@@ -756,7 +757,9 @@ function MessageTextCard({
         muted: chatAppearance.bubble.botBackground,
         foreground: chatAppearance.bubble.botForeground,
       }
-    : baseTokens;
+    : plainText && message.role === "user"
+      ? { ...baseTokens, chatUserForeground: baseTokens.foreground }
+      : baseTokens;
   const contentText = blockText(message);
   const { t } = useI18n();
   const userMentions = useContext(UserMentionsContext);
@@ -794,11 +797,17 @@ function MessageTextCard({
         flexShrink: 1,
         minWidth: 0,
         maxWidth: "100%",
-        ...mobileBubbleSurfaceStyle(chatAppearance, message.role === "user" ? "user" : "bot", {
-          backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
-        }),
-        paddingHorizontal: 14,
-        paddingVertical: 9,
+        ...(plainText
+          ? {}
+          : {
+              ...mobileBubbleSurfaceStyle(
+                chatAppearance,
+                message.role === "user" ? "user" : "bot",
+                { backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted },
+              ),
+              paddingHorizontal: 14,
+              paddingVertical: 9,
+            }),
       }}
     >
       {speaker ? (

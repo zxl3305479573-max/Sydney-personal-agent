@@ -66,6 +66,7 @@ const MENTION_ROW_HEIGHT = 44;
 const MENTION_ROW_PADDING = 14;
 const MENTION_ROW_GAP = 12;
 const MENTION_AVATAR_SIZE = 24;
+const COMPOSER_RADIUS = 26;
 
 type ThreadComposerProps = {
   ref: Ref<ThreadComposerHandle>;
@@ -499,48 +500,27 @@ export function ThreadComposer({
           ))}
         </ScrollView>
       ) : null}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 8 }}>
-        <MenuView
-          actions={attachActions}
-          colorScheme={colorScheme}
-          onPressAction={(event) => attachFrom(event.nativeEvent.event)}
-        >
-          <View
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={t("Attach file")}
-            style={{ width: 44, height: 44 }}
-          >
-            <GlassSurface
-              shape="circle"
-              style={styles.circleButton}
-              fallbackStyle={styles.composerFill}
-            >
-              <NativeSymbol ios="plus" android="add" size={18} color={tokens.mutedForeground} />
-            </GlassSurface>
-          </View>
-        </MenuView>
+      <View style={{ marginTop: 8, flexShrink: 1, minHeight: 0 }}>
         <GlassSurface
           shape="roundedRectangle"
+          cornerRadius={COMPOSER_RADIUS}
           style={{
-            flex: 1,
-            minHeight: 44,
-            borderRadius: 22,
-            flexDirection: "row",
-            alignItems: "flex-end",
-            // Keeps text clear of the call/send pill even when it runs to the trailing edge (RTL).
+            borderRadius: COMPOSER_RADIUS,
+            flexShrink: 1,
+            minHeight: 0,
             gap: 8,
-            paddingStart: 16,
-            paddingEnd: 8,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
           }}
           fallbackStyle={styles.composerFill}
         >
           <View
             style={{
-              flex: 1,
+              flexShrink: 1,
+              minHeight: 0,
               flexDirection: "row",
               flexWrap: "wrap",
-              alignItems: "center",
+              alignItems: "stretch",
               gap: 6,
             }}
           >
@@ -550,6 +530,7 @@ export function ThreadComposer({
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
+                  alignSelf: "center",
                   gap: 6,
                   backgroundColor: tokens.muted,
                   borderRadius: 999,
@@ -591,6 +572,7 @@ export function ThreadComposer({
                 flexGrow: 1,
                 flexShrink: 1,
                 minWidth: 96,
+                minHeight: 0,
                 // Keep the inset outside the scrolling native input: iOS can scroll its
                 // padding out of view, leaving a partially visible line at the edge.
                 paddingVertical: 11,
@@ -691,6 +673,7 @@ export function ThreadComposer({
                   fontSize: 17,
                   lineHeight: 22,
                   padding: 0,
+                  flexShrink: 1,
                   // Native text and lineHeight scale with Dynamic Type; the viewport must too.
                   minHeight: 22 * textScale,
                   maxHeight: 110 * textScale,
@@ -712,67 +695,106 @@ export function ThreadComposer({
               </TextInput>
             </Pressable>
           </View>
-          {!canSend && botId && !onCall ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("Call")}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              onPress={() => void startVoiceCall()}
-              style={{ marginBottom: 8 }}
+          <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 8 }}>
+            <MenuView
+              actions={attachActions}
+              colorScheme={colorScheme}
+              onPressAction={(event) => attachFrom(event.nativeEvent.event)}
             >
-              <GlassSurface
-                tint={tokens.primary}
-                style={composerPillStyle}
-                fallbackStyle={{ backgroundColor: tokens.primary }}
+              <View
+                accessible
+                accessibilityRole="button"
+                accessibilityLabel={t("Attach file")}
+                style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
               >
-                <NativeSymbol
-                  ios="waveform"
-                  android="pulse-outline"
-                  size={15}
-                  color={tokens.primaryForeground}
-                />
-              </GlassSurface>
-            </Pressable>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("Send")}
-              disabled={sending || !canSend}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              onPress={() => void send()}
-              style={{ marginBottom: 8, opacity: sending || !canSend ? 0.5 : 1 }}
-            >
-              <GlassSurface
-                tint={tokens.primary}
-                style={composerPillStyle}
-                fallbackStyle={{ backgroundColor: tokens.primary }}
+                <GlassSurface
+                  shape="circle"
+                  style={[styles.circleButton, { flex: 0, width: 32, height: 32 }]}
+                  fallbackStyle={styles.composerFill}
+                >
+                  <NativeSymbol ios="plus" android="add" size={16} color={tokens.mutedForeground} />
+                </GlassSurface>
+              </View>
+            </MenuView>
+            <View style={{ flex: 1 }} />
+            {!canSend && botId && !onCall ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Call")}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                onPress={() => void startVoiceCall()}
+                style={{
+                  minWidth: 44,
+                  minHeight: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <NativeSymbol
-                  ios="arrow.up"
-                  android="arrow-up"
-                  size={15}
-                  color={tokens.primaryForeground}
-                />
-              </GlassSurface>
-            </Pressable>
-          )}
+                <GlassSurface
+                  tint={tokens.primary}
+                  style={composerPillStyle}
+                  fallbackStyle={{ backgroundColor: tokens.primary }}
+                >
+                  <NativeSymbol
+                    ios="waveform"
+                    android="pulse-outline"
+                    size={15}
+                    color={tokens.primaryForeground}
+                  />
+                </GlassSurface>
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Send")}
+                disabled={sending || !canSend}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                onPress={() => void send()}
+                style={{
+                  minWidth: 44,
+                  minHeight: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: sending || !canSend ? 0.5 : 1,
+                }}
+              >
+                <GlassSurface
+                  tint={tokens.primary}
+                  style={composerPillStyle}
+                  fallbackStyle={{ backgroundColor: tokens.primary }}
+                >
+                  <NativeSymbol
+                    ios="arrow.up"
+                    android="arrow-up"
+                    size={15}
+                    color={tokens.primaryForeground}
+                  />
+                </GlassSurface>
+              </Pressable>
+            )}
+            {working ? (
+              <Pressable
+                accessibilityLabel={t("Stop")}
+                disabled={sending}
+                onPress={() => void stop()}
+                style={{ width: 44, height: 44, opacity: sending ? 0.5 : 1 }}
+              >
+                <GlassSurface
+                  shape="circle"
+                  style={styles.circleButton}
+                  fallbackStyle={{ borderColor: tokens.glassStroke, borderWidth: 1 }}
+                >
+                  <NativeSymbol
+                    ios="stop.fill"
+                    android="stop"
+                    size={15}
+                    color={tokens.foreground}
+                  />
+                </GlassSurface>
+              </Pressable>
+            ) : null}
+          </View>
         </GlassSurface>
-        {working ? (
-          <Pressable
-            accessibilityLabel={t("Stop")}
-            disabled={sending}
-            onPress={() => void stop()}
-            style={{ width: 44, height: 44, opacity: sending ? 0.5 : 1 }}
-          >
-            <GlassSurface
-              shape="circle"
-              style={styles.circleButton}
-              fallbackStyle={{ borderColor: tokens.glassStroke, borderWidth: 1 }}
-            >
-              <NativeSymbol ios="stop.fill" android="stop" size={15} color={tokens.foreground} />
-            </GlassSurface>
-          </Pressable>
-        ) : null}
       </View>
     </>
   );

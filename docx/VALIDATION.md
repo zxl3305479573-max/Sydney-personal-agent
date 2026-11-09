@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-09（PA-021 首批原生界面）：登录、输入区、会话列表、导航及设置的 5 个定向测试文件共 131 项通过，移动端 TypeScript 和 13 个改动文件的 Biome 检查通过；使用本机现有依赖，Node 版本仍低于仓库要求。测试不证明真实布局、键盘或视觉一致性。GitHub Actions `42625236742` 成功构建并上传未签名 IPA（约 25 MB），工作流检查了 arm64、内置 JS 和扩展目录；该构建不包含本轮尚未提交的界面调整。签名、安装、登录聊天、设备对照和七天续签均未验证。
+
 2026-11-09（PA-021 云构建首轮）：GitHub Actions `42624234704` 在 Xcode 27.1/iOS SDK 27.1 上完成依赖安装、Expo prebuild 及 CocoaPods；生成的 `Sydney.entitlements` 含 `aps-environment`，权限检查失败，Xcode 构建、产物和安装均未执行。日志还出现未找到可选 `expo-dev-client/package.json` 的信息，CocoaPods 步骤仍成功，是否影响后续构建待验证。已在构建脚本中针对侧载模式移除生成的推送 entitlement，尚未复跑。
 
 2026-11-09（PA-021 免费原生准备）：运行 `pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/endpoint.test.ts apps/mobile/lib/push.test.ts --maxWorkers=1`，3 文件最终 43 项通过；移动端定向 TypeScript 检查和 4 个改动 TypeScript 文件的 Biome 检查通过。PyYAML 解析工作流及作业结构，提取工作流中的 plist 检查逻辑，在空权限和三个禁止权限样本上验证通过；首次结构脚本错误预期 10 步导致断言失败，核对实际 11 步后通过，不能据此证明 GitHub Actions 接受或实际执行。`pnpm --filter @rakazo/mobile exec expo config --json` 由于本机 Node 22.22.0 低于仓库要求失败；未绕过引擎检查。所有结果均受 pnpm 配置警告及本机 Node 版本限制。未执行 macOS 云构建、产物检查、免费签名、安装或 iPhone 实机验证。
