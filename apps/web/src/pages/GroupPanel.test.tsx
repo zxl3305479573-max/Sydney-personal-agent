@@ -125,6 +125,7 @@ async function render(
     instance?: string;
     bots?: ComponentProps<typeof GroupSettings>["bots"];
     onOpenBot?: (botId: string) => void;
+    backgroundSettings?: ReactNode;
   } = {},
 ) {
   const onRemove = vi.fn(options.onRemove ?? (async () => undefined));
@@ -139,6 +140,7 @@ async function render(
         onRemove={onRemove}
         onClose={onClose}
         onOpenBot={options.onOpenBot}
+        backgroundSettings={options.backgroundSettings}
         covered={options.covered}
       />,
     );
@@ -296,10 +298,10 @@ describe("GroupSettings", () => {
   const rowNames = () =>
     [...container.querySelectorAll('[role="checkbox"]')].map((el) => el.parentElement?.textContent);
 
-  it("shows only group members until Show all expands the roster", async () => {
+  it("shows only group members until Add members expands the roster", async () => {
     await render();
     expect(rowNames()).toEqual(["Researcher", "Writer"]);
-    await click("Show all");
+    await click("Add members");
     expect(rowNames()).toEqual(["Researcher", "Writer", "Runner"]);
     await click("Show selected");
     expect(rowNames()).toEqual(["Researcher", "Writer"]);
@@ -307,7 +309,7 @@ describe("GroupSettings", () => {
 
   it("filters the expanded roster by name", async () => {
     await render();
-    await click("Show all");
+    await click("Add members");
     const filter = container.querySelector('input[aria-label="Filter bots"]');
     expect(filter).not.toBeNull();
     await act(async () => {
@@ -327,6 +329,30 @@ describe("GroupSettings", () => {
     await click("Show selected");
     expect(rowNames()).toEqual(["Researcher", "Writer"]);
     expect(container.querySelector('input[aria-label="Filter bots"]')).toBeNull();
+  });
+
+  it("adds a bot to an existing group and saves the selected members", async () => {
+    const onSave = vi.fn(async () => undefined);
+    await render({ onSave });
+    await click("Add members");
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[role="checkbox"][aria-label="Add Runner to the group"]')!
+        .click();
+    });
+    await click("Save");
+    expect(onSave).toHaveBeenCalledWith({
+      name: undefined,
+      botIds: ["bot-1", "bot-2", "bot-3"],
+    });
+  });
+
+  it("places conversation background settings after group actions", async () => {
+    await render({ backgroundSettings: <div data-testid="background-settings">Background</div> });
+    const background = container.querySelector('[data-testid="background-settings"]')!;
+    expect(
+      button("Delete group").compareDocumentPosition(background) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("opens the bot profile from the name and keeps unchecked members listed", async () => {

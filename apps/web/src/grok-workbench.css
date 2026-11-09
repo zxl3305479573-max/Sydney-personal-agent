@@ -643,3 +643,43 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   }
 }
+
+:root
+  :is(
+    [data-slot="dialog-content"],
+    [data-slot="popover-content"],
+    [data-testid="sidebar-search"],
+    [data-testid="side-panel"],
+    .sydney-settings-nav-row,
+    .sydney-settings-header,
+    .sydney-mobile-glass,
+    .sydney-mobile-glass-input,
+    .sydney-mobile-account-trigger
+  ) {
+  border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+  backdrop-filter: blur(20px) saturate(1.1);
+}
+
+:root
+  :is([data-slot="dialog-content"], [data-slot="popover-content"], [data-testid="side-panel"])
+  :is([data-slot="input"], select, textarea),
+:root .sydney-create-bot-footer button[type="submit"] {
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+}
+
+html[data-workspace-background="true"] .sydney-settings-dialog,
+html[data-workspace-background="true"] [data-testid="side-panel"] {
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+}
+
+html[data-workspace-background="true"] .sydney-settings-dialog::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after {
+  background:
+    linear-gradient(
+      rgb(0 0 0 / var(--workspace-background-overlay)),
+      rgb(0 0 0 / var(--workspace-background-overlay))
+    ),
+    color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+  opacity: 1;
+}
