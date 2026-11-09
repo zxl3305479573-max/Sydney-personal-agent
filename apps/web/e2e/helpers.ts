@@ -157,7 +157,9 @@ export async function signupThroughForm(
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByLabel("Confirm password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  if (await page.getByRole("heading", { name: "Check your email" }).isVisible()) {
+  await page.waitForURL(/\/(?:sign-up\?verify=email|onboarding|app)/, { timeout: 20_000 });
+  if (new URL(page.url()).searchParams.get("verify") === "email") {
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     await finishEmailVerification(page, email, password);
     await page.goto("/onboarding");
   }
