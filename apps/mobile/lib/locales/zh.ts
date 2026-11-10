@@ -1,4 +1,5 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  Bots: "小伙伴",
   "Daily check-ins on unfinished work": "每天跟进未完成的工作",
   "How other bots see it": "其他机器人如何了解它",
   "Share to": "分享到",

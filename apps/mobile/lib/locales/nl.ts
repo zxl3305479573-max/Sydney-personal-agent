@@ -1,4 +1,6 @@
 export const NL_MESSAGES: Record<string, string> = {
+  Bots: "Bots",
+  "Connect apps": "Apps verbinden",
   "Daily check-ins on unfinished work": "Dagelijks navragen over onafgemaakt werk",
   "How other bots see it": "Hoe andere bots deze zien",
   "Share to": "Delen met",

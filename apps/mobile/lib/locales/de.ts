@@ -1,4 +1,6 @@
 export const DE_MESSAGES: Record<string, string> = {
+  Bots: "Bots",
+  "Connect apps": "Apps verbinden",
   "Daily check-ins on unfinished work": "Tägliche Rückfragen zu offenen Aufgaben",
   "How other bots see it": "So sehen andere Bots ihn",
   "Share to": "Teilen mit",
