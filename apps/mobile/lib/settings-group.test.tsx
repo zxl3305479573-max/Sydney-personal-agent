@@ -206,7 +206,7 @@ describe("settings group", () => {
     expect(view.innerHTML).toBe("");
   });
 
-  it("sets the group label, row detail and footer at 14pt on an 18pt line", () => {
+  it("uses the mobile web heading and row typography while retaining secondary text", () => {
     const view = render(
       <SettingsGroup label="Appearance" footer="Applies on this device.">
         <SettingsRow title="Language" detail="Follows the system" />
@@ -219,10 +219,11 @@ describe("settings group", () => {
       return Object.assign({}, ...[JSON.parse(span?.dataset.style ?? "null")].flat());
     };
 
-    for (const content of ["Appearance", "Follows the system", "Applies on this device."]) {
+    expect(textStyle("Appearance")).toMatchObject({ fontSize: 18, lineHeight: 24 });
+    for (const content of ["Follows the system", "Applies on this device."]) {
       expect(textStyle(content)).toMatchObject({ fontSize: 14, lineHeight: 18 });
     }
-    expect(textStyle("Language")).toMatchObject({ fontSize: 17 });
+    expect(textStyle("Language")).toMatchObject({ fontSize: 14 });
   });
 
   it("announces the group label as a header", () => {

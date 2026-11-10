@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 
 vi.mock("@lingui/react/macro", () => ({
+  Trans: ({ children }: { children: ReactNode }) => children,
   useLingui: () => ({
     t: (strings: TemplateStringsArray, ...values: unknown[]) =>
       strings.reduce((text, part, index) => `${text}${values[index - 1] ?? ""}${part}`),
@@ -213,6 +214,30 @@ it("reports a section picked in the nav so the shell can keep it in the URL", as
     if (!usage) throw new Error("Missing Usage nav item");
     await act(async () => usage.click());
     expect(onSectionChange).toHaveBeenCalledWith("usage");
+  } finally {
+    await cleanup();
+  }
+});
+
+it("opens theme plugins from the settings navigation", async () => {
+  const onSectionChange = vi.fn();
+  const { container, rerender, cleanup } = await render({ onSectionChange });
+  try {
+    const plugins = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-nav-plugins"]',
+    );
+    expect(plugins?.textContent).toContain("Plugins");
+    await act(async () => plugins?.click());
+    expect(onSectionChange).toHaveBeenCalledWith("plugins");
+    await rerender({ section: "plugins", onSectionChange });
+    const entry = container.querySelector<HTMLElement>('[data-testid="theme-plugin-entry"]');
+    expect(entry).not.toBeNull();
+    await act(async () => entry?.querySelector("button")?.click());
+    expect(container.querySelector('[data-testid="theme-plugin-panel"]')?.textContent).toContain(
+      "Theme plugin installation and layout changes are not available yet.",
+    );
+    await act(async () => button(container, "Back").click());
+    expect(container.querySelector('[data-testid="theme-plugin-entry"]')).not.toBeNull();
   } finally {
     await cleanup();
   }

@@ -1,13 +1,14 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
-const RELEASE_PROFILES = new Set(["production", "android-apk", "diagnostic"]);
+const RELEASE_PROFILES = new Set(["preview", "production", "android-apk", "diagnostic"]);
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  if (RELEASE_PROFILES.has(process.env.EAS_BUILD_PROFILE ?? "")) {
+  const sideload = process.env.SYDNEY_SIDELOAD_IOS === "1";
+  if (sideload || RELEASE_PROFILES.has(process.env.EAS_BUILD_PROFILE ?? "")) {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (!apiUrl) {
       throw new Error(
-        "EXPO_PUBLIC_API_URL must be set in the EAS production environment before building a release.",
+        "EXPO_PUBLIC_API_URL must be set in the EAS build environment before building a release.",
       );
     }
 
@@ -18,12 +19,53 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       throw new Error("EXPO_PUBLIC_API_URL must be a valid URL.");
     }
     if (parsed.protocol !== "https:") {
-      throw new Error("EXPO_PUBLIC_API_URL must use HTTPS for production builds.");
+      throw new Error("EXPO_PUBLIC_API_URL must use HTTPS for release builds.");
+    }
+    if (
+      sideload &&
+      (parsed.username ||
+        parsed.password ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash)
+    ) {
+      throw new Error("EXPO_PUBLIC_API_URL must be an HTTPS origin without credentials or a path.");
+    }
+    const hostname = parsed.hostname.replace(/\.$/, "");
+    if (
+      (sideload || process.env.EAS_BUILD_PROFILE === "preview") &&
+      (hostname === "localhost" ||
+        hostname.endsWith(".localhost") ||
+        hostname === "[::1]" ||
+        /^127\./.test(hostname) ||
+        /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(hostname))
+    ) {
+      throw new Error("EXPO_PUBLIC_API_URL must not point to the device itself.");
     }
   }
 
   let result = config as ExpoConfig;
-  const rpId = passkeyRpId(process.env.EXPO_PUBLIC_API_URL);
+  if (sideload) {
+    const bundleIdentifier = process.env.SYDNEY_IOS_BUNDLE_ID;
+    if (!bundleIdentifier || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(bundleIdentifier)) {
+      throw new Error("SYDNEY_IOS_BUNDLE_ID must be a valid iOS bundle identifier.");
+    }
+    const { eas: _eas, passkeyRpIds: _passkeyRpIds, ...extra } = result.extra ?? {};
+    const { associatedDomains: _associatedDomains, ...ios } = result.ios ?? {};
+    result = {
+      ...result,
+      owner: undefined,
+      slug: "sydney-sideload",
+      ios: { ...ios, bundleIdentifier },
+      extra: { ...extra, sydneySideload: true },
+      updates: { enabled: false },
+      plugins: result.plugins?.filter((plugin) => {
+        const name = typeof plugin === "string" ? plugin : plugin[0];
+        return name !== "./plugins/with-app-intents" && name !== "expo-notifications";
+      }),
+    };
+  }
+  const rpId = sideload ? null : passkeyRpId(process.env.EXPO_PUBLIC_API_URL);
   if (rpId) {
     // Native passkeys only work for domains the binary is associated with, so the app reads the
     // same list at runtime to hide passkeys on other servers. Developer mode makes a

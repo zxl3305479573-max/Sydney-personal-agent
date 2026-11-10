@@ -92,12 +92,25 @@ vi.mock("react-native", () => {
     children,
     testID,
     style,
+    accessibilityLabel,
+    accessibilityRole,
   }: {
     children?: ReactNode;
     testID?: string;
     style?: object;
+    accessibilityLabel?: string;
+    accessibilityRole?: string;
   }) =>
-    createElement("div", { "data-testid": testID, "data-style": JSON.stringify(style) }, children);
+    createElement(
+      "div",
+      {
+        "data-testid": testID,
+        "data-style": JSON.stringify(style),
+        "aria-label": accessibilityLabel,
+        role: accessibilityRole,
+      },
+      children,
+    );
   return {
     AppState: {
       addEventListener: (_type: string, listener: (state: string) => void) => {
@@ -195,12 +208,18 @@ vi.mock("../components/glass-surface", () => ({
     children,
     shape = "capsule",
     style,
+    cornerRadius,
   }: {
     children?: ReactNode;
     shape?: string;
     style?: object;
+    cornerRadius?: number;
   }) =>
-    createElement("div", { "data-glass": shape, "data-style": JSON.stringify(style) }, children),
+    createElement(
+      "div",
+      { "data-glass": shape, "data-style": JSON.stringify(style), "data-radius": cornerRadius },
+      children,
+    ),
 }));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
 vi.mock("../components/bot-avatar", () => ({
@@ -1166,6 +1185,7 @@ describe("thread composer isolation", () => {
         expect(fieldStyle.padding).toBe(0);
         expect(fieldStyle.paddingTop).toBeUndefined();
         expect(fieldStyle.paddingBottom).toBeUndefined();
+        expect(fieldStyle.flexShrink).toBe(1);
         expect(field.dataset.scrollEnabled).toBe("true");
         expect(fieldStyle.minHeight).toBe(fieldStyle.lineHeight * textScale);
         expect(fieldStyle.maxHeight).toBe(5 * fieldStyle.lineHeight * textScale);
@@ -1177,22 +1197,63 @@ describe("thread composer isolation", () => {
     },
   );
 
-  it("insets the call and send pills equally from the capsule's bottom and trailing edges", () => {
+  it("lets the text viewport shrink while keeping the controls row intact", () => {
+    render({ attachmentIds: ["attachment-1", "attachment-2"] });
+    type("line\n".repeat(20));
     const style = (element: Element) => JSON.parse((element as HTMLElement).dataset.style!);
+    const field = container.querySelector("input")!;
+    const wrapper = field.parentElement!;
+    const textRow = wrapper.parentElement!;
+    const capsule = textRow.parentElement!;
+    const outer = capsule.parentElement!;
+    const controlsRow = textRow.nextElementSibling!;
+    expect(style(outer)).toMatchObject({ flexShrink: 1, minHeight: 0 });
+    expect(style(capsule)).toMatchObject({ flexShrink: 1, minHeight: 0 });
+    expect(style(textRow)).toMatchObject({ flexShrink: 1, minHeight: 0, alignItems: "stretch" });
+    expect(style(wrapper)).toMatchObject({ flexShrink: 1, minHeight: 0, paddingVertical: 11 });
+    expect(style(field)).toMatchObject({ flexShrink: 1, minHeight: 22, maxHeight: 110 });
+    expect(style(controlsRow)).toMatchObject({ flexShrink: 0 });
+    expect(container.querySelector('button[aria-label="Send"]')).not.toBeNull();
+    expect(composer.current!.snapshot().attachmentIds).toEqual(["attachment-1", "attachment-2"]);
+  });
+
+  it("matches the iOS glass corner radius to the composer container", () => {
+    const capsule = container.querySelector('[data-glass="roundedRectangle"]') as HTMLElement;
+    expect(Number(capsule.dataset.radius)).toBe(26);
+    expect(JSON.parse(capsule.dataset.style!).borderRadius).toBe(Number(capsule.dataset.radius));
+  });
+
+  it("aligns the empty placeholder with the inset text viewport", () => {
+    const field = container.querySelector("input")!;
+    const wrapper = field.parentElement!;
+    const placeholder = Array.from(wrapper.children).find(
+      (element) => element.textContent === "Message…",
+    ) as HTMLElement;
+    expect(JSON.parse(wrapper.dataset.style!).paddingVertical).toBe(11);
+    expect(JSON.parse(placeholder.dataset.style!).top).toBe(11);
+  });
+
+  it("keeps attachment, call, send and stop controls accessible with 44-point targets", () => {
+    const style = (element: Element) => JSON.parse((element as HTMLElement).dataset.style!);
+    const attachment = container.querySelector('[role="button"][aria-label="Attach file"]')!;
+    expect(style(attachment)).toMatchObject({ width: 44, height: 44 });
     for (const label of ["Call", "Send"]) {
       if (label === "Send") type("Hello");
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      const pill = style(button.querySelector("[data-glass]")!);
-      const capsule = style(button.closest('[data-glass="roundedRectangle"]')!);
-      const inset = (capsule.minHeight - pill.height) / 2;
-      expect(style(button).marginBottom).toBe(inset);
-      expect(capsule.paddingEnd).toBe(inset);
+      expect(style(button)).toMatchObject({ minWidth: 44, minHeight: 44 });
+      press(label);
     }
+    expect(props.startVoiceCall).toHaveBeenCalledOnce();
+    expect(props.send).toHaveBeenCalledOnce();
+    render({ working: true });
+    const stop = container.querySelector('button[aria-label="Stop"]')!;
+    expect(style(stop)).toMatchObject({ width: 44, height: 44 });
+    press("Stop");
+    expect(props.stop).toHaveBeenCalledOnce();
   });
 
-  it("keeps right-to-left text clear of the call and send pills", () => {
+  it("keeps right-to-left text in a separate row from call and send controls", () => {
     const style = (element: Element) => JSON.parse((element as HTMLElement).dataset.style!);
-    // Right-to-left text runs up to the field's trailing edge, right next to the pill.
     for (const [label, draft] of [
       ["Call", ""],
       ["Send", "אבג"],
@@ -1200,8 +1261,16 @@ describe("thread composer isolation", () => {
     ] as const) {
       type(draft);
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      const capsule = style(button.closest('[data-glass="roundedRectangle"]')!);
-      expect(capsule.gap).toBe(capsule.paddingEnd);
+      const capsule = button.closest('[data-glass="roundedRectangle"]')!;
+      const field = container.querySelector("input")!;
+      const textRow = field.parentElement!.parentElement!;
+      const controlsRow = button.parentElement!;
+      expect(textRow.parentElement).toBe(capsule);
+      expect(controlsRow.parentElement).toBe(capsule);
+      expect(textRow.nextElementSibling).toBe(controlsRow);
+      expect(style(capsule).gap).toBeGreaterThan(0);
+      expect(style(field).writingDirection).toBe("auto");
+      expect(composer.current!.snapshot().promptText).toBe(draft);
     }
   });
 });

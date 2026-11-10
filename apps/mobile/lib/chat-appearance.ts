@@ -14,6 +14,7 @@ export type MobileBubbleStyle = {
 
 export type MobileChatAppearance = {
   backgroundUri: string | null;
+  backgroundFit: "cover" | "contain";
   backgroundOpacity: number;
   overlayOpacity: number;
   bubble: MobileBubbleStyle | null;
@@ -23,6 +24,7 @@ const STORAGE_KEY = "rakazo.chatAppearance.mobile";
 const BACKGROUND_FILE = new File(Paths.document, "sydney-chat-background");
 const DEFAULT_APPEARANCE: MobileChatAppearance = {
   backgroundUri: null,
+  backgroundFit: "cover",
   backgroundOpacity: 1,
   overlayOpacity: 0.25,
   bubble: null,
@@ -53,6 +55,7 @@ function normalize(value: unknown): MobileChatAppearance {
     validColor((bubble as Record<string, unknown>).botForeground);
   return {
     backgroundUri: typeof record.backgroundUri === "string" ? record.backgroundUri : null,
+    backgroundFit: record.backgroundFit === "contain" ? "contain" : "cover",
     backgroundOpacity:
       typeof record.backgroundOpacity === "number"
         ? Math.min(1, Math.max(0, record.backgroundOpacity))

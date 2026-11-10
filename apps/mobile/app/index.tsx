@@ -27,7 +27,7 @@ import { BotOrganizeModal } from "../components/bot-organize-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
-import { InboxHeader } from "../components/inbox-header";
+import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, SWIPE_ROWS, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
@@ -66,7 +66,6 @@ import {
   deleteSpaceTitle,
   inboxHasNoChats,
   inboxItemKey,
-  inboxNeedsCreateHint,
   inboxSignal,
   removeInboxSpace,
   retryInboxSpaceFallback,
@@ -779,6 +778,28 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     sharing: !!onShareSelect,
     toggleCollapsed,
   });
+  const renderRosterItem = useCallback(
+    ({ item, index }: { item: InboxItem; index: number }) => {
+      const row = renderItem({ item });
+      if (onShareSelect || (item.type !== "bot" && item.type !== "group")) return row;
+      let previousKind: "bot" | "group" = "bot";
+      for (let previous = index - 1; previous >= 0; previous--) {
+        const candidate = listData[previous];
+        if (candidate?.type === "bot" || candidate?.type === "group") {
+          previousKind = candidate.type;
+          break;
+        }
+      }
+      if (previousKind === item.type) return row;
+      return (
+        <>
+          <InboxRosterHeading kind={item.type} onCreateGroup={() => runCreateAction("group")} />
+          {row}
+        </>
+      );
+    },
+    [listData, onShareSelect, renderItem, runCreateAction],
+  );
 
   if (!ready) {
     return (
@@ -840,6 +861,12 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 }
                 ListHeaderComponent={
                   <>
+                    {!onShareSelect && !showLoadFailure ? (
+                      <InboxRosterHeading
+                        kind="bot"
+                        onCreateGroup={() => runCreateAction("group")}
+                      />
+                    ) : null}
                     {inlineError ? <Text style={styles.error}>{inlineError}</Text> : null}
                     {spaceRecoveryId ? (
                       <Pressable
@@ -867,21 +894,25 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                       onRetry={() => void refreshBots()}
                       onSignIn={() => void signInAgain()}
                     />
-                  ) : (
-                    <Text style={styles.empty}>
-                      {me && !onShareSelect ? t("Tap + to create a bot") : null}
-                    </Text>
-                  )
+                  ) : null
                 }
                 ListFooterComponent={
-                  <InboxListFooter
-                    createHint={
-                      !onShareSelect && !showLoadFailure && inboxNeedsCreateHint(listData)
-                    }
-                    archivedCount={onShareSelect ? 0 : archivedCount}
-                  />
+                  <>
+                    {!onShareSelect &&
+                    !showLoadFailure &&
+                    !listData.some((item) => item.type === "group") ? (
+                      <InboxRosterHeading
+                        kind="group"
+                        onCreateGroup={() => runCreateAction("group")}
+                      />
+                    ) : null}
+                    <InboxListFooter
+                      createHint={false}
+                      archivedCount={onShareSelect ? 0 : archivedCount}
+                    />
+                  </>
                 }
-                renderItem={renderItem}
+                renderItem={renderRosterItem}
               />
             </AvatarViewportScope>
             {onShareSelect || refreshing || showLoadFailure || inboxHasNoChats(listData)
@@ -890,6 +921,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           </View>
         </CompactRowsContext.Provider>
       </SelectedChatContext.Provider>
+      {!onShareSelect ? <InboxQuickActions columnInsets={columnInsets} /> : null}
       {organizeChat && organizeTarget ? (
         <BotOrganizeModal
           bot={organizeChat}

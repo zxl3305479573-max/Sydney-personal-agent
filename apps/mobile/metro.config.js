@@ -3,6 +3,12 @@ const { resolveTypeScriptSource } = require("./metro-resolver");
 
 const projectRoot = __dirname;
 const config = getSentryExpoConfig(projectRoot);
+if (process.env.SYDNEY_SIDELOAD_IOS === "1") {
+  config.transformer.assetPlugins = [
+    ...(config.transformer.assetPlugins ?? []),
+    require.resolve("./sideload-asset-path"),
+  ];
+}
 const defaultResolveRequest = config.resolver.resolveRequest;
 const pinned = new Set(["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-native"]);
 

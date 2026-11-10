@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import pathlib
 import socket
 import sys
@@ -7,7 +8,7 @@ import time
 import types
 import unittest
 from contextlib import ExitStack
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 if sys.platform == "win32":
     sys.modules["pwd"] = types.ModuleType("pwd")
@@ -309,6 +310,19 @@ class NativeDriverPolicyTests(unittest.TestCase):
             None,
         )
         self.assertEqual(result, "unknown")
+
+    def test_stale_generation_has_distinct_response_without_dispatching_input(self):
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.recv.return_value = json.dumps({
+            "method": "control_input", "botId": "bot", "generation": "old",
+        }).encode() + b"\n"
+        with patch.object(self.driver, "peer_allowed", return_value=True), \
+             patch.object(self.driver, "control_input") as control_input:
+            self.driver.serve_connection(connection)
+        response = json.loads(connection.sendall.call_args.args[0])
+        self.assertEqual(response, {"ok": False, "error": "native_driver_generation_changed"})
+        control_input.assert_not_called()
 
 
 if __name__ == "__main__":

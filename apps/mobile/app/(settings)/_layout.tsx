@@ -56,14 +56,31 @@ export default function SettingsLayout() {
       })}
     >
       <Stack.Screen
-        name="account"
-        // The sheet's first page shows only its close button on iOS; "Account" still names it.
-        // A title function returning null would fall back to showing the title text.
+        name="settings-home"
         options={{
-          ...glassHeaderOptions(t("Account")),
+          ...glassHeaderOptions(t("Settings")),
           ...(Platform.OS === "ios" ? { headerTitle: "" } : null),
           contentStyle: { backgroundColor: native.groupedPage },
         }}
+      />
+      <Stack.Screen
+        name="account"
+        options={({ route }) => ({
+          ...glassHeaderOptions(
+            (route.params as { section?: string } | undefined)?.section === "usage"
+              ? t("Usage")
+              : (route.params as { section?: string } | undefined)?.section === "appearance"
+                ? t("Appearance")
+                : (route.params as { section?: string } | undefined)?.section === "permissions"
+                  ? t("Rules")
+                  : (route.params as { section?: string } | undefined)?.section === "notifications"
+                    ? t("Notifications")
+                    : (route.params as { section?: string } | undefined)?.section === "advanced"
+                      ? t("Advanced")
+                      : t("Account"),
+          ),
+          contentStyle: { backgroundColor: native.groupedPage },
+        })}
       />
       <Stack.Screen name="ai-data-sharing" options={glassHeaderOptions(t("AI data sharing"))} />
       <Stack.Screen name="archived-bots" options={{ title: t("Archived") }} />

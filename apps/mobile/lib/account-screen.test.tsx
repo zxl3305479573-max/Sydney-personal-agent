@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Account from "../app/(settings)/account";
+import SettingsHome from "../app/(settings)/settings-home";
 import { deleteAccount, fetchAccountSecurity, requestAccountDeletionCode } from "./api";
 import { replaceWithSignIn } from "./auth-routing";
 import { promptAccountDeletion } from "./delete-account-prompt";
@@ -34,6 +35,7 @@ const { element, account } = vi.hoisted(() => ({
       unknown
     >,
     push: vi.fn(),
+    params: {} as { section?: string; focus?: string },
     approvals: { mode: "ask", enabled: false, skipApprovals: false, checkerAvailable: true },
     rules: [] as { id: string }[],
   },
@@ -109,7 +111,7 @@ vi.mock("expo-router", () => {
   const router = { push: account.push, back: () => undefined };
   return {
     useFocusEffect: (effect: () => undefined | (() => void)) => useEffect(effect, [effect]),
-    useLocalSearchParams: () => ({}),
+    useLocalSearchParams: () => account.params,
     useRouter: () => router,
   };
 });
@@ -162,8 +164,8 @@ vi.mock("../components/settings-group", () => ({
       },
       title,
     ),
-  SettingsSwitch: ({ title }: { title: string }) =>
-    createElement("button", { type: "button" }, title),
+  SettingsSwitch: ({ title, label }: { title?: string; label?: string }) =>
+    createElement("button", { type: "button" }, title ?? label),
   useStackedSettings: () => false,
 }));
 vi.mock("./api", () => ({
@@ -272,7 +274,44 @@ beforeEach(() => {
   vi.clearAllMocks();
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
   account.rules = [];
+  account.params = {};
   vi.mocked(fetchAccountSecurity).mockResolvedValue(security());
+});
+
+it("opens separate settings sections from the grouped home", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root?.render(<SettingsHome />));
+  const button = (name: string) =>
+    [...container!.querySelectorAll("button")].find((node) => node.textContent === name);
+  expect(button("tester@example.test")).toBeDefined();
+  expect(button("Usage")).toBeDefined();
+  expect(button("Connect apps")).toBeDefined();
+  expect(button("Appearance")).toBeDefined();
+  await act(async () => button("tester@example.test")?.click());
+  await act(async () => button("Usage")?.click());
+  await act(async () => button("Appearance")?.click());
+  await act(async () => button("Connect apps")?.click());
+  expect(account.push.mock.calls).toEqual([
+    [{ pathname: "/account", params: { section: "account" } }],
+    [{ pathname: "/account", params: { section: "usage" } }],
+    [{ pathname: "/account", params: { section: "appearance" } }],
+    ["/integrations"],
+  ]);
+});
+
+it.each([
+  ["account", "Delete account", "Appearance"],
+  ["usage", "Usage", "Delete account"],
+  ["appearance", "Appearance", "Delete account"],
+  ["advanced", "Stream replies", "Delete account"],
+])("shows only the requested %s section", async (section, shown, hidden) => {
+  account.params = { section };
+  const view = await renderAccount();
+  expect(view.screen.textContent).toContain(shown);
+  expect(view.screen.textContent).not.toContain(hidden);
 });
 
 afterEach(() => {

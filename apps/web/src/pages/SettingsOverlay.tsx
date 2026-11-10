@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApprovalRulesSettings } from "../components/ApprovalRulesSettings";
 import { computersAreUnavailable } from "../components/ComputersUnavailableHint";
+import { ThemePluginEntry } from "../components/integrations/theme-plugin-entry";
 import { PageBreadcrumb } from "../components/PageBreadcrumb";
 import { SETTINGS_CONTENT_WIDTH, SettingsGroup, SettingsRow } from "../components/SettingsRows";
 import type { UsageEvent } from "../components/UsageHeatmap";
@@ -97,6 +98,7 @@ export function SettingsOverlay({
   const usageRef = useRef<HTMLDivElement>(null);
   const [memoryBusy, setMemoryBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [themePluginOpen, setThemePluginOpen] = useState(false);
   const [keepComputerRecovery, setKeepComputerRecovery] = useState(false);
   const recoveryHoldTimer = useRef<number | undefined>(undefined);
   const showComputer = keepComputerRecovery || computersAreUnavailable(sandboxProvider);
@@ -131,6 +133,9 @@ export function SettingsOverlay({
   useEffect(() => {
     if (section !== "computer") releaseComputerRecovery();
   }, [section, releaseComputerRecovery]);
+  useEffect(() => {
+    if (section !== "plugins") setThemePluginOpen(false);
+  }, [section]);
   useEffect(() => () => window.clearTimeout(recoveryHoldTimer.current), []);
 
   useEffect(() => {
@@ -388,6 +393,9 @@ export function SettingsOverlay({
                         </SettingsGroup>
                       ) : null}
                     </div>
+                  ) : null}
+                  {section === "plugins" ? (
+                    <ThemePluginEntry open={themePluginOpen} onOpenChange={setThemePluginOpen} />
                   ) : null}
                   {section === "space" && space ? (
                     <SpaceSettingsPanel
