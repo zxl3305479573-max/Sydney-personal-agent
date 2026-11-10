@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, TextInput } from "react-native";
 import { BotMemberPicker } from "../components/bot-member-picker";
+import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
 import { NativeActionButton } from "../components/native-action-button";
 import type { MobileBot, MobileGroup } from "../lib/api";
@@ -81,22 +82,22 @@ export default function GroupSettingsScreen() {
         keyboardDismissMode="on-drag"
       >
         <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>{t("Name")}</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          maxLength={GROUP_NAME_MAX_LENGTH}
-          placeholder={t("Group name")}
-          placeholderTextColor={tokens.mutedForeground}
-          returnKeyType="done"
-          style={{
-            marginTop: 8,
-            backgroundColor: native.fill,
-            borderRadius: 11,
-            padding: 14,
-            color: tokens.foreground,
-            fontSize: 16,
-          }}
-        />
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={11}
+          style={{ marginTop: 8, borderRadius: 11 }}
+          fallbackStyle={{ backgroundColor: native.fill }}
+        >
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            maxLength={GROUP_NAME_MAX_LENGTH}
+            placeholder={t("Group name")}
+            placeholderTextColor={tokens.mutedForeground}
+            returnKeyType="done"
+            style={{ padding: 14, color: tokens.foreground, fontSize: 16 }}
+          />
+        </GlassSurface>
         {group ? (
           <BotMemberPicker
             key={group.id}

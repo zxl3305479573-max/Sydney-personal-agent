@@ -5,11 +5,13 @@ import type { ReactNode } from "react";
 import { act, createElement, useEffect } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
+import { Alert } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Account from "../app/(settings)/account";
 import SettingsHome from "../app/(settings)/settings-home";
 import { deleteAccount, fetchAccountSecurity, requestAccountDeletionCode } from "./api";
 import { replaceWithSignIn } from "./auth-routing";
+import { checkForManualUpdate, restartForUpdate } from "./client-update";
 import { promptAccountDeletion } from "./delete-account-prompt";
 import { registerSettingsSheet } from "./settings-sheet";
 
@@ -42,6 +44,10 @@ const { element, account } = vi.hoisted(() => ({
 }));
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./client-update", () => ({
+  checkForManualUpdate: vi.fn(async () => "downloaded"),
+  restartForUpdate: vi.fn(async () => undefined),
+}));
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
 }));
@@ -300,6 +306,23 @@ it("opens separate settings sections from the grouped home", async () => {
     [{ pathname: "/account", params: { section: "appearance" } }],
     ["/integrations"],
   ]);
+});
+
+it("offers to restart after downloading a manual update", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root?.render(<SettingsHome />));
+  const button = [...container.querySelectorAll("button")].find(
+    (node) => node.textContent === "Check for updates",
+  );
+  await act(async () => button?.click());
+  expect(checkForManualUpdate).toHaveBeenCalledOnce();
+  const buttons = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
+  expect(restartForUpdate).not.toHaveBeenCalled();
+  await act(async () => buttons?.find((item) => item.text === "Restart")?.onPress?.());
+  expect(restartForUpdate).toHaveBeenCalledOnce();
 });
 
 it.each([

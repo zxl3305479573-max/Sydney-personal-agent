@@ -91,6 +91,42 @@ describe("mobile app config", () => {
     expect(() => appConfig(context(config))).toThrow("EXPO_PUBLIC_API_URL");
   });
 
+  it("enables sideload updates only for an explicitly configured Sydney project", () => {
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.sydney");
+    vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
+    vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
+    vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
+    expect(
+      appConfig(context({ ...config, extra: { eas: { projectId: "upstream" } } })),
+    ).toMatchObject({
+      owner: "sydney",
+      runtimeVersion: "sydney-ios-1",
+      extra: { eas: { projectId: "12345678-1234-4234-8234-123456789abc" } },
+      updates: {
+        url: "https://u.expo.dev/12345678-1234-4234-8234-123456789abc",
+        requestHeaders: { "expo-channel-name": "sideload" },
+      },
+    });
+  });
+
+  it("rejects incomplete or upstream sideload update configuration", () => {
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.sydney");
+    vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
+    expect(() => appConfig(context(config))).toThrow("Sydney OTA");
+    vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
+    vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
+    expect(() =>
+      appConfig(
+        context({
+          ...config,
+          extra: { eas: { projectId: "12345678-1234-4234-8234-123456789abc" } },
+        }),
+      ),
+    ).toThrow("Sydney OTA");
+  });
+
   it.each([
     "https://app.example.com/api",
     "https://user:pass@app.example.com",

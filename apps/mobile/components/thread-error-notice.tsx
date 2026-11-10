@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 import { RunErrorAction } from "./run-error-actions";
 
@@ -35,10 +36,13 @@ export function ThreadErrorNotice({
       : null;
   const hasBody = (summary && error) || upcomingReset || action || (summary && onDetails);
   return (
-    <View
+    <GlassSurface
       accessibilityRole="alert"
       accessibilityLiveRegion="assertive"
-      style={[styles.card, { backgroundColor: tokens.card }]}
+      shape="roundedRectangle"
+      cornerRadius={12}
+      style={styles.card}
+      fallbackStyle={{ backgroundColor: tokens.card }}
     >
       <View style={styles.header}>
         <View
@@ -79,7 +83,7 @@ export function ThreadErrorNotice({
           ) : null}
         </View>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }
 

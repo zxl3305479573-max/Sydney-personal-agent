@@ -15,6 +15,7 @@ import { mobileTokens } from "../lib/appearance";
 import { native, useThemedStyles } from "../lib/native";
 import { androidRipple } from "../lib/ripple";
 import { stacksAtTextScale } from "../lib/text-scale";
+import { GlassSurface } from "./glass-surface";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
 
@@ -55,14 +56,19 @@ export function SettingsGroup({
   return (
     <View accessibilityLabel={accessibilityLabel} style={styles.group}>
       {label ? <SettingsLabel>{label}</SettingsLabel> : null}
-      <View style={styles.card}>
+      <GlassSurface
+        shape="roundedRectangle"
+        cornerRadius={12}
+        style={styles.card}
+        fallbackStyle={styles.cardFallback}
+      >
         {rows.map((row, index) => (
           <Fragment key={row.key}>
             {index > 0 ? <View style={styles.separator} /> : null}
             {row}
           </Fragment>
         ))}
-      </View>
+      </GlassSurface>
       {footer ? <SettingsFooter>{footer}</SettingsFooter> : null}
     </View>
   );
@@ -243,8 +249,8 @@ function createSettingsStyles() {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: native.separator,
       overflow: "hidden",
-      backgroundColor: native.groupedCell,
     },
+    cardFallback: { backgroundColor: native.groupedCell },
     separator: {
       // iOS draws sheets scaled down slightly, which makes a one-pixel line fall between
       // pixels and vanish at some offsets. Two pixels always leave at least one visible.

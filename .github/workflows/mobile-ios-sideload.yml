@@ -30,6 +30,9 @@ jobs:
       SYDNEY_SIDELOAD_IOS: "1"
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url || 'https://pc.zxlup.xin' }}
       SYDNEY_IOS_BUNDLE_ID: ${{ inputs.bundle_id || 'xin.zxlup.sydney' }}
+      SYDNEY_OTA_PROJECT_ID: ${{ vars.SYDNEY_OTA_PROJECT_ID }}
+      SYDNEY_OTA_OWNER: ${{ vars.SYDNEY_OTA_OWNER }}
+      SYDNEY_OTA_RUNTIME_VERSION: ${{ vars.SYDNEY_OTA_RUNTIME_VERSION }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:

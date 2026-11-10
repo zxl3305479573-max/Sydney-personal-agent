@@ -52,13 +52,40 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     }
     const { eas: _eas, passkeyRpIds: _passkeyRpIds, ...extra } = result.extra ?? {};
     const { associatedDomains: _associatedDomains, ...ios } = result.ios ?? {};
+    const updateProject = process.env.SYDNEY_OTA_PROJECT_ID;
+    const updateOwner = process.env.SYDNEY_OTA_OWNER;
+    const updateRuntime = process.env.SYDNEY_OTA_RUNTIME_VERSION;
+    const updatesRequested = updateProject || updateOwner || updateRuntime;
+    if (
+      updatesRequested &&
+      (!updateProject ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(updateProject) ||
+        !updateOwner ||
+        !/^[a-z0-9][a-z0-9._-]*$/i.test(updateOwner) ||
+        !updateRuntime ||
+        !/^[a-z0-9][a-z0-9._-]*$/i.test(updateRuntime) ||
+        updateProject.toLowerCase() ===
+          (result.extra?.eas as { projectId?: string } | undefined)?.projectId?.toLowerCase())
+    ) {
+      throw new Error("Sydney OTA requires its own valid project ID, owner and runtime version.");
+    }
     result = {
       ...result,
-      owner: undefined,
+      owner: updatesRequested ? updateOwner : undefined,
       slug: "sydney-sideload",
       ios: { ...ios, bundleIdentifier },
-      extra: { ...extra, sydneySideload: true },
-      updates: { enabled: false },
+      extra: {
+        ...extra,
+        sydneySideload: true,
+        ...(updatesRequested ? { eas: { projectId: updateProject } } : {}),
+      },
+      ...(updatesRequested ? { runtimeVersion: updateRuntime } : {}),
+      updates: updatesRequested
+        ? {
+            url: `https://u.expo.dev/${updateProject}`,
+            requestHeaders: { "expo-channel-name": "sideload" },
+          }
+        : { enabled: false },
       plugins: result.plugins?.filter((plugin) => {
         const name = typeof plugin === "string" ? plugin : plugin[0];
         return name !== "./plugins/with-app-intents" && name !== "expo-notifications";

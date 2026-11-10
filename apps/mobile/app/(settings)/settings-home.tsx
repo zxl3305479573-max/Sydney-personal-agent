@@ -2,11 +2,12 @@ import { accountDisplay } from "@rakazo/core";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import type { MobileMe } from "../../lib/api";
 import { rpc } from "../../lib/api";
+import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
@@ -17,6 +18,7 @@ export default function SettingsHome() {
   const router = useRouter();
   const insets = useSideInsets();
   const [me, setMe] = useState<MobileMe | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const chinese = locale === "zh-CN";
 
@@ -34,6 +36,32 @@ export default function SettingsHome() {
 
   function accountSection(section: string) {
     router.push({ pathname: "/account", params: { section } });
+  }
+
+  async function checkUpdate() {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      const result = await checkForManualUpdate();
+      if (result === "disabled") Alert.alert(t("Updates are unavailable in this build."));
+      else if (result === "current") Alert.alert(t("Your app is up to date."));
+      else {
+        Alert.alert(t("Update downloaded"), t("Restart the app now? Save unfinished work first."), [
+          { text: t("Not Now"), style: "cancel" },
+          {
+            text: t("Restart"),
+            onPress: () =>
+              void restartForUpdate().catch(() =>
+                Alert.alert(t("Could not restart. Reopen the app to apply the update.")),
+              ),
+          },
+        ]);
+      }
+    } catch {
+      Alert.alert(t("Could not check for updates. Try again later."));
+    } finally {
+      setCheckingUpdate(false);
+    }
   }
 
   function link(title: string, href: Href, root = false) {
@@ -140,6 +168,12 @@ export default function SettingsHome() {
             onPress={() => accountSection("advanced")}
           />
           {link(t("Archived"), "/archived-bots")}
+          <SettingsRow
+            title={checkingUpdate ? t("Checking for updates…") : t("Check for updates")}
+            accessibilityRole="button"
+            disabled={checkingUpdate}
+            onPress={() => void checkUpdate()}
+          />
         </SettingsGroup>
       </ScrollView>
     </SafeAreaView>

@@ -11,6 +11,7 @@ import { useMobileTokens } from "../../lib/native";
 import { secretDestinationLabel, siteHost } from "../../lib/secret-destination";
 import { secretFieldTraits } from "../../lib/secret-field-traits";
 import { errorText } from "../../lib/user-error";
+import { GlassSurface } from "../glass-surface";
 import { NativeActionButton } from "../native-action-button";
 import { SecretAskSheet } from "../secret-ask-sheet";
 import type { MessageActionProps } from "./message-bubble";
@@ -104,11 +105,13 @@ export function AskBlock({
   }
 
   return (
-    <View
+    <GlassSurface
+      shape="roundedRectangle"
+      cornerRadius={18}
+      fallbackStyle={{ backgroundColor: tokens.card }}
       style={{
         width: secretInput ? "100%" : "90%",
         borderRadius: 18,
-        backgroundColor: tokens.card,
         paddingHorizontal: 16,
         paddingVertical: 14,
         gap: 10,
@@ -240,7 +243,7 @@ export function AskBlock({
           }}
         />
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }
 

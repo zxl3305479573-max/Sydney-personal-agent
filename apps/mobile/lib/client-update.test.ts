@@ -7,6 +7,7 @@ const updates = vi.hoisted(() => ({
   fetchUpdateAsync: vi.fn(async () => ({ isNew: true })),
   reloadAsync: vi.fn(async () => {}),
 }));
+const appConfig = vi.hoisted(() => ({ expoConfig: { extra: { sydneySideload: false } } }));
 const rn = vi.hoisted(() => {
   const listeners: Array<(state: string) => void> = [];
   return {
@@ -25,12 +26,14 @@ const rn = vi.hoisted(() => {
 });
 
 vi.mock("expo-updates", () => updates);
+vi.mock("expo-constants", () => ({ default: appConfig }));
 vi.mock("react-native", () => rn);
 vi.mock("./api", () => ({ configureClientBuild: vi.fn() }));
 vi.mock("./i18n", () => ({ t: (message: string) => message }));
 
 import { IOS_APP_STORE_URL } from "@rakazo/contracts";
 import {
+  checkForManualUpdate,
   clientBuildHeaders,
   FOREGROUND_UPDATE_CHECK_MS,
   mobileClientBuild,
@@ -41,6 +44,7 @@ import {
 afterEach(() => {
   updates.isEnabled = true;
   updates.createdAt = new Date("2026-10-22T09:30:15Z");
+  appConfig.expoConfig.extra.sydneySideload = false;
   vi.clearAllMocks();
 });
 
@@ -63,6 +67,25 @@ describe("mobile client build", () => {
     updates.isEnabled = true;
     updates.createdAt = null;
     expect(mobileClientBuild()).toBeNull();
+  });
+});
+
+describe("manual update checks", () => {
+  it("distinguishes disabled, current and downloaded updates", async () => {
+    updates.isEnabled = false;
+    expect(await checkForManualUpdate()).toBe("disabled");
+    updates.isEnabled = true;
+    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false });
+    expect(await checkForManualUpdate()).toBe("current");
+    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
+    expect(await checkForManualUpdate()).toBe("downloaded");
+    expect(updates.fetchUpdateAsync).toHaveBeenCalledOnce();
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+  });
+
+  it("reports network errors to the caller", async () => {
+    updates.checkForUpdateAsync.mockRejectedValueOnce(new Error("offline"));
+    await expect(checkForManualUpdate()).rejects.toThrow("offline");
   });
 });
 
@@ -89,6 +112,29 @@ describe("update required", () => {
     expect(rn.Linking.openURL).toHaveBeenCalledWith(IOS_APP_STORE_URL);
     noteClientUpdateRequired();
     expect(rn.Alert.alert).toHaveBeenCalledTimes(2);
+    pressUpdate();
+    await flush();
+  });
+
+  it("does not send a sideload installation to an unrelated store", async () => {
+    appConfig.expoConfig.extra.sydneySideload = true;
+    noteClientUpdateRequired();
+    pressUpdate();
+    await flush();
+    expect(rn.Linking.openURL).not.toHaveBeenCalled();
+    expect(rn.Alert.alert).toHaveBeenLastCalledWith("This update needs a new app installation.");
+  });
+
+  it("reports a failed sideload update check without requiring a reinstall", async () => {
+    appConfig.expoConfig.extra.sydneySideload = true;
+    updates.checkForUpdateAsync.mockRejectedValueOnce(new Error("offline"));
+    noteClientUpdateRequired();
+    pressUpdate();
+    await flush();
+    expect(rn.Linking.openURL).not.toHaveBeenCalled();
+    expect(rn.Alert.alert).toHaveBeenLastCalledWith(
+      "Could not check for updates. Try again later.",
+    );
   });
 });
 

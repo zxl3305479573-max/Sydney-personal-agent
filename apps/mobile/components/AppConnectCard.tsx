@@ -11,6 +11,7 @@ import { native, useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
 import { ConnectorIcon } from "./connector-icon";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 
 export function AppConnectCard({
@@ -85,12 +86,14 @@ export function AppConnectCard({
   }
 
   return (
-    <View
+    <GlassSurface
       accessibilityLabel={t("{name} connection", { name: block.name })}
+      shape="roundedRectangle"
+      cornerRadius={18}
+      fallbackStyle={{ backgroundColor: native.fill }}
       style={{
         width: "100%",
         borderRadius: 18,
-        backgroundColor: native.fill,
         paddingHorizontal: 16,
         paddingVertical: 14,
         gap: 8,
@@ -130,6 +133,6 @@ export function AppConnectCard({
       {error ? (
         <Text style={{ color: tokens.destructive, ...typeScale.caption }}>{error}</Text>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }

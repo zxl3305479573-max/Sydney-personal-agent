@@ -165,8 +165,10 @@ export function ThreadComposerDock({
               }}
             >
               {attachments.map((attachment) => (
-                <View
+                <GlassSurface
                   key={attachment.id}
+                  shape="capsule"
+                  fallbackStyle={{ backgroundColor: tokens.card }}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -174,7 +176,6 @@ export function ThreadComposerDock({
                     borderRadius: 999,
                     borderWidth: 1,
                     borderColor: tokens.border,
-                    backgroundColor: tokens.card,
                     paddingHorizontal: 12,
                     paddingVertical: 8,
                   }}
@@ -206,7 +207,7 @@ export function ThreadComposerDock({
                       color={tokens.mutedForeground}
                     />
                   </Pressable>
-                </View>
+                </GlassSurface>
               ))}
             </View>
           ) : null}

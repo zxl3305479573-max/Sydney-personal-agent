@@ -45,6 +45,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConnectorIcon } from "../../components/connector-icon";
+import { GlassSurface } from "../../components/glass-surface";
 import { MenuPicker } from "../../components/menu-picker";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
@@ -1083,7 +1084,12 @@ export default function Integrations() {
           />
         </View>
 
-        <View style={styles.card}>
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={16}
+          style={styles.card}
+          fallbackStyle={styles.cardFallback}
+        >
           <Text style={styles.section}>{t("Accounts")}</Text>
           {accounts.map((row) => (
             <View key={row.id} style={styles.accountRow}>
@@ -1114,9 +1120,14 @@ export default function Integrations() {
             onPress={() => void connect(item)}
             prominence="secondary"
           />
-        </View>
+        </GlassSurface>
 
-        <View style={styles.card}>
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={16}
+          style={styles.card}
+          fallbackStyle={styles.cardFallback}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: toolsOpen }}
@@ -1150,7 +1161,7 @@ export default function Integrations() {
               )}
             </View>
           ) : null}
-        </View>
+        </GlassSurface>
       </View>
     );
   }
@@ -1225,7 +1236,13 @@ export default function Integrations() {
           prominence="secondary"
         />
         {adding === "github" ? (
-          <View testID="plugin-git-import" style={styles.card}>
+          <GlassSurface
+            testID="plugin-git-import"
+            shape="roundedRectangle"
+            cornerRadius={16}
+            style={styles.card}
+            fallbackStyle={styles.cardFallback}
+          >
             <TextInput
               value={gitUrl}
               onChangeText={setGitUrl}
@@ -1244,11 +1261,16 @@ export default function Integrations() {
               onPress={() => openPlugin(gitImportParams(gitUrl))}
               prominence="secondary"
             />
-          </View>
+          </GlassSurface>
         ) : null}
         {sourceError ? <Text style={styles.error}>{sourceError}</Text> : null}
         {adding === "source" && sourceKind ? (
-          <View style={styles.card}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={16}
+            style={styles.card}
+            fallbackStyle={styles.cardFallback}
+          >
             <Text style={styles.title}>
               {sourceKind === "treg"
                 ? t("Connect Treg")
@@ -1345,7 +1367,7 @@ export default function Integrations() {
                 prominence="secondary"
               />
             </View>
-          </View>
+          </GlassSurface>
         ) : null}
       </View>
     );
@@ -1533,7 +1555,8 @@ function createIntegrationsStyles() {
     content: { padding: 20, gap: 14 },
     explanation: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     section: { color: native.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
-    card: { padding: 16, borderRadius: 16, backgroundColor: native.fill, gap: 12 },
+    card: { padding: 16, borderRadius: 16, gap: 12 },
+    cardFallback: { backgroundColor: native.fill },
     input: {
       minHeight: 48,
       borderRadius: 12,

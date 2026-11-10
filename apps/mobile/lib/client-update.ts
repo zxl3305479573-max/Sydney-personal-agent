@@ -5,6 +5,7 @@ import {
   formatClientBuild,
   IOS_APP_STORE_URL,
 } from "@rakazo/contracts";
+import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import type { AppStateStatus } from "react-native";
 import { Alert, AppState, Linking, Platform } from "react-native";
@@ -42,6 +43,15 @@ async function downloadUpdate(): Promise<boolean> {
   return true;
 }
 
+export async function checkForManualUpdate(): Promise<"disabled" | "current" | "downloaded"> {
+  if (!Updates.isEnabled) return "disabled";
+  return (await downloadUpdate()) ? "downloaded" : "current";
+}
+
+export async function restartForUpdate(): Promise<void> {
+  await Updates.reloadAsync();
+}
+
 /** Apply an over-the-air update now if one exists; otherwise send the user to the store. */
 export async function applyRequiredUpdate(): Promise<void> {
   try {
@@ -50,7 +60,14 @@ export async function applyRequiredUpdate(): Promise<void> {
       return;
     }
   } catch {
-    // An unreachable update server falls through to the store.
+    if (Platform.OS === "ios" && Constants.expoConfig?.extra?.sydneySideload === true) {
+      Alert.alert(t("Could not check for updates. Try again later."));
+      return;
+    }
+  }
+  if (Platform.OS === "ios" && Constants.expoConfig?.extra?.sydneySideload === true) {
+    Alert.alert(t("This update needs a new app installation."));
+    return;
   }
   await Linking.openURL(Platform.OS === "ios" ? IOS_APP_STORE_URL : ANDROID_APK_URL).catch(
     () => undefined,

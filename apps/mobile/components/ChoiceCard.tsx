@@ -13,6 +13,7 @@ import {
 import { native, useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
+import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 
 const styles = StyleSheet.create({
@@ -95,15 +96,12 @@ export function ChoiceCard({
   }
 
   return (
-    <View
+    <GlassSurface
       testID="choice-card"
-      style={[
-        styles.card,
-        {
-          width: threadCardWidth(windowWidth),
-          backgroundColor: native.fill,
-        },
-      ]}
+      shape="roundedRectangle"
+      cornerRadius={18}
+      style={[styles.card, { width: threadCardWidth(windowWidth) }]}
+      fallbackStyle={{ backgroundColor: native.fill }}
     >
       <View style={styles.header}>
         <View style={styles.heading}>
@@ -180,6 +178,6 @@ export function ChoiceCard({
           );
         })}
       </View>
-    </View>
+    </GlassSurface>
   );
 }

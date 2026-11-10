@@ -11,6 +11,7 @@ import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotChipPicker } from "../components/bot-chip-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
+import { GlassSurface } from "../components/glass-surface";
 import { GroupAvatar } from "../components/group-avatar";
 import { NativeActionButton } from "../components/native-action-button";
 import { SheetCloseButton } from "../components/sheet-close-button";
@@ -172,31 +173,37 @@ export default function NewGroup() {
                     .map((bot) => ({ botId: bot.id, color: bot.color, avatarSet: bot.avatarSet }))}
                 />
               </View>
-              <TextInput
-                autoFocus
-                value={name}
-                onChangeText={setName}
-                maxLength={GROUP_NAME_MAX_LENGTH}
-                autoCapitalize="words"
-                autoCorrect={false}
-                autoComplete="off"
-                textContentType="none"
-                editable={!pending}
-                placeholder={t("Ex: Project Falcon")}
-                placeholderTextColor={tokens.mutedForeground}
-                returnKeyType="done"
-                onSubmitEditing={() => void create()}
-                style={{
-                  height: 56,
-                  borderRadius: 11,
-                  backgroundColor: native.fill,
-                  color: tokens.foreground,
-                  fontSize: 22,
-                  fontWeight: "600",
-                  textAlign: "center",
-                  paddingHorizontal: 14,
-                }}
-              />
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={11}
+                style={{ borderRadius: 11 }}
+                fallbackStyle={{ backgroundColor: native.fill }}
+              >
+                <TextInput
+                  autoFocus
+                  value={name}
+                  onChangeText={setName}
+                  maxLength={GROUP_NAME_MAX_LENGTH}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  textContentType="none"
+                  editable={!pending}
+                  placeholder={t("Ex: Project Falcon")}
+                  placeholderTextColor={tokens.mutedForeground}
+                  returnKeyType="done"
+                  onSubmitEditing={() => void create()}
+                  style={{
+                    height: 56,
+                    borderRadius: 11,
+                    color: tokens.foreground,
+                    fontSize: 22,
+                    fontWeight: "600",
+                    textAlign: "center",
+                    paddingHorizontal: 14,
+                  }}
+                />
+              </GlassSurface>
               <NativeActionButton
                 fill
                 label={pending ? t("Creating…") : name.trim() ? t("Create") : t("Skip")}

@@ -6,6 +6,7 @@ import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
 import { loginFieldTraits } from "../lib/secret-field-traits";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSwitch } from "./native-switch";
 
@@ -55,7 +56,13 @@ export function LoginFieldsEditor({
         const name = labels?.[index] ?? (field.label.trim() || t("Value"));
         const last = index === fields.length - 1;
         return (
-          <View key={field.id} style={styles.group}>
+          <GlassSurface
+            key={field.id}
+            shape="roundedRectangle"
+            cornerRadius={13}
+            style={styles.group}
+            fallbackStyle={styles.groupFallback}
+          >
             {labels ? null : (
               <View style={[styles.row, styles.separated]}>
                 <TextInput
@@ -115,7 +122,7 @@ export function LoginFieldsEditor({
                 onValueChange={(hidden) => change(field.id, { hidden })}
               />
             </View>
-          </View>
+          </GlassSurface>
         );
       })}
       {labels || fields.length >= LOGIN_FIELD_LIMIT ? null : (
@@ -135,7 +142,8 @@ export function LoginFieldsEditor({
 function createStyles() {
   const tokens = mobileTokens();
   return StyleSheet.create({
-    group: { backgroundColor: tokens.muted, borderRadius: 13, overflow: "hidden" },
+    group: { borderRadius: 13, overflow: "hidden" },
+    groupFallback: { backgroundColor: tokens.muted },
     row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingHorizontal: 16 },
     separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tokens.border },
     input: { flex: 1, minWidth: 0, paddingVertical: 16, color: tokens.foreground },

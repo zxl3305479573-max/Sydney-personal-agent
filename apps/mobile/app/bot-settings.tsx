@@ -22,6 +22,7 @@ import { Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } fr
 import { BotAvatar } from "../components/bot-avatar";
 import { BotContextCards } from "../components/bot-context-cards";
 import { ComputerModePicker } from "../components/computer-mode-picker";
+import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
 import { GrowingTextInput } from "../components/growing-text-input";
 import type { MenuPickerChoice } from "../components/menu-picker";
@@ -793,7 +794,12 @@ export default function BotSettingsScreen() {
                 inset={0}
               />
             </SettingsGroup>
-            <View style={{ paddingHorizontal: 16, borderRadius: 12, backgroundColor: native.fill }}>
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={12}
+              style={{ paddingHorizontal: 16, borderRadius: 12 }}
+              fallbackStyle={{ backgroundColor: native.fill }}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Export")}
@@ -838,7 +844,7 @@ export default function BotSettingsScreen() {
                   {t("Clear conversation")}
                 </Text>
               </Pressable>
-            </View>
+            </GlassSurface>
           </View>
         ) : null}
         {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}
@@ -1021,9 +1027,14 @@ function SettingsGroup({ label, children }: { label: string; children: ReactNode
   return (
     <View style={{ gap: 8 }}>
       <SettingsSectionHeading>{label}</SettingsSectionHeading>
-      <View style={{ padding: 16, gap: 12, borderRadius: 12, backgroundColor: native.fill }}>
+      <GlassSurface
+        shape="roundedRectangle"
+        cornerRadius={12}
+        style={{ padding: 16, gap: 12, borderRadius: 12 }}
+        fallbackStyle={{ backgroundColor: native.fill }}
+      >
         {children}
-      </View>
+      </GlassSurface>
     </View>
   );
 }

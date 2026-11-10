@@ -4,6 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GlassSurface } from "../components/glass-surface";
 import { HeaderRowsEditor } from "../components/header-rows-editor";
 import { NativeActionButton } from "../components/native-action-button";
 import { cancelHeaderOptions, trailingHeaderOptions } from "../components/sheet-header";
@@ -127,31 +128,37 @@ export default function ServerScreen() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          <TextInput
-            testID="server-address"
-            accessibilityLabel={t("Server")}
-            autoCapitalize="none"
-            autoComplete="off"
-            autoCorrect={false}
-            keyboardType="url"
-            onChangeText={(value) => {
-              setDraft(value);
-              setError(null);
-            }}
-            onSubmitEditing={() => void save()}
-            placeholder={defaultApiBase()}
-            placeholderTextColor={tokens.mutedForeground}
-            returnKeyType="go"
-            style={{
-              backgroundColor: tokens.muted,
-              borderRadius: 13,
-              padding: 16,
-              color: tokens.foreground,
-              fontSize: 16,
-            }}
-            textContentType="URL"
-            value={draft}
-          />
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={13}
+            style={{ borderRadius: 13 }}
+            fallbackStyle={{ backgroundColor: tokens.muted }}
+          >
+            <TextInput
+              testID="server-address"
+              accessibilityLabel={t("Server")}
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect={false}
+              keyboardType="url"
+              onChangeText={(value) => {
+                setDraft(value);
+                setError(null);
+              }}
+              onSubmitEditing={() => void save()}
+              placeholder={defaultApiBase()}
+              placeholderTextColor={tokens.mutedForeground}
+              returnKeyType="go"
+              style={{
+                borderRadius: 13,
+                padding: 16,
+                color: tokens.foreground,
+                fontSize: 16,
+              }}
+              textContentType="URL"
+              value={draft}
+            />
+          </GlassSurface>
           {warning ? (
             <Text style={{ color: tokens.mutedForeground, marginTop: 12, fontSize: 13 }}>
               {warning}

@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GlassSurface } from "../components/glass-surface";
 import { NativeActionButton } from "../components/native-action-button";
 import type { PasswordResetCapabilities } from "../lib/api";
 import {
@@ -374,7 +375,10 @@ export default function SignIn() {
                   paddingVertical: 16,
                 }}
               >
-                <View
+                <GlassSurface
+                  shape="roundedRectangle"
+                  cornerRadius={16}
+                  fallbackStyle={{ backgroundColor: tokens.card }}
                   style={{
                     width: "100%",
                     maxWidth: 420,
@@ -383,7 +387,6 @@ export default function SignIn() {
                     borderRadius: 16,
                     borderWidth: 1,
                     borderColor: tokens.border,
-                    backgroundColor: tokens.card,
                   }}
                 >
                   <Text
@@ -751,7 +754,7 @@ export default function SignIn() {
                       ) : null}
                     </>
                   )}
-                </View>
+                </GlassSurface>
               </View>
               <Pressable
                 accessibilityRole="button"

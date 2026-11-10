@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
-import type { StyleProp, ViewStyle } from "react-native";
+import type { StyleProp, ViewProps, ViewStyle } from "react-native";
 import { View } from "react-native";
 
-export type GlassSurfaceProps = {
+export type GlassSurfaceProps = Pick<
+  ViewProps,
+  | "testID"
+  | "accessibilityLabel"
+  | "accessibilityRole"
+  | "accessibilityLiveRegion"
+  | "accessibilityViewIsModal"
+> & {
   shape?: "capsule" | "circle" | "roundedRectangle";
   /** Corner radius for `roundedRectangle`. */
   cornerRadius?: number;
@@ -15,6 +22,10 @@ export type GlassSurfaceProps = {
 };
 
 /** Android and older iOS draw the fallback fill; iOS 26 renders Liquid Glass. */
-export function GlassSurface({ style, fallbackStyle, children }: GlassSurfaceProps) {
-  return <View style={[style, fallbackStyle]}>{children}</View>;
+export function GlassSurface({ style, fallbackStyle, children, ...viewProps }: GlassSurfaceProps) {
+  return (
+    <View {...viewProps} style={[style, fallbackStyle]}>
+      {children}
+    </View>
+  );
 }
