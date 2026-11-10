@@ -32,6 +32,10 @@ class ControlBusy(Refused):
     pass
 
 
+class GenerationChanged(Refused):
+    pass
+
+
 class Driver:
     def __init__(self, root, control_uid, display, xauthority):
         self.root = os.path.abspath(root)
@@ -501,7 +505,7 @@ class Driver:
         if not isinstance(bot_id, str) or not VALID_ID.fullmatch(bot_id):
             raise Refused("Invalid desktop identity")
         if method != "provision" and request.get("generation") != self.generation:
-            raise Refused("Desktop generation changed; reconcile previous work")
+            raise GenerationChanged("Desktop generation changed; reconcile previous work")
         if method == "provision":
             descriptor = self.bot_directory(bot_id)
             os.close(descriptor)
@@ -574,6 +578,8 @@ class Driver:
                 response = {"ok": True, "value": value}
             except ControlBusy:
                 response = {"ok": False, "error": "native_control_busy"}
+            except GenerationChanged:
+                response = {"ok": False, "error": "native_driver_generation_changed"}
             except (Refused, OSError, ValueError, TypeError, subprocess.TimeoutExpired):
                 response = {"ok": False, "error": "Native desktop refused the operation; inspect its result before retrying"}
             try:

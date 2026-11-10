@@ -1,5 +1,9 @@
 # 验证记录
 
+2026-11-10（提交前定向复核）：云电脑拒绝提示、设置页、设置导航与主题入口共 4 个 Vitest 文件 26 项通过；原生驱动单元测试运行 22 项、跳过 2 项；相关移动端配置、云电脑提示和主题入口共 6 个文件的 Biome 检查及 `git diff --check` 通过。未运行全工作区构建或真实云电脑、iPhone 测试；这些结果不表示生产部署成功。
+
+2026-11-10（PA-021 iPhone 侧载路径）：旧 IPA 最长条目 259 字符；本机使用真实图标字体和 Metro 资产转换器验证短目录下的 JS 注册与 iOS 复制目标一致，复制路径 62 字符，不同源目录生成不同映射。两份移动端配置文件的 Biome 检查通过；云端完整构建、iPASide 签名及 iPhone 安装尚未执行。
+
 2026-11-09（PA-021 最新 iPhone 构建）：运行 `42634529547` 的 Xcode 编译、arm64/JS 检查、IPA 打包及上传均成功；已下载的 IPA 共 25,785,125 字节，SHA-256 与云端清单一致，包标识为 `xin.zxlup.sydney`，最低 iOS 16.4，JS 内含配置的 HTTPS 服务器及 `settings-home` 路由。包内没有签名描述文件，未执行签名或安装。移动端设置布局额外 7 项测试通过；电脑访问配置服务器健康接口返回 HTTP 200，不能证明手机网络或登录成功。
 
 2026-11-09（PA-021 头像设置分层）：账户页面、主页标题栏、备用标题栏和设置导航共 4 个定向测试文件 41 项通过，覆盖头像入口、分类跳转、分类隔离与原有账户操作；移动端 TypeScript 和 9 个改动文件 Biome 检查通过。本机 Node 版本低于仓库要求，模拟测试未验证真实 iOS 面板、视觉、返回手势或登录回调。此前运行 `42631137377` 已成功构建，下载 IPA 并对照产物清单验证 SHA-256；该包不含本轮设置分层。
@@ -22,11 +26,25 @@
 
 环境只读检查未发现全局或仓库本地 EAS CLI，当前进程没有 `EXPO_TOKEN`；未查询或推断其他登录状态。改动文件 `git diff --check` 通过。
 
-2026-11-09（外观遗漏补齐）：`GroupPanel.test.tsx`、`bot-panel.test.tsx`、`ChatAppearanceSettings.test.tsx`、`WorkspaceBackground.test.tsx` 共 4 文件 57 项通过，包含已有群新增 Bot 的保存参数和独立背景紧接语音的位置；Web TypeScript 检查通过。Edge 无头浏览器加载实际编译 CSS，在 390/1280 像素、深浅主题、0%/100% 的 8 组简化布局下验证共享表面及新建输入框、创建按钮透明度，检查聊天输入框始终不透明、对话列表不随调节变化，并保留截图。受影响文件 Biome 无错误，有既有 CSS 警告；新完整页面回归 `chat-appearance.spec.ts` 已枚举为 2 项，尚未执行，本机未启动应用或数据库；完整应用与部署结果待 CI。
+2026-11-09（外观遗漏补齐）：`GroupPanel.test.tsx`、`bot-panel.test.tsx`、`ChatAppearanceSettings.test.tsx`、`WorkspaceBackground.test.tsx` 共 4 文件 57 项通过，包含已有群新增 Bot 的保存参数和独立背景紧接语音的位置；Web TypeScript 检查通过。Edge 无头浏览器加载实际编译 CSS，在 390/1280 像素、深浅主题、0%/100% 的 8 组简化布局下验证共享表面及新建输入框、创建按钮透明度，检查聊天输入框始终不透明、对话列表不随调节变化，并保留截图。受影响文件 Biome 无错误，有既有 CSS 警告；本机未启动应用或数据库。提交 `b1218e358` 的 PR CI `42612891408` 全部适用检查通过，Web E2E 两分片分别 50、48 项通过，其中新增 `chat-appearance.spec.ts` 的 390/1280 像素两项实际执行通过，验证上传、保存、刷新、Bot/群背景隔离、恢复全局及已有群加 Bot 后的保存结果；已查看真实应用截图。合并版本 `1494048fbfac551a6401ec059c80fc95f418156e` 的生产流程 `42613921092` 与 `deploy-production` 成功；北京时间 2026-11-09 20:11 公网 `/health` 返回 200 和 `{"ok":true}`，`/build-id` 从 `20261109112537` 更新为 `20261109120539`，线上 `/assets/index-BGWxjdRc.css` 包含共用表面和新建表单不透明度规则，`Shell-Byyl0YBd.js` 包含背景设置及添加成员代码。功能回归运行于 CI，生产仅核对版本、健康及静态资源，未验证真实手机或当前用户账户。
+
+2026-11-09（PA-019 设置插件入口纠正）：设置页面、设置 URL 解析及换肤入口定向测试共 3 文件 23 项通过，Web TypeScript 检查通过。首轮联合测试发现测试替身与真实外观模块冲突，改为验证真实本地偏好后复跑通过；真实浏览器、实际刷新及部署未验证。
+
+2026-11-09（PA-019 换肤插件入口）：换肤入口组件及现有 Web 外观工具定向测试共 2 文件 3 项通过，覆盖进入、返回、外观选择及不可用提示；Web TypeScript 和相关三个组件文件 Biome 检查通过。技能弹窗集成、真实浏览器、手机和部署尚未验证；未运行翻译目录提取检查。
 
 2026-11-09（PR #7 发布验证）：首轮运行 `42588762814` 的翻译目录步骤失败；清理两条无引用词条后，本机重新提取目录未产生额外变化，暂存补丁空白检查通过。修复提交 `582555ce8` 的运行 `42607880438` 中，格式、翻译目录、类型检查、三个单元测试分片、两个数据库旅程分片、生产构建、Electron 启动检查及 Web E2E 全部通过。合并版本 `343efad7a5008b5a2e3496af969888ba4a509bf4` 的运行 `42608790848` 和 `deploy-production` 均成功；北京时间 2026-11-09 19:31 公网 `/health` 返回 200 和 `{"ok":true}`，`/build-id` 从 `20261109071410` 更新为 `20261109112537`，线上 `/assets/index-C0DRlfBZ.css` 同时包含 `.sydney-settings-nav-row`、`--sydney-surface-alpha` 和 `.workspace-background`。独立截图图库发布失败，未将其记为通过；真实手机视觉、触屏及图片持久化仍未验证。
 
 2026-11-09（PA-018 手机设置导航）：`SettingsOverlay.test.tsx` 10 项通过；Edge 无头浏览器以 390 和 640 像素宽加载实际 CSS 与简化结构，检查深浅主题及 35%、100% 不透明度下导航行宽度、背景、滚动区透明和横向滚动，结果符合预期。Biome 检查通过并报告 5 项 CSS 警告；新增应用 E2E 断言未运行，真实手机及部署未验证。
+
+2026-11-09（PA-018、PA-020 单聊与群聊设置）：`GroupPanel.test.tsx`、`bot-panel.test.tsx` 和 `side-panel-create-group.test.tsx` 共 49 项通过，覆盖群成员选择与保存参数及背景控件位置；Web TypeScript 和改动组件的 Biome 检查通过。未启动本地服务或数据库，真实应用浏览器、手机、群成员持久化及部署未验证。
+
+2026-11-09（V-060 原生电脑接管生产排查）：生产 API 日志显示 `computer/takeover` 在驱动拒绝后返回 500；原宿主驱动不包含新 `control_revoke` 方法。宿主驱动已同步仓库版本并重启，服务和 socket 为 active；通过受限代理的只读状态检查确认新驱动 generation 与数据库旧引用不一致。重启前活动任务检查因 SQL 错误未完成，事后只读查询为零活动 Run、零有效执行租约，不能反推重启时状态。屏幕代理当前可访问，未完成新代次协调、真实接管和输入验证；不得将服务健康当作功能恢复。API 本地错误提示修改未部署。
+
+V-060 本地补充：`pnpm exec vitest run apps/api/src/native-computer-refusal.test.ts apps/api/src/native-computer-input.test.ts apps/api/src/native-computer-control-fence.test.ts apps/api/src/screen-proxy.test.ts --maxWorkers=1` 通过 4 文件、37 项；修改的 API 文件 Biome 检查通过。原生驱动拒绝时的中文提示不重试操作，仅改善诊断，不能恢复接管；代次自动协调草稿因无法证明旧任务已停止及并发安全而撤回，未部署或进行真实桌面验收。
+
+V-060 后续只读检查：驱动服务、驱动 socket 和 VNC 服务均为 active；驱动服务的 `KillMode` 为 `control-group`。这些状态不能证明旧任务无残留，也不能证明接管、桌面输入或代次协调已恢复；本次检查未重启服务或修改数据库。
+
+V-060 代次错误诊断：本地驱动为旧代次请求返回独立错误码，API 接管撤销路径显示中文提示，不执行输入或自动重试。`python -m unittest infra/native-linux/test_driver.py` 运行 22 项、跳过 2 项 Linux 专属测试；`pnpm exec vitest run apps/api/src/native-computer-refusal.test.ts --maxWorkers=1` 通过 3 项，相关 API 文件 Biome 检查通过。修改未部署，旧版驱动仍返回统一拒绝；这只是诊断改进，尚不能协调代次或修复生产接管。
 
 2026-11-09（PA-012 原生输入协议）：新增定向测试验证有效运行租约下映射为驱动 `act`、缺失租约时不发送请求，单项通过；adapters TypeScript 与修改文件 Biome 通过。Python 驱动单元测试 17 项、跳过 2 项；完整 `native-linux-sandbox.test.ts` 中 15 项通过、2 项依赖本机 socket 服务的测试报 `Server is not running`，未确认其失败原因；未在真实 Linux 驱动或人工接管验证。
 

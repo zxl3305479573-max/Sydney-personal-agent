@@ -109,6 +109,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/sydney-ipa/Payload" "$GITHUB_WORKSPACE/ios-artifact"
           ditto "$app" "$RUNNER_TEMP/sydney-ipa/Payload/Sydney.app"
           ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/sydney-ipa/Payload" "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa"
+          /usr/bin/python3 -c '
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              longest = max(archive.namelist(), key=len)
+          if len(longest) > 200:
+              raise SystemExit(f"IPA path exceeds Windows sideload budget ({len(longest)} > 200): {longest}")
+          print(f"Longest IPA path: {len(longest)} characters")
+          ' "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa"
           shasum -a 256 "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa" > "$GITHUB_WORKSPACE/ios-artifact/SHA256.txt"
 
       - name: Upload unsigned IPA for personal signing

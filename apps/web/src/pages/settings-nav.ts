@@ -8,6 +8,7 @@ import {
   KeyRound,
   MessageCircle,
   Monitor,
+  Puzzle,
   Settings,
   ShieldCheck,
   Volume2,
@@ -33,6 +34,7 @@ export function useSettingsNavItems(available: {
   const { t } = useLingui();
   return [
     { id: "general", label: t`General`, icon: Settings },
+    { id: "plugins", label: t`Plugins`, icon: Puzzle },
     { id: "models", label: t`Models`, icon: Cpu },
     { id: "voice", label: t`Voice`, icon: Volume2 },
     { id: "confirmations", label: t`Approvals`, icon: ShieldCheck },

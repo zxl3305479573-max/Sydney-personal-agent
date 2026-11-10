@@ -63,6 +63,7 @@ import {
 } from "../computer-status.js";
 import { ensureNativeControlFence } from "../native-computer-control-fence.js";
 import { applyNativeComputerInput } from "../native-computer-input.js";
+import { reportNativeControlRefusal } from "../native-computer-refusal.js";
 import type { RouterDeps } from "../router.js";
 import type { RouterContext } from "./context.js";
 import { computerContext, isRecordNotFound } from "./shared.js";
@@ -71,7 +72,6 @@ const MAX_COMPUTER_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 
 /** Each command writes a running and a done event, so this keeps about 100 commands. */
 const COMPUTER_COMMAND_HISTORY_EVENTS = 200;
-
 export function computerRoutes(ctx: RouterContext) {
   const { deps, repos, taughtSkills, authed } = ctx;
   return {
@@ -341,174 +341,184 @@ export function computerRoutes(ctx: RouterContext) {
         return { ok: true as const };
       }),
       takeover: authed.computer.takeover.handler(async ({ context, input }) => {
-        let bot = await repos.getBot(context.actor, input.botId);
-        if (!bot.computer?.providerRef || bot.computer.state !== "running") {
-          throw new ORPCError("BAD_REQUEST", { message: "computer must be running" });
-        }
-        const reuseActiveControl = async (leaseId: string) => {
-          if (bot.computer?.kind === "native-linux") {
-            const fence = await ensureNativeControlFence(
-              deps.prisma,
+        const grantTakeover = async (): Promise<{ leaseId: string; expiresAt: string }> => {
+          let bot = await repos.getBot(context.actor, input.botId);
+          if (!bot.computer?.providerRef || bot.computer.state !== "running") {
+            throw new ORPCError("BAD_REQUEST", { message: "computer must be running" });
+          }
+          const withNativeDriverRefusal = async (action: () => Promise<unknown>) => {
+            await reportNativeControlRefusal(bot.computer?.kind ?? "", action);
+          };
+          const reuseActiveControl = async (leaseId: string) => {
+            if (bot.computer?.kind === "native-linux") {
+              const fence = await ensureNativeControlFence(
+                deps.prisma,
+                bot.computer.id,
+                bot.id,
+                leaseId,
+              );
+              if (!fence) {
+                throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
+              }
+            }
+          };
+          if (hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id) {
+            await reuseActiveControl(bot.computer.controlLeaseId!);
+            await bindWaitingTakeoverToControl(deps, {
+              spaceId: context.actor.spaceId,
+              threadId: bot.thread?.id,
+              botId: bot.id,
+              computerId: bot.computer.id,
+              controlLeaseId: bot.computer.controlLeaseId!,
+              controlRunId: bot.computer.controlRunId,
+            });
+            await scheduleComputerControlExpiry(
+              deps.jobs,
               bot.computer.id,
-              bot.id,
-              leaseId,
+              bot.computer.controlLeaseId!,
+              bot.computer.controlLeaseExpiresAt!,
             );
-            if (!fence) {
+            return {
+              leaseId: bot.computer.controlLeaseId!,
+              expiresAt: bot.computer.controlLeaseExpiresAt!.toISOString(),
+            };
+          }
+          if (hasActiveComputerControl(bot.computer) && bot.computer.controlBotId !== bot.id) {
+            await withNativeDriverRefusal(() =>
+              releaseComputerControl(deps, context.actor, bot.computer!.controlBotId!, "skipped"),
+            );
+            bot = await repos.getBot(context.actor, input.botId);
+            if (!bot.computer) throw new IsolationError();
+          }
+          if (bot.computer.controlLeaseId) {
+            await withNativeDriverRefusal(() =>
+              expireComputerControl(deps, bot.computer!.id, bot.computer!.controlLeaseId!),
+            );
+            bot = await repos.getBot(context.actor, input.botId);
+          }
+          if (!bot.computer) throw new IsolationError();
+          // Gone-sandbox revoke may have marked the row stopped; do not fall through to the
+          // running-state grant and return a confusing "control changed" conflict.
+          if (!bot.computer.providerRef || bot.computer.state !== "running") {
+            throw new ORPCError("BAD_REQUEST", { message: "computer must be running" });
+          }
+
+          const executionLease = await deps.prisma.computerExecutionLease.findUnique({
+            where: { computerId_botId: { computerId: bot.computer.id, botId: bot.id } },
+          });
+          const executionRun = executionLease
+            ? await deps.prisma.run.findUnique({
+                where: { id: executionLease.runId },
+                select: { botId: true, status: true },
+              })
+            : null;
+          const waitingForTakeover =
+            executionRun?.botId === bot.id &&
+            (executionRun.status === "waiting_takeover" ||
+              bot.computer.controlRunId === executionLease?.runId);
+          if (
+            executionBlocksUserTakeover({
+              hasLease: Boolean(executionLease),
+              leaseExpiresAt: executionLease?.expiresAt,
+              runStatus: executionRun?.status,
+              takeoverRequested: waitingForTakeover,
+            })
+          ) {
+            throw new ORPCError("CONFLICT", { message: "Stop the bot first" });
+          }
+          // Keep an inactive lease as a fencing tombstone. The next run reclaims it
+          // with a higher fence, even if this user's screen remains connected.
+
+          const leaseId = randomUUID();
+          const expiresAt = new Date(Date.now() + takeoverLeaseMs());
+          const granted = await deps.prisma.computer.updateMany({
+            where: {
+              id: bot.computer.id,
+              state: "running",
+              maintenanceId: null,
+              controlHolder: { not: "user" },
+              controlLeaseId: null,
+            },
+            data: {
+              controlHolder: "user",
+              controlLeaseId: leaseId,
+              controlLeaseExpiresAt: expiresAt,
+              controlFence: { increment: 1 },
+              controlBotId: bot.id,
+              controlRunId: waitingForTakeover ? executionLease?.runId : null,
+              state: "running",
+            },
+          });
+          if (granted.count !== 1) {
+            const current = await deps.prisma.computer.findUniqueOrThrow({
+              where: { id: bot.computer.id },
+            });
+            if (!hasActiveComputerControl(current) || current.controlBotId !== bot.id) {
+              throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
+            }
+            await reuseActiveControl(current.controlLeaseId!);
+            await bindWaitingTakeoverToControl(deps, {
+              spaceId: context.actor.spaceId,
+              threadId: bot.thread?.id,
+              botId: bot.id,
+              computerId: current.id,
+              controlLeaseId: current.controlLeaseId!,
+              controlRunId: current.controlRunId,
+            });
+            await scheduleComputerControlExpiry(
+              deps.jobs,
+              current.id,
+              current.controlLeaseId!,
+              current.controlLeaseExpiresAt!,
+            );
+            return {
+              leaseId: current.controlLeaseId!,
+              expiresAt: current.controlLeaseExpiresAt!.toISOString(),
+            };
+          }
+          const computerId = bot.computer.id;
+          const withdrawGrant = () =>
+            deps.prisma.computer.updateMany({
+              where: { id: computerId, controlLeaseId: leaseId },
+              data: {
+                controlHolder: "none",
+                controlLeaseId: null,
+                controlLeaseExpiresAt: null,
+                controlBotId: null,
+                controlRunId: null,
+              },
+            });
+          if (waitingForTakeover && executionLease) {
+            // The wait can end (expired, or yielded to newer work) between the read above and the
+            // grant. Bound to an ended run, the user would share the screen with the next run.
+            const waiting = await deps.prisma.run.findUnique({
+              where: { id: executionLease.runId },
+              select: { status: true },
+            });
+            if (!ACTIVE_RUN_STATUSES.some((status) => status === waiting?.status)) {
+              await withdrawGrant();
               throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
             }
           }
-        };
-        if (hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id) {
-          await reuseActiveControl(bot.computer.controlLeaseId!);
-          await bindWaitingTakeoverToControl(deps, {
-            spaceId: context.actor.spaceId,
-            threadId: bot.thread?.id,
-            botId: bot.id,
-            computerId: bot.computer.id,
-            controlLeaseId: bot.computer.controlLeaseId!,
-            controlRunId: bot.computer.controlRunId,
-          });
-          await scheduleComputerControlExpiry(
-            deps.jobs,
-            bot.computer.id,
-            bot.computer.controlLeaseId!,
-            bot.computer.controlLeaseExpiresAt!,
-          );
-          return {
-            leaseId: bot.computer.controlLeaseId!,
-            expiresAt: bot.computer.controlLeaseExpiresAt!.toISOString(),
-          };
-        }
-        if (hasActiveComputerControl(bot.computer) && bot.computer.controlBotId !== bot.id) {
-          await releaseComputerControl(deps, context.actor, bot.computer.controlBotId!, "skipped");
-          bot = await repos.getBot(context.actor, input.botId);
-          if (!bot.computer) throw new IsolationError();
-        }
-        if (bot.computer.controlLeaseId) {
-          await expireComputerControl(deps, bot.computer.id, bot.computer.controlLeaseId);
-          bot = await repos.getBot(context.actor, input.botId);
-        }
-        if (!bot.computer) throw new IsolationError();
-        // Gone-sandbox revoke may have marked the row stopped; do not fall through to the
-        // running-state grant and return a confusing "control changed" conflict.
-        if (!bot.computer.providerRef || bot.computer.state !== "running") {
-          throw new ORPCError("BAD_REQUEST", { message: "computer must be running" });
-        }
-
-        const executionLease = await deps.prisma.computerExecutionLease.findUnique({
-          where: { computerId_botId: { computerId: bot.computer.id, botId: bot.id } },
-        });
-        const executionRun = executionLease
-          ? await deps.prisma.run.findUnique({
-              where: { id: executionLease.runId },
-              select: { botId: true, status: true },
-            })
-          : null;
-        const waitingForTakeover =
-          executionRun?.botId === bot.id &&
-          (executionRun.status === "waiting_takeover" ||
-            bot.computer.controlRunId === executionLease?.runId);
-        if (
-          executionBlocksUserTakeover({
-            hasLease: Boolean(executionLease),
-            leaseExpiresAt: executionLease?.expiresAt,
-            runStatus: executionRun?.status,
-            takeoverRequested: waitingForTakeover,
-          })
-        ) {
-          throw new ORPCError("CONFLICT", { message: "Stop the bot first" });
-        }
-        // Keep an inactive lease as a fencing tombstone. The next run reclaims it
-        // with a higher fence, even if this user's screen remains connected.
-
-        const leaseId = randomUUID();
-        const expiresAt = new Date(Date.now() + takeoverLeaseMs());
-        const granted = await deps.prisma.computer.updateMany({
-          where: {
-            id: bot.computer.id,
-            state: "running",
-            maintenanceId: null,
-            controlHolder: { not: "user" },
-            controlLeaseId: null,
-          },
-          data: {
-            controlHolder: "user",
-            controlLeaseId: leaseId,
-            controlLeaseExpiresAt: expiresAt,
-            controlFence: { increment: 1 },
-            controlBotId: bot.id,
-            controlRunId: waitingForTakeover ? executionLease?.runId : null,
-            state: "running",
-          },
-        });
-        if (granted.count !== 1) {
-          const current = await deps.prisma.computer.findUniqueOrThrow({
-            where: { id: bot.computer.id },
-          });
-          if (!hasActiveComputerControl(current) || current.controlBotId !== bot.id) {
-            throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
-          }
-          await reuseActiveControl(current.controlLeaseId!);
-          await bindWaitingTakeoverToControl(deps, {
-            spaceId: context.actor.spaceId,
-            threadId: bot.thread?.id,
-            botId: bot.id,
-            computerId: current.id,
-            controlLeaseId: current.controlLeaseId!,
-            controlRunId: current.controlRunId,
-          });
-          await scheduleComputerControlExpiry(
-            deps.jobs,
-            current.id,
-            current.controlLeaseId!,
-            current.controlLeaseExpiresAt!,
-          );
-          return {
-            leaseId: current.controlLeaseId!,
-            expiresAt: current.controlLeaseExpiresAt!.toISOString(),
-          };
-        }
-        const computerId = bot.computer.id;
-        const withdrawGrant = () =>
-          deps.prisma.computer.updateMany({
-            where: { id: computerId, controlLeaseId: leaseId },
-            data: {
-              controlHolder: "none",
-              controlLeaseId: null,
-              controlLeaseExpiresAt: null,
-              controlBotId: null,
-              controlRunId: null,
-            },
-          });
-        if (waitingForTakeover && executionLease) {
-          // The wait can end (expired, or yielded to newer work) between the read above and the
-          // grant. Bound to an ended run, the user would share the screen with the next run.
-          const waiting = await deps.prisma.run.findUnique({
-            where: { id: executionLease.runId },
-            select: { status: true },
-          });
-          if (!ACTIVE_RUN_STATUSES.some((status) => status === waiting?.status)) {
+          try {
+            await scheduleComputerControlExpiry(deps.jobs, computerId, leaseId, expiresAt);
+          } catch (error) {
             await withdrawGrant();
-            throw new ORPCError("CONFLICT", { message: "Computer control changed; try again" });
+            throw error;
           }
-        }
-        try {
-          await scheduleComputerControlExpiry(deps.jobs, computerId, leaseId, expiresAt);
-        } catch (error) {
-          await withdrawGrant();
-          throw error;
-        }
-        if (bot.thread) {
-          await deps.events.append({
-            spaceId: context.actor.spaceId,
-            threadId: bot.thread.id,
-            botId: bot.id,
-            type: "computer.takeover.granted",
-            payload: { leaseId, takeoverRequested: waitingForTakeover },
-          });
-        }
-        scheduleComputerSleep(deps.jobs, bot.computer.id);
-        return { leaseId, expiresAt: expiresAt.toISOString() };
+          if (bot.thread) {
+            await deps.events.append({
+              spaceId: context.actor.spaceId,
+              threadId: bot.thread.id,
+              botId: bot.id,
+              type: "computer.takeover.granted",
+              payload: { leaseId, takeoverRequested: waitingForTakeover },
+            });
+          }
+          scheduleComputerSleep(deps.jobs, bot.computer.id);
+          return { leaseId, expiresAt: expiresAt.toISOString() };
+        };
+        return grantTakeover();
       }),
       release: authed.computer.release.handler(async ({ context, input }) => {
         await releaseComputerControl(deps, context.actor, input.botId, input.reason);
