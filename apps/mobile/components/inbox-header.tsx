@@ -8,6 +8,7 @@ import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
+import { GlassSurface } from "./glass-surface";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { NativeSymbol } from "./native-symbol";
 
@@ -22,9 +23,6 @@ export function InboxQuickActions({
   const buttonStyle = {
     minHeight: 44,
     borderRadius: 22,
-    backgroundColor: native.fill,
-    borderWidth: 1,
-    borderColor: native.separator,
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 8,
@@ -41,26 +39,32 @@ export function InboxQuickActions({
         paddingRight: 16 + columnInsets.right,
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("Connect apps")}
-        onPress={() => router.push("/integrations")}
-        style={buttonStyle}
+      <GlassSurface
+        style={{ borderRadius: 22 }}
+        fallbackStyle={{
+          backgroundColor: native.fill,
+          borderWidth: 1,
+          borderColor: native.separator,
+        }}
       >
-        <NativeSymbol ios="square.grid.2x2" android="grid-outline" size={18} />
-        <Text style={{ color: native.label, fontSize: 15 }}>{t("Connect apps")}</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("Search")}
-        onPress={() => router.push("/search")}
-        style={[buttonStyle, { flex: 1, minWidth: 0 }]}
-      >
-        <NativeSymbol ios="magnifyingglass" android="search" size={16} />
-        <Text style={{ color: native.secondaryLabel, fontSize: 15 }} numberOfLines={1}>
-          {t("Search")}
-        </Text>
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("Connect apps")}
+          onPress={() => router.push("/integrations")}
+          style={buttonStyle}
+        >
+          <NativeSymbol ios="square.grid.2x2" android="grid-outline" size={18} />
+          <Text
+            style={{
+              color: native.label,
+              fontSize: 15,
+              fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+            }}
+          >
+            {t("Connect apps")}
+          </Text>
+        </Pressable>
+      </GlassSurface>
     </View>
   );
 }

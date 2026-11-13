@@ -1,15 +1,15 @@
 import { accountDisplay } from "@rakazo/core";
+import { useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
-import type { MobileMe } from "../../lib/api";
-import { rpc } from "../../lib/api";
 import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
+import { accountRpcQuery, queryClient } from "../../lib/query";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
 
@@ -17,22 +17,10 @@ export default function SettingsHome() {
   const { t, locale } = useI18n();
   const router = useRouter();
   const insets = useSideInsets();
-  const [me, setMe] = useState<MobileMe | null>(null);
+  const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const chinese = locale === "zh-CN";
-
-  useEffect(() => {
-    let active = true;
-    void rpc("me")
-      .then((value) => {
-        if (active) setMe(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
 
   function accountSection(section: string) {
     router.push({ pathname: "/account", params: { section } });
@@ -131,6 +119,7 @@ export default function SettingsHome() {
           />
           {me?.billingEnabled ? link(t("Billing"), "/billing") : null}
           {link(t("Vault"), "/vault")}
+          {link(t("Computers"), "/devices")}
         </SettingsGroup>
 
         <SettingsGroup>{link(t("Connect apps"), "/integrations")}</SettingsGroup>

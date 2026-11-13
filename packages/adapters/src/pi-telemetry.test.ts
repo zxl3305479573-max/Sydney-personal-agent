@@ -17,6 +17,7 @@ import {
   shutdownPiTelemetry,
   withPiTelemetry,
   withPiTelemetrySpan,
+  withoutPiTelemetry,
 } from "./pi-telemetry.js";
 import { otelPiContext } from "./pi-telemetry-otel.js";
 import { observedPiStream } from "./pi-usage.js";
@@ -47,6 +48,21 @@ afterEach(async () => {
 });
 
 describe("Pi OpenTelemetry", () => {
+  it("suppresses nested telemetry without changing concurrent runs", async () => {
+    const { output, provider } = setup(true);
+    vi.stubEnv("OTEL_CAPTURE_CONTENT", "true");
+    await withPiTelemetry(ids, async () => {
+      await withoutPiTelemetry(() => withPiTelemetry(ids, () =>
+        withPiTelemetrySpan("private", {}, async (span) => {
+          expect(span).toBeUndefined();
+        }),
+      ));
+      await withPiTelemetrySpan("normal", {}, async (span) => expect(span).toBeDefined());
+    });
+    await provider.forceFlush();
+    expect(output.getFinishedSpans().map((span) => span.name)).toEqual(["normal", "rakazo.agent.run"]);
+  });
+
   it("continues the request/job trace instead of starting an unrelated trace", async () => {
     const { output, provider } = setup();
     await runWithLogContext({ "trace.id": "a".repeat(32), "span.id": "b".repeat(16) }, () =>

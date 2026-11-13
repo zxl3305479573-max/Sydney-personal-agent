@@ -803,7 +803,7 @@ export function computerRoutes(ctx: RouterContext) {
           url: addScreenProxyCapability(
             withViewOnly(session.url, false),
             deps.env.screenProxySecret,
-            deps.env.webOrigin,
+            deps.env.screenProxyPublicOrigin ?? deps.env.webOrigin,
             {
               botId: bot.id,
               computerId: computer.id,
@@ -862,7 +862,7 @@ export function computerRoutes(ctx: RouterContext) {
           url: addScreenProxyCapability(
             viewUrl,
             deps.env.screenProxySecret,
-            deps.env.webOrigin,
+            deps.env.screenProxyPublicOrigin ?? deps.env.webOrigin,
             {
               botId: bot.id,
               computerId: computer.id,
@@ -874,6 +874,9 @@ export function computerRoutes(ctx: RouterContext) {
             session.headers,
             nativeReadOnly,
           ),
+          ...(new URL(viewUrl).protocol === "http:" || new URL(viewUrl).protocol === "https:"
+            ? { proxy: "rakazo-novnc" as const }
+            : {}),
         };
       }),
       heartbeat: authed.computer.heartbeat.handler(async ({ context, input }) => {

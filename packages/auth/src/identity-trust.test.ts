@@ -51,7 +51,10 @@ function fixture({
   requestOrigin?: string;
   /** The provider accepts the message but never settles, like a hung SMTP connection. */
   stalledDelivery?: boolean;
-} & Pick<AuthEnv, "singleAccount" | "afterDeleteSession" | "afterReplaceSession"> = {}) {
+} & Pick<
+  AuthEnv,
+  "singleAccount" | "afterDeleteSession" | "afterReplaceSession" | "publicLinkOrigin" | "extraOrigins"
+> = {}) {
   const data: Record<string, Record<string, unknown>[]> = {
     user: [],
     account: [],
@@ -576,6 +579,34 @@ describe("session credentials", () => {
     expect(server?.session).not.toHaveProperty("token");
   });
 
+  it("uses a trusted public IP for emails without changing the domain passkey RP", async () => {
+    const options = {
+      baseURL: "https://old.example.test",
+      webOrigin: "https://old.example.test",
+      publicLinkOrigin: "https://192.0.2.10",
+      extraOrigins: ["https://192.0.2.10"],
+    };
+    const signup = fixture(options);
+    expect(signup.auth.passkeyRpId).toBe("old.example.test");
+    expect((await signup.signup()).status).toBe(200);
+    const verification = new URL(signup.messages.at(-1)!.text.match(/https:\/\/\S+/)![0]);
+    expect(verification.origin).toBe(options.publicLinkOrigin);
+    expect(verification.pathname).toBe("/api/auth/verify-email");
+    expect(verification.searchParams.get("callbackURL")).toBe("https://192.0.2.10/sign-in");
+
+    const reset = fixture(options);
+    await reset.verifiedAccount();
+    expect((await reset.request("/request-password-reset", {
+      email: "approved@example.test",
+      redirectTo: "https://192.0.2.10/reset-password",
+    })).status).toBe(200);
+    const link = new URL(reset.messages.at(-1)!.text.match(/https:\/\/\S+/)![0]);
+    expect(link.origin).toBe(options.publicLinkOrigin);
+    expect(link.pathname).toMatch(/^\/api\/auth\/reset-password\//);
+    expect(link.searchParams.get("callbackURL")).toBe("https://192.0.2.10/reset-password");
+    expect(() => fixture({ ...options, extraOrigins: [] })).toThrow("publicLinkOrigin");
+  });
+
   it("stores password reset tokens hashed and accepts one stored before hashing", async () => {
     const f = fixture();
     const { token: _token } = await f.verifiedAccount();
@@ -1036,6 +1067,22 @@ describe("passkeys", () => {
       }),
     ).toMatchObject({ user: { id: body.user.id } });
     expect(bootstrapUserSpace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps domain passkey registration and login with a separate IP email origin", async () => {
+    const f = passkeyFixture({
+      delivery: false,
+      publicLinkOrigin: "https://192.0.2.10",
+      extraOrigins: ["https://192.0.2.10"],
+    });
+    expect(f.auth.passkeyRpId).toBe("web.example.test");
+    const signup = await f.signup();
+    expect(signup.status).toBe(200);
+    const { token } = (await signup.json()) as { token: string };
+    expect((await f.register(token)).status).toBe(200);
+    const signedIn = await f.signInWithPasskey();
+    expect(signedIn.status).toBe(200);
+    expect((await signedIn.json()).user.id).toBe(f.data.user![0]!.id);
   });
 
   it("registers only from a fresh session of the account", async () => {

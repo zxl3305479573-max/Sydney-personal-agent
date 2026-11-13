@@ -90,6 +90,8 @@ type ThreadComposerProps = {
   stop: () => Promise<void>;
   startVoiceCall: () => Promise<void>;
   onSlashAction: (action: SlashActionId) => void;
+  modelLabel?: string;
+  onModelPress?: () => void;
 };
 
 export function ThreadComposer({
@@ -113,6 +115,8 @@ export function ThreadComposer({
   stop,
   startVoiceCall,
   onSlashAction,
+  modelLabel,
+  onModelPress,
 }: ThreadComposerProps) {
   const tokens = useMobileTokens();
   // A mention is plain text in the link blue; it turns bold while a backspace has it selected.
@@ -716,6 +720,41 @@ export function ThreadComposer({
                 </GlassSurface>
               </View>
             </MenuView>
+            {onModelPress ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Model")}
+                onPress={onModelPress}
+                style={{ minHeight: 44, justifyContent: "center", flexShrink: 1 }}
+              >
+                <GlassSurface
+                  shape="capsule"
+                  style={{
+                    borderRadius: 999,
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    maxWidth: 160,
+                  }}
+                  fallbackStyle={{ backgroundColor: tokens.muted }}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: tokens.foreground, fontSize: 13, flexShrink: 1 }}
+                  >
+                    {modelLabel || t("Model")}
+                  </Text>
+                  <NativeSymbol
+                    ios="chevron.down"
+                    android="chevron-down"
+                    size={12}
+                    color={tokens.mutedForeground}
+                  />
+                </GlassSurface>
+              </Pressable>
+            ) : null}
             <View style={{ flex: 1 }} />
             {!canSend && botId && !onCall ? (
               <Pressable

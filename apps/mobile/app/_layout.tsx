@@ -49,6 +49,8 @@ import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { AvatarScreenFocus } from "../lib/avatar-life";
 import { installClientUpdates, watchForegroundUpdates } from "../lib/client-update";
+import "../lib/companion-activity";
+import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
 import {
@@ -83,7 +85,9 @@ import {
 import {
   completeMobileStartup,
   markMobileStartupMounted,
+  ServerSettingsStartupError,
   trackMobileStartup,
+  waitForMobileStartup,
 } from "../lib/startup";
 import { capTextScaling } from "../lib/text-scale";
 import {
@@ -263,8 +267,11 @@ function LayoutContent() {
   const { split, inboxHidden, foldActive } = useSplitView();
   const chatAnimation = split ? "none" : undefined;
   const [ready, setReady] = useState(false);
+  const [startupError, setStartupError] = useState(false);
   useNotificationResponses(ready);
-  const screen = analyticsScreen(usePathname());
+  const pathname = usePathname();
+  useCompanionThreadWatch(ready);
+  const screen = analyticsScreen(pathname);
   useEffect(() => setMobileMonitoringScreen(screen), [screen]);
   useEffect(() => {
     const surface = Platform.OS;
@@ -326,17 +333,14 @@ function LayoutContent() {
 
   useEffect(() => {
     markMobileStartupMounted();
-    void Promise.all([
-      Promise.all([
-        trackMobileStartup("server", loadApiBase()),
-        trackMobileStartup("appearance", loadAppearancePreference()).finally(() =>
-          setAppearanceReady(true),
-        ),
-        trackMobileStartup("streaming", loadResponseStreamingPreference()),
-        trackMobileStartup("images", loadRemoteImagesPreference()),
-        trackMobileStartup("inbox", loadInboxWidth()),
-      ]).catch(() => undefined),
-      trackMobileStartup("language", bootstrapI18n()).catch(() => undefined),
+    void waitForMobileStartup(trackMobileStartup("server", loadApiBase()), [
+      trackMobileStartup("appearance", loadAppearancePreference()).finally(() =>
+        setAppearanceReady(true),
+      ),
+      trackMobileStartup("streaming", loadResponseStreamingPreference()),
+      trackMobileStartup("images", loadRemoteImagesPreference()),
+      trackMobileStartup("inbox", loadInboxWidth()),
+      trackMobileStartup("language", bootstrapI18n()),
     ])
       .then(() => {
         // The native poller stores the locale its notification copy uses, so the
@@ -347,9 +351,12 @@ function LayoutContent() {
             resumeLiveNotifications(currentApiBase(), token, selectedSpaceId() ?? ""),
           )
           .catch(() => undefined);
+        setReady(true);
       })
-      .finally(() => setReady(true));
+      .catch(() => setStartupError(true));
   }, []);
+
+  if (startupError) throw new ServerSettingsStartupError("Could not load server settings");
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -462,6 +469,7 @@ function LayoutContent() {
                       options={glassHeaderOptions(t("Chat settings"))}
                     />
                     <Stack.Screen name="bot-model" options={glassHeaderOptions(t("Model"))} />
+                    <Stack.Screen name="thread-model" options={glassHeaderOptions(t("Model"))} />
                     <Stack.Screen
                       name="thread"
                       options={({ route }) => ({

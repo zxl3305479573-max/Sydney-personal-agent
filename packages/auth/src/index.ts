@@ -61,6 +61,13 @@ export {
 export { referralEmail } from "./referral-email.js";
 export { welcomeEmail } from "./welcome-email.js";
 
+export function accountHasProjectWorkspacesAuthError() {
+  return new APIError("CONFLICT", {
+    code: "ACCOUNT_HAS_PROJECT_WORKSPACES",
+    message: "Remove project workspaces before deleting the account",
+  });
+}
+
 export interface AuthEnv {
   analytics?: ProductAnalytics;
   passwordAuth?: boolean;
@@ -70,6 +77,7 @@ export interface AuthEnv {
   secret: string;
   baseURL: string;
   webOrigin: string;
+  publicLinkOrigin?: string;
   signupsEnabled: string | undefined;
   signupAllowlist: string | undefined;
   /** Admits a new account only while there is none, for a deployment that serves one person. */
@@ -154,6 +162,27 @@ export function authRateLimitOptions(nodeEnv = process.env.NODE_ENV) {
 export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   if (env.passwordAuth === false && !env.oidc)
     throw new Error("Password auth requires OIDC when disabled");
+  if (env.publicLinkOrigin) {
+    const origin = new URL(env.publicLinkOrigin);
+    if (
+      origin.protocol !== "https:" ||
+      origin.origin !== env.publicLinkOrigin ||
+      origin.hostname.includes("*") ||
+      (origin.origin !== new URL(env.webOrigin).origin && !env.extraOrigins?.includes(origin.origin))
+    ) {
+      throw new Error("publicLinkOrigin must be a trusted canonical HTTPS origin");
+    }
+  }
+  const publicEmailLink = (value: string) => {
+    if (!env.publicLinkOrigin) return value;
+    const link = new URL(value);
+    if (link.origin !== new URL(env.baseURL).origin || link.username || link.password)
+      throw new Error("Unexpected authentication email link origin");
+    const target = new URL(env.publicLinkOrigin);
+    link.protocol = target.protocol;
+    link.host = target.host;
+    return link.href;
+  };
   // A failed lookup still sends the email, in the asking browser's language.
   const emailLocaleOf: EmailLocaleOf = async (account, headers) => {
     try {
@@ -263,7 +292,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             // Keep the response timing generic. Production providers track and retry the promise,
             // while the composition root drains accepted delivery during graceful shutdown.
             void emailLocaleOf({ id: user.id }, request?.headers)
-              .then(async (locale) => env.email?.send(await passwordResetEmail(user, url, locale)))
+              .then(async (locale) =>
+                env.email?.send(await passwordResetEmail(user, publicEmailLink(url), locale)),
+              )
               .catch((error) => env.onEmailError?.(error));
           }
         : undefined,
@@ -275,10 +306,10 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       autoSignInAfterVerification: false,
       sendVerificationEmail: env.email
         ? async ({ user, url }, request) => {
-            const verificationUrl = new URL(url);
+            const verificationUrl = new URL(publicEmailLink(url));
             verificationUrl.searchParams.set(
               "callbackURL",
-              new URL("/sign-in", env.webOrigin).href,
+              new URL("/sign-in", env.publicLinkOrigin ?? env.webOrigin).href,
             );
             const locale = await emailLocaleOf({ id: user.id }, request?.headers);
             await env.email!.send(

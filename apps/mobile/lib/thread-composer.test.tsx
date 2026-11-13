@@ -356,6 +356,16 @@ describe("thread composer isolation", () => {
     return container.querySelector("input")!;
   }
 
+  it("opens the model picker without changing the draft", () => {
+    const onModelPress = vi.fn();
+    render({ onModelPress, modelLabel: "Example model" });
+    type("unfinished message");
+    press("Model");
+    expect(onModelPress).toHaveBeenCalledOnce();
+    expect(composer.current?.snapshot().promptText).toBe("unfinished message");
+    expect(container.textContent).toContain("Example model");
+  });
+
   it("tints a completed mention inline instead of drawing a chip beside the input", () => {
     type("ask @He");
     press("@{name}");

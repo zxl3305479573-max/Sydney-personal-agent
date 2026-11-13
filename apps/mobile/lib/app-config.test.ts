@@ -5,6 +5,7 @@ import appConfig from "../app.config";
 beforeEach(() => {
   vi.stubEnv("EAS_BUILD_PROFILE", "production");
   vi.stubEnv("EXPO_PUBLIC_API_URL", "https://app.example.com");
+  vi.stubEnv("EXPO_PUBLIC_SYDNEY_SIDELOAD", "1");
 });
 
 afterEach(() => {
@@ -29,6 +30,19 @@ const passkeys = {
 };
 
 describe("mobile app config", () => {
+  it("only enables the companion widget for an isolated sideload without OTA", () => {
+    vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "1");
+    expect(() => appConfig(context(config))).toThrow("isolated sideload");
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.zxlup.sydney");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://pc.zxlup.xin");
+    expect(() => appConfig(context(config))).toThrow("separate bundle ID");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.companion");
+    expect(appConfig(context(config)).plugins).toContain("./plugins/with-companion-widget");
+    vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "7e638919-de89-4bea-a7a3-3a2d6902640e");
+    expect(() => appConfig(context(config))).toThrow("separate bundle ID");
+  });
+
   it.each([
     undefined,
     "not a url",
@@ -91,9 +105,34 @@ describe("mobile app config", () => {
     expect(() => appConfig(context(config))).toThrow("EXPO_PUBLIC_API_URL");
   });
 
+  it("requires the sideload runtime safety flag", () => {
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("EXPO_PUBLIC_SYDNEY_SIDELOAD", undefined);
+    expect(() => appConfig(context(config))).toThrow("EXPO_PUBLIC_SYDNEY_SIDELOAD");
+  });
+
+  it("allows the production IP with the production identity but isolates other servers", () => {
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "XIN.ZXLUP.SYDNEY");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://124.221.182.39");
+    expect(appConfig(context(config)).ios?.bundleIdentifier).toBe("XIN.ZXLUP.SYDNEY");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://203.0.113.10");
+    expect(() => appConfig(context(config))).toThrow("separate iOS bundle identifier");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.zxlup.sydney.staging");
+    expect(appConfig(context(config)).ios?.bundleIdentifier).toBe("xin.zxlup.sydney.staging");
+  });
+
+  it("keeps the existing sideload identity available for the current server", () => {
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.zxlup.sydney");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://pc.zxlup.xin");
+    expect(appConfig(context(config)).ios?.bundleIdentifier).toBe("xin.zxlup.sydney");
+  });
+
   it("enables sideload updates only for an explicitly configured Sydney project", () => {
     vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
     vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.sydney");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://pc.zxlup.xin");
     vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
     vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
     vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
@@ -109,6 +148,21 @@ describe("mobile app config", () => {
       },
     });
   });
+
+  it.each(["https://203.0.113.10", "https://other.example.com"])(
+    "rejects sideload updates for %s while allowing builds with updates disabled",
+    (apiUrl) => {
+      vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+      vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.sydney");
+      vi.stubEnv("EXPO_PUBLIC_API_URL", apiUrl);
+      expect(appConfig(context(config)).updates).toEqual({ enabled: false });
+
+      vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
+      vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
+      vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
+      expect(() => appConfig(context(config))).toThrow("Sydney OTA is restricted");
+    },
+  );
 
   it("rejects incomplete or upstream sideload update configuration", () => {
     vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");

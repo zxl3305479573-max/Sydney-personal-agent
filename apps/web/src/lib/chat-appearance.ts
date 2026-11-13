@@ -10,6 +10,67 @@ export type ChatBackground = {
   overlay: number;
 };
 
+export type ChatBubbleStyle = {
+  userBackground: string;
+  userForeground: string;
+  botBackground: string;
+  botForeground: string;
+  radius: number;
+  opacity: number;
+};
+
+export const CHAT_BUBBLE_PRESETS: Array<{ name: string; value: ChatBubbleStyle }> = [
+  {
+    name: "默认",
+    value: {
+      userBackground: "#dbeafe",
+      userForeground: "#172554",
+      botBackground: "#f3f4f6",
+      botForeground: "#1f2937",
+      radius: 20,
+      opacity: 1,
+    },
+  },
+  {
+    name: "薄荷",
+    value: {
+      userBackground: "#bbf7d0",
+      userForeground: "#14532d",
+      botBackground: "#ecfdf5",
+      botForeground: "#064e3b",
+      radius: 20,
+      opacity: 1,
+    },
+  },
+  {
+    name: "紫夜",
+    value: {
+      userBackground: "#ddd6fe",
+      userForeground: "#2e1065",
+      botBackground: "#ede9fe",
+      botForeground: "#312e81",
+      radius: 16,
+      opacity: 1,
+    },
+  },
+];
+
+export function chatBubbleTextShadow(foreground: string, background: string, opacity: number) {
+  const luminance = (color: string) => {
+    const channels = [1, 3, 5].map((index) => {
+      const value = Number.parseInt(color.slice(index, index + 2), 16) / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+  };
+  const text = luminance(foreground);
+  const surface = luminance(background);
+  const contrast = (Math.max(text, surface) + 0.05) / (Math.min(text, surface) + 0.05);
+  if (opacity === 1 && contrast >= 4.5) return "none";
+  const outline = text > 0.18 ? "#000" : "#fff";
+  return `-1px -1px 1px ${outline}, 1px -1px 1px ${outline}, -1px 1px 1px ${outline}, 1px 1px 1px ${outline}`;
+}
+
 export type ChatAppearance = {
   mode?: "simple" | "custom";
   userTextColor?: string | null;
@@ -18,11 +79,13 @@ export type ChatAppearance = {
   backgroundId: string | null;
   chatBackgrounds?: Record<string, string>;
   surfaceOpacity?: number;
+  bubble?: ChatBubbleStyle | null;
 };
 
 export const EMPTY_CHAT_APPEARANCE: ChatAppearance = {
   backgrounds: [],
   backgroundId: null,
+  bubble: { ...CHAT_BUBBLE_PRESETS[0]!.value },
 };
 
 export const DEFAULT_TEXT_COLOR_PICKER_VALUE = "#000000";
@@ -35,6 +98,17 @@ const appearanceSchema = z.object({
   mode: z.enum(["simple", "custom"]).optional(),
   userTextColor: colorSchema.nullable().optional(),
   botTextColor: colorSchema.nullable().optional(),
+  bubble: z
+    .object({
+      userBackground: colorSchema,
+      userForeground: colorSchema,
+      botBackground: colorSchema,
+      botForeground: colorSchema,
+      radius: z.number().min(0).max(40),
+      opacity: z.number().min(0).max(1),
+    })
+    .nullable()
+    .optional(),
   backgrounds: z
     .array(
       z.object({
@@ -77,6 +151,7 @@ export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
     mode: value.mode,
     userTextColor: value.userTextColor,
     botTextColor: value.botTextColor,
+    bubble: value.bubble === undefined ? { ...CHAT_BUBBLE_PRESETS[0]!.value } : value.bubble,
     backgrounds,
     backgroundId:
       value.backgroundId && backgroundIds.has(value.backgroundId) ? value.backgroundId : null,

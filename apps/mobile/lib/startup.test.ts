@@ -94,4 +94,31 @@ describe("mobile startup watchdog", () => {
     await expect(startup.trackMobileStartup("language", Promise.reject(error))).rejects.toBe(error);
     expect(native.report).toHaveBeenCalledWith(error, "mobile.startup");
   });
+
+  it("waits for the server even when another startup task fails", async () => {
+    const startup = await import("./startup");
+    let finishServer: () => void = () => undefined;
+    const server = new Promise<void>((resolve) => {
+      finishServer = resolve;
+    });
+    let ready = false;
+    const waiting = startup
+      .waitForMobileStartup(server, [Promise.reject(new Error("preference failed"))])
+      .then(() => {
+        ready = true;
+      });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    finishServer();
+    await waiting;
+    expect(ready).toBe(true);
+  });
+
+  it("does not allow startup when loading the server fails", async () => {
+    const startup = await import("./startup");
+    await expect(
+      startup.waitForMobileStartup(Promise.reject(new Error("storage failed")), [Promise.resolve()]),
+    ).rejects.toThrow("Could not load server settings");
+  });
 });

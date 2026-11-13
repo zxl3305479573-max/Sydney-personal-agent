@@ -43,6 +43,20 @@ it("preserves the selected bubble style after reloading", async () => {
   );
 });
 
+it("applies transparency to the bubble background without fading its contents", async () => {
+  const mobile = await import("./chat-appearance");
+  const appearance = {
+    ...mobile.getMobileChatAppearance(),
+    bubble: { ...mobile.MOBILE_BUBBLE_PRESETS[0]!.value, radius: 12, opacity: 0.4 },
+  };
+  expect(
+    mobile.mobileBubbleSurfaceStyle(appearance, "user", { backgroundColor: "#000000" }),
+  ).toEqual({
+    backgroundColor: "rgba(219, 234, 254, 0.4)",
+    borderRadius: 12,
+  });
+});
+
 it("keeps the previous appearance when saving fails", async () => {
   const mobile = await import("./chat-appearance");
   const previous = mobile.getMobileChatAppearance();

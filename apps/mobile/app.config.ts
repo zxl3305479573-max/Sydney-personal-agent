@@ -4,6 +4,9 @@ const RELEASE_PROFILES = new Set(["preview", "production", "android-apk", "diagn
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const sideload = process.env.SYDNEY_SIDELOAD_IOS === "1";
+  if (sideload && process.env.EXPO_PUBLIC_SYDNEY_SIDELOAD !== "1") {
+    throw new Error("EXPO_PUBLIC_SYDNEY_SIDELOAD must be set for Sydney sideload builds.");
+  }
   if (sideload || RELEASE_PROFILES.has(process.env.EAS_BUILD_PROFILE ?? "")) {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (!apiUrl) {
@@ -45,10 +48,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   }
 
   let result = config as ExpoConfig;
+  const companionExperiment = process.env.SYDNEY_COMPANION_EXPERIMENT === "1";
+  if (companionExperiment && !sideload) {
+    throw new Error("The companion experiment requires an isolated sideload build.");
+  }
   if (sideload) {
     const bundleIdentifier = process.env.SYDNEY_IOS_BUNDLE_ID;
     if (!bundleIdentifier || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(bundleIdentifier)) {
       throw new Error("SYDNEY_IOS_BUNDLE_ID must be a valid iOS bundle identifier.");
+    }
+    if (
+      new URL(process.env.EXPO_PUBLIC_API_URL!).origin !== "https://pc.zxlup.xin" &&
+      new URL(process.env.EXPO_PUBLIC_API_URL!).origin !== "https://124.221.182.39" &&
+      bundleIdentifier.toLowerCase() === "xin.zxlup.sydney"
+    ) {
+      throw new Error("A different server requires a separate iOS bundle identifier.");
     }
     const { eas: _eas, passkeyRpIds: _passkeyRpIds, ...extra } = result.extra ?? {};
     const { associatedDomains: _associatedDomains, ...ios } = result.ios ?? {};
@@ -56,6 +70,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     const updateOwner = process.env.SYDNEY_OTA_OWNER;
     const updateRuntime = process.env.SYDNEY_OTA_RUNTIME_VERSION;
     const updatesRequested = updateProject || updateOwner || updateRuntime;
+    if (
+      companionExperiment &&
+      (bundleIdentifier.toLowerCase() === "xin.zxlup.sydney" || updatesRequested)
+    ) {
+      throw new Error("The companion experiment requires a separate bundle ID and no OTA updates.");
+    }
     if (
       updatesRequested &&
       (!updateProject ||
@@ -68,6 +88,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           (result.extra?.eas as { projectId?: string } | undefined)?.projectId?.toLowerCase())
     ) {
       throw new Error("Sydney OTA requires its own valid project ID, owner and runtime version.");
+    }
+    if (updatesRequested && process.env.EXPO_PUBLIC_API_URL !== "https://pc.zxlup.xin") {
+      throw new Error(
+        "Sydney OTA is restricted to the existing server until update isolation is verified.",
+      );
     }
     result = {
       ...result,
@@ -91,6 +116,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         return name !== "./plugins/with-app-intents" && name !== "expo-notifications";
       }),
     };
+    if (companionExperiment) {
+      result.plugins = [...(result.plugins ?? []), "./plugins/with-companion-widget"];
+    }
   }
   const rpId = sideload ? null : passkeyRpId(process.env.EXPO_PUBLIC_API_URL);
   if (rpId) {

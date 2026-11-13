@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import type { PhotonProjectCredentials, TelegramBotCredentials } from "@rakazo/adapters";
 import {
   boatApiKeyFromEnv,
@@ -32,6 +33,7 @@ export { resolveCloudAgentProvider, resolveSandboxProvider } from "@rakazo/adapt
 const DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173";
 
 export interface AppEnv {
+  companionScreenExperimental?: boolean;
   passwordAuth?: boolean;
   /** Opt-in Have I Been Pwned check for new passwords. Default off: it calls an outside service. */
   breachedPasswordCheck?: boolean;
@@ -43,6 +45,9 @@ export interface AppEnv {
   authSecret: string;
   authUrl: string;
   webOrigin: string;
+  authPublicLinkOrigin?: string;
+  screenProxyPublicOrigin?: string;
+  extraTrustedOrigins?: string[];
   /** `<TEAM_ID>.<bundle id>` of iOS apps that may use this domain's passkeys. */
   passkeyAppleAppIds: string[];
   /** SHA-256 signing certificate fingerprints of Android apps that may use this domain's passkeys. */
@@ -218,6 +223,15 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       : undefined;
   const authSecret = resolveAuthSecret(source);
   const webOrigin = resolveWebOrigin(source.WEB_ORIGIN, DEFAULT_WEB_ORIGIN, "WEB_ORIGIN");
+  const extraTrustedOrigins = parseExtraTrustedOrigins(source.EXTRA_TRUSTED_ORIGINS);
+  const authPublicLinkOrigin = resolveAuthPublicLinkOrigin(source.AUTH_PUBLIC_LINK_ORIGIN);
+  if (
+    authPublicLinkOrigin &&
+    authPublicLinkOrigin !== new URL(webOrigin).origin &&
+    !extraTrustedOrigins.includes(authPublicLinkOrigin)
+  ) {
+    throw new Error("AUTH_PUBLIC_LINK_ORIGIN must be WEB_ORIGIN or an EXTRA_TRUSTED_ORIGINS entry");
+  }
   const sandboxProvider = resolveSandboxProvider(source);
   const cloudAgentProvider = resolveCloudAgentProvider(source);
   const deploymentModel = resolveDeploymentModel(source);
@@ -232,6 +246,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     authSecret,
     authUrl: resolveWebOrigin(source.BETTER_AUTH_URL, webOrigin, "BETTER_AUTH_URL"),
     webOrigin,
+    authPublicLinkOrigin,
+    screenProxyPublicOrigin: resolveScreenProxyPublicOrigin(source.SCREEN_PROXY_PUBLIC_ORIGIN),
+    extraTrustedOrigins,
     passkeyAppleAppIds: list(source.PASSKEY_APPLE_APP_IDS),
     passkeyAndroidCertFingerprints: androidCertFingerprints(source.PASSKEY_ANDROID_CERT_SHA256),
     privacyPolicyUrl: optional(source.PRIVACY_POLICY_URL),
@@ -248,6 +265,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     contentEncryption: resolveContentEncryption(source),
     dataDir: source.DATA_DIR ?? "./data",
     piSessionRecording: source.PI_SESSION_RECORDING === "true",
+    companionScreenExperimental:
+      source.SYDNEY_COMPANION_SCREEN_EXPERIMENT === "true" &&
+      (source.NODE_ENV === "test" || source.NODE_ENV === "development"),
     ticketBoardEnabled: source.TICKET_BOARD_ENABLED === "true",
     userDevicesEnabled: source.USER_DEVICES_ENABLED !== "false",
     navLinks: parseNavLinks(source.RAKAZO_NAV_LINKS),
@@ -348,6 +368,56 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
  * `${webOrigin}/path` cannot produce `https://host//path`; providers reject a
  * double-slash redirect URI as a mismatch against the one registered with them.
  */
+function parseExtraTrustedOrigins(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  const origins = value.split(",").map((entry) => {
+    const origin = entry.trim();
+    try {
+      const match = /^https:\/\/(\[[^\]]+\]|[^:/?#\\\s@*]+)(?::([0-9]+))?\/?$/i.exec(origin);
+      if (!match) throw new Error();
+      const url = new URL(origin);
+      if (
+        url.protocol !== "https:" ||
+        !url.hostname ||
+        url.hostname.includes("*") ||
+        url.username ||
+        url.password
+      ) {
+        throw new Error();
+      }
+      if (isIP(url.hostname) === 4 && match[1] !== url.hostname) throw new Error();
+      return url.origin;
+    } catch {
+      throw new Error("EXTRA_TRUSTED_ORIGINS must contain comma-separated HTTPS origins");
+    }
+  });
+  return [...new Set(origins)];
+}
+
+function resolveAuthPublicLinkOrigin(value: string | undefined): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.origin !== value || url.hostname.includes("*"))
+      throw new Error();
+    return url.origin;
+  } catch {
+    throw new Error("AUTH_PUBLIC_LINK_ORIGIN must be a canonical HTTPS origin");
+  }
+}
+
+function resolveScreenProxyPublicOrigin(value: string | undefined): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.origin !== value || url.hostname.includes("*"))
+      throw new Error();
+    return url.origin;
+  } catch {
+    throw new Error("SCREEN_PROXY_PUBLIC_ORIGIN must be a canonical HTTPS origin");
+  }
+}
+
 function resolveWebOrigin(value: string | undefined, fallback: string, name: string): string {
   const origin = (optional(value) ?? fallback).replace(/\/+$/, "");
   try {

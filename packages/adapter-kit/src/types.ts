@@ -586,6 +586,10 @@ export interface AgentRunRequest {
   currentRunRequiresImageInput?: boolean;
   /** Server verified legacy attachment bytes remain available to file tools. */
   currentTurnImageFileFallback?: boolean;
+  /** Optional, conservatively eligible plain-chat input for experimental tool routing. */
+  toolIntentCandidate?: { message: string };
+  /** Optional observation of the first model request's tool-definition size. */
+  onInitialToolList?: (measurement: { count: number; bytes: number }) => void;
   tools: ConnectorTool[];
   model: AgentRunModel;
   /** Ordered, user-selected models eligible after provider unavailability. */

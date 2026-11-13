@@ -9,10 +9,16 @@ import { Alert } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Account from "../app/(settings)/account";
 import SettingsHome from "../app/(settings)/settings-home";
-import { deleteAccount, fetchAccountSecurity, requestAccountDeletionCode } from "./api";
+import {
+  deleteAccount,
+  fetchAccountSecurity,
+  isServerSessionScopeCurrent,
+  requestAccountDeletionCode,
+} from "./api";
 import { replaceWithSignIn } from "./auth-routing";
 import { checkForManualUpdate, restartForUpdate } from "./client-update";
 import { promptAccountDeletion } from "./delete-account-prompt";
+import { queryClient } from "./query";
 import { registerSettingsSheet } from "./settings-sheet";
 
 type Pressed = {
@@ -42,6 +48,17 @@ const { element, account } = vi.hoisted(() => ({
     rules: [] as { id: string }[],
   },
 }));
+
+vi.mock("./query", async () => {
+  const { QueryClient } = await import("@tanstack/react-query");
+  return {
+    queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    accountRpcQuery: () => ({
+      queryKey: ["me"],
+      queryFn: async () => ({ ...account.me }),
+    }),
+  };
+});
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./client-update", () => ({
@@ -176,8 +193,14 @@ vi.mock("../components/settings-group", () => ({
 }));
 vi.mock("./api", () => ({
   currentApiBase: () => "http://127.0.0.1:3100",
+  captureServerSessionScope: () => ({
+    apiBase: "https://server.example",
+    endpointGeneration: 1,
+    sessionGeneration: 1,
+  }),
   deleteAccount: vi.fn(),
   fetchAccountSecurity: vi.fn(async () => ({ hasPassword: true })),
+  isServerSessionScopeCurrent: vi.fn(() => true),
   loadSessionToken: vi.fn(async () => "token"),
   passwordResetCapabilities: vi.fn(async () => ({})),
   requestAccountDeletionCode: vi.fn(),
@@ -279,9 +302,16 @@ let container: HTMLDivElement | undefined;
 beforeEach(() => {
   vi.clearAllMocks();
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
+  queryClient.clear();
+  queryClient.setQueryData(["me"], account.me);
   account.rules = [];
   account.params = {};
   vi.mocked(fetchAccountSecurity).mockResolvedValue(security());
+  vi.mocked(isServerSessionScopeCurrent).mockReturnValue(true);
+  vi.mocked(deleteAccount).mockResolvedValue({
+    status: "deleted",
+    scope: { apiBase: "https://server.example", endpointGeneration: 1, sessionGeneration: 1 },
+  });
 });
 
 it("opens separate settings sections from the grouped home", async () => {
@@ -295,16 +325,19 @@ it("opens separate settings sections from the grouped home", async () => {
   expect(button("tester@example.test")).toBeDefined();
   expect(button("Usage")).toBeDefined();
   expect(button("Connect apps")).toBeDefined();
+  expect(button("Computers")).toBeDefined();
   expect(button("Appearance")).toBeDefined();
   await act(async () => button("tester@example.test")?.click());
   await act(async () => button("Usage")?.click());
   await act(async () => button("Appearance")?.click());
   await act(async () => button("Connect apps")?.click());
+  await act(async () => button("Computers")?.click());
   expect(account.push.mock.calls).toEqual([
     [{ pathname: "/account", params: { section: "account" } }],
     [{ pathname: "/account", params: { section: "usage" } }],
     [{ pathname: "/account", params: { section: "appearance" } }],
     ["/integrations"],
+    ["/devices"],
   ]);
 });
 
@@ -399,14 +432,14 @@ it("asks for the current password, shows a failed delete, and signs out after a 
   vi.mocked(deleteAccount).mockRejectedValueOnce(new Error("wrong password"));
   await view.type("Current password", "hunter2");
   await view.press("Delete");
-  expect(deleteAccount).toHaveBeenCalledWith("hunter2");
+  expect(deleteAccount).toHaveBeenCalledWith("hunter2", undefined, expect.any(Object));
   expect(view.alert()).toBe("Could not delete account");
   expect(replaceWithSignIn).not.toHaveBeenCalled();
 
   await view.type("Current password", "correct horse");
   expect(view.alert()).toBeNull();
   await view.press("Delete");
-  expect(deleteAccount).toHaveBeenLastCalledWith("correct horse");
+  expect(deleteAccount).toHaveBeenLastCalledWith("correct horse", undefined, expect.any(Object));
   expect(replaceWithSignIn).toHaveBeenCalledWith("/sign-in");
   expect(view.screen.querySelector("section")).toBeNull();
 });
@@ -418,8 +451,74 @@ it("deletes with the password from the native prompt when one is shown", async (
   expect(view.screen.querySelector("section")).toBeNull();
   const [{ onSubmit }] = vi.mocked(promptAccountDeletion).mock.calls[0]!;
   await act(async () => onSubmit("hunter2"));
-  expect(deleteAccount).toHaveBeenCalledWith("hunter2");
+  expect(deleteAccount).toHaveBeenCalledWith("hunter2", undefined, expect.any(Object));
   expect(replaceWithSignIn).toHaveBeenCalledWith("/sign-in");
+});
+
+it("reports a deleted original account without navigating when the session changed", async () => {
+  vi.mocked(deleteAccount).mockResolvedValueOnce({ status: "session-changed" });
+  const view = await renderAccount();
+  await view.press("Delete account");
+  await view.type("Current password", "hunter2");
+  await view.press("Delete");
+  expect(replaceWithSignIn).not.toHaveBeenCalled();
+  expect(Alert.alert).toHaveBeenCalledWith(
+    "Account deleted",
+    "The original account was deleted. Your current session has changed.",
+  );
+  expect(view.screen.querySelector("section")).toBeNull();
+});
+
+it.each([false, true])(
+  "does not delete when the session changes before confirmation (native: %s)",
+  async (nativePrompt) => {
+    vi.mocked(promptAccountDeletion).mockReturnValueOnce(nativePrompt);
+    const view = await renderAccount();
+    await view.press("Delete account");
+    vi.mocked(isServerSessionScopeCurrent).mockReturnValue(false);
+    if (nativePrompt) {
+      const [{ onSubmit }] = vi.mocked(promptAccountDeletion).mock.calls[0]!;
+      await act(async () => onSubmit("hunter2"));
+    } else {
+      await view.type("Current password", "hunter2");
+      await view.press("Delete");
+    }
+    expect(deleteAccount).not.toHaveBeenCalled();
+    expect(replaceWithSignIn).not.toHaveBeenCalled();
+  },
+);
+
+it("reports failed local cleanup without navigating after deletion", async () => {
+  vi.mocked(deleteAccount).mockResolvedValueOnce({
+    status: "cleanup-failed",
+    scope: { apiBase: "https://server.example", endpointGeneration: 1, sessionGeneration: 1 },
+  });
+  const view = await renderAccount();
+  await view.press("Delete account");
+  await view.type("Current password", "hunter2");
+  await view.press("Delete");
+  expect(replaceWithSignIn).not.toHaveBeenCalled();
+  expect(Alert.alert).toHaveBeenCalledWith(
+    "Account deleted",
+    "The account was deleted, but local session cleanup failed. Restart the app and try signing out.",
+  );
+});
+
+it("does not navigate if the session changes after deletion returns", async () => {
+  vi.mocked(isServerSessionScopeCurrent)
+    .mockReturnValueOnce(true)
+    .mockReturnValueOnce(true)
+    .mockReturnValue(false);
+  vi.mocked(promptAccountDeletion).mockReturnValueOnce(true);
+  const view = await renderAccount();
+  await view.press("Delete account");
+  const [{ onSubmit }] = vi.mocked(promptAccountDeletion).mock.calls[0]!;
+  await act(async () => onSubmit("hunter2"));
+  expect(replaceWithSignIn).not.toHaveBeenCalled();
+  expect(Alert.alert).toHaveBeenCalledWith(
+    "Account deleted",
+    "The original account was deleted. Your current session has changed.",
+  );
 });
 
 it("refreshes an expired sign-in proof and keeps the deletion dialog open", async () => {
@@ -447,7 +546,7 @@ it("deletes with a still-fresh sign-in proof", async () => {
   const view = await renderAccount();
   await view.press("Delete account");
   await view.press("Delete");
-  expect(deleteAccount).toHaveBeenCalledWith(undefined, undefined);
+  expect(deleteAccount).toHaveBeenCalledWith(undefined, undefined, expect.any(Object));
   expect(replaceWithSignIn).toHaveBeenCalledWith("/sign-in");
 });
 
@@ -469,7 +568,7 @@ it("submits only a trimmed deletion code, never whitespace", async () => {
 
   await view.type("Deletion code", " 123456 ");
   await view.press("Delete");
-  expect(deleteAccount).toHaveBeenCalledWith(undefined, "123456");
+  expect(deleteAccount).toHaveBeenCalledWith(undefined, "123456", expect.any(Object));
   expect(replaceWithSignIn).toHaveBeenCalledWith("/sign-in");
 });
 
@@ -482,7 +581,7 @@ it.each([undefined, true, false])(
     await view.press("Delete account");
     await view.type("Current password", "hunter2");
     await view.press("Delete");
-    expect(deleteAccount).toHaveBeenCalledWith("hunter2");
+    expect(deleteAccount).toHaveBeenCalledWith("hunter2", undefined, expect.any(Object));
   },
 );
 

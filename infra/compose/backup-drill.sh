@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prove an encrypted snapshot restores, on a machine that holds the age identity.
+# Check encrypted snapshot streams on a machine that holds the age identity.
 # Decrypted data is streamed into the checks and never written to disk.
 set -euo pipefail
 SNAPSHOT="${1:?usage: backup-drill.sh SNAPSHOT_DIR AGE_IDENTITY_FILE}"
@@ -14,4 +14,4 @@ age --decrypt -i "${IDENTITY}" "${SNAPSHOT}/rakazo.dump.age" \
   | { pg_restore --list >/dev/null && cat >/dev/null; }
 age --decrypt -i "${IDENTITY}" "${SNAPSHOT}/appdata.tgz.age" \
   | { tar -tzf - >/dev/null && cat >/dev/null; }
-echo "Backup ${SNAPSHOT} decrypts and verifies"
+echo "Backup ${SNAPSHOT}: checksums and archive listings checked; restore not performed"

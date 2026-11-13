@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { displayName } from "@rakazo/core";
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./client.js";
+import { runAsSystemInTransaction } from "./row-security.js";
 import { IsolationError } from "./scope.js";
 import { withTransactionRetry } from "./transaction-retry.js";
 
@@ -61,6 +62,13 @@ export class SpaceDeletionInProgressError extends Error {
   constructor() {
     super("Space deletion is already in progress");
     this.name = "SpaceDeletionInProgressError";
+  }
+}
+
+export class CannotDeleteSpaceWithProjectWorkspacesError extends Error {
+  constructor() {
+    super("Cannot delete a space containing project workspaces");
+    this.name = "CannotDeleteSpaceWithProjectWorkspacesError";
   }
 }
 
@@ -294,6 +302,26 @@ export async function claimSpaceDeletionForMember(
       async (tx) => {
         await lockSpaceDeletion(tx, input.spaceId);
         await assertSpaceDeletable(tx, input);
+        const workspaces = await runAsSystemInTransaction(
+          tx,
+          "check all project workspaces before Space deletion",
+          async () => {
+            const [authorization] = await tx.$queryRaw<Array<{ authorized: boolean | null }>>`
+              SELECT app_rls_bypass() AS authorized
+            `;
+            if (authorization?.authorized !== true) {
+              throw new Error("Cannot verify system authorization for project workspace check");
+            }
+            return tx.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+            SELECT EXISTS (
+              SELECT 1 FROM "project_workspaces" WHERE "spaceId" = ${input.spaceId}
+            ) AS "exists"
+          `);
+          },
+        );
+        if (!workspaces[0])
+          throw new Error("Failed to check project workspaces before Space deletion");
+        if (workspaces[0].exists) throw new CannotDeleteSpaceWithProjectWorkspacesError();
         const lifecycle = await tx.space.findUnique({
           where: { id: input.spaceId },
           select: { deletingAt: true },

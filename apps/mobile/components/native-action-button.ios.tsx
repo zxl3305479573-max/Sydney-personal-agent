@@ -134,6 +134,7 @@ export function NativeActionButton({
         modifiers={[
           ...(accessibilityActions?.length ? [accessibilityHidden(true)] : []),
           buttonStyle(variant ? "plain" : swiftStyle(effectiveProminence)),
+          font({ family: "Iowan Old Style", textStyle: "callout" }),
           ...(rectangular && stretches ? [frame({ maxWidth: Infinity })] : []),
           controlSize(
             small ? "small" : stretches ? "large" : prominence === "quiet" ? "small" : "regular",

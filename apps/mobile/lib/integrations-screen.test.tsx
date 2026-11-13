@@ -20,6 +20,14 @@ const state = vi.hoisted(() => ({
   persisted: vi.fn(),
   focused: true,
   appStateChange: null as null | ((state: string) => void),
+  cache: new Map<string, unknown>(),
+}));
+vi.mock("./query", () => ({
+  rpcQuery: (path: string) => ({ queryKey: path }),
+  queryClient: {
+    getQueryData: (key: string) => state.cache.get(key),
+    setQueryData: (key: string, value: unknown) => state.cache.set(key, value),
+  },
 }));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("expo-router", () => ({
@@ -198,6 +206,7 @@ let container: HTMLDivElement;
 let resolveCatalog: (items: (typeof item)[]) => void;
 let rejectCatalog: (error: Error) => void;
 beforeEach(() => {
+  state.cache.clear();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   state.current = true;
   state.focused = true;

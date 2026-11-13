@@ -124,6 +124,7 @@ export const ROW_SECURITY_MODELS: ReadonlySet<string> = new Set([
   "AgentSkillSpace",
   "CapabilityInstallSpace",
   "AgentImport",
+  "ProjectWorkspace",
   "Bot",
   "PersonalityPreset",
   "Run",

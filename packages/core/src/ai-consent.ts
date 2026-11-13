@@ -39,6 +39,8 @@ export function aiDataUsesForProcedure(procedure: string, input?: unknown): AiDa
   )
     return ["model", "memory"];
   if (["voice/prepare", "voice/speak", "voice/transcribe"].includes(path)) return ["voice"];
+  if (["threads/companionScreenStart", "threads/companionScreenRespond"].includes(path))
+    return ["model"];
   return [];
 }
 

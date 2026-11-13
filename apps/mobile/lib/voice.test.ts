@@ -852,6 +852,24 @@ describe("on-device speech", () => {
     vi.unstubAllGlobals();
   });
 
+  it("stops an owned device utterance without letting another owner stop it", async () => {
+    const owner = createSpeechOwner();
+    const other = createSpeechOwner();
+    let stopped: (() => void) | undefined;
+    vi.mocked(Speech.speak).mockImplementation((_text, options) => {
+      stopped = options?.onStopped;
+    });
+    const spoken = speakWithDeviceVoice("Hello", "bot-1", undefined, owner);
+    await flushDeviceSpeechImport();
+    vi.mocked(Speech.stop).mockClear();
+    stopSpeaking(other);
+    expect(Speech.stop).not.toHaveBeenCalled();
+    stopSpeaking(owner);
+    expect(Speech.stop).toHaveBeenCalledOnce();
+    stopped?.();
+    await expect(spoken).resolves.toBe(true);
+  });
+
   it("can pause and resume on iOS, where the OS engine supports it", async () => {
     Platform.OS = "ios";
     vi.mocked(SecureStore.getItemAsync).mockResolvedValue("1");

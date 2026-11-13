@@ -1,0 +1,114 @@
+name: Build Windows desktop (unpublished)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows directory without configured signing
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate database client
+        run: pnpm db:generate
+        env:
+          DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+      - name: Build web and desktop
+        run: pnpm --filter @rakazo/web build && pnpm --filter @rakazo/desktop build
+        env:
+          RAKAZO_ALLOW_DEV_SECRETS: "1"
+      - name: Package without publishing
+        run: pnpm --filter @rakazo/desktop exec electron-builder --win --x64 --dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Verify packaged PC backend connection and update guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $testNames = @(
+            "opens a healthy configured PC backend",
+            "shows setup when the configured PC backend is unreachable",
+            "rejects an invalid configured PC backend",
+            "rejects a configured PC backend without the Sydney health response",
+            "packaged Sydney disables desktop updates"
+          )
+          foreach ($testName in $testNames) {
+            $escapedName = [regex]::Escape($testName)
+            $env:PLAYWRIGHT_JSON_OUTPUT_NAME = Join-Path $env:RUNNER_TEMP "pc-connection-report.json"
+            if (Test-Path -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_NAME) {
+              Remove-Item -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_NAME -Force
+            }
+            pnpm --filter @rakazo/desktop exec playwright test --config e2e/playwright.config.ts setup.spec.ts --grep $escapedName --reporter=list,json
+            if ($LASTEXITCODE -ne 0) { throw "Packaged desktop test failed: $testName" }
+            $report = Get-Content -Raw -LiteralPath $env:PLAYWRIGHT_JSON_OUTPUT_NAME | ConvertFrom-Json
+            $specs = @($report.suites | ForEach-Object { $_.specs })
+            if ($report.stats.expected -ne 1 -or $report.stats.skipped -ne 0 -or
+                $report.stats.unexpected -ne 0 -or $report.stats.flaky -ne 0 -or
+                $specs.Count -ne 1 -or $specs[0].file -ne "setup.spec.ts" -or
+                $specs[0].title -ne $testName -or @($specs[0].tests).Count -ne 1 -or
+                $specs[0].tests[0].results[-1].status -ne "passed") {
+              throw "Expected exactly one passing test named: $testName"
+            }
+          }
+        env:
+          RAKAZO_E2E_EXECUTABLE: out/win-unpacked/Sydney.exe
+      - name: Verify files and record build identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $revision = (git rev-parse HEAD).Trim()
+          if ($revision -ne $env:GITHUB_SHA) { throw "Checkout does not match the requested revision" }
+          $directory = "apps/desktop/out/win-unpacked"
+          $executables = @(Get-ChildItem -LiteralPath $directory -Filter "*.exe" -File)
+          if ($executables.Count -eq 0) { throw "Windows executable is missing" }
+          $archive = Join-Path $directory "resources/app.asar"
+          $webIndex = Join-Path $directory "resources/web/index.html"
+          $stackCompose = Join-Path $directory "resources/stack/docker-compose.images.yml"
+          $stackTemplate = Join-Path $directory "resources/stack/.env.images.example"
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) { throw "App archive is missing" }
+          if (-not (Test-Path -LiteralPath $webIndex -PathType Leaf)) { throw "Bundled web index is missing" }
+          if (-not (Test-Path -LiteralPath $stackCompose -PathType Leaf)) { throw "Stack compose file is missing" }
+          if (-not (Test-Path -LiteralPath $stackTemplate -PathType Leaf)) { throw "Stack template is missing" }
+          $artifactRoot = (Resolve-Path -LiteralPath "apps/desktop/out").Path
+          $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Force -File | Sort-Object FullName)
+          $hashes = @($files | ForEach-Object {
+            $hash = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256
+            @{ path = [System.IO.Path]::GetRelativePath($artifactRoot, $hash.Path).Replace('\', '/'); sha256 = $hash.Hash.ToLowerInvariant() }
+          })
+          $signatures = @($executables | ForEach-Object {
+            $signature = Get-AuthenticodeSignature -LiteralPath $_.FullName
+            @{ file = $_.Name; status = $signature.Status.ToString() }
+          })
+          @{
+            revision = $revision
+            runId = $env:GITHUB_RUN_ID
+            runAttempt = $env:GITHUB_RUN_ATTEMPT
+            node = (node --version)
+            pnpm = (pnpm --version | Select-Object -Last 1)
+            platform = "windows-x64"
+            package = "directory"
+            signatures = $signatures
+            files = $hashes
+          } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "apps/desktop/out/build-metadata.json" -Encoding utf8
+      - name: Upload unpublished build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sydney-windows-unpacked-${{ github.sha }}
+          path: |
+            apps/desktop/out/win-unpacked/
+            apps/desktop/out/build-metadata.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7

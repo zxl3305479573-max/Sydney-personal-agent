@@ -1,6 +1,7 @@
 import type { AccountSecurity } from "@rakazo/contracts";
 import { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -11,7 +12,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { deleteAccount, fetchAccountSecurity, requestAccountDeletionCode } from "../lib/api";
+import {
+  captureServerSessionScope,
+  deleteAccount,
+  fetchAccountSecurity,
+  isServerSessionScopeCurrent,
+  requestAccountDeletionCode,
+} from "../lib/api";
+import type { ServerSessionScope } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { promptAccountDeletion } from "../lib/delete-account-prompt";
@@ -34,6 +42,7 @@ export function useAccountDeletion({
   const { t } = useI18n();
   const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState(false);
+  const [dialogScope, setDialogScope] = useState<ServerSessionScope | null>(null);
   const [security, setSecurityState] = useState<AccountSecurity | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [ssoReauthenticated, setSsoReauthenticated] = useState(false);
@@ -65,6 +74,7 @@ export function useAccountDeletion({
   function close() {
     if (pending) return;
     setOpen(false);
+    setDialogScope(null);
     setPassword("");
     setError(null);
   }
@@ -72,13 +82,18 @@ export function useAccountDeletion({
   async function request() {
     if (pending) return;
     setError(null);
+    let scope: ServerSessionScope;
     try {
+      scope = captureServerSessionScope();
       const value = await fetchAccountSecurity();
+      if (!isServerSessionScopeCurrent(scope))
+        throw new Error(t("The session changed. Open account deletion again."));
       setSecurity(value);
       if (!value.hasPassword) {
         setPassword("");
         setCodeSent(false);
         setSsoReauthenticated(value.freshOidcAuth);
+        setDialogScope(scope);
         setOpen(true);
         return;
       }
@@ -94,29 +109,58 @@ export function useAccountDeletion({
       ),
       cancelLabel: t("Cancel"),
       deleteLabel: t("Delete"),
-      onSubmit: (value) => void submit(value, true),
+      onSubmit: (value) => void submit(value, true, scope),
     });
     if (!prompted) {
       setPassword("");
+      setDialogScope(scope);
       setOpen(true);
     }
   }
 
-  async function submit(value: string, hasPassword = security?.hasPassword === true) {
+  async function submit(
+    value: string,
+    hasPassword = security?.hasPassword === true,
+    scope = dialogScope,
+  ) {
     if ((!value && !ssoReauthenticated) || pending) return;
     setPending(true);
     setError(null);
     try {
-      if (hasPassword) await deleteAccount(value);
+      if (!scope || !isServerSessionScopeCurrent(scope))
+        throw new Error(t("The session changed. Open account deletion again."));
+      let result: Awaited<ReturnType<typeof deleteAccount>>;
+      if (hasPassword) result = await deleteAccount(value, undefined, scope);
       else {
         const current = await fetchAccountSecurity();
+        if (!isServerSessionScopeCurrent(scope))
+          throw new Error(t("The session changed. Open account deletion again."));
         setSecurity(current);
         setSsoReauthenticated(current.freshOidcAuth);
         const token = codeSent ? value.trim() : undefined;
         if (current.hasPassword || (!current.freshOidcAuth && !token)) return;
-        await deleteAccount(undefined, token);
+        result = await deleteAccount(undefined, token, scope);
       }
       setOpen(false);
+      setDialogScope(null);
+      setPassword("");
+      if (result.status === "session-changed" || !isServerSessionScopeCurrent(result.scope)) {
+        Alert.alert(
+          t("Account deleted"),
+          (result.status === "session-changed" && result.cleanupFailed) ||
+          result.status === "cleanup-failed"
+            ? t("The original account was deleted, but local cleanup failed and your session has changed.")
+            : t("The original account was deleted. Your current session has changed."),
+        );
+        return;
+      }
+      if (result.status === "cleanup-failed") {
+        Alert.alert(
+          t("Account deleted"),
+          t("The account was deleted, but local session cleanup failed. Restart the app and try signing out."),
+        );
+        return;
+      }
       replaceWithSignIn("/sign-in");
     } catch (err) {
       setError(errorText(err, t("Could not delete account")));
@@ -156,7 +200,19 @@ export function useAccountDeletion({
                   disabled={pending}
                   onPress={() =>
                     void run(async () => {
-                      setSsoReauthenticated(await continueWithSso("reauthenticate"));
+                      if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
+                        throw new Error(t("The session changed. Open account deletion again."));
+                      const authenticated = await continueWithSso("reauthenticate");
+                      if (!authenticated) return;
+                      const next = captureServerSessionScope();
+                      if (
+                        next.apiBase !== dialogScope.apiBase ||
+                        next.endpointGeneration !== dialogScope.endpointGeneration ||
+                        next.sessionGeneration !== dialogScope.sessionGeneration + 1
+                      )
+                        throw new Error(t("The session changed. Open account deletion again."));
+                      setDialogScope(next);
+                      setSsoReauthenticated(true);
                     })
                   }
                 />
@@ -167,7 +223,11 @@ export function useAccountDeletion({
                   disabled={pending}
                   onPress={() =>
                     void run(async () => {
+                      if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
+                        throw new Error(t("The session changed. Open account deletion again."));
                       await requestAccountDeletionCode();
+                      if (!isServerSessionScopeCurrent(dialogScope))
+                        throw new Error(t("The session changed. Open account deletion again."));
                       setCodeSent(true);
                     })
                   }

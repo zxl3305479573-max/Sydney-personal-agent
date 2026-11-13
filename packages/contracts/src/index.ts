@@ -35,6 +35,7 @@ export * from "./openai-compatible-ui.js";
 export * from "./payments.js";
 export * from "./personality.js";
 export * from "./personality-catalog.js";
+export * from "./project-workspace.js";
 export * from "./reactions.js";
 export * from "./routine-watch.js";
 export * from "./rpc.js";

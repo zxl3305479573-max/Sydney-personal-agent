@@ -126,6 +126,7 @@ import {
   provisionMessagingIdentity,
   pushSessionExpiresAt,
   requireMembership,
+  recordUsage,
   rowSecurityWarning,
   runAsSystem,
   securityEventRetentionDays,
@@ -143,7 +144,7 @@ import { markExpectedFailure, requestLogging } from "@rakazo/logging/hono";
 import { MarkdownMemoryStore } from "@rakazo/memory";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { deleteAccountContent } from "./account-deletion.js";
+import { assertAccountDeletionAllowed, deleteAccountContent } from "./account-deletion.js";
 import { mountAccountExportRoute } from "./account-export.js";
 import { mountAccountImportRoute } from "./account-import.js";
 import { mountAppAssociation, nativePasskeys } from "./app-association.js";
@@ -152,6 +153,8 @@ import { mountAuditExportRoute } from "./audit-export.js";
 import { createBillingService } from "./billing.js";
 import { mountBillingRoutes } from "./billing-webhook.js";
 import { clientBuildMiddleware, readDeployedWebBuild } from "./client-build.js";
+import { createCompanionScreenConsent } from "./companion-screen-consent.js";
+import { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 import {
   clientIpMiddleware,
   createClientIpResolver,
@@ -180,7 +183,7 @@ import { monitoringRoutes } from "./monitoring.js";
 import { pluginSubmissionRoutes } from "./plugin-submissions.js";
 import { sendReferralEmails, startReferralEmails } from "./referral-email.js";
 import { mountApiRequestBodyLimits } from "./request-body-limit.js";
-import { createRouter } from "./router.js";
+import { createRouter, type RouterDeps } from "./router.js";
 import { mountScreenTarget } from "./screen-proxy.js";
 import { createAuthResponseAudit } from "./security-audit.js";
 import { createSpeechSummarizer } from "./speech-summary.js";
@@ -541,6 +544,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     secret: env.authSecret,
     baseURL: env.authUrl,
     webOrigin: env.webOrigin,
+    publicLinkOrigin: env.authPublicLinkOrigin,
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
     singleAccount: Boolean(env.desktopStackToken),
@@ -569,9 +573,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
               headers,
             )
         : undefined,
-    extraOrigins: MOBILE_AUTH_ORIGINS,
+    extraOrigins: authExtraOrigins(env),
     androidAppCertFingerprints: env.passkeyAndroidCertFingerprints,
     beforeDeleteUser: async (userId) => {
+      await assertAccountDeletionAllowed(prisma, userId);
       // First, so a provider failure aborts deletion before anything is destroyed.
       await billing?.cancelForDeletedUser(userId);
       await deleteAccountContent(
@@ -751,7 +756,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         )
       : undefined;
 
-  const router = createRouter({
+  const routerDeps: RouterDeps = {
     speechSummary:
       env.voiceSummaryMinChars === undefined
         ? undefined
@@ -823,6 +828,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       deploymentModelConfigured: env.deploymentModelConfigured,
       deploymentModelHostCredentials: env.deploymentModelHostCredentials,
       webOrigin: env.webOrigin,
+      screenProxyPublicOrigin: env.screenProxyPublicOrigin,
       privacyPolicyUrl: env.privacyPolicyUrl,
       screenProxySecret: env.screenProxySecret,
       sandboxProvider: env.sandboxProvider,
@@ -833,7 +839,27 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       mcpStdioEnabled: env.mcpStdioEnabled,
       mcpStdioAllowedCommands: env.mcpStdioAllowedCommands,
     },
-  });
+  };
+  if (env.companionScreenExperimental && env.agentRuntime === "pi" &&
+    (env.nodeEnv === "test" || env.nodeEnv === "development")) {
+    const companionRuntime = new PiAgentRuntime();
+    routerDeps.companionScreen = createCompanionScreenCoordinator({
+      authorize: createCompanionScreenConsent(routerDeps),
+      resolveModel: executor.resolveModel,
+      resolvePersonality: async (scope) => {
+        const bot = await prisma.bot.findFirst({
+          where: { id: scope.botId, userId: scope.userId, spaceId: scope.spaceId, archivedAt: null },
+          select: { name: true, instructions: true },
+        });
+        if (!bot) throw new Error("Screen companion unavailable.");
+        return bot;
+      },
+      recordUsage: (scope, operationId, event) =>
+        recordUsage(prisma, event, { ...scope, operationId, operationKind: "setup" }).then(() => undefined),
+      runWithoutTools: (request, context) => companionRuntime.runWithoutTools(request, context),
+    });
+  }
+  const router = createRouter(routerDeps);
   const rpc = new RPCHandler(router, {
     clientInterceptors: [onError((error, { path, signal }) => handleRpcError(error, path, signal))],
   });
@@ -842,19 +868,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   app.use("*", inFlight.middleware);
   app.use("*", requestLogging(logger));
   app.use("*", clientIpMiddleware(clientIp, env.clientIpHeader));
-  app.use(
-    "*",
-    cors({
-      origin: (origin, c) => {
-        // Anyone may submit a plugin from any site; the endpoint reads no cookies.
-        if (c.req.path === PLUGIN_SUBMISSIONS_PATH) return "*";
-        if (!origin) return env.webOrigin;
-        return isTrustedOrigin(origin, env) ? origin : "";
-      },
-      credentials: true,
-      exposeHeaders: [SERVER_BUILD_HEADER],
-    }),
-  );
+  app.use("*", createCorsMiddleware(env));
   // Session and account replies must never be stored by a client or an HTTP cache.
   for (const path of ["/api/auth/*", "/rpc/*"]) {
     app.use(path, async (c, next) => {
@@ -870,7 +884,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       passwordAuth: env.passwordAuth !== false,
       passwordReset: env.passwordAuth !== false && Boolean(email),
       resetUrl:
-        env.passwordAuth !== false && email ? new URL("/reset-password", env.webOrigin).href : null,
+        env.passwordAuth !== false && email
+          ? new URL("/reset-password", env.authPublicLinkOrigin ?? env.webOrigin).href
+          : null,
       emailCode: auth.emailCodeSignIn,
       billing: Boolean(billing),
       passkeyRpId: auth.passkeyRpId,
@@ -994,6 +1010,13 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
           const current = await sessionActor(c.req.raw);
           return Boolean(
             actor && current?.userId === actor.userId && current.spaceId === actor.spaceId,
+          );
+        },
+        stillSessionAuthorized: async () => {
+          const current = await requestSession(c.req.raw);
+          return Boolean(
+            actor && session && current?.sessionId === session.sessionId &&
+            current.actor.userId === actor.userId && current.actor.spaceId === actor.spaceId,
           );
         },
       },
@@ -1490,15 +1513,34 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   };
 }
 
+export function authExtraOrigins(env: Pick<AppEnv, "extraTrustedOrigins">): string[] {
+  return [...MOBILE_AUTH_ORIGINS, ...(env.extraTrustedOrigins ?? [])];
+}
+
+export function createCorsMiddleware(
+  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl" | "extraTrustedOrigins">,
+) {
+  return cors({
+    origin: (origin, c) => {
+      if (c.req.path === PLUGIN_SUBMISSIONS_PATH) return "*";
+      if (!origin) return env.webOrigin;
+      return isTrustedOrigin(origin, env) ? origin : "";
+    },
+    credentials: true,
+    exposeHeaders: [SERVER_BUILD_HEADER],
+  });
+}
+
 export function isTrustedOrigin(
   origin: string,
-  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl">,
+  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl" | "extraTrustedOrigins">,
 ) {
   if (!origin) return true;
   if (origin.startsWith("rakazo://")) return true;
-  const allowed = new Set(
-    [env.webOrigin, env.apiUrl, env.authUrl, ...MOBILE_AUTH_ORIGINS].flatMap(originVariants),
-  );
+  const allowed = new Set([
+    ...[env.webOrigin, env.apiUrl, env.authUrl, ...MOBILE_AUTH_ORIGINS].flatMap(originVariants),
+    ...(env.extraTrustedOrigins ?? []),
+  ]);
   return allowed.has(origin);
 }
 

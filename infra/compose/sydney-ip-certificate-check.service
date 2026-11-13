@@ -1,0 +1,13 @@
+[Unit]
+Description=Check Sydney public IP TLS certificate
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+ExecStart=/usr/bin/python3 /usr/local/libexec/sydney/check-ip-certificate.py 124.221.182.39 --warning-hours 72 --timeout 10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

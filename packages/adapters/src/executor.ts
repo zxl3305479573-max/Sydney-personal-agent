@@ -233,6 +233,7 @@ import {
 } from "./thread-artifacts.js";
 import { loadAgentTicketContext } from "./ticket-context.js";
 import { appendToolCompletionAudit } from "./tool-completion-audit.js";
+import { toolIntentCandidate } from "./tool-intent.js";
 import { toolResultFingerprint } from "./tool-loop.js";
 import { createWebProvider } from "./web-provider-factory.js";
 
@@ -1840,6 +1841,37 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               history: runtimeHistory,
               currentTurnImages,
               currentRunRequiresImageInput,
+              toolIntentCandidate: toolIntentCandidate({
+                enabled: process.env.RAKAZO_TOOL_INTENT_ROUTING === "1",
+                trigger: run.trigger,
+                sourceRole: sourceMessage?.role,
+                group: Boolean(
+                  thread.groupId || nonOwnerChatRun || messagingChannelRun || !ownerStartedRun,
+                ),
+                voiceCall,
+                scripted,
+                hasCheckpoint: Boolean(
+                  turnCheckpoint || checkpointLoadError || takeoverResume || resumeCheckpoint,
+                ),
+                hasAttachments: Boolean(currentTurnFiles.length || currentTurnImages?.length),
+                hasPriorContext: Boolean(
+                  runtimeHistory.some((entry) => entry.id !== run.sourceMessageId) ||
+                    messages.some((entry) => entry.id !== run.sourceMessageId) ||
+                    thread.historyCompactedUpToSeq ||
+                    memoryContext ||
+                    scratchpadContext ||
+                    ticketContext ||
+                    replyContext,
+                ),
+                hasCustomInstructions: Boolean(
+                  bot.instructions?.trim() ||
+                    bot.description?.trim() ||
+                    invokedSkill ||
+                    attachedFilesPrompt ||
+                    redactSecrets(task.prompt, runSecrets) !== task.prompt,
+                ),
+                message: task.prompt,
+              }),
               currentTurnImageFileFallback: Boolean(
                 currentTurnImages?.length &&
                   currentTurnFiles.length &&

@@ -569,6 +569,15 @@ export const appContract = {
       .input(threadTarget.safeExtend({ cursor: z.number().int().min(-1) }))
       .output(eventIterator(ProductEventSchema)),
     send: oc.input(threadSendInput).output(threadSendOutput),
+    companionScreenStart: oc
+      .input(botId.safeExtend({ confirmed: z.literal(true) }))
+      .output(z.object({ id: Id, expiresAt: z.number().int().positive() })),
+    companionScreenRespond: oc
+      .input(botId.safeExtend({ id: Id, text: z.string().min(1).max(2_000) }))
+      .output(z.object({ reply: z.string().max(500) })),
+    companionScreenStop: oc
+      .input(botId.safeExtend({ id: Id }))
+      .output(z.object({ stopped: z.boolean() })),
     /**
      * A send that also test-runs the mentioned routines: the message and every run commit
      * together, keyed by the nonce. A separate procedure, because an API without it must
@@ -742,7 +751,12 @@ export const appContract = {
     commands: oc
       .input(botId)
       .output(z.array(ComputerCommandSchema.extend({ createdAt: z.string() }))),
-    screenUrl: oc.input(botId).output(z.object({ url: z.string().nullable() })),
+    screenUrl: oc.input(botId).output(
+      z.object({
+        url: z.string().nullable(),
+        proxy: z.literal("rakazo-novnc").optional(),
+      }),
+    ),
     heartbeat: oc.input(botId).output(z.object({ ok: z.literal(true) })),
   },
   memory: {

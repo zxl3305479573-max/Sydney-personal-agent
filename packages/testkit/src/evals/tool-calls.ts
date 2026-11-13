@@ -40,7 +40,15 @@ export function observeToolCalls(
         lists.push({ runId: request.runId, ...toolListSize(request.tools) });
       const { deferred } = partitionTools(request.tools);
       const loaded = new Set<string>();
-      for await (const event of runtime.run(request, context)) {
+      const observedRequest = {
+        ...request,
+        onInitialToolList: (measurement: { count: number; bytes: number }) => {
+          const observed = lists.find((list) => list.runId === request.runId);
+          if (observed) Object.assign(observed, measurement);
+          request.onInitialToolList?.(measurement);
+        },
+      };
+      for await (const event of runtime.run(observedRequest, context)) {
         if (event.type === "tool") {
           if (event.name === FIND_TOOL)
             for (const tool of findTools(deferred, event.args).tools) loaded.add(tool.name);

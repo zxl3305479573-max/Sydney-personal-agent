@@ -42,6 +42,7 @@ import {
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mainRole, withModelRoles } from "../../../packages/adapters/src/testing/model-roles.js";
+import { loadEnv } from "./env.js";
 import type { RouterDeps } from "./router.js";
 import {
   botIntroPrompt,
@@ -649,7 +650,7 @@ describe("model setup gate", () => {
       email: "user@rakazo.test",
       isDeploymentOwner: true,
     } satisfies Actor;
-    return { actor, handler: new RPCHandler(createRouter(deps)) };
+    return { actor, deps, handler: new RPCHandler(createRouter(deps)) };
   }
 
   async function call(handler: RouterHandler, actor: Actor, path: string, body: unknown) {
@@ -664,6 +665,40 @@ describe("model setup gate", () => {
     );
     return response;
   }
+
+  it("keeps the screen companion unavailable without an injected service", async () => {
+    const { actor, handler } = modelGateDeps({ agentRuntime: "pi" });
+    for (const [path, body] of [
+      ["threads/companionScreenStart", { botId: "bot-1", confirmed: true }],
+      ["threads/companionScreenRespond", { botId: "bot-1", id: "session", text: "screen" }],
+      ["threads/companionScreenStop", { botId: "bot-1", id: "session" }],
+    ] as const) {
+      expect((await call(handler, actor, path, body)).status).toBe(403);
+    }
+  });
+
+  it("binds enabled screen companion calls to the authenticated session", async () => {
+    const { actor, deps } = modelGateDeps({ agentRuntime: "pi" });
+    const start = vi.fn(async () => ({ id: "screen-session", expiresAt: Date.now() + 10_000 }));
+    deps.companionScreen = { start } as unknown as RouterDeps["companionScreen"];
+    const handler = new RPCHandler(createRouter(deps));
+    const request = () => new Request("http://127.0.0.1/rpc/threads/companionScreenStart", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ json: { botId: "bot-1", confirmed: true } }),
+    });
+    const denied = await handle(handler, request(), {
+      prefix: "/rpc", context: { actor, sessionId: "session", stillSessionAuthorized: async () => false },
+    });
+    expect(denied.status).toBe(403);
+    expect(start).not.toHaveBeenCalled();
+    const controller = new AbortController();
+    const allowed = await handle(handler, request(), {
+      prefix: "/rpc", context: { actor, sessionId: "session", stillSessionAuthorized: async () => true, signal: controller.signal },
+    });
+    expect(allowed.status).toBe(200);
+    expect(start).toHaveBeenCalledWith(actor, "bot-1", "session", true, expect.any(Function), controller.signal);
+  });
 
   it.each([undefined, 1, 8, 100])(
     "advertises the effective attachment count (%s)",
@@ -3809,6 +3844,7 @@ describe("computer screen url", () => {
   const callScreenUrl = async (
     connectScreen: () => Promise<unknown>,
     updateMany = vi.fn().mockResolvedValue({ count: 1 }),
+    screenProxyPublicOrigin?: string,
   ) => {
     const endRun = vi.fn().mockResolvedValue(1);
     const prisma = {
@@ -3832,6 +3868,7 @@ describe("computer screen url", () => {
         defaultProvider: "fake",
         defaultModel: "fake-model",
         webOrigin: "http://127.0.0.1:5173",
+        screenProxyPublicOrigin,
         screenProxySecret: "fake-test-secret",
         sandboxProvider: "e2b",
       },
@@ -3842,7 +3879,11 @@ describe("computer screen url", () => {
       handler,
       new Request("http://127.0.0.1/rpc/computer/screenUrl", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-host": "attacker.example",
+          "x-forwarded-proto": "http",
+        },
         body: JSON.stringify({ json: { botId: "bot-1" } }),
       }),
       { prefix: "/rpc", context: { actor } },
@@ -3856,6 +3897,7 @@ describe("computer screen url", () => {
     }));
     expect(response.status).toBe(200);
     const { json } = await response.json();
+    expect(json.proxy).toBe("rakazo-novnc");
     const url = new URL(json.url);
     expect(url.origin).toBe("http://127.0.0.1:5173");
     expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
@@ -3868,6 +3910,24 @@ describe("computer screen url", () => {
       },
       target: { hostname: "screen.example", interactive: false },
     });
+  });
+
+  it("uses the configured public screen origin independently of forwarded headers and cache", async () => {
+    const connect = async () => ({ url: "https://screen.example/vnc.html?token=origin-test" });
+    const configured = loadEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgres://localhost/test",
+      SCREEN_PROXY_PUBLIC_ORIGIN: "https://screen-one.example",
+    });
+    const first = await callScreenUrl(connect, undefined, configured.screenProxyPublicOrigin);
+    const second = await callScreenUrl(connect, undefined, "https://screen-two.example");
+    const firstUrl = new URL((await first.response.json()).json.url);
+    const secondUrl = new URL((await second.response.json()).json.url);
+    expect(firstUrl.origin).toBe("https://screen-one.example");
+    expect(secondUrl.origin).toBe("https://screen-two.example");
+    expect(firstUrl.pathname).not.toBe(secondUrl.pathname);
+    expect(openScreenCapability(firstUrl.pathname, "fake-test-secret")).not.toBeNull();
+    expect(openScreenCapability(secondUrl.pathname, "fake-test-secret")).not.toBeNull();
   });
 
   it("returns desktop provider screen URLs without sealing them", async () => {
@@ -3939,7 +3999,11 @@ describe("computer terminal and file transfer", () => {
     controlBotId: "bot-1",
   };
 
-  function setup(computer: Record<string, unknown> = {}, maxUploadSizeBytes?: number) {
+  function setup(
+    computer: Record<string, unknown> = {},
+    maxUploadSizeBytes?: number,
+    screenProxyPublicOrigin?: string,
+  ) {
     const sandbox = {
       execute: vi.fn(async function* () {
         yield { type: "exit" as const, code: 0 };
@@ -3984,6 +4048,7 @@ describe("computer terminal and file transfer", () => {
       env: {
         maxUploadSizeBytes,
         webOrigin: "http://127.0.0.1:5173",
+        screenProxyPublicOrigin,
         screenProxySecret: "fake-test-secret",
         sandboxProvider: "docker",
       },
@@ -4087,6 +4152,18 @@ describe("computer terminal and file transfer", () => {
     );
     const url = new URL(body.json.url);
     expect(url.origin).toBe("http://127.0.0.1:5173");
+    expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
+      scope: { botId: "bot-1", controlLeaseId: "lease-1" },
+      target: { hostname: "screen.example", interactive: true },
+    });
+  });
+
+  it("uses the configured public origin for terminal capabilities", async () => {
+    const { call } = setup(controlled, undefined, "https://terminal.example");
+    const { status, body } = await call("terminalUrl", {});
+    expect(status).toBe(200);
+    const url = new URL(body.json.url);
+    expect(url.origin).toBe("https://terminal.example");
     expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
       scope: { botId: "bot-1", controlLeaseId: "lease-1" },
       target: { hostname: "screen.example", interactive: true },

@@ -5,13 +5,54 @@ import {
   removeDeletedBotsFromLegacyTeamHome,
   toComputerRef,
 } from "@rakazo/adapters";
+import { accountHasProjectWorkspacesAuthError } from "@rakazo/auth";
+import type { PrismaClient } from "@rakazo/db";
 import {
   claimSpacesLeavingWithAccount,
   deleteSpaceLeavingWithAccount,
   recordComputerRunEnd,
+  runAsSystem,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { SpaceDeletionDeps } from "./space-deletion.js";
+
+export class AccountHasProjectWorkspacesError extends Error {
+  constructor() {
+    super("Remove project workspaces before deleting the account");
+    this.name = "AccountHasProjectWorkspacesError";
+  }
+}
+
+export async function assertAccountHasNoProjectWorkspaces(
+  prisma: Pick<PrismaClient, "$queryRaw">,
+  userId: string,
+): Promise<void> {
+  const rows = await runAsSystem(
+    "account deletion workspace preflight",
+    () => prisma.$queryRaw<Array<{ authorized: boolean; exists: boolean }>>`
+      SELECT app_rls_bypass() AS authorized,
+        EXISTS (SELECT 1 FROM project_workspaces WHERE "userId" = ${userId}) AS "exists"
+    `,
+  );
+  if (rows[0]?.authorized !== true || typeof rows[0]?.exists !== "boolean") {
+    throw new Error("Cannot verify system access for account deletion");
+  }
+  if (rows[0].exists) throw new AccountHasProjectWorkspacesError();
+}
+
+export async function assertAccountDeletionAllowed(
+  prisma: Pick<PrismaClient, "$queryRaw">,
+  userId: string,
+): Promise<void> {
+  try {
+    await assertAccountHasNoProjectWorkspaces(prisma, userId);
+  } catch (error) {
+    if (error instanceof AccountHasProjectWorkspacesError) {
+      throw accountHasProjectWorkspacesAuthError();
+    }
+    throw error;
+  }
+}
 
 /**
  * In shared spaces, the account's bot folders also live on the space's Team Computer from before

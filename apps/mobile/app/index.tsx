@@ -28,7 +28,7 @@ import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
 import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
-import { InboxListFooter, SWIPE_ROWS, useInboxRenderItem } from "../components/inbox-render-item";
+import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
 import { useUnreadJumpPills } from "../components/unread-jump-overlay";
@@ -60,7 +60,7 @@ import { useHeaderHeightIfAny } from "../lib/floating-header";
 import { useForegroundPoll } from "../lib/foreground-poll";
 import { getActiveUiLocale, t, useI18n } from "../lib/i18n";
 import { retainInboxValue } from "../lib/inbox-retention";
-import type { InboxItem, InboxSpace, PinnedChat } from "../lib/inbox-spaces";
+import type { InboxItem, InboxSpace, InboxSpaceFallback, PinnedChat } from "../lib/inbox-spaces";
 import {
   canDeleteInboxSpace,
   deleteSpaceTitle,
@@ -177,7 +177,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const inboxRequestId = useRef(0);
   const inboxLoaded = useRef(false);
   const creatingBotRef = useRef(false);
-  const spaceActionRef = useRef<{ busy: boolean; recoveryId: string | null }>({
+  const spaceActionRef = useRef<{ busy: boolean; recoveryId: InboxSpaceFallback | null }>({
     busy: false,
     recoveryId: null,
   });
@@ -451,7 +451,6 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           .map((space) => ({ ...space, groups: [] })),
         collapsed,
       );
-    // Android pins sit above the list; iOS keeps rows with native swipe and context menus.
     const otherSpaces = shownSpaces.filter((space) => space.id !== me?.spaceId);
     const pinned: PinnedChat[] = [
       ...[...visible, ...otherSpaces.flatMap((space) => space.bots)]
@@ -463,11 +462,11 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     ];
     const sidebarSpaces = inboxSpaces.map((space) => ({
       ...space,
-      bots: space.bots.filter((bot) => SWIPE_ROWS || !bot.pinned),
-      groups: space.groups.filter((group) => SWIPE_ROWS || !group.pinned),
+      bots: space.bots.filter((bot) => !bot.pinned),
+      groups: space.groups.filter((group) => !group.pinned),
     }));
     const items: InboxItem[] = spaceInboxItems(sidebarSpaces, collapsed, me?.spaceId);
-    return !SWIPE_ROWS && pinned.length > 0 ? [{ type: "pinned", chats: pinned }, ...items] : items;
+    return pinned.length > 0 ? [{ type: "pinned", chats: pinned }, ...items] : items;
   }, [
     inboxSpaces,
     collapsed,
@@ -591,8 +590,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           await loadActivity();
         };
         const selected =
-          spaceActionRef.current.recoveryId === spaceId
-            ? await retryInboxSpaceFallback(spaceId, refresh)
+          spaceActionRef.current.recoveryId?.spaceId === spaceId
+            ? await retryInboxSpaceFallback(spaceActionRef.current.recoveryId, refresh)
             : await selectInboxSpace(spaceId, refresh);
         if (!selected) throw new Error(t("Could not switch spaces"));
       } catch (err) {
@@ -628,7 +627,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         });
         if (recoveryId) {
           spaceActionRef.current.recoveryId = recoveryId;
-          setSpaceRecoveryId(recoveryId);
+          setSpaceRecoveryId(recoveryId.spaceId);
           setError(t("Could not switch spaces"));
         }
       } catch (err) {

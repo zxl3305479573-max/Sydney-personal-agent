@@ -135,6 +135,18 @@ checksums and decrypts each file into `pg_restore --list` and `tar -t` without w
 (it needs `age`, `pg_restore` of the server's major version or newer, which is 18 for the
 production Compose file, and `tar`):
 
+This checks checksums, decrypts the streams, and lists the database archive catalog and file
+archive; it does not restore the database or files, verify application behavior, or prove
+that roles, ownership and grants are recoverable. The production backup script uses
+`--no-privileges`, so its database archives do not preserve object ACLs, and it does not
+capture global roles, memberships or password hashes. Adding a globals backup cannot recover
+ACLs already omitted from an archive.
+
+The procedure below uses `--no-owner` and does not by itself restore original ownership or
+missing permissions. Before using it, establish and validate an independent way to reconstruct
+the required roles, ownership and grants, and test the complete recovery in an isolated
+environment. Keep the application stopped if these requirements have not been verified.
+
 ```bash
 bash infra/compose/backup-drill.sh ./<stamp> rakazo-backup.key
 ```
@@ -177,6 +189,14 @@ age -d -i rakazo-backup.key <stamp>/rakazo.dump.age | ssh deploy@app.example.com
 
 ssh deploy@app.example.com \
   "sudo mv -- '$APPDATA' '$RESTORE/previous' && sudo mv -- '$RESTORE/staged' '$APPDATA'"
+```
+
+With the application still stopped, apply the previously validated role, ownership and grant
+reconstruction procedure to this actual recovery target and verify its results. If that
+procedure or verification fails, keep the application stopped and follow the rollback plan.
+Only after verification succeeds, recreate and start the application containers:
+
+```bash
 ssh deploy@app.example.com \
   "cd /srv/rakazo && $COMPOSE up -d --force-recreate --wait --pull never api worker web"
 ```
@@ -206,9 +226,11 @@ before moving anything. Switching the tree alone does not roll back the database
 Plaintext snapshots use `cat` in place of `age -d` and the filenames `rakazo.dump` and
 `appdata.tgz`. Use the same clean-directory procedure.
 
-To restore into a new stack, create the `rakazo_app` role before the procedure above. The dump
-grants to it, and on a new stack only the migration step would create it, so `pg_restore`
-stops without it. Do not run the migrations first: tables newer than the snapshot would block
+To restore into a new stack, the procedure may require a `rakazo_app` role before importing
+the archive. This example creates a non-login placeholder; it does not restore the original
+role attributes, password, ownership or missing object grants and is not sufficient to
+restore application authentication or access. Verify those separately in an isolated
+environment. Do not run the migrations first: tables newer than the snapshot would block
 the restore. The procedure's final start applies them.
 
 ```bash

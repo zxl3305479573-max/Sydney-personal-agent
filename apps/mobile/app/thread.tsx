@@ -4,6 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
+import { activeCompanionIdentity } from "../lib/companion-activity";
+import { companionNavigationAllowed } from "../lib/companion-voice-guard";
 import { t, useI18n } from "../lib/i18n";
 import { integrationsCacheScope } from "../lib/integrations-cache";
 import { useMobileTokens } from "../lib/native";
@@ -63,7 +65,13 @@ export default function ThreadRoute() {
   const { t } = useI18n();
   const router = useRouter();
   const focused = useIsFocused();
-  const { spaceId } = useLocalSearchParams<{ spaceId?: string | string[] }>();
+  const { spaceId, botId, companionLink, companionVoice, companionToken } = useLocalSearchParams<{
+    spaceId?: string | string[]; botId?: string | string[]; companionLink?: string | string[];
+    companionVoice?: string | string[]; companionToken?: string | string[];
+  }>();
+  const companionAllowed = companionNavigationAllowed({
+    spaceId, botId, companionLink, companionVoice, companionToken, activity: activeCompanionIdentity(),
+  });
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() => selectedSpaceId());
   const [switchFailed, setSwitchFailed] = useState(false);
   const [appliedFocus, setAppliedFocus] = useState(focused);
@@ -82,7 +90,7 @@ export default function ThreadRoute() {
   const request = threadSpaceRequest(spaceId, focusSync.activeSpaceId);
 
   useEffect(() => {
-    if (!focused) return;
+    if (!focused || !companionAllowed) return;
     const next = threadSpaceRequest(spaceId, activeSpaceId);
     if (next.action === "show") {
       setSwitchFailed(false);
@@ -107,9 +115,9 @@ export default function ThreadRoute() {
     return () => {
       cancelled = true;
     };
-  }, [activeSpaceId, focused, spaceId]);
+  }, [activeSpaceId, focused, spaceId, companionAllowed]);
 
-  if (request.action === "show" && !focusSync.switchFailed)
+  if (companionAllowed && request.action === "show" && !focusSync.switchFailed)
     return (
       <>
         {owner?.generation !== generation ? <ActivityIndicator color={tokens.foreground} /> : null}
@@ -127,12 +135,12 @@ export default function ThreadRoute() {
         backgroundColor: tokens.background,
       }}
     >
-      {request.action === "switch" && !focusSync.switchFailed ? (
+      {companionAllowed && request.action === "switch" && !focusSync.switchFailed ? (
         <ActivityIndicator color={tokens.foreground} />
       ) : (
         <View style={{ alignItems: "center", gap: 12 }}>
           <Text style={{ color: tokens.foreground, fontSize: 16 }}>
-            {t("Could not switch spaces")}
+            {companionAllowed ? t("Could not switch spaces") : "陪伴已结束或链接已失效，请重新开启陪伴。"}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.replace("/")}>
             <Text style={{ color: tokens.foreground, fontSize: 16 }}>{t("Return to inbox")}</Text>

@@ -1,0 +1,85 @@
+# Example only. Verify certificate storage, IP certificate issuance and recovery before use.
+# Review and adapt access controls and trusted-proxy policy for each domain and IP entry.
+# This example does not preserve a deployment-specific CDN-only origin restriction.
+{
+	default_sni {$RAKAZO_PUBLIC_IP}
+}
+
+(access_log) {
+	log {
+		output stdout
+		format filter {
+			wrap json
+			request>headers>Authorization delete
+			request>headers>Proxy-Authorization delete
+			request>headers>Cookie delete
+			request>headers>Referer delete
+			resp_headers>Set-Cookie delete
+			resp_headers>Location delete
+			request>uri regexp "(/reset-password/|/novnc/session/[a-z]+/)[^/?#&]*|([?&](?:token|_token|code|state|ticket|access_token|id_token|hub\.verify_token|path)=)[^&#]*" "${1}${2}REDACTED"
+		}
+	}
+}
+
+(deploy_retry) {
+	lb_try_duration 10s
+	lb_try_interval 250ms
+}
+
+(app_routes) {
+	@hsts not host localhost 127.0.0.1
+	header @hsts Strict-Transport-Security "max-age=31536000"
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+	}
+	encode zstd gzip
+
+	handle /health {
+		reverse_proxy api:3100 {
+			import deploy_retry
+		}
+	}
+	handle /api/* {
+		reverse_proxy api:3100 {
+			import deploy_retry
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	handle /rpc/* {
+		reverse_proxy api:3100 {
+			import deploy_retry
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	handle {
+		reverse_proxy web:5173 {
+			import deploy_retry
+		}
+	}
+}
+
+{$RAKAZO_HOST} {
+	tls {$RAKAZO_CERT_FILE} {$RAKAZO_KEY_FILE}
+	import access_log
+	route {
+		@unexpectedSni expression `{http.request.tls.server_name}.lowerAscii() != "{$RAKAZO_HOST}".lowerAscii()`
+		respond @unexpectedSni "Misdirected request" 421
+		import app_routes
+	}
+}
+
+{$RAKAZO_PUBLIC_IP} {
+	tls {
+		issuer acme {$RAKAZO_IP_ACME_DIRECTORY} {
+			profile shortlived
+			disable_tlsalpn_challenge
+		}
+	}
+	import access_log
+	route {
+		@unexpectedSni expression `{http.request.tls.server_name} != "" && {http.request.tls.server_name} != "{$RAKAZO_PUBLIC_IP}"`
+		respond @unexpectedSni "Misdirected request" 421
+		import app_routes
+	}
+}

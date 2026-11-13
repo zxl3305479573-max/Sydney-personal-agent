@@ -9,6 +9,7 @@
 | 文档 | 负责内容 | 更新时机 |
 | --- | --- | --- |
 | [总计划](PLAN.md) | 阶段、依赖、需求、交付物、验收条件和当前状态 | 开始、完成、中断或调整阶段时 |
+| [IP 直连与客户端迁移长期任务](PLAN.md#ip-直连与客户端迁移长期任务2026-11-11) | 从备份恢复、证书签发到双端切换和网页入口收口的模块及验收 | 执行批次和阶段状态变化时 |
 | [开发记录](DEVELOPMENT_LOG.md) | 实际做了什么、为什么改、改到哪里、未完成事项 | 每个可验收部分交付或工作中断时 |
 | [验证记录](VALIDATION.md) | 验证范围、环境、实际结果、限制和未执行项 | 每次有验证结论时 |
 | [需求验收清单](ACCEPTANCE.md) | 需求的现有基础和验收缺口 | 需求证据或验收结论变化时 |
@@ -20,8 +21,15 @@
 | [Linux 云电脑接入与切换](design/LINUX_COMPUTER_ONBOARDING.md) | 多台已有 Linux 电脑的接入、自动准备与安全切换草案 | 范围、实现或验收变化时 |
 | [存储划分与迁移方案](design/STORAGE_SPLIT_MIGRATION.md) | 后台控制数据、云电脑工作区和对象存储的划分与迁移 | 存储布局、迁移、清理或回滚变化时 |
 | [PC 客户端联调计划](design/PC_CLIENT_INTEGRATION.md) | Electron 客户端与后台、模型和云电脑的联调及 Web 服务移除顺序 | PC 客户端开发、打包或入口调整时 |
+| [PC 桌面端长期交付计划](design/PC_DESKTOP_DELIVERY_PLAN.md) | Web 布局复用、模块分工、审核循环及 Windows 构建验收 | PC 桌面端阶段、分工或验收变化时 |
+| [手机与桌面客户端迁移方案](design/CLIENT_ONLY_MIGRATION.md) | 桌面内置界面、双端依赖和浏览器入口收口的实施与验收 | 客户端迁移阶段、依赖或验收变化时 |
 | [iPhone 客户端实施与测评](design/IOS_CLIENT_PLAN.md) | 原生移动端现状、云构建准备与分阶段验收 | 移动端实施、构建或验收状态变化时 |
+| [iPhone 操控方案](design/IPHONE_CONTROL_PLAN.md) | Windows 真机自动化候选、权限边界和设备验收 | 设备控制方案或验证状态变化时 |
+| [iPhone 陪伴调研](design/IOS_COMPANION_RESEARCH.md) | 开源参考、屏幕识别与灵动岛方案及验证缺口 | 陪伴方案或验证状态变化时 |
+| [手机端五项任务实施方案](design/MOBILE_FIVE_WORKSTREAMS.md) | 现有功能、云电脑、项目入口、桌面联动及更新的分工与验收 | 五项任务范围、依赖或验收变化时 |
 | [iPhone 免费侧载操作指南](design/IOS_SIDELOAD_GUIDE.md) | Windows 与 iPhone 的候选签名安装流程及验证限制 | 签名、安装或续签流程变化时 |
+| [项目与工作区接入方案](design/PROJECT_WORKSPACE_PLAN.md) | 项目入口、云电脑与本地工作区、授权和分阶段验收 | 项目功能规划、实现或验收变化时 |
+| [工作区归属与元数据隔离决策](../docs/adr/0022-project-workspace-ownership.md) | 成员归属、数据库隔离及开放前阻断 | 工作区权限、数据模型或删除流程变化时 |
 | [PC 后台部署决策](../docs/adr/0015-pc-backend-on-cloud-computer.md) | 云电脑 PC 后台与主后台控制服务的边界和权限 | PC 后台部署、认证或资源边界变化时 |
 | [注册开放实施清单](design/REGISTRATION_ROLLOUT.md) | 注册开关、邮件配置和真实验收顺序 | 注册配置或认证验收变化时 |
 | [P2 策略接口](design/TASK_POLICY_IMPLEMENTATION.md) | 实际纯策略、调用方责任和集成缺口 | 策略实现变化时 |
@@ -43,7 +51,7 @@
 - 后续目标为后台与独立 Agent 云电脑分机运行，默认不依赖 Docker；跨机连接仍待实现和验证。
 - 保留 Pi 执行层，参考 DSH 的任务、派工和授权思路；未引入 DSH 运行时或复制其源码。纯策略取舍见 [ADR-0005](../docs/adr/0005-task-policy-before-executor-integration.md)。
 - 本机不启动服务或进行重负载构建。云电脑已有桌面配置记录；候选后台机的实际资源、连接和项目部署状态尚待核实。
-- 后续按用户要求不再调用子代理；当前没有创建独立对话的工具接口，本次仍由当前窗口执行，交接任务未虚报为并行启动。
+- 2026-11-11 用户明确要求恢复子代理审查，当前按最新要求执行；实际派发、写集与审核结果记录在[窗口分工](WORKSTREAMS.md)，不虚报独立对话或审查。
 
 ## 状态和完成规则
 

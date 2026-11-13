@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically check Sydney public IP TLS certificate
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=1min
+Unit=sydney-ip-certificate-check.service
+
+[Install]
+WantedBy=timers.target

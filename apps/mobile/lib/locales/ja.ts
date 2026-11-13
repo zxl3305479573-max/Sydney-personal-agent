@@ -1,4 +1,29 @@
 export const JA_MESSAGES: Record<string, string> = {
+  "Account deleted": "アカウントを削除しました",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "アカウントの削除を確認できませんでした。再試行する前にアカウントの状態を確認してください。",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "元のアカウントは削除されましたが、端末内のデータを消去できず、現在のセッションも変更されています。",
+  "The original account was deleted. Your current session has changed.": "元のアカウントは削除されました。現在のセッションは変更されています。",
+  "The session changed. Open account deletion again.": "セッションが変更されました。アカウント削除を開き直してください。",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "アカウントは削除されましたが、端末のセッションを消去できませんでした。アプリを再起動してサインアウトをお試しください。",
+  Computers: "コンピューター",
+  "Could not load devices.": "デバイスを読み込めませんでした。",
+  "No computers paired with this account.":
+    "このアカウントにペアリングされたコンピューターはありません。",
+  Offline: "オフライン",
+  Refresh: "更新",
+  "Status at {time}; refresh to check again.":
+    "{time} 時点の状態です。更新して再確認してください。",
+  "Your session is unavailable or expired. Sign in again.":
+    "セッションが利用できないか期限切れです。再度サインインしてください。",
+  "The device API is unavailable. Check the server configuration.":
+    "デバイス API を利用できません。サーバーの設定を確認してください。",
+  "Could not reach the server. Check your connection.":
+    "サーバーに接続できません。接続を確認してください。",
+  "The device request timed out. Try again.":
+    "デバイスの照会がタイムアウトしました。再試行してください。",
   Bots: "ボット",
   "Daily check-ins on unfinished work": "未完了の作業を毎日確認",
   "How other bots see it": "他のボットからの見え方",
@@ -793,6 +818,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "{name}’s computer": "{name}のコンピューター",
   "Could not reach that server": "そのサーバーに接続できませんでした",
   "Enter a server URL": "サーバーのURLを入力してください",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "サーバーのアドレスのみを入力し、認証情報、パス、クエリ、フラグメントは含めないでください",
   "Public servers need https://. HTTP only works on your local network.":
     "公開サーバーには https:// が必要です。HTTPはローカルネットワークでのみ使用できます。",
   "That URL did not look like a Rakazo server": "そのURLはRakazoサーバーではないようです",

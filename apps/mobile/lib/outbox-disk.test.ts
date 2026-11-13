@@ -184,9 +184,26 @@ it.each([
   { userId: "user-b" },
   { apiBase: "https://other.example.test" },
   { cacheSession: "namespace-b" },
-])("rejects a different owner or session %j", (change) => {
-  outboxDisk.save([attempt()]);
-  expect(outboxDisk.load(2, { ...scope, ...change })).toEqual([]);
+])("preserves an outbox belonging to a different owner or session %j", async (change) => {
+  const original = attempt();
+  expect(outboxDisk.admit(original)).toBe(true);
+  outboxDisk.save([original]);
+  expect(() => outboxDisk.load(2, { ...scope, ...change })).toThrow("OUTBOX_SCOPE_MISMATCH");
+  const [restored] = outboxDisk.load(3, scope);
+  expect(restored?.clientNonce).toBe(original.clientNonce);
+  restored!.artifactIds.clear();
+  await outboxDisk.hydrate(restored!);
+  expect(restored?.payload.attachments[0]?.contentBase64).toBe("aGVsbG8=");
+});
+it("preserves all entries and attachments when an outbox has mixed scopes", () => {
+  const first = attempt("nonce-a");
+  const second = { ...attempt("nonce-b"), apiBase: "https://other.example.test" };
+  outboxDisk.admit(first);
+  outboxDisk.admit(second);
+  outboxDisk.save([first, second]);
+  const before = new Map(files);
+  expect(() => outboxDisk.load(2, scope)).toThrow("OUTBOX_SCOPE_MISMATCH");
+  expect(files).toEqual(before);
 });
 it("caps the persisted count and wipes every entry", () => {
   outboxDisk.save(Array.from({ length: OUTBOX_MAX_ENTRIES + 5 }, (_, i) => attempt(`nonce-${i}`)));

@@ -28,8 +28,14 @@ type WorkArea = { width: number; height: number };
 
 /** Opens as a window inside the screen's work area rather than filling it. */
 export function browserWindowOptions(platform: NodeJS.Platform, workArea: WorkArea) {
+  const preferredWidth = Math.round(workArea.width * 0.8);
   return {
-    width: Math.min(1280, Math.round(workArea.width * 0.8)),
+    width: Math.min(
+      1280,
+      platform === "win32" && workArea.width >= 852
+        ? Math.max(820, preferredWidth)
+        : preferredWidth,
+    ),
     height: Math.min(840, Math.round(workArea.height * 0.85)),
     ...windowChrome(platform),
   };

@@ -1,6 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { AccountSecurity, UsageSummary } from "@rakazo/contracts";
 import { accountDisplay, displayName } from "@rakazo/core";
+import { useQuery } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import type { Href } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -71,6 +72,7 @@ import {
   renamePasskey,
 } from "../../lib/passkey";
 import { registerPushToken } from "../../lib/push";
+import { accountRpcQuery, queryClient } from "../../lib/query";
 import { createQueuedSave } from "../../lib/queued-save";
 import {
   getCachedRemoteImagesEnabled,
@@ -106,7 +108,8 @@ export default function Account() {
   const showPermissions = showAll || section === "permissions";
   const showAdvanced = showAll || section === "advanced";
   const showUsage = section === "usage" || focus === "usage";
-  const [me, setMe] = useState<MobileMe | null>(null);
+  const meQuery = accountRpcQuery("me");
+  const { data: me } = useQuery(meQuery, queryClient);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -125,9 +128,12 @@ export default function Account() {
     t,
     errorText,
     updateAccountName,
-    refresh: () => rpc("me"),
-    onSaved: (name) => setMe((current) => (current ? { ...current, name } : current)),
-    onRefreshed: setMe,
+    refresh: () => queryClient.fetchQuery({ ...meQuery, staleTime: 0 }),
+    onSaved: (name) =>
+      queryClient.setQueryData<MobileMe>(meQuery.queryKey, (current) =>
+        current ? { ...current, name } : current,
+      ),
+    onRefreshed: () => undefined,
     setNameDraft,
     setNamePending,
     setNameError,
@@ -204,9 +210,6 @@ export default function Account() {
   );
 
   useEffect(() => {
-    void rpc("me")
-      .then(setMe)
-      .catch(() => undefined);
     void rpc("usage/summary")
       .then(setUsage)
       .catch(() => undefined);

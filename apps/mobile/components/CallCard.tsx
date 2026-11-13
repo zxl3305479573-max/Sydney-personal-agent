@@ -11,7 +11,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rpc } from "../lib/api";
 import { startCallBackground, stopCallBackground } from "../lib/call-background";
 import type { CallPhase } from "../lib/call-session";
-import { endCall, toggleMute, toggleTranscript, useCallSession } from "../lib/call-session";
+import {
+  endCall,
+  toggleCallSpeech,
+  toggleMute,
+  toggleTranscript,
+  useCallSession,
+} from "../lib/call-session";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { setVoiceBackgroundPlayback } from "../lib/voice";
@@ -182,6 +188,15 @@ export function CallCard() {
           color={call.muted ? tokens.mutedForeground : tokens.foreground}
           border={tokens.border}
           onPress={toggleMute}
+        />
+        <RoundButton
+          label={call.speechMuted ? t("Enable bot voice") : t("Disable bot voice")}
+          ios={call.speechMuted ? "speaker.slash" : "speaker.wave.2"}
+          android={call.speechMuted ? "volume-mute-outline" : "volume-high-outline"}
+          selected={call.speechMuted}
+          color={call.speechMuted ? tokens.mutedForeground : tokens.foreground}
+          border={tokens.border}
+          onPress={toggleCallSpeech}
         />
         <RoundButton
           label={t("Hang up")}

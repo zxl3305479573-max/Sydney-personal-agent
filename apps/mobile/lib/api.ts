@@ -60,6 +60,11 @@ import {
 import { clientCorrelationHeaders, responseCorrelation } from "@rakazo/logging/monitoring";
 import * as SecureStore from "expo-secure-store";
 import { promptAiConsent } from "./ai-consent";
+import {
+  compatibleDefaultOrigin,
+  guardDefaultOrigin,
+  isSydneySideload,
+} from "./default-origin-guard";
 import type { EndpointResult } from "./endpoint";
 import { defaultApiBase, normalizeApiBase } from "./endpoint";
 import { getActiveUiLocale, t } from "./i18n";
@@ -79,6 +84,7 @@ import {
   clearSessionToken,
   currentSessionGeneration,
   loadSessionToken,
+  replaceSessionTokenIfCurrent,
   restoreSessionToken,
   rotateSessionTokenIfCurrent,
   saveRotatedSessionToken,
@@ -93,13 +99,76 @@ import { authResponseErrorText, errorText, sessionSaveErrorText } from "./user-e
 const SPACE_KEY = "rakazo.space_id";
 const SPACE_ROLLBACK_KEY = "rakazo.space_rollback";
 const RPC_TIMEOUT_MS = 8_000;
+let companionConsentCheckSequence = 0;
 export const MAX_MOBILE_AUTH_RESPONSE_BYTES = 256 * 1024;
 export const MAX_MOBILE_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
 /** Inbox bootstrap reads safe to replay without a Space header during auth recovery. */
 const SPACE_AUTH_RECOVERY_SAFE_PROCS = new Set(["spaces/list", "me"]);
 
 let cachedApiBase: string | undefined;
+let startupOriginReady = false;
 const apiBaseListeners = new Set<() => void>();
+let endpointGeneration = 0;
+let endpointChangesPending = 0;
+let endpointMutationQueue: Promise<void> = Promise.resolve();
+let endpointMutationsPending = 0;
+let spaceRecoveryCleanupActive = false;
+const activeSpaceSelections = new Set<Promise<void>>();
+let signOutGeneration = 0;
+let signOutPending = 0;
+
+function enqueueEndpointMutation<T>(task: () => Promise<T>): Promise<T> {
+  endpointMutationsPending += 1;
+  const run = async () => {
+    try {
+      await Promise.all([...activeSpaceSelections]);
+      return await task();
+    } finally {
+      endpointMutationsPending -= 1;
+    }
+  };
+  const result = endpointMutationQueue.then(run, run);
+  endpointMutationQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+function assertEndpointCurrent(apiBase: string, generation: number): void {
+  assertStartupOriginReady();
+  if (endpointChangesPending || generation !== endpointGeneration || apiBase !== currentApiBase())
+    throw new Error(t("The server changed while starting the request"));
+}
+
+function assertStartupOriginReady(): void {
+  if (isSydneySideload() && !startupOriginReady)
+    throw new Error("Could not load server settings");
+}
+
+export type ServerSessionScope = {
+  apiBase: string;
+  endpointGeneration: number;
+  sessionGeneration: number;
+};
+
+export function captureServerSessionScope(): ServerSessionScope {
+  const scope = {
+    apiBase: currentApiBase(),
+    endpointGeneration,
+    sessionGeneration: currentSessionGeneration(),
+  };
+  if (!isServerSessionScopeCurrent(scope))
+    throw new Error(t("The server changed while starting the request"));
+  return scope;
+}
+
+export function isServerSessionScopeCurrent(scope: ServerSessionScope): boolean {
+  return (
+    !endpointChangesPending &&
+    !signOutPending &&
+    scope.apiBase === currentApiBase() &&
+    scope.endpointGeneration === endpointGeneration &&
+    scope.sessionGeneration === currentSessionGeneration()
+  );
+}
 
 export function subscribeApiBase(listener: () => void): () => void {
   apiBaseListeners.add(listener);
@@ -120,14 +189,40 @@ let spaceSelectionGeneration = 0;
 /** Counts selectSpace attempts so one still cleaning up a rollback record
  * cannot claim the selection after a newer attempt has started. */
 let spaceSelectionRequestGeneration = 0;
+let pendingSpaceSelection: number | null = null;
+const spaceSelectionListeners = new Set<() => void>();
+
+export function subscribeSpaceSelection(listener: () => void): () => void {
+  spaceSelectionListeners.add(listener);
+  return () => spaceSelectionListeners.delete(listener);
+}
+
+export function isSpaceSelectionPending(): boolean {
+  return pendingSpaceSelection !== null;
+}
+
+function notifySpaceSelection(): void {
+  for (const listener of [...spaceSelectionListeners]) {
+    try {
+      listener();
+    } catch {
+      // One subscriber must not prevent the selection or other subscribers.
+    }
+  }
+}
 
 /** Includes pending selections that have not claimed the in-memory space yet. */
 export function spaceSelectionSeq(): number {
   return spaceSelectionRequestGeneration;
 }
 
+export function currentSpaceSelectionGeneration(): number {
+  return spaceSelectionGeneration;
+}
+
 function bumpSpaceSelectionGeneration(): void {
   spaceSelectionGeneration += 1;
+  notifySpaceSelection();
 }
 
 /** Keeps a timeout or cancel reason; turns transport and parsing detail into copy. */
@@ -164,22 +259,55 @@ export function currentApiBase() {
 }
 
 export async function loadApiBase() {
+  const endpoint = endpointGeneration;
+  const session = currentSessionGeneration();
+  const selection = spaceSelectionGeneration;
+  const request = spaceSelectionRequestGeneration;
+  return enqueueEndpointMutation(async () => {
+    if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
+    return performLoadApiBase(endpoint, session, selection, request);
+  });
+}
+
+async function performLoadApiBase(
+  endpoint: number,
+  session: number,
+  selection: number,
+  request: number,
+) {
   let apiBase = defaultApiBase();
+  let stored: string | null;
   try {
-    const stored = await SecureStore.getItemAsync(ENDPOINT_KEY);
-    if (stored) {
-      const parsed = normalizeApiBase(stored);
-      if (parsed.ok) {
-        apiBase = parsed.url;
-      }
-    }
+    stored = await SecureStore.getItemAsync(ENDPOINT_KEY);
   } catch {
-    // SecureStore is unavailable in some test / web hosts.
+    throw new Error("Could not load server settings");
   }
+  if (stored != null) {
+    const parsed = normalizeApiBase(stored);
+    if (!parsed.ok) throw new Error("Could not load server settings");
+    apiBase = parsed.url;
+  }
+  if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
+  apiBase = await compatibleDefaultOrigin(apiBase, stored != null);
+  if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
+  await guardDefaultOrigin(apiBase, stored != null);
+  if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
   await loadServerHeaders(apiBase);
+  if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
+  if (isSydneySideload() && session !== currentSessionGeneration())
+    throw new Error("Could not verify the saved server session");
+  startupOriginReady = true;
   setCachedApiBase(apiBase);
   try {
     const storedSpace = (await SecureStore.getItemAsync(SPACE_KEY)) ?? "";
+    if (
+      endpointChangesPending ||
+      endpoint !== endpointGeneration ||
+      session !== currentSessionGeneration() ||
+      selection !== spaceSelectionGeneration ||
+      request !== spaceSelectionRequestGeneration
+    )
+      return currentApiBase();
     cachedSpaceId = storedSpace;
     bumpSpaceSelectionGeneration();
     // A deletion fallback must override the now-invalid saved Space even when
@@ -191,12 +319,76 @@ export async function loadApiBase() {
   return currentApiBase();
 }
 
-export async function selectSpace(id: string) {
+export async function replaceMobileSession(
+  scope: ServerSessionScope,
+  token: string,
+  clearSelectedSpace: boolean,
+): Promise<boolean> {
+  return enqueueEndpointMutation(async () => {
+    if (!isServerSessionScopeCurrent(scope)) return false;
+    const signOut = signOutGeneration;
+    if (clearSelectedSpace && !(await clearSpace()))
+      throw new Error(t("Could not save your sign-in on this device. Try again."));
+    if (!isServerSessionScopeCurrent(scope)) return false;
+    const replaced = await replaceSessionTokenIfCurrent(scope.sessionGeneration, token);
+    return (
+      replaced &&
+      currentSessionGeneration() === scope.sessionGeneration + 1 &&
+      signOut === signOutGeneration &&
+      !signOutPending
+    );
+  });
+}
+
+export async function selectSpace(id: string, scope?: ServerSessionScope) {
   const requestGeneration = ++spaceSelectionRequestGeneration;
+  const apiBase = currentApiBase();
+  const endpoint = endpointGeneration;
+  let finishSelection: () => void = () => undefined;
+  const selectionFinished = new Promise<void>((resolve) => {
+    finishSelection = resolve;
+  });
+  const canStart =
+    (endpointMutationsPending === 0 ||
+      (endpointMutationsPending === 1 && spaceRecoveryCleanupActive)) &&
+    endpointChangesPending === 0 &&
+    (!scope || isServerSessionScopeCurrent(scope));
+  if (canStart) activeSpaceSelections.add(selectionFinished);
+  pendingSpaceSelection = requestGeneration;
+  notifySpaceSelection();
+  try {
+    if (!canStart) return false;
+    return await performSpaceSelection(id, requestGeneration, apiBase, endpoint, scope);
+  } finally {
+    activeSpaceSelections.delete(selectionFinished);
+    finishSelection();
+    if (pendingSpaceSelection === requestGeneration) {
+      pendingSpaceSelection = null;
+      notifySpaceSelection();
+    }
+  }
+}
+
+async function performSpaceSelection(
+  id: string,
+  requestGeneration: number,
+  apiBase: string,
+  endpoint: number,
+  scope?: ServerSessionScope,
+) {
+  if (endpointChangesPending || endpoint !== endpointGeneration || apiBase !== currentApiBase())
+    return false;
   if (!(await clearStoredValue(SPACE_ROLLBACK_KEY))) return false;
   // Rollback cleanup is the first await. A newer selection may have claimed
   // the live space while this call was still deleting the rollback record.
-  if (requestGeneration !== spaceSelectionRequestGeneration) return false;
+  if (
+    requestGeneration !== spaceSelectionRequestGeneration ||
+    endpointChangesPending ||
+    endpoint !== endpointGeneration ||
+    apiBase !== currentApiBase() ||
+    (scope && !isServerSessionScopeCurrent(scope))
+  )
+    return false;
   // Claim memory before persisting: recovery paths reconcile against the
   // in-memory selection, so a durable write must never precede its owner.
   const previousSpaceId = cachedSpaceId;
@@ -231,7 +423,8 @@ export async function selectSpace(id: string) {
     }
     return false;
   }
-  await resumeSelectedSpaceNotifications(id, claimGeneration);
+  if (!endpointChangesPending && endpoint === endpointGeneration)
+    await resumeSelectedSpaceNotifications(id, claimGeneration);
   return true;
 }
 
@@ -256,7 +449,25 @@ export function selectedSpaceId(): string | null {
  * storage could not replace it. Neutralize any same-endpoint rollback before
  * writing the replacement selection so a cleanup failure cannot leave the new
  * id beside a stale record that recoverSpaceRollback would prefer on restart. */
-export async function adoptDeletedSpaceFallback(id: string): Promise<boolean> {
+export async function adoptDeletedSpaceFallback(
+  id: string,
+  scope: ServerSessionScope,
+): Promise<boolean> {
+  if (endpointMutationsPending || !isServerSessionScopeCurrent(scope)) return false;
+  let finishSelection: () => void = () => undefined;
+  const selectionFinished = new Promise<void>((resolve) => {
+    finishSelection = resolve;
+  });
+  activeSpaceSelections.add(selectionFinished);
+  try {
+    return await performDeletedSpaceFallback(id);
+  } finally {
+    activeSpaceSelections.delete(selectionFinished);
+    finishSelection();
+  }
+}
+
+async function performDeletedSpaceFallback(id: string): Promise<boolean> {
   cachedSpaceId = id;
   bumpSpaceSelectionGeneration();
   // Neutralize any same-endpoint rollback before writing SPACE_KEY. Writing the
@@ -332,9 +543,11 @@ async function clearCredentialsForEndpointChange(): Promise<
       ok: true;
       previousToken: string;
       previousSpace: string;
+      signOutGeneration: number;
     }
   | { ok: false; result: EndpointResult }
 > {
+  const rollbackSignOutGeneration = signOutGeneration;
   const previousToken = await snapshotSessionToken();
   const previousSpace = await snapshotSpace();
   if (!previousToken.ok || !previousSpace.ok) {
@@ -361,18 +574,25 @@ async function clearCredentialsForEndpointChange(): Promise<
       ok: true,
       previousToken: previousToken.value,
       previousSpace: previousSpace.value,
+      signOutGeneration: rollbackSignOutGeneration,
     };
   }
 
-  await restoreCredentials(previousToken.value, previousSpace.value);
+  await restoreCredentials(previousToken.value, previousSpace.value, rollbackSignOutGeneration);
   return {
     ok: false,
     result: { ok: false, error: t("Could not clear the previous server session") },
   };
 }
 
-async function restoreCredentials(previousToken: string, previousSpace: string) {
+async function restoreCredentials(
+  previousToken: string,
+  previousSpace: string,
+  rollbackSignOutGeneration: number,
+) {
+  if (signOutGeneration !== rollbackSignOutGeneration || signOutPending) return;
   if (previousToken) await restoreSessionToken(previousToken);
+  if (signOutGeneration !== rollbackSignOutGeneration || signOutPending) return;
   if (previousSpace) {
     cachedSpaceId = previousSpace;
     bumpSpaceSelectionGeneration();
@@ -383,7 +603,7 @@ async function restoreCredentials(previousToken: string, previousSpace: string) 
       // The endpoint-bound rollback record restores this selection after restart.
     }
   }
-  if (previousToken) {
+  if (previousToken && signOutGeneration === rollbackSignOutGeneration && !signOutPending) {
     await resumeLiveNotifications(currentApiBase(), previousToken, previousSpace).catch(
       () => undefined,
     );
@@ -433,13 +653,30 @@ export async function saveApiBase(
 ): Promise<EndpointResult> {
   const parsed = normalizeApiBase(input);
   if (!parsed.ok) return parsed;
-  if (parsed.url === defaultApiBase() && Object.keys(headers).length === 0) return resetApiBase();
+  endpointGeneration += 1;
+  endpointChangesPending += 1;
+  try {
+    return await enqueueEndpointMutation(() => performSaveApiBase(input, headers));
+  } finally {
+    endpointChangesPending -= 1;
+  }
+}
+
+async function performSaveApiBase(
+  input: string,
+  headers: Record<string, string>,
+): Promise<EndpointResult> {
+  const parsed = normalizeApiBase(input);
+  if (!parsed.ok) return parsed;
+  if (parsed.url === defaultApiBase() && Object.keys(headers).length === 0)
+    return performResetApiBase();
   const previous = currentApiBase();
   const previousHeaders = serverHeaders(previous);
   let cleared:
     | {
         previousToken: string;
         previousSpace: string;
+        signOutGeneration: number;
       }
     | undefined;
   if (parsed.url !== previous) {
@@ -448,7 +685,8 @@ export async function saveApiBase(
     cleared = result;
   }
   if (!(await saveServerHeaders(parsed.url, headers))) {
-    if (cleared) await restoreCredentials(cleared.previousToken, cleared.previousSpace);
+    if (cleared)
+      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
     return { ok: false, error: t("Could not save the server URL") };
   }
   try {
@@ -456,7 +694,7 @@ export async function saveApiBase(
   } catch {
     await saveServerHeaders(previous, previousHeaders);
     if (cleared) {
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace);
+      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
     }
     return { ok: false, error: t("Could not save the server URL") };
   }
@@ -466,12 +704,23 @@ export async function saveApiBase(
 }
 
 export async function resetApiBase(): Promise<EndpointResult> {
+  endpointGeneration += 1;
+  endpointChangesPending += 1;
+  try {
+    return await enqueueEndpointMutation(performResetApiBase);
+  } finally {
+    endpointChangesPending -= 1;
+  }
+}
+
+async function performResetApiBase(): Promise<EndpointResult> {
   const previous = currentApiBase();
   const url = defaultApiBase();
   let cleared:
     | {
         previousToken: string;
         previousSpace: string;
+        signOutGeneration: number;
       }
     | undefined;
   if (url !== previous) {
@@ -483,13 +732,14 @@ export async function resetApiBase(): Promise<EndpointResult> {
     await SecureStore.deleteItemAsync(ENDPOINT_KEY);
   } catch {
     if (cleared) {
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace);
+      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
       return { ok: false, error: t("Could not clear the custom server URL") };
     }
   }
   if (!(await saveServerHeaders(url, {}))) {
     await SecureStore.setItemAsync(ENDPOINT_KEY, previous).catch(() => undefined);
-    if (cleared) await restoreCredentials(cleared.previousToken, cleared.previousSpace);
+    if (cleared)
+      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
     return { ok: false, error: t("Could not clear the custom server URL") };
   }
   setCachedApiBase(url);
@@ -510,6 +760,7 @@ export function configureClientBuild(options: typeof clientBuild): void {
 export async function authHeaders(
   spaceId: string | null = selectedSpaceId(),
 ): Promise<Record<string, string>> {
+  assertStartupOriginReady();
   const token = await loadSessionToken();
   return {
     ...clientBuild.headers(),
@@ -520,6 +771,7 @@ export async function authHeaders(
 
 export type ApiRequestContext = {
   sessionGeneration?: number;
+  endpointGeneration?: number;
   apiBase: string;
   headers: Record<string, string>;
 };
@@ -535,13 +787,13 @@ export async function captureApiRequestContext(
 ): Promise<ApiRequestContext> {
   const generation = currentSessionGeneration();
   const apiBase = currentApiBase();
+  const endpoint = endpointGeneration;
+  assertEndpointCurrent(apiBase, endpoint);
   const headers = await authHeaders(spaceId);
-  if (apiBase !== currentApiBase()) {
-    throw new Error(t("The server changed while starting the request"));
-  }
+  assertEndpointCurrent(apiBase, endpoint);
   if (generation !== currentSessionGeneration())
     throw new Error(t("Something went wrong. Try again."));
-  return { apiBase, headers, sessionGeneration: generation };
+  return { apiBase, headers, sessionGeneration: generation, endpointGeneration: endpoint };
 }
 
 async function postAuth(path: string, input: Record<string, string>) {
@@ -566,7 +818,15 @@ async function authenticate(
   input: Record<string, string>,
   missingSession: string,
 ): Promise<{ verificationRequired: boolean }> {
+  const apiBase = currentApiBase();
+  const endpoint = endpointGeneration;
+  const session = currentSessionGeneration();
+  const signOut = signOutGeneration;
+  assertEndpointCurrent(apiBase, endpoint);
   const { response, body, invalidJson } = await postAuth(path, input);
+  assertEndpointCurrent(apiBase, endpoint);
+  if (session !== currentSessionGeneration() || signOut !== signOutGeneration || signOutPending)
+    throw new Error(t("Something went wrong. Try again."));
   if (!response.ok || invalidJson) {
     throw new Error(authResponseErrorText(response.status, body, invalidJson));
   }
@@ -575,9 +835,19 @@ async function authenticate(
     return { verificationRequired: true };
   if (!token) throw new Error(missingSession);
   try {
-    if (!(await clearSpace()))
-      throw new Error(t("Could not save your sign-in on this device. Try again."));
-    await saveSessionToken(token);
+    await enqueueEndpointMutation(async () => {
+      assertEndpointCurrent(apiBase, endpoint);
+      if (session !== currentSessionGeneration() || signOut !== signOutGeneration || signOutPending)
+        throw new Error(t("Something went wrong. Try again."));
+      if (!(await clearSpace()))
+        throw new Error(t("Could not save your sign-in on this device. Try again."));
+      assertEndpointCurrent(apiBase, endpoint);
+      if (session !== currentSessionGeneration() || signOut !== signOutGeneration || signOutPending)
+        throw new Error(t("Something went wrong. Try again."));
+      await saveSessionToken(token);
+      if (currentSessionGeneration() !== session + 1 || signOut !== signOutGeneration)
+        throw new Error(t("Something went wrong. Try again."));
+    });
   } catch (error) {
     throw new Error(sessionSaveErrorText(error));
   }
@@ -650,14 +920,18 @@ export async function updateAccountName(name: string): Promise<void> {
   if (!nextName || nextName.length > 80 || !displayName(nextName, "")) {
     throw new Error(t("Could not update name"));
   }
+  const context = await captureApiRequestContext();
+  assertEndpointCurrent(context.apiBase, context.endpointGeneration!);
+  if (context.sessionGeneration !== currentSessionGeneration())
+    throw new Error(t("Something went wrong. Try again."));
   const { response, body, invalidJson } = await fetchMobileJson<unknown>(
-    `${currentApiBase()}/api/auth/update-user`,
+    `${context.apiBase}/api/auth/update-user`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
         origin: "rakazo://",
-        ...(await authHeaders()),
+        ...context.headers,
       },
       body: JSON.stringify({ name: nextName }),
     },
@@ -767,6 +1041,7 @@ export async function fetchMobileJson<T>(
   init: RequestInit,
   invalidJsonFallback?: T,
 ): Promise<{ response: Response; body: T; invalidJson?: boolean }> {
+  assertStartupOriginReady();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("Request timed out")), RPC_TIMEOUT_MS);
   try {
@@ -803,6 +1078,16 @@ export async function fetchMobileJson<T>(
 }
 
 export async function signOut() {
+  signOutGeneration += 1;
+  signOutPending += 1;
+  try {
+    await performSignOut();
+  } finally {
+    signOutPending -= 1;
+  }
+}
+
+async function performSignOut() {
   await rpc("notifications/unregisterPush").catch(() => undefined);
   const headers = await authHeaders();
   const controller = new AbortController();
@@ -825,21 +1110,39 @@ export async function signOut() {
   } finally {
     clearTimeout(timer);
   }
-  const sessionCleared = await clearSessionToken();
-  const spaceCleared = await clearSpace();
-  if (!sessionCleared || !spaceCleared) throw new Error(t("Could not clear the local session"));
+  await enqueueEndpointMutation(async () => {
+    const sessionCleared = await clearSessionToken();
+    const spaceCleared = await clearSpace();
+    if (!sessionCleared || !spaceCleared) throw new Error(t("Could not clear the local session"));
+  });
 }
 
-export async function deleteAccount(password?: string, token?: string) {
-  await rpc("notifications/unregisterPush").catch(() => undefined);
+export type DeleteAccountResult =
+  | { status: "deleted"; scope: ServerSessionScope }
+  | { status: "session-changed"; cleanupFailed?: boolean }
+  | { status: "cleanup-failed"; scope: ServerSessionScope };
+
+export async function deleteAccount(
+  password: string | undefined,
+  token: string | undefined,
+  scope: ServerSessionScope,
+): Promise<DeleteAccountResult> {
+  if (!isServerSessionScopeCurrent(scope))
+    throw new Error(t("The session changed. Open account deletion again."));
+  const context = await captureApiRequestContext();
+  if (!isServerSessionScopeCurrent(scope))
+    throw new Error(t("The server changed while starting the request"));
+  await rpc("notifications/unregisterPush", {}, { requestContext: context }).catch(() => undefined);
+  if (!isServerSessionScopeCurrent(scope))
+    throw new Error(t("The server changed while starting the request"));
   const { response, body, invalidJson } = await fetchMobileJson<unknown>(
-    `${currentApiBase()}/api/auth/delete-user`,
+    `${scope.apiBase}/api/auth/delete-user`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
         origin: "rakazo://",
-        ...(await authHeaders()),
+        ...context.headers,
       },
       body: JSON.stringify({ password, token }),
     },
@@ -850,8 +1153,28 @@ export async function deleteAccount(password?: string, token?: string) {
       authResponseErrorText(response.status, body, invalidJson, t("Could not delete account")),
     );
   }
-  await clearSessionToken();
-  await clearSpace();
+  if (
+    invalidJson ||
+    !body ||
+    typeof body !== "object" ||
+    !("success" in body) ||
+    body.success !== true ||
+    !("message" in body) ||
+    body.message !== "User deleted"
+  )
+    throw new Error(t("Could not confirm account deletion. Check your account before trying again."));
+  return enqueueEndpointMutation<DeleteAccountResult>(async () => {
+    if (!isServerSessionScopeCurrent(scope)) return { status: "session-changed" };
+    const sessionCleared = await clearSessionToken();
+    const clearedScope = { ...scope, sessionGeneration: scope.sessionGeneration + 1 };
+    if (!isServerSessionScopeCurrent(clearedScope))
+      return { status: "session-changed", cleanupFailed: !sessionCleared };
+    const spaceCleared = await clearSpace();
+    if (!isServerSessionScopeCurrent(clearedScope))
+      return { status: "session-changed", cleanupFailed: !sessionCleared || !spaceCleared };
+    if (!sessionCleared || !spaceCleared) return { status: "cleanup-failed", scope: clearedScope };
+    return { status: "deleted", scope: clearedScope };
+  });
 }
 
 const sessionRejectedListeners = new Set<() => void>();
@@ -874,6 +1197,7 @@ export type RpcOptions = {
   timeoutMs?: number | null;
   requestContext?: ApiRequestContext;
   skipSpaceAuthRecovery?: boolean;
+  allowConsentPrompt?: boolean;
 };
 
 /** The body may be left out when the procedure takes none or every field is optional. */
@@ -900,25 +1224,36 @@ async function request(
   const requestSpaceGeneration = spaceSelectionGeneration;
   const requestSessionGeneration = currentSessionGeneration();
   const requestApiBase = options.requestContext?.apiBase ?? currentApiBase();
+  const requestEndpointGeneration = options.requestContext?.endpointGeneration ?? endpointGeneration;
+  assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
   const uses = aiDataUsesForProcedure(proc, body);
+  const companionConsent = proc === "threads/companionScreenStart" || proc === "threads/companionScreenRespond";
+  const companionSignal = companionConsent ? options.signal : undefined;
   const consentTarget = aiConsentTarget(body);
   const consentContext =
     options.requestContext ?? (uses.length ? await captureApiRequestContext() : undefined);
   await ensureAiDataConsent({
     uses,
     status: () =>
-      rpc("aiConsent/status", { uses, ...consentTarget }, { requestContext: consentContext }),
-    prompt: promptAiConsent,
+      rpc("aiConsent/status", { uses, ...consentTarget }, { requestContext: consentContext, signal: companionSignal }),
+    prompt: options.allowConsentPrompt === false ? async () => false : async (recipient, privacyUrl) => {
+      if (companionSignal?.aborted) return false;
+      const accepted = await promptAiConsent(recipient, privacyUrl);
+      return accepted && !companionSignal?.aborted;
+    },
     allow: (input) =>
       rpc(
         "aiConsent/allow",
         consentTarget.settingsScope
           ? { ...input, settingsScope: consentTarget.settingsScope }
           : input,
-        { requestContext: consentContext },
+        { requestContext: consentContext, signal: companionSignal },
       ),
-    coalesceKey: consentContext ? aiConsentCoalesceKey(consentContext) : undefined,
+    coalesceKey: consentContext
+      ? `${aiConsentCoalesceKey(consentContext)}${companionConsent ? `\0companion:${++companionConsentCheckSequence}` : ""}`
+      : undefined,
   });
+  if (options.signal?.aborted) throw options.signal.reason ?? new Error("Request canceled");
   // Abort with an explicit reason so every consumer of the signal (the fetch, the bounded body
   // read, and nested recovery calls that share this signal) reports the same cause.
   const controller = new AbortController();
@@ -940,19 +1275,23 @@ async function request(
   // Bind recovery to the Space + selection epoch this request was sent with:
   // a 401 arriving after the user switched Spaces — including A → B → A —
   // belongs to a stale request and must not touch the current selection.
-  const requestHeaders = consentContext?.headers ?? (await authHeaders());
-  const requestSpaceId = requestHeaders["x-rakazo-space-id"];
   try {
+    const requestHeaders = consentContext?.headers ?? (await authHeaders());
+    const requestSpaceId = requestHeaders["x-rakazo-space-id"];
+    assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
+    if (requestSessionGeneration !== currentSessionGeneration())
+      throw new Error(t("Something went wrong. Try again."));
     if (
       consentContext?.sessionGeneration !== undefined &&
       consentContext.sessionGeneration !== currentSessionGeneration()
     )
       throw new Error(t("Something went wrong. Try again."));
+    if (controller.signal.aborted) throw controller.signal.reason ?? new Error("Request canceled");
     let res: Response;
     const correlation = clientCorrelationHeaders();
     try {
       res = await fetchServer(
-        `${consentContext?.apiBase ?? currentApiBase()}/rpc/${proc}`,
+        `${requestApiBase}/rpc/${proc}`,
         {
           method: "POST",
           headers: {
@@ -964,7 +1303,7 @@ async function request(
           body: JSON.stringify({ json: body }),
           signal: controller.signal,
         },
-        consentContext?.apiBase ?? currentApiBase(),
+        requestApiBase,
       );
     } catch (error) {
       // The native fetch reports an aborted request with an implementation detail
@@ -974,6 +1313,7 @@ async function request(
         reportMobileError(error, "rpc.transport", responseCorrelation(new Headers(correlation)));
       throw requestError(error, controller.signal);
     }
+    assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
     if (
       requestSessionGeneration === currentSessionGeneration() &&
       requestApiBase === currentApiBase()
@@ -992,6 +1332,7 @@ async function request(
       if (!res.ok && error instanceof SyntaxError) return {};
       throw requestError(error, controller.signal);
     });
+    assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
     if (!res.ok) {
       // oRPC sends a failure as `{ json: { code, status, message } }`; the message is the
       // server's user-facing copy.
@@ -1013,7 +1354,15 @@ async function request(
         !passwordChangesInFlight &&
         requestSessionGeneration === currentSessionGeneration()
       ) {
-        await rejectSession();
+        await withAbort(
+          enqueueEndpointMutation(async () => {
+            if (controller.signal.aborted)
+              throw controller.signal.reason ?? new Error("Request canceled");
+            assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
+            if (requestSessionGeneration === currentSessionGeneration()) await rejectSession();
+          }),
+          controller.signal,
+        );
       }
       // After a delete where SecureStore could not clear the stale id, restart
       // reloads it and the first RPCs 401. Probe once without a Space header:
@@ -1027,19 +1376,29 @@ async function request(
       // cleanup was in flight: check-then-clear cannot be atomic on
       // SecureStore, so reconcile afterwards instead of trusting the check.
       const clearStaleSpaceSelection = async () => {
-        await clearStoredValue(SPACE_KEY);
-        await clearStoredValue(SPACE_ROLLBACK_KEY);
-        const reselected = selectedSpaceId();
-        if (!reselected) return;
-        // Own the reconcile write by generation: a newer selection that
-        // persists between snapshot and write must not be overwritten by
-        // this stale id, and a write that lands stale heals once to live.
-        const writeGeneration = spaceSelectionGeneration;
-        await writeStoredValue(SPACE_KEY, reselected);
-        if (spaceSelectionGeneration !== writeGeneration) {
-          const live = selectedSpaceId();
-          if (live) await writeStoredValue(SPACE_KEY, live);
-        }
+        await withAbort(
+          enqueueEndpointMutation(async () => {
+            if (controller.signal.aborted)
+              throw controller.signal.reason ?? new Error("Request canceled");
+            assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
+            spaceRecoveryCleanupActive = true;
+            try {
+              await clearStoredValue(SPACE_KEY);
+              await clearStoredValue(SPACE_ROLLBACK_KEY);
+              const reselected = selectedSpaceId();
+              if (!reselected) return;
+              const writeGeneration = spaceSelectionGeneration;
+              await writeStoredValue(SPACE_KEY, reselected);
+              if (spaceSelectionGeneration !== writeGeneration) {
+                const live = selectedSpaceId();
+                if (live) await writeStoredValue(SPACE_KEY, live);
+              }
+            } finally {
+              spaceRecoveryCleanupActive = false;
+            }
+          }),
+          controller.signal,
+        );
       };
       if (
         unauthorized &&
@@ -1071,7 +1430,12 @@ async function request(
           }
           await request("spaces/list", {}, recoveryOptions);
         } catch (retryError) {
-          if (!selectedSpaceId()) {
+          if (
+            !endpointChangesPending &&
+            requestEndpointGeneration === endpointGeneration &&
+            requestApiBase === currentApiBase() &&
+            !selectedSpaceId()
+          ) {
             cachedSpaceId = previousSpaceId;
             bumpSpaceSelectionGeneration();
           }
@@ -1098,6 +1462,7 @@ async function request(
         selectionId: requestSpaceId ?? null,
       });
     }
+    assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
     if (
       proc === "threads/get" &&
       requestSessionGeneration === currentSessionGeneration() &&

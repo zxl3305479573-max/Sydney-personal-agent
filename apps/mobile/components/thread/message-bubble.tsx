@@ -748,7 +748,7 @@ function MessageTextCard({
   const colorScheme = useResolvedAppearance();
   const chatAppearance = useMobileChatAppearance();
   const baseTokens = withUserBubble(mobileTokens(), userBubble);
-  const plainText = !chatAppearance.bubble && (message.role !== "user" || !userBubble);
+  const plainText = !chatAppearance.bubble && message.role !== "user";
   const tokens = chatAppearance.bubble
     ? {
         ...baseTokens,
@@ -757,9 +757,7 @@ function MessageTextCard({
         muted: chatAppearance.bubble.botBackground,
         foreground: chatAppearance.bubble.botForeground,
       }
-    : plainText && message.role === "user"
-      ? { ...baseTokens, chatUserForeground: baseTokens.foreground }
-      : baseTokens;
+    : baseTokens;
   const contentText = blockText(message);
   const { t } = useI18n();
   const userMentions = useContext(UserMentionsContext);

@@ -21,6 +21,7 @@ let closedUrl: string;
 let userData: string;
 let app: ElectronApplication | undefined;
 let monitoringRequests = 0;
+let updateRequests = 0;
 
 /** A port nothing listens on, so a connection attempt is refused rather than blocked. */
 async function reserveClosedPort() {
@@ -37,6 +38,12 @@ async function reserveClosedPort() {
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
+    if (request.url?.startsWith("/update-feed/")) {
+      updateRequests++;
+      response.writeHead(404);
+      response.end();
+      return;
+    }
     if (request.url === "/api/monitoring/config") {
       monitoringRequests++;
       response.writeHead(200, { "content-type": "application/json" });
@@ -79,29 +86,111 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app?.close();
-  app = undefined;
-  await rm(userData, { recursive: true, force: true });
+  try {
+    await app?.close();
+  } finally {
+    app = undefined;
+    await rm(userData, { recursive: true, force: true });
+  }
 });
 
-function launch(extraEnv: Record<string, string> = {}) {
+async function launch(extraEnv: Record<string, string> = {}) {
   const env = { ...process.env, RAKAZO_PERFORMANCE_USER_DATA: userData };
   // A stale RAKAZO_WEB_URL from the developer's shell would bypass setup entirely.
   delete env.RAKAZO_WEB_URL;
   delete env.SYDNEY_PC_BACKEND_URL;
+  delete env.RAKAZO_FORCE_SETUP;
   const executablePath = process.env.RAKAZO_E2E_EXECUTABLE;
-  return electron.launch({
+  const launched = await electron.launch({
     ...(executablePath ? { executablePath: path.resolve(executablePath) } : {}),
     args: executablePath ? [] : ["."],
     cwd: path.resolve(import.meta.dirname, ".."),
     env: { ...env, ...extraEnv },
   });
+  app = launched;
+  if (executablePath) {
+    if (!(await launched.evaluate(({ app: electronApp }) => electronApp.isPackaged))) {
+      throw new Error("The selected desktop executable is not packaged");
+    }
+  }
+  return launched;
 }
 
 test("opens a healthy configured PC backend", async () => {
   app = await launch({ SYDNEY_PC_BACKEND_URL: serverUrl });
   const window = await foregroundWindow(app);
   await expect(window.getByText(APP_MARKER)).toBeVisible();
+});
+
+test("packaged Sydney disables desktop updates", async () => {
+  test.setTimeout(75_000);
+  const executable = process.env.RAKAZO_E2E_EXECUTABLE;
+  if (!executable) {
+    test.skip(true, "Requires a packaged desktop executable");
+    return;
+  }
+  const updateConfig = path.join(
+    path.dirname(path.resolve(executable)),
+    "resources",
+    "app-update.yml",
+  );
+  const previousConfig = await readFile(updateConfig).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  const verifyDisabled = async () => {
+    app = await launch({ SYDNEY_PC_BACKEND_URL: serverUrl, RAKAZO_DISABLE_AUTO_UPDATE: "0" });
+    expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
+    const window = await foregroundWindow(app);
+    await expect(window.getByText(APP_MARKER)).toBeVisible();
+    const states = await window.evaluate(async () => {
+      const desktop = (window as typeof window & { rakazoDesktop: RakazoDesktop }).rakazoDesktop;
+      return [
+        await desktop.update.state(),
+        await desktop.update.check(),
+        await desktop.update.download(),
+        await desktop.update.install(),
+      ];
+    });
+    for (const state of states) {
+      expect(state).toMatchObject({
+        phase: "unsupported",
+        availableVersion: null,
+        message: "Automatic updates are turned off for this install.",
+      });
+    }
+    await window.waitForTimeout(12_000);
+    const finalState = await window.evaluate(async () =>
+      (window as typeof window & { rakazoDesktop: RakazoDesktop }).rakazoDesktop.update.state(),
+    );
+    expect(finalState).toMatchObject({
+      phase: "unsupported",
+      message: "Automatic updates are turned off for this install.",
+    });
+  };
+  updateRequests = 0;
+  expect((await fetch(`${serverUrl}/update-feed/latest.yml`)).status).toBe(404);
+  expect(updateRequests).toBe(1);
+  updateRequests = 0;
+  await writeFile(updateConfig, `provider: generic\nurl: ${serverUrl}/update-feed\n`);
+  try {
+    await verifyDisabled();
+    expect(updateRequests).toBe(0);
+  } finally {
+    try {
+      await app?.close();
+    } finally {
+      app = undefined;
+      if (previousConfig === null) await rm(updateConfig, { force: true });
+      else await writeFile(updateConfig, previousConfig);
+    }
+  }
+  const restoredConfig = await readFile(updateConfig).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  expect(restoredConfig).toEqual(previousConfig);
+  await verifyDisabled();
 });
 
 test("shows setup when the configured PC backend is unreachable", async () => {

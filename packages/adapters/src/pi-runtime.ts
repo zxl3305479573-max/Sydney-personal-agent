@@ -32,6 +32,7 @@ import {
   uncertainEffectResult,
 } from "./approval-effect.js";
 import { automated, withAutomatedLabels } from "./automated-messages.js";
+import { partitionTools } from "./builtin-tool-bridge.js";
 import { withCloudflareAuth } from "./cloudflare-ai-gateway.js";
 import { neutralizeSpeakerLabels } from "./history-speakers.js";
 import { estimatePiImageTokens } from "./pi-image-context.js";
@@ -73,12 +74,14 @@ import {
 } from "./pi-runtime-tools.js";
 import type { PiSessionHandle, PiSessionRecorder } from "./pi-session.js";
 import { PiJsonlSessionRecorder } from "./pi-session.js";
-import { withPiTelemetry } from "./pi-telemetry.js";
+import { withPiTelemetry, withoutPiTelemetry } from "./pi-telemetry.js";
 import { withPiThinkingActivity } from "./pi-thinking-activity.js";
 import { observedPiStream } from "./pi-usage.js";
 import type { RuntimeContextDecision } from "./runtime-context.js";
 import { createRuntimeContextPolicy } from "./runtime-context.js";
 import { deliverFinishedShells } from "./shell-command-stream.js";
+import { classifyToolIntent } from "./tool-intent.js";
+import { createToolIntentModelClassifier } from "./tool-intent-model.js";
 import {
   restoreTurnCheckpoint,
   serializeTurnCheckpoint,
@@ -173,6 +176,30 @@ export class PiAgentRuntime implements AgentRuntime {
     const active = running.get(runId);
     active?.controller.abort();
     await active?.work;
+  }
+
+  runWithoutTools(
+    request: AgentRunRequest,
+    context?: Partial<AdapterContext>,
+  ): AsyncIterableIterator<AgentRuntimeEvent> {
+    if (
+      request.claimSteering || request.turnCheckpoint || request.resumeFromCheckpoint ||
+      request.resumeToolResult || request.onCheckpoint || request.script || this.sessionRecorder
+    ) {
+      throw new Error("A tool-free run cannot resume, claim steering, or use a script.");
+    }
+    const events = this.run({
+      ...request,
+      tools: [],
+      executeTool: undefined,
+      toolIntentCandidate: undefined,
+    }, context);
+    return {
+      [Symbol.asyncIterator]() { return this; },
+      next: () => withoutPiTelemetry(() => events.next()),
+      return: () => withoutPiTelemetry(() => events.return!()),
+      throw: (error) => withoutPiTelemetry(() => events.throw!(error)),
+    };
   }
 
   run(
@@ -270,6 +297,53 @@ export class PiAgentRuntime implements AgentRuntime {
         const tools = toAgentTools(toolDefs, host);
         const seenSteeringIds: string[] = [];
         const initialSteering = request.claimSteering ? await request.claimSteering([]) : [];
+        const candidate = request.toolIntentCandidate;
+        const intentStartedAt = Date.now();
+        const intent =
+          candidate && !request.turnCheckpoint && initialSteering.length === 0
+            ? await classifyToolIntent(
+                { message: candidate.message, history: [], contextComplete: true },
+                createToolIntentModelClassifier({
+                  runtime: new PiAgentRuntime({
+                    modelFetch: this.modelFetch,
+                    modelCallObserver: this.modelCallObserver,
+                  }),
+                  request,
+                  context: context ?? {},
+                }),
+                signal,
+              )
+            : "uncertain";
+        const initiallySuppressedTools = intent === "no_tools";
+        if (candidate || request.onInitialToolList) {
+          const listed = initiallySuppressedTools ? [] : partitionTools(toolDefs).listed;
+          const measurement = {
+            count: listed.length,
+            bytes: Buffer.byteLength(
+              JSON.stringify(
+                listed.map(({ name, description, inputSchema }) => ({
+                  name,
+                  description,
+                  inputSchema,
+                })),
+              ),
+            ),
+          };
+          try {
+            request.onInitialToolList?.(measurement);
+          } catch {}
+          if (candidate) {
+            getLogger().info("tool_intent.classified", {
+              "run.id": request.runId,
+              "tool_intent.decision": intent,
+              "tool_intent.duration_ms": Date.now() - intentStartedAt,
+              "tool_intent.listed_count": measurement.count,
+              "tool_intent.listed_bytes": measurement.bytes,
+            });
+          }
+        }
+        let toolsSuppressed = initiallySuppressedTools;
+        let pendingSteering: AgentSteeringMessage[] | undefined;
         let hasCurrentImages = Boolean(
           request.currentRunRequiresImageInput ||
             (request.currentTurnImages?.length && !request.currentTurnImageFileFallback) ||
@@ -483,15 +557,36 @@ export class PiAgentRuntime implements AgentRuntime {
               turn,
               turnSignal,
             );
+            if (
+              toolsSuppressed &&
+              request.claimSteering &&
+              !host.pausePending &&
+              !terminatedReply &&
+              !signal.aborted &&
+              turn.message.stopReason !== "error" &&
+              turn.message.stopReason !== "aborted"
+            ) {
+              const steering = await request.claimSteering([...seenSteeringIds]);
+              if (steering.length) {
+                pendingSteering = steering;
+                return { action: "continue" as const };
+              }
+            }
           },
-          prepareNextTurnWithContext: async () => {
+          prepareNextTurnWithContext: async (turn) => {
             if (!request.claimSteering) return undefined;
             // The turn is ending at a terminating result that aborted the agent; no
             // model request would answer a follow-up claimed now, and a completed run
             // deletes its claimed steering. Leave the message queued for the next run.
             if (terminatedReply && !host.pausePending) return undefined;
-            const steering = await request.claimSteering([...seenSteeringIds]);
+            const steering = pendingSteering ?? (await request.claimSteering([...seenSteeringIds]));
+            pendingSteering = undefined;
             if (steering.length === 0) return undefined;
+            const restoreTools = toolsSuppressed;
+            if (restoreTools) {
+              agent.state.tools = tools;
+              toolsSuppressed = false;
+            }
             seenSteeringIds.push(...steering.map((item) => item.id));
             for (const item of steering) representedHistoryIds.add(item.messageId);
             if (steering.some((item) => item.images?.length && !item.imageFileFallback))
@@ -516,13 +611,13 @@ export class PiAgentRuntime implements AgentRuntime {
               type: "steered",
               fromRunUser: steering.some((item) => item.origin === "user"),
             });
-            return undefined;
+            return restoreTools ? { context: { ...turn.context, tools } } : undefined;
           },
           initialState: {
             systemPrompt,
             model: completionModel,
             thinkingLevel,
-            tools,
+            tools: initiallySuppressedTools ? [] : tools,
             messages: history,
           },
         });

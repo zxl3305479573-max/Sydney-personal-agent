@@ -6,15 +6,15 @@ import { Alert, Platform } from "react-native";
 import type * as NativePasskeys from "react-native-passkeys";
 import {
   authHeaders,
-  clearSpace,
+  captureServerSessionScope,
   currentApiBase,
   fetchMobileJson,
+  isServerSessionScopeCurrent,
   passwordResetCapabilities,
+  replaceMobileSession,
 } from "./api";
 import { t } from "./i18n";
 import {
-  currentSessionGeneration,
-  replaceSessionTokenIfCurrent,
   tokenFromAuthResponse,
 } from "./session";
 import { authResponseErrorText, errorText, sessionSaveErrorText } from "./user-error";
@@ -94,13 +94,12 @@ function passkeyErrorText(status: number, body: unknown, invalidJson?: boolean):
 
 /** Server and session must not change while the native sheet is open. */
 function captureFlow() {
-  const apiBase = currentApiBase();
-  const generation = currentSessionGeneration();
+  const scope = captureServerSessionScope();
   return {
-    apiBase,
-    generation,
+    apiBase: scope.apiBase,
+    scope,
     requireCurrent() {
-      if (apiBase !== currentApiBase() || generation !== currentSessionGeneration())
+      if (!isServerSessionScopeCurrent(scope))
         throw new Error(t("Could not continue"));
     },
   };
@@ -158,9 +157,7 @@ export function signInWithPasskey(): Promise<boolean> {
     if (!token) throw new Error(t("Sign-in did not return a session"));
     flow.requireCurrent();
     try {
-      if (!(await clearSpace()))
-        throw new Error(t("Could not save your sign-in on this device. Try again."));
-      return await replaceSessionTokenIfCurrent(flow.generation, token);
+      return await replaceMobileSession(flow.scope, token, true);
     } catch (error) {
       throw new Error(sessionSaveErrorText(error));
     }

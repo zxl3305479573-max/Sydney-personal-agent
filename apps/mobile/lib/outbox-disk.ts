@@ -189,6 +189,11 @@ export const outboxDisk: UnsentDisk = {
       outboxDisk.clear();
       return [];
     }
+    if (entries.some((entry) =>
+      entry?.apiBase !== scope.apiBase ||
+      entry?.userId !== scope.userId ||
+      entry?.cacheSession !== scope.cacheSession
+    )) throw new Error("OUTBOX_SCOPE_MISMATCH");
     let loaded: SendAttempt[];
     try {
       loaded = entries.slice(0, OUTBOX_MAX_ENTRIES).flatMap((entry): SendAttempt[] => {

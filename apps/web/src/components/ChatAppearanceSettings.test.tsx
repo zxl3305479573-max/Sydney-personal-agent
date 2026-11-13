@@ -99,7 +99,7 @@ it("reports migration failure without deleting the saved record", async () => {
   expect(stored()).toBe(legacy);
 });
 
-it("offers background and separate text colors without bubble settings", async () => {
+it("offers background, bubble settings, and separate text colors", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   mockIndexedDb();
   await loadChatAppearance();
@@ -113,7 +113,7 @@ it("offers background and separate text colors without bubble settings", async (
   try {
     await act(async () => root.render(<ChatAppearanceSettings />));
     expect(container.querySelector("#chat-background")).not.toBeNull();
-    expect(container.textContent).not.toContain("气泡");
+    expect(container.textContent).toContain("气泡");
     const reset = [...container.querySelectorAll("button")].find(
       (item) => item.textContent === "我的文字恢复默认",
     );

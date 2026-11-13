@@ -1,4 +1,28 @@
 export const DE_MESSAGES: Record<string, string> = {
+  "Account deleted": "Konto gelöscht",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "Die Kontolöschung konnte nicht bestätigt werden. Prüfen Sie Ihr Konto, bevor Sie es erneut versuchen.",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "Das ursprüngliche Konto wurde gelöscht, aber die lokale Bereinigung ist fehlgeschlagen und Ihre Sitzung hat sich geändert.",
+  "The original account was deleted. Your current session has changed.": "Das ursprüngliche Konto wurde gelöscht. Ihre aktuelle Sitzung hat sich geändert.",
+  "The session changed. Open account deletion again.": "Die Sitzung hat sich geändert. Öffnen Sie die Kontolöschung erneut.",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "Das Konto wurde gelöscht, aber die lokale Sitzung konnte nicht bereinigt werden. Starten Sie die App neu und versuchen Sie, sich abzumelden.",
+  Computers: "Computer",
+  "Could not load devices.": "Geräte konnten nicht geladen werden.",
+  "No computers paired with this account.": "Mit diesem Konto sind keine Computer gekoppelt.",
+  Offline: "Offline",
+  Refresh: "Aktualisieren",
+  "Status at {time}; refresh to check again.":
+    "Status um {time}; zum erneuten Prüfen aktualisieren.",
+  "Your session is unavailable or expired. Sign in again.":
+    "Die Sitzung ist nicht verfügbar oder abgelaufen. Bitte erneut anmelden.",
+  "The device API is unavailable. Check the server configuration.":
+    "Die Geräte-API ist nicht verfügbar. Bitte die Serverkonfiguration prüfen.",
+  "Could not reach the server. Check your connection.":
+    "Server nicht erreichbar. Bitte Verbindung prüfen.",
+  "The device request timed out. Try again.":
+    "Die Geräteabfrage hat zu lange gedauert. Bitte erneut versuchen.",
   Bots: "Bots",
   "Connect apps": "Apps verbinden",
   "Daily check-ins on unfinished work": "Tägliche Rückfragen zu offenen Aufgaben",
@@ -812,6 +836,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "{name}’s computer": "Computer von {name}",
   "Could not reach that server": "Dieser Server ist nicht erreichbar",
   "Enter a server URL": "Gib eine Server-URL ein",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "Gib nur die Serveradresse ein, ohne Anmeldedaten, Pfad, Abfrage oder Fragment",
   "Public servers need https://. HTTP only works on your local network.":
     "Öffentliche Server brauchen https://. HTTP funktioniert nur im lokalen Netzwerk.",
   "That URL did not look like a Rakazo server":

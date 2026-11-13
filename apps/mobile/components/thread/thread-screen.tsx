@@ -14,11 +14,13 @@ import {
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { I18nManager, ImageBackground, Platform, StyleSheet, View } from "react-native";
+import { Alert, I18nManager, ImageBackground, Platform, StyleSheet, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
-import { rpc } from "../../lib/api";
+import { isSpaceSelectionPending, rpc, selectedSpaceId, spaceSelectionSeq } from "../../lib/api";
+import { activeCompanionIdentity } from "../../lib/companion-activity";
+import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
 import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
@@ -31,6 +33,7 @@ import { useThemedStyles } from "../../lib/native";
 import { useInboxBot } from "../../lib/search-inbox";
 import { useSplitView } from "../../lib/split-view";
 import { useIncomingShareImport, useThreadAttachments } from "../../lib/thread-attachments";
+import { currentSessionGeneration } from "../../lib/session";
 import { useThreadBots } from "../../lib/thread-bots";
 import {
   threadColumnPadding,
@@ -110,6 +113,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     name,
     messageId,
     threadId,
+    companionVoice,
+    companionToken,
     readOnly: readOnlyParam,
   } = useLocalSearchParams<{
     botId?: string;
@@ -117,6 +122,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     name?: string;
     messageId?: string;
     threadId?: string;
+    companionVoice?: string;
+    companionToken?: string;
     readOnly?: string;
   }>();
   const readOnly = readOnlyParam === "1";
@@ -420,6 +427,51 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     activeBotId,
   });
 
+  const companionVoiceHandled = useRef(false);
+  const companionVoiceFocused = useRef(focused);
+  companionVoiceFocused.current = focused;
+  useEffect(() => () => {
+    companionVoiceFocused.current = false;
+  }, []);
+  useEffect(() => {
+    if (companionVoice !== "1") {
+      companionVoiceHandled.current = false;
+      return;
+    }
+    if (!botId || inGroup || readOnly || !focused || companionVoiceHandled.current) return;
+    companionVoiceHandled.current = true;
+    const requestedBot = botId;
+    const generation = currentSessionGeneration();
+    const spaceId = selectedSpaceId();
+    const activity = activeCompanionIdentity();
+    const spaceSelection = spaceSelectionSeq();
+    router.setParams({ companionVoice: undefined, companionToken: undefined, companionLink: undefined });
+    if (!activity || !companionVoiceLinkMatches(companionToken, activity, requestedBot, spaceId) ||
+      isSpaceSelectionPending()) return;
+    Alert.alert("语音对话", "开始后将按照系统授权使用麦克风。", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "开始",
+        onPress: () => {
+          if (canStartCompanionVoice({
+            focused: companionVoiceFocused.current,
+            requestedBot,
+            activeBot: activeBotId.current,
+            requestGeneration: generation,
+            currentGeneration: currentSessionGeneration(),
+            requestSpace: spaceId,
+            currentSpace: selectedSpaceId(),
+            requestActivityId: activity.id,
+            activeActivity: activeCompanionIdentity(),
+            requestSpaceSelection: spaceSelection,
+            currentSpaceSelection: spaceSelectionSeq(),
+            spaceSelectionPending: isSpaceSelectionPending(),
+          })) void startVoiceCall(false, generation);
+        },
+      },
+    ]);
+  }, [companionVoice, companionToken, botId, inGroup, readOnly, focused]);
+
   const { runError, normalizedRunError, runErrorAction, detailsOpen, setDetailsOpen } =
     useThreadRunError(snap?.run, botId);
 
@@ -607,7 +659,19 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
             <ThreadComposerDock
               hidden={readOnly}
               columnPadding={columnPadding}
-              notice={<ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />}
+              notice={
+                <>
+                  {feedback.outboxRestoreFailed ? (
+                    <ThreadErrorNotice
+                      error={t(
+                        "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.",
+                      )}
+                      summary={null}
+                    />
+                  ) : null}
+                  <ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />
+                </>
+              }
               onHeight={setDockHeight}
               replyTarget={replyTarget}
               replyAuthor={
@@ -643,6 +707,12 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                   (attachment) => attachment.id,
                 )}
                 botId={botId}
+                modelLabel={currentBot?.modelId ?? undefined}
+                onModelPress={
+                  botId && !inGroup
+                    ? () => router.push({ pathname: "/thread-model", params: { botId } })
+                    : undefined
+                }
                 onCall={onCall}
                 working={working}
                 sending={composer.sending || attachments.shareImporting}

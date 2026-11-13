@@ -394,9 +394,9 @@ export const MessageRow = memo(function MessageRow({
               identity={activityBotId}
               size={inGroup ? 20 : 28}
               status={activityStatus}
-              motion="running"
-              composing={liveMessageComposing(message.blocks)}
-              pokeable
+              motion={message.id.startsWith("progress:") ? "running" : undefined}
+              composing={message.id.startsWith("progress:") && liveMessageComposing(message.blocks)}
+              pokeable={message.id.startsWith("progress:")}
             />
           </View>
         ) : null}

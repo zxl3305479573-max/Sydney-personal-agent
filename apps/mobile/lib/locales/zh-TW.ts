@@ -1,4 +1,26 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
+  "Server settings or the saved session could not be verified.": "無法驗證伺服器設定或已儲存的登入狀態。",
+  "Account deleted": "帳號已刪除",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "無法確認帳號是否已刪除。請先檢查帳號狀態，再決定是否重試。",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "原帳號已刪除，但本機清理失敗，且目前的登入工作階段已變更。",
+  "The original account was deleted. Your current session has changed.": "原帳號已刪除，目前的登入工作階段已變更。",
+  "The session changed. Open account deletion again.": "登入工作階段已變更，請重新開啟帳號刪除頁面。",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "帳號已刪除，但本機工作階段清理失敗。請重新啟動應用程式並嘗試登出。",
+  Computers: "電腦裝置",
+  "Could not load devices.": "無法載入裝置。",
+  "No computers paired with this account.": "此帳號尚未配對電腦裝置。",
+  Offline: "離線",
+  Refresh: "重新整理",
+  "Status at {time}; refresh to check again.": "狀態查詢於 {time}；重新整理可再次查詢。",
+  "Your session is unavailable or expired. Sign in again.":
+    "登入工作階段不可用或已過期，請重新登入。",
+  "The device API is unavailable. Check the server configuration.":
+    "裝置介面無法使用，請檢查伺服器設定。",
+  "Could not reach the server. Check your connection.": "無法連線至伺服器，請檢查網路。",
+  "The device request timed out. Try again.": "裝置查詢逾時，請重試。",
   Bots: "小夥伴",
   "Daily check-ins on unfinished work": "每天追蹤未完成的工作",
   "How other bots see it": "其他機器人如何瞭解它",
@@ -132,6 +154,10 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Couldn't refresh — showing the last loaded messages.": "無法重新整理——顯示最近載入的訊息。",
   "Try Again": "重試",
   "Too many unsent messages": "未傳送訊息過多",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "切換伺服器會登出目前帳號，並可能刪除未傳送的訊息和附件。請先傳送或另行儲存。",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "無法載入已儲存的待傳送訊息。新訊息如果未送達，關閉應用程式後可能遺失。",
   "Not sent": "未傳送",
   "Not sent · Tap to retry": "未傳送 · 輕點重試",
   Photo: "照片",
@@ -452,6 +478,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "OTA · {id}": "OTA · {id}",
   "OTA · {id} · {date}": "OTA · {id} · {date}",
   "Enter a server URL": "請輸入伺服器網址",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "請僅輸入伺服器網址，不要包含使用者名稱、密碼、路徑、查詢參數或片段",
   "Enter this code in your browser:": "請在瀏覽器中輸入以下驗證碼：",
   "Executor token": "Executor 權杖",
   Failed: "失敗",
@@ -825,6 +853,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Transcript: "字幕",
   Mute: "靜音",
   Unmute: "取消靜音",
+  "Enable bot voice": "開啟 Bot 語音播報",
+  "Disable bot voice": "關閉 Bot 語音播報",
   "Hang up": "結束通話",
   "Allow microphone access to call a bot.": "請允許使用麥克風，以便與機器人通話。",
   "Could not hear that.": "沒有聽清。",

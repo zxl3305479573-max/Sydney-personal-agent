@@ -52,6 +52,7 @@ import { spacesRoutes } from "./routes/spaces.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { threadsRoutes } from "./routes/threads.js";
 import type { VoiceDeps } from "./voice.js";
+import type { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 
 export { nextConnectionLabel } from "./model-credentials.js";
 export { botIntroPrompt, enqueueBotIntroRun } from "./routes/bots.js";
@@ -59,6 +60,7 @@ export { HEARTBEAT_MS, SESSION_RECHECK_MS } from "./routes/shared.js";
 export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
+  companionScreen?: ReturnType<typeof createCompanionScreenCoordinator>;
   pushTokens: PushTokenStore;
   analytics?: ProductAnalytics;
   cloudAgent?: CloudAgentConnection | null;
@@ -130,6 +132,7 @@ export interface RouterDeps {
     deploymentModelConfigured?: boolean;
     deploymentModelHostCredentials?: boolean;
     webOrigin: string;
+    screenProxyPublicOrigin?: string;
     privacyPolicyUrl?: string;
     screenProxySecret: string;
     sandboxProvider: string;

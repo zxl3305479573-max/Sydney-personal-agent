@@ -103,6 +103,9 @@ describe("foreground AI consent", () => {
     expect(aiDataUsesForProcedure("threads/get")).toEqual([]);
     expect(aiDataUsesForProcedure("threads/send")).toEqual(["model", "memory"]);
     expect(aiDataUsesForProcedure("voice/prepare")).toEqual(["voice"]);
+    expect(aiDataUsesForProcedure("threads/companionScreenStart")).toEqual(["model"]);
+    expect(aiDataUsesForProcedure("threads/companionScreenRespond")).toEqual(["model"]);
+    expect(aiDataUsesForProcedure("threads/companionScreenStop")).toEqual([]);
     expect(
       aiDataUsesForProcedure("routines/update", { routineId: "routine", active: false }),
     ).toEqual([]);

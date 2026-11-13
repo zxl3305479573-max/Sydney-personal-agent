@@ -37,7 +37,7 @@ import {
 import { ActiveBotGlyph } from "../../components/ai/CollaborationMarker";
 import { VoiceChatCard } from "../../components/call/VoiceChatCard";
 import type { ArtifactTarget } from "../../lib/artifact-open";
-import { useChatAppearance } from "../../lib/chat-appearance";
+import { chatBubbleTextShadow, useChatAppearance } from "../../lib/chat-appearance";
 import { liveWorkStage } from "../../lib/live-work-stage";
 import { quoteDraftForSelection } from "../../lib/quote-selection";
 import { messageHasVisibleBlocks } from "../../lib/tool-activity-view";
@@ -53,6 +53,13 @@ export function bubbleFrameWidth(role: ThreadMessage["role"]) {
   return role === "user"
     ? "max-w-[min(84%,calc(100%_-_8rem),39rem)] [@media(hover:none)]:max-w-[min(84%,39rem)]"
     : "max-w-[min(88%,calc(100%_-_8rem),39rem)] [@media(hover:none)]:max-w-[min(88%,39rem)]";
+}
+
+function bubbleBackground(color: string, opacity: number): string {
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
 }
 
 export const Transcript = memo(function Transcript({
@@ -504,6 +511,7 @@ export const Transcript = memo(function Transcript({
       <div
         ref={scrollRef}
         data-testid="transcript"
+        data-custom-chat-bubble={appearance.bubble ? "true" : undefined}
         onPointerDown={(event) => {
           lastScrollTop.current = event.currentTarget.scrollTop;
           autoScrolling.current = false;
@@ -552,11 +560,40 @@ export const Transcript = memo(function Transcript({
                   "--chat-user-foreground": userBubble.foreground,
                 }
               : {}),
-            ...(appearance.userTextColor
-              ? { "--custom-chat-user-foreground": appearance.userTextColor }
+            ...(appearance.userTextColor || appearance.bubble
+              ? {
+                  "--custom-chat-user-foreground":
+                    appearance.userTextColor ?? appearance.bubble?.userForeground,
+                }
               : {}),
-            ...(appearance.botTextColor
-              ? { "--custom-chat-bot-foreground": appearance.botTextColor }
+            ...(appearance.botTextColor || appearance.bubble
+              ? {
+                  "--custom-chat-bot-foreground":
+                    appearance.botTextColor ?? appearance.bubble?.botForeground,
+                }
+              : {}),
+            ...(appearance.bubble
+              ? {
+                  "--custom-chat-user-background": bubbleBackground(
+                    appearance.bubble.userBackground,
+                    appearance.bubble.opacity,
+                  ),
+                  "--custom-chat-bot-background": bubbleBackground(
+                    appearance.bubble.botBackground,
+                    appearance.bubble.opacity,
+                  ),
+                  "--custom-chat-bubble-radius": `${appearance.bubble.radius}px`,
+                  "--custom-chat-user-shadow": chatBubbleTextShadow(
+                    appearance.userTextColor ?? appearance.bubble.userForeground,
+                    appearance.bubble.userBackground,
+                    appearance.bubble.opacity,
+                  ),
+                  "--custom-chat-bot-shadow": chatBubbleTextShadow(
+                    appearance.botTextColor ?? appearance.bubble.botForeground,
+                    appearance.bubble.botBackground,
+                    appearance.bubble.opacity,
+                  ),
+                }
               : {}),
           } as CSSProperties
         }

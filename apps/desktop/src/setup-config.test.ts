@@ -35,6 +35,12 @@ describe("server address normalization", () => {
     );
   });
 
+  it("requires HTTPS for a public IP server", () => {
+    expect(normalizeServerUrl("203.0.113.10")).toBe("https://203.0.113.10");
+    expect(normalizeServerUrl("https://203.0.113.10:8443")).toBe("https://203.0.113.10:8443");
+    expect(normalizeServerUrl("http://203.0.113.10")).toBeNull();
+  });
+
   it("trims surrounding space, trailing slashes, queries, and fragments", () => {
     expect(normalizeServerUrl("  http://127.0.0.1:5173/  ")).toBe("http://127.0.0.1:5173");
     expect(normalizeServerUrl("http://127.0.0.1:5173///")).toBe("http://127.0.0.1:5173");
@@ -146,6 +152,13 @@ describe("saved setup", () => {
     });
     expect(parseSetupInput({ mode: "new", serverUrl: RAKAZO_CLOUD_URL })).toBeNull();
     expect(servesBundledRenderer(RAKAZO_CLOUD_URL, false)).toBe(false);
+  });
+
+  it.runIf(process.platform === "win32")("uses the production IP for the Windows cloud choice", () => {
+    expect(RAKAZO_CLOUD_URL).toBe("https://124.221.182.39");
+    expect(
+      resolveStartupTarget({ saved: { mode: "existing", serverUrl: "https://pc.zxlup.xin" } }),
+    ).toEqual({ kind: "app", url: "https://pc.zxlup.xin", source: "saved" });
   });
 });
 
@@ -282,6 +295,15 @@ describe("remote-content isolation", () => {
     expect(first).toMatch(/^persist:rakazo-[a-f0-9]{24}$/);
     expect(first).not.toContain("one.example.com");
     expect(sessionPartitionForServerUrl("data:text/html,fixture")).toBeNull();
+  });
+
+  it("does not share desktop session storage between a domain and an IP", () => {
+    const domain = sessionPartitionForServerUrl("https://server.example");
+    const ip = sessionPartitionForServerUrl("https://203.0.113.10");
+    expect(ip).toMatch(/^persist:rakazo-[a-f0-9]{24}$/);
+    expect(ip).not.toBe(domain);
+    expect(ip).toBe(sessionPartitionForServerUrl("https://203.0.113.10/chat"));
+    expect(ip).not.toBe(sessionPartitionForServerUrl("https://203.0.113.10:8443"));
   });
 
   it("opens only web URLs outside Electron", () => {

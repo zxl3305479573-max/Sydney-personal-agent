@@ -5,6 +5,10 @@ import {
 } from "@rakazo/contracts/content-security-policy";
 
 const PASSTHROUGH_PATHS = ["/api", "/rpc", "/novnc"];
+const PASSTHROUGH_FILES = [
+  "/.well-known/apple-app-site-association",
+  "/.well-known/assetlinks.json",
+];
 
 const CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -14,6 +18,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".webp": "image/webp",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
@@ -26,10 +31,7 @@ export function bundledRendererCandidates(
   acceptsHtml: boolean,
 ) {
   const url = new URL(requestUrl);
-  if (
-    url.origin !== webOrigin ||
-    PASSTHROUGH_PATHS.some((prefix) => matchesPrefix(url.pathname, prefix))
-  ) {
+  if (url.origin !== webOrigin || isPassthroughPath(url.pathname)) {
     return null;
   }
 
@@ -39,7 +41,14 @@ export function bundledRendererCandidates(
   } catch {
     return null;
   }
-  if (pathname.includes("\0")) return null;
+  if (
+    pathname.includes("\0") ||
+    pathname.includes("\\") ||
+    pathname.split("/").some((segment) => segment === "." || segment === "..") ||
+    isPassthroughPath(pathname)
+  ) {
+    return null;
+  }
 
   const requested = pathname === "/" ? "index.html" : pathname.slice(1);
   const candidate = safeChild(root, requested);
@@ -100,6 +109,13 @@ function fromAppPage(request: Request, webOrigin: string) {
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function isPassthroughPath(pathname: string) {
+  return (
+    PASSTHROUGH_FILES.some((prefix) => pathname.startsWith(prefix)) ||
+    PASSTHROUGH_PATHS.some((prefix) => matchesPrefix(pathname, prefix))
+  );
 }
 
 function safeChild(root: string, requested: string) {

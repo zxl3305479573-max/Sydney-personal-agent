@@ -485,11 +485,27 @@ model SpaceMember {
   aiDataConsents AiDataConsent[]
   modelRoleChoices SpaceModelRoleChoice[]
   settingOverrides SpaceSettingOverride[]
+  projectWorkspaces ProjectWorkspace[]
 
   @@unique([spaceId, userId])
   @@index([organizationId, userId])
   @@index([userId, createdAt])
   @@map("space_members")
+}
+
+model ProjectWorkspace {
+  id         String      @id @default(cuid())
+  spaceId    String
+  userId     String
+  owner      SpaceMember @relation(fields: [spaceId, userId], references: [spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "project_workspaces_owner_fkey")
+  name       String
+  deletingAt DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([id, spaceId, userId])
+  @@index([spaceId, userId, createdAt, id])
+  @@map("project_workspaces")
 }
 
 model Invitation {

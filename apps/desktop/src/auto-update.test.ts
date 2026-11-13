@@ -7,6 +7,7 @@ import {
   MIN_CHECK_INTERVAL_MS,
   reduceUpdateState,
   shouldCheck,
+  sydneyUpdaterEnvironment,
   updaterSupport,
 } from "./auto-update.js";
 
@@ -295,6 +296,27 @@ describe("shouldCheck", () => {
 });
 
 describe("DesktopUpdateController", () => {
+  it.each([true, false])(
+    "never loads an updater for a Sydney install (packaged: %s)",
+    async (isPackaged) => {
+      const fake = fakeUpdater();
+      const loadUpdater = vi.fn(async () => fake.updater);
+      const controller = new DesktopUpdateController(
+        sydneyUpdaterEnvironment(isPackaged, "0.4.0"),
+        loadUpdater,
+        clock,
+      );
+
+      expect(controller.state().phase).toBe("unsupported");
+      await controller.check(false);
+      await controller.check(true);
+      await controller.download();
+      await controller.install();
+      expect(loadUpdater).not.toHaveBeenCalled();
+      expect(controller.state()).toMatchObject({ phase: "unsupported", availableVersion: null });
+    },
+  );
+
   it("locks the updater to stable, upgrade-only, signed installer behavior", async () => {
     const fake = fakeUpdater();
     const controller = new DesktopUpdateController(packaged, async () => fake.updater, clock);

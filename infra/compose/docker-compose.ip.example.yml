@@ -1,0 +1,13 @@
+# Example only. Certificate paths must already exist inside the Caddy container.
+# API trusted origins and optional screen proxy origin are configured separately; see docx/OPERATIONS.md.
+# Review existing domain access controls, restart persistence and rollback before use.
+services:
+  caddy:
+    environment:
+      RAKAZO_HOST: ${RAKAZO_HOST:?Set the existing domain}
+      RAKAZO_CERT_FILE: ${RAKAZO_CERT_FILE:?Set the existing certificate path inside the container}
+      RAKAZO_KEY_FILE: ${RAKAZO_KEY_FILE:?Set the existing private key path inside the container}
+      RAKAZO_PUBLIC_IP: ${RAKAZO_PUBLIC_IP:?Set the verified public IP}
+      RAKAZO_IP_ACME_DIRECTORY: ${RAKAZO_IP_ACME_DIRECTORY:?Set the ACME directory}
+    volumes:
+      - ./Caddyfile.ip.example:/etc/caddy/Caddyfile:ro

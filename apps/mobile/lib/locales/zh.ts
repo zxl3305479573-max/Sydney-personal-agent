@@ -1,4 +1,16 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "Server settings or the saved session could not be verified.": "无法验证服务器设置或已保存的登录状态。",
+  Computers: "电脑设备",
+  "Could not load devices.": "无法加载设备。",
+  "No computers paired with this account.": "此账号暂无已配对的电脑设备。",
+  Offline: "离线",
+  Refresh: "刷新",
+  "Status at {time}; refresh to check again.": "状态查询于 {time}；刷新可重新查询。",
+  "Your session is unavailable or expired. Sign in again.": "登录会话不可用或已过期，请重新登录。",
+  "The device API is unavailable. Check the server configuration.":
+    "设备接口不可用，请检查服务器配置。",
+  "Could not reach the server. Check your connection.": "无法连接服务器，请检查网络。",
+  "The device request timed out. Try again.": "设备查询超时，请重试。",
   Bots: "小伙伴",
   "Daily check-ins on unfinished work": "每天跟进未完成的工作",
   "How other bots see it": "其他机器人如何了解它",
@@ -14,6 +26,12 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not connect to the computer screen": "无法连接到计算机屏幕",
   "Retry screen": "重试屏幕连接",
   "The screen connection closed.": "屏幕连接已关闭。",
+  "Waiting for screen dimensions…": "正在等待电脑画面尺寸…",
+  "Computer input failed. Take control again.": "电脑输入失败，请重新接管。",
+  "Too many pending inputs. Take control again.": "等待处理的操作过多，请重新接管。",
+  "Computer control is unavailable. Release and take control again.":
+    "电脑接管暂不可用，请先退出接管，再重新接管。",
+  "Check the screen, then release and take control again.": "请先查看画面，然后退出并重新接管。",
   Approvals: "审批",
   Rules: "规则",
   "Never ask": "从不询问",
@@ -152,6 +170,10 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Couldn't refresh — showing the last loaded messages.": "无法刷新——显示最近加载的消息。",
   "Try Again": "重试",
   "Too many unsent messages": "未发送消息过多",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "切换服务器会退出当前账号，并可能删除未发送的消息和附件。请先发送或另行保存。",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "无法加载已保存的待发送消息。新消息如果未送达，关闭应用后可能丢失。",
   "Not sent": "未发送",
   "Not sent. Tap to retry": "未发送。轻点重试",
   "Not sent · Tap to retry": "未发送 · 轻点重试",
@@ -369,6 +391,16 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not create group": "无法创建群组",
   "Could not create space": "无法创建空间",
   "Could not delete account": "无法删除账户",
+  "Account deleted": "账户已删除",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "无法确认账户是否已删除。请先检查账户状态，再决定是否重试。",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "原账户已删除，但本地清理失败，且当前登录会话已发生变化。",
+  "The original account was deleted. Your current session has changed.":
+    "原账户已删除，当前登录会话已发生变化。",
+  "The session changed. Open account deletion again.": "登录会话已变化，请重新打开账户删除页面。",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "账户已删除，但本地会话清理失败。请重启应用并尝试退出登录。",
   "Could not delete bot": "无法删除 Bot",
   "Could not delete group": "无法删除群组",
   "Could not delete space": "无法删除空间",
@@ -379,6 +411,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not load group": "无法加载群组",
   "Could not load integrations": "无法加载集成",
   "Could not load model settings": "无法加载模型设置",
+  "Could not save changes": "无法保存更改",
+  "Add model": "添加模型",
   "Could not load routine": "无法加载例行任务",
   "Could not load routines": "无法加载例行任务",
   "{count} on": "{count} 个已开启",
@@ -483,6 +517,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "OTA · {id}": "OTA · {id}",
   "OTA · {id} · {date}": "OTA · {id} · {date}",
   "Enter a server URL": "请输入服务器地址",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "请仅输入服务器地址，不要包含用户名、密码、路径、查询参数或片段",
   "Enter this code in your browser:": "请在浏览器中输入此代码：",
   "Executor token": "Executor 令牌",
   Failed: "失败",
@@ -866,6 +902,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   Transcript: "字幕",
   Mute: "静音",
   Unmute: "取消静音",
+  "Enable bot voice": "开启 Bot 语音播报",
+  "Disable bot voice": "关闭 Bot 语音播报",
   "Hang up": "挂断",
   "Allow microphone access to call a bot.": "请允许使用麦克风，以便与 Bot 通话。",
   "Could not hear that.": "没有听清。",

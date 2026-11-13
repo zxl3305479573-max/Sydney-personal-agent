@@ -20,6 +20,45 @@ export const SCREEN_URL_RENEW_MS = 50 * 60_000;
 
 export type ComputerStatus = ContractComputerStatus;
 
+export function screenUrlForApi(
+  screen: { url: string | null; proxy?: string },
+  apiBase: string,
+): string | null {
+  if (!screen.url || screen.proxy !== "rakazo-novnc") return screen.url;
+  try {
+    const url = new URL(screen.url);
+    const api = new URL(apiBase);
+    const rawPath = screen.url.match(/^https?:\/\/[^/?#]+(\/[^?#]*)?/i)?.[1] ?? "";
+    const match = rawPath.match(
+      /^\/novnc\/session\/(view|control)\/\d+\.[A-Za-z0-9_-]+((?:\/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9a-fA-F]{2})+)*\/?)$/,
+    );
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username ||
+      url.password ||
+      (api.protocol !== "http:" && api.protocol !== "https:") ||
+      (api.protocol === "https:" && url.protocol !== "https:") ||
+      rawPath !== url.pathname ||
+      !match ||
+      match[2] === undefined
+    )
+      return null;
+    for (const part of match[2].split("/")) {
+      const decoded = decodeURIComponent(part);
+      if (
+        decoded === "." ||
+        decoded === ".." ||
+        /[/\\%]/.test(decoded) ||
+        [...decoded].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+      )
+        return null;
+    }
+    return screen.url;
+  } catch {
+    return null;
+  }
+}
+
 export async function readScreenUrl(
   request: () => Promise<{ url: string | null }>,
   options: {
@@ -49,25 +88,15 @@ export async function readScreenUrl(
   return null;
 }
 
-/** Point a loopback noVNC URL at the same host the app uses for the API. */
 export function embeddableScreenUrl(url: string | null, apiBase: string): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
     const api = new URL(apiBase);
-    // A deployment behind one HTTPS origin proxies /novnc/ there, like the web client relies on,
-    // even when WEB_ORIGIN still names an address this device cannot reach.
-    if (
-      api.protocol === "https:" &&
-      isProxiedScreenPage(url) &&
-      (parsed.protocol === "http:" || isPrivateNetworkHost(parsed.hostname))
-    ) {
-      return `${api.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
-    }
-    if (isLocalhostOrLoopbackIp(parsed.hostname) && !isLocalhostOrLoopbackIp(api.hostname)) {
-      parsed.hostname = api.hostname;
-    }
+    if (api.protocol === "https:" && parsed.protocol !== "https:") return null;
+    if (isLocalhostOrLoopbackIp(parsed.hostname) && !isLocalhostOrLoopbackIp(api.hostname))
+      return null;
     if (parsed.protocol === "http:" && !isPrivateNetworkHost(parsed.hostname)) return null;
     return parsed.toString();
   } catch {
@@ -254,17 +283,16 @@ export function fromScreenPage(
   loadedPageUrl?: string | null,
 ): boolean {
   try {
-    // Android WebMessageListener reports the sender's origin, which is "null" for the
-    // sandboxed screen. Accept its advisory state only while the native navigation
-    // event identifies the exact authorized screen page; other pages stay rejected.
+    const screen = new URL(screenUrl);
+    const loadedMatches = Boolean(loadedPageUrl) && new URL(loadedPageUrl!).href === screen.href;
     if (pageUrl === "null") {
-      return (
-        isProxiedScreenPage(screenUrl) &&
-        Boolean(loadedPageUrl) &&
-        new URL(loadedPageUrl!).href === new URL(screenUrl).href
-      );
+      return isProxiedScreenPage(screenUrl) && loadedMatches;
     }
-    return Boolean(pageUrl) && new URL(pageUrl!).origin === new URL(screenUrl).origin;
+    if (!pageUrl) return false;
+    const sender = new URL(pageUrl);
+    if (loadedPageUrl && !loadedMatches) return false;
+    if (sender.href === screen.href) return true;
+    return sender.href === `${screen.origin}/` && loadedMatches;
   } catch {
     return false;
   }

@@ -266,7 +266,7 @@ export const MessageView = memo(function MessageView({
           >
             <div
               data-testid="message-bot-bubble"
-              className="rk-chat-type max-w-full space-y-2.5 text-foreground/80"
+              className="sydney-chat-bubble-bot rk-chat-type max-w-full space-y-2.5 text-foreground/80"
               style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
               dir="auto"
             >
@@ -425,7 +425,8 @@ export const MessageView = memo(function MessageView({
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full text-foreground/80"
+                  className="sydney-chat-bubble-bot rk-chat-type max-w-full text-foreground/80"
+                  style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
                   dir="auto"
                 >
                   <ChatMarkdown streaming renderMention={renderMention} showWebsiteUrls>
@@ -543,7 +544,7 @@ export const MessageView = memo(function MessageView({
                 <div
                   data-testid="message-user-bubble"
                   data-quote-message-id={quoteMessageId}
-                  className="rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
+                  className="sydney-chat-bubble-user rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
                   style={{ color: "var(--custom-chat-user-foreground, var(--foreground))" }}
                   dir="auto"
                 >
@@ -562,7 +563,7 @@ export const MessageView = memo(function MessageView({
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full text-foreground/80"
+                  className="sydney-chat-bubble-bot rk-chat-type max-w-full text-foreground/80"
                   style={{
                     color: "var(--custom-chat-bot-foreground, var(--foreground))",
                   }}

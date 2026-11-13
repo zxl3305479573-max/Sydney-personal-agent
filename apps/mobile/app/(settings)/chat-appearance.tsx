@@ -9,6 +9,7 @@ import {
   clearMobileChatBackground,
   getMobileChatAppearance,
   MOBILE_BUBBLE_PRESETS,
+  mobileBubbleSurfaceStyle,
   saveMobileChatAppearance,
   useMobileChatAppearance,
 } from "../../lib/chat-appearance";
@@ -55,7 +56,7 @@ export default function ChatAppearanceScreen() {
   async function saveBubble(bubble: typeof appearance.bubble) {
     setBusy(true);
     try {
-      await saveMobileChatAppearance({ ...appearance, bubble });
+      await saveMobileChatAppearance({ ...getMobileChatAppearance(), bubble });
     } catch {
       Alert.alert(t("Could not save"));
     } finally {
@@ -79,6 +80,14 @@ export default function ChatAppearanceScreen() {
   }
 
   const chinese = locale === "zh-CN";
+  const previewBubble = appearance.bubble ?? MOBILE_BUBBLE_PRESETS[0]!.value;
+  const adjustBubble = (field: "radius" | "opacity", amount: number, max: number) => {
+    const current = getMobileChatAppearance().bubble ?? MOBILE_BUBBLE_PRESETS[0]!.value;
+    void saveBubble({
+      ...current,
+      [field]: Math.max(0, Math.min(max, Math.round((current[field] + amount) * 100) / 100)),
+    });
+  };
   const adjust = (field: "backgroundOpacity" | "overlayOpacity", amount: number, max: number) => {
     const current = getMobileChatAppearance()[field];
     void updateBackground({
@@ -200,6 +209,56 @@ export default function ChatAppearanceScreen() {
         />
       </SettingsGroup>
 
+      <SettingsGroup label={chinese ? "气泡调整" : "Bubble adjustments"}>
+        <View style={styles.bubblePreview}>
+          <View
+            style={[
+              styles.previewBubble,
+              mobileBubbleSurfaceStyle({ ...appearance, bubble: previewBubble }, "bot", {
+                backgroundColor: previewBubble.botBackground,
+              }),
+              { alignSelf: "flex-start" },
+            ]}
+          >
+            <Text style={{ color: previewBubble.botForeground }}>
+              {chinese ? "机器人消息" : "Bot message"}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.previewBubble,
+              mobileBubbleSurfaceStyle({ ...appearance, bubble: previewBubble }, "user", {
+                backgroundColor: previewBubble.userBackground,
+              }),
+              { alignSelf: "flex-end" },
+            ]}
+          >
+            <Text style={{ color: previewBubble.userForeground }}>
+              {chinese ? "我发送的消息" : "Your message"}
+            </Text>
+          </View>
+        </View>
+        <OpacityControl
+          label={chinese ? "气泡圆角" : "Bubble radius"}
+          value={previewBubble.radius}
+          max={40}
+          unit="px"
+          disabled={busy}
+          onDecrease={() => adjustBubble("radius", -2, 40)}
+          onIncrease={() => adjustBubble("radius", 2, 40)}
+          chinese={chinese}
+        />
+        <OpacityControl
+          label={chinese ? "气泡透明度" : "Bubble transparency"}
+          value={Math.round((1 - previewBubble.opacity) * 100)}
+          max={100}
+          disabled={busy}
+          onDecrease={() => adjustBubble("opacity", 0.1, 1)}
+          onIncrease={() => adjustBubble("opacity", -0.1, 1)}
+          chinese={chinese}
+        />
+      </SettingsGroup>
+
       <Text style={[styles.note, { color: tokens.mutedForeground }]}>
         {t("Chat appearance is saved on this device and is not uploaded.")}
       </Text>
@@ -212,6 +271,7 @@ function OpacityControl({
   label,
   value,
   max,
+  unit = "%",
   disabled,
   onDecrease,
   onIncrease,
@@ -220,6 +280,7 @@ function OpacityControl({
   label: string;
   value: number;
   max: number;
+  unit?: string;
   disabled: boolean;
   onDecrease: () => void;
   onIncrease: () => void;
@@ -229,7 +290,8 @@ function OpacityControl({
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
       <Text style={{ color: tokens.foreground, fontSize: 15 }}>
-        {label}：{value}%
+        {label}：{value}
+        {unit}
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Pressable
@@ -245,7 +307,7 @@ function OpacityControl({
           accessible
           accessibilityRole="adjustable"
           accessibilityLabel={label}
-          accessibilityValue={{ min: 0, max, now: value, text: `${value}%` }}
+          accessibilityValue={{ min: 0, max, now: value, text: `${value}${unit}` }}
           accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
           onAccessibilityAction={(event) => {
             if (disabled) return;
@@ -292,6 +354,8 @@ function createStyles() {
       left: 0,
       backgroundColor: "#000",
     },
+    bubblePreview: { padding: 16, gap: 10 },
+    previewBubble: { maxWidth: "85%" as const, paddingHorizontal: 14, paddingVertical: 9 },
     swatches: { flexDirection: "row" as const, gap: 6 },
     stackedSwatches: { marginTop: 8 },
     swatch: { width: 28, height: 28, borderRadius: 14 },

@@ -1,4 +1,28 @@
 export const NL_MESSAGES: Record<string, string> = {
+  "Account deleted": "Account verwijderd",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "Het verwijderen van het account kon niet worden bevestigd. Controleer je account voordat je het opnieuw probeert.",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "Het oorspronkelijke account is verwijderd, maar lokaal opschonen is mislukt en je sessie is gewijzigd.",
+  "The original account was deleted. Your current session has changed.": "Het oorspronkelijke account is verwijderd. Je huidige sessie is gewijzigd.",
+  "The session changed. Open account deletion again.": "De sessie is gewijzigd. Open het verwijderen van het account opnieuw.",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "Het account is verwijderd, maar de lokale sessie kon niet worden opgeschoond. Start de app opnieuw en probeer uit te loggen.",
+  Computers: "Computers",
+  "Could not load devices.": "Apparaten konden niet worden geladen.",
+  "No computers paired with this account.": "Er zijn geen computers aan dit account gekoppeld.",
+  Offline: "Offline",
+  Refresh: "Vernieuwen",
+  "Status at {time}; refresh to check again.":
+    "Status om {time}; vernieuw om opnieuw te controleren.",
+  "Your session is unavailable or expired. Sign in again.":
+    "Je sessie is niet beschikbaar of verlopen. Meld je opnieuw aan.",
+  "The device API is unavailable. Check the server configuration.":
+    "De apparaten-API is niet beschikbaar. Controleer de serverconfiguratie.",
+  "Could not reach the server. Check your connection.":
+    "De server is niet bereikbaar. Controleer je verbinding.",
+  "The device request timed out. Try again.":
+    "De apparaataanvraag duurde te lang. Probeer het opnieuw.",
   Bots: "Bots",
   "Connect apps": "Apps verbinden",
   "Daily check-ins on unfinished work": "Dagelijks navragen over onafgemaakt werk",
@@ -806,6 +830,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "{name}’s computer": "de computer van {name}",
   "Could not reach that server": "Die server is niet bereikbaar",
   "Enter a server URL": "Voer een server-URL in",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "Voer alleen het serveradres in, zonder inloggegevens, pad, query of fragment",
   "Public servers need https://. HTTP only works on your local network.":
     "Openbare servers vereisen https://. HTTP werkt alleen op je lokale netwerk.",
   "That URL did not look like a Rakazo server": "Die URL leek geen Rakazo-server",

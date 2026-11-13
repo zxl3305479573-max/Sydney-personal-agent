@@ -443,10 +443,17 @@ it("shows actionable bot status in place of the message preview", () => {
   ]);
 });
 
-it("ties the pinned tiles' avatars to the pinned row, so they freeze when it scrolls away", () => {
-  const bot = { id: "bot-p", name: "Pinned", preview: "", pinned: true } as MobileBot;
+it("shows pinned tiles with avatar and name without the message preview", () => {
+  const bot = {
+    id: "bot-p",
+    name: "Pinned",
+    preview: "Private preview",
+    pinned: true,
+  } as MobileBot;
   render(<List items={[{ type: "pinned", chats: [{ kind: "bot", bot }] }]} />);
   expect(container.querySelector('[data-row="pinned"] b[data-identity="bot-p"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Pinned"]')?.textContent).toContain("Pinned");
+  expect(container.textContent).not.toContain("Private preview");
 });
 
 it("collapses a section from its heading and keeps the choice for the account", async () => {

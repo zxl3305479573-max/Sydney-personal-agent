@@ -3,6 +3,7 @@ import type { SpanAttributes, TelemetryContext, TelemetrySpan } from "@earendil-
 import type { AgentRunRequest } from "@rakazo/adapter-kit";
 
 const current = new AsyncLocalStorage<TelemetryContext>();
+const suppressed = new AsyncLocalStorage<boolean>();
 let exporter: Promise<{ context: TelemetryContext; shutdown(): Promise<void> }> | undefined;
 
 /** Disabled deployments never load or initialize the OTel SDK. */
@@ -10,7 +11,7 @@ export async function withPiTelemetry<T>(
   request: Pick<AgentRunRequest, "botId" | "runId" | "routineId">,
   work: (span?: TelemetrySpan) => Promise<T>,
 ): Promise<T> {
-  if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) return work();
+  if (suppressed.getStore() || !process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) return work();
   exporter ??= import("./pi-telemetry-otel.js").then(({ createPiTelemetryExporter }) =>
     createPiTelemetryExporter(),
   );
@@ -39,9 +40,13 @@ export function withPiTelemetrySpan<T>(
   attributes: SpanAttributes,
   work: (span?: TelemetrySpan) => Promise<T>,
 ): Promise<T> {
-  const parent = current.getStore();
+  const parent = suppressed.getStore() ? undefined : current.getStore();
   if (!parent) return work();
   return parent.startSpan({ name, attributes }, (span) => current.run(span, () => work(span)));
+}
+
+export function withoutPiTelemetry<T>(work: () => T): T {
+  return suppressed.run(true, work);
 }
 
 export async function shutdownPiTelemetry(): Promise<void> {
@@ -60,7 +65,7 @@ export function recordPiTelemetryContent(
   key: string,
   value: unknown,
 ): void {
-  if (!span || process.env.OTEL_CAPTURE_CONTENT !== "true") return;
+  if (suppressed.getStore() || !span || process.env.OTEL_CAPTURE_CONTENT !== "true") return;
   try {
     span.setAttributes({ [key]: JSON.stringify(value) });
   } catch {

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MobileBot } from "./api";
-import { adoptDeletedSpaceFallback, rpc, selectedSpaceId, selectSpace } from "./api";
+import {
+  adoptDeletedSpaceFallback,
+  captureServerSessionScope,
+  isServerSessionScopeCurrent,
+  rpc,
+  selectedSpaceId,
+  selectSpace,
+} from "./api";
 import { activateUiLocale } from "./i18n";
 import type { InboxSpace } from "./inbox-spaces";
 import {
@@ -19,6 +26,8 @@ import { offscreenUnreads } from "./offscreen-unreads";
 
 vi.mock("./api", () => ({
   adoptDeletedSpaceFallback: vi.fn(),
+  captureServerSessionScope: vi.fn(),
+  isServerSessionScopeCurrent: vi.fn(),
   rpc: vi.fn(),
   selectedSpaceId: vi.fn(),
   selectSpace: vi.fn(),
@@ -325,8 +334,11 @@ describe("spaceInboxItems", () => {
 });
 
 describe("removeInboxSpace", () => {
+  const scope = { apiBase: "https://server.example", endpointGeneration: 1, sessionGeneration: 1 };
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(captureServerSessionScope).mockReturnValue(scope);
+    vi.mocked(isServerSessionScopeCurrent).mockReturnValue(true);
     vi.mocked(selectedSpaceId).mockReturnValue("space-work");
     vi.mocked(rpc).mockResolvedValue({ ok: true, activeSpaceId: "personal" });
     vi.mocked(selectSpace).mockResolvedValue(true);
@@ -343,7 +355,7 @@ describe("removeInboxSpace", () => {
     );
     const refresh = vi.fn(async () => undefined);
     const removing = removeInboxSpace("space-work", refresh);
-    await vi.waitFor(() => expect(selectSpace).toHaveBeenCalledWith("personal"));
+    await vi.waitFor(() => expect(selectSpace).toHaveBeenCalledWith("personal", scope));
     expect(refresh).not.toHaveBeenCalled();
     finishSelection(true);
     await expect(removing).resolves.toBeNull();
@@ -363,7 +375,7 @@ describe("removeInboxSpace", () => {
     vi.mocked(selectSpace).mockResolvedValue(false);
     const refresh = vi.fn(async () => undefined);
     await expect(removeInboxSpace("space-work", refresh)).resolves.toBeNull();
-    expect(adoptDeletedSpaceFallback).toHaveBeenCalledWith("personal");
+    expect(adoptDeletedSpaceFallback).toHaveBeenCalledWith("personal", scope);
     expect(refresh).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledOnce();
   });
@@ -373,12 +385,12 @@ describe("removeInboxSpace", () => {
     vi.mocked(adoptDeletedSpaceFallback).mockResolvedValue(false);
     const refresh = vi.fn(async () => undefined);
     const recoveryId = await removeInboxSpace("space-work", refresh);
-    expect(recoveryId).toBe("personal");
+    expect(recoveryId).toEqual({ spaceId: "personal", scope });
     expect(refresh).toHaveBeenCalledOnce();
     vi.mocked(adoptDeletedSpaceFallback).mockResolvedValue(true);
     await expect(retryInboxSpaceFallback(recoveryId!, refresh)).resolves.toBe(true);
     expect(adoptDeletedSpaceFallback).toHaveBeenCalledTimes(2);
-    expect(adoptDeletedSpaceFallback).toHaveBeenLastCalledWith("personal");
+    expect(adoptDeletedSpaceFallback).toHaveBeenLastCalledWith("personal", scope);
     expect(selectSpace).toHaveBeenCalledOnce();
     expect(refresh).toHaveBeenCalledTimes(2);
     expect(rpc).toHaveBeenCalledOnce();
@@ -387,7 +399,7 @@ describe("removeInboxSpace", () => {
   it("keeps the retry visible when fallback persistence still fails", async () => {
     vi.mocked(adoptDeletedSpaceFallback).mockResolvedValue(false);
     const refresh = vi.fn(async () => undefined);
-    await expect(retryInboxSpaceFallback("personal", refresh)).resolves.toBe(false);
+    await expect(retryInboxSpaceFallback({ spaceId: "personal", scope }, refresh)).resolves.toBe(false);
     expect(refresh).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -412,7 +424,7 @@ describe("removeInboxSpace", () => {
     vi.mocked(selectSpace).mockRejectedValue(new Error("storage unavailable"));
     const refresh = vi.fn(async () => undefined);
     await expect(removeInboxSpace("space-work", refresh)).resolves.toBeNull();
-    expect(adoptDeletedSpaceFallback).toHaveBeenCalledWith("personal");
+    expect(adoptDeletedSpaceFallback).toHaveBeenCalledWith("personal", scope);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
@@ -422,6 +434,27 @@ describe("removeInboxSpace", () => {
     await expect(removeInboxSpace("space-work", refresh)).rejects.toThrow("Space is not empty");
     expect(selectSpace).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("rejects a deletion response after its server or session changes", async () => {
+    vi.mocked(isServerSessionScopeCurrent).mockReturnValue(false);
+    const refresh = vi.fn(async () => undefined);
+    await expect(removeInboxSpace("space-work", refresh)).rejects.toThrow();
+    expect(selectSpace).not.toHaveBeenCalled();
+    expect(adoptDeletedSpaceFallback).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("refuses retry when the original server or session has changed", async () => {
+    vi.mocked(selectSpace).mockResolvedValue(false);
+    vi.mocked(adoptDeletedSpaceFallback).mockResolvedValue(false);
+    const refresh = vi.fn(async () => undefined);
+    const recoveryId = await removeInboxSpace("space-work", refresh);
+    vi.mocked(isServerSessionScopeCurrent).mockReturnValue(false);
+    vi.mocked(adoptDeletedSpaceFallback).mockClear();
+    await expect(retryInboxSpaceFallback(recoveryId!, refresh)).resolves.toBe(false);
+    expect(adoptDeletedSpaceFallback).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });
 

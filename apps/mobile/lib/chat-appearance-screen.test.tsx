@@ -73,7 +73,20 @@ vi.mock("./chat-appearance", () => ({
   saveMobileChatAppearance: store.save,
   chooseMobileChatBackground: vi.fn(),
   clearMobileChatBackground: vi.fn(),
-  MOBILE_BUBBLE_PRESETS: [],
+  mobileBubbleSurfaceStyle: () => ({ backgroundColor: "gray", borderRadius: 20 }),
+  MOBILE_BUBBLE_PRESETS: [
+    {
+      name: "默认",
+      value: {
+        userBackground: "#dbeafe",
+        userForeground: "#172554",
+        botBackground: "#f3f4f6",
+        botForeground: "#1f2937",
+        radius: 20,
+        opacity: 1,
+      },
+    },
+  ],
 }));
 
 it("applies display mode and transparency actions to the existing appearance", async () => {
@@ -96,5 +109,26 @@ it("applies display mode and transparency actions to the existing appearance", a
     container.querySelector<HTMLButtonElement>('button[aria-label="降低暗色遮罩"]')?.click(),
   );
   expect(store.save).toHaveBeenLastCalledWith({ ...store.current, overlayOpacity: 0.15 });
+  await act(async () => root.unmount());
+});
+
+it("saves bubble radius and transparency without changing the chat background", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ChatAppearanceScreen />));
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="提高气泡圆角"]')?.click(),
+  );
+  expect(store.save).toHaveBeenLastCalledWith({
+    ...store.current,
+    bubble: expect.objectContaining({ radius: 22, opacity: 1 }),
+  });
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="提高气泡透明度"]')?.click(),
+  );
+  expect(store.save).toHaveBeenLastCalledWith({
+    ...store.current,
+    bubble: expect.objectContaining({ radius: 20, opacity: 0.9 }),
+  });
   await act(async () => root.unmount());
 });

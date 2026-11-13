@@ -1,6 +1,7 @@
 import { isModelRequiredSendError } from "@rakazo/core";
 import { typeScale } from "@rakazo/ui-tokens";
 import { ActionSheetIOS, Alert, Image, Platform, Pressable, Text, View } from "react-native";
+import { mobileBubbleSurfaceStyle, useMobileChatAppearance } from "../lib/chat-appearance";
 import { useI18n } from "../lib/i18n";
 import { openModelSettings } from "../lib/model-settings";
 import { useMobileTokens } from "../lib/native";
@@ -25,6 +26,8 @@ export function FailedSendBubble({
 }) {
   const { t } = useI18n();
   const tokens = withUserBubble(useMobileTokens(), userBubble);
+  const chatAppearance = useMobileChatAppearance();
+  const textColor = chatAppearance.bubble?.userForeground ?? tokens.chatUserForeground;
   const { payload, state } = attempt;
   const sending = state === "pending";
   const retryable = state === "failed" || state === "queued";
@@ -110,8 +113,7 @@ export function FailedSendBubble({
     >
       <View
         style={{
-          borderRadius: 20,
-          backgroundColor: tokens.chatUser,
+          ...mobileBubbleSurfaceStyle(chatAppearance, "user", { backgroundColor: tokens.chatUser }),
           paddingHorizontal: 14,
           paddingVertical: 12,
           gap: 8,
@@ -122,7 +124,7 @@ export function FailedSendBubble({
           <Text
             numberOfLines={3}
             style={{
-              color: tokens.chatUserForeground,
+              color: textColor,
               fontSize: 13,
               borderLeftWidth: 2,
               borderLeftColor: tokens.border,
@@ -133,9 +135,7 @@ export function FailedSendBubble({
           </Text>
         ) : null}
         {payload.displayText ? (
-          <Text style={{ color: tokens.chatUserForeground, ...typeScale.body }}>
-            {payload.displayText}
-          </Text>
+          <Text style={{ color: textColor, ...typeScale.body }}>{payload.displayText}</Text>
         ) : null}
         {payload.attachments.map((attachment) => (
           <View key={attachment.id} style={{ gap: 4 }}>
@@ -145,9 +145,7 @@ export function FailedSendBubble({
                 style={{ width: 180, height: 120, borderRadius: 12 }}
               />
             ) : null}
-            <Text style={{ color: tokens.chatUserForeground, fontSize: 13 }}>
-              {attachment.name}
-            </Text>
+            <Text style={{ color: textColor, fontSize: 13 }}>{attachment.name}</Text>
           </View>
         ))}
       </View>

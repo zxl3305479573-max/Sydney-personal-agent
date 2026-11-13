@@ -1,8 +1,12 @@
-import { authHeaders, clearSpace, currentApiBase, fetchMobileJson } from "./api";
+import {
+  authHeaders,
+  captureServerSessionScope,
+  fetchMobileJson,
+  isServerSessionScopeCurrent,
+  replaceMobileSession,
+} from "./api";
 import { t } from "./i18n";
 import {
-  currentSessionGeneration,
-  replaceSessionTokenIfCurrent,
   tokenFromAuthResponse,
 } from "./session";
 import { authErrorText, authResponseErrorText, sessionSaveErrorText } from "./user-error";
@@ -16,10 +20,10 @@ export async function continueWithSso(
   if (inFlight) return false;
   inFlight = true;
   try {
-    const apiBase = currentApiBase();
-    const generation = currentSessionGeneration();
+    const scope = captureServerSessionScope();
+    const apiBase = scope.apiBase;
     const requireCurrentSession = () => {
-      if (apiBase !== currentApiBase() || generation !== currentSessionGeneration())
+      if (!isServerSessionScopeCurrent(scope))
         throw new Error(t("Could not continue"));
     };
     const callbackURL = action === "sign-in" ? "rakazo://sign-in" : "rakazo://account";
@@ -89,9 +93,7 @@ export async function continueWithSso(
       throw new Error(t("Could not continue"));
     requireCurrentSession();
     try {
-      if (action === "sign-in" && !(await clearSpace()))
-        throw new Error(t("Could not save your sign-in on this device. Try again."));
-      return await replaceSessionTokenIfCurrent(generation, token);
+      return await replaceMobileSession(scope, token, action === "sign-in");
     } catch (error) {
       throw new Error(sessionSaveErrorText(error));
     }

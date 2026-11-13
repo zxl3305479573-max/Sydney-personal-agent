@@ -4,6 +4,14 @@ import { isCenteredAgentEvent, THREAD_COLUMN_GUTTER } from "./message-presentati
 
 const COLUMN_PADDING = THREAD_COLUMN_GUTTER * 2;
 
+export function messageAvatarBotId(
+  message: Pick<MobileMessage, "role" | "botId">,
+  inGroup: boolean,
+  botId?: string,
+): string | undefined {
+  return message.role === "bot" ? (message.botId ?? (!inGroup ? botId : undefined)) : undefined;
+}
+
 /** Sizes a message's column: wide asks and centered events fill it, minus the avatar gutter. */
 export function messageRowLayout(
   blocks: MobileMessage["blocks"],

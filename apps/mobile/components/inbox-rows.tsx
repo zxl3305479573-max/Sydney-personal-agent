@@ -89,14 +89,13 @@ export function ConversationRow({
       style={({ pressed }) => [
         styles.row,
         compact ? styles.compactRow : null,
-        selected ? styles.rowSelected : null,
+        selected && !roster ? styles.rowSelected : null,
         roster && {
           marginHorizontal: 0,
           paddingHorizontal: 4,
           paddingVertical: 8,
           gap: 16,
           borderRadius: 16,
-          backgroundColor: selected ? native.fillPressed : native.quietFill,
         },
         selected && Platform.OS === "android" && { overflow: "hidden" },
         pressed && Platform.OS !== "android" && styles.rowPressed,

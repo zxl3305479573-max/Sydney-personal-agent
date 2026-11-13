@@ -133,11 +133,11 @@ it.each(["android", "ios"])("creates from the %s menu", (platform) => {
   expect(runCreateAction.mock.calls).toEqual([["bot"], ["group"], ["space"]]);
 });
 
-it("opens the existing search and integrations routes from the quick actions", () => {
+it("opens integrations without a duplicate bottom search action", () => {
   act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
   act(() => container.querySelector<HTMLElement>('[aria-label="Connect apps"]')?.click());
-  act(() => container.querySelector<HTMLElement>('[aria-label="Search"]')?.click());
-  expect(header.push.mock.calls).toEqual([["/integrations"], ["/search"]]);
+  expect(container.querySelector('[aria-label="Search"]')).toBeNull();
+  expect(header.push.mock.calls).toEqual([["/integrations"]]);
 });
 
 it("keeps the group creation shortcut in the roster", () => {

@@ -13,6 +13,12 @@ const rpc = vi.hoisted(() => vi.fn());
 const textScale = vi.hoisted(() => ({ fontScale: 1 }));
 const appState = vi.hoisted(() => ({ listeners: new Set<(state: string) => void>() }));
 const foreground = vi.hoisted(() => ({ value: true }));
+let nativeFixtureSequence = 0;
+const keyboardCommand = vi.hoisted(() => ({
+  value: { type: "text", text: "hello" } as
+    | { type: "text"; text: string }
+    | { type: "backspace"; count: number },
+}));
 const folds = vi.hoisted(() => ({
   regions: [] as Array<{ x: number; y: number; width: number; height: number }>,
 }));
@@ -23,7 +29,10 @@ const screens = vi.hoisted(() => ({
     | ((event: { nativeEvent: { data: string; url?: string } }) => void)
     | undefined,
   source: "",
+  onShouldStartLoadWithRequest: undefined as ((request: { url: string }) => boolean) | undefined,
+  mixedContentMode: "",
   onLoadStart: undefined as ((event?: { nativeEvent: { url: string } }) => void) | undefined,
+  nativePage: "",
 }));
 const picker = vi.hoisted(() => ({
   mounts: 0,
@@ -113,8 +122,38 @@ vi.mock("react-native-keyboard-controller", () => ({
     createElement("div", { "data-avoids-keyboard": String(enabled ?? true) }, children),
 }));
 vi.mock("../components/computer-keyboard-bar", () => ({
-  ComputerKeyboardBar: (props: { active: boolean }) =>
-    createElement("div", { "data-keyboard-bar": true, "data-active": String(props.active) }),
+  ComputerKeyboardBar: (props: {
+    active: boolean;
+    onCommand: (value: typeof keyboardCommand.value) => void;
+  }) =>
+    createElement(
+      "button",
+      {
+        type: "button",
+        "data-keyboard-bar": true,
+        "data-active": String(props.active),
+        onClick: () => props.onCommand(keyboardCommand.value),
+      },
+      "keyboard",
+    ),
+}));
+vi.mock("../components/native-computer-control", () => ({
+  NativeComputerControl: (props: { geometry: unknown; onInput: (value: unknown) => void }) =>
+    createElement(
+      "button",
+      {
+        type: "button",
+        "data-native-control": true,
+        "data-ready": String(Boolean(props.geometry)),
+        onClick: () =>
+          props.geometry &&
+          props.onInput({
+            kind: "pointer",
+            payload: { x: 10, y: 20, type: "click", button: "left" },
+          }),
+      },
+      "native control",
+    ),
 }));
 
 vi.mock("react-native-webview", () => {
@@ -126,11 +165,19 @@ vi.mock("react-native-webview", () => {
       onError?: () => void;
       source?: { uri: string };
       onLoadStart?: (event?: { nativeEvent: { url: string } }) => void;
+      onShouldStartLoadWithRequest?: (request: { url: string }) => boolean;
+      mixedContentMode?: string;
+      injectedJavaScriptBeforeContentLoaded?: string;
     }) => {
       screens.onMessage = props.onMessage;
       screens.error = props.onError;
       screens.source = props.source?.uri ?? "";
       screens.onLoadStart = props.onLoadStart;
+      screens.onShouldStartLoadWithRequest = props.onShouldStartLoadWithRequest;
+      screens.mixedContentMode = props.mixedContentMode ?? "";
+      screens.nativePage =
+        props.injectedJavaScriptBeforeContentLoaded?.match(/rakazoNativePage: "([^"]+)"/)?.[1] ??
+        "";
       useEffect(() => {
         screens.mounts += 1;
       }, []);
@@ -215,7 +262,28 @@ vi.mock("../components/computer-mode-picker", () => {
 });
 
 const apiBase = vi.hoisted(() => ({ current: "https://api.example.test" }));
-vi.mock("./api", () => ({ currentApiBase: () => apiBase.current, rpc }));
+const spaceState = vi.hoisted(() => ({
+  id: "space-1",
+  generation: 0,
+  sequence: 0,
+  pending: false,
+  listeners: new Set<() => void>(),
+}));
+const captureContext = vi.hoisted(() => vi.fn());
+vi.mock("./api", () => ({
+  currentApiBase: () => apiBase.current,
+  selectedSpaceId: () => spaceState.id,
+  currentSpaceSelectionGeneration: () => spaceState.generation,
+  spaceSelectionSeq: () => spaceState.sequence,
+  isSpaceSelectionPending: () => spaceState.pending,
+  subscribeSpaceSelection: (listener: () => void) => {
+    spaceState.listeners.add(listener);
+    return () => spaceState.listeners.delete(listener);
+  },
+  captureApiRequestContext: captureContext,
+  rpc,
+}));
+vi.mock("./session", () => ({ currentSessionGeneration: () => 1 }));
 
 vi.mock("./i18n", () => {
   const t = (text: string, values?: Record<string, string>) =>
@@ -274,11 +342,21 @@ describe("computer screen", () => {
 
   beforeEach(() => {
     rpc.mockReset();
+    spaceState.id = "space-1";
+    spaceState.generation = 0;
+    spaceState.sequence = 0;
+    spaceState.pending = false;
+    captureContext.mockReset();
+    captureContext.mockImplementation(async (space: string) => ({
+      apiBase: apiBase.current,
+      headers: { "x-rakazo-space-id": space },
+    }));
     textScale.fontScale = 1;
     picker.mounts = 0;
     picker.props = undefined;
     appState.listeners.clear();
     foreground.value = true;
+    keyboardCommand.value = { type: "text", text: "hello" };
     folds.regions = [];
     screens.mounts = 0;
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -322,6 +400,320 @@ describe("computer screen", () => {
       (button) => button.textContent === "Take control",
     );
   }
+
+  async function openNativeScreen() {
+    const screen = "https://screen.example.test/novnc/session/view/1.test/vnc.html";
+    respond(
+      {
+        ...botWorking,
+        kind: "native-linux",
+        controlHolder: "user",
+        controlBotId: "bot-1",
+        controlLeaseId: `native-fixture-${++nativeFixtureSequence}`,
+        busyBotName: null,
+      },
+      screen,
+    );
+    const view = await render();
+    await act(async () => preview(view).click());
+    await settle();
+    act(() => {
+      screens.onLoadStart?.({ nativeEvent: { url: screen } });
+      screens.onMessage?.({
+        nativeEvent: {
+          url: screen,
+          data: JSON.stringify({
+            rakazoNativePage: screens.nativePage,
+            rakazoNativeGeometry: {
+              width: 1280,
+              height: 800,
+              left: 0,
+              top: 0,
+              displayWidth: 400,
+              displayHeight: 250,
+              viewportWidth: 400,
+              viewportHeight: 600,
+            },
+          }),
+        },
+      });
+    });
+    return { view, screen };
+  }
+
+  it("preserves the declared screen proxy origin and limits page navigation", async () => {
+    const source = "https://old.example.test/novnc/session/view/123.token/vnc.html?view_only=true";
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") return { url: source, proxy: "rakazo-novnc" };
+      return {};
+    });
+    await render();
+    expect(screens.source).toBe(source);
+    expect(screens.mixedContentMode).toBe("never");
+    expect(
+      screens.onShouldStartLoadWithRequest?.({
+        url: "https://old.example.test/novnc/session/view/123.token/vnc.html?view_only=true",
+      }),
+    ).toBe(true);
+    expect(
+      screens.onShouldStartLoadWithRequest?.({ url: "http://old.example.test/redirect" }),
+    ).toBe(false);
+    expect(
+      screens.onShouldStartLoadWithRequest?.({ url: "https://attacker.example.test/redirect" }),
+    ).toBe(false);
+    expect(
+      screens.onShouldStartLoadWithRequest?.({ url: "https://old.example.test/redirect" }),
+    ).toBe(false);
+  });
+
+  it.each([
+    "https://192.168.1.20/novnc/session/view/123.token/vnc.html",
+    "https://third.example.test/novnc/session/view/123.token/vnc.html",
+  ])("keeps an undeclared URL through the WebView: %s", async (source) => {
+    respond(botWorking, source);
+    await render();
+    expect(screens.source).toBe(source);
+  });
+
+  it("does not open an undeclared loopback screen from a remote server", async () => {
+    respond(botWorking, "http://127.0.0.1:5173/novnc/session/view/123.token/vnc.html");
+    const view = await render();
+    expect(view.querySelector("iframe")).toBeNull();
+  });
+
+  it("clears the visible and cached screen as soon as Space selection starts", async () => {
+    const old = "https://api.example.test/novnc/session/view/123.old/vnc.html";
+    const fresh = "https://api.example.test/novnc/session/view/456.new/vnc.html";
+    let screen = old;
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") return { url: screen, proxy: "rakazo-novnc" };
+      return {};
+    });
+    const view = await render();
+    await act(async () => preview(view).click());
+    await settle();
+    expect(screens.source).toBe(old);
+    const oldError = screens.error;
+    await act(async () => {
+      spaceState.sequence += 1;
+      spaceState.pending = true;
+      for (const listener of spaceState.listeners) listener();
+    });
+    expect(view.querySelector("iframe")).toBeNull();
+    expect(view.querySelector("section")).toBeNull();
+    screen = fresh;
+    await act(async () => {
+      spaceState.id = "space-2";
+      spaceState.generation += 1;
+      for (const listener of spaceState.listeners) listener();
+    });
+    expect(view.querySelector("iframe")).toBeNull();
+    await act(async () => {
+      spaceState.pending = false;
+      for (const listener of spaceState.listeners) listener();
+    });
+    await settle();
+    expect(screens.source).toBe(fresh);
+    act(() => oldError?.());
+    expect(view.querySelector("iframe")).not.toBeNull();
+  });
+
+  it("runs automatic initialization again after the Space selection settles", async () => {
+    const bootSpaces: string[] = [];
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") return { url: "https://screen.example.test/embed" };
+      if (method === "computer/boot") bootSpaces.push(spaceState.id);
+      return {};
+    });
+    await render();
+    expect(bootSpaces).toEqual(["space-1"]);
+    await act(async () => {
+      spaceState.sequence += 1;
+      spaceState.pending = true;
+      for (const listener of spaceState.listeners) listener();
+      spaceState.id = "space-2";
+      spaceState.generation += 1;
+      for (const listener of spaceState.listeners) listener();
+    });
+    await settle();
+    expect(bootSpaces).toEqual(["space-1"]);
+    await act(async () => {
+      spaceState.pending = false;
+      for (const listener of spaceState.listeners) listener();
+    });
+    await settle();
+    expect(bootSpaces).toEqual(["space-1", "space-2"]);
+  });
+
+  it("interrupts in-flight native input and drops queued input on Space A to B to A", async () => {
+    const { view } = await openNativeScreen();
+    const previousRpc = rpc.getMockImplementation()!;
+    let finish: () => void = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    rpc.mockImplementation((method: string, ...args: unknown[]) =>
+      method === "computer/input" ? pending : previousRpc(method, ...args),
+    );
+    const control = view.querySelector<HTMLButtonElement>("[data-native-control]");
+    await act(async () => {
+      control?.click();
+      control?.click();
+    });
+    expect(calls("computer/input")).toHaveLength(1);
+    await act(async () => {
+      spaceState.sequence += 1;
+      spaceState.pending = true;
+      for (const listener of spaceState.listeners) listener();
+    });
+    expect(view.querySelector("iframe")).toBeNull();
+    expect(view.querySelector("[data-native-control]")).toBeNull();
+    expect(view.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+    await act(async () => {
+      spaceState.id = "space-2";
+      spaceState.generation += 1;
+      for (const listener of spaceState.listeners) listener();
+      spaceState.id = "space-1";
+      spaceState.generation += 1;
+      spaceState.sequence += 1;
+      for (const listener of spaceState.listeners) listener();
+      finish();
+    });
+    await settle();
+    expect(calls("computer/input")).toHaveLength(1);
+    await act(async () => {
+      spaceState.pending = false;
+      for (const listener of spaceState.listeners) listener();
+    });
+    await settle();
+    expect(view.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+    await act(async () =>
+      Array.from(view.querySelectorAll("button"))
+        .find((button) => button.textContent === "我已核对电脑画面")
+        ?.click(),
+    );
+  });
+
+  it("does not send an input still acquiring credentials when selection starts", async () => {
+    const { view } = await openNativeScreen();
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    captureContext.mockImplementation(async () => {
+      await pending;
+      return { apiBase: apiBase.current, headers: { "x-rakazo-space-id": "space-1" } };
+    });
+    await act(async () => view.querySelector<HTMLButtonElement>("[data-native-control]")?.click());
+    expect(calls("computer/input")).toHaveLength(0);
+    await act(async () => {
+      spaceState.sequence += 1;
+      spaceState.pending = true;
+      for (const listener of spaceState.listeners) listener();
+      finish?.();
+    });
+    await settle();
+    expect(calls("computer/input")).toHaveLength(0);
+    expect(view.querySelector("iframe")).toBeNull();
+    expect(view.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+    await act(async () =>
+      Array.from(view.querySelectorAll("button"))
+        .find((button) => button.textContent === "我已核对电脑画面")
+        ?.click(),
+    );
+  });
+
+  it("does not rewrite a third-party declared URL through the WebView", async () => {
+    const source = "https://192.168.1.20/novnc/session/view/123.token/vnc.html";
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") return { url: source, proxy: "other" };
+      return {};
+    });
+    await render();
+    expect(screens.source).toBe(source);
+  });
+
+  it.each([
+    ["capture", "generation"],
+    ["response", "generation"],
+    ["response", "pending selection"],
+  ])("discards a screen during %s when %s changes", async (phase, change) => {
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let switched = false;
+    if (phase === "capture") {
+      captureContext.mockImplementation(async () => {
+        if (switched) return new Promise(() => undefined);
+        await pending;
+        return { apiBase: apiBase.current, headers: { "x-rakazo-space-id": "space-1" } };
+      });
+    }
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") {
+        if (switched) return new Promise(() => undefined);
+        if (phase === "response") await pending;
+        return {
+          url: "https://old.example.test/novnc/session/view/123.token/vnc.html",
+          proxy: "rakazo-novnc",
+        };
+      }
+      return {};
+    });
+    const view = await render();
+    if (phase === "capture") expect(captureContext).toHaveBeenCalled();
+    else expect(calls("computer/screenUrl").length).toBeGreaterThan(0);
+    switched = true;
+    if (change === "generation") {
+      spaceState.id = "space-2";
+      spaceState.generation += 1;
+      spaceState.id = "space-1";
+      spaceState.generation += 1;
+    } else {
+      spaceState.sequence += 1;
+    }
+    await act(async () => release?.());
+    await settle();
+    expect(view.querySelector("iframe")).toBeNull();
+    if (phase === "capture") expect(calls("computer/screenUrl")).toHaveLength(0);
+    else expect(calls("computer/screenUrl").length).toBeGreaterThan(0);
+  });
+
+  it("discards a screen response when the selected server changes during the request", async () => {
+    let finish: ((value: { url: string; proxy: string }) => void) | undefined;
+    const pending = new Promise<{ url: string; proxy: string }>((resolve) => {
+      finish = resolve;
+    });
+    let screenReads = 0;
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") {
+        screenReads += 1;
+        return screenReads === 1 ? pending : new Promise(() => undefined);
+      }
+      return {};
+    });
+    try {
+      const view = await render();
+      apiBase.current = "https://other.example.test";
+      await act(async () => {
+        finish?.({
+          url: "https://old.example.test/novnc/session/view/123.token/vnc.html",
+          proxy: "rakazo-novnc",
+        });
+      });
+      await settle();
+      expect(view.querySelector("iframe")).toBeNull();
+    } finally {
+      apiBase.current = "https://api.example.test";
+    }
+  });
 
   it("offers Retry screen when the full-window page fails to load", async () => {
     respond(botWorking);
@@ -489,6 +881,391 @@ describe("computer screen", () => {
     expect(fullWindow?.querySelector("iframe")?.getAttribute("data-elements-hidden")).toBe("false");
     expect(fullWindow?.querySelector("iframe")?.getAttribute("data-important")).toBe("auto");
     expect(fullWindow?.querySelector("[data-keyboard-bar]")).not.toBeNull();
+  });
+
+  it("forwards native screen clicks and keyboard through the current control lease", async () => {
+    const screen = "https://screen.example.test/novnc/session/view/1.test/vnc.html";
+    const geometryMessage = () =>
+      JSON.stringify({
+        rakazoNativeGeometry: {
+          width: 1280,
+          height: 800,
+          left: 0,
+          top: 0,
+          displayWidth: 400,
+          displayHeight: 250,
+          viewportWidth: 400,
+          viewportHeight: 600,
+        },
+        rakazoNativePage: screens.nativePage,
+      });
+    respond(
+      {
+        ...botWorking,
+        kind: "native-linux",
+        controlHolder: "user",
+        controlBotId: "bot-1",
+        controlLeaseId: "lease-1",
+        busyBotName: null,
+      },
+      screen,
+    );
+    const view = await render();
+    await act(async () => preview(view).click());
+    await settle();
+    const control = () => view.querySelector<HTMLButtonElement>("[data-native-control]");
+    expect(control()?.dataset.ready).toBe("false");
+    await act(async () => control()?.click());
+    expect(calls("computer/input")).toHaveLength(0);
+    act(() => {
+      screens.onLoadStart?.({ nativeEvent: { url: screen } });
+      screens.onMessage?.({
+        nativeEvent: {
+          url: "https://screen.example.test/other",
+          data: JSON.stringify({ rakazoNativeGeometry: { width: 1280, height: 800 } }),
+        },
+      });
+    });
+    expect(control()?.dataset.ready).toBe("false");
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: JSON.stringify({ rakazoScreen: "loading" }) },
+      }),
+    );
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: JSON.stringify({ rakazoScreen: "connecting" }) },
+      }),
+    );
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: JSON.stringify({ rakazoScreen: "connected" }) },
+      }),
+    );
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: {
+          url: screen,
+          data: geometryMessage().replace(screens.nativePage, "old-page"),
+        },
+      }),
+    );
+    expect(control()?.dataset.ready).toBe("false");
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: {
+          url: screen,
+          data: geometryMessage(),
+        },
+      }),
+    );
+    expect(control()?.dataset.ready).toBe("true");
+    await act(async () => {
+      control()?.click();
+      view.querySelector<HTMLButtonElement>("[data-keyboard-bar]")?.click();
+    });
+    await settle();
+    expect(calls("computer/input").map((call) => call[1])).toEqual([
+      {
+        botId: "bot-1",
+        controlLeaseId: "lease-1",
+        kind: "pointer",
+        payload: { x: 10, y: 20, type: "click", button: "left" },
+      },
+      {
+        botId: "bot-1",
+        controlLeaseId: "lease-1",
+        kind: "clipboard",
+        payload: { text: "hello" },
+      },
+    ]);
+    let finishInput: () => void = () => undefined;
+    const inputPending = new Promise<void>((resolve) => {
+      finishInput = resolve;
+    });
+    const previousRpc = rpc.getMockImplementation()!;
+    rpc.mockImplementation((method: string, ...args: unknown[]) =>
+      method === "computer/input" ? inputPending : previousRpc(method, ...args),
+    );
+    await act(async () => {
+      control()?.click();
+      view.querySelector<HTMLButtonElement>("[data-keyboard-bar]")?.click();
+    });
+    expect(calls("computer/input")).toHaveLength(3);
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: {
+          url: "https://screen.example.test/other",
+          data: JSON.stringify({
+            rakazoNativeGeometry: null,
+            rakazoNativePage: screens.nativePage,
+          }),
+        },
+      }),
+    );
+    expect(control()?.dataset.ready).toBe("true");
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: {
+          url: screen,
+          data: JSON.stringify({
+            rakazoNativeGeometry: null,
+            rakazoNativePage: screens.nativePage,
+          }),
+        },
+      }),
+    );
+    expect(control()?.dataset.ready).not.toBe("true");
+    expect(view.querySelector("[data-keyboard-bar]")?.getAttribute("data-active")).toBe("false");
+    await act(async () => control()?.click());
+    expect(calls("computer/input")).toHaveLength(3);
+    act(() => screens.onMessage?.({ nativeEvent: { url: screen, data: geometryMessage() } }));
+    expect(control()?.dataset.ready).not.toBe("true");
+    expect(view.textContent).toContain("输入可能已部分执行或结果未知");
+    await act(async () => finishInput());
+    await settle();
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: JSON.stringify({ rakazoScreen: "disconnected" }) },
+      }),
+    );
+    expect(control()?.dataset.ready).not.toBe("true");
+    await act(async () => control()?.click());
+    expect(calls("computer/input")).toHaveLength(3);
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[aria-label="Close computer"]')?.click(),
+    );
+    expect(view.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+    await act(async () =>
+      Array.from(view.querySelectorAll("button"))
+        .find((button) => button.textContent === "我已核对电脑画面")
+        ?.click(),
+    );
+  });
+
+  it("does not enable native control when the server does not provide a lease", async () => {
+    respond({
+      ...botWorking,
+      kind: "native-linux",
+      controlHolder: "user",
+      controlBotId: "bot-1",
+      busyBotName: null,
+    });
+    const view = await render();
+    await act(async () => preview(view).click());
+    await settle();
+    expect(view.querySelector("[data-native-control]")).toBeNull();
+    expect(view.textContent).toContain("Computer control is unavailable");
+    expect(view.querySelector("[data-keyboard-bar]")?.getAttribute("data-active")).toBe("false");
+  });
+
+  it.each(["close", "release"])(
+    "requires review after %s while an input is in flight",
+    async (action) => {
+      const { view } = await openNativeScreen();
+      const previousRpc = rpc.getMockImplementation()!;
+      let finish: () => void = () => {};
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      rpc.mockImplementation((method: string, ...args: unknown[]) =>
+        method === "computer/input" ? pending : previousRpc(method, ...args),
+      );
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>("[data-native-control]")?.click(),
+      );
+      expect(calls("computer/input")).toHaveLength(1);
+      await act(async () => {
+        if (action === "close") {
+          view.querySelector<HTMLButtonElement>('[aria-label="Close computer"]')?.click();
+        } else {
+          Array.from(view.querySelectorAll<HTMLButtonElement>("section button"))
+            .find((button) => button.textContent === "Release")
+            ?.click();
+        }
+      });
+      await settle();
+      expect(view.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+      await act(async () => finish());
+      await act(async () =>
+        Array.from(view.querySelectorAll("button"))
+          .find((button) => button.textContent === "我已核对电脑画面")
+          ?.click(),
+      );
+      if (action === "close") {
+        await act(async () => preview(view).click());
+        await settle();
+        expect(view.querySelector("[data-native-control]")).toBeNull();
+        expect(view.textContent).toContain("请先释放当前接管");
+        expect(calls("computer/input")).toHaveLength(1);
+      }
+    },
+  );
+
+  it("stops control with an explicit message for an unverifiable WebView source", async () => {
+    const { view } = await openNativeScreen();
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: { url: "null", data: '{"rakazoScreen":"connecting"}' },
+      }),
+    );
+    expect(view.textContent).toContain("无法验证电脑画面消息来源");
+    expect(view.querySelector<HTMLElement>("[data-native-control]")).toBeNull();
+  });
+
+  it("requires review and blocks the same lease after input failure and screen remount", async () => {
+    const { view } = await openNativeScreen();
+    const previousRpc = rpc.getMockImplementation()!;
+    rpc.mockImplementation((method: string, ...args: unknown[]) =>
+      method === "computer/input"
+        ? Promise.reject(new Error("network failed"))
+        : previousRpc(method, ...args),
+    );
+    await act(async () => view.querySelector<HTMLButtonElement>("[data-native-control]")?.click());
+    await settle();
+    expect(calls("computer/input")).toHaveLength(1);
+    act(() => root?.unmount());
+    container?.remove();
+    root = undefined;
+    container = undefined;
+    const reopened = await render();
+    expect(reopened.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+    await act(async () => preview(reopened).click());
+    await settle();
+    expect(reopened.querySelector("[data-native-control]")).toBeNull();
+    await act(async () =>
+      reopened.querySelector<HTMLButtonElement>('[aria-label="Close computer"]')?.click(),
+    );
+    await act(async () =>
+      Array.from(reopened.querySelectorAll("button"))
+        .find((button) => button.textContent === "我已核对电脑画面")
+        ?.click(),
+    );
+    await act(async () => preview(reopened).click());
+    await settle();
+    expect(reopened.querySelector("[data-native-control]")).toBeNull();
+    expect(reopened.textContent).toContain("请先释放当前接管");
+    expect(calls("computer/input")).toHaveLength(1);
+  });
+
+  it.each([32, 40])(
+    "retains review after a rejected %i-key deletion, in-flight completion and remount",
+    async (count) => {
+      const { view } = await openNativeScreen();
+      const previousRpc = rpc.getMockImplementation()!;
+      let finish: () => void = () => {};
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      rpc.mockImplementation((method: string, ...args: unknown[]) =>
+        method === "computer/input" ? pending : previousRpc(method, ...args),
+      );
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>("[data-native-control]")?.click(),
+      );
+      expect(calls("computer/input")).toHaveLength(1);
+      keyboardCommand.value = { type: "backspace", count };
+      await act(async () => view.querySelector<HTMLButtonElement>("[data-keyboard-bar]")?.click());
+      await act(async () => finish());
+      await settle();
+      expect(calls("computer/input")).toHaveLength(1);
+      act(() => root?.unmount());
+      container?.remove();
+      root = undefined;
+      container = undefined;
+      const reopened = await render();
+      expect(reopened.textContent).toContain("之前的电脑输入可能已部分执行或结果未知");
+      await act(async () =>
+        Array.from(reopened.querySelectorAll("button"))
+          .find((button) => button.textContent === "我已核对电脑画面")
+          ?.click(),
+      );
+      await act(async () => preview(reopened).click());
+      await settle();
+      expect(reopened.querySelector("[data-native-control]")).toBeNull();
+      expect(reopened.textContent).toContain("请先释放当前接管");
+      expect(calls("computer/input")).toHaveLength(1);
+    },
+  );
+
+  it("reports that a same-WebView reload requires a new takeover", async () => {
+    const { view, screen } = await openNativeScreen();
+    act(() => screens.onLoadStart?.({ nativeEvent: { url: screen } }));
+    expect(view.textContent).toContain("请核对画面后释放并重新接管");
+    expect(view.querySelector<HTMLElement>("[data-native-control]")).toBeNull();
+  });
+
+  it("ignores messages from a previous page after reopening the same screen URL", async () => {
+    const screen = "https://screen.example.test/novnc/session/view/1.test/vnc.html";
+    respond(
+      {
+        ...botWorking,
+        kind: "native-linux",
+        controlHolder: "user",
+        controlBotId: "bot-1",
+        controlLeaseId: "lease-1",
+        busyBotName: null,
+      },
+      screen,
+    );
+    const view = await render();
+    await act(async () => preview(view).click());
+    await settle();
+    act(() => screens.onLoadStart?.({ nativeEvent: { url: screen } }));
+    const oldPage = screens.nativePage;
+    const oldMessage = screens.onMessage;
+    const oldGeometry = JSON.stringify({
+      rakazoNativePage: oldPage,
+      rakazoNativeGeometry: {
+        width: 1280,
+        height: 800,
+        left: 0,
+        top: 0,
+        displayWidth: 400,
+        displayHeight: 250,
+        viewportWidth: 400,
+        viewportHeight: 600,
+      },
+    });
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[aria-label="Close computer"]')?.click(),
+    );
+    await act(async () => preview(view).click());
+    await settle();
+    act(() => screens.onLoadStart?.({ nativeEvent: { url: screen } }));
+    expect(screens.nativePage).not.toBe(oldPage);
+    act(() => {
+      oldMessage?.({ nativeEvent: { url: screen, data: oldGeometry } });
+      screens.onMessage?.({ nativeEvent: { url: screen, data: oldGeometry } });
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: '{"rakazoScreen":"connected"}' },
+      });
+    });
+    expect(view.querySelector<HTMLElement>("[data-native-control]")?.dataset.ready).toBe("false");
+    act(() =>
+      screens.onMessage?.({
+        nativeEvent: {
+          url: screen,
+          data: oldGeometry.replace(oldPage, screens.nativePage),
+        },
+      }),
+    );
+    expect(view.querySelector<HTMLElement>("[data-native-control]")?.dataset.ready).toBe("true");
+    act(() => {
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: '{"rakazoScreen":"disconnected"}' },
+      });
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: '{"rakazoScreen":"connected"}' },
+      });
+      screens.onMessage?.({
+        nativeEvent: { url: screen, data: oldGeometry.replace(oldPage, screens.nativePage) },
+      });
+    });
+    expect(view.querySelector<HTMLElement>("[data-native-control]")?.dataset.ready).not.toBe(
+      "true",
+    );
+    expect(view.textContent).toContain("输入可能已部分执行或结果未知");
   });
 
   it("wakes a sleeping computer from the preview without taking control", async () => {

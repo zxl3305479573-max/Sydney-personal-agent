@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatAppearance } from "../lib/chat-appearance";
 import {
   cancelChatAppearancePreview,
+  CHAT_BUBBLE_PRESETS,
+  chatBubbleTextShadow,
   DEFAULT_SURFACE_OPACITY,
   DEFAULT_TEXT_COLOR_PICKER_VALUE,
   EMPTY_CHAT_APPEARANCE,
@@ -18,6 +20,15 @@ import { SettingsGroup } from "./SettingsRows";
 
 const fieldClass = "rounded-md border border-border bg-background px-2 py-1 text-foreground";
 
+function bubbleBackground(color: string, opacity: number) {
+  const hex = color.slice(1);
+  const expanded = hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
+  const red = Number.parseInt(expanded.slice(0, 2), 16);
+  const green = Number.parseInt(expanded.slice(2, 4), 16);
+  const blue = Number.parseInt(expanded.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+}
+
 export function ChatAppearanceSettings() {
   const [draft, setDraft] = useState<ChatAppearance>(EMPTY_CHAT_APPEARANCE);
   const [ready, setReady] = useState(false);
@@ -31,6 +42,8 @@ export function ChatAppearanceSettings() {
       : draft.backgrounds.find((item) => item.id === draft.backgroundId);
   const selectedBackground = draft.backgrounds.find((item) => item.id === draft.backgroundId);
   const backgroundUrl = useAppearanceImage(background?.image);
+  const bubble = draft.bubble;
+  const adjustableBubble = bubble ?? CHAT_BUBBLE_PRESETS[0]!.value;
 
   useEffect(() => {
     let active = true;
@@ -119,7 +132,7 @@ export function ChatAppearanceSettings() {
   return (
     <SettingsGroup title="聊天外观">
       <div className="space-y-4 p-4 text-sm" data-testid="chat-appearance-settings">
-        <p className="text-muted-foreground">背景图片和文字颜色只保存在当前浏览器。</p>
+        <p className="text-muted-foreground">聊天外观只保存在当前浏览器。</p>
         <section
           aria-label="聊天外观预览"
           className="relative overflow-hidden rounded-lg border border-border bg-background p-4"
@@ -140,20 +153,106 @@ export function ChatAppearanceSettings() {
           ) : null}
           <div className="relative flex flex-col gap-2">
             <span
-              className="rk-chat-type self-end text-foreground"
-              style={{ color: draft.userTextColor ?? undefined }}
+              className={`rk-chat-type self-end text-foreground${bubble ? " px-4 py-2" : ""}`}
+              style={{
+                color: draft.userTextColor ?? bubble?.userForeground ?? undefined,
+                backgroundColor: bubble
+                  ? bubbleBackground(bubble.userBackground, bubble.opacity)
+                  : undefined,
+                borderRadius: bubble?.radius,
+                textShadow: bubble
+                  ? chatBubbleTextShadow(
+                      draft.userTextColor ?? bubble.userForeground,
+                      bubble.userBackground,
+                      bubble.opacity,
+                    )
+                  : undefined,
+              }}
             >
               你好，这是我的消息。
             </span>
             <span
-              className="rk-chat-type self-start text-foreground"
-              style={{ color: draft.botTextColor ?? undefined }}
+              className={`rk-chat-type self-start text-foreground${bubble ? " px-4 py-2" : ""}`}
+              style={{
+                color: draft.botTextColor ?? bubble?.botForeground ?? undefined,
+                backgroundColor: bubble
+                  ? bubbleBackground(bubble.botBackground, bubble.opacity)
+                  : undefined,
+                borderRadius: bubble?.radius,
+                textShadow: bubble
+                  ? chatBubbleTextShadow(
+                      draft.botTextColor ?? bubble.botForeground,
+                      bubble.botBackground,
+                      bubble.opacity,
+                    )
+                  : undefined,
+              }}
             >
               你好，这是助手的回复。
             </span>
           </div>
         </section>
         <fieldset disabled={!ready || saving} className="space-y-4">
+          <div className="space-y-2">
+            <p className="font-medium">消息气泡预设</p>
+            <div className="flex flex-wrap gap-2">
+              {CHAT_BUBBLE_PRESETS.map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  className={fieldClass}
+                  onClick={() => change({ ...draft, bubble: { ...preset.value } })}
+                >
+                  {preset.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={fieldClass}
+                onClick={() => change({ ...draft, bubble: null })}
+              >
+                恢复原样
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2" htmlFor="bubble-radius">
+                圆角
+                <input
+                  id="bubble-radius"
+                  type="range"
+                  min="0"
+                  max="40"
+                  step="1"
+                  value={adjustableBubble.radius}
+                  onChange={(event) =>
+                    change({
+                      ...draft,
+                      bubble: { ...adjustableBubble, radius: Number(event.target.value) },
+                    })
+                  }
+                />
+                {adjustableBubble.radius}px
+              </label>
+              <label className="flex items-center gap-2" htmlFor="bubble-opacity">
+                气泡透明度
+                <input
+                  id="bubble-opacity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round((1 - adjustableBubble.opacity) * 100)}
+                  onChange={(event) =>
+                    change({
+                      ...draft,
+                      bubble: { ...adjustableBubble, opacity: 1 - Number(event.target.value) / 100 },
+                    })
+                  }
+                />
+                {Math.round((1 - adjustableBubble.opacity) * 100)}%
+              </label>
+            </div>
+          </div>
           <div className="space-y-2">
             <label className="block font-medium" htmlFor="chat-background">
               全局背景
@@ -320,6 +419,7 @@ export function ChatAppearanceSettings() {
                   userTextColor: null,
                   botTextColor: null,
                   surfaceOpacity: DEFAULT_SURFACE_OPACITY,
+                  bubble: null,
                 })
               }
             >

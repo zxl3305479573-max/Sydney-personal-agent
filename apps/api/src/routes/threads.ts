@@ -150,6 +150,31 @@ export function threadsRoutes(ctx: RouterContext) {
   };
   return {
     threads: {
+      companionScreenStart: authed.threads.companionScreenStart.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
+          !(await context.stillSessionAuthorized())) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return deps.companionScreen.start(
+          context.actor, input.botId, context.sessionId, input.confirmed, context.stillSessionAuthorized, context.signal,
+        );
+      }),
+      companionScreenRespond: authed.threads.companionScreenRespond.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
+          !(await context.stillSessionAuthorized())) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return { reply: await deps.companionScreen.respond(
+          context.actor, input.botId, context.sessionId, input.id, input.text,
+          context.stillSessionAuthorized, context.signal,
+        ) };
+      }),
+      companionScreenStop: authed.threads.companionScreenStop.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return { stopped: deps.companionScreen.stop(context.actor, input.botId, context.sessionId, input.id) };
+      }),
       head: authed.threads.head.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
         return threadHead(deps.prisma, target);

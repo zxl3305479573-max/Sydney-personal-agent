@@ -1,4 +1,28 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "Account deleted": "Аккаунт удалён",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "Не удалось подтвердить удаление аккаунта. Проверьте его состояние перед повторной попыткой.",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "Исходный аккаунт удалён, но локальная очистка не удалась, а текущий сеанс изменился.",
+  "The original account was deleted. Your current session has changed.": "Исходный аккаунт удалён. Текущий сеанс изменился.",
+  "The session changed. Open account deletion again.": "Сеанс изменился. Откройте удаление аккаунта заново.",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "Аккаунт удалён, но очистить локальный сеанс не удалось. Перезапустите приложение и попробуйте выйти из аккаунта.",
+  Computers: "Компьютеры",
+  "Could not load devices.": "Не удалось загрузить устройства.",
+  "No computers paired with this account.":
+    "С этой учётной записью не связано ни одного компьютера.",
+  Offline: "Не в сети",
+  Refresh: "Обновить",
+  "Status at {time}; refresh to check again.":
+    "Состояние на {time}; обновите, чтобы проверить снова.",
+  "Your session is unavailable or expired. Sign in again.":
+    "Сеанс недоступен или истёк. Войдите снова.",
+  "The device API is unavailable. Check the server configuration.":
+    "API устройств недоступен. Проверьте настройки сервера.",
+  "Could not reach the server. Check your connection.":
+    "Не удалось связаться с сервером. Проверьте подключение.",
+  "The device request timed out. Try again.": "Время запроса устройств истекло. Попробуйте снова.",
   Bots: "Боты",
   "Connect apps": "Подключить приложения",
   "Daily check-ins on unfinished work": "Ежедневные напоминания о незавершённой работе",
@@ -491,6 +515,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "OTA {id}": "OTA {id}",
   "OTA {id}, {date}": "OTA {id}, {date}",
   "Enter a server URL": "Введите URL-адрес сервера",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "Введите только адрес сервера, без учётных данных, пути, параметров запроса или фрагмента",
   "Enter this code in your browser:": "Введите этот код в браузере:",
   "Executor token": "Токен Executor",
   Failed: "Ошибка",

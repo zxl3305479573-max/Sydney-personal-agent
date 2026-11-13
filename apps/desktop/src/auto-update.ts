@@ -13,6 +13,10 @@ export interface UpdaterEnvironment {
   disabled?: boolean;
 }
 
+export function sydneyUpdaterEnvironment(packaged: boolean, version: string): UpdaterEnvironment {
+  return { packaged, version, disabled: true };
+}
+
 export function updaterSupport(env: UpdaterEnvironment): { supported: boolean; reason: string } {
   if (env.disabled === true) {
     return { supported: false, reason: t("Automatic updates are turned off for this install.") };

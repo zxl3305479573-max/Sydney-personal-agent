@@ -16,18 +16,26 @@ afterEach(() => {
 });
 
 describe("normalizeApiBase", () => {
-  it("trims, adds https, and keeps only the origin", () => {
-    expect(normalizeApiBase("  app.example.com/rpc  ")).toEqual({
+  it("trims, adds https, and accepts origins with an optional root path", () => {
+    expect(normalizeApiBase("  app.example.com/  ")).toEqual({
       ok: true,
       url: "https://app.example.com",
     });
-    expect(normalizeApiBase("https://rakazo.example.com:8443/api/")).toEqual({
+    expect(normalizeApiBase("https://rakazo.example.com:8443/")).toEqual({
       ok: true,
       url: "https://rakazo.example.com:8443",
     });
     expect(normalizeApiBase("http://192.168.1.20:3100/")).toEqual({
       ok: true,
       url: "http://192.168.1.20:3100",
+    });
+    expect(normalizeApiBase("https://203.0.113.10:8443/")).toEqual({
+      ok: true,
+      url: "https://203.0.113.10:8443",
+    });
+    expect(normalizeApiBase("http://[fd00::1]:3100/")).toEqual({
+      ok: true,
+      url: "http://[fd00::1]:3100",
     });
     expect(normalizeApiBase("http://app.example.com")).toEqual({
       ok: false,
@@ -43,10 +51,20 @@ describe("normalizeApiBase", () => {
     expect(normalizeApiBase("http://")).toMatchObject({ ok: false });
   });
 
-  it("strips credentials from the stored origin", () => {
-    expect(normalizeApiBase("https://user:pass@app.example.com/rpc")).toEqual({
-      ok: true,
-      url: "https://app.example.com",
+  it.each([
+    "https://user:pass@app.example.com",
+    "https://@app.example.com",
+    "app.example.com/rpc",
+    "https://app.example.com/a/..",
+    "https://app.example.com/?",
+    "https://app.example.com/?token=value",
+    "https://app.example.com/#",
+    "https://app.example.com/#fragment",
+    "https://app.example.com\\rpc",
+  ])("rejects extra URL components in %s", (input) => {
+    expect(normalizeApiBase(input)).toEqual({
+      ok: false,
+      error: "Use only the server address, without credentials, a path, query, or fragment",
     });
   });
 });
@@ -67,6 +85,15 @@ describe("display and warnings", () => {
     const endpoint = await import("./endpoint.js");
 
     expect(endpoint.defaultApiBase()).toBe("http://127.0.0.1:3100");
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the existing origin-only behavior for the compile-time endpoint", async () => {
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://user:pass@app.example.com/api?x=1#fragment");
+    vi.resetModules();
+    const endpoint = await import("./endpoint.js");
+
+    expect(endpoint.defaultApiBase()).toBe("https://app.example.com");
     vi.unstubAllEnvs();
   });
 
@@ -112,8 +139,64 @@ describe("probeApiBase", () => {
     });
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://app.example.com/rpc/health",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", redirect: "error" }),
     );
+  });
+
+  it("accepts a health response with matching URL metadata", async () => {
+    const response = new Response(JSON.stringify({ json: { ok: true } }), { status: 200 });
+    Object.defineProperties(response, {
+      redirected: { value: false },
+      url: { value: "https://app.example.com/rpc/health" },
+      type: { value: "basic" },
+    });
+    const fetchImpl = vi.fn(async () => response);
+
+    await expect(probeApiBase("https://app.example.com", fetchImpl)).resolves.toEqual({
+      ok: true,
+      url: "https://app.example.com",
+    });
+  });
+
+  it("requests redirect errors and rejects a returned 302 with or without custom headers", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 302 }));
+    const headerSets: Record<string, string>[] = [{}, { "x-access": "value" }];
+    for (const headers of headerSets) {
+      await expect(
+        probeApiBase("https://app.example.com", fetchImpl, headers),
+      ).resolves.toMatchObject({ ok: false });
+      expect(fetchImpl).toHaveBeenLastCalledWith(
+        "https://app.example.com/rpc/health",
+        expect.objectContaining({ redirect: "error" }),
+      );
+    }
+  });
+
+  it.each([
+    { redirected: true, url: "https://app.example.com/rpc/health", type: "basic" },
+    { redirected: false, url: "https://other.example.com/rpc/health", type: "basic" },
+    { redirected: false, url: "https://app.example.com/other", type: "basic" },
+    { redirected: false, url: "", type: "opaqueredirect" },
+  ])("rejects observable redirected or changed response metadata: %o", async (metadata) => {
+    const response = new Response(JSON.stringify({ json: { ok: true } }), { status: 200 });
+    Object.defineProperties(response, {
+      redirected: { value: metadata.redirected },
+      url: { value: metadata.url },
+      type: { value: metadata.type },
+    });
+    const fetchImpl = vi.fn(async () => response);
+
+    await expect(probeApiBase("https://app.example.com", fetchImpl)).resolves.toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("does not probe an address with discarded components", async () => {
+    const fetchImpl = vi.fn();
+    await expect(probeApiBase("https://app.example.com/rpc", fetchImpl)).resolves.toMatchObject({
+      ok: false,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("rejects a host that is up but is not Rakazo", async () => {

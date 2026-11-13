@@ -18,12 +18,15 @@ import {
   authHeaders,
   blockText,
   captureApiRequestContext,
+  captureServerSessionScope,
   changePassword,
   currentApiBase,
+  currentSpaceSelectionGeneration,
   deleteAccount,
   fetchAccountSecurity,
   IDLE_TIMEOUT_MS,
   isServerReachable,
+  isSpaceSelectionPending,
   loadApiBase,
   MAX_MOBILE_AUTH_RESPONSE_BYTES,
   MAX_MOBILE_RPC_RESPONSE_BYTES,
@@ -33,6 +36,7 @@ import {
   prependMobileMessagePage,
   requestAccountDeletionCode,
   requestPasswordReset,
+  replaceMobileSession,
   resetApiBase,
   rpc,
   saveApiBase,
@@ -48,6 +52,7 @@ import {
   spaceSelectionSeq,
   subscribeServerReachable,
   subscribeSessionRejected,
+  subscribeSpaceSelection,
   subscribeThread,
   updateAccountName,
 } from "./api.js";
@@ -82,6 +87,67 @@ afterEach(() => {
 });
 
 describe("mobile API authentication", () => {
+  it.each(["unavailable", "invalid", "empty"])(
+    "rejects server initialization when saved settings are %s",
+    async (failure) => {
+      const previous = currentApiBase();
+      vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
+        if (key !== "rakazo.api_base") return null;
+        if (failure === "unavailable") throw new Error("storage locked");
+        if (failure === "empty") return "";
+        return "https://example.com/unexpected-path";
+      });
+      await expect(loadApiBase()).rejects.toThrow("Could not load server settings");
+      expect(currentApiBase()).toBe(previous);
+    },
+  );
+
+  it("notifies selection start synchronously and settlement after storage", async () => {
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.mocked(SecureStore.deleteItemAsync).mockReturnValueOnce(pending);
+    const snapshots: boolean[] = [];
+    const unsubscribe = subscribeSpaceSelection(() => snapshots.push(isSpaceSelectionPending()));
+    try {
+      const selection = selectSpace("space-new");
+      expect(snapshots).toEqual([true]);
+      expect(isSpaceSelectionPending()).toBe(true);
+      finish?.();
+      await expect(selection).resolves.toBe(true);
+      expect(snapshots[0]).toBe(true);
+      expect(snapshots.at(-1)).toBe(false);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("keeps selection pending when an older attempt settles first", async () => {
+    let finishOld: () => void = () => {};
+    let finishNew: () => void = () => {};
+    vi.mocked(SecureStore.deleteItemAsync)
+      .mockReturnValueOnce(new Promise<void>((resolve) => (finishOld = resolve)))
+      .mockReturnValueOnce(new Promise<void>((resolve) => (finishNew = resolve)));
+    const oldSelection = selectSpace("space-old");
+    const newSelection = selectSpace("space-new");
+    finishOld();
+    await expect(oldSelection).resolves.toBe(false);
+    expect(isSpaceSelectionPending()).toBe(true);
+    finishNew();
+    await expect(newSelection).resolves.toBe(true);
+    expect(isSpaceSelectionPending()).toBe(false);
+  });
+
+  it("advances the Space generation for A to B to A", async () => {
+    await selectSpace("space-a");
+    const initial = currentSpaceSelectionGeneration();
+    await selectSpace("space-b");
+    await selectSpace("space-a");
+    expect(selectedSpaceId()).toBe("space-a");
+    expect(currentSpaceSelectionGeneration()).toBe(initial + 2);
+  });
+
   it("does not send a captured old bearer after the session changes", async () => {
     await saveSessionToken("fake-session-a");
     const context = await captureApiRequestContext();
@@ -90,6 +156,432 @@ describe("mobile API authentication", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(rpc("bots/list", {}, { requestContext: context })).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a captured request after switching away and back", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const context = await captureApiRequestContext();
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    try {
+      await saveApiBase("https://second-server.example");
+      await resetApiBase();
+      await expect(rpc("bots/list", {}, { requestContext: context })).rejects.toThrow();
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      await resetApiBase();
+    }
+  });
+
+  it("does not save a delayed login from the previous server", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const pending = signIn("ada@example.com", "password");
+      const rejected = expect(pending).rejects.toThrow();
+      await fetchStarted;
+      await saveApiBase("https://second-server.example");
+      resolveFetch(jsonResponse({ token: "old-server-token" }));
+      await rejected;
+      expect(store.get("rakazo.session_token")).not.toBe("old-server-token");
+    } finally {
+      await resetApiBase();
+    }
+  });
+
+  it("rejects a delayed RPC response after the server changes", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const pending = rpc("bots/list");
+      const rejected = expect(pending).rejects.toThrow();
+      await fetchStarted;
+      await saveApiBase("https://second-server.example");
+      resolveFetch(jsonResponse({ json: [] }));
+      await rejected;
+    } finally {
+      await resetApiBase();
+    }
+  });
+
+  it.each(["invalid", "storage failure"])(
+    "reports a completed login when the queued server change has %s",
+    async (failure) => {
+      const store = new Map<string, string>();
+      mockSecureStore(store);
+      const write = deferSecureStoreWrite(store, "rakazo.session_token");
+      if (failure === "storage failure") {
+        const save = vi.mocked(SecureStore.setItemAsync).getMockImplementation();
+        vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value, options) => {
+          if (key === "rakazo.api_base") throw new Error("device locked");
+          await save?.(key, value, options);
+        });
+      }
+      vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ token: "login-token" })));
+      try {
+        const login = signIn("ada@example.com", "password");
+        await write.started;
+        const switching = saveApiBase(
+          failure === "invalid" ? "https://example.com/path" : "https://second-server.example",
+        );
+        write.release();
+        await expect(login).resolves.toEqual({ verificationRequired: false });
+        await expect(switching).resolves.toMatchObject({ ok: false });
+        expect(store.get("rakazo.session_token")).toBe("login-token");
+      } finally {
+        write.release();
+        await resetApiBase();
+      }
+    },
+  );
+
+  it("rejects login when sign-out starts during token persistence", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const write = deferSecureStoreWrite(store, "rakazo.session_token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        String(url).includes("/sign-in/email")
+          ? jsonResponse({ token: "login-token" })
+          : jsonResponse({ json: null }),
+      ),
+    );
+    try {
+      const login = signIn("ada@example.com", "password");
+      const rejected = expect(login).rejects.toThrow();
+      await write.started;
+      const logout = signOut();
+      write.release();
+      await rejected;
+      await logout;
+      expect(store.get("rakazo.session_token") || "").toBe("");
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("rejects login when another session change supersedes its save", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const write = deferSecureStoreWrite(store, "rakazo.session_token");
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ token: "login-token" })));
+    try {
+      const login = signIn("ada@example.com", "password");
+      const rejected = expect(login).rejects.toThrow();
+      await write.started;
+      const clearing = clearSessionToken();
+      write.release();
+      await rejected;
+      await clearing;
+      expect(store.get("rakazo.session_token") || "").toBe("");
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("finishes an old Space write before switching servers", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const write = deferSecureStoreWrite(store, "rakazo.space_id");
+    try {
+      const selection = selectSpace("old-server-space");
+      await write.started;
+      const switching = saveApiBase("https://second-server.example");
+      write.release();
+      await expect(selection).resolves.toBe(true);
+      await expect(switching).resolves.toMatchObject({ ok: true });
+      expect(selectedSpaceId()).toBeNull();
+      expect(store.get("rakazo.space_id") || "").toBe("");
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("does not restore credentials after sign-out starts during a failed switch", async () => {
+    const store = new Map<string, string>([["rakazo.session_token", "old-token"]]);
+    mockSecureStore(store);
+    await selectSpace("old-space");
+    const write = deferSecureStoreWrite(store, "rakazo.api_base");
+    const save = vi.mocked(SecureStore.setItemAsync).getMockImplementation();
+    vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value, options) => {
+      await save?.(key, value, options);
+      if (key === "rakazo.api_base" && value === "https://second-server.example")
+        throw new Error("device locked");
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ json: null })));
+    try {
+      const switching = saveApiBase("https://second-server.example");
+      await write.started;
+      const logout = signOut();
+      write.release();
+      await expect(switching).resolves.toMatchObject({ ok: false });
+      await logout;
+      expect(store.get("rakazo.session_token") || "").toBe("");
+      expect(store.get("rakazo.space_id") || "").toBe("");
+      expect(selectedSpaceId()).toBeNull();
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("refuses a deleted-space fallback while a server switch is pending", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const write = deferSecureStoreWrite(store, "rakazo.api_base");
+    try {
+      const switching = saveApiBase("https://second-server.example");
+      await write.started;
+      const staleScope = { apiBase: currentApiBase(), endpointGeneration: -1, sessionGeneration: -1 };
+      await expect(adoptDeletedSpaceFallback("old-space", staleScope)).resolves.toBe(false);
+      write.release();
+      await expect(switching).resolves.toMatchObject({ ok: true });
+      expect(selectedSpaceId()).toBeNull();
+      expect(store.get("rakazo.space_id") || "").toBe("");
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("refuses a fallback captured before a server round trip or a session change", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    try {
+      const oldServer = captureServerSessionScope();
+      await saveApiBase("https://second-server.example");
+      await resetApiBase();
+      await expect(adoptDeletedSpaceFallback("old-space", oldServer)).resolves.toBe(false);
+      const oldSession = captureServerSessionScope();
+      await saveSessionToken("new-session");
+      await expect(adoptDeletedSpaceFallback("old-space", oldSession)).resolves.toBe(false);
+      expect(store.get("rakazo.space_id") || "").toBe("");
+    } finally {
+      await resetApiBase();
+    }
+  });
+
+  it("does not let concurrent startup loads replace a newly selected server", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    let release: () => void = () => undefined;
+    let markStarted: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held = false;
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
+      if (key === "rakazo.api_base" && !held) {
+        held = true;
+        markStarted();
+        await gate;
+        return "https://old-server.example";
+      }
+      return store.get(key) ?? null;
+    });
+    try {
+      const first = loadApiBase();
+      await started;
+      const second = loadApiBase();
+      const switching = saveApiBase("https://second-server.example");
+      release();
+      await Promise.all([first, second]);
+      await expect(switching).resolves.toMatchObject({ ok: true });
+      await saveSessionToken("new-server-token");
+      const fetch = vi.fn(async (_url: string, _init: RequestInit) => jsonResponse({ json: [] }));
+      vi.stubGlobal("fetch", fetch);
+      await rpc("bots/list");
+      expect(String(fetch.mock.calls[0]?.[0])).toContain("https://second-server.example/rpc/");
+      expect(currentApiBase()).toBe("https://second-server.example");
+    } finally {
+      release();
+      await resetApiBase();
+    }
+  });
+
+  it("waits for fallback persistence before replacing a passkey or SSO session", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const scope = captureServerSessionScope();
+    const write = deferSecureStoreWrite(store, "rakazo.space_id");
+    try {
+      const fallback = adoptDeletedSpaceFallback("old-space", scope);
+      await write.started;
+      const replacement = replaceMobileSession(scope, "new-session", true);
+      write.release();
+      await fallback;
+      await expect(replacement).resolves.toBe(true);
+      expect(store.get("rakazo.session_token")).toBe("new-session");
+      expect(store.get("rakazo.space_id") || "").toBe("");
+      expect(selectedSpaceId()).toBeNull();
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("does not clear a newer session when an old account deletion response arrives", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    await saveSessionToken("account-a-token");
+    await selectSpace("account-a-space");
+    const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init: RequestInit) =>
+        String(url).endsWith("/api/auth/delete-user")
+          ? fetchMock()
+          : Promise.resolve(jsonResponse({ json: null })),
+      ),
+    );
+    try {
+      const deletion = deleteAccount("password", undefined, captureServerSessionScope());
+      await fetchStarted;
+      const scope = captureServerSessionScope();
+      await expect(replaceMobileSession(scope, "account-b-token", true)).resolves.toBe(true);
+      await selectSpace("account-b-space");
+      resolveFetch(jsonResponse({ success: true, message: "User deleted" }));
+      await expect(deletion).resolves.toEqual({ status: "session-changed" });
+      expect(store.get("rakazo.session_token")).toBe("account-b-token");
+      expect(store.get("rakazo.space_id")).toBe("account-b-space");
+      expect(selectedSpaceId()).toBe("account-b-space");
+    } finally {
+      await resetApiBase();
+    }
+  });
+
+  it.each(["rakazo.session_token", "rakazo.space_id"])(
+    "reports account deletion when local cleanup fails for %s",
+    async (failedKey) => {
+      const store = new Map<string, string>();
+      mockSecureStore(store);
+      await saveSessionToken("account-token");
+      await selectSpace("account-space");
+      vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key) => {
+        if (key === failedKey) throw new Error("storage unavailable");
+        store.delete(key);
+      });
+      vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
+        if (key === failedKey && value === "") throw new Error("storage unavailable");
+        store.set(key, value);
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          String(url).endsWith("/api/auth/delete-user")
+            ? jsonResponse({ success: true, message: "User deleted" })
+            : jsonResponse({ json: null }),
+        ),
+      );
+      const result = await deleteAccount("password", undefined, captureServerSessionScope());
+      expect(result.status).toBe("cleanup-failed");
+    },
+  );
+
+  it("does not send an account deletion after its confirmation scope changes", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const scope = captureServerSessionScope();
+    await saveSessionToken("different-account");
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(deleteAccount("password", undefined, scope)).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["invalid JSON", () => new Response("<html>gateway</html>", { status: 200 })],
+    ["empty response", () => new Response(null, { status: 204 })],
+    ["empty object", () => jsonResponse({})],
+    ["missing message", () => jsonResponse({ success: true })],
+    ["verification only", () => jsonResponse({ success: true, message: "Verification email sent" })],
+    ["false success", () => jsonResponse({ success: false, message: "User deleted" })],
+    ["null", () => jsonResponse(null)],
+  ])("does not clear the local session for an unconfirmed deletion: %s", async (_name, response) => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    await saveSessionToken("account-token");
+    await selectSpace("account-space");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        String(url).endsWith("/api/auth/delete-user") ? response() : jsonResponse({ json: null }),
+      ),
+    );
+    await expect(deleteAccount("password", undefined, captureServerSessionScope())).rejects.toThrow(
+      "Could not confirm account deletion",
+    );
+    expect(store.get("rakazo.session_token")).toBe("account-token");
+    expect(store.get("rakazo.space_id")).toBe("account-space");
+    expect(selectedSpaceId()).toBe("account-space");
+  });
+
+  it("does not report session replacement success after sign-out starts during the save", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const scope = captureServerSessionScope();
+    const write = deferSecureStoreWrite(store, "rakazo.session_token");
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ json: null })));
+    try {
+      const replacement = replaceMobileSession(scope, "new-token", true);
+      await write.started;
+      const logout = signOut();
+      write.release();
+      await expect(replacement).resolves.toBe(false);
+      await logout;
+      expect(store.get("rakazo.session_token") || "").toBe("");
+    } finally {
+      write.release();
+      await resetApiBase();
+    }
+  });
+
+  it("keeps a fallback scope valid after rejecting an invalid server address", async () => {
+    const store = new Map<string, string>();
+    mockSecureStore(store);
+    const scope = captureServerSessionScope();
+    await expect(saveApiBase("https://example.com/path")).resolves.toMatchObject({ ok: false });
+    await expect(adoptDeletedSpaceFallback("space-personal", scope)).resolves.toBe(true);
+  });
+
+  it("does not clear a session when a queued rejection is canceled", async () => {
+    const store = new Map<string, string>([["rakazo.session_token", "old-token"]]);
+    mockSecureStore(store);
+    await selectSpace("");
+    const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const write = deferSecureStoreWrite(store, "rakazo.space_id");
+    const controller = new AbortController();
+    try {
+      const request = rpc("bots/list", {}, { signal: controller.signal });
+      const rejected = expect(request).rejects.toThrow();
+      await fetchStarted;
+      const selection = selectSpace("space-new");
+      await write.started;
+      resolveFetch(rpcErrorResponse(401, "UNAUTHORIZED", "Unauthorized"));
+      for (let index = 0; index < 20; index += 1) await Promise.resolve();
+      controller.abort(new Error("Request canceled"));
+      await rejected;
+      write.release();
+      await selection;
+      expect(store.get("rakazo.session_token")).toBe("old-token");
+    } finally {
+      controller.abort();
+      write.release();
+      await resetApiBase();
+    }
   });
 
   beforeEach(async () => {
@@ -190,7 +682,7 @@ describe("mobile API authentication", () => {
     },
     {
       name: "account deletion",
-      request: () => deleteAccount("password"),
+      request: () => deleteAccount("password", undefined, captureServerSessionScope()),
       fallback: "Could not delete account",
     },
     {
@@ -460,7 +952,7 @@ describe("mobile API authentication", () => {
       .mockResolvedValueOnce(new Response("Not found", { status: 404 }))
       .mockResolvedValueOnce(jsonResponse({ status: true }))
       .mockResolvedValueOnce(jsonResponse({}))
-      .mockResolvedValueOnce(jsonResponse({ success: true }));
+      .mockResolvedValueOnce(jsonResponse({ success: true, message: "User deleted" }));
     vi.stubGlobal("fetch", fetchMock);
     await expect(fetchAccountSecurity()).resolves.toEqual({
       hasPassword: true,
@@ -471,7 +963,7 @@ describe("mobile API authentication", () => {
       sso: null,
     });
     await changePassword("old-password", "new-password");
-    await deleteAccount("new-password");
+    await deleteAccount("new-password", undefined, captureServerSessionScope());
     expect(fetchMock.mock.calls[1]?.[0]).toContain("/api/auth/change-password");
     expect(fetchMock.mock.calls[3]?.[0]).toContain("/api/auth/delete-user");
     expect(JSON.parse(fetchMock.mock.calls[3]?.[1]?.body)).toEqual({ password: "new-password" });
@@ -855,19 +1347,8 @@ describe("mobile API authentication", () => {
     const fetchMock = vi.fn(async () => jsonResponse({ status: true }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await loadApiBase();
-    await changePassword("old-password", "new-password");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:3100/api/auth/change-password",
-      expect.objectContaining({
-        headers: expect.objectContaining({ authorization: "Bearer session-token" }),
-      }),
-    );
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      expect.stringMatching(/^http:\/\/app\.example\.test/),
-      expect.anything(),
-    );
+    await expect(loadApiBase()).rejects.toThrow("Could not load server settings");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("starts notifications only after the inbox selects the default space", async () => {
@@ -1237,10 +1718,10 @@ describe("mobile API authentication", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ json: null }))
-      .mockResolvedValueOnce(jsonResponse({}));
+      .mockResolvedValueOnce(jsonResponse({ success: true, message: "User deleted" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await deleteAccount("correct horse");
+    await deleteAccount("correct horse", undefined, captureServerSessionScope());
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       "http://127.0.0.1:3100/rpc/notifications/unregisterPush",
@@ -1384,6 +1865,83 @@ describe("mobile API authentication", () => {
       expect(String(url)).toContain("/rpc/aiConsent/status");
       expect(init?.body).not.toContain("private content");
     }
+  });
+
+  it("does not prompt or send screen text when automatic model consent is missing", async () => {
+    vi.mocked(promptAiConsent).mockClear();
+    const fetchMock = vi.fn(async (_url: string | URL | Request) => jsonResponse({
+      json: {
+        scope: "account-space",
+        version: "2026-09-14",
+        recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
+      },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(rpc("threads/companionScreenRespond",
+      { botId: "bot-1", id: "session-1", text: "private screen text" },
+      { allowConsentPrompt: false })).rejects.toThrow();
+    expect(promptAiConsent).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/rpc/aiConsent/status");
+  });
+
+  it("does not grant model consent or start a screen session after cancellation during the prompt", async () => {
+    let resolvePrompt!: (accepted: boolean) => void;
+    let promptOpened!: () => void;
+    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    vi.mocked(promptAiConsent).mockImplementation(() => {
+      promptOpened();
+      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+    });
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
+      paths.push(new URL(String(url)).pathname);
+      return jsonResponse({
+        json: {
+          scope: "account-space",
+          version: "2026-09-14",
+          recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
+        },
+      });
+    }));
+    const controller = new AbortController();
+    const start = rpc("threads/companionScreenStart", { botId: "bot-1", confirmed: true }, { signal: controller.signal });
+    const rejected = expect(start).rejects.toThrow();
+    await opened;
+    controller.abort();
+    resolvePrompt(true);
+    await rejected;
+    expect(paths).toEqual(["/rpc/aiConsent/status"]);
+  });
+
+  it("does not reuse another request's foreground consent prompt for automatic screen text", async () => {
+    let resolvePrompt!: (accepted: boolean) => void;
+    let promptOpened!: () => void;
+    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    vi.mocked(promptAiConsent).mockImplementation(() => {
+      promptOpened();
+      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+    });
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
+      paths.push(new URL(String(url)).pathname);
+      return jsonResponse({
+        json: {
+          scope: "account-space",
+          version: "2026-09-14",
+          recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
+        },
+      });
+    }));
+    const foreground = rpc("threads/send", { botId: "bot-1", text: "hello" });
+    const foregroundRejected = expect(foreground).rejects.toThrow();
+    await opened;
+    await expect(rpc("threads/companionScreenRespond",
+      { botId: "bot-1", id: "session-1", text: "screen" },
+      { allowConsentPrompt: false })).rejects.toThrow();
+    resolvePrompt(false);
+    await foregroundRejected;
+    expect(paths).toEqual(["/rpc/aiConsent/status", "/rpc/aiConsent/status"]);
   });
 
   it.each([true, false])("explains the mobile upgrade requirement with JSON=%s", async (json) => {
@@ -1862,7 +2420,7 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal")).resolves.toBe(true);
+    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     // Stale deleted id is cleared even while the replacement write stays locked.
     expect(storage.has("rakazo.space_id")).toBe(false);
@@ -1893,7 +2451,7 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal")).resolves.toBe(true);
+    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.has("rakazo.space_id")).toBe(false);
     expect(storage.has("rakazo.space_rollback")).toBe(false);
@@ -1949,7 +2507,7 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal")).resolves.toBe(false);
+    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(false);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.get("rakazo.space_id")).toBe("space-deleted");
 
@@ -1990,7 +2548,7 @@ describe("mobile API authentication", () => {
     });
     await loadApiBase();
 
-    await expect(adoptDeletedSpaceFallback("space-personal")).resolves.toBe(true);
+    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.get("rakazo.space_id")).toBe("space-personal");
     // Neutralization overwrote the stale rollback; best-effort clear may leave
@@ -2028,7 +2586,7 @@ describe("mobile API authentication", () => {
     });
     await loadApiBase();
 
-    await expect(adoptDeletedSpaceFallback("space-personal")).resolves.toBe(false);
+    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(false);
     expect(selectedSpaceId()).toBe("space-personal");
     // Must not leave the new selection durable beside the stale rollback.
     expect(storage.get("rakazo.space_id")).toBe("space-deleted");
@@ -2663,6 +3221,52 @@ describe("mobile API authentication", () => {
     await expect(pendingRpc).resolves.toEqual({ spaces: [] });
     expect(selectedSpaceId()).toBe("space-c");
     expect(storage.get("rakazo.space_id")).toBe("space-c");
+  });
+
+  it("blocks a new Space selection when a server change is queued during recovery cleanup", async () => {
+    const storage = new Map<string, string>([["rakazo.space_id", "space-deleted"]]);
+    let releaseCleanup: () => void = () => undefined;
+    let markCleanup: () => void = () => undefined;
+    const cleanupStarted = new Promise<void>((resolve) => {
+      markCleanup = resolve;
+    });
+    const cleanupGate = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    let held = false;
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => storage.get(key) ?? null);
+    vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key) => {
+      if (key === "rakazo.space_id" && !held) {
+        held = true;
+        markCleanup();
+        await cleanupGate;
+      }
+      storage.delete(key);
+    });
+    vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
+      storage.set(key, value);
+    });
+    await loadApiBase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(rpcErrorResponse(401, "UNAUTHORIZED", "Unauthorized"))
+        .mockResolvedValueOnce(jsonResponse({ json: { spaces: [] } })),
+    );
+    const pendingRpc = rpc("spaces/list");
+    try {
+      await cleanupStarted;
+      const switching = saveApiBase("https://second-server.example");
+      await expect(selectSpace("space-blocked")).resolves.toBe(false);
+      releaseCleanup();
+      await pendingRpc;
+      await expect(switching).resolves.toMatchObject({ ok: true });
+      expect(currentApiBase()).toBe("https://second-server.example");
+      expect(selectedSpaceId()).toBeNull();
+    } finally {
+      releaseCleanup();
+      await resetApiBase();
+    }
   });
 
   it("re-persists a Space selected while recovery cleanup is in flight", async () => {
@@ -4631,6 +5235,27 @@ function mockSecureStore(store: Map<string, string>) {
   vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
     store.set(key, value);
   });
+}
+
+function deferSecureStoreWrite(store: Map<string, string>, target: string) {
+  let release: () => void = () => undefined;
+  let markStarted: () => void = () => undefined;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let deferred = false;
+  vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
+    if (key === target && !deferred) {
+      deferred = true;
+      markStarted();
+      await gate;
+    }
+    store.set(key, value);
+  });
+  return { started, release };
 }
 
 function deferredFetch() {

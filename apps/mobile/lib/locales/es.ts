@@ -1,4 +1,28 @@
 export const ES_MESSAGES: Record<string, string> = {
+  "Account deleted": "Cuenta eliminada",
+  "Could not confirm account deletion. Check your account before trying again.":
+    "No se pudo confirmar la eliminación de la cuenta. Comprueba tu cuenta antes de volver a intentarlo.",
+  "The original account was deleted, but local cleanup failed and your session has changed.":
+    "La cuenta original se eliminó, pero falló la limpieza local y tu sesión ha cambiado.",
+  "The original account was deleted. Your current session has changed.": "La cuenta original se ha eliminado. Tu sesión actual ha cambiado.",
+  "The session changed. Open account deletion again.": "La sesión ha cambiado. Abre de nuevo la eliminación de la cuenta.",
+  "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
+    "La cuenta se ha eliminado, pero no se pudo limpiar la sesión local. Reinicia la aplicación e intenta cerrar sesión.",
+  Computers: "Ordenadores",
+  "Could not load devices.": "No se pudieron cargar los dispositivos.",
+  "No computers paired with this account.": "No hay ordenadores vinculados a esta cuenta.",
+  Offline: "Sin conexión",
+  Refresh: "Actualizar",
+  "Status at {time}; refresh to check again.":
+    "Estado consultado a las {time}; actualiza para comprobarlo de nuevo.",
+  "Your session is unavailable or expired. Sign in again.":
+    "La sesión no está disponible o ha caducado. Vuelve a iniciar sesión.",
+  "The device API is unavailable. Check the server configuration.":
+    "La API de dispositivos no está disponible. Comprueba la configuración del servidor.",
+  "Could not reach the server. Check your connection.":
+    "No se puede conectar con el servidor. Comprueba tu conexión.",
+  "The device request timed out. Try again.":
+    "La consulta de dispositivos agotó el tiempo de espera. Inténtalo de nuevo.",
   Bots: "Bots",
   "Connect apps": "Conectar aplicaciones",
   "Daily check-ins on unfinished work": "Seguimiento diario del trabajo pendiente",
@@ -763,6 +787,8 @@ export const ES_MESSAGES: Record<string, string> = {
   "{name}’s computer": "Computadora de {name}",
   "Could not reach that server": "No se pudo acceder a ese servidor",
   "Enter a server URL": "Introduce la URL de un servidor",
+  "Use only the server address, without credentials, a path, query, or fragment":
+    "Introduce solo la dirección del servidor, sin credenciales, ruta, consulta ni fragmento",
   "Public servers need https://. HTTP only works on your local network.":
     "Los servidores públicos necesitan https://. HTTP solo funciona en tu red local.",
   "That URL did not look like a Rakazo server": "Esa URL no parece ser de un servidor de Rakazo",

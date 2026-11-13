@@ -4,6 +4,39 @@
 @source "../../packages/ui-web/src/**/*.{ts,tsx}";
 @source "./src/**/*.{ts,tsx}";
 
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-user,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot {
+  border-radius: var(--custom-chat-bubble-radius);
+  padding: 10px 14px;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-user {
+  background-color: var(--custom-chat-user-background);
+  text-shadow: var(--custom-chat-user-shadow);
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot {
+  background-color: var(--custom-chat-bot-background);
+  text-shadow: var(--custom-chat-bot-shadow);
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown a,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown blockquote,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown th,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown td,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown li::marker {
+  color: inherit;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown a,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-link-label {
+  text-decoration-color: currentColor;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot [data-testid="tool-activity"] > button {
+  color: var(--custom-chat-bot-foreground);
+}
+
 @media (max-width: 767px) {
   [data-theme="light"] {
     --sidebar: #fff;

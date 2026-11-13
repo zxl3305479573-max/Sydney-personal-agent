@@ -11,6 +11,7 @@ import SettingsModelPickerScreen from "../app/(settings)/model-picker";
 import Models from "../app/(settings)/models";
 import BotModelScreen from "../app/bot-model";
 import BotSettingsScreen from "../app/bot-settings";
+import ThreadModelScreen from "../app/thread-model";
 import { ModelPickerList } from "../components/model-picker-list";
 import type { ModelConnectionRequest } from "./model-connection-request";
 import { modelConnectionRequest, openModelConnection } from "./model-connection-request";
@@ -44,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   listProps: {} as Record<string, unknown>,
   params: {} as Record<string, string | undefined>,
   update: vi.fn(),
+  botModel: null as { modelProvider: string; modelId: string } | null,
   push: vi.fn(),
   back: vi.fn(),
   replace: vi.fn(),
@@ -163,7 +165,13 @@ vi.mock("./api", () => ({
     }
     if (procedure === "models/setDefault") return result;
     if (procedure === "bots/get")
-      return { id: "bot-fixture", name: "Fixture", title: "", computerMode: "team" };
+      return {
+        id: "bot-fixture",
+        name: "Fixture",
+        title: "",
+        computerMode: "team",
+        ...mocks.botModel,
+      };
     if (procedure === "me")
       return {
         userId: "user-fixture",
@@ -586,6 +594,7 @@ beforeEach(() => {
   mocks.secondConnection = false;
   mocks.backups = [];
   mocks.primary = null;
+  mocks.botModel = null;
   mocks.rpc.mockReset();
   mocks.menus.clear();
   mocks.rowAccessibilityActions.clear();
@@ -635,6 +644,71 @@ describe("chat settings model row", () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ modelProvider: "openrouter", modelId: "vendor/model-3" }),
     );
+  });
+});
+
+describe("thread model picker", () => {
+  it("saves the selected model for the bot and returns", async () => {
+    mocks.params = { botId: "bot-fixture" };
+    mocks.update.mockResolvedValue({});
+    await act(async () => root.render(<ThreadModelScreen />));
+    const row = [...container.querySelectorAll<HTMLButtonElement>("li button")].find((button) =>
+      button.textContent?.includes("Model 3"),
+    );
+    expect(row).toBeDefined();
+    await act(async () => row!.click());
+    expect(mocks.update).toHaveBeenCalledWith({
+      botId: "bot-fixture",
+      modelProvider: "openrouter",
+      modelId: "vendor/model-3",
+      thinkingLevel: null,
+    });
+    expect(mocks.back).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the picker open when saving fails", async () => {
+    mocks.params = { botId: "bot-fixture" };
+    mocks.update.mockRejectedValueOnce(new Error("save failed"));
+    await act(async () => root.render(<ThreadModelScreen />));
+    const row = [...container.querySelectorAll<HTMLButtonElement>("li button")].find((button) =>
+      button.textContent?.includes("Model 3"),
+    );
+    expect(row).toBeDefined();
+    await act(async () => row!.click());
+    expect(mocks.alert).toHaveBeenCalled();
+    expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("restores the space default when selected", async () => {
+    mocks.params = { botId: "bot-fixture" };
+    mocks.botModel = { modelProvider: "openrouter", modelId: "vendor/model-3" };
+    mocks.update.mockResolvedValue({});
+    await act(async () => root.render(<ThreadModelScreen />));
+    const row = [...container.querySelectorAll<HTMLButtonElement>("li button")].find((button) =>
+      button.textContent?.includes("Space default"),
+    );
+    expect(row).toBeDefined();
+    await act(async () => row!.click());
+    expect(mocks.update).toHaveBeenCalledWith({
+      botId: "bot-fixture",
+      modelProvider: null,
+      modelId: null,
+      thinkingLevel: null,
+    });
+  });
+
+  it("opens model settings to add a connection", async () => {
+    mocks.params = { botId: "bot-fixture" };
+    await act(async () => root.render(<ThreadModelScreen />));
+    const headerOptions = mocks.setOptions.mock.calls
+      .map(([options]) => options)
+      .find((options) => options.headerRight);
+    expect(headerOptions).toBeDefined();
+    act(() => root.render(headerOptions.headerRight()));
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Add model"]');
+    expect(button).not.toBeNull();
+    act(() => button!.click());
+    expect(mocks.push).toHaveBeenCalledWith("/models");
   });
 });
 

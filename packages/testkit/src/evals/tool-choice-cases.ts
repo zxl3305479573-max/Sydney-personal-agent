@@ -5,6 +5,46 @@ import { toolChoiceEvalCase } from "./tool-choice.js";
 const PRODUCT_HELP = { anyOf: [{ tool: "skill_read", args: { name: "~rakazo" } }] };
 
 export const TOOL_CHOICE_DEFINITIONS: ToolChoiceCase[] = [
+  {
+    id: "chinese-chat-greeting",
+    area: "tool-routing",
+    kind: "control",
+    purpose: "Answer a greeting without using a tool.",
+    prompt: "你好，很高兴认识你。",
+    expect: { notCalls: ["*"] },
+  },
+  {
+    id: "chinese-chat-polish",
+    area: "tool-routing",
+    kind: "control",
+    purpose: "Polish supplied text without using a tool.",
+    prompt: "请润色这句话：今天的会议很顺利。",
+    expect: { notCalls: ["*"] },
+  },
+  {
+    id: "chinese-current-weather",
+    area: "tool-routing",
+    kind: "guard",
+    purpose: "Look up current weather rather than inventing it.",
+    prompt: "请上网查一下上海现在的天气。",
+    expect: { anyOf: [{ tool: "web_search" }, { tool: "web_fetch" }] },
+  },
+  {
+    id: "chinese-create-file",
+    area: "tool-routing",
+    kind: "guard",
+    purpose: "Create the requested workspace file.",
+    prompt: "请在工作区创建 hello.txt，内容写你好。",
+    expect: { calls: [{ tool: "write_file", args: { path: "~hello.txt" } }] },
+  },
+  {
+    id: "chinese-computer-observe",
+    area: "tool-routing",
+    kind: "guard",
+    purpose: "Observe the computer when asked for its screen.",
+    prompt: "请看看电脑屏幕上现在显示什么。",
+    expect: { calls: [{ tool: "computer_observe" }] },
+  },
   // Bot settings the user asks for.
   {
     id: "settings-rename",

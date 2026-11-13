@@ -54,6 +54,8 @@ export default function ServerScreen() {
 
   const parsedDraft = normalizeApiBase(draft);
   const warning = parsedDraft.ok ? apiBaseWarning(parsedDraft.url) : null;
+  const mayChangeServer =
+    usesCustomApiBase(current) || (parsedDraft.ok && parsedDraft.url !== current);
 
   async function save() {
     if (saving.current) return;
@@ -162,6 +164,16 @@ export default function ServerScreen() {
           {warning ? (
             <Text style={{ color: tokens.mutedForeground, marginTop: 12, fontSize: 13 }}>
               {warning}
+            </Text>
+          ) : null}
+          {mayChangeServer ? (
+            <Text
+              accessibilityRole="alert"
+              style={{ color: tokens.warning, marginTop: 12, fontSize: 13 }}
+            >
+              {t(
+                "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.",
+              )}
             </Text>
           ) : null}
           <HeaderRowsEditor
