@@ -20,6 +20,11 @@ const config: ExpoConfig = {
   extra: { example: true },
 };
 
+const nativeConfig: ExpoConfig = {
+  ...config,
+  autolinking: { nativeModulesDir: "./modules" },
+};
+
 function context(config: ExpoConfig): ConfigContext {
   return { config, projectRoot: "/project", staticConfigPath: null, packageJsonPath: null };
 }
@@ -41,6 +46,17 @@ describe("mobile app config", () => {
     expect(appConfig(context(config)).plugins).toContain("./plugins/with-companion-widget");
     vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "7e638919-de89-4bea-a7a3-3a2d6902640e");
     expect(() => appConfig(context(config))).toThrow("separate bundle ID");
+  });
+
+  it("excludes the companion native module from ordinary builds", () => {
+    const ordinary = appConfig(context(nativeConfig));
+    expect(ordinary.autolinking?.exclude).toContain("sydney-companion");
+
+    vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
+    vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "1");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.companion");
+    const companion = appConfig(context(nativeConfig));
+    expect(companion.autolinking?.exclude).not.toContain("sydney-companion");
   });
 
   it.each([

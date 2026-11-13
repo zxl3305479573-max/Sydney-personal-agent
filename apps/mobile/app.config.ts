@@ -52,6 +52,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (companionExperiment && !sideload) {
     throw new Error("The companion experiment requires an isolated sideload build.");
   }
+  if (result.autolinking?.nativeModulesDir) {
+    const existingExclusions = result.autolinking.exclude ?? [];
+    const exclude = (
+      companionExperiment
+        ? existingExclusions.filter((name) => name !== "sydney-companion")
+        : [...new Set([...existingExclusions, "sydney-companion"])]
+    );
+    result = {
+      ...result,
+      autolinking: { ...result.autolinking, exclude },
+    };
+  }
   if (sideload) {
     const bundleIdentifier = process.env.SYDNEY_IOS_BUNDLE_ID;
     if (!bundleIdentifier || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(bundleIdentifier)) {
