@@ -5,7 +5,9 @@
 均返回 200；IP 来源 RPC 健康返回 200；认证能力接口两种 Host 均返回
 `https://124.221.182.39/reset-password`。IP TLS 证书通过系统信任链及 IP
 身份校验，剩余约 156.7 小时（证书到期时间为北京时间 2026-11-20 02:12:44）；
-每小时检查已启用，但未观察真实自动续期，也没有失败通知送达证据。
+生产 Caddy 实时管理配置为 IP subject 的 ACME `shortlived` 策略；维护
+节点 timer 为 active，最近一次检查服务 `Result=success`、退出码 0，
+但这仅证明检查执行成功，不代表发生过续期。未配置失败通知送达证据。
 旧域名保持服务，不要删除或停用。当前 iOS unsigned IPA 可从
 https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/43375597868
 下载，artifact 为 `sydney-ios-unsigned-43375597868-1`，有效期 7 天；
