@@ -1,5 +1,20 @@
 # 验证记录
 
+2026-11-13（生产 IP 与当前 iOS 产物）：只读公网探测中，
+`https://124.221.182.39/health` 和旧域名 `/health` 均为 HTTP 200；
+IP `/rpc/health` 为 HTTP 200、`ok=true`；IP 与域名
+`/api/auth/capabilities` 均为 HTTP 200，`resetUrl` 均指向 IP。执行
+`python infra/compose/check-ip-certificate.py 124.221.182.39 --warning-hours 72 --timeout 8`
+返回证书受信且剩余 156.7 小时。GitHub Actions run `43375597868` 对 SHA
+`45c9d2c352bbbc24e533bf5d27b8e1b8c821311f` 完成：Xcode unsigned app build、
+IPA 校验打包、artifact 上传全部成功；artifact ID `14015445731`、名称
+`sydney-ios-unsigned-43375597868-1`、大小 25,619,518 字节、未过期。前两次
+run (`43371814189`、`43374030150`) 在 Xcode 构建退出码 65，无产物；日志
+下载因当前 GitHub 身份缺少仓库管理员权限返回 403，因此未确认具体编译错误。
+本轮仅运行移动 app-config 定向测试 34 项，第一次新增断言因测试漏设实验开关
+失败，修正后 34 项通过；Expo 配置解析通过。未运行全量测试、未签名、未安装，
+未验证真实账号、双端业务、证书自动续期及失败通知。
+
 2026-11-13（PA-021 阻塞复核）：GitHub 工作流内容仍没有陪伴
 输入；最近十次运行中非终态数量为 0，本机 PATH 中 Xcode/Swift
 命令数量为 0。git status 仍显示陪伴模块和 Widget 未跟踪，工作流
