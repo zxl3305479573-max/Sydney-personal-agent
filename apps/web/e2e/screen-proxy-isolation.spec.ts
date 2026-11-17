@@ -9,10 +9,12 @@ import path from "node:path";
 import type { Duplex } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
+import { createScreenProxyDispatch } from "../../api/src/screen-proxy-dispatch";
 import {
   addScreenProxyCapability,
   openScreenCapability,
 } from "@rakazo/core/node/screen-capability";
+import { createNovncProxy } from "@rakazo/core/node/novnc-proxy";
 import { screenProbeUrl } from "@rakazo/core/screen-reconnect";
 import type { Plugin, ViteDevServer } from "vite";
 import { createServer, preview } from "vite";
@@ -97,7 +99,7 @@ async function resetDuringUpgrade(server: Server, url: URL, beforeReset?: Promis
   await closed;
 }
 
-for (const mode of ["development", "preview"] as const) {
+for (const mode of ["development", "preview", "api"] as const) {
   test.describe(`screen response isolation in ${mode}`, () => {
     let origin: string;
     let screenUrl: string;
@@ -111,9 +113,11 @@ for (const mode of ["development", "preview"] as const) {
     let upstreamUpgraded: ((path: string) => void) | undefined;
     let authorityReached: (() => void) | undefined;
     let authorityHold: Promise<void> | undefined;
+    let handshakeTimedOut = false;
     test.beforeAll(async () => {
       const root = await mkdtemp(path.join(tmpdir(), "rakazo-screen-test-"));
       await mkdir(path.join(root, "dist"));
+      const upgradedSockets = new Set<Duplex>();
       const upstream = createHttpServer((req, res) => {
         upstreamRequests += 1;
         if (req.headers.cookie !== providerHeaders.cookie) {
@@ -147,7 +151,23 @@ for (const mode of ["development", "preview"] as const) {
         }
       });
       upstream.on("upgrade", (req, socket) => {
+        upgradedSockets.add(socket);
+        socket.once("close", () => upgradedSockets.delete(socket));
         upstreamUpgraded?.(new URL(req.url ?? "/", "http://upstream").pathname);
+        if (new URL(req.url ?? "/", "http://upstream").pathname === "/stall") {
+          socket.on("error", () => socket.destroy());
+          socket.on("end", () => socket.destroy());
+          socket.setTimeout(2_000, () => socket.destroy());
+          socket.resume();
+          return;
+        }
+        if (new URL(req.url ?? "/", "http://upstream").pathname === "/reject") {
+          socket.on("error", () => socket.destroy());
+          socket.on("end", () => socket.destroy());
+          socket.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+          socket.resume();
+          return;
+        }
         if (req.headers.cookie !== providerHeaders.cookie) {
           socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
           return;
@@ -218,10 +238,47 @@ for (const mode of ["development", "preview"] as const) {
           server: { host: "127.0.0.1", port: 0, hmr: false as const },
           preview: { host: "127.0.0.1", port: 0 },
         };
-        const server = mode === "development" ? await createServer(config) : await preview(config);
-        // listen() replaces zero with Vite's default port; bind the HTTP server directly instead.
-        httpServer = server.httpServer as Server;
-        if ("listen" in server) await listen(httpServer);
+        let closeFrontend: () => Promise<void>;
+        if (mode === "api") {
+          const screen = createNovncProxy({
+            secret,
+            api: process.env.API_PROXY_TARGET,
+            logger: {
+              warn: (message, bindings) => {
+                if (message === "screen.proxy.websocket_handshake_failed" &&
+                    bindings?.reason === "upstream_timeout") handshakeTimedOut = true;
+              },
+              info: () => {},
+            },
+            handshakeTimeoutMs: 300,
+          });
+          const dispatch = createScreenProxyDispatch({
+            screen,
+            http: (req, res) => {
+              if (req.url === "/app") {
+                res.setHeader("Content-Type", "text/html");
+                res.end('<!doctype html><title>Fake app</title><body><script src="/app.js"></script></body>');
+              } else if (req.url === "/app.js") {
+                res.setHeader("Content-Type", "text/javascript");
+                res.end('localStorage.setItem("app-data", "private-app-data"); document.cookie = "app-session=fake-session; Path=/";');
+              } else if (req.url === "/session") {
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ cookie: req.headers.cookie ?? null }));
+              } else {
+                res.writeHead(404).end();
+              }
+            },
+          });
+          httpServer = createHttpServer(dispatch.handleHttp);
+          httpServer.on("upgrade", dispatch.handleUpgrade);
+          await listen(httpServer);
+          closeFrontend = () => close(httpServer);
+        } else {
+          const server = mode === "development" ? await createServer(config) : await preview(config);
+          httpServer = server.httpServer as Server;
+          if ("listen" in server) await listen(httpServer);
+          closeFrontend = () => server.close();
+        }
         origin = `http://127.0.0.1:${(httpServer.address() as AddressInfo).port}`;
         // Exercise the same capability issuer used by the production API, with a configured web origin.
         // A loopback upstream serving /vnc.html stands in for E2B, Daytona, Boat and Railway.
@@ -242,7 +299,8 @@ for (const mode of ["development", "preview"] as const) {
           providerHeaders,
         );
         stop = async () => {
-          await server.close();
+          for (const socket of upgradedSockets) socket.destroy();
+          await closeFrontend();
           await close(upstream);
           await close(authority);
           await rm(root, { recursive: true, force: true });
@@ -370,6 +428,39 @@ for (const mode of ["development", "preview"] as const) {
       test.skip(mode === "development");
       await resetDuringUpgrade(httpServer, new URL(`${origin}/somewhere`));
       expect((await request.get(`${origin}/app`)).status()).toBe(200);
+    });
+
+    test("closes a screen socket when the upstream handshake stalls", async () => {
+      test.skip(mode !== "api");
+      handshakeTimedOut = false;
+      const reached = new Promise<void>((resolve) => {
+        upstreamUpgraded = (upstreamPath) => {
+          if (upstreamPath === "/stall") resolve();
+        };
+      });
+      const target = new URL(screenUrl);
+      target.pathname = target.pathname.replace("/vnc.html", "/stall");
+      const client = sendUpgrade(target);
+      client.resume();
+      try {
+        await reached;
+        await new Promise<void>((resolve) => client.once("close", () => resolve()));
+        expect(handshakeTimedOut).toBe(true);
+      } finally {
+        upstreamUpgraded = undefined;
+        client.destroy();
+      }
+    });
+
+    test("closes a screen socket after an upstream rejects the handshake", async () => {
+      test.skip(mode !== "api");
+      const target = new URL(screenUrl);
+      target.pathname = target.pathname.replace("/vnc.html", "/reject");
+      const client = sendUpgrade(target);
+      let response = "";
+      client.on("data", (chunk) => { response += chunk.toString("latin1"); });
+      await new Promise<void>((resolve) => client.once("close", () => resolve()));
+      expect(response).toContain("HTTP/1.1 403");
     });
 
     test("HTML that is not a noVNC page is passed through unchanged", async ({ page }) => {

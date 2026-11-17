@@ -14,6 +14,7 @@ export interface AdapterContext {
   userId: string;
   botId?: string;
   runId?: string;
+  projectWorkspaceId?: string | null;
   /** Opaque fence for releasing a graphical screen without tearing down its replacement. */
   screenLeaseId?: string;
   /** Retain a completed run's screen for reuse by this bot. */

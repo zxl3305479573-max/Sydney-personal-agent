@@ -13,6 +13,7 @@ import BotModelScreen from "../app/bot-model";
 import BotSettingsScreen from "../app/bot-settings";
 import ThreadModelScreen from "../app/thread-model";
 import { ModelPickerList } from "../components/model-picker-list";
+import { ThreadModelSheet } from "../components/thread/thread-model-sheet";
 import type { ModelConnectionRequest } from "./model-connection-request";
 import { modelConnectionRequest, openModelConnection } from "./model-connection-request";
 import { modelPickerRequest } from "./model-picker-selection";
@@ -300,6 +301,12 @@ vi.mock("react-native", () => {
     Linking: { openURL: vi.fn() },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     ScrollView: view,
+    Modal: ({ children, visible, onDismiss }: { children?: ReactNode; visible: boolean; onDismiss: () => void }) => {
+      useEffect(() => {
+        if (!visible) onDismiss();
+      }, [visible, onDismiss]);
+      return visible ? createElement("div", {}, children) : null;
+    },
     View: view,
     Text: ({ children }: { children?: ReactNode }) => createElement("span", {}, children),
     TextInput: ({
@@ -1247,7 +1254,7 @@ describe("model role lists", () => {
     expect(request.onConnected).toBeUndefined();
   });
 
-  it("lists providers to connect after the models and reopens the slot on that provider", async () => {
+  it("does not offer preset providers in the model role picker", async () => {
     mocks.primary = model(1);
     mocks.extraProviders = true;
     await renderModels();
@@ -1255,78 +1262,15 @@ describe("model role lists", () => {
     expect([...container.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
       "OpenRouter",
     ]);
-    const anthropic = pickerRows().find((row) => row.textContent?.startsWith("Anthropic"))!;
-    expect(anthropic.textContent).toBe("AnthropicConnect");
-    expect(anthropic.dataset.chevron).toBe("right");
-    act(() => anthropic.click());
-    expect(mocks.back).not.toHaveBeenCalled();
-    const route = mocks.replace.mock.lastCall![0] as {
-      pathname: string;
-      params: { requestId: string };
-    };
-    expect(route.pathname).toBe("/model-connection");
-    // Connecting from a chosen main model leaves it running until a model is picked.
-    expect(modelConnectionRequest(route.params.requestId)).toMatchObject({
-      provider: "anthropic",
-      makeDefault: false,
-    });
-
-    act(() => mocks.back());
-    act(() => rowButton("Main model", "Add fallback").click());
-    act(() =>
-      pickerRows()
-        .find((row) => row.textContent?.startsWith("Google"))!
-        .click(),
-    );
-    const fallback = modelConnectionRequest(
-      (mocks.replace.mock.lastCall![0] as { params: { requestId: string } }).params.requestId,
-    )!;
-    expect(fallback).toMatchObject({ provider: "google", makeDefault: false });
-    // Nothing joins the list until a model is picked from that provider.
-    let next: unknown;
-    await act(async () => {
-      next = await fallback.onConnected!(pinned(1));
-    });
-    expect(roleSaves()).toEqual([]);
-    const picker = modelPickerRequest(
-      (next as { params: { requestId: string } }).params.requestId,
-    )!;
-    expect(picker.title).toBe("Add fallback");
-    expect(picker.connectChoices).toBeUndefined();
-    expect(picker.choices.map((choice) => choice.modelLabel)).toEqual(
-      catalog.slice(1).map((entry) => entry.label),
-    );
-    await act(async () => picker.onSelect(picker.choices[2]!));
-    expect(roleSaves()).toEqual([{ backups: [pinned(4)] }]);
+    expect(pickerRows().some((row) => row.textContent?.includes("Anthropic"))).toBe(false);
+    expect(pickerRows().some((row) => row.textContent?.includes("Google"))).toBe(false);
   });
 
-  it("reopens the empty main slot on the connection that became the main model", async () => {
+  it("does not offer preset providers when no connection exists", async () => {
     mocks.connected = false;
     await renderModels();
     act(() => rowButton("Main model", "Choose a model").click());
-    act(() =>
-      pickerRows()
-        .find((row) => row.textContent?.startsWith("OpenRouter"))!
-        .click(),
-    );
-    const request = modelConnectionRequest(
-      (mocks.replace.mock.lastCall![0] as { params: { requestId: string } }).params.requestId,
-    )!;
-    expect(request.makeDefault).toBe(true);
-    mocks.connected = true;
-    mocks.primary = model(1);
-    let next: unknown;
-    await act(async () => {
-      next = await request.onConnected!(pinned(1));
-    });
-    const picker = modelPickerRequest(
-      (next as { params: { requestId: string } }).params.requestId,
-    )!;
-    expect(picker.selectedKey).toBe(
-      JSON.stringify(["openrouter", "vendor/model-1", CREDENTIAL_ID]),
-    );
-    expect(picker.choices).toHaveLength(11);
-    await act(async () => picker.onSelect(picker.choices[0]!));
+    expect(pickerRows().some((row) => row.textContent?.includes("OpenRouter"))).toBe(false);
     expect(roleSaves()).toEqual([]);
   });
 
@@ -1812,24 +1756,46 @@ describe("several connections for one provider", () => {
     });
   });
 
-  it("adds another connection for a connected provider without changing any list", async () => {
+  it("opens a custom connection without changing any model list", async () => {
     await renderModels();
     act(() =>
       [...section("Providers").querySelectorAll("button")]
         .find((button) => button.textContent === "Add provider")!
         .click(),
     );
-    expect(mocks.setOptions).toHaveBeenCalledWith({ title: "Add provider" });
-    const openrouter = pickerRows().find((row) => row.textContent === "OpenRouter")!;
-    act(() => openrouter.click());
-    const request = modelConnectionRequest(lastRequest(mocks.replace))!;
+    const request = modelConnectionRequest(lastRequest(mocks.push))!;
     expect(request).toMatchObject({
-      provider: "openrouter",
+      provider: "openai-compatible",
       credentialId: null,
       makeDefault: false,
     });
     expect(request.onConnected).toBeUndefined();
     expect(roleSaves()).toEqual([]);
+  });
+});
+
+describe("chat model sheet", () => {
+  it("lists connected models, saves a selection and offers the add action", async () => {
+    const onClose = vi.fn();
+    const onChanged = vi.fn();
+    const onAdd = vi.fn();
+    await act(async () =>
+      root.render(
+        <ThreadModelSheet botId="bot-fixture" onClose={onClose} onChanged={onChanged} onAdd={onAdd} />,
+      ),
+    );
+    expect(container.textContent).toContain("Space default");
+    const modelButton = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Model 2"),
+    )!;
+    await act(async () => modelButton.click());
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: "bot-fixture", modelId: "vendor/model-2" }),
+    );
+    expect(onChanged).toHaveBeenCalledWith("vendor/model-2");
+    expect(onClose).toHaveBeenCalled();
+    await act(async () => buttonWithText("＋ Add model")!.click());
+    expect(onAdd).toHaveBeenCalledOnce();
   });
 });
 

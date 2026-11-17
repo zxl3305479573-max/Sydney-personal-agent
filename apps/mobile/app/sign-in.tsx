@@ -24,6 +24,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GlassSurface } from "../components/glass-surface";
 import { NativeActionButton } from "../components/native-action-button";
+import { NativePasswordReset } from "../components/native-password-reset";
 import type { PasswordResetCapabilities } from "../lib/api";
 import {
   currentApiBase,
@@ -75,6 +76,7 @@ export default function SignIn() {
   const [capabilityError, setCapabilityError] = useState(false);
   const [capabilityAttempt, setCapabilityAttempt] = useState(0);
   const [resetSent, setResetSent] = useState(false);
+  const [resetRequest, setResetRequest] = useState<{ apiBase: string; resetUrl: string } | null>(null);
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [passkeys, setPasskeys] = useState(false);
@@ -190,7 +192,10 @@ export default function SignIn() {
         if (!reset?.passwordReset || !reset.resetUrl) {
           throw new Error(t("Password recovery is not configured for this server"));
         }
+        if (currentApiBase() !== apiBase) throw new Error(t("Could not continue"));
         await requestPasswordReset(email.trim(), reset.resetUrl);
+        if (currentApiBase() !== apiBase) return;
+        setResetRequest({ apiBase, resetUrl: reset.resetUrl });
         setResetSent(true);
         return;
       }
@@ -406,7 +411,19 @@ export default function SignIn() {
                           ? t("Sign up for Rakazo")
                           : t("Reset your password")}
                   </Text>
-                  {resetSent ? (
+                  {resetSent && mode === "forgot" && resetRequest ? (
+                    <NativePasswordReset
+                      apiBase={resetRequest.apiBase}
+                      resetUrl={resetRequest.resetUrl}
+                      onDone={() => {
+                        setResetRequest(null);
+                        setMode("in");
+                        setResetSent(false);
+                        setCodeSent(false);
+                        setError(null);
+                      }}
+                    />
+                  ) : resetSent ? (
                     <View style={{ alignItems: "center", marginTop: 28 }}>
                       <Pressable
                         accessibilityRole="button"

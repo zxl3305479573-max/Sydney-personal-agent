@@ -3,6 +3,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu tini && rm
 RUN corepack enable
 WORKDIR /app
 COPY --chmod=755 . .
+ARG SYDNEY_PREPARE_WUYING_ASSETS=false
+RUN case "$SYDNEY_PREPARE_WUYING_ASSETS" in true) node scripts/wuying-web-sdk.mjs ;; false) : ;; *) exit 1 ;; esac
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @rakazo/db generate
 RUN pnpm --filter @rakazo/api --filter @rakazo/worker build

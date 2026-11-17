@@ -46,6 +46,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConnectorIcon } from "../../components/connector-icon";
 import { GlassSurface } from "../../components/glass-surface";
+import { McpOAuthReturn } from "../../components/mcp-oauth-return";
 import { MenuPicker } from "../../components/menu-picker";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
@@ -79,6 +80,7 @@ import {
 } from "../../lib/plugin-marketplace";
 import { queryClient, rpcQuery } from "../../lib/query";
 import { useSideInsets } from "../../lib/side-insets";
+import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
 
 type SourceAuth = "none" | "bearer" | "header" | "oauth";
@@ -98,6 +100,7 @@ export default function Integrations() {
   const scheme = useResolvedAppearance();
   const styles = useThemedStyles(createIntegrationsStyles);
   const { t } = useI18n();
+  const mcpReturn = useMcpOAuthReturn();
   const categoryLabels: Record<PluginCategory, string> = {
     productivity: t("Productivity"),
     communication: t("Communication"),
@@ -949,7 +952,7 @@ export default function Integrations() {
     setMcpError(null);
     try {
       // The API picks the registered web callback; native clients cannot supply one.
-      const result = await rpc("mcp/oauth/begin", { serverId });
+      const result = await mcpReturn.begin(serverId);
       if (!isCurrent()) return;
       if (result.status === "authorization_required") {
         oauthBrowserOpen.current = true;
@@ -1444,6 +1447,7 @@ export default function Integrations() {
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
       >
+        <McpOAuthReturn flow={mcpReturn} onCompleted={() => void retryRefresh()} />
         {adding ? (
           renderAdding()
         ) : (

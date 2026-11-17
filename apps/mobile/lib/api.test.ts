@@ -53,6 +53,7 @@ import {
   subscribeServerReachable,
   subscribeSessionRejected,
   subscribeSpaceSelection,
+  subscribeProjectThread,
   subscribeThread,
   updateAccountName,
 } from "./api.js";
@@ -1867,6 +1868,31 @@ describe("mobile API authentication", () => {
     }
   });
 
+  it("checks the project target before sending project text and blocks a declined disclosure", async () => {
+    vi.mocked(promptAiConsent).mockResolvedValue(false);
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      jsonResponse({
+        json: {
+          scope: "account-space",
+          version: "2026-09-14",
+          recipients: [
+            { key: "project-provider", name: "Example AI", use: "model", detail: "", allowed: false },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(rpc("projectWorkspaces/sendText", {
+      projectId: "project-a", botId: "bot-a", text: "private content", clientNonce: "nonce-a",
+    })).rejects.toThrow("AI data sharing");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toContain("/rpc/projectWorkspaces/consentStatus");
+    expect(init?.body).toContain("project-a");
+    expect(init?.body).toContain("bot-a");
+    expect(init?.body).not.toContain("private content");
+  });
+
   it("does not prompt or send screen text when automatic model consent is missing", async () => {
     vi.mocked(promptAiConsent).mockClear();
     const fetchMock = vi.fn(async (_url: string | URL | Request) => jsonResponse({
@@ -3440,6 +3466,35 @@ describe("mobile thread subscription", () => {
     vi.restoreAllMocks();
     vi.mocked(SecureStore.getItemAsync).mockReset();
     vi.mocked(SecureStore.getItemAsync).mockResolvedValue("");
+  });
+
+  it("subscribes using the selected project and passes scoped events to the caller", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"json":{"type":"thread.progress","seq":4}}\n\n'));
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn(async () => new Response(stream, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onEvent = vi.fn();
+    await subscribeProjectThread("project-a", { botId: "bot-a" }, 3, onEvent, new AbortController().signal, () => true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3100/rpc/projectWorkspaces/subscribe",
+      expect.objectContaining({
+        body: JSON.stringify({ json: { botId: "bot-a", cursor: 3, projectId: "project-a" } }),
+      }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "thread.progress", seq: 4 }));
+  });
+
+  it("does not start a project stream after its scope becomes stale", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(subscribeProjectThread("project-a", { botId: "bot-a" }, -1,
+      vi.fn(), new AbortController().signal, () => false)).rejects.toThrow("Project scope changed");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("parses fragmented SSE frames and ignores malformed data and completion markers", async () => {

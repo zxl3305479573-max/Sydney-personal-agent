@@ -30,8 +30,23 @@ const {
   hardwareBack: { current: undefined as (() => boolean) | undefined },
   nativeHeader: { current: false },
 }));
+const scope = vi.hoisted(() => ({
+  key: "scope-a",
+  listeners: new Set<() => void>(),
+}));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
-vi.mock("./api", () => ({ rpc }));
+vi.mock("./api", () => ({
+  rpc,
+  captureApiRequestContext: async () => ({ headers: { "x-rakazo-space-id": "space-a" } }),
+  isSpaceSelectionPending: () => false,
+}));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => scope.key,
+  subscribeProjectScope: (listener: () => void) => {
+    scope.listeners.add(listener);
+    return () => scope.listeners.delete(listener);
+  },
+}));
 vi.mock("./search-inbox", () => ({
   addToSearchInbox,
   searchInboxSession: () => ({ generation: 4, apiBase: "http://api.test" }),
@@ -161,6 +176,7 @@ vi.mock("./native", () => ({ native: {}, useMobileTokens: () => ({}) }));
 vi.mock("./i18n", () => ({
   t: (text: string) => text,
   useI18n: () => ({
+    locale: "en",
     t: (text: string, values: Record<string, string | number> = {}) =>
       text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key])),
   }),
@@ -218,6 +234,7 @@ let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
   vi.clearAllMocks();
+  scope.key = "scope-a";
   nativeHeader.current = false;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = document.createElement("div");
@@ -356,7 +373,7 @@ it("Skip posts the default name in pick order and routes to the group", async ()
   expect(rpc).toHaveBeenCalledWith("groups/create", {
     name: "Writer, Researcher",
     botIds: ["bot-2", "bot-1"],
-  });
+  }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
   // The new chat's title seats the members before the inbox lists the group.
   // Only into the session the group was created in.
   expect(addToSearchInbox).toHaveBeenCalledWith(
@@ -382,7 +399,7 @@ it("Create posts a trimmed name with the keyboard done action", async () => {
   expect(rpc).toHaveBeenCalledWith("groups/create", {
     name: "Project Falcon",
     botIds: ["bot-2", "bot-1"],
-  });
+  }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
 });
 it.each([false, true])("back keeps picks (hardware: %s)", async (hardware) => {
   await start();
@@ -415,6 +432,40 @@ it("disables submission while pending and shows errors inline for retry", async 
   expect(container.textContent).toContain("Could not create group");
   expect(button("Skip")?.disabled).toBe(false);
 });
+
+it("hides the old roster and refuses creation after changing scope", async () => {
+  await start();
+  await click("Writer");
+  await act(async () => {
+    scope.key = "scope-b";
+    for (const listener of scope.listeners) listener();
+  });
+  expect(container.textContent).toContain("The account or space changed");
+  expect(button("Researcher")).toBeUndefined();
+  expect(button("Next")?.disabled).toBe(true);
+  expect(rpc.mock.calls.some(([procedure]) => procedure === "groups/create")).toBe(false);
+});
+
+it("does not navigate or publish a result after scope changes during creation", async () => {
+  let finish!: (group: unknown) => void;
+  rpc.mockImplementation((procedure: string) =>
+    procedure === "bots/list"
+      ? Promise.resolve(bots)
+      : new Promise((resolve) => { finish = resolve; }),
+  );
+  await start();
+  await pickPair();
+  await click("Skip");
+  await act(async () => {
+    scope.key = "scope-b";
+    for (const listener of scope.listeners) listener();
+  });
+  await act(async () => finish({ id: "group-1", name: "Created" }));
+  expect(container.textContent).toContain("check the original space");
+  expect(addToSearchInbox).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
+});
+
 it.each(["header", "native header", "hardware"])(
   "blocks %s back while creating and allows it after failure",
   async (control) => {
@@ -443,7 +494,7 @@ it.each(["header", "native header", "hardware"])(
     expect(rpc).toHaveBeenCalledWith("groups/create", {
       name: "Writer, Researcher",
       botIds: ["bot-2", "bot-1"],
-    });
+    }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
     await act(async () => reject(new Error("Could not create group")));
     await pressBack();
     expect(button("Remove Writer")).toBeDefined();

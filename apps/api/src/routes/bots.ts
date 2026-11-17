@@ -38,6 +38,7 @@ import {
   MainBotLimitError,
   recordComputerRunEnd,
   recordSecurityEvent,
+  resolveConversationExecutionScope,
   restoreBotUnderComputerQuota,
   SpaceDeletionInProgressError,
   settingsTarget,
@@ -228,12 +229,16 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
     // An idempotent create (spawnKey) returns the bot it already made; it gets one intro.
     await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
     if (await tx.run.findFirst({ where: { botId: bot.id }, select: { id: true } })) return null;
+    const executionScope = await resolveConversationExecutionScope(tx, {
+      spaceId: actor.spaceId, userId: actor.userId, botId: bot.id, threadId,
+    });
     const task = await tx.task.create({
       data: {
         spaceId: actor.spaceId,
         botId: bot.id,
         threadId,
         userId: actor.userId,
+        projectWorkspaceId: executionScope.projectWorkspaceId,
         prompt,
         status: "queued",
       },
@@ -245,6 +250,7 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
         threadId,
         taskId: task.id,
         userId: actor.userId,
+        projectWorkspaceId: task.projectWorkspaceId,
         status: "queued",
         trigger: "created",
       },

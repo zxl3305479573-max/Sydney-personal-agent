@@ -44,6 +44,13 @@ vi.mock("expo-router", () => ({
 vi.mock("./api", () => ({
   rpc: (proc: string, ...args: unknown[]) =>
     proc === "marketplace/catalog" ? state.marketplace() : state.rpc(proc, ...args),
+  captureServerSessionScope: () => ({ apiBase: "https://fixture.test" }),
+  isServerSessionScopeCurrent: () => state.current,
+  selectedSpaceId: () => "space-a",
+  captureApiRequestContext: async () => ({
+    apiBase: "https://fixture.test",
+    headers: { "x-rakazo-space-id": "space-a" },
+  }),
 }));
 vi.mock("../components/plugin-icon", () => ({
   PluginIcon: ({ name }: { name: string }) => <span>{name[0]}</span>,
@@ -887,7 +894,11 @@ it("registers an OAuth MCP server and starts the existing browser callback flow"
       transport: "streamable_http",
     }),
   );
-  expect(state.rpc).toHaveBeenCalledWith("mcp/oauth/begin", { serverId: "oauth-server" });
+  expect(state.rpc).toHaveBeenCalledWith(
+    "mcp/oauth/begin",
+    { serverId: "oauth-server" },
+    { requestContext: expect.objectContaining({ apiBase: "https://fixture.test" }) },
+  );
   expect(Linking.openURL).toHaveBeenCalledWith("https://identity.example.test/authorize");
 
   const initialReads = state.rpc.mock.calls.filter(([proc]) => proc === "mcp/servers/list").length;
@@ -897,4 +908,52 @@ it("registers an OAuth MCP server and starts the existing browser callback flow"
   expect(
     state.rpc.mock.calls.filter(([proc]) => proc === "mcp/servers/list").length,
   ).toBeGreaterThan(initialReads);
+});
+
+it("finishes a matching MCP callback using the current authenticated context", async () => {
+  const fallback = state.rpc.getMockImplementation();
+  state.rpc.mockImplementation((proc: string, args: unknown) => {
+    if (proc === "mcp/servers/create")
+      return Promise.resolve({ id: "oauth-server", name: "Test", enabled: true });
+    if (proc === "mcp/oauth/begin")
+      return Promise.resolve({
+        status: "authorization_required",
+        sessionId: "test-session",
+        authorizationUrl: "https://identity.example.test/authorize",
+        callbackUri: "https://fixture.test/mcp/oauth/callback",
+      });
+    if (proc === "mcp/oauth/complete") return Promise.resolve({ ok: true });
+    return fallback?.(proc, args);
+  });
+  await openMcpSource();
+  await act(async () => {
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "OAuth")
+      ?.click();
+  });
+  await act(async () => {
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Verify and add")
+      ?.click();
+  });
+  const input = container.querySelector('input[placeholder="Paste callback address"]');
+  expect(input).toBeInstanceOf(HTMLInputElement);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+      input,
+      "https://fixture.test/mcp/oauth/callback?code=synthetic&state=test-session",
+    );
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => {
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Complete connection")
+      ?.click();
+  });
+  expect(state.rpc).toHaveBeenCalledWith(
+    "mcp/oauth/complete",
+    { sessionId: "test-session", state: "test-session", code: "synthetic" },
+    { requestContext: expect.objectContaining({ apiBase: "https://fixture.test" }) },
+  );
+  expect(container.querySelector('input[placeholder="Paste callback address"]')).toBeNull();
 });

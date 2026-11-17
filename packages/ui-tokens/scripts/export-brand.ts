@@ -51,6 +51,7 @@ await mkdir(path("apps/www/public/brand"), { recursive: true });
 await png(rounded, "apps/www/public/brand/rakazo-mark.png", 256);
 // The web app tints the mark with the theme foreground through a CSS mask.
 await png(rounded, "apps/web/public/sydney-mark.png", 256);
+await png(rounded, "packages/ui-tokens/assets/sydney-mark.png", 256);
 await png(rounded, "apps/mobile/assets/favicon.png", 128);
 await png(square, "apps/desktop/assets/icon.png", 1024);
 await png(square, "apps/desktop/assets/icon-macos.png", 1024);

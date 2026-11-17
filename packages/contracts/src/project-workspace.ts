@@ -45,7 +45,10 @@ export const ProjectWorkspaceSchema = z
   );
 export type ProjectWorkspace = z.infer<typeof ProjectWorkspaceSchema>;
 
-export const CreateProjectWorkspaceInput = z.object({ name: ProjectWorkspaceName }).strict();
+export const CreateProjectWorkspaceInput = z.object({
+  id: z.string().uuid(),
+  name: ProjectWorkspaceName,
+}).strict();
 export type CreateProjectWorkspaceInput = z.infer<typeof CreateProjectWorkspaceInput>;
 
 export const RenameProjectWorkspaceInput = z
@@ -60,3 +63,31 @@ export const DeleteProjectWorkspaceInput = z
   .object({ id: ProjectWorkspaceId, confirmRemoveAppData: z.literal(true) })
   .strict();
 export type DeleteProjectWorkspaceInput = z.infer<typeof DeleteProjectWorkspaceInput>;
+
+export const ProjectWorkspaceCursorSchema = z.object({
+  createdAt: IsoDate.max(40),
+  id: ProjectWorkspaceId,
+}).strict();
+export type ProjectWorkspaceCursor = z.infer<typeof ProjectWorkspaceCursorSchema>;
+
+export const ListProjectWorkspacesInput = z.object({
+  after: ProjectWorkspaceCursorSchema.optional(),
+}).strict();
+
+export const ProjectWorkspacePageSchema = z.object({
+  items: z.array(ProjectWorkspaceSchema).max(100),
+  nextCursor: ProjectWorkspaceCursorSchema.nullable(),
+}).strict();
+
+export const ProjectWorkspaceRosterInput = z.object({
+  id: ProjectWorkspaceId,
+  afterBotId: ProjectWorkspaceId.optional(),
+  afterGroupId: ProjectWorkspaceId.optional(),
+}).strict();
+
+export const ProjectWorkspaceRosterSchema = z.object({
+  bots: z.array(z.object({ id: ProjectWorkspaceId, name: z.string() }).strict()).max(100),
+  groups: z.array(z.object({ id: ProjectWorkspaceId, name: z.string() }).strict()).max(100),
+  nextBotId: ProjectWorkspaceId.nullable(),
+  nextGroupId: ProjectWorkspaceId.nullable(),
+}).strict();

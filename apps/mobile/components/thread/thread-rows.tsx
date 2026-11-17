@@ -1,4 +1,5 @@
 import type { ThreadItem } from "@rakazo/core";
+import type { SpaceBot } from "@rakazo/contracts";
 import {
   answerableAskMessageIds,
   dismissableAskMessageIds,
@@ -91,7 +92,7 @@ export function useThreadRows({
   onCall: boolean;
   displayName?: string;
   mentionBots: MobileBot[];
-  currentBot?: MobileBot;
+  currentBot?: MobileBot | SpaceBot;
   currentBotStatus?: string;
   userBubble?: UserBubble;
   columnWidth: number;

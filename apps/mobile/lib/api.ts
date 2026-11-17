@@ -128,7 +128,10 @@ function enqueueEndpointMutation<T>(task: () => Promise<T>): Promise<T> {
     }
   };
   const result = endpointMutationQueue.then(run, run);
-  endpointMutationQueue = result.then(() => undefined, () => undefined);
+  endpointMutationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
   return result;
 }
 
@@ -139,8 +142,7 @@ function assertEndpointCurrent(apiBase: string, generation: number): void {
 }
 
 function assertStartupOriginReady(): void {
-  if (isSydneySideload() && !startupOriginReady)
-    throw new Error("Could not load server settings");
+  if (isSydneySideload() && !startupOriginReady) throw new Error("Could not load server settings");
 }
 
 export type ServerSessionScope = {
@@ -686,7 +688,11 @@ async function performSaveApiBase(
   }
   if (!(await saveServerHeaders(parsed.url, headers))) {
     if (cleared)
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
+      await restoreCredentials(
+        cleared.previousToken,
+        cleared.previousSpace,
+        cleared.signOutGeneration,
+      );
     return { ok: false, error: t("Could not save the server URL") };
   }
   try {
@@ -694,7 +700,11 @@ async function performSaveApiBase(
   } catch {
     await saveServerHeaders(previous, previousHeaders);
     if (cleared) {
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
+      await restoreCredentials(
+        cleared.previousToken,
+        cleared.previousSpace,
+        cleared.signOutGeneration,
+      );
     }
     return { ok: false, error: t("Could not save the server URL") };
   }
@@ -732,14 +742,22 @@ async function performResetApiBase(): Promise<EndpointResult> {
     await SecureStore.deleteItemAsync(ENDPOINT_KEY);
   } catch {
     if (cleared) {
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
+      await restoreCredentials(
+        cleared.previousToken,
+        cleared.previousSpace,
+        cleared.signOutGeneration,
+      );
       return { ok: false, error: t("Could not clear the custom server URL") };
     }
   }
   if (!(await saveServerHeaders(url, {}))) {
     await SecureStore.setItemAsync(ENDPOINT_KEY, previous).catch(() => undefined);
     if (cleared)
-      await restoreCredentials(cleared.previousToken, cleared.previousSpace, cleared.signOutGeneration);
+      await restoreCredentials(
+        cleared.previousToken,
+        cleared.previousSpace,
+        cleared.signOutGeneration,
+      );
     return { ok: false, error: t("Could not clear the custom server URL") };
   }
   setCachedApiBase(url);
@@ -913,6 +931,40 @@ export async function requestPasswordReset(email: string, redirectTo: string): P
     throw new Error(
       authResponseErrorText(response.status, body, invalidJson, t("Could not send reset email")),
     );
+}
+
+export async function resetPasswordFromToken(
+  token: string,
+  newPassword: string,
+  expectedApiBase: string,
+): Promise<void> {
+  if (currentApiBase() !== expectedApiBase) throw new Error(t("Could not continue"));
+  const { response, body, invalidJson } = await fetchMobileJson<unknown>(
+    `${expectedApiBase}/api/auth/reset-password`,
+    {
+      method: "POST",
+      redirect: "error",
+      headers: {
+        "content-type": "application/json",
+        origin: "rakazo://",
+        "accept-language": getActiveUiLocale(),
+      },
+      body: JSON.stringify({ token, newPassword }),
+    },
+    {},
+  );
+  if (!response.ok)
+    throw new Error(
+      authResponseErrorText(response.status, body, invalidJson, t("Could not continue")),
+    );
+  if (
+    invalidJson ||
+    !body ||
+    typeof body !== "object" ||
+    !("status" in body) ||
+    body.status !== true
+  )
+    throw new Error(t("Could not continue"));
 }
 
 export async function updateAccountName(name: string): Promise<void> {
@@ -1162,7 +1214,9 @@ export async function deleteAccount(
     !("message" in body) ||
     body.message !== "User deleted"
   )
-    throw new Error(t("Could not confirm account deletion. Check your account before trying again."));
+    throw new Error(
+      t("Could not confirm account deletion. Check your account before trying again."),
+    );
   return enqueueEndpointMutation<DeleteAccountResult>(async () => {
     if (!isServerSessionScopeCurrent(scope)) return { status: "session-changed" };
     const sessionCleared = await clearSessionToken();
@@ -1224,31 +1278,64 @@ async function request(
   const requestSpaceGeneration = spaceSelectionGeneration;
   const requestSessionGeneration = currentSessionGeneration();
   const requestApiBase = options.requestContext?.apiBase ?? currentApiBase();
-  const requestEndpointGeneration = options.requestContext?.endpointGeneration ?? endpointGeneration;
+  const requestEndpointGeneration =
+    options.requestContext?.endpointGeneration ?? endpointGeneration;
   assertEndpointCurrent(requestApiBase, requestEndpointGeneration);
   const uses = aiDataUsesForProcedure(proc, body);
-  const companionConsent = proc === "threads/companionScreenStart" || proc === "threads/companionScreenRespond";
+  const companionConsent =
+    proc === "threads/companionScreenStart" || proc === "threads/companionScreenRespond";
   const companionSignal = companionConsent ? options.signal : undefined;
   const consentTarget = aiConsentTarget(body);
+  const projectConsentTarget =
+    proc === "projectWorkspaces/sendText" &&
+    body &&
+    typeof body === "object" &&
+    "projectId" in body &&
+    typeof body.projectId === "string"
+      ? { projectId: body.projectId, botId: consentTarget.botId, groupId: consentTarget.groupId }
+      : undefined;
+  if (proc === "projectWorkspaces/sendText" && !projectConsentTarget)
+    throw new Error("Project consent scope is missing");
   const consentContext =
     options.requestContext ?? (uses.length ? await captureApiRequestContext() : undefined);
   await ensureAiDataConsent({
     uses,
     status: () =>
-      rpc("aiConsent/status", { uses, ...consentTarget }, { requestContext: consentContext, signal: companionSignal }),
-    prompt: options.allowConsentPrompt === false ? async () => false : async (recipient, privacyUrl) => {
-      if (companionSignal?.aborted) return false;
-      const accepted = await promptAiConsent(recipient, privacyUrl);
-      return accepted && !companionSignal?.aborted;
-    },
+      projectConsentTarget
+        ? rpc("projectWorkspaces/consentStatus", projectConsentTarget, {
+            requestContext: consentContext,
+            signal: companionSignal,
+          })
+        : rpc(
+            "aiConsent/status",
+            { uses, ...consentTarget },
+            { requestContext: consentContext, signal: companionSignal },
+          ),
+    prompt:
+      options.allowConsentPrompt === false
+        ? async () => false
+        : async (recipient, privacyUrl) => {
+            if (companionSignal?.aborted) return false;
+            const accepted = await promptAiConsent(recipient, privacyUrl);
+            return accepted && !companionSignal?.aborted;
+          },
     allow: (input) =>
-      rpc(
-        "aiConsent/allow",
-        consentTarget.settingsScope
-          ? { ...input, settingsScope: consentTarget.settingsScope }
-          : input,
-        { requestContext: consentContext, signal: companionSignal },
-      ),
+      projectConsentTarget
+        ? rpc(
+            "projectWorkspaces/consentAllow",
+            { ...projectConsentTarget, ...input },
+            {
+              requestContext: consentContext,
+              signal: companionSignal,
+            },
+          )
+        : rpc(
+            "aiConsent/allow",
+            consentTarget.settingsScope
+              ? { ...input, settingsScope: consentTarget.settingsScope }
+              : input,
+            { requestContext: consentContext, signal: companionSignal },
+          ),
     coalesceKey: consentContext
       ? `${aiConsentCoalesceKey(consentContext)}${companionConsent ? `\0companion:${++companionConsentCheckSequence}` : ""}`
       : undefined,
@@ -1732,14 +1819,45 @@ export async function subscribeThread(
   onEvent: (event: ThreadEvent) => void,
   signal: AbortSignal,
 ) {
+  return subscribeThreadStream(target, cursor, onEvent, signal);
+}
+
+export async function subscribeProjectThread(
+  projectId: string,
+  target: { botId: string } | { groupId: string },
+  cursor: number,
+  onEvent: (event: ThreadEvent) => void,
+  signal: AbortSignal,
+  isCurrentProject: () => boolean,
+) {
+  return subscribeThreadStream(target, cursor, onEvent, signal, { projectId, isCurrentProject });
+}
+
+async function subscribeThreadStream(
+  target: { botId: string } | { groupId: string },
+  cursor: number,
+  onEvent: (event: ThreadEvent) => void,
+  signal: AbortSignal,
+  project?: { projectId: string; isCurrentProject: () => boolean },
+) {
+  const selection = spaceSelectionSeq();
+  const space = selectedSpaceId();
   const context = await captureApiRequestContext();
   syncMobileAvatarSession(currentApiBase(), currentSessionGeneration());
-  const activityFeed = beginMobileAvatarFeed(target, cursor);
+  const activityFeed = project ? null : beginMobileAvatarFeed(target, cursor);
   const current = () =>
     context.apiBase === currentApiBase() &&
-    context.sessionGeneration === currentSessionGeneration();
+    context.sessionGeneration === currentSessionGeneration() &&
+    (!project ||
+      (context.endpointGeneration === endpointGeneration &&
+        project.isCurrentProject() &&
+        !isSpaceSelectionPending() &&
+        selectedSpaceId() === space &&
+        spaceSelectionSeq() === selection));
+  if (project && !current()) throw new Error("Project scope changed");
+  const path = project ? "projectWorkspaces/subscribe" : "threads/subscribe";
   const res = await fetchServer(
-    `${context.apiBase}/rpc/threads/subscribe`,
+    `${context.apiBase}/rpc/${path}`,
     {
       method: "POST",
       headers: {
@@ -1748,20 +1866,22 @@ export async function subscribeThread(
         origin: "rakazo://",
         ...context.headers,
       },
-      body: JSON.stringify({ json: { ...target, cursor } }),
+      body: JSON.stringify({
+        json: { ...target, cursor, ...(project ? { projectId: project.projectId } : {}) },
+      }),
       signal,
     },
     context.apiBase,
   ).catch((error: unknown) => {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    if (activityFeed) mobileLogoAvatarActivity.resetSource(activityFeed.source);
     if (current() && !signal.aborted && isServerUnreachable(error)) noteServerReachable(false);
     throw error;
   });
   if (current()) noteServerReachable(!isUnreachableStatus(res.status));
   if (!res.ok || !res.body) {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    if (activityFeed) mobileLogoAvatarActivity.resetSource(activityFeed.source);
     cancelResponseBody(res);
-    throw httpError(`rpc threads/subscribe failed (${res.status})`, res);
+    throw httpError(`rpc ${path} failed (${res.status})`, res);
   }
   const reader = res.body.getReader();
   let finished = false;
@@ -1797,12 +1917,12 @@ export async function subscribeThread(
         // Heartbeats prove liveness only; forwarding one would advance the caller's cursor.
         if (parsed.json?.type && parsed.json.type !== "heartbeat") {
           if (!current()) {
-            mobileLogoAvatarActivity.resetSource(activityFeed.source);
+            if (activityFeed) mobileLogoAvatarActivity.resetSource(activityFeed.source);
             return;
           }
           const event = parsed.json;
-          const threadId = event.threadId ?? activityFeed.threadId;
-          if (threadId && typeof event.seq === "number" && event.seq > cursor)
+          const threadId = event.threadId ?? activityFeed?.threadId;
+          if (activityFeed && threadId && typeof event.seq === "number" && event.seq > cursor)
             mobileLogoAvatarActivity.apply(activityFeed.source, {
               threadId,
               seq: event.seq,
@@ -1818,6 +1938,7 @@ export async function subscribeThread(
       }
     };
     while (!signal.aborted) {
+      if (project && !current()) return;
       // A half-open socket never reports done, so let the caller reconnect after silence.
       let timer: ReturnType<typeof setTimeout> | undefined;
       let onAbort: (() => void) | undefined;
@@ -1866,7 +1987,7 @@ export async function subscribeThread(
       if (start < value.byteLength) appendFrameBytes(value.subarray(start));
     }
   } finally {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    if (activityFeed) mobileLogoAvatarActivity.resetSource(activityFeed.source);
     if (!finished) {
       try {
         void Promise.resolve(reader.cancel()).catch(() => undefined);

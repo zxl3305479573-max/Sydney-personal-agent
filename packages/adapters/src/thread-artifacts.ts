@@ -21,7 +21,7 @@ import {
   validateAttachmentMimeType,
 } from "@rakazo/core";
 import type { Artifact, Prisma, PrismaClient } from "@rakazo/db";
-import { withResolvedArtifactVersion } from "@rakazo/db";
+import { assertHomeArtifactWriteScope, IsolationError, withResolvedArtifactVersion } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { resolveBotWorkspacePath } from "./computer-support.js";
 
@@ -53,6 +53,7 @@ export async function attachWorkspaceFileToThread(
     onAttached?: (tx: Prisma.TransactionClient, artifact: Artifact) => Promise<void>;
   },
 ): Promise<{ artifactId: string; block: Extract<MessageBlock, { kind: "image" | "file" }> }> {
+  assertHomeArtifactWriteScope(input);
   const fileName = path.basename(input.filePath) || input.filePath;
   const mimeType = inferAttachmentMimeType(fileName);
   if (!mimeType) {
@@ -64,6 +65,27 @@ export async function attachWorkspaceFileToThread(
     throw new Error(
       `file exceeds the ${attachmentSizeLabel(deps.maxUploadSizeBytes ?? ATTACHMENT_MAX_BYTES)} attachment limit`,
     );
+  }
+
+  const run = await deps.prisma.run.findFirst({
+    where: {
+      id: input.runId,
+      spaceId: input.spaceId,
+      userId: input.userId,
+      botId: input.botId,
+      projectWorkspaceId: null,
+      thread: {
+        is: {
+          spaceId: input.spaceId,
+          userId: input.userId,
+          projectWorkspaceId: null,
+        },
+      },
+    },
+    select: { thread: { select: { groupId: true } } },
+  });
+  if (!run || (input.groupId !== undefined && input.groupId !== run.thread.groupId)) {
+    throw new IsolationError();
   }
 
   const context = {
@@ -82,7 +104,8 @@ export async function attachWorkspaceFileToThread(
       spaceId: input.spaceId,
       userId: input.userId,
       botId: input.botId,
-      groupId: input.groupId,
+      projectWorkspaceId: null,
+      groupId: run.thread.groupId,
       name,
     },
     async (tx, { rootArtifactId, version }) => {
@@ -91,7 +114,7 @@ export async function attachWorkspaceFileToThread(
           spaceId: input.spaceId,
           userId: input.userId,
           botId: input.botId,
-          groupId: input.groupId,
+          groupId: run.thread.groupId,
           runId: input.runId,
           name,
           description: input.description?.trim().slice(0, ARTIFACT_DESCRIPTION_MAX_LENGTH) || null,
@@ -132,6 +155,7 @@ async function attachedArtifacts(
       id: { in: blocks.map((block) => block.artifactId) },
       spaceId: context.spaceId,
       userId: context.userId,
+      projectWorkspaceId: context.projectWorkspaceId ?? null,
     },
   });
   return new Map(rows.map((row) => [row.id, row]));

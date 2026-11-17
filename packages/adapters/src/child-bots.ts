@@ -19,11 +19,13 @@ import {
   cancelRunsInTransaction,
   clearEndedRunState,
   computerScopeKey,
+  conversationScopeWhere,
   createRepos,
   createThreadMessageInTransaction,
   expireComputerExecutionLeases,
   legacyTeamHomeKey,
   recordComputerRunEnd,
+  resolveConversationExecutionScope,
   withTransactionRetry,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -99,12 +101,12 @@ export async function spawnBot(
       },
     });
   } catch (error) {
-    const existing = await deps.prisma.bot.findUnique({
+    const existing = await deps.prisma.bot.findFirst({
       where: {
-        spaceId_spawnKey: {
-          spaceId: input.spawnedBy.spaceId,
-          spawnKey: input.spawnKey,
-        },
+        ...conversationScopeWhere(actor),
+        spawnKey: input.spawnKey,
+        parentBotId: input.spawnedBy.id,
+        archivedAt: null,
       },
       include: { thread: true },
     });
@@ -157,12 +159,13 @@ async function ensureSpawnRun(
 ) {
   const clientNonce = `spawn:${input.spawnKey}`;
   const where = {
-    spaceId_clientNonce: {
-      spaceId: input.spaceId,
-      clientNonce,
-    },
+    ...conversationScopeWhere(input),
+    botId: input.botId,
+    threadId: input.threadId,
+    clientNonce,
+    trigger: "spawn" as const,
   } as const;
-  const existing = await prisma.run.findUnique({ where });
+  const existing = await prisma.run.findFirst({ where });
   if (existing) return existing;
 
   try {
@@ -173,12 +176,14 @@ async function ensureSpawnRun(
         blocks: [{ kind: "text", text: input.prompt }],
         runId: input.sourceRunId,
       });
+      const executionScope = await resolveConversationExecutionScope(tx, input);
       const task = await tx.task.create({
         data: {
           spaceId: input.spaceId,
           botId: input.botId,
           threadId: input.threadId,
           userId: input.userId,
+          projectWorkspaceId: executionScope.projectWorkspaceId,
           prompt: input.prompt,
           status: "queued",
         },
@@ -190,6 +195,7 @@ async function ensureSpawnRun(
           threadId: input.threadId,
           taskId: task.id,
           userId: input.userId,
+          projectWorkspaceId: task.projectWorkspaceId,
           status: "queued",
           trigger: "spawn",
           clientNonce,
@@ -197,7 +203,7 @@ async function ensureSpawnRun(
       });
     });
   } catch (error) {
-    const winner = await prisma.run.findUnique({ where });
+    const winner = await prisma.run.findFirst({ where });
     if (winner) return winner;
     throw error;
   }

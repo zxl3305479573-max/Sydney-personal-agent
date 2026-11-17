@@ -102,6 +102,8 @@ describe("foreground AI consent", () => {
     expect(prompt).not.toHaveBeenCalled();
     expect(aiDataUsesForProcedure("threads/get")).toEqual([]);
     expect(aiDataUsesForProcedure("threads/send")).toEqual(["model", "memory"]);
+    expect(aiDataUsesForProcedure("projectWorkspaces/sendText")).toEqual(["model", "memory"]);
+    expect(aiDataUsesForProcedure("projectWorkspaces.sendText")).toEqual(["model", "memory"]);
     expect(aiDataUsesForProcedure("voice/prepare")).toEqual(["voice"]);
     expect(aiDataUsesForProcedure("threads/companionScreenStart")).toEqual(["model"]);
     expect(aiDataUsesForProcedure("threads/companionScreenRespond")).toEqual(["model"]);

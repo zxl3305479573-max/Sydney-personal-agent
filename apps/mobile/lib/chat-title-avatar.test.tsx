@@ -152,6 +152,14 @@ it("drops an added bot once a refresh no longer lists its space", () => {
   expect(avatar()).toBeNull();
 });
 
+it("does not place a bot from an unknown space into the default space", () => {
+  setSearchInbox([space("space-1", [], true)]);
+  addToSearchInbox({ kind: "bot", bot: { ...helper, spaceId: "space-missing" } });
+  expect(getSearchInbox()[0]?.bots).toEqual([]);
+  setSearchInbox([space("space-1", [], true), space("space-missing", [])]);
+  expect(getSearchInbox().flatMap((entry) => entry.bots)).toEqual([]);
+});
+
 it("takes the inbox's own copy once it lists an added bot", () => {
   setSearchInbox([space("space-1", [], true)]);
   addToSearchInbox({ kind: "bot", bot: helper });

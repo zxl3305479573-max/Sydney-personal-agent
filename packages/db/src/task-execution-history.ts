@@ -1,5 +1,6 @@
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./generated/prisma/client.js";
+import { conversationScopeWhere } from "./project-workspace-context.js";
 import { currentDbContext } from "./row-security.js";
 import { RUN_TURN_CHECKPOINT_KIND } from "./run-turn-checkpoint.js";
 import { IsolationError } from "./scope.js";
@@ -46,7 +47,11 @@ export async function readTaskExecutionHistory(
   return prisma.$transaction(
     async (tx) => {
       const runs = await tx.run.findMany({
-        where: { taskId, ...actor },
+        where: {
+          taskId,
+          ...conversationScopeWhere(actor),
+          task: { ...conversationScopeWhere(actor) },
+        },
         select: {
           id: true,
           status: true,

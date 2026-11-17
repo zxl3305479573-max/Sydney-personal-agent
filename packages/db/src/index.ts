@@ -18,6 +18,7 @@ export * from "./content-encryption.js";
 export * from "./content-export.js";
 export * from "./content-keys.js";
 export * from "./content-migration.js";
+export { resolveConversationExecutionScope } from "./conversation-execution-scope.js";
 export * from "./credential-secrets.js";
 export * from "./cross-space-communication.js";
 export * from "./database-access.js";
@@ -34,6 +35,13 @@ export * from "./model-credentials.js";
 export * from "./model-credits.js";
 export * from "./model-roles.js";
 export * from "./provider-transactions.js";
+export { AccountHasProjectWorkspacesError as ProjectAccountHasWorkspacesError, claimProjectAccountDeletion } from "./project-account-lifecycle.js";
+export { createProjectWorkspace, getProjectWorkspace, listProjectWorkspaceRoster, listProjectWorkspaces, removeEmptyProjectWorkspace } from "./project-workspace-read.js";
+export {
+  conversationProjectId,
+  conversationScopeWhere,
+  runInProjectWorkspace,
+} from "./project-workspace-context.js";
 export * from "./repos.js";
 export * from "./row-security.js";
 export * from "./run-secrets.js";

@@ -27,6 +27,7 @@ describe("managed task creation replay", () => {
     const task = {
       id: "task-1",
       ...actor,
+      projectWorkspaceId: null,
       botId: "bot-1",
       threadId: "thread-1",
       prompt: "prompt",
@@ -77,6 +78,7 @@ describe("managed task retry budget", () => {
     const task = {
       id: "task-1",
       ...actor,
+      projectWorkspaceId: null,
       botId: "bot-1",
       threadId: "thread-1",
       prompt: "prompt",
@@ -175,6 +177,7 @@ function harness(
     id: "task-1",
     userId: actor.userId,
     spaceId: actor.spaceId,
+    projectWorkspaceId: null,
     botId: "bot-1",
     threadId: "thread-1",
     prompt: "prompt",
@@ -229,6 +232,7 @@ describe("managed task state transitions", () => {
         id: "run-1",
         taskId: "task-1",
         ...actor,
+        projectWorkspaceId: null,
         trigger: "managed_task",
         status: "queued",
       },
@@ -307,7 +311,7 @@ describe("managed task state transitions", () => {
     });
     expect(db.tx.run.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "run-1", taskId: "task-1", ...actor, status: "running" },
+        where: { id: "run-1", taskId: "task-1", ...actor, projectWorkspaceId: null, status: "running" },
       }),
     );
     expect(db.tx.task.update).not.toHaveBeenCalled();
@@ -413,7 +417,7 @@ describe("managed task state transitions", () => {
     });
     expect(db.tx.externalEffect.findFirst).toHaveBeenCalledWith({
       where: {
-        run: { taskId: "task-1", ...actor },
+        run: { taskId: "task-1", ...actor, projectWorkspaceId: null },
         spaceId: actor.spaceId,
         kind: { not: "runtime_checkpoint" },
         status: { notIn: ["completed", "denied", "reconciled"] },

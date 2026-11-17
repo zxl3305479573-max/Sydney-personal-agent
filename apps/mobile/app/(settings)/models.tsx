@@ -1,10 +1,4 @@
-import {
-  canonicalPiProviderId,
-  isOllamaCloudBaseUrl,
-  OLLAMA_CLOUD_BASE_URL,
-  OPENAI_COMPATIBLE_PROVIDER_ID,
-} from "@rakazo/contracts";
-import { popularModelProvidersFirst } from "@rakazo/core";
+import { OPENAI_COMPATIBLE_PROVIDER_ID } from "@rakazo/contracts";
 import { fetchFresh } from "@rakazo/core/query";
 import { isCancelledError, useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
@@ -159,64 +153,16 @@ export default function Models() {
       }),
     );
 
-  /** Every provider, popular first, plus the Ollama Cloud preset of the compatible one. */
-  const allProviders = useMemo(() => {
-    const grouped = new Map<string, ConnectableProvider>();
-    for (const entry of catalog) {
-      if (grouped.has(entry.provider)) continue;
-      grouped.set(entry.provider, {
-        id: entry.provider,
-        name: entry.providerName ?? entry.provider,
-      });
-    }
-    const all = popularModelProvidersFirst([...grouped.values()], (group) => group.id);
-    if (catalog.some((entry) => entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID))
-      all.push({
-        id: OPENAI_COMPATIBLE_PROVIDER_ID,
-        name: t("Ollama Cloud"),
-        baseUrl: OLLAMA_CLOUD_BASE_URL,
-      });
-    return all;
-  }, [catalog, t]);
-
-  // Deployment-funded providers stay listed so people can still add their own key.
-  const providers = useMemo(() => {
-    const connected = new Set(credentials.map((entry) => canonicalPiProviderId(entry.provider)));
-    const ollama = credentials.some(
-      (entry) =>
-        entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID && isOllamaCloudBaseUrl(entry.baseUrl),
-    );
-    return allProviders.filter((provider) =>
-      provider.baseUrl ? !ollama : !connected.has(canonicalPiProviderId(provider.id)),
-    );
-  }, [allProviders, credentials]);
-
-  const providerKey = (provider: ConnectableProvider) =>
-    `connect:${provider.id}:${provider.baseUrl ?? ""}`;
-  /** Adds a connection, even for a provider that has one, without touching any list. */
+  const providers: ConnectableProvider[] = [];
   function addProvider() {
-    pushModelPicker({
-      title: t("Add provider"),
-      selectedKey: "",
-      choices: allProviders.map((provider) => ({
-        key: providerKey(provider),
-        label: provider.name,
-        modelLabel: provider.name,
-      })),
-      onSelect: () => undefined,
-      continueTo: (choice) => {
-        const provider = allProviders.find((entry) => providerKey(entry) === choice.key);
-        return provider
-          ? connectionRoute({
-              provider: provider.id,
-              baseUrl: provider.baseUrl,
-              credentialId: null,
-              makeDefault: false,
-              target,
-            })
-          : undefined;
-      },
-    });
+    router.push(
+      connectionRoute({
+        provider: OPENAI_COMPATIBLE_PROVIDER_ID,
+        credentialId: null,
+        makeDefault: false,
+        target,
+      }),
+    );
   }
 
   async function changeConnection(action: () => Promise<unknown>, failure: string) {

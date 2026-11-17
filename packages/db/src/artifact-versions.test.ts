@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveNextArtifactVersion, withResolvedArtifactVersion } from "./artifact-versions.js";
+import { assertHomeArtifactWriteScope, resolveNextArtifactVersion, withResolvedArtifactVersion } from "./artifact-versions.js";
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./client.js";
+import { runAsSystem, runAsTenant } from "./row-security.js";
 
 function versionConflict(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
@@ -14,8 +15,25 @@ const params = {
   spaceId: "space-1",
   userId: "user-1",
   botId: "bot-1",
+  projectWorkspaceId: null,
   name: "Q3 Content Calendar",
 };
+
+describe("home artifact write scope", () => {
+  it("accepts the matching home tenant and rejects project or mismatched tenants", async () => {
+    const owner = { spaceId: "space-1", userId: "user-1" };
+    await expect(runAsTenant(owner, () => assertHomeArtifactWriteScope(owner))).resolves.toBeUndefined();
+    await expect(runAsTenant({ ...owner, projectWorkspaceId: "project-1" }, () =>
+      assertHomeArtifactWriteScope(owner))).rejects.toThrow();
+    await expect(runAsTenant({ ...owner, spaceId: "space-2" }, () =>
+      assertHomeArtifactWriteScope(owner))).rejects.toThrow();
+  });
+
+  it("does not infer a project from system context", async () => {
+    await expect(runAsSystem("artifact scope test", () =>
+      assertHomeArtifactWriteScope({ spaceId: "space-1", userId: "user-1" }))).resolves.toBeUndefined();
+  });
+});
 
 describe("resolveNextArtifactVersion", () => {
   it("starts a new family at version 1 when nothing matches", async () => {
@@ -31,6 +49,7 @@ describe("resolveNextArtifactVersion", () => {
           spaceId: "space-1",
           userId: "user-1",
           botId: "bot-1",
+          projectWorkspaceId: null,
           groupId: null,
           name: { equals: "Q3 Content Calendar", mode: "insensitive" },
         }),
@@ -73,6 +92,19 @@ describe("resolveNextArtifactVersion", () => {
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ groupId: "group-1" }),
+      }),
+    );
+  });
+
+  it("restricts version lookup to the supplied project", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const prisma = { artifact: { findFirst } } as unknown as Pick<PrismaClient, "artifact">;
+
+    await resolveNextArtifactVersion(prisma, { ...params, projectWorkspaceId: "project-1" });
+
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ projectWorkspaceId: "project-1" }),
       }),
     );
   });

@@ -8,7 +8,7 @@ import {
   readAgentMemory,
 } from "@rakazo/adapters";
 import { isDeletableMemoryDocument } from "@rakazo/contracts";
-import { findSpaceMemoryConfig, IsolationError } from "@rakazo/db";
+import { conversationProjectId, findSpaceMemoryConfig, IsolationError } from "@rakazo/db";
 import {
   disconnectMemoryProvider,
   persistMemoryProviderConfig,
@@ -49,6 +49,7 @@ export function memoryRoutes(ctx: RouterContext) {
           spaceId: context.actor.spaceId,
           userId: context.actor.userId,
           botId: input.botId,
+          projectWorkspaceId: conversationProjectId(context.actor),
           signal: context.signal ?? new AbortController().signal,
         });
         return buildAgentMemoryPrompt(documents).plan;

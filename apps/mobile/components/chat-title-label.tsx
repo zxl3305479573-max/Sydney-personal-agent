@@ -8,7 +8,7 @@ export const CHAT_TITLE_FADE_MS = 180;
 
 /**
  * A chat title's name, shown at once when the chat opens. Only when the chat opened with a
- * placeholder ("Bot", before its name is known) does it cross-fade into the real name: the
+ * empty placeholder before its name is known does it cross-fade into the real name: the
  * placeholder fades out where it was while the name fades in. Reduce Motion skips both fades.
  */
 export function ChatTitleLabel({

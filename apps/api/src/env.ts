@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { isAbsolute } from "node:path";
 import type { PhotonProjectCredentials, TelegramBotCredentials } from "@rakazo/adapters";
 import {
   boatApiKeyFromEnv,
@@ -15,6 +16,7 @@ import type { OidcConfig } from "@rakazo/auth";
 import type { MinimumClientBuilds, NavLink } from "@rakazo/contracts";
 import { parseMinimumClientBuilds, parseNavLinks } from "@rakazo/contracts";
 import { parseCrispWebsiteId } from "@rakazo/contracts/content-security-policy";
+import { isLoopbackHost } from "@rakazo/contracts/network-host";
 import {
   attachmentCountFromEnv,
   phoneCallSettings,
@@ -33,7 +35,17 @@ export { resolveCloudAgentProvider, resolveSandboxProvider } from "@rakazo/adapt
 const DEFAULT_WEB_ORIGIN = "http://127.0.0.1:5173";
 
 export interface AppEnv {
+  screenProxyOnApi?: boolean;
+  wuyingAssetsOnApi?: boolean;
+  wuyingAssetsDir?: string;
   companionScreenExperimental?: boolean;
+  projectWorkspaceCreateExperiment?: boolean;
+  projectConversationCreateExperiment?: boolean;
+  integrationApiCallbackEnabled?: boolean;
+  mcpNativeCallbackOrigin?: string;
+  nativePasswordResetOnApi?: boolean;
+  nativeEmailVerificationOnApi?: boolean;
+  legacySignInReturnOnApi?: boolean;
   passwordAuth?: boolean;
   /** Opt-in Have I Been Pwned check for new passwords. Default off: it calls an outside service. */
   breachedPasswordCheck?: boolean;
@@ -200,10 +212,29 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     "AUTH_PASSWORD_ENABLED",
     "AUTH_BREACHED_PASSWORD_CHECK_ENABLED",
     "OIDC_ALLOW_SIGNUP_BYPASS",
+    "SYDNEY_SCREEN_PROXY_ON_API",
+    "SYDNEY_WUYING_ASSETS_ON_API",
+    "SYDNEY_NATIVE_PASSWORD_RESET_ON_API",
+    "SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API",
+    "SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API",
   ]) {
     const value = source[key];
     if (value && !["true", "false"].includes(value))
       throw new Error(`${key} must be true or false`);
+  }
+  const port = Number(source.API_PORT ?? 3100);
+  const wuyingAssetsDir = optional(source.SYDNEY_WUYING_ASSETS_DIR);
+  if (
+    source.SYDNEY_WUYING_ASSETS_ON_API === "true" &&
+    (!wuyingAssetsDir || !isAbsolute(wuyingAssetsDir))
+  ) {
+    throw new Error("SYDNEY_WUYING_ASSETS_ON_API requires an absolute SYDNEY_WUYING_ASSETS_DIR");
+  }
+  if (
+    source.SYDNEY_SCREEN_PROXY_ON_API === "true" &&
+    (!Number.isInteger(port) || port < 1 || port > 65535)
+  ) {
+    throw new Error("SYDNEY_SCREEN_PROXY_ON_API requires a fixed API_PORT between 1 and 65535");
   }
   const passwordAuth = source.AUTH_PASSWORD_ENABLED !== "false";
   if (!passwordAuth && !issuer)
@@ -225,6 +256,25 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const webOrigin = resolveWebOrigin(source.WEB_ORIGIN, DEFAULT_WEB_ORIGIN, "WEB_ORIGIN");
   const extraTrustedOrigins = parseExtraTrustedOrigins(source.EXTRA_TRUSTED_ORIGINS);
   const authPublicLinkOrigin = resolveAuthPublicLinkOrigin(source.AUTH_PUBLIC_LINK_ORIGIN);
+  const authUrl = resolveWebOrigin(source.BETTER_AUTH_URL, webOrigin, "BETTER_AUTH_URL");
+  if (source.SYDNEY_NATIVE_PASSWORD_RESET_ON_API === "true") {
+    const resetOrigin = new URL(authPublicLinkOrigin ?? authUrl);
+    if (resetOrigin.protocol !== "https:" && !isLoopbackHost(resetOrigin.hostname)) {
+      throw new Error(
+        "SYDNEY_NATIVE_PASSWORD_RESET_ON_API requires HTTPS password-reset email links",
+      );
+    }
+  }
+  if (source.SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API === "true") {
+    for (const value of [authPublicLinkOrigin ?? authUrl, authPublicLinkOrigin ?? webOrigin]) {
+      const origin = new URL(value);
+      if (origin.protocol !== "https:" && !isLoopbackHost(origin.hostname)) {
+        throw new Error(
+          "SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API requires HTTPS email verification links",
+        );
+      }
+    }
+  }
   if (
     authPublicLinkOrigin &&
     authPublicLinkOrigin !== new URL(webOrigin).origin &&
@@ -236,6 +286,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const cloudAgentProvider = resolveCloudAgentProvider(source);
   const deploymentModel = resolveDeploymentModel(source);
   return {
+    screenProxyOnApi: source.SYDNEY_SCREEN_PROXY_ON_API === "true",
+    wuyingAssetsOnApi: source.SYDNEY_WUYING_ASSETS_ON_API === "true",
+    wuyingAssetsDir,
     passwordAuth,
     breachedPasswordCheck: source.AUTH_BREACHED_PASSWORD_CHECK_ENABLED === "true",
     oidc,
@@ -244,7 +297,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     realtimeDatabaseUrl: source.REALTIME_DATABASE_URL ?? required(source, "DATABASE_URL"),
     desktopStackToken: optional(source.RAKAZO_DESKTOP_STACK_TOKEN),
     authSecret,
-    authUrl: resolveWebOrigin(source.BETTER_AUTH_URL, webOrigin, "BETTER_AUTH_URL"),
+    authUrl,
     webOrigin,
     authPublicLinkOrigin,
     screenProxyPublicOrigin: resolveScreenProxyPublicOrigin(source.SCREEN_PROXY_PUBLIC_ORIGIN),
@@ -268,6 +321,17 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     companionScreenExperimental:
       source.SYDNEY_COMPANION_SCREEN_EXPERIMENT === "true" &&
       (source.NODE_ENV === "test" || source.NODE_ENV === "development"),
+    projectWorkspaceCreateExperiment:
+      source.SYDNEY_PROJECT_CREATE_EXPERIMENT === "true" && source.NODE_ENV === "test",
+    projectConversationCreateExperiment:
+      source.SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT === "true" && source.NODE_ENV === "test",
+    integrationApiCallbackEnabled: source.SYDNEY_INTEGRATION_API_CALLBACK === "true",
+    mcpNativeCallbackOrigin: resolveMcpNativeCallbackOrigin(
+      source.SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN,
+    ),
+    nativePasswordResetOnApi: source.SYDNEY_NATIVE_PASSWORD_RESET_ON_API === "true",
+    nativeEmailVerificationOnApi: source.SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API === "true",
+    legacySignInReturnOnApi: source.SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API === "true",
     ticketBoardEnabled: source.TICKET_BOARD_ENABLED === "true",
     userDevicesEnabled: source.USER_DEVICES_ENABLED !== "false",
     navLinks: parseNavLinks(source.RAKAZO_NAV_LINKS),
@@ -355,7 +419,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       .filter(Boolean),
     mcpStdio: mcpStdioOptionsFromEnv(source),
     mcpAllowPrivateEndpoint: source.MCP_ALLOW_PRIVATE_ENDPOINT === "true",
-    port: Number(source.API_PORT ?? 3100),
+    port,
     gitSha: optional(source.GIT_SHA) ?? optional(source.RAKAZO_GIT_SHA),
     minimumClientBuilds: parseMinimumClientBuilds(source.RAKAZO_MIN_CLIENT_BUILD),
     browserMonitoring: browserMonitoringFromEnv(source),
@@ -415,6 +479,18 @@ function resolveScreenProxyPublicOrigin(value: string | undefined): string | und
     return url.origin;
   } catch {
     throw new Error("SCREEN_PROXY_PUBLIC_ORIGIN must be a canonical HTTPS origin");
+  }
+}
+
+function resolveMcpNativeCallbackOrigin(value: string | undefined): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.origin !== value || url.hostname.includes("*"))
+      throw new Error();
+    return url.origin;
+  } catch {
+    throw new Error("SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN must be a canonical HTTPS origin");
   }
 }
 

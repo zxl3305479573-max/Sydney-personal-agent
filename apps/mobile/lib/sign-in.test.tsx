@@ -10,6 +10,8 @@ import SignIn from "../app/sign-in";
 import {
   loadSessionToken,
   passwordResetCapabilities,
+  requestPasswordReset,
+  resetPasswordFromToken,
   rpc,
   sendSignInCode,
   signIn,
@@ -157,6 +159,7 @@ vi.mock("./native", () => ({
 }));
 vi.mock("./i18n", () => ({
   useI18n: () => ({
+    locale: "en",
     t: (text: string, values?: Record<string, string>) =>
       (display.longTranslation && text === "Don’t have an account?"
         ? "A much longer translated prompt that needs room to wrap across multiple lines"
@@ -171,6 +174,7 @@ vi.mock("./api", () => ({
   loadSessionToken: vi.fn().mockResolvedValue(null),
   passwordResetCapabilities: vi.fn(),
   requestPasswordReset: vi.fn(),
+  resetPasswordFromToken: vi.fn(),
   rpc: vi.fn(),
   sendSignInCode: vi.fn(),
   signIn: vi.fn(),
@@ -380,6 +384,36 @@ it("hides SSO when switching to password recovery", async () => {
     "Send reset link",
   );
 });
+
+it.each(["https://example.invalid", "https://foreign.invalid"])(
+  "only submits a pasted reset link from the chosen server (%s)",
+  async (origin) => {
+    vi.mocked(requestPasswordReset).mockResolvedValue();
+    vi.mocked(resetPasswordFromToken).mockResolvedValue();
+    await render();
+    await press("Forgot password?");
+    await type(input("Email")!, "ada@example.test");
+    await press("Send reset link");
+    await type(
+      input("Reset link")!,
+      `${origin}/api/auth/native-reset?token=abcdefghijklmnop123456`,
+    );
+    await type(input("New password")!, "offline-password34");
+    await type(input("Confirm new password")!, "offline-password34");
+    await press("Reset password");
+    if (origin === server.base) {
+      expect(resetPasswordFromToken).toHaveBeenCalledWith(
+        "abcdefghijklmnop123456",
+        "offline-password34",
+        server.base,
+      );
+      expect(host.textContent).toContain("Password updated");
+    } else {
+      expect(resetPasswordFromToken).not.toHaveBeenCalled();
+      expect(host.textContent).toContain("belongs to another server");
+    }
+  },
+);
 
 it("drops the code step when the server changes", async () => {
   vi.mocked(passwordResetCapabilities).mockResolvedValue({ ...capabilities, emailCode: true });

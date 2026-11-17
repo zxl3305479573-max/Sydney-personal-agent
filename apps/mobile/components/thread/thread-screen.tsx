@@ -72,6 +72,7 @@ import { ThreadComposerDock } from "./thread-composer-dock";
 import { BotActionsModal, useThreadHeader } from "./thread-header";
 import { LoadEarlierButton, ThreadWorkingFooter } from "./thread-list-controls";
 import { ThreadMessageList } from "./thread-message-list";
+import { ThreadModelSheet } from "./thread-model-sheet";
 import { useLatestRowActions, useThreadRows } from "./thread-rows";
 import { useThreadRunError } from "./thread-run-error";
 
@@ -164,15 +165,20 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     maxAttachmentsPerMessage?: number;
   }>();
   const [needsModel, setNeedsModel] = useState<boolean>();
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [modelSheetOpen, setModelSheetOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<{ botId: string; modelId: string | null }>();
   // Re-read on focus so returning from Models settings updates unsent missing-model messages.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setSelectedModel(undefined);
       void rpc("me")
         .then((me) => {
           if (cancelled) return;
           setUploadConfig(me);
           setNeedsModel(me.needsModel);
+          setDefaultModel(me.defaultModel ?? null);
         })
         .catch(() => undefined);
       return () => {
@@ -250,8 +256,10 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   // Until the chat's own roster arrives, the bot as the inbox last loaded it.
   const inboxBot = useInboxBot(botId);
   const titleBot = currentBot ?? inboxBot;
-  // Without a name yet (a notification can leave it out), the title shows a placeholder.
-  const titleName = currentBot?.name ?? name ?? inboxBot?.name;
+  // Use a cached name until the chat's own roster arrives.
+  const titleName = [currentBot?.name, inboxBot?.name, name]
+    .map((candidate) => safeDisplayName(candidate, ""))
+    .find(Boolean);
   const displayName = safeDisplayName(titleName, inGroup ? t("Group") : t("Bot"));
   const composerPrompt = displayName ? t("Message {name}", { name: displayName }) : t("Message…");
   const notificationThreadId = snap?.threadId ?? requestedThreadId ?? currentBot?.threadId;
@@ -267,8 +275,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const activityLine = liveActivityLine(snap?.messages ?? []);
   const userBubble = useMemo(
     () =>
-      !inGroup && currentBot ? chatUserBubbleColors(currentBot.color, currentBot.id) : undefined,
-    [inGroup, currentBot?.color, currentBot?.id],
+      !inGroup && titleBot ? chatUserBubbleColors(titleBot.color, titleBot.id) : undefined,
+    [inGroup, titleBot?.color, titleBot?.id],
   );
   const activeGroupBots = useMemo(() => {
     if (!inGroup) return [];
@@ -532,7 +540,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     onCall,
     displayName,
     mentionBots,
-    currentBot,
+    currentBot: titleBot,
     currentBotStatus,
     userBubble,
     columnWidth,
@@ -707,10 +715,16 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                   (attachment) => attachment.id,
                 )}
                 botId={botId}
-                modelLabel={currentBot?.modelId ?? undefined}
+                modelLabel={
+                  selectedModel && selectedModel.botId === botId
+                    ? (selectedModel.modelId ?? defaultModel ?? undefined)
+                    : currentBot
+                      ? (currentBot.modelId ?? defaultModel ?? undefined)
+                      : undefined
+                }
                 onModelPress={
                   botId && !inGroup
-                    ? () => router.push({ pathname: "/thread-model", params: { botId } })
+                    ? () => setModelSheetOpen(true)
                     : undefined
                 }
                 onCall={onCall}
@@ -728,6 +742,21 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           </View>
           {botActionsOpen ? (
             <BotActionsModal actions={botActions} onClose={closeBotActions} />
+          ) : null}
+          {modelSheetOpen && botId && !inGroup ? (
+            <ThreadModelSheet
+              key={botId}
+              botId={botId}
+              onClose={() => setModelSheetOpen(false)}
+              onChanged={(modelId) => {
+                setSelectedModel({ botId, modelId });
+                void refreshMentionBots();
+              }}
+              onAdd={() => {
+                setModelSheetOpen(false);
+                router.push("/models");
+              }}
+            />
           ) : null}
           {selectableText !== null ? (
             <SelectTextSheet text={selectableText} onClose={() => setSelectableText(null)} />

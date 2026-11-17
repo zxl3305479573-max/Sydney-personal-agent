@@ -12,7 +12,12 @@ import {
 import type { MessageBlock } from "@rakazo/contracts";
 import { cloudAgentHttpsUrl } from "@rakazo/core";
 import type { CloudAgent } from "@rakazo/db";
-import { appendEventInTransaction, Prisma } from "@rakazo/db";
+import {
+  appendEventInTransaction,
+  IsolationError,
+  Prisma,
+  resolveConversationExecutionScope,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { cloudAgentsEnabled } from "./cloud-agent-factory.js";
 import type { CloudAgentDeps } from "./cloud-agent-service.js";
@@ -55,7 +60,10 @@ export async function pollCloudAgent(
   try {
     const [card, member, bot] = await Promise.all([
       deps.prisma.message.findFirst({
-        where: { id: agent.messageId ?? "", threadId: agent.threadId },
+        where: {
+          id: agent.messageId ?? "", threadId: agent.threadId,
+          thread: { spaceId: agent.spaceId, userId: agent.userId, projectWorkspaceId: agent.projectWorkspaceId },
+        },
         select: { id: true },
       }),
       deps.prisma.spaceMember.findUnique({
@@ -63,7 +71,10 @@ export async function pollCloudAgent(
         select: { id: true },
       }),
       deps.prisma.bot.findFirst({
-        where: { id: agent.botId, spaceId: agent.spaceId, userId: agent.userId, archivedAt: null },
+        where: {
+          id: agent.botId, spaceId: agent.spaceId, userId: agent.userId,
+          projectWorkspaceId: agent.projectWorkspaceId, archivedAt: null,
+        },
       }),
     ]);
     const abandoned = !card || !member || !bot;
@@ -287,6 +298,7 @@ async function finishPoll(
         id: agent.threadId,
         spaceId: agent.spaceId,
         userId: agent.userId,
+        projectWorkspaceId: agent.projectWorkspaceId,
       },
       data: { nextEventSeq: { increment: 0 } },
     });
@@ -304,7 +316,10 @@ async function finishPoll(
         select: { id: true },
       }),
       tx.bot.findFirst({
-        where: { id: agent.botId, spaceId: agent.spaceId, userId: agent.userId, archivedAt: null },
+        where: {
+          id: agent.botId, spaceId: agent.spaceId, userId: agent.userId,
+          projectWorkspaceId: agent.projectWorkspaceId, archivedAt: null,
+        },
         select: { id: true },
       }),
     ]);
@@ -349,33 +364,43 @@ async function finishPoll(
       if (terminal && saved.wakeGeneration < saved.generation) {
         // Provider text is untrusted. Wake with local identity and status only.
         const summary = `Cloud agent ${agent.id} is ${status}. Use cloud_agent_status to inspect its result.`;
-        const task = await tx.task.create({
-          data: {
-            spaceId: agent.spaceId,
-            botId: agent.botId,
-            threadId: agent.threadId,
-            userId: agent.userId,
-            prompt: summary,
-            status: "queued",
-          },
-        });
-        const run = await tx.run.create({
-          data: {
-            spaceId: agent.spaceId,
-            botId: agent.botId,
-            threadId: agent.threadId,
-            userId: agent.userId,
-            taskId: task.id,
-            status: "queued",
-            trigger: "cloud_agent",
-            clientNonce: `cloud-agent-wake-run:${agent.id}:${saved.generation}`,
-          },
-        });
+        let executionScope;
+        try {
+          executionScope = await resolveConversationExecutionScope(tx, agent);
+        } catch (error) {
+          if (!(error instanceof IsolationError)) throw error;
+        }
+        if (executionScope?.projectWorkspaceId === agent.projectWorkspaceId) {
+          const task = await tx.task.create({
+            data: {
+              spaceId: agent.spaceId,
+              botId: agent.botId,
+              threadId: agent.threadId,
+              userId: agent.userId,
+              projectWorkspaceId: executionScope.projectWorkspaceId,
+              prompt: summary,
+              status: "queued",
+            },
+          });
+          const run = await tx.run.create({
+            data: {
+              spaceId: agent.spaceId,
+              botId: agent.botId,
+              threadId: agent.threadId,
+              userId: agent.userId,
+              taskId: task.id,
+              projectWorkspaceId: task.projectWorkspaceId,
+              status: "queued",
+              trigger: "cloud_agent",
+              clientNonce: `cloud-agent-wake-run:${agent.id}:${saved.generation}`,
+            },
+          });
+          wakeRunId = run.id;
+        }
         await tx.cloudAgent.update({
           where: { id: agent.id },
           data: { wakeGeneration: saved.generation },
         });
-        wakeRunId = run.id;
       }
     }
     return { seq, wakeRunId, nextPollAt };

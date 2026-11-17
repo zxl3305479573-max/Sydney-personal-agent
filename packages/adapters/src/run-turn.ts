@@ -705,6 +705,8 @@ export async function completeRun(ctx: RunContext) {
       );
     }
     for (const mem of turn.memory ?? []) {
+      if (context.projectWorkspaceId && mem.scope === "user")
+        throw new Error("Shared account memory is unavailable in project conversations.");
       await deps.memory.commit(
         {
           scope: mem.scope,

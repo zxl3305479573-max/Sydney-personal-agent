@@ -11,12 +11,57 @@ import { describe, expect, it, vi } from "vitest";
 import {
   attachWorkspaceFileToThread,
   currentTurnFilesInstruction,
+  listCurrentTurnFiles,
   materializeCurrentTurnFiles,
   materializeRecentThreadFiles,
   recentThreadFilesInstruction,
 } from "./thread-artifacts.js";
 
 describe("current-turn thread files", () => {
+  it.each([null, "project-1"])("filters file lookup by project scope %s", async (projectWorkspaceId) => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    await expect(listCurrentTurnFiles(
+      { prisma: { artifact: { findMany } } as unknown as PrismaClient },
+      [{ kind: "file", artifactId: "file-1", name: "file.pdf", mimeType: "application/pdf", size: 1 }],
+      {
+        operationId: "op", traceId: "op", spaceId: "space", userId: "owner",
+        projectWorkspaceId, signal: new AbortController().signal,
+      },
+    )).rejects.toThrow("unavailable");
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectWorkspaceId }),
+    }));
+  });
+
+  it("rejects an unavailable run or a mismatched group before storing bytes", async () => {
+    for (const run of [null, { thread: { groupId: "other-group" } }]) {
+      const put = vi.fn();
+      const findFirst = vi.fn().mockResolvedValue(run);
+      await expect(attachWorkspaceFileToThread(
+        {
+          prisma: { run: { findFirst } } as unknown as PrismaClient,
+          artifacts: { put } as unknown as ArtifactStore,
+        },
+        {
+          spaceId: "space",
+          userId: "owner",
+          botId: "bot",
+          groupId: "group",
+          runId: "run",
+          filePath: "generated.pdf",
+          bytes: new Uint8Array([1]),
+          operationId: "op",
+        },
+      )).rejects.toThrow();
+      expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          id: "run", spaceId: "space", userId: "owner", botId: "bot", projectWorkspaceId: null,
+        }),
+      }));
+      expect(put).not.toHaveBeenCalled();
+    }
+  });
+
   it("rejects generated output above a lower configured attachment limit before storage", async () => {
     const put = vi.fn();
     await expect(
@@ -141,6 +186,7 @@ describe("current-turn thread files", () => {
         {
           prisma: {
             artifact,
+            run: { findFirst: vi.fn().mockResolvedValue({ thread: { groupId: null } }) },
             $transaction: async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
           } as unknown as PrismaClient,
           artifacts: {
@@ -186,6 +232,7 @@ describe("current-turn thread files", () => {
         {
           prisma: {
             artifact,
+            run: { findFirst: vi.fn().mockResolvedValue({ thread: { groupId: null } }) },
             $transaction: async (run: (client: typeof tx) => Promise<unknown>) => run(tx),
           } as unknown as PrismaClient,
           artifacts: {

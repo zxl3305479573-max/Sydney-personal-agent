@@ -13,6 +13,17 @@ const context: AdapterContext = {
 };
 
 describe("agent memory context", () => {
+  it("does not load account memory for a project conversation", async () => {
+    const read = vi.fn(async () => snapshot([
+      document("bot", "bot.md", "project fact", 1, "2026-08-14T12:00:00.000Z"),
+    ]));
+    const projectContext = { ...context, projectWorkspaceId: "project-1" };
+    const result = await loadAgentMemoryContext(storeWith(read), "bot-1", projectContext);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledWith({ scope: "bot", botId: "bot-1" }, projectContext);
+    expect(result).toContain("project fact");
+  });
+
   it("loads bot and user memory and renders newest revisions first", async () => {
     const read = vi.fn(async ({ scope }: { scope: "bot" | "user" }) =>
       snapshot(

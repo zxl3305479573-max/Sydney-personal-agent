@@ -198,6 +198,18 @@ export function sessionPartitionForServerUrl(targetUrl: string): string | null {
   }
 }
 
+export function standaloneSessionPartitionForServerUrl(targetUrl: string): string | null {
+  try {
+    const url = new URL(targetUrl);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password)
+      return null;
+    const digest = createHash("sha256").update(url.origin).digest("hex").slice(0, 24);
+    return `persist:sydney-standalone-${digest}`;
+  } catch {
+    return null;
+  }
+}
+
 /** External pages are opened by the OS, never in a privileged Electron child window. */
 export function safeExternalUrl(targetUrl: string): string | null {
   try {

@@ -55,7 +55,12 @@ async function fixture(workspaceResult: "present" | "failure") {
     verification: [],
     passkey: [],
   };
-  const prisma = { authData: data, $queryRaw: query };
+  const prisma = {
+    authData: data,
+    $queryRaw: query,
+    $transaction: async (callback: (tx: { $queryRaw: typeof query }) => Promise<void>) =>
+      callback({ $queryRaw: query }),
+  };
   const auth = createAuth(prisma as never, {
     secret,
     baseURL: "http://auth.example.test",
@@ -118,7 +123,10 @@ describe("account deletion workspace authentication response", () => {
     expect(result.cancelBilling).not.toHaveBeenCalled();
     expect(result.cleanup).not.toHaveBeenCalled();
     await expect(
-      result.assertAccountDeletionAllowed({ $queryRaw: result.query } as never, "user-1"),
+      result.assertAccountDeletionAllowed({
+        $transaction: async (callback: (tx: { $queryRaw: typeof result.query }) => Promise<void>) =>
+          callback({ $queryRaw: result.query }),
+      } as never, "user-1"),
     ).rejects.toBe(result.failure);
   });
 

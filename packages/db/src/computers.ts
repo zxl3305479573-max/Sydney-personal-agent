@@ -118,7 +118,7 @@ async function countInUseComputersForUser(
  * Serialize existence check + in-use count + Computer create for one user.
  * Seed 1 keeps this keyspace apart from lockSpaceForContentCreation (seed 0).
  */
-async function lockUserForComputerQuota(
+export async function lockUserForComputerQuota(
   tx: Pick<Prisma.TransactionClient, "$queryRaw">,
   userId: string,
 ): Promise<void> {

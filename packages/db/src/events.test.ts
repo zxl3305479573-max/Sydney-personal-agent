@@ -5512,8 +5512,8 @@ it("checks cross-space peer permission inside the message transaction before cre
     task: { create: vi.fn() },
     run: { create: vi.fn(), findMany: vi.fn() },
     $queryRaw: vi.fn(async () => [
-      { id: "sender", spaceId: "a", crossSpaceCommunication: true, archivedAt: null },
-      { id: "target", spaceId: "b", crossSpaceCommunication: false, archivedAt: null },
+      { id: "sender", spaceId: "a", userId: "user-a", projectWorkspaceId: null, crossSpaceCommunication: true, archivedAt: null },
+      { id: "target", spaceId: "b", userId: "user-b", projectWorkspaceId: null, crossSpaceCommunication: false, archivedAt: null },
     ]),
   };
   const prisma = {

@@ -1156,6 +1156,7 @@ export class McpOAuthBroker {
         id: input.sessionId,
         spaceId: input.spaceId,
         userId: input.userId,
+        createdAt: { gte: new Date(Date.now() - PENDING_TTL_MS) },
       },
     });
     if (consumed.count !== 1) throw new Error("MCP OAuth session is invalid or expired");

@@ -108,10 +108,24 @@ it("draws the inbox's bot from the route alone, before the chat publishes anythi
   expect(button().getAttribute("aria-label")).toBe("Profile");
 });
 
-it("reserves the avatar for an unknown bot and marks a missing name as a placeholder", () => {
+it("reserves the avatar without showing a false name while the bot is unknown", () => {
   render({ botId: "bot-1" });
   expect(avatar()?.getAttribute("data-color")).toBe("slot");
-  expect(name()?.textContent).toBe("Bot");
+  expect(name()?.textContent).toBe("");
+  expect(name()?.getAttribute("data-placeholder")).toBe("true");
+});
+
+it("prefers the cached bot name to an outdated or opaque route name", () => {
+  setSearchInbox(inbox([helper]));
+  render({ botId: "bot-1", name: "Old name" });
+  expect(name()?.textContent).toBe("Helper");
+  render({ botId: "bot-1", name: "d960f439-6322-44ab-bd5d-d1689c508121" });
+  expect(name()?.textContent).toBe("Helper");
+});
+
+it("does not display an opaque route identifier as a chat name", () => {
+  render({ botId: "bot-1", name: "d960f439-6322-44ab-bd5d-d1689c508121" });
+  expect(name()?.textContent).toBe("");
   expect(name()?.getAttribute("data-placeholder")).toBe("true");
 });
 

@@ -8,6 +8,7 @@ import {
 import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "./client.js";
 import { appendEventInTransaction } from "./events.js";
+import { conversationProjectId, conversationScopeWhere } from "./project-workspace-context.js";
 import { currentDbContext } from "./row-security.js";
 import { clearEndedRunState } from "./run-secrets.js";
 import { RUN_TURN_CHECKPOINT_KIND } from "./run-turn-checkpoint.js";
@@ -76,15 +77,17 @@ async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: s
   const locked = await tx.$queryRaw<{ id: string }[]>`
     SELECT "id" FROM "tasks"
     WHERE "id" = ${taskId} AND "userId" = ${actor.userId} AND "spaceId" = ${actor.spaceId}
+      AND "projectWorkspaceId" IS NOT DISTINCT FROM ${conversationProjectId(actor)}
     FOR UPDATE
   `;
   if (locked.length !== 1) throw new IsolationError();
   const rows = await tx.task.findMany({
-    where: { id: taskId, ...actor },
+    where: { id: taskId, ...conversationScopeWhere(actor) },
     select: {
       id: true,
       userId: true,
       spaceId: true,
+      projectWorkspaceId: true,
       botId: true,
       threadId: true,
       prompt: true,
@@ -96,7 +99,15 @@ async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: s
     take: 2,
   });
   const task = rows[0];
-  if (!task || rows.length > 1) throw new IsolationError();
+  if (
+    !task ||
+    rows.length > 1 ||
+    task.spaceId !== actor.spaceId ||
+    task.userId !== actor.userId ||
+    task.projectWorkspaceId !== conversationProjectId(actor)
+  ) {
+    throw new IsolationError();
+  }
   const state = TaskExecutionStateSchema.parse(task.executionState);
   return { task, state } as const;
 }
@@ -104,8 +115,13 @@ async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: s
 export async function createManagedTask(prisma: PrismaClient, actor: Tenant, rawInput: unknown) {
   assertTenant(actor);
   const input = taskExecutionContract.create["~orpc"].inputSchema!.parse(rawInput);
+  const projectWorkspaceId = conversationProjectId(actor);
+  const nonceIdentity =
+    projectWorkspaceId === null
+      ? [actor.spaceId, actor.userId, input.clientNonce]
+      : [actor.spaceId, actor.userId, projectWorkspaceId, input.clientNonce];
   const id = `task-${createHash("sha256")
-    .update(JSON.stringify([actor.spaceId, actor.userId, input.clientNonce]))
+    .update(JSON.stringify(nonceIdentity))
     .digest("hex")}`;
   return withTransactionRetry(() =>
     prisma.$transaction(async (tx) => {
@@ -113,8 +129,9 @@ export async function createManagedTask(prisma: PrismaClient, actor: Tenant, raw
         where: {
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId,
           botId: input.botId,
-          bot: { archivedAt: null },
+          bot: { archivedAt: null, ...conversationScopeWhere(actor) },
         },
         select: { id: true },
       });
@@ -135,7 +152,7 @@ export async function createManagedTask(prisma: PrismaClient, actor: Tenant, raw
         where: { id },
         create: {
           id,
-          ...actor,
+          ...conversationScopeWhere(actor),
           botId: input.botId,
           threadId: thread.id,
           prompt: input.prompt,
@@ -148,6 +165,7 @@ export async function createManagedTask(prisma: PrismaClient, actor: Tenant, raw
       if (
         task.userId !== actor.userId ||
         task.spaceId !== actor.spaceId ||
+        task.projectWorkspaceId !== projectWorkspaceId ||
         task.botId !== input.botId ||
         task.prompt !== input.prompt ||
         summary.execution.budget.maxRuns !== input.budget.maxRuns ||
@@ -171,7 +189,7 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       const { task, state } = await lockedTask(tx, actor, input.taskId);
       const nonce = `task:${task.id}:${input.clientNonce}`;
       const existing = await tx.run.findFirst({
-        where: { taskId: task.id, ...actor, clientNonce: nonce },
+        where: { taskId: task.id, ...conversationScopeWhere(actor), clientNonce: nonce },
         select: { id: true, taskMandate: true },
       });
       if (existing) {
@@ -192,17 +210,23 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       }
       if (state.completionEvidence) throw new TaskExecutionError("task_already_completed");
       if (!input.modelDataConsent) throw new TaskExecutionError("consent_required");
-      const runCount = await tx.run.count({ where: { taskId: task.id, ...actor } });
+      const runCount = await tx.run.count({
+        where: { taskId: task.id, ...conversationScopeWhere(actor) },
+      });
       if (runCount >= state.budget.maxRuns) throw new TaskExecutionError("max_runs_reached");
       if (runCount > 0 && !input.retry) throw new TaskExecutionError("retry_required");
       const activeRun = await tx.run.findFirst({
-        where: { taskId: task.id, ...actor, status: { in: [...ACTIVE_RUN_STATUSES] } },
+        where: {
+          taskId: task.id,
+          ...conversationScopeWhere(actor),
+          status: { in: [...ACTIVE_RUN_STATUSES] },
+        },
         select: { id: true },
       });
       if (activeRun) throw new TaskExecutionError("active_run_exists");
       const unresolved = await tx.externalEffect.findFirst({
         where: {
-          run: { taskId: task.id, ...actor },
+          run: { taskId: task.id, ...conversationScopeWhere(actor) },
           spaceId: actor.spaceId,
           kind: { not: RUN_TURN_CHECKPOINT_KIND },
           status: { notIn: ["completed", "denied", "reconciled"] },
@@ -219,7 +243,9 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       }
       const run = await tx.run.create({
         data: {
-          ...actor,
+          spaceId: task.spaceId,
+          userId: task.userId,
+          projectWorkspaceId: task.projectWorkspaceId,
           botId: task.botId,
           threadId: task.threadId,
           taskId: task.id,
@@ -231,7 +257,8 @@ export async function dispatchManagedTask(prisma: PrismaClient, actor: Tenant, r
       });
       const mandate = StoredTaskMandateSchema.parse({
         id: `mandate-${nonce}`,
-        ...actor,
+        spaceId: actor.spaceId,
+        userId: actor.userId,
         botId: task.botId,
         threadId: task.threadId,
         taskId: task.id,
@@ -278,7 +305,7 @@ export async function guardManagedRun(
       throw new TaskExecutionError("task_deadline_exceeded");
     }
     const run = await tx.run.findFirst({
-      where: { id: input.runId, taskId, ...actor },
+      where: { id: input.runId, taskId, ...conversationScopeWhere(actor) },
       select: {
         id: true,
         status: true,
@@ -368,7 +395,7 @@ export async function controlManagedTask(
       }
       const unresolved = await tx.externalEffect.findFirst({
         where: {
-          run: { taskId, ...actor },
+          run: { taskId, ...conversationScopeWhere(actor) },
           spaceId: actor.spaceId,
           kind: { not: RUN_TURN_CHECKPOINT_KIND },
           status: { notIn: ["completed", "denied", "reconciled"] },
@@ -385,7 +412,7 @@ export async function controlManagedTask(
         where: {
           id: state.currentRunId,
           taskId,
-          ...actor,
+          ...conversationScopeWhere(actor),
           trigger: "managed_task",
           status: "queued",
         },
@@ -434,7 +461,7 @@ export async function renewManagedTaskMandate(
       throw new TaskExecutionError("control_blocked");
     }
     const run = await tx.run.findFirst({
-      where: { id: runId, taskId, ...actor },
+      where: { id: runId, taskId, ...conversationScopeWhere(actor) },
       select: { id: true, status: true, taskMandate: true },
     });
     if (!run) throw new IsolationError();
@@ -457,7 +484,7 @@ export async function renewManagedTaskMandate(
       throw new TaskExecutionError("mandate_expiry_invalid");
     }
     const renewed = await tx.run.updateMany({
-      where: { id: run.id, taskId, ...actor, status: run.status },
+      where: { id: run.id, taskId, ...conversationScopeWhere(actor), status: run.status },
       data: { taskMandate: { ...mandate, expiresAt } },
     });
     if (renewed.count !== 1) throw new TaskExecutionError("run_state_changed");
@@ -481,7 +508,7 @@ export async function confirmManagedTaskStopped(
       throw new TaskExecutionError("run_mismatch");
     }
     const run = await tx.run.findFirst({
-      where: { id: runId, taskId, ...actor },
+      where: { id: runId, taskId, ...conversationScopeWhere(actor) },
       select: { status: true },
     });
     if (!run || ACTIVE_RUN_STATUSES.includes(run.status as (typeof ACTIVE_RUN_STATUSES)[number])) {
@@ -507,7 +534,7 @@ export async function finishManagedTaskReview(
     if (state.completionEvidence) throw new TaskExecutionError("task_already_completed");
     const unresolved = await tx.externalEffect.findFirst({
       where: {
-        run: { taskId, ...actor },
+        run: { taskId, ...conversationScopeWhere(actor) },
         spaceId: actor.spaceId,
         kind: { not: RUN_TURN_CHECKPOINT_KIND },
         status: { notIn: ["completed", "denied", "reconciled"] },
@@ -542,7 +569,7 @@ export async function reconcileManagedTaskEffect(
     const effect = await tx.externalEffect.findFirst({
       where: {
         id: effectId,
-        run: { taskId, ...actor },
+        run: { taskId, ...conversationScopeWhere(actor) },
         spaceId: actor.spaceId,
         kind: { not: RUN_TURN_CHECKPOINT_KIND },
       },
@@ -577,13 +604,13 @@ export async function verifyManagedTaskCompletion(
       throw new TaskExecutionError("control_blocked");
     }
     const run = await tx.run.findFirst({
-      where: { id: runId, taskId, ...actor },
+      where: { id: runId, taskId, ...conversationScopeWhere(actor) },
       select: { status: true },
     });
     if (!run || run.status !== "completed") throw new TaskExecutionError("run_not_completed");
     const unresolved = await tx.externalEffect.findFirst({
       where: {
-        run: { taskId, ...actor },
+        run: { taskId, ...conversationScopeWhere(actor) },
         spaceId: actor.spaceId,
         kind: { not: RUN_TURN_CHECKPOINT_KIND },
         status: { notIn: ["completed", "denied", "reconciled"] },

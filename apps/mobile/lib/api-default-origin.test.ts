@@ -53,6 +53,9 @@ describe("default server startup protection", () => {
           throw new Error("storage locked");
         return disk.get(key) ?? null;
       });
+      vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
+        disk.set(key, value);
+      });
       vi.mocked(SecureStore.setItemAsync).mockClear();
       vi.mocked(SecureStore.deleteItemAsync).mockClear();
       const fetch = vi.fn();
@@ -80,7 +83,7 @@ describe("default server startup protection", () => {
         await expect(loadApiBase()).rejects.toThrow();
         await expect(authHeaders()).rejects.toThrow();
       } else {
-        const expected = scope === "ip" ? "https://124.221.182.39" : "https://pc.zxlup.xin";
+        const expected = "https://124.221.182.39";
         await expect(loadApiBase()).resolves.toBe(expected);
         expect(currentApiBase()).toBe(expected);
         await expect(authHeaders()).resolves.toMatchObject({
@@ -90,7 +93,17 @@ describe("default server startup protection", () => {
       expect(fetch).not.toHaveBeenCalled();
       expect(disk.get("rakazo.session_token")).toBe("synthetic-token");
       expect(disk.get("rakazo.space_id")).toBe("synthetic-space");
-      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+      if (scope === "legacy") {
+        expect(JSON.parse(disk.get("rakazo.integrations-scope")!)).toEqual({
+          token: "synthetic-token",
+          apiBase: "https://124.221.182.39",
+          userId: "synthetic-user",
+          spaceId: "synthetic-space",
+          selectionId: null,
+        });
+      } else {
+        expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+      }
       expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
       expect(clearOutbox).not.toHaveBeenCalled();
     },
@@ -131,14 +144,16 @@ describe("default server startup protection", () => {
     const { guardDefaultOrigin } = await import("./default-origin-guard");
     await expect(guardDefaultOrigin("https://203.0.113.10", false)).rejects.toThrow();
     await expect(guardDefaultOrigin("https://203.0.113.10", true)).resolves.toBeUndefined();
+    await expect(guardDefaultOrigin("https://124.221.182.39", false)).resolves.toBeUndefined();
     await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).resolves.toBeUndefined();
     disk.delete("rakazo.integrations-scope");
-    await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).resolves.toBeUndefined();
+    await expect(guardDefaultOrigin("https://124.221.182.39", false)).resolves.toBeUndefined();
+    await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();
     vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
       if (key === "rakazo.integrations-scope") throw new Error("storage locked");
       return disk.get(key) ?? null;
     });
-    await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();
+    await expect(guardDefaultOrigin("https://124.221.182.39", false)).rejects.toThrow();
     vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => disk.get(key) ?? null);
     for (const invalid of ["", "{", JSON.stringify({ token: "other" })]) {
       disk.set("rakazo.integrations-scope", invalid);

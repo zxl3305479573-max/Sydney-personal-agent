@@ -147,7 +147,10 @@ async function dispatchTool(
       });
       if (!resource)
         return { error: "Managed task permission does not allow this tool or resource." };
-      await runAsTenant({ userId: ctx.run.userId, spaceId: ctx.run.spaceId }, () =>
+      await runAsTenant({
+        userId: ctx.run.userId, spaceId: ctx.run.spaceId,
+        projectWorkspaceId: ctx.run.projectWorkspaceId,
+      }, () =>
         guardManagedRun(
           ctx.deps.prisma,
           { userId: ctx.run.userId, spaceId: ctx.run.spaceId },

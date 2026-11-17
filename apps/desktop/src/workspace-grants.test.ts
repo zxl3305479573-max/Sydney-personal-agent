@@ -15,7 +15,10 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...original, rm: vi.fn(original.rm) };
 });
 
-const scope = { origin: "https://example.com", userId: "user-1", deviceId: "device-1" };
+const scope = {
+  origin: "https://example.com", userId: "user-1", deviceId: "device-1",
+  spaceId: "space-1", projectWorkspaceId: "project-1",
+};
 let userData: string;
 let directory: string;
 
@@ -51,6 +54,8 @@ describe("workspace grant storage", () => {
       { ...scope, origin: "https://other.example.com" },
       { ...scope, userId: "user-2" },
       { ...scope, deviceId: "device-2" },
+      { ...scope, spaceId: "space-2" },
+      { ...scope, projectWorkspaceId: "project-2" },
     ]) {
       expect(await readWorkspaceGrant(userData, other, first.id)).toBeNull();
       expect(await readWorkspaceGrantDirectory(userData, other, first.id)).toBeNull();
@@ -155,6 +160,8 @@ describe("workspace grant storage", () => {
     for (const invalid of [
       { ...scope, userId: "" },
       { ...scope, deviceId: "" },
+      { ...scope, spaceId: "" },
+      { ...scope, projectWorkspaceId: "../project" },
       { ...scope, origin: "https://example.com/path" },
     ]) {
       await expect(saveWorkspaceGrant(userData, invalid, directory)).rejects.toThrow();

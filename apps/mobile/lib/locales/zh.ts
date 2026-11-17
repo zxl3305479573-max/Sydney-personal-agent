@@ -1,5 +1,16 @@
 export const ZH_MESSAGES: Record<string, string> = {
-  "Server settings or the saved session could not be verified.": "无法验证服务器设置或已保存的登录状态。",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "如果浏览器无法完成连接，请复制浏览器中的完整回调地址并粘贴到这里。",
+  "MCP callback address": "MCP 回调地址",
+  "Paste callback address": "粘贴回调地址",
+  "Complete connection": "完成连接",
+  "The callback address does not match this connection attempt.": "回调地址与本次连接不匹配。",
+  "The account, server, or space changed. Start the connection again.":
+    "账号、服务器或空间已变化，请重新连接。",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "无法确认连接结果，请重新发起连接。",
+  "Server settings or the saved session could not be verified.":
+    "无法验证服务器设置或已保存的登录状态。",
   Computers: "电脑设备",
   "Could not load devices.": "无法加载设备。",
   "No computers paired with this account.": "此账号暂无已配对的电脑设备。",

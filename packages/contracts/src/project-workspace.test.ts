@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { ProjectWorkspaceSchema as PublicProjectWorkspaceSchema } from "./index.js";
+import { appContract } from "./rpc.js";
 import {
   CreateProjectWorkspaceInput,
   DeleteProjectWorkspaceInput,
+  ListProjectWorkspacesInput,
   PROJECT_WORKSPACE_ID_MAX_LENGTH,
   PROJECT_WORKSPACE_NAME_MAX_LENGTH,
   ProjectWorkspaceConnectionStatusSchema,
   ProjectWorkspaceIdInput,
   ProjectWorkspaceLocationTypeSchema,
   ProjectWorkspaceSchema,
+  ProjectWorkspacePageSchema,
   RenameProjectWorkspaceInput,
 } from "./project-workspace.js";
 
 describe("project workspace contracts", () => {
+  const creationId = "f68bcf5d-39fc-41fe-88dc-f3e465c1977f";
   const workspace = {
     id: "workspace-1",
     name: "Project",
@@ -21,6 +25,17 @@ describe("project workspace contracts", () => {
     createdAt: "2026-11-10T00:00:00.000Z",
     updatedAt: "2026-11-10T00:00:00.000Z",
   };
+
+  it("accepts only scoped text sends with a nonce and exactly one conversation target", () => {
+    const schema = appContract.projectWorkspaces.sendText["~orpc"].inputSchema!;
+    const valid = { projectId: "project-a", botId: "bot-a", text: "hello", clientNonce: "nonce-a" };
+    expect(schema.safeParse(valid).success).toBe(true);
+    expect(schema.safeParse({ ...valid, groupId: "group-a" }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, botId: undefined }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, clientNonce: undefined }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, text: " " }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, artifactIds: ["file-a"] }).success).toBe(false);
+  });
 
   it("exports the schema through the package entry", () => {
     expect(PublicProjectWorkspaceSchema).toBe(ProjectWorkspaceSchema);
@@ -87,20 +102,29 @@ describe("project workspace contracts", () => {
   });
 
   it("trims names and enforces length limits", () => {
-    expect(CreateProjectWorkspaceInput.parse({ name: "  Project  " })).toEqual({ name: "Project" });
+    expect(CreateProjectWorkspaceInput.parse({ id: creationId, name: "  Project  " }))
+      .toEqual({ id: creationId, name: "Project" });
     expect(RenameProjectWorkspaceInput.parse({ id: "workspace-1", name: " New " }).name).toBe(
       "New",
     );
     for (const name of [" ", "x".repeat(PROJECT_WORKSPACE_NAME_MAX_LENGTH + 1)]) {
-      expect(CreateProjectWorkspaceInput.safeParse({ name }).success).toBe(false);
+      expect(CreateProjectWorkspaceInput.safeParse({ id: creationId, name }).success).toBe(false);
       expect(RenameProjectWorkspaceInput.safeParse({ id: "workspace-1", name }).success).toBe(
         false,
       );
     }
     expect(
-      CreateProjectWorkspaceInput.safeParse({ name: "x".repeat(PROJECT_WORKSPACE_NAME_MAX_LENGTH) })
+      CreateProjectWorkspaceInput.safeParse({ id: creationId, name: "x".repeat(PROJECT_WORKSPACE_NAME_MAX_LENGTH) })
         .success,
     ).toBe(true);
+  });
+
+  it("requires a stable UUID for a project creation attempt", () => {
+    expect(CreateProjectWorkspaceInput.safeParse({ name: "Project" }).success).toBe(false);
+    expect(CreateProjectWorkspaceInput.safeParse({ id: "workspace-1", name: "Project" }).success)
+      .toBe(false);
+    expect(CreateProjectWorkspaceInput.safeParse({ id: creationId, name: "Project" }).success)
+      .toBe(true);
   });
 
   it("requires bounded IDs using only safe characters", () => {
@@ -133,7 +157,7 @@ describe("project workspace contracts", () => {
 
   it("rejects forged ownership, binding, and other extra request fields", () => {
     const requests = [
-      [CreateProjectWorkspaceInput, { name: "Project" }],
+      [CreateProjectWorkspaceInput, { id: creationId, name: "Project" }],
       [RenameProjectWorkspaceInput, { id: "workspace-1", name: "Project" }],
       [ProjectWorkspaceIdInput, { id: "workspace-1" }],
       [DeleteProjectWorkspaceInput, { id: "workspace-1", confirmRemoveAppData: true }],
@@ -159,5 +183,13 @@ describe("project workspace contracts", () => {
         deleteFiles: true,
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps paginated reads bounded and rejects forged ownership", () => {
+    expect(ListProjectWorkspacesInput.parse({})).toEqual({});
+    expect(ListProjectWorkspacesInput.safeParse({ userId: "another-user" }).success).toBe(false);
+    expect(ListProjectWorkspacesInput.safeParse({ after: { id: "../project", createdAt: workspace.createdAt } }).success).toBe(false);
+    expect(ProjectWorkspacePageSchema.safeParse({ items: [workspace], nextCursor: null }).success).toBe(true);
+    expect(ProjectWorkspacePageSchema.safeParse({ items: Array.from({ length: 101 }, () => workspace), nextCursor: null }).success).toBe(false);
   });
 });

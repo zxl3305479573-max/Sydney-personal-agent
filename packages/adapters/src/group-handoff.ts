@@ -15,6 +15,7 @@ import {
   createThreadMessageInTransaction,
   IsolationError,
   lockOwnedGroup,
+  resolveConversationExecutionScope,
   touchGroupUpdatedAt,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -174,12 +175,16 @@ export async function handoffToGroupBot(
       clientNonce: deliveryKey,
       lease: inGroup ? runLeaseFor(deps, run.id) : undefined,
     });
+    const executionScope = await resolveConversationExecutionScope(tx, {
+      spaceId: run.spaceId, userId: run.userId, botId: targetId, threadId: targetThreadId,
+    });
     const task = await tx.task.create({
       data: {
         spaceId: run.spaceId,
         botId: targetId,
         threadId: targetThreadId,
         userId: run.userId,
+        projectWorkspaceId: executionScope.projectWorkspaceId,
         prompt: text,
         status: "queued",
       },
@@ -191,6 +196,7 @@ export async function handoffToGroupBot(
         threadId: targetThreadId,
         taskId: task.id,
         userId: run.userId,
+        projectWorkspaceId: task.projectWorkspaceId,
         status: "queued",
         trigger: "follow_up",
         sourceMessageId: message.id,

@@ -27,6 +27,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { McpOAuthReturn } from "../../components/mcp-oauth-return";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
 import { PluginIcon } from "../../components/plugin-icon";
@@ -46,6 +47,7 @@ import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
 import { mcpServerReady, sourceHref } from "../../lib/plugin-marketplace";
 import { useSideInsets } from "../../lib/side-insets";
+import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
 
 const SKILLS_SHOWN = 5;
@@ -58,6 +60,7 @@ export default function PluginScreen() {
   const styles = useThemedStyles(createStyles);
   const { t } = useI18n();
   const foreground = useAppForeground();
+  const mcpReturn = useMcpOAuthReturn();
   const [installs, setInstalls] = useState<CapabilityInstall[]>([]);
   const [allServers, setAllServers] = useState<McpServer[]>([]);
   const [assigned, setAssigned] = useState(new Set<string>());
@@ -229,11 +232,7 @@ export default function PluginScreen() {
     run(
       server.id,
       async () => {
-        const { webUrl } = await rpc("integrationSetup/get");
-        const started = await rpc("mcp/oauth/begin", {
-          serverId: server.id,
-          redirectUri: new URL("/mcp/oauth/callback", webUrl).toString(),
-        });
+        const started = await mcpReturn.begin(server.id);
         if (started.status === "authorization_required") {
           await Linking.openURL(started.authorizationUrl);
           return;
@@ -394,6 +393,7 @@ export default function PluginScreen() {
         </View>
 
         {description ? <Text style={styles.description}>{description}</Text> : null}
+        <McpOAuthReturn flow={mcpReturn} onCompleted={() => void load().catch(() => undefined)} />
         {install ? (
           <SpaceAvailabilityPicker
             kind="install"

@@ -388,16 +388,20 @@ export const MessageRow = memo(function MessageRow({
       >
         {activityBotId ? (
           <View style={{ paddingTop: 22 }}>
-            <BotAvatar
-              color={activityColor ?? tokens.mutedForeground}
-              avatarSet={activityAvatarSet}
-              identity={activityBotId}
-              size={inGroup ? 20 : 28}
-              status={activityStatus}
-              motion={message.id.startsWith("progress:") ? "running" : undefined}
-              composing={message.id.startsWith("progress:") && liveMessageComposing(message.blocks)}
-              pokeable={message.id.startsWith("progress:")}
-            />
+            {activityColor ? (
+              <BotAvatar
+                color={activityColor}
+                avatarSet={activityAvatarSet}
+                identity={activityBotId}
+                size={inGroup ? 20 : 28}
+                status={activityStatus}
+                motion={message.id.startsWith("progress:") ? "running" : undefined}
+                composing={message.id.startsWith("progress:") && liveMessageComposing(message.blocks)}
+                pokeable={message.id.startsWith("progress:")}
+              />
+            ) : (
+              <View style={{ width: inGroup ? 20 : 28, height: inGroup ? 20 : 28 }} />
+            )}
           </View>
         ) : null}
         <View

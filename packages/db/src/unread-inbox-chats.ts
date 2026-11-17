@@ -18,14 +18,19 @@ export function countUnreadInboxChats(
       SELECT count(*)::int AS count FROM threads t
       JOIN member_spaces m ON m."spaceId" = t."spaceId"
       WHERE t.unread AND t."userId" = ${userId}
+        AND t."projectWorkspaceId" IS NULL
         AND t."externalConversationId" IS NULL
         AND (
           EXISTS (SELECT 1 FROM bots b WHERE b.id = t."botId"
-            AND b."spaceId" = t."spaceId" AND b."userId" = ${userId} AND b."archivedAt" IS NULL)
+            AND b."spaceId" = t."spaceId" AND b."userId" = ${userId} AND b."archivedAt" IS NULL
+            AND b."projectWorkspaceId" IS NULL)
           OR EXISTS (SELECT 1 FROM chat_groups g WHERE g.id = t."groupId"
             AND g."spaceId" = t."spaceId" AND g."userId" = ${userId} AND g."archivedAt" IS NULL
+            AND g."projectWorkspaceId" IS NULL
             AND (SELECT count(*) FROM chat_group_members gm JOIN bots b ON b.id = gm."botId"
-              WHERE gm."groupId" = g.id AND b."archivedAt" IS NULL) >= ${GROUP_MEMBER_MIN})
+              WHERE gm."groupId" = g.id AND b."archivedAt" IS NULL
+                AND b."projectWorkspaceId" IS NULL
+                AND b."spaceId" = g."spaceId" AND b."userId" = g."userId") >= ${GROUP_MEMBER_MIN})
         )`;
     return result?.count ?? 0;
   });

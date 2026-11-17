@@ -224,6 +224,32 @@ async function lockSpaceDeletion(tx: Prisma.TransactionClient, spaceId: string):
   `);
 }
 
+async function assertSpaceHasNoProjectWorkspaces(
+  tx: Prisma.TransactionClient,
+  spaceId: string,
+): Promise<void> {
+  const workspaces = await runAsSystemInTransaction(
+    tx,
+    "check all project workspaces before Space deletion",
+    async () => {
+      const [authorization] = await tx.$queryRaw<Array<{ authorized: boolean | null }>>`
+        SELECT app_rls_bypass() AS authorized
+      `;
+      if (authorization?.authorized !== true) {
+        throw new Error("Cannot verify system authorization for project workspace check");
+      }
+      return tx.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+        SELECT EXISTS (
+          SELECT 1 FROM "project_workspaces" WHERE "spaceId" = ${spaceId}
+        ) AS "exists"
+      `);
+    },
+  );
+  if (typeof workspaces[0]?.exists !== "boolean")
+    throw new Error("Failed to check project workspaces before Space deletion");
+  if (workspaces[0].exists) throw new CannotDeleteSpaceWithProjectWorkspacesError();
+}
+
 type ClaimedSpaceDeleteInput = SpaceMemberTargetInput & { claimId: string };
 
 async function loadActorSpace(
@@ -302,26 +328,7 @@ export async function claimSpaceDeletionForMember(
       async (tx) => {
         await lockSpaceDeletion(tx, input.spaceId);
         await assertSpaceDeletable(tx, input);
-        const workspaces = await runAsSystemInTransaction(
-          tx,
-          "check all project workspaces before Space deletion",
-          async () => {
-            const [authorization] = await tx.$queryRaw<Array<{ authorized: boolean | null }>>`
-              SELECT app_rls_bypass() AS authorized
-            `;
-            if (authorization?.authorized !== true) {
-              throw new Error("Cannot verify system authorization for project workspace check");
-            }
-            return tx.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
-            SELECT EXISTS (
-              SELECT 1 FROM "project_workspaces" WHERE "spaceId" = ${input.spaceId}
-            ) AS "exists"
-          `);
-          },
-        );
-        if (!workspaces[0])
-          throw new Error("Failed to check project workspaces before Space deletion");
-        if (workspaces[0].exists) throw new CannotDeleteSpaceWithProjectWorkspacesError();
+        await assertSpaceHasNoProjectWorkspaces(tx, input.spaceId);
         const lifecycle = await tx.space.findUnique({
           where: { id: input.spaceId },
           select: { deletingAt: true },
@@ -514,11 +521,15 @@ export async function claimSpacesLeavingWithAccount(
             select: { deletingAt: true, deletionClaimId: true },
           });
           if (!space) return false;
-          if (space.deletionClaimId === claimId) return true;
+          if (space.deletionClaimId === claimId) {
+            await assertSpaceHasNoProjectWorkspaces(tx, id);
+            return true;
+          }
           const others = await tx.spaceMember.count({
             where: { spaceId: id, userId: { not: userId } },
           });
           if (others > 0) return false;
+          await assertSpaceHasNoProjectWorkspaces(tx, id);
           const stale = new Date(Date.now() - SPACE_DELETION_CLAIM_TIMEOUT_MS);
           if (space.deletionClaimId && space.deletingAt && space.deletingAt >= stale)
             throw new SpaceDeletionInProgressError();

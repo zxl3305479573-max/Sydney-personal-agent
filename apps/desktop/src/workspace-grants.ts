@@ -1,12 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import { readPrivateFile, writePrivateFile } from "./setup-store.js";
 
 export interface WorkspaceGrantScope {
   origin: string;
   userId: string;
   deviceId: string;
+  spaceId: string;
+  projectWorkspaceId: string;
 }
 
 export interface WorkspaceGrantSummary {
@@ -34,10 +37,14 @@ function validateScope(scope: WorkspaceGrantScope): void {
       parsed.origin !== scope.origin ||
       !scope.userId ||
       !scope.deviceId ||
+      !scope.spaceId ||
       scope.userId.length > 1024 ||
       scope.deviceId.length > 1024 ||
+      scope.spaceId.length > 1024 ||
       scope.userId.trim() !== scope.userId ||
-      scope.deviceId.trim() !== scope.deviceId
+      scope.deviceId.trim() !== scope.deviceId ||
+      scope.spaceId.trim() !== scope.spaceId ||
+      !ProjectWorkspaceIdInput.safeParse({ id: scope.projectWorkspaceId }).success
     )
       throw new Error();
   } catch {
@@ -49,7 +56,9 @@ function grantFile(userDataDir: string, scope: WorkspaceGrantScope, id: string):
   validateScope(scope);
   if (!UUID.test(id)) throw new Error("Invalid workspace grant identifier");
   const digest = createHash("sha256")
-    .update(JSON.stringify([scope.origin, scope.userId, scope.deviceId]))
+    .update(JSON.stringify([
+      scope.origin, scope.userId, scope.deviceId, scope.spaceId, scope.projectWorkspaceId,
+    ]))
     .digest("hex");
   return path.resolve(userDataDir, "workspace-grants", digest, `${id}.json`);
 }
@@ -96,6 +105,8 @@ async function load(
       record.scope?.origin !== scope.origin ||
       record.scope?.userId !== scope.userId ||
       record.scope?.deviceId !== scope.deviceId ||
+      record.scope?.spaceId !== scope.spaceId ||
+      record.scope?.projectWorkspaceId !== scope.projectWorkspaceId ||
       typeof record.directory !== "string" ||
       !path.isAbsolute(record.directory) ||
       record.directory.includes("\0")

@@ -37,6 +37,7 @@ model User {
   /// emails then follow the language of the browser that asked for them.
   locale                      String?
   marketingEmailOptOutAt      DateTime?
+  projectDeletionClaimedAt    DateTime?
   sessions                    Session[]
   accounts                    Account[]
   passkeys                    Passkey[]
@@ -502,6 +503,12 @@ model ProjectWorkspace {
   deletingAt DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+  bots       Bot[]
+  groups     ChatGroup[]
+  threads    Thread[]
+  tasks      Task[]
+  runs       Run[]
+  artifacts  Artifact[]
 
   @@unique([id, spaceId, userId])
   @@index([spaceId, userId, createdAt, id])
@@ -717,6 +724,8 @@ model Bot {
   spaceId           String
   space             Space             @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   userId            String
+  projectWorkspaceId String?
+  projectWorkspace ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "bots_project_workspace_owner_fkey")
   name              String
   description       String            @default("")
   instructions      String            @default("")
@@ -773,6 +782,7 @@ model Bot {
   externalConversations ExternalConversation[]
 
   @@unique([spaceId, spawnKey])
+  @@index([spaceId, userId, projectWorkspaceId, archivedAt, updatedAt], map: "bots_project_scope_idx")
   @@index([spaceId, userId, archivedAt, pinned, updatedAt])
   @@index([sectionId])
   @@index([computerId])
@@ -836,6 +846,8 @@ model ChatGroup {
   spaceId    String
   space      Space             @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   userId     String
+  projectWorkspaceId String?
+  projectWorkspace ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "chat_groups_project_workspace_owner_fkey")
   name       String
   pinned     Boolean           @default(false)
   sectionId  String?
@@ -848,6 +860,7 @@ model ChatGroup {
   artifacts  Artifact[]
 
   @@index([spaceId, userId, archivedAt, pinned, updatedAt])
+  @@index([spaceId, userId, projectWorkspaceId, archivedAt, updatedAt], map: "chat_groups_project_scope_idx")
   @@index([sectionId])
   @@map("chat_groups")
 }
@@ -876,6 +889,8 @@ model Thread {
   externalConversationId      String?    @unique
   externalConversation        ExternalConversation? @relation(fields: [externalConversationId], references: [id], onDelete: Cascade)
   userId                      String
+  projectWorkspaceId String?
+  projectWorkspace ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "threads_project_workspace_owner_fkey")
   createdAt                   DateTime   @default(now())
   nextEventSeq                Int        @default(0)
   nextMessageSeq              Int        @default(0)
@@ -895,6 +910,7 @@ model Thread {
 
   @@index([spaceId])
   @@index([spaceId, userId])
+  @@index([spaceId, userId, projectWorkspaceId], map: "threads_project_scope_idx")
   @@map("threads")
 }
 
@@ -955,6 +971,8 @@ model Task {
   threadId  String
   thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
   userId    String
+  projectWorkspaceId String?
+  projectWorkspace ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "tasks_project_workspace_owner_fkey")
   prompt    String
   status    String
     executionState Json?
@@ -963,6 +981,7 @@ model Task {
   runs      Run[]
 
   @@index([spaceId, botId])
+  @@index([spaceId, userId, projectWorkspaceId, createdAt], map: "tasks_project_scope_idx")
   @@map("tasks")
 }
 
@@ -977,6 +996,8 @@ model Run {
   taskId               String
   task                 Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId               String
+  projectWorkspaceId   String?
+  projectWorkspace     ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "runs_project_workspace_owner_fkey")
   status               String
     taskMandate          Json?
   trigger              String
@@ -1021,6 +1042,7 @@ model Run {
   @@index([trigger, status, messagingMirroredAt, updatedAt])
   @@index([trigger, status, teamChatMirroredAt, updatedAt])
   @@index([spaceId, botId])
+  @@index([spaceId, userId, projectWorkspaceId, createdAt], map: "runs_project_scope_idx")
   @@index([botId])
   @@index([taskId])
   @@index([sourceMessageId])
@@ -1080,6 +1102,7 @@ model CloudAgent {
   userId              String
   botId               String
   threadId            String
+  projectWorkspaceId  String?
   messageId           String?
   remoteId            String?
   latestRunId         String?
@@ -1104,6 +1127,7 @@ model CloudAgent {
 
   @@index([providerKey, nextPollAt])
   @@index([spaceId, userId, id])
+  @@index([spaceId, userId, projectWorkspaceId, id], map: "cloud_agents_project_scope_idx")
   @@map("cloud_agents")
 }
 
@@ -1135,6 +1159,7 @@ model Purchase {
   userId       String
   botId        String
   threadId     String
+  projectWorkspaceId String?
   threadGeneration Int
   provider     String
   remoteId     String
@@ -1157,6 +1182,7 @@ model Purchase {
 
   @@index([nextPollAt])
   @@index([spaceId, userId, createdAt])
+  @@index([spaceId, userId, projectWorkspaceId, createdAt], map: "purchases_project_scope_idx")
   @@map("purchases")
 }
 
@@ -1543,6 +1569,8 @@ model Artifact {
   groupId    String?
   group      ChatGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId     String
+  projectWorkspaceId String?
+  projectWorkspace ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "artifacts_project_workspace_owner_fkey")
   runId      String?
   name       String
   description String?
@@ -1562,6 +1590,7 @@ model Artifact {
 
   @@unique([spaceId, userId, clientNonce])
   @@index([spaceId, botId])
+  @@index([spaceId, userId, projectWorkspaceId, createdAt, id], map: "artifacts_project_scope_idx")
   @@index([groupId])
   @@index([rootArtifactId])
   // artifacts_family_version_key is raw SQL: Prisma cannot express COALESCE indexes.
@@ -2260,6 +2289,9 @@ model MessagingInstallation {
 model MessagingInstallSession {
   id String @id
   provider String
+  /// Nullable for sessions created before mobile callbacks existed; null means the legacy web callback.
+  returnTo String?
+  callbackReturnedAt DateTime?
   spaceId String
   space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   userId String

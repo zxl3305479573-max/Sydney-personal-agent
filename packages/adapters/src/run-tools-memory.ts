@@ -39,6 +39,7 @@ async function readHistoryTool(ctx: RunContext, call: ToolCall) {
   const scope = {
     spaceId: run.spaceId,
     userId: run.userId,
+    projectWorkspaceId: run.projectWorkspaceId,
     threadId: run.threadId,
     botId: run.botId,
     channelId: ctx.source.channelId,
@@ -103,6 +104,8 @@ export const memoryTools: ToolHandlers = {
   },
   async save_shared_memory(ctx, call) {
     const { deps, runId, thread, context } = ctx;
+    if (context.projectWorkspaceId)
+      return call.finish({ error: "Shared account memory is unavailable in project conversations." });
     const { args } = call;
     const invalid = sharedMemorySaveError(args);
     if (invalid) return call.finish({ error: invalid });

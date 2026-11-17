@@ -129,7 +129,8 @@ function SplitFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (home) setInboxHidden(false);
   }, [home]);
-  const showsInbox = split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname);
+  const projectRoute = pathname === "/projects" || pathname.startsWith("/projects/");
+  const showsInbox = split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
   // Dragging resizes the list natively; the width is kept when the finger lifts.
   const paneWidth = useSharedValue(inboxWidth);
   const dragStart = useRef(inboxWidth);

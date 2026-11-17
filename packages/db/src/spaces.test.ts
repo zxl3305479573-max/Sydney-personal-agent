@@ -4,6 +4,7 @@ import {
   CannotDeleteSpaceAsNonOwnerError,
   CannotDeleteSpaceWithProjectWorkspacesError,
   claimSpaceDeletionForMember,
+  claimSpacesLeavingWithAccount,
 } from "./spaces.js";
 
 const input = { currentSpaceId: "current", spaceId: "target", userId: "owner" };
@@ -144,5 +145,42 @@ describe("Space deletion project workspace protection", () => {
     );
     expect(test.events).toContain("system-restore");
     expect(test.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("account deletion Space claims", () => {
+  it.each([false, true])("refuses a Space with projects when already claimed is %s", async (claimed) => {
+    const update = vi.fn();
+    const queryRaw = vi.fn(async (query: TemplateStringsArray | { text: string }) => {
+      if ("text" in query) return query.text.includes("pg_advisory_xact_lock") ? [] : [{ exists: true }];
+      const sql = query.join("?");
+      if (sql.includes("current_setting")) return [{ bypass: "on", key: "", login: "test" }];
+      if (sql.includes("app_rls_bypass()")) return [{ authorized: true }];
+      return [];
+    });
+    const tx = {
+      $queryRaw: queryRaw,
+      space: {
+        findUnique: vi.fn().mockResolvedValue({
+          deletingAt: claimed ? new Date() : null,
+          deletionClaimId: claimed ? "account-deletion:owner" : null,
+        }),
+        update,
+      },
+      spaceMember: { count: vi.fn().mockResolvedValue(0) },
+    };
+    const prisma = {
+      member: {
+        findMany: vi.fn().mockResolvedValue([{
+          organizationId: "org",
+          organization: { members: [{ userId: "owner" }] },
+        }]),
+      },
+      space: { findMany: vi.fn().mockResolvedValue([{ id: "target" }]) },
+      $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
+    } as unknown as PrismaClient;
+    await expect(claimSpacesLeavingWithAccount(prisma, "owner"))
+      .rejects.toBeInstanceOf(CannotDeleteSpaceWithProjectWorkspacesError);
+    expect(update).not.toHaveBeenCalled();
   });
 });

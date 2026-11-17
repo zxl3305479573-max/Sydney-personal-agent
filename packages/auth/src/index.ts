@@ -68,6 +68,8 @@ export function accountHasProjectWorkspacesAuthError() {
   });
 }
 
+export const EMAIL_VERIFICATION_LANDING_PATH = "/api/auth/email-verification-return";
+
 export interface AuthEnv {
   analytics?: ProductAnalytics;
   passwordAuth?: boolean;
@@ -78,6 +80,7 @@ export interface AuthEnv {
   baseURL: string;
   webOrigin: string;
   publicLinkOrigin?: string;
+  nativeEmailVerificationOnApi?: boolean;
   signupsEnabled: string | undefined;
   signupAllowlist: string | undefined;
   /** Admits a new account only while there is none, for a deployment that serves one person. */
@@ -95,6 +98,8 @@ export interface AuthEnv {
   afterReplaceSession?: (previous: AuthSession, session: AuthSession) => Promise<void>;
   /** Runs after each sign-in, with the headers of the request that signed in. */
   afterSignIn?: (userId: string, headers?: Headers) => Promise<void>;
+  /** Rewrites password reset email links to a one-time native handoff. Default keeps web links. */
+  rewritePasswordResetLink?: (url: string) => Promise<string> | string;
 }
 
 type AuthSession = { id: string; userId: string };
@@ -168,7 +173,8 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       origin.protocol !== "https:" ||
       origin.origin !== env.publicLinkOrigin ||
       origin.hostname.includes("*") ||
-      (origin.origin !== new URL(env.webOrigin).origin && !env.extraOrigins?.includes(origin.origin))
+      (origin.origin !== new URL(env.webOrigin).origin &&
+        !env.extraOrigins?.includes(origin.origin))
     ) {
       throw new Error("publicLinkOrigin must be a trusted canonical HTTPS origin");
     }
@@ -269,7 +275,10 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       },
     },
     rateLimit: authRateLimitOptions(),
-    advanced: { ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] } },
+    advanced: {
+      disableOriginCheck: false,
+      ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
+    },
     database: prismaAdapter(prisma, { provider: "postgresql" }),
     emailAndPassword: {
       enabled: env.passwordAuth !== false,
@@ -292,9 +301,12 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             // Keep the response timing generic. Production providers track and retry the promise,
             // while the composition root drains accepted delivery during graceful shutdown.
             void emailLocaleOf({ id: user.id }, request?.headers)
-              .then(async (locale) =>
-                env.email?.send(await passwordResetEmail(user, publicEmailLink(url), locale)),
-              )
+              .then(async (locale) => {
+                const link = env.rewritePasswordResetLink
+                  ? await env.rewritePasswordResetLink(publicEmailLink(url))
+                  : publicEmailLink(url);
+                return env.email?.send(await passwordResetEmail(user, link, locale));
+              })
               .catch((error) => env.onEmailError?.(error));
           }
         : undefined,
@@ -309,7 +321,10 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             const verificationUrl = new URL(publicEmailLink(url));
             verificationUrl.searchParams.set(
               "callbackURL",
-              new URL("/sign-in", env.publicLinkOrigin ?? env.webOrigin).href,
+              new URL(
+                env.nativeEmailVerificationOnApi ? EMAIL_VERIFICATION_LANDING_PATH : "/sign-in",
+                env.publicLinkOrigin ?? env.webOrigin,
+              ).href,
             );
             const locale = await emailLocaleOf({ id: user.id }, request?.headers);
             await env.email!.send(

@@ -7,10 +7,12 @@ import type {
 import { PaidRequestInput } from "@rakazo/contracts";
 import { stableJsonValue } from "@rakazo/core/node/approval-effect-key";
 import type { Purchase } from "@rakazo/db";
+import { conversationScopeWhere } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { redactConnectorPayload } from "./connector-safety.js";
 import type { PurchaseDeps } from "./purchase-service.js";
 import {
+  assertPurchaseOperationScope,
   createPurchase,
   fetchPurchase,
   findBotPurchase,
@@ -65,7 +67,9 @@ export async function executePaidRequest(
   const existing = await deps.prisma.purchase.findUnique({
     where: { operationKey: context.operationId },
   });
-  if (existing) return plain(purchaseView(existing));
+  if (existing) return plain(purchaseView(assertPurchaseOperationScope(existing, {
+    ...conversationScopeWhere(context), botId: context.botId, threadId: run.threadId,
+  }, provider.describe().id)));
   let response: SafeHttpResponse;
   try {
     response = await send(deps, request, context.signal);

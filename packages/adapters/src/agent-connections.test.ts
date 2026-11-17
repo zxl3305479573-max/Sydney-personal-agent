@@ -32,6 +32,8 @@ const targetIdentity = {
 function createDeps(
   overrides: {
     blockedBot?: "bot-1" | "bot-2";
+    sourceProject?: string | null;
+    targetProject?: string | null;
     disabledInsideTx?: boolean;
     connection?: Record<string, unknown> | null;
     pendingConnection?: Record<string, unknown> | null;
@@ -48,6 +50,8 @@ function createDeps(
     ["bot-1", "bot-2"].map((id) => ({
       id,
       spaceId: id === "bot-1" ? "ws-1" : "ws-2",
+      userId: id === "bot-1" ? "user-1" : "user-2",
+      projectWorkspaceId: (id === "bot-1" ? overrides.sourceProject : overrides.targetProject) ?? null,
       crossSpaceCommunication: id !== overrides.blockedBot,
       archivedAt: null,
     }));
@@ -223,6 +227,20 @@ const run = {
 const sender = { id: "bot-1", name: "Assistant" };
 
 describe("connectAgent", () => {
+  it.each([
+    { sourceProject: null, targetProject: "project-b" },
+    { sourceProject: "project-a", targetProject: null },
+    { sourceProject: "project-a", targetProject: "project-b" },
+    { sourceProject: "project-a", targetProject: "project-a" },
+  ])("does not send a connection invite across project owners or scopes", async (projects) => {
+    const deps = createDeps(projects);
+    const result = await connectAgent(deps, run, sender, { address: "+15552222222" });
+    expect(result).toEqual({ ok: false, error: "no agent can be reached at that address" });
+    expect(deps.prisma.agentConnection.create).not.toHaveBeenCalled();
+    expect(deps.outboundRows).toHaveLength(0);
+    expect(deps.enqueue).not.toHaveBeenCalled();
+  });
+
   it("creates a pending connection and messages the target owner for approval", async () => {
     const deps = createDeps();
     const result = await connectAgent(deps, run, sender, { address: "+15552222222" });

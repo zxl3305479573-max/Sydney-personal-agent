@@ -9,7 +9,9 @@ import { accountHasProjectWorkspacesAuthError } from "@rakazo/auth";
 import type { PrismaClient } from "@rakazo/db";
 import {
   claimSpacesLeavingWithAccount,
+  claimProjectAccountDeletion,
   deleteSpaceLeavingWithAccount,
+  ProjectAccountHasWorkspacesError,
   recordComputerRunEnd,
   runAsSystem,
 } from "@rakazo/db";
@@ -41,13 +43,13 @@ export async function assertAccountHasNoProjectWorkspaces(
 }
 
 export async function assertAccountDeletionAllowed(
-  prisma: Pick<PrismaClient, "$queryRaw">,
+  prisma: PrismaClient,
   userId: string,
 ): Promise<void> {
   try {
-    await assertAccountHasNoProjectWorkspaces(prisma, userId);
+    await claimProjectAccountDeletion(prisma, userId);
   } catch (error) {
-    if (error instanceof AccountHasProjectWorkspacesError) {
+    if (error instanceof ProjectAccountHasWorkspacesError) {
       throw accountHasProjectWorkspacesAuthError();
     }
     throw error;

@@ -13,6 +13,7 @@ import type { PrismaClient } from "@rakazo/db";
 import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
+  resolveConversationExecutionScope,
   withTransactionRetry,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -240,12 +241,17 @@ export async function messageBot(
           clientNonce: deliveryKey,
           markUnread: options?.forceUnread === true,
         });
+        const executionScope = await resolveConversationExecutionScope(tx, {
+          spaceId: run.spaceId, userId: run.userId,
+          botId: target.id, threadId: targetThreadId,
+        });
         const task = await tx.task.create({
           data: {
             spaceId: run.spaceId,
             botId: target.id,
             threadId: targetThreadId,
             userId: run.userId,
+            projectWorkspaceId: executionScope.projectWorkspaceId,
             prompt: wakePrompt,
             status: "queued",
           },
@@ -257,6 +263,7 @@ export async function messageBot(
             threadId: targetThreadId,
             taskId: task.id,
             userId: run.userId,
+            projectWorkspaceId: task.projectWorkspaceId,
             status: "queued",
             trigger: "bot_message",
             sourceMessageId: inbound.id,

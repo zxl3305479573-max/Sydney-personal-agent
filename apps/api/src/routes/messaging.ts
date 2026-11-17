@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { messagingDeliverJob } from "@rakazo/adapter-kit";
 import { displayName } from "@rakazo/core";
@@ -9,8 +10,84 @@ import {
   runAsSystem,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import type { Context, Hono } from "hono";
 import type { RouterContext } from "./context.js";
 import { isUniqueViolation } from "./shared.js";
+
+export const MOBILE_MESSAGING_INSTALL_REDIRECT = "rakazo://messaging/slack/callback";
+const installCloseScript =
+  'try{history.replaceState(null,"",location.pathname)}catch{}window.close();';
+const installCloseScriptHash = createHash("sha256").update(installCloseScript).digest("base64");
+const installClosePage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sydney</title></head><body><p>可以关闭此窗口。 You can close this window.</p><script>${installCloseScript}</script></body></html>`;
+
+export function mountMessagingInstallReturn(options: {
+  app: Hono;
+  installations: {
+    returnToForState(state: string): Promise<"web" | "mobile" | null>;
+    claimMobileReturn(state: string): Promise<boolean>;
+  };
+  webOrigin: string;
+}) {
+  options.app.all("/api/v1/messaging/install/slack/callback", async (context) => {
+    context.header("Cache-Control", "no-store");
+    context.header("Referrer-Policy", "no-referrer");
+    context.header("X-Content-Type-Options", "nosniff");
+    context.header("X-Frame-Options", "DENY");
+    context.header(
+      "Content-Security-Policy",
+      `default-src 'none'; script-src 'sha256-${installCloseScriptHash}'; base-uri 'none'; frame-ancestors 'none'`,
+    );
+    if (context.req.method !== "GET") {
+      context.header("Allow", "GET");
+      return context.body(null, 405);
+    }
+    const requestUrl = new URL(context.req.url);
+    const params = requestUrl.searchParams;
+    const state = params.get("state");
+    const code = params.get("code");
+    const keys = [...params.keys()];
+    const validState = state !== null && /^[A-Za-z0-9_-]{43}$/.test(state);
+    const success = keys.length === 2 && keys.every((key) => key === "code" || key === "state");
+    const failure =
+      params.has("error") &&
+      keys.every((key) => key === "error" || key === "error_description" || key === "state");
+    if (
+      requestUrl.search.length > 16_384 ||
+      /%(?![0-9a-f]{2})/i.test(requestUrl.search) ||
+      !validState ||
+      keys.some((key) => params.getAll(key).length !== 1) ||
+      (!success && !failure) ||
+      (success && (!code || !/^[\x21-\x7e]{1,4096}$/.test(code))) ||
+      (failure && !/^[A-Za-z0-9_-]{1,128}$/.test(params.get("error") ?? ""))
+    )
+      return installReturnError(context, 400, "Invalid authorization response");
+    try {
+      const returnTo = await options.installations.returnToForState(state);
+      if (!returnTo) return installReturnError(context, 400, "Authorization expired");
+      if (returnTo === "web") {
+        const target = new URL("/messaging/slack/callback", options.webOrigin);
+        target.search = requestUrl.search;
+        return context.redirect(target.href);
+      }
+      if (failure) return context.html(installClosePage);
+      if (!(await options.installations.claimMobileReturn(state)))
+        return installReturnError(context, 400, "Authorization expired");
+      const target = new URL(MOBILE_MESSAGING_INSTALL_REDIRECT);
+      target.searchParams.set("code", code!);
+      target.searchParams.set("state", state);
+      return context.redirect(target.href);
+    } catch {
+      return installReturnError(context, 503, "Authorization is temporarily unavailable");
+    }
+  });
+}
+
+function installReturnError(context: Context, status: 400 | 503, message: string): Response {
+  return context.html(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sydney</title></head><body><p>${message}</p><script>${installCloseScript}</script></body></html>`,
+    status,
+  );
+}
 
 export function messagingRoutes(ctx: RouterContext) {
   const { deps, authed } = ctx;
@@ -28,7 +105,14 @@ export function messagingRoutes(ctx: RouterContext) {
         }),
         start: authed.messaging.installations.start.handler(async ({ context, input }) => {
           if (!deps.messagingInstallations) throw new ORPCError("BAD_REQUEST");
-          return { url: await deps.messagingInstallations.start(context.actor, input.botId) };
+          return {
+            url: await deps.messagingInstallations.start(
+              context.actor,
+              input.botId,
+              input.returnTo ?? "web",
+            ),
+            ...(input.returnTo === "mobile" ? { returnTo: "mobile" as const } : {}),
+          };
         }),
         complete: authed.messaging.installations.complete.handler(async ({ context, input }) => {
           if (!deps.messagingInstallations) throw new ORPCError("BAD_REQUEST");

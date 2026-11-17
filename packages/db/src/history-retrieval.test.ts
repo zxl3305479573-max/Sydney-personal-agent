@@ -24,6 +24,18 @@ function sql(mock: ReturnType<typeof db>["mock"], call = 0) {
   return mock.$queryRaw.mock.calls[call]![0] as Prisma.Sql;
 }
 describe("local history retrieval", () => {
+  it.each([null, "project-1"])("binds search and read to project scope %s", async (projectWorkspaceId) => {
+    const { mock, prisma } = db();
+    mock.$queryRaw.mockResolvedValue([]);
+    const scoped = { ...scope, projectWorkspaceId, allowMyChats: true };
+    await searchHistory(prisma, scoped, { query: "exports", scope: "my_chats" });
+    await readHistory(prisma, scoped, { messageId: "message-1", threadId: "other-thread" });
+    for (let index = 0; index < 2; index++) {
+      expect(sql(mock, index).sql).toContain('t."projectWorkspaceId" IS NOT DISTINCT FROM');
+      expect(sql(mock, index).values).toContain(projectWorkspaceId);
+    }
+  });
+
   it.each([false, true])(
     "excludes per-bot waiting rows across search and read queries (cross-chat: %s)",
     async (crossChat) => {

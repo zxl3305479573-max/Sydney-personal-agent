@@ -9,7 +9,7 @@ import {
   nextCronDateAcrossStrict,
 } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
-import { IsolationError } from "@rakazo/db";
+import { IsolationError, resolveConversationExecutionScope } from "@rakazo/db";
 import type { RouterDeps } from "./router.js";
 import type { RouterContext } from "./routes/context.js";
 
@@ -189,12 +189,16 @@ export async function createRoutineTestRun(
   nonce: string | undefined,
 ) {
   const { routine, botId, threadId } = target;
+  const executionScope = await resolveConversationExecutionScope(tx, {
+    spaceId: actor.spaceId, userId: actor.userId, botId, threadId,
+  });
   const task = await tx.task.create({
     data: {
       spaceId: actor.spaceId,
       botId,
       threadId,
       userId: actor.userId,
+      projectWorkspaceId: executionScope.projectWorkspaceId,
       prompt,
       status: "queued",
     },
@@ -211,6 +215,7 @@ export async function createRoutineTestRun(
       threadId,
       taskId: task.id,
       userId: actor.userId,
+      projectWorkspaceId: task.projectWorkspaceId,
       status: "queued",
       trigger: "routine",
       routineId: routine.id,

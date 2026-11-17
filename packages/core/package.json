@@ -49,6 +49,21 @@
       "development": "./src/node/screen-proxy-response.ts",
       "default": "./src/node/screen-proxy-response.ts"
     },
+    "./node/screen-proxy": {
+      "types": "./src/node/screen-proxy.ts",
+      "development": "./src/node/screen-proxy.ts",
+      "default": "./src/node/screen-proxy.ts"
+    },
+    "./node/novnc-html": {
+      "types": "./src/node/novnc-html.ts",
+      "development": "./src/node/novnc-html.ts",
+      "default": "./src/node/novnc-html.ts"
+    },
+    "./node/novnc-proxy": {
+      "types": "./src/node/novnc-proxy.ts",
+      "development": "./src/node/novnc-proxy.ts",
+      "default": "./src/node/novnc-proxy.ts"
+    },
     "./plot": {
       "types": "./src/plot/plot-spec.ts",
       "development": "./src/plot/plot-spec.ts",

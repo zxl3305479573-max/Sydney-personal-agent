@@ -13,6 +13,7 @@ import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
   crossSpaceCommunicationAllowed,
+  resolveConversationExecutionScope,
   runAsSystem,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -402,12 +403,17 @@ async function deliverToConnectedAgent(
         runId: run.id,
         lease: runLeaseFor(deps, run.id),
       });
+      const executionScope = await resolveConversationExecutionScope(tx, {
+        spaceId: targetIdentity.spaceId, userId: targetIdentity.userId,
+        botId: target.id, threadId: targetThreadId,
+      });
       const task = await tx.task.create({
         data: {
           spaceId: targetIdentity.spaceId,
           botId: target.id,
           threadId: targetThreadId,
           userId: targetIdentity.userId,
+          projectWorkspaceId: executionScope.projectWorkspaceId,
           prompt: wakePrompt,
           status: "queued",
         },
@@ -419,6 +425,7 @@ async function deliverToConnectedAgent(
           threadId: targetThreadId,
           taskId: task.id,
           userId: targetIdentity.userId,
+          projectWorkspaceId: task.projectWorkspaceId,
           status: "queued",
           trigger: "bot_message",
           sourceMessageId: inbound.id,

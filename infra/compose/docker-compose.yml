@@ -8,6 +8,7 @@ x-app-environment: &app-environment
   # The app's own login, subject to row-level security (docs/self-host-configuration.md#database-roles).
   DATABASE_URL: postgres://rakazo_app:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rakazo}
   REALTIME_DATABASE_URL:
+  RAKAZO_TOOL_INTENT_ROUTING:
   DB_POOL_MAX:
   DATA_DIR: /data
   ENCRYPTION_KEY:
@@ -347,6 +348,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      args:
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     working_dir: /app/apps/api
     command: ["pnpm", "db:deploy"]
     restart: "no"
@@ -361,6 +364,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      args:
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     # Node runs directly, not through pnpm: pnpm does not pass SIGTERM on, so a stop would kill the
     # process before its graceful shutdown finishes in-flight requests and jobs.
     working_dir: /app/apps/api
@@ -374,7 +379,18 @@ services:
       BETTER_AUTH_URL:
       WEB_ORIGIN:
       AUTH_PUBLIC_LINK_ORIGIN:
+      SYDNEY_INTEGRATION_API_CALLBACK:
+      SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN:
+      SYDNEY_COMPANION_SCREEN_EXPERIMENT:
+      SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT:
+      SYDNEY_PROJECT_CREATE_EXPERIMENT:
+      SYDNEY_NATIVE_PASSWORD_RESET_ON_API:
+      SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API:
+      SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API:
       SCREEN_PROXY_PUBLIC_ORIGIN:
+      SYDNEY_SCREEN_PROXY_ON_API:
+      SYDNEY_WUYING_ASSETS_ON_API:
+      SYDNEY_WUYING_ASSETS_DIR:
       EXTRA_TRUSTED_ORIGINS:
       AUTH_PASSWORD_ENABLED: ${AUTH_PASSWORD_ENABLED:-true}
       AUTH_BREACHED_PASSWORD_CHECK_ENABLED: ${AUTH_BREACHED_PASSWORD_CHECK_ENABLED:-false}
@@ -447,6 +463,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      args:
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     # Directly, not through pnpm, so a stop reaches it (see the api command).
     working_dir: /app/apps/worker
     command: ["node", "--enable-source-maps", "dist/index.js"]
@@ -482,6 +500,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      args:
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     # Directly, not through pnpm, so a stop reaches it (see the api command).
     working_dir: /app/apps/web
     command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "5173"]

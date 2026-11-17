@@ -445,6 +445,74 @@ describe("archiveGroup", () => {
 });
 
 describe("createGroup", () => {
+  it("reuses a matching request id and rejects a changed group", async () => {
+    const actor = {
+      spaceId: "workspace-1", userId: "user-1",
+      email: "user@example.com", isDeploymentOwner: false,
+    };
+    const groupRow = {
+      id: "request-1", spaceId: actor.spaceId, userId: actor.userId,
+      name: "Support crew", pinned: false, sectionId: null, archivedAt: null,
+      createdAt: new Date(0), updatedAt: new Date(0),
+      thread: { id: "thread-1", unread: false, messages: [] },
+      members: [
+        { bot: { id: "lead", name: "Lead", color: "#111", runs: [] } },
+        { bot: { id: "build", name: "Build", color: "#222", runs: [] } },
+      ],
+    };
+    const create = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
+        query.join("").includes("FROM chat_groups") ? [{ id: "request-1" }] : []),
+      spaceMember: { findUnique: vi.fn(async () => ({
+        organizationId: "org-1", space: { deletingAt: null },
+      })) },
+      chatGroup: { findFirst: vi.fn(async () => groupRow), create },
+      message: { findMany: vi.fn(async () => []) },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+    const repos = createGroupRepos(prisma);
+    await expect(repos.createGroup(actor, {
+      id: "request-1", name: "Support crew", botIds: ["lead", "build"],
+    })).resolves.toMatchObject({ id: "request-1", threadId: "thread-1" });
+    await expect(repos.createGroup(actor, {
+      id: "request-1", name: "Support crew", botIds: ["build", "lead"],
+    })).rejects.toBeInstanceOf(IsolationError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("does not create a group when a candidate bot cannot be locked in scope", async () => {
+    const create = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
+        query.join("").includes('FROM "bots"') ? [{ id: "lead" }] : []),
+      spaceMember: {
+        findUnique: vi.fn(async () => ({
+          organizationId: "org-1",
+          space: { deletingAt: null },
+        })),
+      },
+      chatGroup: { create },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+    const actor = {
+      spaceId: "workspace-1",
+      userId: "user-1",
+      email: "user@example.com",
+      isDeploymentOwner: false,
+    };
+
+    await expect(createGroupRepos(prisma).createGroup(actor, {
+      name: "Support crew",
+      botIds: ["lead", "elsewhere"],
+    })).rejects.toBeInstanceOf(IsolationError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("keeps the caller's member order instead of the insert order", async () => {
     const createMany = vi.fn();
     const groupRow = {
@@ -464,7 +532,8 @@ describe("createGroup", () => {
       ],
     };
     const tx = {
-      $queryRaw: vi.fn(),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
+        query.join("").includes('FROM "bots"') ? [{ id: "build" }, { id: "lead" }] : []),
       spaceMember: {
         findUnique: vi.fn(async () => ({
           organizationId: "org-1",
@@ -478,17 +547,17 @@ describe("createGroup", () => {
       chatGroupMember: { createMany },
       thread: { create: vi.fn() },
       message: { findMany: vi.fn(async () => []) },
-    };
-    // The bots come back in a different order than the caller asked for, so the recorded
-    // order has to come from the input, not from the lookup.
-    const prisma = {
-      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
       bot: {
         findMany: vi.fn(async () => [
           { id: "build", name: "Build", color: "#222" },
           { id: "lead", name: "Lead", color: "#111" },
         ]),
       },
+    };
+    // The bots come back in a different order than the caller asked for, so the recorded
+    // order has to come from the input, not from the lookup.
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     } as unknown as PrismaClient;
     const actor = {
       spaceId: "workspace-1",
@@ -515,6 +584,72 @@ describe("createGroup", () => {
       }),
     );
     expect(group.members.map((member) => member.botId)).toEqual(["lead", "build"]);
+  });
+});
+
+describe("updateGroup project members", () => {
+  it("rejects an unavailable candidate before changing the group", async () => {
+    const groupUpdate = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn(async () => [{ id: "lead" }]),
+      chatGroup: { update: groupUpdate },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+    const actor = {
+      spaceId: "workspace-1",
+      userId: "user-1",
+      email: "user@example.com",
+      isDeploymentOwner: false,
+    };
+
+    await expect(createGroupRepos(prisma).updateGroup(actor, {
+      groupId: "group-1",
+      botIds: ["lead", "other"],
+    })).rejects.toBeInstanceOf(IsolationError);
+    expect(groupUpdate).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+  });
+});
+
+describe("restoreGroup member consistency", () => {
+  it("refuses to restore when members change before the group is locked", async () => {
+    const update = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn(async (query: unknown) => {
+        if (!Array.isArray(query)) return [];
+        const statement = query.join("");
+        if (statement.includes('FROM "bots"')) return [{ id: "bot-a" }, { id: "bot-b" }];
+        if (statement.includes("FROM chat_groups")) return [{ id: "group-1" }];
+        return [];
+      }),
+      chatGroup: {
+        findFirst: vi.fn(async () => ({ members: [{ botId: "bot-a" }, { botId: "bot-b" }] })),
+        update,
+      },
+      chatGroupMember: {
+        findMany: vi.fn(async () => [
+          { botId: "bot-a", bot: { id: "bot-a", computerId: null, archivedAt: new Date() } },
+          { botId: "bot-c", bot: { id: "bot-c", computerId: null, archivedAt: new Date() } },
+        ]),
+      },
+      bot: { update: vi.fn() },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+    const actor = {
+      spaceId: "workspace-1",
+      userId: "user-1",
+      email: "user@example.com",
+      isDeploymentOwner: false,
+    };
+
+    await expect(createGroupRepos(prisma).restoreGroup(actor, "group-1"))
+      .rejects.toThrow("Group members changed");
+    expect(tx.bot.update).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

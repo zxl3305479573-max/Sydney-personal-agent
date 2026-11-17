@@ -6,18 +6,22 @@ const MODULE_NAME = "sydney-companion";
 
 function withSydneyCompanionAutolinking(config) {
   return withDangerousMod(config, ["ios", async (mod) => {
-    if (process.env.SYDNEY_COMPANION_EXPERIMENT === "1") return mod;
-
     const podfile = path.join(mod.modRequest.platformProjectRoot, "Podfile");
     const source = fs.readFileSync(podfile, "utf8");
     const marker = "use_expo_modules!";
-    if (source.includes('use_expo_modules!(exclude: ["sydney-companion"])')) return mod;
-    if ((source.match(new RegExp(marker, "g")) ?? []).length !== 1) {
-      throw new Error("Expected exactly one use_expo_modules! call in the generated Podfile.");
+    const excluded = `${marker}(exclude: ["${MODULE_NAME}"])`;
+    if (process.env.SYDNEY_COMPANION_EXPERIMENT === "1") {
+      if (source.includes(excluded)) fs.writeFileSync(podfile, source.replace(excluded, marker), "utf8");
+      return mod;
+    }
+    if (source.includes(excluded)) return mod;
+    const bareCall = /^([ \t]*)use_expo_modules![ \t]*$/gm;
+    if ((source.match(new RegExp(marker, "g")) ?? []).length !== 1 || !bareCall.test(source)) {
+      throw new Error("Expected exactly one bare use_expo_modules! call in the generated Podfile.");
     }
     fs.writeFileSync(
       podfile,
-      source.replace(marker, `${marker}(exclude: ["${MODULE_NAME}"])`),
+      source.replace(bareCall, `$1${excluded}`),
       "utf8",
     );
     return mod;

@@ -18,6 +18,7 @@ import {
   serverHeadersFor,
   servesBundledRenderer,
   sessionPartitionForServerUrl,
+  standaloneSessionPartitionForServerUrl,
 } from "./setup-config.js";
 
 describe("server address normalization", () => {
@@ -154,12 +155,15 @@ describe("saved setup", () => {
     expect(servesBundledRenderer(RAKAZO_CLOUD_URL, false)).toBe(false);
   });
 
-  it.runIf(process.platform === "win32")("uses the production IP for the Windows cloud choice", () => {
-    expect(RAKAZO_CLOUD_URL).toBe("https://124.221.182.39");
-    expect(
-      resolveStartupTarget({ saved: { mode: "existing", serverUrl: "https://pc.zxlup.xin" } }),
-    ).toEqual({ kind: "app", url: "https://pc.zxlup.xin", source: "saved" });
-  });
+  it.runIf(process.platform === "win32")(
+    "uses the production IP for the Windows cloud choice",
+    () => {
+      expect(RAKAZO_CLOUD_URL).toBe("https://124.221.182.39");
+      expect(
+        resolveStartupTarget({ saved: { mode: "existing", serverUrl: "https://pc.zxlup.xin" } }),
+      ).toEqual({ kind: "app", url: "https://pc.zxlup.xin", source: "saved" });
+    },
+  );
 });
 
 describe("server request headers", () => {
@@ -288,6 +292,21 @@ describe("bundled renderer eligibility", () => {
 });
 
 describe("remote-content isolation", () => {
+  it("keeps standalone sessions separate per backend and from existing sessions", () => {
+    const first = standaloneSessionPartitionForServerUrl("https://one.example.com/path");
+    expect(first).toBe(standaloneSessionPartitionForServerUrl("https://one.example.com/other"));
+    expect(first).not.toBe(standaloneSessionPartitionForServerUrl("https://one.example.com:8443"));
+    expect(first).not.toBe(standaloneSessionPartitionForServerUrl("https://two.example.com"));
+    expect(first).not.toBe(sessionPartitionForServerUrl("https://one.example.com"));
+    expect(first).toMatch(/^persist:sydney-standalone-[a-f0-9]{24}$/);
+    expect(first).not.toContain("one.example.com");
+    expect(
+      standaloneSessionPartitionForServerUrl("https://user:secret@one.example.com"),
+    ).toBeNull();
+    expect(standaloneSessionPartitionForServerUrl("file:///tmp")).toBeNull();
+    expect(standaloneSessionPartitionForServerUrl("not a URL")).toBeNull();
+  });
+
   it("uses a stable, opaque session partition per server origin", () => {
     const first = sessionPartitionForServerUrl("https://one.example.com/path");
     expect(first).toBe(sessionPartitionForServerUrl("https://one.example.com/other"));

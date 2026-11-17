@@ -5,6 +5,7 @@ import {
   appendEventInTransaction,
   availableInSpace,
   IsolationError,
+  resolveConversationExecutionScope,
   withTransactionRetry,
 } from "@rakazo/db";
 import { requireBotThread } from "./bot-thread.js";
@@ -316,12 +317,16 @@ export async function queueMcpConnectedRun(
     }),
   ]);
   if (!bot || busy || !server) return null;
+  const executionScope = await resolveConversationExecutionScope(tx, {
+    spaceId: actor.spaceId, userId: actor.userId, botId: input.botId, threadId: thread.id,
+  });
   const task = await tx.task.create({
     data: {
       spaceId: actor.spaceId,
       botId: input.botId,
       threadId: thread.id,
       userId: actor.userId,
+      projectWorkspaceId: executionScope.projectWorkspaceId,
       prompt: mcpConnectedPrompt(server.name),
       status: "queued",
     },
@@ -333,6 +338,7 @@ export async function queueMcpConnectedRun(
       threadId: thread.id,
       taskId: task.id,
       userId: actor.userId,
+      projectWorkspaceId: task.projectWorkspaceId,
       status: "queued",
       trigger: "user",
     },

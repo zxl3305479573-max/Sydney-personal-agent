@@ -4,7 +4,7 @@ import {
   contentSecurityPolicyFor,
 } from "@rakazo/contracts/content-security-policy";
 
-const PASSTHROUGH_PATHS = ["/api", "/rpc", "/novnc"];
+const PASSTHROUGH_PATHS = ["/api", "/rpc", "/novnc", "/wuying"];
 const PASSTHROUGH_FILES = [
   "/.well-known/apple-app-site-association",
   "/.well-known/assetlinks.json",

@@ -1,6 +1,6 @@
 # JSON access logs on stdout. Caddy already masks Authorization and Cookie; these filters also
 # drop them, Set-Cookie, Referer (a page URL can hold a reset token), and the one-time tokens
-# and screen capabilities the app carries in URLs.
+# query strings and screen capabilities the app carries in URLs.
 (access_log) {
 	log {
 		output stdout
@@ -13,7 +13,7 @@
 			resp_headers>Set-Cookie delete
 			# Native sign-in redirects carry the session cookie in the app callback URL.
 			resp_headers>Location delete
-			request>uri regexp "(/reset-password/|/novnc/session/[a-z]+/)[^/?#&]*|([?&](?:token|_token|code|state|ticket|access_token|id_token|hub\.verify_token|path)=)[^&#]*" "${1}${2}REDACTED"
+			request>uri regexp "(/reset-password/|/novnc/session/[a-z]+/)[^/?#&]*|\?.*" "${1}REDACTED"
 		}
 	}
 }
@@ -33,8 +33,9 @@
 	# SAMEORIGIN still lets the app frame its own /novnc/ screen.
 	header {
 		X-Content-Type-Options nosniff
-		X-Frame-Options SAMEORIGIN
 	}
+	@frameRestricted not path /wuying/sdk/ASP/container.html
+	header @frameRestricted X-Frame-Options SAMEORIGIN
 
 	handle /health {
 		reverse_proxy api:3100 {
@@ -53,6 +54,24 @@
 		reverse_proxy api:3100 {
 			import deploy_retry
 			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
+	handle /sign-in {
+		reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:web:5173} {
+			import deploy_retry
+		}
+	}
+
+	handle /novnc/* {
+		reverse_proxy {$SYDNEY_SCREEN_PROXY_UPSTREAM:web:5173} {
+			import deploy_retry
+		}
+	}
+
+	handle /wuying/* {
+		reverse_proxy {$SYDNEY_WUYING_SCREEN_UPSTREAM:web:5173} {
+			import deploy_retry
 		}
 	}
 

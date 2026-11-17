@@ -519,9 +519,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       const managedControlWatch = managedTaskId
         ? watchManagedTaskControl(
             async () =>
-              runAsTenant({ userId: run.userId, spaceId: run.spaceId }, async () => {
+              runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, async () => {
                 const task = await deps.prisma.task.findFirst({
-                  where: { id: managedTaskId, userId: run.userId, spaceId: run.spaceId },
+                  where: {
+                    id: managedTaskId, userId: run.userId, spaceId: run.spaceId,
+                    projectWorkspaceId: run.projectWorkspaceId,
+                  },
                   select: { executionState: true },
                 });
                 const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
@@ -687,6 +690,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           userId: run.userId,
           botId: bot.id,
           runId,
+          projectWorkspaceId: run.projectWorkspaceId,
           screenLeaseId: screenLeaseIdForRun(computerLease, runId, fence),
           nativeRunLease: {
             owner: workerId,
@@ -735,10 +739,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
         };
-        const memoryScope = configuredMemory
+        const memoryScope = configuredMemory && !run.projectWorkspaceId
           ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
           : null;
-        const semanticMemory: SemanticMemoryProvider | null = configuredMemory?.provider ?? null;
+        const semanticMemory: SemanticMemoryProvider | null = run.projectWorkspaceId
+          ? null
+          : configuredMemory?.provider ?? null;
 
         await deps.events.append({
           spaceId: run.spaceId,
@@ -1726,7 +1732,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             beforeCall: async (
               call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0],
             ) => {
-              await runAsTenant({ userId: run.userId, spaceId: run.spaceId }, () =>
+              await runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, () =>
                 guardManagedRun(
                   deps.prisma,
                   { userId: run.userId, spaceId: run.spaceId },

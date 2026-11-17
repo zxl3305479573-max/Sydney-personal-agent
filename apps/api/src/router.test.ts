@@ -37,6 +37,7 @@ import type { PrismaClient } from "@rakazo/db";
 import {
   AnswerTooLongError,
   configureProviderTransactionPool,
+  runAsTenant,
   runProviderTransaction,
 } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
@@ -682,22 +683,37 @@ describe("model setup gate", () => {
     const start = vi.fn(async () => ({ id: "screen-session", expiresAt: Date.now() + 10_000 }));
     deps.companionScreen = { start } as unknown as RouterDeps["companionScreen"];
     const handler = new RPCHandler(createRouter(deps));
-    const request = () => new Request("http://127.0.0.1/rpc/threads/companionScreenStart", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ json: { botId: "bot-1", confirmed: true } }),
-    });
+    const request = () =>
+      new Request("http://127.0.0.1/rpc/threads/companionScreenStart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ json: { botId: "bot-1", confirmed: true } }),
+      });
     const denied = await handle(handler, request(), {
-      prefix: "/rpc", context: { actor, sessionId: "session", stillSessionAuthorized: async () => false },
+      prefix: "/rpc",
+      context: { actor, sessionId: "session", stillSessionAuthorized: async () => false },
     });
     expect(denied.status).toBe(403);
     expect(start).not.toHaveBeenCalled();
     const controller = new AbortController();
     const allowed = await handle(handler, request(), {
-      prefix: "/rpc", context: { actor, sessionId: "session", stillSessionAuthorized: async () => true, signal: controller.signal },
+      prefix: "/rpc",
+      context: {
+        actor,
+        sessionId: "session",
+        stillSessionAuthorized: async () => true,
+        signal: controller.signal,
+      },
     });
     expect(allowed.status).toBe(200);
-    expect(start).toHaveBeenCalledWith(actor, "bot-1", "session", true, expect.any(Function), controller.signal);
+    expect(start).toHaveBeenCalledWith(
+      actor,
+      "bot-1",
+      "session",
+      true,
+      expect.any(Function),
+      controller.signal,
+    );
   });
 
   it.each([undefined, 1, 8, 100])(
@@ -1163,7 +1179,16 @@ describe("thread stream authorization", () => {
         queued.push(event);
       }
     };
+    const projectCheck = vi.fn().mockResolvedValue([
+      {
+        id: "project-1",
+        name: "Project",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      },
+    ]);
     const prisma = {
+      $queryRaw: projectCheck,
       bot: {
         findFirst: vi.fn().mockResolvedValue({
           id: "bot-1",
@@ -1191,8 +1216,35 @@ describe("thread stream authorization", () => {
     const client = createRouterClient(createRouter(deps), {
       context: { actor, stillAuthorized },
     });
-    return { client, emit, follow, stillAuthorized };
+    return { actor, client, emit, follow, stillAuthorized, projectCheck };
   }
+
+  it("stops delivering project events after the project is no longer accessible", async () => {
+    const { actor, client, emit, follow, projectCheck } = threadStream();
+    const stream = await runAsTenant({ ...actor, projectWorkspaceId: "project-1" }, () =>
+      client.threads.subscribe({ botId: "bot-1", cursor: -1 }),
+    );
+    emit(1, "before");
+    await expect(stream.next()).resolves.toMatchObject({ value: { seq: 1 } });
+    expect(projectCheck).toHaveBeenCalledTimes(1);
+
+    projectCheck.mockResolvedValue([]);
+    emit(2, "after");
+    await expect(stream.next()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(follow.return).toHaveBeenCalled();
+  });
+
+  it("ends an idle project stream on its heartbeat after project access is revoked", async () => {
+    const { actor, client, follow, projectCheck } = threadStream();
+    const stream = await runAsTenant({ ...actor, projectWorkspaceId: "project-1" }, () =>
+      client.threads.subscribe({ botId: "bot-1", cursor: -1 }),
+    );
+    projectCheck.mockResolvedValue([]);
+    const ended = expect(stream.next()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_MS);
+    await ended;
+    expect(follow.return).toHaveBeenCalled();
+  });
 
   it("stops delivering a busy thread once the session is revoked", async () => {
     const { client, emit, follow, stillAuthorized } = threadStream();
@@ -2676,6 +2728,75 @@ describe("MCP server health", () => {
       );
     });
 
+    it("returns the server-selected callback for an MCP authorization attempt", async () => {
+      const h = harness({
+        row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
+      });
+      const begin = vi.fn(async () => ({
+        status: "authorization_required" as const,
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+      }));
+      Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
+      const client = createRouterClient(createRouter(h.deps), {
+        context: {
+          actor: {
+            spaceId: "workspace-1",
+            userId: "owner-1",
+            email: "owner@rakazo.test",
+            isDeploymentOwner: true,
+          },
+        } as never,
+      });
+      const result = await client.mcp.oauth.begin({ serverId: "server-1" });
+      expect(result).toEqual({
+        status: "authorization_required",
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+        callbackUri: "http://127.0.0.1:5173/mcp/oauth/callback",
+      });
+      expect(begin).toHaveBeenCalledWith(
+        expect.objectContaining({ redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback" }),
+      );
+    });
+
+    it.each([
+      [undefined, true, "http://127.0.0.1:5173/mcp/oauth/callback"],
+      ["https://api.example.test", false, "http://127.0.0.1:5173/mcp/oauth/callback"],
+      ["https://api.example.test", true, "https://api.example.test/api/mcp/oauth/callback"],
+    ])("selects the native callback only when configured and requested", async (origin, native, expected) => {
+      const h = harness({
+        row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
+      });
+      h.deps.env.mcpNativeCallbackOrigin = origin;
+      const begin = vi.fn(async () => ({
+        status: "authorization_required" as const,
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+      }));
+      Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
+      const client = createRouterClient(createRouter(h.deps), {
+        context: {
+          actor: {
+            spaceId: "workspace-1",
+            userId: "owner-1",
+            email: "owner@rakazo.test",
+            isDeploymentOwner: true,
+          },
+        } as never,
+      });
+      const result = await client.mcp.oauth.begin({ serverId: "server-1", nativeCallback: native });
+      expect(result).toMatchObject({ callbackUri: expected });
+      expect(begin).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: expected }));
+      await expect(
+        client.mcp.oauth.begin({
+          serverId: "server-1",
+          nativeCallback: true,
+          redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("probes the server once its OAuth session completes", async () => {
       const h = harness({ row: baseRow() });
       const complete = vi.fn(async () => undefined);
@@ -2791,94 +2912,124 @@ describe("private API connectors", () => {
 });
 
 describe("connections.begin", () => {
-  it("reuses a revoked row for the same provider instead of inserting a duplicate", async () => {
-    const begin = vi.fn().mockResolvedValue({ state: "gmail-state", authorizationUrl: null });
-    const update = vi.fn().mockResolvedValue({
-      id: "conn-old",
-      connectorId: "composio",
-      provider: "gmail",
-      displayName: "Gmail",
-      status: "pending",
-      createdAt: new Date("2026-08-26T00:00:00.000Z"),
-    });
-    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const create = vi.fn();
-    const prisma = {
-      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          $executeRaw: vi.fn().mockResolvedValue(undefined),
-          connection: {
-            findMany: vi.fn().mockResolvedValue([{ id: "conn-old", status: "revoked" }]),
-            update,
-            updateMany,
-            create,
-          },
-        };
-        return fn(tx);
-      }),
-    } as unknown as PrismaClient;
-    const deps = {
-      prisma,
-      connectors: {
-        managed: vi.fn(() => ({ begin })),
-      },
-      env: {
-        defaultProvider: "fake",
-        defaultModel: "fake-model",
-        webOrigin: "http://127.0.0.1:5173",
-        screenProxySecret: "fake-test-secret",
-        sandboxProvider: "fake",
-      },
-      dataDir: "/tmp/rakazo-router-test",
-    } as unknown as RouterDeps;
-    const actor = {
-      spaceId: "workspace-1",
-      userId: "user-1",
-      email: "user@rakazo.test",
-      isDeploymentOwner: true,
-    } satisfies Actor;
-    const handler = new RPCHandler(createRouter(deps));
-
-    const response = await handle(
-      handler,
-      new Request("http://127.0.0.1/rpc/connections/begin", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          json: {
-            connectorId: "composio",
-            provider: "gmail",
-            displayName: "Gmail",
-          },
-        }),
-      }),
-      { prefix: "/rpc", context: { actor } },
-    );
-
-    expect(response.status).toBe(200);
-    expect(begin).toHaveBeenCalledWith(
-      { provider: "gmail", redirectUrl: "http://127.0.0.1:5173/integrations/callback" },
-      expect.anything(),
-    );
-    // Complete and revoke hold the same lock across provider calls; begin must outwait them.
-    expect(vi.mocked(prisma.$transaction).mock.calls.map((call) => call[1])).toEqual([
-      { timeout: 60_000 },
-      { timeout: 60_000 },
-    ]);
-    expect(create).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "conn-old" },
-      data: {
+  it.each([
+    [
+      false,
+      "http://127.0.0.1:5173",
+      "https://api.example.test",
+      "http://127.0.0.1:5173/integrations/callback",
+    ],
+    [
+      false,
+      "https://legacy.example.test/prefix",
+      undefined,
+      "https://legacy.example.test/prefix/integrations/callback",
+    ],
+    [
+      true,
+      "http://127.0.0.1:5173",
+      undefined,
+      "http://127.0.0.1:5173/api/v1/integrations/callback",
+    ],
+    [
+      true,
+      "http://127.0.0.1:5173",
+      "https://api.example.test",
+      "https://api.example.test/api/v1/integrations/callback",
+    ],
+  ])(
+    "reuses a revoked connection with API callback %s and web origin %s",
+    async (enabled, webOrigin, publicOrigin, callback) => {
+      const begin = vi.fn().mockResolvedValue({ state: "gmail-state", authorizationUrl: null });
+      const update = vi.fn().mockResolvedValue({
+        id: "conn-old",
+        connectorId: "composio",
+        provider: "gmail",
         displayName: "Gmail",
         status: "pending",
-        providerRef: null,
-        metadata: {},
-      },
-    });
-    await expect(response.json()).resolves.toMatchObject({
-      json: { connectionId: "conn-old" },
-    });
-  });
+        createdAt: new Date("2026-08-26T00:00:00.000Z"),
+      });
+      const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+      const create = vi.fn();
+      const prisma = {
+        $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: vi.fn().mockResolvedValue(undefined),
+            connection: {
+              findMany: vi.fn().mockResolvedValue([{ id: "conn-old", status: "revoked" }]),
+              update,
+              updateMany,
+              create,
+            },
+          };
+          return fn(tx);
+        }),
+      } as unknown as PrismaClient;
+      const deps = {
+        prisma,
+        connectors: {
+          managed: vi.fn(() => ({ begin })),
+        },
+        env: {
+          defaultProvider: "fake",
+          defaultModel: "fake-model",
+          webOrigin,
+          authPublicLinkOrigin: publicOrigin,
+          integrationApiCallbackEnabled: enabled,
+          screenProxySecret: "fake-test-secret",
+          sandboxProvider: "fake",
+        },
+        dataDir: "/tmp/rakazo-router-test",
+      } as unknown as RouterDeps;
+      const actor = {
+        spaceId: "workspace-1",
+        userId: "user-1",
+        email: "user@rakazo.test",
+        isDeploymentOwner: true,
+      } satisfies Actor;
+      const handler = new RPCHandler(createRouter(deps));
+
+      const response = await handle(
+        handler,
+        new Request("http://127.0.0.1/rpc/connections/begin", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            json: {
+              connectorId: "composio",
+              provider: "gmail",
+              displayName: "Gmail",
+            },
+          }),
+        }),
+        { prefix: "/rpc", context: { actor } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(begin).toHaveBeenCalledWith(
+        { provider: "gmail", redirectUrl: callback },
+        expect.anything(),
+      );
+      // Complete and revoke hold the same lock across provider calls; begin must outwait them.
+      expect(vi.mocked(prisma.$transaction).mock.calls.map((call) => call[1])).toEqual([
+        { timeout: 60_000 },
+        { timeout: 60_000 },
+      ]);
+      expect(create).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "conn-old" },
+        data: {
+          displayName: "Gmail",
+          status: "pending",
+          providerRef: null,
+          metadata: {},
+        },
+      });
+      await expect(response.json()).resolves.toMatchObject({
+        json: { connectionId: "conn-old" },
+      });
+    },
+  );
 
   it("cancels the remote authorization when its result cannot be saved before the slot frees", async () => {
     vi.useFakeTimers();

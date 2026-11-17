@@ -44,6 +44,7 @@ import { saveApprovalRule, storedBatchActions } from "./approval-settings.js";
 import { cancelRunsInTransaction } from "./cancel-runs.js";
 import type { Prisma, PrismaClient } from "./client.js";
 import { expireComputerExecutionLeases } from "./computers.js";
+import { resolveConversationExecutionScope } from "./conversation-execution-scope.js";
 import { contentEncryptionOf } from "./content-encryption.js";
 import {
   CrossSpaceCommunicationBlockedError,
@@ -568,12 +569,14 @@ export async function sendUserMessage(
       let task = null;
       let run = null;
       if (createRun && !busy) {
+        const executionScope = await resolveConversationExecutionScope(tx, input);
         task = await tx.task.create({
           data: {
             spaceId: input.spaceId,
             botId: input.botId,
             threadId: input.threadId,
             userId: input.userId,
+            projectWorkspaceId: executionScope.projectWorkspaceId,
             prompt: input.prompt,
             status: "queued",
           },
@@ -585,6 +588,7 @@ export async function sendUserMessage(
             threadId: input.threadId,
             taskId: task.id,
             userId: input.userId,
+            projectWorkspaceId: task.projectWorkspaceId,
             status: "queued",
             trigger: input.trigger,
             clientNonce: input.clientNonce ? `send:${message.id}` : undefined,
@@ -2002,12 +2006,16 @@ export async function createPendingSteeringRun(
   const batch = pending.filter((item) => steeringOrigin(item) === origin);
   const source = batch.at(-1)!;
   const modelPin = continuationModelPin(batch);
+  const executionScope = await resolveConversationExecutionScope(tx, {
+    ...input, userId: batch[0]!.userId,
+  });
   const task = await tx.task.create({
     data: {
       spaceId: input.spaceId,
       botId: input.botId,
       threadId: input.threadId,
       userId: batch[0]!.userId,
+      projectWorkspaceId: executionScope.projectWorkspaceId,
       prompt:
         origin === "webhook"
           ? blocksToAgentHistoryText(source.message.blocks as MessageBlock[])
@@ -2022,6 +2030,7 @@ export async function createPendingSteeringRun(
       threadId: input.threadId,
       taskId: task.id,
       userId: batch[0]!.userId,
+      projectWorkspaceId: task.projectWorkspaceId,
       status: "queued",
       // A private continuation is a follow-up the owner wrote only when every message in it came
       // from the app; one direct-line delivery keeps it messaging, so it is never owner-started.

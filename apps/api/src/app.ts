@@ -125,8 +125,8 @@ import {
   parsePositiveInteger,
   provisionMessagingIdentity,
   pushSessionExpiresAt,
-  requireMembership,
   recordUsage,
+  requireMembership,
   rowSecurityWarning,
   runAsSystem,
   securityEventRetentionDays,
@@ -153,8 +153,6 @@ import { mountAuditExportRoute } from "./audit-export.js";
 import { createBillingService } from "./billing.js";
 import { mountBillingRoutes } from "./billing-webhook.js";
 import { clientBuildMiddleware, readDeployedWebBuild } from "./client-build.js";
-import { createCompanionScreenConsent } from "./companion-screen-consent.js";
-import { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 import {
   clientIpMiddleware,
   createClientIpResolver,
@@ -162,16 +160,21 @@ import {
   requestClientIp,
   withClientIp,
 } from "./client-ip.js";
+import { createCompanionScreenConsent } from "./companion-screen-consent.js";
+import { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 import { cspReportRoutes } from "./csp-report.js";
 import { mountDiagramScript } from "./diagram-script.js";
 import { configuredEmailProvider } from "./email.js";
+import { mountEmailVerificationReturn } from "./email-verification-return.js";
 import type { AppEnv } from "./env.js";
 import { loadEnv } from "./env.js";
 import { healthRoutes } from "./health.js";
 import { trackInFlightRequests } from "./in-flight-requests.js";
+import { mountIntegrationCallback } from "./integration-callback.js";
 import { mountLocalComputerHost } from "./local-settings.js";
 import { marketingEmailRoutes, sendWelcomeEmail } from "./marketing-email.js";
 import { moveMcpArgsIntoSecrets } from "./mcp-args-migration.js";
+import { mountMcpNativeCallback } from "./mcp-native-callback.js";
 import {
   createMessagingInboundHandler,
   teamChatSenderCanWakeMessageRoutines,
@@ -180,10 +183,17 @@ import {
 import { createMessagingReceipts } from "./messaging-receipts.js";
 import { mountMessagingWebhookRoutes } from "./messaging-webhook.js";
 import { monitoringRoutes } from "./monitoring.js";
+import {
+  mountNativePasswordReset,
+  NATIVE_PASSWORD_RESET_PATH,
+  passwordResetPageLink,
+} from "./native-password-reset.js";
 import { pluginSubmissionRoutes } from "./plugin-submissions.js";
 import { sendReferralEmails, startReferralEmails } from "./referral-email.js";
 import { mountApiRequestBodyLimits } from "./request-body-limit.js";
-import { createRouter, type RouterDeps } from "./router.js";
+import type { RouterDeps } from "./router.js";
+import { createRouter } from "./router.js";
+import { mountMessagingInstallReturn } from "./routes/messaging.js";
 import { mountScreenTarget } from "./screen-proxy.js";
 import { createAuthResponseAudit } from "./security-audit.js";
 import { createSpeechSummarizer } from "./speech-summary.js";
@@ -199,6 +209,7 @@ import {
 import { endUserDeviceSession, mountUserDeviceRoutes } from "./user-devices.js";
 import { mountVoiceHttpRoutes, transcribeInboundVoice, voiceAccountErrorStatus } from "./voice.js";
 import { mountWebhookHttpRoutes } from "./webhook.js";
+import { mountWuyingAssets } from "./wuying-assets.js";
 
 /**
  * Native clients always send the app scheme, including in Expo Go, so no
@@ -545,6 +556,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     baseURL: env.authUrl,
     webOrigin: env.webOrigin,
     publicLinkOrigin: env.authPublicLinkOrigin,
+    nativeEmailVerificationOnApi: env.nativeEmailVerificationOnApi,
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
     singleAccount: Boolean(env.desktopStackToken),
@@ -558,6 +570,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         ),
     },
     onEmailError,
+    rewritePasswordResetLink: env.nativePasswordResetOnApi ? passwordResetPageLink : undefined,
     afterSignIn:
       email && env.welcomeEmailEnabled
         ? (userId, headers) =>
@@ -813,6 +826,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       openSignup: env.messagingOpenSignup,
     },
     env: {
+      projectWorkspaceCreateExperiment: env.projectWorkspaceCreateExperiment,
+      projectConversationCreateExperiment: env.projectConversationCreateExperiment,
       phoneCallsEnabled: env.phoneCallsEnabled,
       phoneCallRingSeconds: env.phoneCallRingSeconds,
       ticketBoardEnabled,
@@ -828,6 +843,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       deploymentModelConfigured: env.deploymentModelConfigured,
       deploymentModelHostCredentials: env.deploymentModelHostCredentials,
       webOrigin: env.webOrigin,
+      authPublicLinkOrigin: env.authPublicLinkOrigin,
+      integrationApiCallbackEnabled: env.integrationApiCallbackEnabled,
+      mcpNativeCallbackOrigin: env.mcpNativeCallbackOrigin,
       screenProxyPublicOrigin: env.screenProxyPublicOrigin,
       privacyPolicyUrl: env.privacyPolicyUrl,
       screenProxySecret: env.screenProxySecret,
@@ -840,22 +858,32 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       mcpStdioAllowedCommands: env.mcpStdioAllowedCommands,
     },
   };
-  if (env.companionScreenExperimental && env.agentRuntime === "pi" &&
-    (env.nodeEnv === "test" || env.nodeEnv === "development")) {
+  if (
+    env.companionScreenExperimental &&
+    env.agentRuntime === "pi" &&
+    (env.nodeEnv === "test" || env.nodeEnv === "development")
+  ) {
     const companionRuntime = new PiAgentRuntime();
     routerDeps.companionScreen = createCompanionScreenCoordinator({
       authorize: createCompanionScreenConsent(routerDeps),
       resolveModel: executor.resolveModel,
       resolvePersonality: async (scope) => {
         const bot = await prisma.bot.findFirst({
-          where: { id: scope.botId, userId: scope.userId, spaceId: scope.spaceId, archivedAt: null },
+          where: {
+            id: scope.botId,
+            userId: scope.userId,
+            spaceId: scope.spaceId,
+            archivedAt: null,
+          },
           select: { name: true, instructions: true },
         });
         if (!bot) throw new Error("Screen companion unavailable.");
         return bot;
       },
       recordUsage: (scope, operationId, event) =>
-        recordUsage(prisma, event, { ...scope, operationId, operationKind: "setup" }).then(() => undefined),
+        recordUsage(prisma, event, { ...scope, operationId, operationKind: "setup" }).then(
+          () => undefined,
+        ),
       runWithoutTools: (request, context) => companionRuntime.runWithoutTools(request, context),
     });
   }
@@ -869,6 +897,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   app.use("*", requestLogging(logger));
   app.use("*", clientIpMiddleware(clientIp, env.clientIpHeader));
   app.use("*", createCorsMiddleware(env));
+  if (env.wuyingAssetsOnApi) mountWuyingAssets(app, env.wuyingAssetsDir);
+  mountIntegrationCallback(app);
+  mountEmailVerificationReturn(app, env.legacySignInReturnOnApi);
+  mountMcpNativeCallback(app);
+  mountNativePasswordReset(app);
   // Session and account replies must never be stored by a client or an HTTP cache.
   for (const path of ["/api/auth/*", "/rpc/*"]) {
     app.use(path, async (c, next) => {
@@ -885,7 +918,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       passwordReset: env.passwordAuth !== false && Boolean(email),
       resetUrl:
         env.passwordAuth !== false && email
-          ? new URL("/reset-password", env.authPublicLinkOrigin ?? env.webOrigin).href
+          ? new URL(
+              env.nativePasswordResetOnApi ? NATIVE_PASSWORD_RESET_PATH : "/reset-password",
+              env.authPublicLinkOrigin ?? env.webOrigin,
+            ).href
           : null,
       emailCode: auth.emailCodeSignIn,
       billing: Boolean(billing),
@@ -979,10 +1015,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   }
   if (messagingInstallations) {
     // Slack's registered redirect; the signed-in app finishes it so only the installer can.
-    app.get("/api/v1/messaging/install/slack/callback", (c) => {
-      const target = new URL("/messaging/slack/callback", env.webOrigin);
-      target.search = new URL(c.req.url).search;
-      return c.redirect(target.toString());
+    mountMessagingInstallReturn({
+      app,
+      installations: messagingInstallations,
+      webOrigin: env.webOrigin,
     });
   }
   app.use(
@@ -1015,8 +1051,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         stillSessionAuthorized: async () => {
           const current = await requestSession(c.req.raw);
           return Boolean(
-            actor && session && current?.sessionId === session.sessionId &&
-            current.actor.userId === actor.userId && current.actor.spaceId === actor.spaceId,
+            actor &&
+              session &&
+              current?.sessionId === session.sessionId &&
+              current.actor.userId === actor.userId &&
+              current.actor.spaceId === actor.spaceId,
           );
         },
       },

@@ -34,6 +34,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lo
 # Normalize modes: a restrictive host umask (e.g. 077 on hardened hosts) would otherwise
 # leave the copied tree unreadable to USER node at runtime.
 COPY --chmod=755 . .
+ARG SYDNEY_PREPARE_WUYING_ASSETS=false
+RUN case "$SYDNEY_PREPARE_WUYING_ASSETS" in true) node scripts/wuying-web-sdk.mjs ;; false) : ;; *) exit 1 ;; esac
 RUN pnpm --filter @rakazo/db generate
 RUN pnpm --filter @rakazo/api --filter @rakazo/worker build
 RUN RAKAZO_ALLOW_DEV_SECRETS=1 pnpm --filter @rakazo/web build

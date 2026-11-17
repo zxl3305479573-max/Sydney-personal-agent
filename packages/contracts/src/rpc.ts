@@ -161,6 +161,16 @@ import {
   PersonalityPresetSchema,
   UpdatePersonalityInput,
 } from "./personality.js";
+import {
+  CreateProjectWorkspaceInput,
+  DeleteProjectWorkspaceInput,
+  ListProjectWorkspacesInput,
+  ProjectWorkspaceIdInput,
+  ProjectWorkspacePageSchema,
+  ProjectWorkspaceRosterInput,
+  ProjectWorkspaceRosterSchema,
+  ProjectWorkspaceSchema,
+} from "./project-workspace.js";
 import { MessageReactionSchema } from "./reactions.js";
 import { RoutineWatchSchema } from "./routine-watch.js";
 import {
@@ -512,6 +522,71 @@ export const appContract = {
         webhookConfigured: z.literal(true),
       }),
     ),
+  },
+  projectWorkspaces: {
+    capabilities: oc.output(z.object({ create: z.boolean(), removeEmpty: z.boolean() }).strict()),
+    conversationCapabilities: oc.output(z.object({ createBot: z.boolean() }).strict()),
+    groupCreationCapability: oc.output(z.object({ createGroup: z.boolean() }).strict()),
+    list: oc.input(ListProjectWorkspacesInput).output(ProjectWorkspacePageSchema),
+    get: oc.input(ProjectWorkspaceIdInput).output(ProjectWorkspaceSchema),
+    roster: oc.input(ProjectWorkspaceRosterInput).output(ProjectWorkspaceRosterSchema),
+    create: oc.input(CreateProjectWorkspaceInput).output(ProjectWorkspaceSchema),
+    removeEmpty: oc.input(DeleteProjectWorkspaceInput).output(z.object({ ok: z.literal(true) })),
+    createBot: oc
+      .input(
+        z.object({ projectId: ProjectWorkspaceIdInput.shape.id, bot: CreateBotInput }).strict(),
+      )
+      .output(BotSchema),
+    createGroup: oc
+      .input(
+        z
+          .object({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            requestId: z.string().uuid(),
+            group: CreateGroupInput,
+          })
+          .strict(),
+      )
+      .output(GroupSchema),
+    threadSnapshot: oc
+      .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }))
+      .output(ThreadSnapshotSchema),
+    consentStatus: oc
+      .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }).strict())
+      .output(AiConsentStatusSchema),
+    consentAllow: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            scope: z.string(),
+            version: z.string(),
+            keys: z.array(z.string()).min(1),
+          })
+          .strict(),
+      )
+      .output(AiConsentStatusSchema),
+    sendText: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            text: z.string().trim().min(1),
+            clientNonce: z.string().min(1).max(200),
+          })
+          .strict(),
+      )
+      .output(threadSendOutput),
+    subscribe: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            cursor: z.number().int().min(-1),
+          })
+          .strict(),
+      )
+      .output(eventIterator(ProductEventSchema)),
   },
   personalities: {
     list: oc.output(z.array(PersonalityPresetSchema)),
@@ -1067,18 +1142,27 @@ export const appContract = {
         .output(z.array(BotMcpServerSchema)),
     },
     oauth: {
-      begin: oc.input(z.object({ serverId: Id, redirectUri: z.string().url().optional() })).output(
-        z.discriminatedUnion("status", [
+      begin: oc
+        .input(
           z.object({
-            status: z.literal("authorization_required"),
-            sessionId: Id,
-            authorizationUrl: z.string().url(),
+            serverId: Id,
+            redirectUri: z.string().url().optional(),
+            nativeCallback: z.boolean().optional(),
           }),
-          z.object({
-            status: z.enum(["already_connected", "authorization_not_requested"]),
-          }),
-        ]),
-      ),
+        )
+        .output(
+          z.discriminatedUnion("status", [
+            z.object({
+              status: z.literal("authorization_required"),
+              sessionId: Id,
+              authorizationUrl: z.string().url(),
+              callbackUri: z.string().url().optional(),
+            }),
+            z.object({
+              status: z.enum(["already_connected", "authorization_not_requested"]),
+            }),
+          ]),
+        ),
       complete: oc
         .input(z.object({ sessionId: Id, code: z.string().min(1), state: z.string().min(1) }))
         .output(z.object({ ok: z.literal(true) })),
@@ -1157,7 +1241,14 @@ export const appContract = {
     installations: {
       list: oc.output(MessagingInstallationsStatusSchema),
       /** Without a bot, the workspace answers as the first bot in the user's default space. */
-      start: oc.input(z.object({ botId: Id.optional() })).output(z.object({ url: z.string() })),
+      start: oc
+        .input(
+          z.object({
+            botId: Id.optional(),
+            returnTo: z.enum(["web", "mobile"]).optional(),
+          }),
+        )
+        .output(z.object({ url: z.string(), returnTo: z.enum(["web", "mobile"]).optional() })),
       complete: oc
         .input(z.object({ state: z.string().max(64), code: z.string().max(4096) }))
         .output(z.object({ ok: z.literal(true) })),

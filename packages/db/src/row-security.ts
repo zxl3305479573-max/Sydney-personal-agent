@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac } from "node:crypto";
+import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import { getLogger } from "@rakazo/logging";
 import type { Pool, PoolClient } from "pg";
 import type { PrismaClient } from "./generated/prisma/client.js";
@@ -17,7 +18,7 @@ import { withTransactionRetry } from "./transaction-retry.js";
  * Without a context, protected tables return no rows and reject writes.
  */
 export type DbContext =
-  | { kind: "tenant"; spaceId: string; userId: string }
+  | { kind: "tenant"; spaceId: string; userId: string; projectWorkspaceId?: string }
   | { kind: "system"; reason: string };
 
 const storage = new AsyncLocalStorage<DbContext>();
@@ -26,11 +27,30 @@ export function currentDbContext(): DbContext | undefined {
   return storage.getStore();
 }
 
-export function runAsTenant<T>(
-  tenant: { spaceId: string; userId: string },
+export async function runAsTenant<T>(
+  tenant: { spaceId: string; userId: string; projectWorkspaceId?: string | null },
   fn: () => T | PromiseLike<T>,
 ): Promise<T> {
-  return within({ kind: "tenant", spaceId: tenant.spaceId, userId: tenant.userId }, fn);
+  const parent = storage.getStore();
+  const inheritedProject =
+    parent?.kind === "tenant" &&
+    parent.spaceId === tenant.spaceId &&
+    parent.userId === tenant.userId
+      ? parent.projectWorkspaceId
+      : undefined;
+  const selectedProject =
+    tenant.projectWorkspaceId === undefined ? inheritedProject : tenant.projectWorkspaceId;
+  const projectWorkspaceId =
+    selectedProject == null ? undefined : ProjectWorkspaceIdInput.parse({ id: selectedProject }).id;
+  return within(
+    {
+      kind: "tenant",
+      spaceId: tenant.spaceId,
+      userId: tenant.userId,
+      ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+    },
+    fn,
+  );
 }
 
 /**
@@ -119,6 +139,7 @@ export const ROW_SECURITY_MODELS: ReadonlySet<string> = new Set([
   "FeedbackReport",
   "PaymentWallet",
   "Purchase",
+  "CloudAgent",
   "TaughtSkill",
   "AgentSkill",
   "AgentSkillSpace",
@@ -126,6 +147,8 @@ export const ROW_SECURITY_MODELS: ReadonlySet<string> = new Set([
   "AgentImport",
   "ProjectWorkspace",
   "Bot",
+  "ChatGroup",
+  "ChatGroupMember",
   "PersonalityPreset",
   "Run",
   "Task",
@@ -193,16 +216,23 @@ function credentials(connectionString: string | undefined): { user: string; pass
 // By login, for runAsSystemInTransaction, which only has the transaction's connection.
 const bypassKeys = new Map<string, string>();
 
-type Settings = [spaceId: string, userId: string, bypass: "on" | "off", bypassKey: string];
+type Settings = [
+  spaceId: string,
+  userId: string,
+  bypass: "on" | "off",
+  bypassKey: string,
+  projectWorkspaceId: string,
+];
 
 function settingsFor(context: DbContext | undefined, bypassKey: string): Settings {
-  if (context?.kind === "tenant") return [context.spaceId, context.userId, "off", ""];
-  if (context?.kind === "system") return ["", "", "on", bypassKey];
-  return ["", "", "off", ""];
+  if (context?.kind === "tenant")
+    return [context.spaceId, context.userId, "off", "", context.projectWorkspaceId ?? ""];
+  if (context?.kind === "system") return ["", "", "on", bypassKey, ""];
+  return ["", "", "off", "", ""];
 }
 
 const SET_SESSION =
-  "SELECT set_config('app.space_id', $1, false), set_config('app.user_id', $2, false), set_config('app.rls_bypass', $3, false), set_config('app.rls_bypass_key', $4, false)";
+  "SELECT set_config('app.space_id', $1, false), set_config('app.user_id', $2, false), set_config('app.rls_bypass', $3, false), set_config('app.rls_bypass_key', $4, false), set_config('app.project_workspace_id', $5, false)";
 const applied = new WeakMap<PoolClient, string>();
 
 async function applySettings(client: PoolClient, settings: Settings): Promise<void> {
@@ -267,7 +297,7 @@ export function installDbContext(pool: Pool): void {
 }
 
 const LOCAL_SETTINGS = (settings: Settings) =>
-  Prisma.sql`SELECT set_config('app.space_id', ${settings[0]}, true), set_config('app.user_id', ${settings[1]}, true), set_config('app.rls_bypass', ${settings[2]}, true), set_config('app.rls_bypass_key', ${settings[3]}, true)`;
+  Prisma.sql`SELECT set_config('app.space_id', ${settings[0]}, true), set_config('app.user_id', ${settings[1]}, true), set_config('app.rls_bypass', ${settings[2]}, true), set_config('app.rls_bypass_key', ${settings[3]}, true), set_config('app.project_workspace_id', ${settings[4]}, true)`;
 
 // A wrapped read keeps the pool's checkout timeout and no run limit it did not
 // have before, instead of Prisma's 2s/5s transaction defaults.

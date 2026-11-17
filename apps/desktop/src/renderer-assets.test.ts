@@ -33,8 +33,19 @@ describe("bundled desktop renderer", () => {
   });
 
   it("leaves APIs, screen proxying, and other origins on the network", () => {
-    for (const pathname of ["/api/auth/session", "/rpc/bots", "/novnc/socket"]) {
+    for (const pathname of [
+      "/api/auth/session",
+      "/rpc/bots",
+      "/novnc/socket",
+      "/wuying",
+      "/wuying/screen.html",
+      "/wuying/screen.js",
+      "/wuying/storage.js",
+      "/wuying/WuyingWebSDK.js",
+      "/wuying/sdk/ASP/container.html",
+    ]) {
       expect(bundledRendererCandidates(root, `${origin}${pathname}`, origin, false)).toBeNull();
+      expect(bundledRendererCandidates(root, `${origin}${pathname}`, origin, true)).toBeNull();
     }
     expect(
       bundledRendererCandidates(root, "https://example.net/assets/app-123.js", origin, false),
@@ -53,6 +64,8 @@ describe("bundled desktop renderer", () => {
       "/%61pi/auth/session",
       "/rpc%2fbots",
       "/%6eovnc%2fsocket",
+      "/%77uying/screen.html",
+      "/wuying%2fsdk/ASP/container.html",
       "/assets%5capp.js",
       "/foo%2f..%2fapi/auth/session",
       "/foo%2F.%2Frpc/bots",

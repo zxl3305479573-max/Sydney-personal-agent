@@ -11,13 +11,15 @@ import { native, useThemedStyles } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { NativeSymbol } from "./native-symbol";
+import { ProjectFolderCard } from "./project-folder-card";
 
 export function InboxQuickActions({
   columnInsets,
 }: {
   columnInsets: { left: number; right: number };
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const projectLabel = locale.startsWith("zh") ? "项目" : "Projects";
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const buttonStyle = {
@@ -32,6 +34,7 @@ export function InboxQuickActions({
     <View
       style={{
         flexDirection: "row",
+        flexWrap: "wrap",
         gap: 8,
         paddingTop: 8,
         paddingBottom: Math.max(insets.bottom, 12),
@@ -65,6 +68,9 @@ export function InboxQuickActions({
           </Text>
         </Pressable>
       </GlassSurface>
+      <View style={{ width: "100%" }}>
+        <ProjectFolderCard label={projectLabel} onPress={() => router.push("/projects")} />
+      </View>
     </View>
   );
 }

@@ -63,6 +63,7 @@ const ArtifactsPage = lazyComponent(() =>
   import("./pages/Artifacts").then((module) => module.ArtifactsPage),
 );
 const BoardPage = lazyComponent(() => import("./pages/Board").then((module) => module.BoardPage));
+const ProjectsPage = lazyComponent(() => import("./pages/Projects").then((module) => module.ProjectsPage));
 const AdminPluginsPage = lazyComponent(() =>
   import("./pages/AdminPluginsPage").then((module) => module.AdminPluginsPage),
 );
@@ -285,6 +286,8 @@ function SessionApp() {
                   <Route path="/app" element={<ShellPage />} />
                   <Route path="/app/g/:groupId" element={<ShellPage />} />
                   <Route path="/app/tasks" element={<Navigate to="/app" replace />} />
+                  <Route path="/app/projects" element={<ProjectsPage />} />
+                  <Route path="/app/projects/:workspaceId" element={<ProjectsPage />} />
                   <Route element={<CallLayout />}>
                     <Route path="/onboarding/:step?" element={<OnboardingPage />} />
                     <Route path="/app/artifacts" element={<ArtifactsPage />} />

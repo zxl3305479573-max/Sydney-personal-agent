@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDb } from "./client.js";
+import { createDb, Prisma } from "./client.js";
 import { describeRowSecurity, RUNTIME_ROLE } from "./database-access.js";
-import { listProjectWorkspaces } from "./project-workspace-read.js";
+import {
+  AccountHasProjectWorkspacesError,
+  claimProjectAccountDeletion,
+  ProjectAccountDeletionInProgressError,
+} from "./project-account-lifecycle.js";
+import { createProjectWorkspace, listProjectWorkspaces } from "./project-workspace-read.js";
 import { drainUnscopedDatabaseAccess, runAsSystem, runAsTenant } from "./row-security.js";
 
 const runtimeUrl = process.env.DATABASE_URL;
@@ -40,6 +45,26 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
   const deletedId = `workspace-deleting-${suffix}`;
   const secondPageId = `workspace-page-other-user-${suffix}`;
   const pageFixtureIds = [...pageIds, deletedId, secondPageId];
+  const conversation = {
+    botId: `workspace-bot-${suffix}`,
+    peerBotId: `workspace-peer-${suffix}`,
+    outsiderBotId: `workspace-outsider-${suffix}`,
+    otherBotId: `workspace-other-bot-${suffix}`,
+    groupId: `workspace-group-${suffix}`,
+    memberId: `workspace-group-member-${suffix}`,
+    threadId: `workspace-thread-${suffix}`,
+    peerThreadId: `workspace-peer-thread-${suffix}`,
+    outsiderThreadId: `workspace-outsider-thread-${suffix}`,
+    otherThreadId: `workspace-other-thread-${suffix}`,
+    groupThreadId: `workspace-group-thread-${suffix}`,
+    externalId: `workspace-external-${suffix}`,
+    externalThreadId: `workspace-external-thread-${suffix}`,
+    taskId: `workspace-task-${suffix}`,
+    peerTaskId: `workspace-peer-task-${suffix}`,
+    groupTaskId: `workspace-group-task-${suffix}`,
+    externalTaskId: `workspace-external-task-${suffix}`,
+    runId: `workspace-run-${suffix}`,
+  };
   let owner: ReturnType<typeof createDb>;
   let app: ReturnType<typeof createDb>;
   let seeded = false;
@@ -47,7 +72,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
   beforeAll(async () => {
     owner = createDb(migrationUrl!);
     app = createDb(runtimeUrl!, { poolMax: 1 });
-    await owner.prisma.$transaction(async (tx) => {
+    await runAsSystem("synthetic project metadata and conversation fixtures", () => owner.prisma.$transaction(async (tx) => {
       await tx.organization.create({
         data: {
           id: organizationId,
@@ -100,7 +125,49 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
       await tx.$executeRaw`
         INSERT INTO project_workspaces (id, "spaceId", "userId", name, "updatedAt")
         VALUES (${otherWorkspaceId}, ${otherSpaceId}, ${first.userId}, 'other fixture', NOW())`;
-    });
+      for (const [botId, threadId, userId] of [
+        [conversation.botId, conversation.threadId, first.userId],
+        [conversation.peerBotId, conversation.peerThreadId, first.userId],
+        [conversation.outsiderBotId, conversation.outsiderThreadId, first.userId],
+        [conversation.otherBotId, conversation.otherThreadId, second.userId],
+      ] as const) {
+        await tx.bot.create({ data: { id: botId, spaceId, userId, name: "Scope fixture", color: "blue" } });
+        await tx.thread.create({ data: { id: threadId, spaceId, userId, botId } });
+      }
+      await tx.chatGroup.create({
+        data: { id: conversation.groupId, spaceId, userId: first.userId, name: "Scope fixture" },
+      });
+      await tx.chatGroupMember.createMany({ data: [
+        { id: conversation.memberId, groupId: conversation.groupId, botId: conversation.botId },
+        { groupId: conversation.groupId, botId: conversation.peerBotId },
+      ] });
+      await tx.thread.create({ data: {
+        id: conversation.groupThreadId, spaceId, userId: first.userId, groupId: conversation.groupId,
+      } });
+      await tx.externalConversation.create({ data: {
+        id: conversation.externalId, provider: "scope-fixture", workspaceId: spaceId,
+        externalKey: `external-${suffix}`, conversationId: `conversation-${suffix}`,
+        spaceId, userId: first.userId, botId: conversation.botId,
+      } });
+      await tx.thread.create({ data: {
+        id: conversation.externalThreadId, spaceId, userId: first.userId,
+        externalConversationId: conversation.externalId,
+      } });
+      for (const [taskId, botId, threadId] of [
+        [conversation.taskId, conversation.botId, conversation.threadId],
+        [conversation.peerTaskId, conversation.peerBotId, conversation.peerThreadId],
+        [conversation.groupTaskId, conversation.peerBotId, conversation.groupThreadId],
+        [conversation.externalTaskId, conversation.botId, conversation.externalThreadId],
+      ] as const) {
+        await tx.task.create({ data: {
+          id: taskId, spaceId, userId: first.userId, botId, threadId, prompt: "fixture", status: "queued",
+        } });
+      }
+      await tx.run.create({ data: {
+        id: conversation.runId, taskId: conversation.taskId, spaceId, userId: first.userId,
+        botId: conversation.botId, threadId: conversation.threadId, status: "queued", trigger: "chat",
+      } });
+    }));
     seeded = true;
   });
 
@@ -108,14 +175,15 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
     const errors: unknown[] = [];
     try {
       if (seeded) {
-        await owner.prisma.$transaction(async (tx) => {
+        await runAsSystem("clean synthetic project fixtures", () => owner.prisma.$transaction(async (tx) => {
+          await tx.cloudAgent.deleteMany({ where: { spaceId: { in: [spaceId, otherSpaceId] } } });
           await tx.$executeRaw`
             DELETE FROM project_workspaces
             WHERE "spaceId" = ANY(${[spaceId, otherSpaceId]}::text[])
               AND id = ANY(${[...workspaceIds, ...pageFixtureIds, ownCreatedId, forgedId, unscopedId, nonmemberId]}::text[])`;
           await tx.organization.deleteMany({ where: { id: organizationId } });
           await tx.user.deleteMany({ where: { id: { in: users.map((user) => user.userId) } } });
-        });
+        }));
       }
     } catch (error) {
       errors.push(error);
@@ -276,6 +344,194 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
     if (cleanupFailed) throw cleanupError;
   });
 
+  it("reuses an active project for a matching creation attempt and rejects conflicts", async () => {
+    const id = randomUUID();
+    try {
+      const created = await createProjectWorkspace(app.prisma, tenant(first), { id, name: "Project" });
+      const replay = await createProjectWorkspace(app.prisma, tenant(first), { id, name: "Project" });
+      expect(replay).toEqual(created);
+      await expect(createProjectWorkspace(app.prisma, tenant(first), { id, name: "Other" }))
+        .rejects.toThrow("Project creation request conflicts");
+      await expect(createProjectWorkspace(app.prisma, tenant(second), { id, name: "Project" }))
+        .rejects.toThrow();
+      await owner.prisma.$executeRaw`
+        UPDATE project_workspaces SET "deletingAt" = NOW() WHERE id = ${id}`;
+      await expect(createProjectWorkspace(app.prisma, tenant(first), { id, name: "Project" }))
+        .rejects.toThrow("Project creation request conflicts");
+    } finally {
+      await owner.prisma.$executeRaw`DELETE FROM project_workspaces WHERE id = ${id}`;
+    }
+  });
+
+  it("blocks a deletion claim when the account has projects in shared Spaces", async () => {
+    await expect(claimProjectAccountDeletion(app.prisma, first.userId))
+      .rejects.toBeInstanceOf(AccountHasProjectWorkspacesError);
+    const rows = await runAsSystem("check synthetic account deletion claim", () =>
+      owner.prisma.$queryRaw<Array<{ projectDeletionClaimedAt: Date | null }>>`
+        SELECT "projectDeletionClaimedAt" FROM "user" WHERE id = ${first.userId}
+      `,
+    );
+    expect(rows[0]?.projectDeletionClaimedAt).toBeNull();
+  });
+
+  it("persists a claim and refuses later project creation for that account", async () => {
+    const userId = `workspace-claim-user-${randomUUID()}`;
+    const memberId = `workspace-claim-member-${randomUUID()}`;
+    const projectId = randomUUID();
+    await runAsSystem("create synthetic account deletion fixture", () =>
+      owner.prisma.$transaction(async (tx) => {
+        await tx.user.create({ data: { id: userId, name: "Claim fixture", email: `${userId}@rakazo.test` } });
+        await tx.member.create({ data: { id: memberId, organizationId, userId, role: "member", createdAt: new Date() } });
+        await tx.spaceMember.create({ data: {
+          id: `workspace-claim-space-member-${randomUUID()}`,
+          organizationId, spaceId, userId, role: "member", createdAt: new Date(),
+        } });
+      }),
+    );
+    try {
+      await claimProjectAccountDeletion(app.prisma, userId);
+      await claimProjectAccountDeletion(app.prisma, userId);
+      await expect(createProjectWorkspace(app.prisma, { spaceId, userId }, { id: projectId, name: "Project" }))
+        .rejects.toBeInstanceOf(ProjectAccountDeletionInProgressError);
+    } finally {
+      await runAsSystem("clean synthetic account deletion fixture", () =>
+        owner.prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`DELETE FROM project_workspaces WHERE id = ${projectId}`;
+          await tx.user.delete({ where: { id: userId } });
+        }),
+      );
+    }
+  });
+
+  it("does not both claim account deletion and create a project concurrently", async () => {
+    const userId = `workspace-race-user-${randomUUID()}`;
+    const projectId = randomUUID();
+    const contender = createDb(runtimeUrl!, { poolMax: 1 });
+    try {
+      await runAsSystem("create synthetic project lifecycle race fixture", () =>
+        owner.prisma.$transaction(async (tx) => {
+          await tx.user.create({ data: { id: userId, name: "Race fixture", email: `${userId}@rakazo.test` } });
+          await tx.member.create({ data: {
+            id: `workspace-race-member-${randomUUID()}`, organizationId, userId,
+            role: "member", createdAt: new Date(),
+          } });
+          await tx.spaceMember.create({ data: {
+            id: `workspace-race-space-member-${randomUUID()}`, organizationId, spaceId,
+            userId, role: "member", createdAt: new Date(),
+          } });
+        }),
+      );
+      const [creation, claim] = await Promise.allSettled([
+        createProjectWorkspace(app.prisma, { spaceId, userId }, { id: projectId, name: "Race project" }),
+        claimProjectAccountDeletion(contender.prisma, userId),
+      ]);
+      expect([creation.status, claim.status].sort()).toEqual(["fulfilled", "rejected"]);
+      if (creation.status === "rejected") {
+        expect(creation.reason).toBeInstanceOf(ProjectAccountDeletionInProgressError);
+      }
+      if (claim.status === "rejected") {
+        expect(claim.reason).toBeInstanceOf(AccountHasProjectWorkspacesError);
+      }
+      const rows = await runAsSystem("inspect synthetic project lifecycle race", () =>
+        owner.prisma.$queryRaw<Array<{ claimed: boolean; projectExists: boolean }>>`
+          SELECT "projectDeletionClaimedAt" IS NOT NULL AS "claimed",
+            EXISTS (SELECT 1 FROM project_workspaces WHERE id = ${projectId}) AS "projectExists"
+          FROM "user" WHERE id = ${userId}
+        `,
+      );
+      expect(rows).toEqual([{
+        claimed: claim.status === "fulfilled",
+        projectExists: creation.status === "fulfilled",
+      }]);
+    } finally {
+      try {
+        await contender.prisma.$disconnect();
+      } finally {
+        try {
+          await contender.pool.end();
+        } finally {
+          await runAsSystem("clean synthetic project lifecycle race fixture", () =>
+            owner.prisma.$transaction(async (tx) => {
+              await tx.$executeRaw`DELETE FROM project_workspaces WHERE id = ${projectId}`;
+              await tx.user.deleteMany({ where: { id: userId } });
+            }),
+          );
+        }
+      }
+    }
+  });
+
+  it("hides home artifacts from project scope and prohibits project artifact writes", async () => {
+    const artifactId = `workspace-artifact-${randomUUID()}`;
+    const blockedId = `workspace-blocked-artifact-${randomUUID()}`;
+    try {
+      await runAsSystem("create synthetic home artifact", () => owner.prisma.$executeRaw`
+        INSERT INTO artifacts (id, "spaceId", "userId", "botId", name, "mimeType", size, hash, "storageKey")
+        VALUES (${artifactId}, ${spaceId}, ${first.userId}, ${conversation.botId},
+          'fixture.txt', 'text/plain', 1, 'fixture-hash', 'fixture-key')
+      `);
+      const list = () => app.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM artifacts WHERE id = ${artifactId}
+      `;
+      expect(await runAsTenant(tenant(first), list)).toEqual([{ id: artifactId }]);
+      expect(await runAsTenant({ ...tenant(first), projectWorkspaceId: first.workspaceId }, list)).toEqual([]);
+      await expect(runAsSystem("attempt synthetic project artifact write", () => owner.prisma.$executeRaw`
+        INSERT INTO artifacts (id, "spaceId", "userId", "botId", "projectWorkspaceId", name, "mimeType", size, hash, "storageKey")
+        VALUES (${blockedId}, ${spaceId}, ${first.userId}, ${conversation.botId}, ${first.workspaceId},
+          'fixture.txt', 'text/plain', 1, 'fixture-hash', 'fixture-key')
+      `)).rejects.toThrow();
+    } finally {
+      await runAsSystem("clean synthetic artifact scope fixture", () => owner.prisma.$executeRaw`
+        DELETE FROM artifacts WHERE id = ANY(${[artifactId, blockedId]}::text[])
+      `);
+    }
+  });
+
+  it("hides home memory documents and revisions from project scope", async () => {
+    const botMemoryId = `workspace-bot-memory-${randomUUID()}`;
+    const userMemoryId = `workspace-user-memory-${randomUUID()}`;
+    const revisionId = `workspace-memory-revision-${randomUUID()}`;
+    const attemptedId = `workspace-memory-attempt-${randomUUID()}`;
+    try {
+      await runAsSystem("create synthetic home memory fixtures", () => owner.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          INSERT INTO memory_documents (id, "spaceId", "userId", "botId", scope, path, content, "updatedAt")
+          VALUES (${botMemoryId}, ${spaceId}, ${first.userId}, ${conversation.botId}, 'bot',
+            ${botMemoryId}, 'fixture', CURRENT_TIMESTAMP),
+            (${userMemoryId}, ${spaceId}, ${first.userId}, NULL, 'user',
+            ${userMemoryId}, 'fixture', CURRENT_TIMESTAMP)
+        `;
+        await tx.$executeRaw`
+          INSERT INTO memory_revisions (id, "documentId", revision, content)
+          VALUES (${revisionId}, ${botMemoryId}, 1, 'fixture')
+        `;
+      }));
+      const documents = () => app.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM memory_documents
+        WHERE id = ANY(${[botMemoryId, userMemoryId]}::text[]) ORDER BY id
+      `;
+      const revisions = () => app.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM memory_revisions WHERE id = ${revisionId}
+      `;
+      expect(await runAsTenant(tenant(first), documents)).toEqual(
+        [botMemoryId, userMemoryId].sort().map((id) => ({ id })),
+      );
+      expect(await runAsTenant(tenant(first), revisions)).toEqual([{ id: revisionId }]);
+      const projectTenant = { ...tenant(first), projectWorkspaceId: first.workspaceId };
+      expect(await runAsTenant(projectTenant, documents)).toEqual([]);
+      expect(await runAsTenant(projectTenant, revisions)).toEqual([]);
+      await expect(runAsTenant(projectTenant, () => app.prisma.$executeRaw`
+        INSERT INTO memory_documents (id, "spaceId", "userId", "botId", scope, path, content, "updatedAt")
+        VALUES (${attemptedId}, ${spaceId}, ${first.userId}, ${conversation.botId},
+          'bot', ${attemptedId}, 'fixture', CURRENT_TIMESTAMP)
+      `)).rejects.toThrow();
+    } finally {
+      await runAsSystem("clean synthetic memory fixtures", () => owner.prisma.$executeRaw`
+        DELETE FROM memory_documents WHERE id = ANY(${[botMemoryId, userMemoryId, attemptedId]}::text[])
+      `);
+    }
+  });
+
   it("isolates the same user across Spaces", async () => {
     const otherTenant = { spaceId: otherSpaceId, userId: first.userId };
     expect(await runAsTenant(otherTenant, visible)).toEqual([{ id: otherWorkspaceId }]);
@@ -402,14 +658,14 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
         () => app.prisma.$executeRaw`
         UPDATE project_workspaces SET "userId" = ${second.userId} WHERE id = ${first.workspaceId}`,
       ),
-    ).rejects.toThrow(/row.level security/i);
+    ).rejects.toThrow(/Conversation identity and target are immutable/);
     await expect(
       runAsTenant(
         tenant(first),
         () => app.prisma.$executeRaw`
         UPDATE project_workspaces SET "spaceId" = ${`other-${suffix}`} WHERE id = ${first.workspaceId}`,
       ),
-    ).rejects.toThrow(/row.level security/i);
+    ).rejects.toThrow(/Conversation identity and target are immutable/);
   });
 
   it("allows explicit system access across both owners", async () => {
@@ -423,6 +679,187 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
         UPDATE project_workspaces SET name = 'system update' WHERE id = ${first.workspaceId}`,
       ),
     ).toBe(1);
+  });
+
+  it.each([
+    { table: "bots", id: conversation.botId },
+    { table: "chat_groups", id: conversation.groupId },
+    { table: "threads", id: conversation.threadId },
+    { table: "tasks", id: conversation.taskId },
+    { table: "runs", id: conversation.runId },
+  ])("keeps $table ownership and project immutable even under system bypass", async ({ table, id }) => {
+    for (const [column, value] of [
+      ["id", `changed-${id}`],
+      ["spaceId", otherSpaceId],
+      ["userId", second.userId],
+      ["projectWorkspaceId", first.workspaceId],
+    ] as const) {
+      await expect(runAsSystem("synthetic conversation identity mutation", () =>
+        app.prisma.$executeRaw(Prisma.sql`
+          UPDATE ${Prisma.raw(`"${table}"`)} SET ${Prisma.raw(`"${column}"`)} = ${value} WHERE id = ${id}
+        `),
+      )).rejects.toThrow(/Conversation identity and target are immutable/);
+    }
+  });
+
+  it.each([
+    { table: "threads", id: conversation.threadId, column: "botId", value: conversation.peerBotId },
+    { table: "tasks", id: conversation.taskId, column: "botId", value: conversation.peerBotId },
+    { table: "tasks", id: conversation.taskId, column: "threadId", value: conversation.peerThreadId },
+    { table: "runs", id: conversation.runId, column: "botId", value: conversation.peerBotId },
+    { table: "runs", id: conversation.runId, column: "threadId", value: conversation.peerThreadId },
+    { table: "runs", id: conversation.runId, column: "taskId", value: conversation.peerTaskId },
+    { table: "external_conversations", id: conversation.externalId, column: "botId", value: conversation.peerBotId },
+  ])("does not rebind $table.$column to another conversation target", async ({ table, id, column, value }) => {
+    await expect(runAsSystem("synthetic conversation target mutation", () =>
+      app.prisma.$executeRaw(Prisma.sql`
+        UPDATE ${Prisma.raw(`"${table}"`)} SET ${Prisma.raw(`"${column}"`)} = ${value} WHERE id = ${id}
+      `),
+    )).rejects.toThrow(/Conversation identity and target are immutable/);
+  });
+
+  it("rejects group members and parent Bots owned by another member", async () => {
+    await expect(runAsSystem("synthetic group membership mutation", () =>
+      app.prisma.chatGroupMember.create({ data: {
+        groupId: conversation.groupId, botId: conversation.otherBotId,
+      } }),
+    )).rejects.toThrow(/Group member scope does not match/);
+    await expect(runAsSystem("synthetic group member reassignment", () =>
+      app.prisma.chatGroupMember.update({
+        where: { id: conversation.memberId }, data: { botId: conversation.otherBotId },
+      }),
+    )).rejects.toThrow(/Group member scope does not match/);
+    await expect(runAsSystem("synthetic parent Bot mutation", () =>
+      app.prisma.bot.update({
+        where: { id: conversation.botId }, data: { parentBotId: conversation.otherBotId },
+      }),
+    )).rejects.toThrow(/Bot parent scope does not match/);
+  });
+
+  it.each([
+    { botId: conversation.botId },
+    { groupId: conversation.groupId },
+    { externalConversationId: conversation.externalId },
+  ])("rejects a new thread attributed to a different owner from its parent", async (parent) => {
+    await expect(runAsSystem("synthetic thread ownership mismatch", () =>
+      app.prisma.thread.create({ data: { spaceId, userId: second.userId, ...parent } }),
+    )).rejects.toThrow(/Thread parent scope does not match/);
+  });
+
+  it.each([
+    { botId: conversation.peerBotId, threadId: conversation.threadId },
+    { botId: conversation.otherBotId, threadId: conversation.threadId },
+    { botId: conversation.outsiderBotId, threadId: conversation.groupThreadId },
+    { botId: conversation.peerBotId, threadId: conversation.externalThreadId },
+  ])("rejects a task that does not belong to the given Bot's conversation", async (target) => {
+    await expect(runAsSystem("synthetic task ownership mismatch", () =>
+      app.prisma.task.create({ data: {
+        spaceId, userId: first.userId, ...target, prompt: "fixture", status: "queued",
+      } }),
+    )).rejects.toThrow(/Task parent scope does not match/);
+  });
+
+  it("requires a Run's Bot and thread to match its saved Task", async () => {
+    await expect(runAsSystem("synthetic Run ownership mismatch", () =>
+      app.prisma.run.create({ data: {
+        spaceId, userId: first.userId, botId: conversation.peerBotId,
+        threadId: conversation.peerThreadId, taskId: conversation.taskId,
+        trigger: "chat", status: "queued",
+      } }),
+    )).rejects.toThrow(/Run parent scope does not match/);
+  });
+
+  it("still accepts ordinary home tasks and runs under the tenant's scope", async () => {
+    const created = await runAsTenant(tenant(first), () =>
+      app.prisma.$transaction(async (tx) => {
+        const task = await tx.task.create({ data: {
+          spaceId, userId: first.userId, botId: conversation.botId,
+          threadId: conversation.threadId, prompt: "fixture", status: "queued",
+        } });
+        return tx.run.create({ data: {
+          spaceId, userId: first.userId, botId: conversation.botId,
+          threadId: conversation.threadId, taskId: task.id, trigger: "chat", status: "queued",
+        } });
+      }),
+    );
+    expect(created.taskId).toEqual(expect.any(String));
+    expect(await runAsTenant(tenant(first), () =>
+      app.prisma.run.findUnique({ where: { id: created.id } }),
+    )).not.toBeNull();
+  });
+
+  it("permits same-value identity updates and renaming without changing scope", async () => {
+    await expect(runAsTenant(tenant(first), () => app.prisma.$executeRaw`
+      UPDATE bots SET "spaceId" = ${spaceId}, "userId" = ${first.userId},
+        "projectWorkspaceId" = NULL, name = 'Renamed fixture' WHERE id = ${conversation.botId}
+    `)).resolves.toBe(1);
+    await expect(runAsSystem("synthetic workspace ownership mutation", () => app.prisma.$executeRaw`
+      UPDATE project_workspaces SET "userId" = ${second.userId} WHERE id = ${first.workspaceId}
+    `)).rejects.toThrow(/Conversation identity and target are immutable/);
+  });
+
+  it("keeps external operation scope after deleting its Bot and thread", async () => {
+    const botId = `workspace-retired-bot-${suffix}`;
+    const threadId = `workspace-retired-thread-${suffix}`;
+    const agentId = `workspace-retained-agent-${suffix}`;
+    const purchaseId = `workspace-retained-purchase-${suffix}`;
+    await runAsSystem("synthetic retained operation fixtures", () => owner.prisma.$transaction(async (tx) => {
+      await tx.bot.create({ data: { id: botId, spaceId, userId: first.userId, name: "Fixture", color: "#000000" } });
+      await tx.thread.create({ data: { id: threadId, spaceId, userId: first.userId, botId } });
+      await tx.cloudAgent.create({ data: {
+        id: agentId, operationKey: agentId, providerKey: "scope-fixture", spaceId,
+        userId: first.userId, botId, threadId, title: "Fixture", launchRequest: {}, nextPollAt: null,
+      } });
+      await tx.purchase.create({ data: {
+        id: purchaseId, operationKey: purchaseId, spaceId, userId: first.userId, botId, threadId,
+        threadGeneration: 0, provider: "scope-fixture", remoteId: "synthetic-remote",
+        merchantName: "Fixture", merchantUrl: "https://example.test", amount: 1, currency: "USD",
+        status: "canceled", nextPollAt: null,
+      } });
+      await tx.bot.delete({ where: { id: botId } });
+    }));
+    const read = async () => ({
+      agent: await app.prisma.cloudAgent.findUnique({ where: { id: agentId } }),
+      purchase: await app.prisma.purchase.findUnique({ where: { id: purchaseId } }),
+    });
+    const expected = { spaceId, userId: first.userId, projectWorkspaceId: null, botId, threadId };
+    const own = await runAsTenant(tenant(first), read);
+    expect(own.agent).toMatchObject(expected);
+    expect(own.purchase).toMatchObject(expected);
+    expect(await runAsTenant(tenant(second), read)).toEqual({ agent: null, purchase: null });
+    expect(await runAsTenant({ spaceId: otherSpaceId, userId: first.userId }, read))
+      .toEqual({ agent: null, purchase: null });
+    expect(await runAsTenant({ ...tenant(first), projectWorkspaceId: "synthetic-other-project" }, read))
+      .toEqual({ agent: null, purchase: null });
+    await expect(runAsTenant(tenant(first), () => app.prisma.cloudAgent.update({
+      where: { id: agentId }, data: { status: "cancelled", nextPollAt: null },
+    }))).resolves.toMatchObject({ status: "cancelled", ...expected });
+    await expect(runAsSystem("synthetic retained operation mutation", () => app.prisma.purchase.update({
+      where: { id: purchaseId }, data: { threadGeneration: 1 },
+    }))).rejects.toThrow(/Conversation identity and target are immutable/);
+    await expect(runAsSystem("synthetic retained operation mutation", () => app.prisma.cloudAgent.update({
+      where: { id: agentId }, data: { providerKey: "other-provider" },
+    }))).rejects.toThrow(/Conversation identity and target are immutable/);
+  });
+
+  it("retains the seven project write gates", async () => {
+    const constraints = await owner.prisma.$queryRaw<Array<{ name: string; validated: boolean; definition: string }>>`
+      SELECT conname AS name, convalidated AS validated, pg_get_constraintdef(oid) AS definition FROM pg_constraint
+      WHERE connamespace = 'public'::regnamespace AND contype = 'c'
+        AND conrelid = ANY(ARRAY['public.bots'::regclass, 'public.chat_groups'::regclass,
+          'public.threads'::regclass, 'public.tasks'::regclass, 'public.runs'::regclass,
+          'public.cloud_agents'::regclass, 'public.purchases'::regclass])
+        AND conname = ANY(ARRAY['bots_project_scope_disabled', 'chat_groups_project_scope_disabled',
+          'threads_project_scope_disabled', 'tasks_project_scope_disabled', 'runs_project_scope_disabled',
+          'cloud_agents_project_scope_disabled', 'purchases_project_scope_disabled'])
+      ORDER BY conname
+    `;
+    expect(constraints).toEqual([
+      "bots", "chat_groups", "cloud_agents", "purchases", "runs", "tasks", "threads",
+    ].map((table) => ({
+      name: `${table}_project_scope_disabled`, validated: true,
+      definition: expect.stringMatching(/"projectWorkspaceId" IS NULL/),
+    })));
   });
 
   it("requires a Space membership and restricts deleting an owner membership", async () => {

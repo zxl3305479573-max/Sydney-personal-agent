@@ -6,7 +6,7 @@ import {
 } from "@rakazo/contracts";
 import { Stack, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotChipPicker } from "../components/bot-chip-picker";
@@ -16,17 +16,18 @@ import { GroupAvatar } from "../components/group-avatar";
 import { NativeActionButton } from "../components/native-action-button";
 import { SheetCloseButton } from "../components/sheet-close-button";
 import type { MobileBot } from "../lib/api";
-import { rpc } from "../lib/api";
+import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { addToSearchInbox, searchInboxSession } from "../lib/search-inbox";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
 export default function NewGroup() {
   const sideInsets = useSideInsets();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const tokens = useMobileTokens();
   const router = useRouter();
   const headerHeight = useHeaderHeight();
@@ -37,7 +38,12 @@ export default function NewGroup() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const creating = useRef(false);
-  const valid = selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
+  const mounted = useRef(false);
+  const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
+  const openedScope = useRef(scopeKey).current;
+  const current = () => openedScope === projectScopeKey() && !isSpaceSelectionPending();
+  const scopeChanged = scopeKey !== openedScope || isSpaceSelectionPending();
+  const valid = !scopeChanged && selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
   const picked = selected.flatMap((id) => bots.find((bot) => bot.id === id) ?? []);
   const goBack = () => {
     if (!creating.current) setStep("bots");
@@ -48,9 +54,23 @@ export default function NewGroup() {
     else router.replace("/");
   }
   useEffect(() => {
-    void rpc("bots/list")
-      .then((nextBots) => setBots(nextBots.filter((bot) => !bot.archivedAt)))
-      .catch(() => undefined);
+    mounted.current = true;
+    let active = true;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const requestContext = await captureApiRequestContext();
+        if (!active || !mounted.current || !current()) return;
+        const nextBots = await rpc("bots/list", undefined, {
+          requestContext, signal: controller.signal, skipSpaceAuthRecovery: true,
+        });
+        if (active && mounted.current && current()) setBots(nextBots.filter((bot) => !bot.archivedAt));
+      } catch (cause) {
+        if (active && mounted.current && current())
+          setError(errorText(cause, t("Could not load bots")));
+      }
+    })();
+    return () => { active = false; mounted.current = false; controller.abort(); };
   }, []);
   useEffect(() => {
     if (step !== "name") return;
@@ -62,26 +82,31 @@ export default function NewGroup() {
   }, [step]);
 
   async function create() {
-    if (!valid || creating.current) return;
+    if (!valid || creating.current || !current()) return;
     creating.current = true;
     setPending(true);
     setError(null);
     const askedIn = searchInboxSession();
     try {
+      const requestContext = await captureApiRequestContext();
+      if (!mounted.current || !current()) return;
       const group = await rpc("groups/create", {
         name: name.trim() || defaultGroupName(picked.map((bot) => bot.name)),
         botIds: selected,
+      }, {
+        requestContext, skipSpaceAuthRecovery: true,
       });
+      if (!mounted.current || !current()) return;
       addToSearchInbox({ kind: "group", group }, askedIn);
       router.replace({
         pathname: "/group-thread",
         params: { groupId: group.id, name: group.name },
       });
     } catch (err) {
-      setError(errorText(err, t("Could not create group")));
+      if (mounted.current && current()) setError(errorText(err, t("Could not create group")));
     } finally {
       creating.current = false;
-      setPending(false);
+      if (mounted.current) setPending(false);
     }
   }
   return (
@@ -161,8 +186,17 @@ export default function NewGroup() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          {step === "bots" ? (
-            <BotChipPicker bots={bots} selected={selected} onChange={setSelected} />
+          {scopeChanged ? (
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              {locale.startsWith("zh")
+                ? "账号或空间已变化，请关闭后重新创建群聊。若创建请求已发出，请回到原空间确认结果。"
+                : "The account or space changed. Close and start again. If creation was submitted, check the original space."}
+            </Text>
+          ) : step === "bots" ? (
+            <>
+              {error ? <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>{error}</Text> : null}
+              <BotChipPicker bots={bots} selected={selected} onChange={setSelected} />
+            </>
           ) : (
             <View key="name">
               <View style={{ alignItems: "center", marginTop: 24, marginBottom: 32 }}>
@@ -208,7 +242,7 @@ export default function NewGroup() {
                 fill
                 label={pending ? t("Creating…") : name.trim() ? t("Create") : t("Skip")}
                 prominence={name.trim() ? "primary" : "secondary"}
-                disabled={pending}
+                disabled={pending || scopeChanged}
                 onPress={() => void create()}
                 style={{ marginTop: 24, borderRadius: 28 }}
               />
