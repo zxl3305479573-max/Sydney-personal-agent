@@ -2862,3 +2862,19 @@ Docker、固定镜像及隔离条件。演练使用占位角色和合成会话�
 非 root Linux、可信的 `/usr/bin/age` 和 `/usr/bin/age-keygen`，维护机当前
 不存在这两个路径。按候选说明先完成独立审查，再在受控隔离环境安排测试、
 确认工具来源及清理；不得以此用例采集真实卷或解除生产硬阻断。
+
+# 2026-11-17 获取 iOS 侧载包
+
+构建工作流 `.github/workflows/mobile-ios-sideload.yml` 在推送 `apps/mobile/**`
+改动时自动运行，也可手动 `workflow_dispatch` 指定 `api_url` 与 `bundle_id`。
+产物为无签名 IPA，需由用户自行签名安装。
+
+- 本轮 Run：`44006236585`（提交 `e3a16f580`），产物 `sydney-ios-unsigned-44006236585-1`，
+  保留 7 天。
+- 下载地址（需登录仓库账号）：
+  `https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44006236585`
+- 本机已下载并解包的位置：`D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`，
+  同目录含 `SHA256.txt` 与原始压缩包。
+- 该目录不属于仓库工作区，不会进入版本控制；如需长期保留，请自行复制到其他位置。
+- 产物内默认后台地址为构建变量注入的 `https://124.221.182.39`，不包含旧域名默认入口。
+- 未验证：签名、安装、真机登录与功能验收均由用户侧完成，本机无法代做。

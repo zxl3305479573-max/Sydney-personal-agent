@@ -5488,3 +5488,23 @@ USB 项，Apple Mobile Device Service 运行；iPASide 内置库在
 - 未构建或安装 iPhone 应用，未验证原生图片、人格库及与真实后台的交互。
 - 对新增内置头像读取与选图流程仅做源码检查，未验证 iOS 打包后的资源 URI、
   文件读取或相册处理；界面交互、视觉一致性和弹层关闭后的导航均未实测。
+
+## 2026-11-17 iOS 侧载包构建（run 44006236585）
+
+- 代码提交 `e3a16f580` 已推送到 `cursor/integrate-remote-branches-7334`，触发工作流
+  `mobile-ios-sideload.yml`；Run `44006236585` 各步骤成功，包括生成工程、移除推送权限、
+  Pod 安装、权限核对、无签名构建、产物校验与上传。
+- 产物名 `sydney-ios-unsigned-44006236585-1`，内含 `Sydney-unsigned.ipa`（25,964,841 字节）
+  和 `SHA256.txt`；本地解包后重算 SHA256 为
+  `bb3b9653f29868fb3a396dee23834852d0ac1347089b38d4c42273399f4dcc15`，与构建机输出一致。
+- 构建变量为 `EXPO_PUBLIC_API_URL=https://124.221.182.39`、
+  `SYDNEY_IOS_BUNDLE_ID=xin.zxlup.sydney`、`SYDNEY_COMPANION_EXPERIMENT=0`。
+- 包内 `Info.plist` 显示 `CFBundleIdentifier` 为 `xin.zxlup.sydney`、版本 `1.0.12`、
+  `NSAllowsLocalNetworking` 为真，未发现 `aps-environment` 或 `com.apple.developer.*` 权限；
+  工作流的权限核对步骤同样通过。
+- 包内 `main.jsbundle` 含 `124.221.182.39`；`pc.zxlup.xin` 只出现 1 次，位于默认地址守卫的
+  旧来源迁移常量，不作为默认连接地址。
+- 包内 `main.jsbundle` 含 `bot-avatars`、`projects` 相关代码，应用包内存在内置头像素材目录，
+  说明新增 Bot 创建界面与项目工作区代码已进入本次构建。
+- 未验证项：本机没有签名证书，未做 IPA 签名、安装或 iPhone 真机启动；未验证登录、新建 Bot、
+  人格选择、项目工作区切换和聊天的真机表现，也未验证手机与桌面同账号数据同步。
