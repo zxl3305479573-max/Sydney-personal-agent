@@ -118,7 +118,7 @@ describe("loadEnv", () => {
       );
     }
   });
-  it("only enables project conversation creation in explicitly configured test mode", () => {
+  it("enables project conversation creation only when explicitly configured", () => {
     expect(loadEnv(base).projectConversationCreateExperiment).toBe(false);
     expect(
       loadEnv({ ...base, SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true" })
@@ -130,7 +130,7 @@ describe("loadEnv", () => {
         NODE_ENV: "development",
         SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true",
       }).projectConversationCreateExperiment,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       loadEnv({
         ...base,
@@ -140,9 +140,18 @@ describe("loadEnv", () => {
         SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
         SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true",
       }).projectConversationCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+      }).projectConversationCreateExperiment,
     ).toBe(false);
   });
-  it("allows project creation experiments only in explicitly configured test mode", () => {
+  it("allows project creation only when explicitly configured", () => {
     expect(loadEnv(base).projectWorkspaceCreateExperiment).toBe(false);
     expect(
       loadEnv({ ...base, SYDNEY_PROJECT_CREATE_EXPERIMENT: "true" })
@@ -154,7 +163,7 @@ describe("loadEnv", () => {
         NODE_ENV: "development",
         SYDNEY_PROJECT_CREATE_EXPERIMENT: "true",
       }).projectWorkspaceCreateExperiment,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       loadEnv({
         ...base,
@@ -163,6 +172,15 @@ describe("loadEnv", () => {
         ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
         SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
         SYDNEY_PROJECT_CREATE_EXPERIMENT: "true",
+      }).projectWorkspaceCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
       }).projectWorkspaceCreateExperiment,
     ).toBe(false);
   });

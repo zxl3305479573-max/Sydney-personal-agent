@@ -321,10 +321,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     companionScreenExperimental:
       source.SYDNEY_COMPANION_SCREEN_EXPERIMENT === "true" &&
       (source.NODE_ENV === "test" || source.NODE_ENV === "development"),
-    projectWorkspaceCreateExperiment:
-      source.SYDNEY_PROJECT_CREATE_EXPERIMENT === "true" && source.NODE_ENV === "test",
+    projectWorkspaceCreateExperiment: source.SYDNEY_PROJECT_CREATE_EXPERIMENT === "true",
     projectConversationCreateExperiment:
-      source.SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT === "true" && source.NODE_ENV === "test",
+      source.SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT === "true",
     integrationApiCallbackEnabled: source.SYDNEY_INTEGRATION_API_CALLBACK === "true",
     mcpNativeCallbackOrigin: resolveMcpNativeCallbackOrigin(
       source.SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN,
