@@ -130,9 +130,9 @@ describe("createSandboxProvider", () => {
     const sandbox = await createSandboxProvider("native-linux", {});
 
     expect(sandbox.describe().id).toBe("none");
-    await expect(
-      sandbox.provision({ botId: "bot", homePath: "/tmp" }, ctx),
-    ).rejects.toThrow("SYDNEY_NATIVE_DRIVER_SOCKET");
+    await expect(sandbox.provision({ botId: "bot", homePath: "/tmp" }, ctx)).rejects.toThrow(
+      "SYDNEY_NATIVE_DRIVER_SOCKET",
+    );
   });
 
   it("accepts only sandbox kinds, including none", async () => {

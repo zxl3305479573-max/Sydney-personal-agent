@@ -38,6 +38,9 @@ const ui = vi.hoisted(() => ({
   searchInboxSession: vi.fn(),
   loadCollapsedSections: vi.fn(),
   saveCollapsedSections: vi.fn(),
+  sessionGeneration: 7,
+  selectedSpace: "space-a" as string | null,
+  selectionSequence: 0,
 }));
 
 vi.mock("react-native", () => {
@@ -120,7 +123,23 @@ vi.mock("expo-router", () => {
     },
   };
 });
-vi.mock("./api", () => ({ rpc: ui.rpc }));
+vi.mock("./api", () => ({
+  rpc: ui.rpc,
+  currentApiBase: () => "http://api.test",
+  currentSessionGeneration: () => ui.sessionGeneration,
+  selectedSpaceId: () => ui.selectedSpace,
+  spaceSelectionSeq: () => ui.selectionSequence,
+  isSpaceSelectionPending: () => false,
+  captureApiRequestContext: async () => ({
+    apiBase: "http://api.test",
+    sessionGeneration: ui.sessionGeneration,
+    headers: { "x-rakazo-space-id": ui.selectedSpace ?? "" },
+  }),
+}));
+vi.mock("./session", () => ({
+  currentSessionGeneration: () => ui.sessionGeneration,
+  subscribeSessionGeneration: () => () => undefined,
+}));
 vi.mock("./native", () => ({
   native: {},
   useThemedStyles: (factory: () => unknown) => useMemo(factory, [factory]),
@@ -159,13 +178,22 @@ vi.mock("../components/bot-avatar", () => ({
     identity,
     muted,
     motion,
+    size,
   }: {
     identity: string;
     muted?: boolean;
     motion?: string;
+    size?: number;
   }) => {
     ui.avatars.push(identity);
-    return <b data-identity={identity} data-muted={String(Boolean(muted))} data-motion={motion} />;
+    return (
+      <b
+        data-identity={identity}
+        data-muted={String(Boolean(muted))}
+        data-motion={motion}
+        data-size={size}
+      />
+    );
   },
 }));
 vi.mock("../components/group-avatar", () => ({ GroupAvatar: () => null }));
@@ -237,6 +265,9 @@ beforeEach(() => {
     avatars: [],
     chevronStarts: [],
     chevronTargets: [],
+    sessionGeneration: 7,
+    selectedSpace: "space-a",
+    selectionSequence: 0,
   });
   onRenderItem = undefined;
   container = document.createElement("div");
@@ -308,9 +339,9 @@ it.each(["midnight", "focus", "foreground"])(
       } as unknown as InboxItem,
     ]);
     const labels = (todayTime: string, weekTime: string) => [
-      `Helper, ${todayTime}, No messages yet`,
+      `Helper, ${todayTime}`,
       `Team, ${todayTime}`,
-      `Helper, ${weekTime}, No messages yet`,
+      `Helper, ${weekTime}`,
       `Team, ${weekTime}`,
     ];
     try {
@@ -370,15 +401,11 @@ it("renders saved bot rows without a notification setting", () => {
       />
     )),
   );
-  expect(rowLabels()).toEqual([
-    "Alpha, No messages yet",
-    "Beta, No messages yet",
-    "Gamma, notifications silenced, No messages yet",
-  ]);
+  expect(rowLabels()).toEqual(["Alpha", "Beta", "Gamma, notifications silenced"]);
   expect(Array.from(container.querySelectorAll("button"), (row) => row.textContent)).toEqual([
-    "AlphaNo messages yet",
-    "BetaNo messages yet",
-    "GammaNo messages yet",
+    "Alpha",
+    "Beta",
+    "Gamma",
   ]);
   const avatars = Array.from(container.querySelectorAll("i[data-row] > b"));
   expect(avatars.map((avatar) => avatar.parentElement?.dataset.row)).toEqual([
@@ -392,12 +419,19 @@ it("renders saved bot rows without a notification setting", () => {
     "true",
   ]);
   expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.motion === "lazy")).toBe(true);
+  expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.size === "56")).toBe(true);
 });
 
-it("says working only while the bot works, and shows nothing beside the time", () => {
-  const bots = ["running", "waiting_takeover", "waiting_input", "idle"].map(
-    (status) => ({ id: status, name: "Helper", preview: "Hi", status }) as MobileBot,
-  );
+it("shows actionable bot status in place of the message preview", () => {
+  const bots = [
+    "queued",
+    "leased",
+    "running",
+    "waiting_takeover",
+    "waiting_input",
+    "failed",
+    "idle",
+  ].map((status) => ({ id: status, name: "Helper", preview: "Hi", status }) as MobileBot);
   render(
     bots.map((bot) => (
       <BotRow
@@ -411,21 +445,37 @@ it("says working only while the bot works, and shows nothing beside the time", (
       />
     )),
   );
-  // A "Needs you" computer card or an ask card is the state; the row must not claim work.
-  expect(rowLabels()).toEqual(["Helper, Working…, Hi", "Helper, Hi", "Helper, Hi", "Helper, Hi"]);
-  // The avatar's motion and corner dot are the only working sign; the time stands alone.
+  expect(rowLabels()).toEqual([
+    "Helper, Queued",
+    "Helper, Starting…",
+    "Helper, Working…",
+    "Helper, Needs you",
+    "Helper, Needs input",
+    "Helper, Failed",
+    "Helper, Hi",
+  ]);
   expect(Array.from(container.querySelectorAll("button"), (row) => row.textContent)).toEqual([
-    "HelperHi",
-    "HelperHi",
-    "HelperHi",
+    "HelperQueued",
+    "HelperStarting…",
+    "HelperWorking…",
+    "HelperNeeds you",
+    "HelperNeeds input",
+    "HelperFailed",
     "HelperHi",
   ]);
 });
 
-it("ties the pinned tiles' avatars to the pinned row, so they freeze when it scrolls away", () => {
-  const bot = { id: "bot-p", name: "Pinned", preview: "", pinned: true } as MobileBot;
+it("shows pinned tiles with avatar and name without the message preview", () => {
+  const bot = {
+    id: "bot-p",
+    name: "Pinned",
+    preview: "Private preview",
+    pinned: true,
+  } as MobileBot;
   render(<List items={[{ type: "pinned", chats: [{ kind: "bot", bot }] }]} />);
   expect(container.querySelector('[data-row="pinned"] b[data-identity="bot-p"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Pinned"]')?.textContent).toContain("Pinned");
+  expect(container.textContent).not.toContain("Private preview");
 });
 
 it("collapses a section from its heading and keeps the choice for the account", async () => {
@@ -633,6 +683,7 @@ it("adds a bot made from the inbox's Create menu to the inbox roster before open
   expect(ui.rpc).toHaveBeenCalledWith(
     "bots/create",
     expect.objectContaining({ avatarSet: "organic" }),
+    expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }),
   );
   // The session is taken before the requests, so a bot that lands after a switch is dropped.
   expect(calls.slice(0, 5)).toEqual([
@@ -642,4 +693,112 @@ it("adds a bot made from the inbox's Create menu to the inbox roster before open
     `roster ${JSON.stringify({ kind: "bot", bot })} ${JSON.stringify(askedIn)}`,
     `open ${JSON.stringify({ pathname: "/thread", params: { botId: bot.id, name: bot.name } })}`,
   ]);
+});
+
+it("sends the requested identity to the bot's original workspace", async () => {
+  ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
+  ui.rpc.mockReset().mockImplementation(async (method: string) =>
+    method === "bots/create" ? { id: "bot-new", name: "小雪", spaceId: "space-a" } : [],
+  );
+  const identity = {
+    name: "小雪",
+    color: "#123456",
+    instructions: "温柔",
+    spawnKey: "mobile-create-test-attempt",
+  };
+  await createInboxBot({ identity, refreshBots: async () => undefined, openChat: vi.fn() });
+  expect(ui.rpc).toHaveBeenCalledWith(
+    "bots/create",
+    expect.objectContaining(identity),
+    expect.objectContaining({
+      requestContext: expect.objectContaining({ headers: { "x-rakazo-space-id": "space-a" } }),
+    }),
+  );
+});
+
+it("continues creating a bot when the initial roster request stalls", async () => {
+  vi.useFakeTimers();
+  try {
+    ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
+    let listSignal: AbortSignal | undefined;
+    ui.rpc.mockReset().mockImplementation((method: string, _input: unknown, options: { signal?: AbortSignal }) => {
+      if (method === "bots/list") {
+        listSignal = options.signal;
+        return new Promise(() => undefined);
+      }
+      return Promise.resolve(method === "bots/create" ? { id: "bot-new", name: "New Bot", spaceId: "space-a" } : undefined);
+    });
+    const openChat = vi.fn();
+    const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
+    await pending;
+    expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything());
+    expect(openChat).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(listSignal?.aborted).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("does not navigate after a workspace change while creation is pending", async () => {
+  vi.useFakeTimers();
+  try {
+    ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
+    let finishCreate: (value: unknown) => void = () => undefined;
+    ui.rpc.mockReset().mockImplementation((method: string) =>
+      method === "bots/create"
+        ? new Promise((resolve) => { finishCreate = resolve; })
+        : new Promise(() => undefined),
+    );
+    const openChat = vi.fn();
+    const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
+    await vi.waitFor(() => expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()));
+    ui.selectedSpace = "space-b";
+    ui.selectionSequence += 1;
+    finishCreate({ id: "bot-new", name: "New Bot", spaceId: "space-a" });
+    await pending;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(openChat).not.toHaveBeenCalled();
+    expect(ui.rpc.mock.calls.some(([method]) => method === "onboarding/start")).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("does not start onboarding when the workspace changes before the roster finishes", async () => {
+  ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
+  let finishList: (value: unknown[]) => void = () => undefined;
+  ui.rpc.mockReset().mockImplementation((method: string) =>
+    method === "bots/list"
+      ? new Promise<unknown[]>((resolve) => { finishList = resolve; })
+      : Promise.resolve({ id: "bot-new", name: "New Bot", spaceId: "space-a" }),
+  );
+  const openChat = vi.fn();
+  const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
+  await pending;
+  expect(openChat).toHaveBeenCalledOnce();
+  ui.selectedSpace = "space-b";
+  ui.selectionSequence += 1;
+  finishList([]);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(ui.rpc.mock.calls.some(([method]) => method === "onboarding/start")).toBe(false);
+});
+
+it("does not navigate or start onboarding after an account change during creation", async () => {
+  ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
+  let finishCreate: (value: unknown) => void = () => undefined;
+  ui.rpc.mockReset().mockImplementation((method: string) =>
+    method === "bots/create"
+      ? new Promise((resolve) => { finishCreate = resolve; })
+      : Promise.resolve([]),
+  );
+  const openChat = vi.fn();
+  const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
+  await vi.waitFor(() => expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()));
+  ui.sessionGeneration += 1;
+  finishCreate({ id: "bot-new", name: "New Bot", spaceId: "space-a" });
+  await pending;
+  expect(openChat).not.toHaveBeenCalled();
+  expect(ui.rpc.mock.calls.some(([method]) => method === "onboarding/start")).toBe(false);
 });

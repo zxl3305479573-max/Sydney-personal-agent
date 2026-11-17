@@ -26,7 +26,7 @@ export function getCachedResponseStreamingEnabled(): boolean {
 export async function loadResponseStreamingPreference(): Promise<ResponseStreamingPreference> {
   try {
     const stored = await SecureStore.getItemAsync(RESPONSE_STREAMING_STORAGE_KEY);
-    memoryPreference = normalizeResponseStreamingPreference(stored);
+    memoryPreference = stored === null ? "on" : normalizeResponseStreamingPreference(stored);
   } catch {
     memoryPreference = memoryPreference ?? "off";
   }

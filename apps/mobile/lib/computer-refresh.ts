@@ -30,7 +30,9 @@ function screenKey(status: ComputerStatus) {
 /** One polling lifecycle per mounted computer target. Explicit refreshes supersede older reads. */
 export function createComputerRefresh(options: {
   readStatus: () => Promise<ComputerStatus>;
-  readScreen: (attempts: number) => Promise<string | null>;
+  readScreen: (
+    attempts: number,
+  ) => Promise<string | null | { url: string | null; isCurrent: () => boolean }>;
   onStatus: (status: ComputerStatus) => void;
   onScreen: (url: string | null) => void;
   onReady: () => void;
@@ -82,8 +84,11 @@ export function createComputerRefresh(options: {
       options.onStatus(status);
       if (screenStale(status, !poll)) {
         try {
-          const url = await options.readScreen(screenAttempts);
+          const result = await options.readScreen(screenAttempts);
           if (!current()) return;
+          if (typeof result === "object" && result !== null && !result.isCurrent())
+            throw new Error("Screen request context changed");
+          const url = typeof result === "object" && result !== null ? result.url : result;
           screenLoaded = true;
           screenStatus = screenKey(status);
           screenReadAt = screenRenewReadAt(url, Date.now());

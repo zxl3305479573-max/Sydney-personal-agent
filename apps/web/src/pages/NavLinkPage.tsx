@@ -25,7 +25,7 @@ export function NavLinkPage() {
   const link = me.data?.navLinks?.find((candidate) => candidate.id === linkId);
   if (!link) return <Navigate to="/app" replace />;
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
+    <div className="sydney-page-surface flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
       <WindowChrome />
       <header className="flex items-center gap-3 border-b px-4 py-3">
         <Link

@@ -2,6 +2,7 @@ import { createHash, createHmac, generateKeyPairSync, randomBytes, sign } from "
 import type { TransactionalEmail } from "@rakazo/adapter-kit";
 import type * as Db from "@rakazo/db";
 import { bootstrapUserSpace, recordSecurityEvent } from "@rakazo/db";
+import { createEmailVerificationToken } from "better-auth/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthEnv } from "./index.js";
 import { CLIENT_IP_HEADER, createAuth } from "./index.js";
@@ -51,7 +52,17 @@ function fixture({
   requestOrigin?: string;
   /** The provider accepts the message but never settles, like a hung SMTP connection. */
   stalledDelivery?: boolean;
-} & Pick<AuthEnv, "singleAccount" | "afterDeleteSession" | "afterReplaceSession"> = {}) {
+  rewritePasswordResetLink?: (url: string) => Promise<string> | string;
+} & Pick<
+  AuthEnv,
+  | "singleAccount"
+  | "afterDeleteSession"
+  | "afterReplaceSession"
+  | "publicLinkOrigin"
+  | "extraOrigins"
+  | "rewritePasswordResetLink"
+  | "nativeEmailVerificationOnApi"
+> = {}) {
   const data: Record<string, Record<string, unknown>[]> = {
     user: [],
     account: [],
@@ -576,6 +587,103 @@ describe("session credentials", () => {
     expect(server?.session).not.toHaveProperty("token");
   });
 
+  it("uses a trusted public IP for emails without changing the domain passkey RP", async () => {
+    const options = {
+      baseURL: "https://old.example.test",
+      webOrigin: "https://old.example.test",
+      publicLinkOrigin: "https://192.0.2.10",
+      extraOrigins: ["https://192.0.2.10"],
+    };
+    const signup = fixture(options);
+    expect(signup.auth.passkeyRpId).toBe("old.example.test");
+    expect((await signup.signup()).status).toBe(200);
+    const verification = new URL(signup.messages.at(-1)!.text.match(/https:\/\/\S+/)![0]);
+    expect(verification.origin).toBe(options.publicLinkOrigin);
+    expect(verification.pathname).toBe("/api/auth/verify-email");
+    expect(verification.searchParams.get("callbackURL")).toBe("https://192.0.2.10/sign-in");
+
+    const reset = fixture(options);
+    await reset.verifiedAccount();
+    expect(
+      (
+        await reset.request("/request-password-reset", {
+          email: "approved@example.test",
+          redirectTo: "https://192.0.2.10/reset-password",
+        })
+      ).status,
+    ).toBe(200);
+    const link = new URL(reset.messages.at(-1)!.text.match(/https:\/\/\S+/)![0]);
+    expect(link.origin).toBe(options.publicLinkOrigin);
+    expect(link.pathname).toMatch(/^\/api\/auth\/reset-password\//);
+    expect(link.searchParams.get("callbackURL")).toBe("https://192.0.2.10/reset-password");
+    expect(() => fixture({ ...options, extraOrigins: [] })).toThrow("publicLinkOrigin");
+  });
+
+  it("sends verification to the API return page when explicitly enabled", async () => {
+    const f = fixture({ nativeEmailVerificationOnApi: true });
+    expect((await f.signup()).status).toBe(200);
+    const link = new URL(f.messages.at(-1)!.text.match(/http:\/\/\S+/)![0]);
+    expect(link.searchParams.get("callbackURL")).toBe(
+      "http://web.example.test/api/auth/email-verification-return",
+    );
+    const forged = await f.request(
+      `/verify-email?token=forged&callbackURL=${encodeURIComponent("http://web.example.test/api/auth/email-verification-return")}`,
+    );
+    expect(forged.status).toBe(302);
+    const failure = new URL(forged.headers.get("location")!);
+    expect(failure.pathname).toBe("/api/auth/email-verification-return");
+    expect(failure.searchParams.get("error")).toBe("INVALID_TOKEN");
+    expect(f.data.user![0]!.emailVerified).toBe(false);
+    const expiredToken = await createEmailVerificationToken(
+      "offline-auth-secret-at-least-32-characters",
+      "approved@example.test",
+      undefined,
+      -60,
+    );
+    const expired = await f.request(
+      `/verify-email?token=${encodeURIComponent(expiredToken)}&callbackURL=${encodeURIComponent("http://web.example.test/api/auth/email-verification-return")}`,
+    );
+    expect(expired.status).toBe(302);
+    expect(new URL(expired.headers.get("location")!).searchParams.get("error")).toBe(
+      "TOKEN_EXPIRED",
+    );
+    expect(f.data.user![0]!.emailVerified).toBe(false);
+    const untrusted = await f.request(
+      `/verify-email?token=${encodeURIComponent(link.searchParams.get("token")!)}&callbackURL=${encodeURIComponent("https://attacker.example/callback")}`,
+    );
+    expect(untrusted.status).toBeGreaterThanOrEqual(400);
+    expect(untrusted.headers.get("location")).toBeNull();
+    expect(f.data.user![0]!.emailVerified).toBe(false);
+    const verification = await f.verify();
+    expect(verification.status).toBe(302);
+    expect(verification.headers.get("location")).toBe(
+      "http://web.example.test/api/auth/email-verification-return",
+    );
+    expect(f.data.user![0]!.emailVerified).toBe(true);
+    const replay = await f.verify();
+    expect(replay.status).toBe(302);
+    expect(replay.headers.get("location")).toBe(
+      "http://web.example.test/api/auth/email-verification-return",
+    );
+    expect(f.data.user![0]!.emailVerified).toBe(true);
+  });
+
+  it("accepts an already-issued verification link with the old sign-in return", async () => {
+    const before = fixture();
+    expect((await before.signup()).status).toBe(200);
+    const oldLink = new URL(before.messages.at(-1)!.text.match(/http:\/\/\S+/)![0]);
+    expect(oldLink.searchParams.get("callbackURL")).toBe("http://web.example.test/sign-in");
+
+    const after = fixture({ nativeEmailVerificationOnApi: true });
+    expect((await after.signup()).status).toBe(200);
+    const response = await after.request(
+      `${oldLink.pathname.replace("/api/auth", "")}${oldLink.search}`,
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("http://web.example.test/sign-in");
+    expect(after.data.user![0]!.emailVerified).toBe(true);
+  });
+
   it("stores password reset tokens hashed and accepts one stored before hashing", async () => {
     const f = fixture();
     const { token: _token } = await f.verifiedAccount();
@@ -605,6 +713,74 @@ describe("session credentials", () => {
       password: "offline-password56",
     });
     expect(signedIn.status).toBe(200);
+  });
+
+  it("rewrites password reset email links only when the deployment opts in", async () => {
+    const rewritePasswordResetLink = vi.fn(
+      async (url: string) =>
+        new URL("/api/auth/native-reset?token=synthetic", new URL(url).origin).href,
+    );
+    const native = fixture({
+      rewritePasswordResetLink,
+      publicLinkOrigin: "https://public.example.test",
+      extraOrigins: ["https://public.example.test"],
+    });
+    await native.verifiedAccount();
+    expect(
+      (
+        await native.request("/request-password-reset", {
+          email: "approved@example.test",
+        })
+      ).status,
+    ).toBe(200);
+    expect(rewritePasswordResetLink).toHaveBeenCalledOnce();
+    expect(new URL(rewritePasswordResetLink.mock.calls[0]![0]).origin).toBe(
+      "https://public.example.test",
+    );
+    const rewritten = new URL(native.messages.at(-1)!.text.match(/https?:\/\/\S+/)![0]);
+    expect(rewritten.pathname).toBe("/api/auth/native-reset");
+    expect(rewritten.searchParams.get("token")).toBe("synthetic");
+    const issuedToken = new URL(rewritePasswordResetLink.mock.calls[0]![0]).pathname
+      .split("/")
+      .at(-1)!;
+    expect(
+      (await native.request("/reset-password", { token: issuedToken, newPassword: "short" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await native.request("/reset-password", {
+          token: issuedToken,
+          newPassword: "offline-password34",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await native.request("/reset-password", {
+          token: issuedToken,
+          newPassword: "offline-password56",
+        })
+      ).status,
+    ).toBe(400);
+    await native.request("/request-password-reset", { email: "approved@example.test" });
+    const expiredToken = new URL(rewritePasswordResetLink.mock.calls.at(-1)![0]).pathname
+      .split("/")
+      .at(-1)!;
+    for (const row of native.data.verification!) row.expiresAt = new Date(Date.now() - 1);
+    expect(
+      (
+        await native.request("/reset-password", {
+          token: expiredToken,
+          newPassword: "offline-password56",
+        })
+      ).status,
+    ).toBe(400);
+    const legacy = fixture();
+    await legacy.verifiedAccount();
+    await legacy.request("/request-password-reset", { email: "approved@example.test" });
+    const original = new URL(legacy.messages.at(-1)!.text.match(/https?:\/\/\S+/)![0]);
+    expect(original.pathname).toMatch(/^\/api\/auth\/reset-password\//);
   });
 
   it("requires the password to delete an account, even from a fresh session", async () => {
@@ -779,6 +955,18 @@ describe("identity confirmation", () => {
 });
 
 describe("verification email blocking", () => {
+  it("preserves the signup password after email link verification and later sign-ins", async () => {
+    const f = fixture();
+    expect((await f.signup()).status).toBe(200);
+    expect((await f.signin()).status).toBe(403);
+    expect((await f.verify()).status).toBeLessThan(400);
+    const first = await f.signin();
+    expect(first.status).toBe(200);
+    const { token } = (await first.json()) as { token: string };
+    expect((await f.request("/sign-out", {}, token)).status).toBe(200);
+    expect((await f.signin()).status).toBe(200);
+  });
+
   it("requires mailbox proof before an open signup can create a session", async () => {
     const f = fixture();
     const response = await f.signup();
@@ -1024,6 +1212,22 @@ describe("passkeys", () => {
       }),
     ).toMatchObject({ user: { id: body.user.id } });
     expect(bootstrapUserSpace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps domain passkey registration and login with a separate IP email origin", async () => {
+    const f = passkeyFixture({
+      delivery: false,
+      publicLinkOrigin: "https://192.0.2.10",
+      extraOrigins: ["https://192.0.2.10"],
+    });
+    expect(f.auth.passkeyRpId).toBe("web.example.test");
+    const signup = await f.signup();
+    expect(signup.status).toBe(200);
+    const { token } = (await signup.json()) as { token: string };
+    expect((await f.register(token)).status).toBe(200);
+    const signedIn = await f.signInWithPasskey();
+    expect(signedIn.status).toBe(200);
+    expect((await signedIn.json()).user.id).toBe(f.data.user![0]!.id);
   });
 
   it("registers only from a fresh session of the account", async () => {

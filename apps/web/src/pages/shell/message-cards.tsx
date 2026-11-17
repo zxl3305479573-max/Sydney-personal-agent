@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { BuiCard, SuccessPop } from "../../components/ai/primitives";
 import { OptionRow } from "../../components/OptionRow";
 import type { ArtifactTarget } from "../../lib/artifact-open";
+import { navigateAuthorizationPopup, openAuthorizationPopup } from "../../lib/authorization-popup";
 import { chartViewport } from "../../lib/chart-viewport";
 import { connectMcpOauth } from "../../lib/mcp-connect";
 import { importChunk } from "../../lib/preload-recovery";
@@ -155,6 +156,8 @@ export function AppConnectCard({
   useEffect(() => () => connectionAttempt.current?.abort(), []);
 
   async function authorize() {
+    const popup = openAuthorizationPopup("rakazo-app-connect");
+    let navigated = false;
     connectionAttempt.current?.abort();
     const controller = new AbortController();
     connectionAttempt.current = controller;
@@ -167,7 +170,8 @@ export function AppConnectCard({
         displayName: block.name,
       });
       if (started.authorizationUrl) {
-        window.open(started.authorizationUrl, "rakazo-app-connect", "popup,width=560,height=720");
+        navigateAuthorizationPopup(popup, started.authorizationUrl);
+        navigated = true;
       }
       const result = await waitForConnection(
         started.connectionId,
@@ -188,6 +192,7 @@ export function AppConnectCard({
         setError(errorText(error, t`Could not authorize this app`));
       }
     } finally {
+      if (!navigated) popup?.close();
       if (connectionAttempt.current === controller) {
         connectionAttempt.current = null;
         setBusy(false);

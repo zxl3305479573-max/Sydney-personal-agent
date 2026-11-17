@@ -120,7 +120,7 @@ export function SidebarFooter({
             side={mobile ? "bottom" : "top"}
             sideOffset={8}
             align="start"
-            className="sydney-mobile-account-popover max-h-(--available-height) w-[295px] max-w-[calc(100vw-69px)] gap-0 overflow-y-auto p-1 *:shrink-0 data-closed:animate-none"
+            className={`sydney-mobile-account-popover max-h-(--available-height) ${mobile ? "w-[230px] max-w-[calc(100vw-36px)]" : "w-[295px] max-w-[calc(100vw-69px)]"} gap-0 overflow-y-auto p-1 *:shrink-0 data-closed:animate-none`}
           >
             <div
               data-testid="account-menu-header"

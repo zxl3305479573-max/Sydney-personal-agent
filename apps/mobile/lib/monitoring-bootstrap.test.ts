@@ -5,7 +5,10 @@ const state = vi.hoisted(() => ({
   importBroken: true,
   configure: vi.fn(async () => {}),
   report: vi.fn(),
-  subscribe: vi.fn(),
+  subscribe: vi.fn((_listener: () => void) => {}),
+  sessionSubscribe: vi.fn((_listener: () => void) => {}),
+  load: vi.fn(async () => "https://selected.example.com"),
+  headers: vi.fn(async () => ({ authorization: "Bearer fake-session" })),
 }));
 vi.mock("expo-secure-store", () => ({ getItem: () => state.storedBase }));
 vi.mock("react-native", () => ({ AppState: { addEventListener: vi.fn() } }));
@@ -17,15 +20,15 @@ vi.mock("./monitoring", () => ({
 vi.mock("./api", () => {
   if (state.importBroken) throw new Error("app import failed");
   return {
-    authHeaders: async () => ({ authorization: "Bearer fake-session" }),
+    authHeaders: state.headers,
     currentApiBase: () => state.storedBase,
-    loadApiBase: async () => state.storedBase,
+    loadApiBase: state.load,
     subscribeApiBase: state.subscribe,
   };
 });
 vi.mock("./session", () => ({
   currentSessionGeneration: () => 0,
-  subscribeSessionGeneration: vi.fn(),
+  subscribeSessionGeneration: state.sessionSubscribe,
 }));
 
 beforeEach(() => {
@@ -33,6 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.importBroken = true;
   state.configure.mockResolvedValue(undefined);
+  state.load.mockResolvedValue(state.storedBase);
+  state.headers.mockResolvedValue({ authorization: "Bearer fake-session" });
 });
 
 describe("early monitoring bootstrap", () => {
@@ -51,6 +56,39 @@ describe("early monitoring bootstrap", () => {
     const { startMobileMonitoring } = await import("./monitoring-bootstrap");
     startMobileMonitoring();
     await vi.waitFor(() => expect(state.subscribe).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(state.configure).toHaveBeenCalledWith(state.storedBase, {
+        authorization: "Bearer fake-session",
+      }),
+    );
+  });
+
+  it("does not attach a session while server settings are unresolved or rejected", async () => {
+    state.importBroken = false;
+    let rejectLoad: (error: Error) => void = () => undefined;
+    state.load.mockReturnValue(new Promise((_resolve, reject) => {
+      rejectLoad = reject;
+    }));
+    const { startMobileMonitoring } = await import("./monitoring-bootstrap");
+    startMobileMonitoring();
+    await vi.waitFor(() => expect(state.sessionSubscribe).toHaveBeenCalledOnce());
+    state.sessionSubscribe.mock.calls[0]![0]();
+    await Promise.resolve();
+    expect(state.headers).not.toHaveBeenCalled();
+    rejectLoad(new Error("storage locked"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(state.headers).not.toHaveBeenCalled();
+  });
+
+  it("attaches a session after server settings succeed following a failed load", async () => {
+    state.importBroken = false;
+    state.load.mockRejectedValue(new Error("storage locked"));
+    const { startMobileMonitoring } = await import("./monitoring-bootstrap");
+    startMobileMonitoring();
+    await vi.waitFor(() => expect(state.subscribe).toHaveBeenCalledOnce());
+    expect(state.headers).not.toHaveBeenCalled();
+    state.subscribe.mock.calls[0]![0]();
     await vi.waitFor(() =>
       expect(state.configure).toHaveBeenCalledWith(state.storedBase, {
         authorization: "Bearer fake-session",

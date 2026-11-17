@@ -115,11 +115,24 @@ describe("connectionFormFields", () => {
       thinkingLevel: null,
       maxTokens: "4096",
       contextWindow: "262144",
-      supportsImages: false,
+      supportsImages: true,
       maxImagesPerPrompt: "",
       accountId: "",
       gatewayId: "",
     });
+  });
+
+  it("preserves a saved connection's disabled or unspecified image capability", () => {
+    for (const supportsImages of [false, undefined]) {
+      const saved = credential({ provider: COMPATIBLE, supportsImages });
+      expect(
+        connectionFormFields({ catalog, provider: COMPATIBLE, modelId: "local", credential: saved })
+          .supportsImages,
+      ).toBe(false);
+    }
+    expect(
+      connectionFormFields({ catalog, provider: "anthropic", modelId: "opus" }).supportsImages,
+    ).toBe(false);
   });
 
   it("shows a saved OpenAI-compatible connection, with effort only for its saved model", () => {

@@ -54,3 +54,6 @@ playwright-report-www
 # Wuying Web SDK vendor files; fetch with node scripts/wuying-web-sdk.mjs
 apps/web/public/wuying/WuyingWebSDK.js
 apps/web/public/wuying/sdk/
+packages/core/wuying-assets/WuyingWebSDK.js
+packages/core/wuying-assets/sdk/
+.codex-cli-runs/

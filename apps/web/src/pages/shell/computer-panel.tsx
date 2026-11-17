@@ -5,12 +5,16 @@ import { BotAvatar, Button } from "@rakazo/ui-web";
 import { Maximize2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { ComputersUnavailableHint } from "../../components/ComputersUnavailableHint";
+import { screenIframeSandbox } from "../../lib/computer-screen";
 import { computerLabel, computerPlaceholder, DesktopKindEmptyState } from "./computer-view";
 
 type ComputerPanelProps = {
   bot: Bot;
   computer: ComputerStatus | null;
   computerOpen: boolean;
+  embeddedScreenUrl: string | null;
+  screenFrameKey?: string;
+  screenFrameRef: (frame: HTMLIFrameElement | null) => void;
   computerScreenError: ReactNode;
   computerBooting: ReactNode;
   booting: boolean;
@@ -27,6 +31,9 @@ export function ComputerPanel({
   bot,
   computer,
   computerOpen,
+  embeddedScreenUrl,
+  screenFrameKey,
+  screenFrameRef,
   computerScreenError,
   computerBooting,
   booting,
@@ -101,6 +108,34 @@ export function ComputerPanel({
           <DesktopKindEmptyState
             className={`grid h-full place-items-center px-6 text-center text-sm text-muted-foreground/80 ${hideOnHover}`}
           />
+        ) : computer?.state === "running" && embeddedScreenUrl && !computerScreenError ? (
+          <iframe
+            key={screenFrameKey}
+            title={t`Bot screen preview`}
+            ref={screenFrameRef}
+            src={embeddedScreenUrl}
+            sandbox={screenIframeSandbox(embeddedScreenUrl)}
+            className="h-full w-full border-0 bg-black"
+            allow="clipboard-read; clipboard-write"
+            style={{ pointerEvents: "none" }}
+          />
+        ) : computer?.state === "running" &&
+          !computerScreenError &&
+          !computerBooting &&
+          !showComputerRecoveryHint ? (
+          <div
+            data-testid="computer-running-preview"
+            className={`flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground/80 ${hideOnHover}`}
+          >
+            <BotAvatar
+              avatarSet={bot.avatarSet}
+              color={bot.color}
+              identity={bot.id}
+              size={44}
+              status={bot.status}
+            />
+            <span>{computerLabel(computer.mode, bot.name)}</span>
+          </div>
         ) : (
           <div
             className={`grid h-full place-items-center px-6 text-center text-sm text-muted-foreground/80 ${hideOnHover}`}

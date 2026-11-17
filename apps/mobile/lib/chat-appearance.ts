@@ -14,6 +14,7 @@ export type MobileBubbleStyle = {
 
 export type MobileChatAppearance = {
   backgroundUri: string | null;
+  backgroundFit: "cover" | "contain";
   backgroundOpacity: number;
   overlayOpacity: number;
   bubble: MobileBubbleStyle | null;
@@ -23,6 +24,7 @@ const STORAGE_KEY = "rakazo.chatAppearance.mobile";
 const BACKGROUND_FILE = new File(Paths.document, "sydney-chat-background");
 const DEFAULT_APPEARANCE: MobileChatAppearance = {
   backgroundUri: null,
+  backgroundFit: "cover",
   backgroundOpacity: 1,
   overlayOpacity: 0.25,
   bubble: null,
@@ -53,6 +55,7 @@ function normalize(value: unknown): MobileChatAppearance {
     validColor((bubble as Record<string, unknown>).botForeground);
   return {
     backgroundUri: typeof record.backgroundUri === "string" ? record.backgroundUri : null,
+    backgroundFit: record.backgroundFit === "contain" ? "contain" : "cover",
     backgroundOpacity:
       typeof record.backgroundOpacity === "number"
         ? Math.min(1, Math.max(0, record.backgroundOpacity))
@@ -159,10 +162,13 @@ export function mobileBubbleSurfaceStyle(
   if (!bubble) {
     return { backgroundColor: fallback.backgroundColor, borderRadius: 20 };
   }
+  const color = role === "user" ? bubble.userBackground : bubble.botBackground;
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
   return {
-    backgroundColor: role === "user" ? bubble.userBackground : bubble.botBackground,
+    backgroundColor: `rgba(${red}, ${green}, ${blue}, ${bubble.opacity})`,
     borderRadius: bubble.radius,
-    opacity: bubble.opacity,
   };
 }
 

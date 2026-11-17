@@ -157,7 +157,7 @@ export function SkillsDialog({ onClose }: { onClose: () => void }) {
             <h3 className="mb-2 px-2.5 text-[14px] font-medium text-muted-foreground">
               <Trans>Plugins</Trans>
             </h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {skillSets.map((install) => {
                 const set = installedSelection(install);
                 return (
@@ -209,7 +209,7 @@ export function SkillsDialog({ onClose }: { onClose: () => void }) {
               </Button>
             </div>
           ) : null}
-          <div data-testid="skill-packs" className="grid grid-cols-2 gap-2">
+          <div data-testid="skill-packs" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {packs.map((entry) => {
               const pack = pluginSelection(entry);
               return (
@@ -239,9 +239,9 @@ export function SkillsDialog({ onClose }: { onClose: () => void }) {
     >
       <DialogContent
         showCloseButton={false}
-        className="flex h-[680px] max-h-[calc(100%-2rem)] w-[920px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[920px]"
+        className="flex h-[min(680px,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] w-[920px] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[920px]"
       >
-        <DialogHeader className="flex-row items-start justify-between px-8 pt-7">
+        <DialogHeader className="shrink-0 flex-row items-center justify-between gap-2 px-4 pt-5 pb-2 sm:px-8 sm:pt-7 sm:pb-0">
           <DialogTitle className="text-heading2 text-foreground">
             <Trans>Skills</Trans>
           </DialogTitle>
@@ -258,7 +258,9 @@ export function SkillsDialog({ onClose }: { onClose: () => void }) {
             </DialogClose>
           </div>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-8 pt-5 pb-8">{content()}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-6 sm:px-8 sm:pt-5 sm:pb-8">
+          {content()}
+        </div>
       </DialogContent>
     </Dialog>
   );

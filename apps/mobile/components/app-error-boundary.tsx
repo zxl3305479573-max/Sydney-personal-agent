@@ -5,17 +5,17 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { t } from "../lib/i18n";
 import { reportMobileError } from "../lib/monitoring";
-import { completeMobileStartup } from "../lib/startup";
+import { completeMobileStartup, ServerSettingsStartupError } from "../lib/startup";
 
 type Props = { children: ReactNode };
-type State = { failed: boolean };
+type State = { failed: boolean; serverSettingsError: boolean };
 
 /** Keep a render failure from becoming a blank release screen. */
 export class AppErrorBoundary extends Component<Props, State> {
-  override state: State = { failed: false };
+  override state: State = { failed: false, serverSettingsError: false };
 
-  static getDerivedStateFromError(): State {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown): State {
+    return { failed: true, serverSettingsError: error instanceof ServerSettingsStartupError };
   }
 
   override componentDidCatch(error: Error) {
@@ -30,9 +30,14 @@ export class AppErrorBoundary extends Component<Props, State> {
     const tokens = mobileTokens();
     return (
       <View style={[styles.screen, { backgroundColor: tokens.background }]}>
+        {this.state.serverSettingsError ? (
+          <Text style={[styles.message, { color: tokens.foreground }]}>
+            {t("Server settings or the saved session could not be verified.")}
+          </Text>
+        ) : null}
         <Pressable
           accessibilityRole="button"
-          onPress={() => this.setState({ failed: false })}
+          onPress={() => this.setState({ failed: false, serverSettingsError: false })}
           style={({ pressed }) => [
             styles.action,
             { backgroundColor: tokens.primary, opacity: pressed ? 0.7 : 1 },
@@ -51,4 +56,5 @@ const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 18, padding: 28 },
   action: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
   actionText: { fontSize: 15, fontWeight: "600" },
+  message: { fontSize: 15, textAlign: "center" },
 });

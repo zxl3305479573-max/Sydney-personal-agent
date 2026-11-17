@@ -45,6 +45,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConnectorIcon } from "../../components/connector-icon";
+import { GlassSurface } from "../../components/glass-surface";
+import { McpOAuthReturn } from "../../components/mcp-oauth-return";
 import { MenuPicker } from "../../components/menu-picker";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
@@ -76,7 +78,9 @@ import {
   pluginParams,
   pluginSite,
 } from "../../lib/plugin-marketplace";
+import { queryClient, rpcQuery } from "../../lib/query";
 import { useSideInsets } from "../../lib/side-insets";
+import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
 
 type SourceAuth = "none" | "bearer" | "header" | "oauth";
@@ -96,6 +100,7 @@ export default function Integrations() {
   const scheme = useResolvedAppearance();
   const styles = useThemedStyles(createIntegrationsStyles);
   const { t } = useI18n();
+  const mcpReturn = useMcpOAuthReturn();
   const categoryLabels: Record<PluginCategory, string> = {
     productivity: t("Productivity"),
     communication: t("Communication"),
@@ -268,6 +273,8 @@ export default function Integrations() {
     setCatalogReady(false);
     setSources([]);
     setPluginInstalls([]);
+    setPluginEntries([]);
+    setPluginsState("loading");
     setMcpServers([]);
     setMcpError(null);
     setDetailKey(null);
@@ -301,6 +308,8 @@ export default function Integrations() {
       setCatalogReady(false);
       setSources([]);
       setPluginInstalls([]);
+      setPluginEntries([]);
+      setPluginsState("loading");
       setMcpServers([]);
       setMcpError(null);
       setDetailKey(null);
@@ -310,6 +319,25 @@ export default function Integrations() {
     if (!previous || previous.userId !== scope.userId || previous.spaceId !== scope.spaceId) {
       const cached = readIntegrationsCache(scope);
       if (cached) applySnapshot(cached);
+    }
+    const serversQuery = rpcQuery("mcp/servers/list");
+    const installsQuery = rpcQuery("capabilities/list");
+    const marketplaceQuery = rpcQuery("marketplace/catalog", { query: "" });
+    const cachedServers = queryClient.getQueryData(serversQuery.queryKey);
+    const cachedInstalls = queryClient.getQueryData(installsQuery.queryKey);
+    const cachedMarketplace = queryClient.getQueryData(marketplaceQuery.queryKey);
+    if (cachedServers) setMcpServers(cachedServers);
+    if (cachedInstalls) {
+      setSources(
+        cachedInstalls.filter(
+          (item) => item.kind === "mcp" || item.kind === "api" || item.kind === "graphql",
+        ),
+      );
+      setPluginInstalls(cachedInstalls.filter((item) => item.kind === "plugin"));
+    }
+    if (cachedMarketplace) {
+      setPluginEntries(cachedMarketplace.entries);
+      setPluginsState(cachedMarketplace.unavailableRegistries.length ? "partial" : "ready");
     }
     const generation = ++refreshGeneration.current;
     const sourceGeneration = ++sourcesGeneration.current;
@@ -321,6 +349,7 @@ export default function Integrations() {
           isIntegrationsScopeCurrent(scope) &&
           sourceGeneration === sourcesGeneration.current
         ) {
+          queryClient.setQueryData(serversQuery.queryKey, servers);
           setMcpServers(servers);
           setMcpError(null);
         }
@@ -341,6 +370,7 @@ export default function Integrations() {
           isIntegrationsScopeCurrent(scope) &&
           sourceGeneration === sourcesGeneration.current
         ) {
+          queryClient.setQueryData(installsQuery.queryKey, installs);
           setSources(
             installs.filter(
               (item) => item.kind === "mcp" || item.kind === "api" || item.kind === "graphql",
@@ -357,6 +387,7 @@ export default function Integrations() {
           isIntegrationsScopeCurrent(scope) &&
           sourceGeneration === sourcesGeneration.current
         ) {
+          queryClient.setQueryData(marketplaceQuery.queryKey, result);
           setPluginEntries(result.entries);
           setPluginsState(result.unavailableRegistries.length ? "partial" : "ready");
         }
@@ -488,35 +519,38 @@ export default function Integrations() {
   function renderPluginRow(entry: PluginMarketplaceEntry) {
     const installed = installedSources.has(entry.installedSource);
     return (
-      <Pressable
+      <GlassSurface
         key={entry.id}
-        accessibilityRole="button"
-        accessibilityLabel={entry.displayName}
-        onPress={() => openPlugin(pluginParams(entry))}
-        style={({ pressed }) => [
-          styles.row,
-          catalogColumns === 2 ? styles.catalogCell : null,
-          pressed && styles.pressed,
-        ]}
+        shape="roundedRectangle"
+        cornerRadius={14}
+        style={catalogColumns === 2 ? styles.catalogCell : undefined}
+        fallbackStyle={styles.rowFallback}
       >
-        <PluginIcon
-          logo={entry.logo}
-          name={entry.displayName}
-          site={pluginSite(entry)}
-          size={LOGO_SIZE}
-        />
-        <View style={styles.grow}>
-          <Text numberOfLines={1} style={styles.title}>
-            {entry.displayName}
-          </Text>
-          {entry.description ? (
-            <Text numberOfLines={1} style={styles.secondary}>
-              {entry.description}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={entry.displayName}
+          onPress={() => openPlugin(pluginParams(entry))}
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        >
+          <PluginIcon
+            logo={entry.logo}
+            name={entry.displayName}
+            site={pluginSite(entry)}
+            size={LOGO_SIZE}
+          />
+          <View style={styles.grow}>
+            <Text numberOfLines={1} style={styles.title}>
+              {entry.displayName}
             </Text>
-          ) : null}
-        </View>
-        {installed ? <Text style={styles.secondary}>{t("Added")}</Text> : <Chevron />}
-      </Pressable>
+            {entry.description ? (
+              <Text numberOfLines={1} style={styles.secondary}>
+                {entry.description}
+              </Text>
+            ) : null}
+          </View>
+          {installed ? <Text style={styles.secondary}>{t("Added")}</Text> : <Chevron />}
+        </Pressable>
+      </GlassSurface>
     );
   }
 
@@ -537,39 +571,52 @@ export default function Integrations() {
   function renderInstalledPlugin(install: CapabilityInstall, summary: string, signIn: boolean) {
     const params = installedParams(install);
     return (
-      <Pressable
+      <GlassSurface
         key={install.id}
-        testID="installed-plugin"
-        accessibilityRole="button"
-        accessibilityLabel={params.name}
-        onPress={() => openPlugin(params)}
-        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        shape="roundedRectangle"
+        cornerRadius={14}
+        fallbackStyle={styles.rowFallback}
       >
-        <PluginIcon logo={params.logo} name={params.name} site={params.site} size={LOGO_SIZE} />
-        <View style={styles.grow}>
-          <Text numberOfLines={1} style={styles.title}>
-            {params.name}
-          </Text>
-          <Text numberOfLines={1} style={styles.secondary}>
-            {summary}
-          </Text>
-        </View>
-        {signIn ? (
-          <NativeActionButton
-            fill={false}
-            label={t("Sign in")}
-            onPress={() => openPlugin(params)}
-            prominence="secondary"
-          />
-        ) : null}
-      </Pressable>
+        <Pressable
+          testID="installed-plugin"
+          accessibilityRole="button"
+          accessibilityLabel={params.name}
+          onPress={() => openPlugin(params)}
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        >
+          <PluginIcon logo={params.logo} name={params.name} site={params.site} size={LOGO_SIZE} />
+          <View style={styles.grow}>
+            <Text numberOfLines={1} style={styles.title}>
+              {params.name}
+            </Text>
+            <Text numberOfLines={1} style={styles.secondary}>
+              {summary}
+            </Text>
+          </View>
+          {signIn ? (
+            <NativeActionButton
+              fill={false}
+              label={t("Sign in")}
+              onPress={() => openPlugin(params)}
+              prominence="secondary"
+            />
+          ) : null}
+        </Pressable>
+      </GlassSurface>
     );
   }
 
   /** What this account already has: apps it can reach, then skills it follows. */
   function renderSavedServer(server: McpServer) {
     return (
-      <View key={server.id} testID="registered-mcp-server" style={styles.row}>
+      <GlassSurface
+        key={server.id}
+        testID="registered-mcp-server"
+        shape="roundedRectangle"
+        cornerRadius={14}
+        style={styles.row}
+        fallbackStyle={styles.rowFallback}
+      >
         <ConnectorIcon name={server.name} size={LOGO_SIZE} />
         <Text numberOfLines={1} style={[styles.title, styles.grow]}>
           {server.name}
@@ -584,7 +631,7 @@ export default function Integrations() {
             prominence="secondary"
           />
         ) : null}
-      </View>
+      </GlassSurface>
     );
   }
 
@@ -618,7 +665,14 @@ export default function Integrations() {
             })}
             {standaloneServers.map(renderSavedServer)}
             {sources.map((source) => (
-              <View key={source.id} testID="tool-source" style={styles.row}>
+              <GlassSurface
+                key={source.id}
+                testID="tool-source"
+                shape="roundedRectangle"
+                cornerRadius={14}
+                style={styles.row}
+                fallbackStyle={styles.rowFallback}
+              >
                 <ConnectorIcon name={source.name} size={LOGO_SIZE} />
                 <View style={styles.grow}>
                   <Text numberOfLines={1} style={styles.title}>
@@ -638,7 +692,7 @@ export default function Integrations() {
                   onPress={() => void removeSource(source)}
                   prominence="destructive"
                 />
-              </View>
+              </GlassSurface>
             ))}
           </View>
         ) : null}
@@ -898,7 +952,7 @@ export default function Integrations() {
     setMcpError(null);
     try {
       // The API picks the registered web callback; native clients cannot supply one.
-      const result = await rpc("mcp/oauth/begin", { serverId });
+      const result = await mcpReturn.begin(serverId);
       if (!isCurrent()) return;
       if (result.status === "authorization_required") {
         oauthBrowserOpen.current = true;
@@ -1027,25 +1081,38 @@ export default function Integrations() {
         {renderCatalogActions(item, label)}
       </>
     );
-    const tileStyle = [styles.row, catalogColumns === 2 ? styles.catalogCell : null];
+    const tileStyle = catalogColumns === 2 ? styles.catalogCell : undefined;
     if (connected || brandPlugin) {
       return (
-        <Pressable
+        <GlassSurface
           key={catalogItemKey(item)}
-          accessibilityRole="button"
-          onPress={() =>
-            brandPlugin ? openPlugin(managedPluginParams(brandPlugin, item)) : openDetail(item)
-          }
+          shape="roundedRectangle"
+          cornerRadius={14}
           style={tileStyle}
+          fallbackStyle={styles.rowFallback}
         >
-          {body}
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              brandPlugin ? openPlugin(managedPluginParams(brandPlugin, item)) : openDetail(item)
+            }
+            style={styles.row}
+          >
+            {body}
+          </Pressable>
+        </GlassSurface>
       );
     }
     return (
-      <View key={catalogItemKey(item)} style={tileStyle}>
+      <GlassSurface
+        key={catalogItemKey(item)}
+        shape="roundedRectangle"
+        cornerRadius={14}
+        style={[styles.row, tileStyle]}
+        fallbackStyle={styles.rowFallback}
+      >
         {body}
-      </View>
+      </GlassSurface>
     );
   }
 
@@ -1083,7 +1150,12 @@ export default function Integrations() {
           />
         </View>
 
-        <View style={styles.card}>
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={16}
+          style={styles.card}
+          fallbackStyle={styles.cardFallback}
+        >
           <Text style={styles.section}>{t("Accounts")}</Text>
           {accounts.map((row) => (
             <View key={row.id} style={styles.accountRow}>
@@ -1114,9 +1186,14 @@ export default function Integrations() {
             onPress={() => void connect(item)}
             prominence="secondary"
           />
-        </View>
+        </GlassSurface>
 
-        <View style={styles.card}>
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={16}
+          style={styles.card}
+          fallbackStyle={styles.cardFallback}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: toolsOpen }}
@@ -1150,7 +1227,7 @@ export default function Integrations() {
               )}
             </View>
           ) : null}
-        </View>
+        </GlassSurface>
       </View>
     );
   }
@@ -1225,7 +1302,13 @@ export default function Integrations() {
           prominence="secondary"
         />
         {adding === "github" ? (
-          <View testID="plugin-git-import" style={styles.card}>
+          <GlassSurface
+            testID="plugin-git-import"
+            shape="roundedRectangle"
+            cornerRadius={16}
+            style={styles.card}
+            fallbackStyle={styles.cardFallback}
+          >
             <TextInput
               value={gitUrl}
               onChangeText={setGitUrl}
@@ -1244,11 +1327,16 @@ export default function Integrations() {
               onPress={() => openPlugin(gitImportParams(gitUrl))}
               prominence="secondary"
             />
-          </View>
+          </GlassSurface>
         ) : null}
         {sourceError ? <Text style={styles.error}>{sourceError}</Text> : null}
         {adding === "source" && sourceKind ? (
-          <View style={styles.card}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={16}
+            style={styles.card}
+            fallbackStyle={styles.cardFallback}
+          >
             <Text style={styles.title}>
               {sourceKind === "treg"
                 ? t("Connect Treg")
@@ -1345,7 +1433,7 @@ export default function Integrations() {
                 prominence="secondary"
               />
             </View>
-          </View>
+          </GlassSurface>
         ) : null}
       </View>
     );
@@ -1359,27 +1447,34 @@ export default function Integrations() {
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
       >
+        <McpOAuthReturn flow={mcpReturn} onCompleted={() => void retryRefresh()} />
         {adding ? (
           renderAdding()
         ) : (
           <>
             {!detailItem ? renderAddMenuFallback() : null}
             {!detailItem ? (
-              <TextInput
-                value={query}
-                onChangeText={(value) => {
-                  setQuery(value);
-                  setVisibleCount(CONNECTION_CATALOG_PAGE_SIZE);
-                  setPluginCount(PLUGIN_PAGE_SIZE);
-                }}
-                accessibilityLabel={t("Search apps")}
-                placeholder={t("Search apps")}
-                placeholderTextColor={native.tertiaryLabel}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                style={styles.input}
-              />
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={12}
+                fallbackStyle={styles.inputFallback}
+              >
+                <TextInput
+                  value={query}
+                  onChangeText={(value) => {
+                    setQuery(value);
+                    setVisibleCount(CONNECTION_CATALOG_PAGE_SIZE);
+                    setPluginCount(PLUGIN_PAGE_SIZE);
+                  }}
+                  accessibilityLabel={t("Search apps")}
+                  placeholder={t("Search apps")}
+                  placeholderTextColor={native.tertiaryLabel}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+              </GlassSurface>
             ) : null}
 
             {!detailItem && (categories.length >= 2 || category) ? (
@@ -1434,7 +1529,11 @@ export default function Integrations() {
                     {Array.from({ length: 8 }, (_, index) => (
                       <View
                         key={index}
-                        style={[styles.row, catalogColumns === 2 ? styles.catalogCell : null]}
+                        style={[
+                          styles.row,
+                          styles.rowFallback,
+                          catalogColumns === 2 ? styles.catalogCell : null,
+                        ]}
                       >
                         <View style={styles.logoPlaceholder} />
                         <View style={styles.grow}>
@@ -1465,6 +1564,7 @@ export default function Integrations() {
                               key={key}
                               style={[
                                 styles.row,
+                                styles.rowFallback,
                                 catalogColumns === 2 ? styles.catalogCell : null,
                                 disabled ? { opacity: 0.7 } : null,
                               ]}
@@ -1533,7 +1633,8 @@ function createIntegrationsStyles() {
     content: { padding: 20, gap: 14 },
     explanation: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     section: { color: native.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
-    card: { padding: 16, borderRadius: 16, backgroundColor: native.fill, gap: 12 },
+    card: { padding: 16, borderRadius: 16, gap: 12 },
+    cardFallback: { backgroundColor: native.fill },
     input: {
       minHeight: 48,
       borderRadius: 12,
@@ -1542,6 +1643,8 @@ function createIntegrationsStyles() {
       paddingHorizontal: 14,
       fontSize: 15,
     },
+    inputFallback: { backgroundColor: native.fillPressed, borderRadius: 12 },
+    searchInput: { minHeight: 48, color: native.label, paddingHorizontal: 14, fontSize: 15 },
     catalogGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     catalogStack: { gap: 8 },
     catalogCell: { flexGrow: 1, flexBasis: "47%", maxWidth: "49%" },
@@ -1550,11 +1653,11 @@ function createIntegrationsStyles() {
       paddingHorizontal: 12,
       paddingVertical: 12,
       borderRadius: 14,
-      backgroundColor: native.fill,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
     },
+    rowFallback: { backgroundColor: native.fill, borderRadius: 14 },
     logoPlaceholder: {
       width: LOGO_SIZE,
       height: LOGO_SIZE,

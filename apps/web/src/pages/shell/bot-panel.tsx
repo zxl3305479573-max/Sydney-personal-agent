@@ -108,6 +108,7 @@ export function BotSettings({
   onTabChange,
   computer,
   routines,
+  backgroundSettings,
   memoryProviderConfigured,
   onSave,
   onExport,
@@ -120,6 +121,7 @@ export function BotSettings({
   onTabChange?: (tab: BotPanelTab) => void;
   computer?: ReactNode;
   routines?: ReactNode;
+  backgroundSettings?: ReactNode;
   focusModel?: number;
   onOpenConnections?: () => void;
   /** Unused: the skill sections read and save the shared cached skill list. */
@@ -729,6 +731,7 @@ export function BotSettings({
                 </label>
               ) : null}
             </SettingsGroup>
+            {backgroundSettings}
             <SettingsGroup label={t`Permissions`}>
               <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
                 <label htmlFor={`${ids}-daily-check-ins`} className={rowLabelClass}>

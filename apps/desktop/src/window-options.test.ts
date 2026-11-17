@@ -36,6 +36,17 @@ describe("desktop window chrome", () => {
 });
 
 describe("app window size", () => {
+  it("gives Windows startup more room while retaining margins on smaller work areas", () => {
+    expect(browserWindowOptions("win32", { width: 960, height: 720 }).width).toBeGreaterThanOrEqual(
+      820,
+    );
+    expect(browserWindowOptions("win32", { width: 700, height: 600 }).width).toBe(560);
+    expect(browserWindowOptions("win32", { width: 851, height: 600 }).width).toBe(681);
+    expect(browserWindowOptions("win32", { width: 852, height: 600 }).width).toBe(820);
+    expect(browserWindowOptions("linux", { width: 960, height: 720 }).width).toBe(768);
+    expect(browserWindowOptions("darwin", { width: 960, height: 720 }).width).toBe(768);
+  });
+
   it("opens smaller than a laptop screen so it reads as a window, not full screen", () => {
     const opts = browserWindowOptions("darwin", laptop);
     expect(opts.width).toBeLessThan(laptop.width);

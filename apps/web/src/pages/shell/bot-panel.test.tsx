@@ -30,7 +30,10 @@ vi.mock("../../lib/rpc", () => {
 vi.mock("@lingui/react/macro", () => {
   const t = (parts: TemplateStringsArray, ...values: unknown[]) =>
     parts.reduce((text, part, index) => `${text}${index > 0 ? values[index - 1] : ""}${part}`, "");
-  return { useLingui: () => ({ t }), Trans: ({ children }: { children: ReactNode }) => children };
+  return {
+    useLingui: () => ({ t, i18n: { locale: "en" } }),
+    Trans: ({ children }: { children: ReactNode }) => children,
+  };
 });
 vi.mock("@rakazo/ui-web", () => ({
   SectionHeading: ({
@@ -185,6 +188,7 @@ async function render(
   overrides: Partial<Bot> = {},
   memoryProviderConfigured = false,
   focusModel = 0,
+  backgroundSettings?: ReactNode,
 ) {
   await act(async () => {
     root.render(
@@ -194,6 +198,7 @@ async function render(
           focusModel={focusModel}
           bot={bot(description, overrides)}
           memoryProviderConfigured={memoryProviderConfigured}
+          backgroundSettings={backgroundSettings}
           onSave={onSave}
           onExport={onExport}
           onClear={() => undefined}
@@ -250,6 +255,13 @@ afterEach(async () => {
   queryClient.clear();
   container.remove();
   vi.unstubAllGlobals();
+});
+
+it("places conversation background settings immediately after voice", async () => {
+  await render("Billing", {}, false, 0, <div data-testid="background-settings">Background</div>);
+  const background = container.querySelector('[data-testid="background-settings"]')!;
+  expect(background.previousElementSibling?.textContent).toContain("Read replies aloud");
+  expect(background.nextElementSibling?.textContent).toContain("Permissions");
 });
 
 it("shows the profile and the Advanced tab's controls", async () => {

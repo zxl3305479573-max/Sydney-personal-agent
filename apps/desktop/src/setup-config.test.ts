@@ -18,6 +18,7 @@ import {
   serverHeadersFor,
   servesBundledRenderer,
   sessionPartitionForServerUrl,
+  standaloneSessionPartitionForServerUrl,
 } from "./setup-config.js";
 
 describe("server address normalization", () => {
@@ -33,6 +34,12 @@ describe("server address normalization", () => {
     expect(normalizeServerUrl("https://rakazo.example.com:8443/team")).toBe(
       "https://rakazo.example.com:8443",
     );
+  });
+
+  it("requires HTTPS for a public IP server", () => {
+    expect(normalizeServerUrl("203.0.113.10")).toBe("https://203.0.113.10");
+    expect(normalizeServerUrl("https://203.0.113.10:8443")).toBe("https://203.0.113.10:8443");
+    expect(normalizeServerUrl("http://203.0.113.10")).toBeNull();
   });
 
   it("trims surrounding space, trailing slashes, queries, and fragments", () => {
@@ -147,6 +154,16 @@ describe("saved setup", () => {
     expect(parseSetupInput({ mode: "new", serverUrl: RAKAZO_CLOUD_URL })).toBeNull();
     expect(servesBundledRenderer(RAKAZO_CLOUD_URL, false)).toBe(false);
   });
+
+  it.runIf(process.platform === "win32")(
+    "uses the production IP for the Windows cloud choice",
+    () => {
+      expect(RAKAZO_CLOUD_URL).toBe("https://124.221.182.39");
+      expect(
+        resolveStartupTarget({ saved: { mode: "existing", serverUrl: "https://pc.zxlup.xin" } }),
+      ).toEqual({ kind: "app", url: "https://pc.zxlup.xin", source: "saved" });
+    },
+  );
 });
 
 describe("server request headers", () => {
@@ -275,6 +292,21 @@ describe("bundled renderer eligibility", () => {
 });
 
 describe("remote-content isolation", () => {
+  it("keeps standalone sessions separate per backend and from existing sessions", () => {
+    const first = standaloneSessionPartitionForServerUrl("https://one.example.com/path");
+    expect(first).toBe(standaloneSessionPartitionForServerUrl("https://one.example.com/other"));
+    expect(first).not.toBe(standaloneSessionPartitionForServerUrl("https://one.example.com:8443"));
+    expect(first).not.toBe(standaloneSessionPartitionForServerUrl("https://two.example.com"));
+    expect(first).not.toBe(sessionPartitionForServerUrl("https://one.example.com"));
+    expect(first).toMatch(/^persist:sydney-standalone-[a-f0-9]{24}$/);
+    expect(first).not.toContain("one.example.com");
+    expect(
+      standaloneSessionPartitionForServerUrl("https://user:secret@one.example.com"),
+    ).toBeNull();
+    expect(standaloneSessionPartitionForServerUrl("file:///tmp")).toBeNull();
+    expect(standaloneSessionPartitionForServerUrl("not a URL")).toBeNull();
+  });
+
   it("uses a stable, opaque session partition per server origin", () => {
     const first = sessionPartitionForServerUrl("https://one.example.com/path");
     expect(first).toBe(sessionPartitionForServerUrl("https://one.example.com/other"));
@@ -282,6 +314,15 @@ describe("remote-content isolation", () => {
     expect(first).toMatch(/^persist:rakazo-[a-f0-9]{24}$/);
     expect(first).not.toContain("one.example.com");
     expect(sessionPartitionForServerUrl("data:text/html,fixture")).toBeNull();
+  });
+
+  it("does not share desktop session storage between a domain and an IP", () => {
+    const domain = sessionPartitionForServerUrl("https://server.example");
+    const ip = sessionPartitionForServerUrl("https://203.0.113.10");
+    expect(ip).toMatch(/^persist:rakazo-[a-f0-9]{24}$/);
+    expect(ip).not.toBe(domain);
+    expect(ip).toBe(sessionPartitionForServerUrl("https://203.0.113.10/chat"));
+    expect(ip).not.toBe(sessionPartitionForServerUrl("https://203.0.113.10:8443"));
   });
 
   it("opens only web URLs outside Electron", () => {

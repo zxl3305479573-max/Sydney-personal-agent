@@ -14,6 +14,7 @@ export interface AdapterContext {
   userId: string;
   botId?: string;
   runId?: string;
+  projectWorkspaceId?: string | null;
   /** Opaque fence for releasing a graphical screen without tearing down its replacement. */
   screenLeaseId?: string;
   /** Retain a completed run's screen for reuse by this bot. */
@@ -28,6 +29,11 @@ export interface AdapterContext {
     fence: number;
     validate: () => Promise<number | null>;
     expiresAt?: number;
+  };
+  nativeControlLease?: {
+    leaseId: string;
+    fence: number;
+    validate: () => Promise<number | null>;
   };
   signal: AbortSignal;
   /** Connected external accounts available to this run, including their owning connector. */
@@ -581,6 +587,10 @@ export interface AgentRunRequest {
   currentRunRequiresImageInput?: boolean;
   /** Server verified legacy attachment bytes remain available to file tools. */
   currentTurnImageFileFallback?: boolean;
+  /** Optional, conservatively eligible plain-chat input for experimental tool routing. */
+  toolIntentCandidate?: { message: string };
+  /** Optional observation of the first model request's tool-definition size. */
+  onInitialToolList?: (measurement: { count: number; bytes: number }) => void;
   tools: ConnectorTool[];
   model: AgentRunModel;
   /** Ordered, user-selected models eligible after provider unavailability. */

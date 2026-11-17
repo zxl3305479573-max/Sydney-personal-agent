@@ -30,17 +30,24 @@ export function evaluateTaskMandate(
   requested: TaskGrant,
 ): { allowed: boolean; reason?: string } {
   if (mandate.expiresAt <= mandate.now) return { allowed: false, reason: "expired" };
-  if (mandate.source !== "authenticated_user") return { allowed: false, reason: "untrusted_source" };
-  if (mandate.runId === "" || mandate.taskId === "") return { allowed: false, reason: "missing_ids" };
+  if (mandate.source !== "authenticated_user")
+    return { allowed: false, reason: "untrusted_source" };
+  if (mandate.runId === "" || mandate.taskId === "")
+    return { allowed: false, reason: "missing_ids" };
   if (mandate.runStatus !== "running") return { allowed: false, reason: "run_not_running" };
-  if (mandate.runLeaseOwner !== mandate.workerId) return { allowed: false, reason: "lease_owner_mismatch" };
-  if (mandate.runLeaseFence !== mandate.workerFence) return { allowed: false, reason: "fence_mismatch" };
-  if (mandate.control.intent !== "continue") return { allowed: false, reason: "control_not_continue" };
+  if (mandate.runLeaseOwner !== mandate.workerId)
+    return { allowed: false, reason: "lease_owner_mismatch" };
+  if (mandate.runLeaseFence !== mandate.workerFence)
+    return { allowed: false, reason: "fence_mismatch" };
+  if (mandate.control.intent !== "continue")
+    return { allowed: false, reason: "control_not_continue" };
   if (mandate.takeoverHolder !== null) return { allowed: false, reason: "takeover_active" };
   if (mandate.approvalPending) return { allowed: false, reason: "approval_pending" };
   const scope = mandate.scopes.some(
     (grant) =>
-      grant.tool === requested.tool && grant.action === requested.action && grant.resource === requested.resource,
+      grant.tool === requested.tool &&
+      grant.action === requested.action &&
+      grant.resource === requested.resource,
   );
   if (!scope) return { allowed: false, reason: "scope_mismatch" };
   return { allowed: true };

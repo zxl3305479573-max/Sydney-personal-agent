@@ -29,6 +29,7 @@ interface Invocation {
   serviceEnv?: string;
   imageTag?: string;
   envFile?: string;
+  composeFiles?: string[];
 }
 
 // These executables use only fixture files. PATH contains no real git or Docker, and the
@@ -53,6 +54,7 @@ const moveCheckout = (commit, branch, revision) => {
 };
 if (command === "docker") {
   call.compose = fs.readFileSync(args[args.indexOf("--file") + 1], "utf8");
+  call.composeFiles = args.flatMap((arg, index) => arg === "--file" ? [args[index + 1]] : []);
   call.serviceEnv = fs.readFileSync(fixture.serviceEnv, "utf8");
   call.envFile = fs.readFileSync(args[args.indexOf("--env-file") + 1], "utf8");
   call.imageTag = process.env.RAKAZO_IMAGE_TAG;
@@ -93,17 +95,36 @@ if (command === "docker") {
 }
 `;
 
-async function deployment(options: { failures: Failure[]; branch?: string; composePath?: string }) {
+async function deployment(options: {
+  failures: Failure[];
+  branch?: string;
+  composePath?: string;
+  overlay?: boolean;
+}) {
   const deployDir = await mkdtemp(path.join(os.tmpdir(), "rakazo-fork-recovery-"));
   directories.push(deployDir);
   const bin = path.join(deployDir, "fake-bin");
   const composeFile = path.join(deployDir, options.composePath ?? DEFAULT_COMPOSE_FILE);
-  const config = resolveUpdaterConfig({
-    RAKAZO_DEPLOY_DIR: deployDir,
-    RAKAZO_UPDATER_TOKEN: token,
-    RAKAZO_COMPOSE_FILE: options.composePath,
-    COMPOSE_PROJECT_NAME: "fixture-stack",
-  });
+  const config = resolveUpdaterConfig(
+    {
+      RAKAZO_DEPLOY_DIR: deployDir,
+      RAKAZO_UPDATER_TOKEN: token,
+      RAKAZO_COMPOSE_FILE: options.composePath,
+      RAKAZO_COMPOSE_OVERLAY_FILE: options.overlay
+        ? "/etc/rakazo/compose/production.overlay.yml"
+        : undefined,
+      COMPOSE_PROJECT_NAME: "fixture-stack",
+    },
+    {
+      inspect: () =>
+        ({
+          mode: 0o640,
+          uid: 0,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        }) as never,
+    },
+  );
   const serviceEnv = path.join(path.dirname(composeFile), "service.env");
   const compose = (revision: string) =>
     `services:\n  api:\n    image: example/app:\${RAKAZO_IMAGE_TAG}\n    env_file: ./service.env\n    command: ${revision}\n`;
@@ -209,6 +230,18 @@ describe.skipIf(process.platform === "win32")("fork recovery through fake execut
       remote: originalRemote,
     });
     expect(await readFile(fixture.config.envFile, "utf8")).toBe(originalEnv);
+  });
+
+  it("keeps the persistent overlay in failed deployment recovery", async () => {
+    const fixture = await deployment({ failures: ["recreate"], overlay: true });
+    const docker = fixture.calls.filter((call) => call.command === "docker");
+    expect(docker).toHaveLength(2);
+    for (const call of docker) {
+      expect(call.composeFiles).toEqual([
+        fixture.composeFile,
+        "/etc/rakazo/compose/production.overlay.yml",
+      ]);
+    }
   });
 
   it("skips Compose recovery when restoring the checkout fails", async () => {

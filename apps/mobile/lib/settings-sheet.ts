@@ -8,6 +8,7 @@ let closeSheet: (() => void) | null = null;
 const settingsScreens = new Set([
   "billing",
   "account",
+  "settings-home",
   "ai-data-sharing",
   "approvals",
   "archived-bots",

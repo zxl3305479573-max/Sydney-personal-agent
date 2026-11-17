@@ -54,6 +54,14 @@ describe("desktop badge handler", () => {
     expect(setBadgeCount).not.toHaveBeenCalled();
   });
 
+  it("does not treat an unrecognized custom scheme as a trusted app origin", () => {
+    const { event, target, handle, setBadgeCount } = setup();
+    target.url = "sydney-lab://app/";
+    Object.assign(event.senderFrame!, { url: target.url });
+    expect(handle(event, 1)).toBe(false);
+    expect(setBadgeCount).not.toHaveBeenCalled();
+  });
+
   it("returns false when the platform does not support badges or throws", () => {
     const { event, handle, target, setBadgeCount } = setup(false);
     expect(handle(event, 2)).toBe(false);

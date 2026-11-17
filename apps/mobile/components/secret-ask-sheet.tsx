@@ -8,6 +8,7 @@ import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
 import { useSecretSheetClose } from "../lib/secret-sheet-close";
+import { GlassSurface } from "./glass-surface";
 import type { LoginFieldRow } from "./login-fields-editor";
 import { LoginFieldsEditor } from "./login-fields-editor";
 import { NativeActionButton } from "./native-action-button";
@@ -124,7 +125,12 @@ export function SecretAskSheet({
             onEndEditing={endEditing}
             onSubmit={() => void save()}
           />
-          <View style={[styles.group, styles.row]}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={13}
+            style={[styles.group, styles.row]}
+            fallbackStyle={styles.groupFallback}
+          >
             <Text style={styles.switchLabel}>{t("Save to Vault")}</Text>
             <NativeSwitch
               accessibilityLabel={t("Save to Vault")}
@@ -132,7 +138,7 @@ export function SecretAskSheet({
               value={remember}
               onValueChange={setRemember}
             />
-          </View>
+          </GlassSurface>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </View>
@@ -154,7 +160,8 @@ function createStyles() {
     content: { paddingHorizontal: 20, paddingBottom: 40, gap: 12 },
     title: { color: tokens.foreground, fontSize: 20, fontWeight: "600" },
     destination: { color: tokens.foreground, fontSize: 15, marginBottom: 8 },
-    group: { backgroundColor: tokens.muted, borderRadius: 13, overflow: "hidden" },
+    group: { borderRadius: 13, overflow: "hidden" },
+    groupFallback: { backgroundColor: tokens.muted },
     row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingHorizontal: 16 },
     switchLabel: { flex: 1, color: tokens.foreground, fontSize: 17 },
     error: { color: tokens.destructive, fontSize: 13 },

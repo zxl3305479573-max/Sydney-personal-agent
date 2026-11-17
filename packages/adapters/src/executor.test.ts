@@ -966,6 +966,21 @@ describe("steering attachment hydration", () => {
     ).rejects.toBe(cancellation);
   });
 
+  it.each([null, "project-1"])("filters image hydration by project scope %s", async (projectWorkspaceId) => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    await loadCurrentTurnImages(
+      { artifacts: {}, prisma: { artifact: { findMany } } } as never,
+      [{ kind: "image", artifactId: "image-1", name: "one.png", mimeType: "image/png" }],
+      {
+        operationId: "run-1", traceId: "run-1", spaceId: "space-1", userId: "user-1",
+        botId: "bot-1", runId: "run-1", projectWorkspaceId, signal: new AbortController().signal,
+      },
+    );
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectWorkspaceId }),
+    }));
+  });
+
   it("treats unreadable image bytes as missing instead of failing hydration", async () => {
     const blocks: MessageBlock[] = [
       { kind: "image", artifactId: "image-1", name: "one.png", mimeType: "image/png" },
@@ -1396,7 +1411,6 @@ describe("userTurnInstructions", () => {
       archiveBot,
       "Connected plugins: none",
       "Agent skills",
-      expect.stringContaining("read the Rakazo skill"),
       "Taught skills",
       ...stableTail,
       "Group context",

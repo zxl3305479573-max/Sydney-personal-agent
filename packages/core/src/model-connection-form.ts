@@ -113,7 +113,7 @@ export function connectionFormFields(input: {
     ) as ThinkingLevel | null,
     maxTokens: connectionMaxTokensField(provider, credential?.maxTokens),
     contextWindow: String(credential?.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW),
-    supportsImages: credential?.supportsImages ?? false,
+    supportsImages: credential ? (credential.supportsImages ?? false) : compatible,
     maxImagesPerPrompt: String(credential?.maxImagesPerPrompt ?? ""),
     accountId: credential?.accountId ?? "",
     gatewayId: credential?.gatewayId ?? "",

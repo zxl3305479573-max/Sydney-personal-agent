@@ -244,6 +244,21 @@ describe("latest queue", () => {
     ).rejects.toThrow("offline");
     expect(settled).toHaveBeenCalledTimes(1);
   });
+
+  it("sends the latest choice when an earlier request fails", async () => {
+    const send = createLatestQueue<boolean>();
+    const settled = vi.fn();
+    let rejectFirst: (error: Error) => void = () => undefined;
+    const request = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectFirst = reject; }))
+      .mockResolvedValue(undefined);
+    const pending = send("a", true, request, settled);
+    await send("a", false, request, settled);
+    rejectFirst(new Error("offline"));
+    await pending;
+    expect(request.mock.calls).toEqual([[true], [false]]);
+    expect(settled).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("iOS swipe row", () => {

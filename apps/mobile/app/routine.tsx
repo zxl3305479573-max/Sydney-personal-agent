@@ -1,5 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
 import { NativeActionButton } from "../components/native-action-button";
 import { RoutineRunHistory } from "../components/routine-run-history";
@@ -53,36 +54,43 @@ export default function RoutineDetail() {
       {error ? <Text style={{ color: tokens.destructive, fontSize: 15 }}>{error}</Text> : null}
       {routine ? (
         <>
-          <View
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={16}
+            fallbackStyle={{ backgroundColor: native.fill }}
             style={{
               borderRadius: 16,
-              backgroundColor: native.fill,
               padding: 18,
             }}
           >
             <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
               {routineStatusLine(routine)}
             </Text>
-          </View>
+          </GlassSurface>
           <View style={{ gap: 8 }}>
             <Text
               style={{ color: tokens.mutedForeground, fontSize: 13, textTransform: "uppercase" }}
             >
               {t("Prompt")}
             </Text>
-            <Text
-              selectable
-              style={{
-                color: tokens.foreground,
-                fontSize: 15,
-                lineHeight: 23,
-                borderRadius: 16,
-                backgroundColor: native.fill,
-                padding: 18,
-              }}
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={16}
+              style={{ borderRadius: 16 }}
+              fallbackStyle={{ backgroundColor: native.fill }}
             >
-              {routine.prompt}
-            </Text>
+              <Text
+                selectable
+                style={{
+                  color: tokens.foreground,
+                  fontSize: 15,
+                  lineHeight: 23,
+                  padding: 18,
+                }}
+              >
+                {routine.prompt}
+              </Text>
+            </GlassSurface>
           </View>
           {origin !== "profile" ? (
             <NativeActionButton

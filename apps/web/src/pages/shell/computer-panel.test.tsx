@@ -51,13 +51,19 @@ function computer(state: ComputerStatus["state"]): ComputerStatus {
   };
 }
 
-async function render(status: ComputerStatus | null, onOpen = vi.fn()) {
+async function render(
+  status: ComputerStatus | null,
+  onOpen = vi.fn(),
+  embeddedScreenUrl: string | null = null,
+) {
   await act(async () => {
     root.render(
       <ComputerPanel
         bot={bot}
         computer={status}
         computerOpen={false}
+        embeddedScreenUrl={embeddedScreenUrl}
+        screenFrameRef={() => undefined}
         computerScreenError={null}
         computerBooting={null}
         booting={false}
@@ -103,5 +109,15 @@ it.each([null, computer("stopped"), computer("suspended")])(
 it("shows a running computer without opening a live preview", async () => {
   await render(computer("running"));
   expect(container.querySelector('[data-state="idle"]')).toBeNull();
+  expect(
+    container.querySelector('[data-testid="computer-running-preview"]')?.textContent,
+  ).toContain("Team Computer");
   expect(container.querySelector("iframe")).toBeNull();
+});
+
+it("shows a read-only frame when a running screen is available", async () => {
+  await render(computer("running"), vi.fn(), "https://screen.example/vnc.html");
+  const frame = container.querySelector("iframe");
+  expect(frame?.getAttribute("src")).toBe("https://screen.example/vnc.html");
+  expect(frame?.style.pointerEvents).toBe("none");
 });

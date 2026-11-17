@@ -278,7 +278,22 @@ in the order given, so the updater reconciles the same stack the operator runs b
 RAKAZO_COMPOSE_FILE=infra/compose/docker-compose.prod.yml:ops/compose/overlay.yml
 ```
 
-Every entry is validated separately and must stay inside `RAKAZO_DEPLOY_DIR`.
+Every entry is validated separately and must stay inside `RAKAZO_DEPLOY_DIR`. Use
+`RAKAZO_COMPOSE_OVERLAY_FILE` for the persistent server-side file described below; do not put an
+absolute host path in `RAKAZO_COMPOSE_FILE`.
+
+For a server-local file that must survive checkout reset and rollback, set
+`RAKAZO_COMPOSE_OVERLAY_FILE=/etc/rakazo/compose/production.overlay.yml` in the persistent
+production `.env`. The file is loaded after the base file by the deploy script and updater, and
+the updater sees it through its read-only `/etc/rakazo/compose` mount. The file must be a regular
+private `.yml` or `.yaml` file. A missing, symlinked, world-readable, or writable file fails
+before the updater starts an update.
+
+The persistent launcher checks that the requested revision contains
+`RAKAZO_LOCAL_COMPOSE_OVERLAY_SUPPORT=1`. A revision without that marker is rejected while the
+overlay is configured, including an attempted rollback; the operator must first install a
+compatible launcher/script or complete an explicitly reviewed compatibility change. The overlay
+is never silently discarded.
 
 If the overlay adds a service built from the application image, name it in
 `RAKAZO_UPDATE_SERVICES` (comma separated) so it is pulled, recreated and rolled back with the

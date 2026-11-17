@@ -1,3 +1,4 @@
+import type { SandboxProvider } from "@rakazo/adapter-kit";
 import {
   addScreenProxyCapability,
   resetRemoteScreenCapabilityReuse,
@@ -6,7 +7,6 @@ import {
 import type { PrismaClient } from "@rakazo/db";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
-import type { SandboxProvider } from "@rakazo/adapter-kit";
 import { mountScreenTarget } from "./screen-proxy.js";
 
 const secret = "fake-screen-secret";
@@ -83,6 +83,32 @@ describe("screen capability lifecycle authorization", () => {
     connectScreen.mockResolvedValueOnce({ url: "http://127.0.0.1:12345/vnc.html" });
     expect((await request()).status).toBe(403);
     expect(connectScreen).toHaveBeenCalledTimes(3);
+  });
+  it("distinguishes transient native driver failures from authorization refusals", async () => {
+    const connectScreen = vi.fn();
+    const { request, computer } = fixture(false, undefined, undefined, {
+      connectScreen,
+    } as unknown as SandboxProvider);
+    computer.kind = "native-linux";
+    computer.providerRef = "native:0123456789abcdef";
+    for (const error of [
+      Object.assign(new Error("socket unavailable"), { code: "ECONNREFUSED" }),
+      Object.assign(new Error("socket missing"), { code: "ENOENT" }),
+      new Error("native_driver_aborted_result_unknown"),
+      new Error("native_driver_disconnected_result_unknown"),
+      new Error("native_driver_timeout:status"),
+    ]) {
+      connectScreen.mockRejectedValueOnce(error);
+      expect((await request()).status).toBe(503);
+    }
+    for (const error of [
+      new Error("Native desktop refused the operation; inspect its result before retrying"),
+      new Error("native_screen_unsupported"),
+      new Error("generation changed"),
+    ]) {
+      connectScreen.mockRejectedValueOnce(error);
+      expect((await request()).status).toBe(403);
+    }
   });
   it("returns sealed provider headers only after lifecycle authorization", async () => {
     const headers = { cookie: "provider_auth=fake-private-token" };

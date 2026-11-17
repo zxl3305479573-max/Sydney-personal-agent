@@ -200,6 +200,7 @@ export interface RunState {
 
 export interface RunComputerContext {
   stored: Computer;
+  kind?: string;
   mode: ComputerMode;
   lease: ComputerExecutionLease | null;
   lazy: ReturnType<typeof lazyRunComputer>;

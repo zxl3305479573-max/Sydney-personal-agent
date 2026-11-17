@@ -7,7 +7,15 @@ vi.mock("./live-notifications.js", () => ({
 }));
 vi.mock("./network-cache.js", () => ({ clearNetworkCache: vi.fn() }));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
-vi.mock("expo-constants", () => ({ default: { easConfig: { projectId: "fake-project" } } }));
+const expoState = vi.hoisted(() => ({ sideload: false }));
+vi.mock("expo-constants", () => ({
+  default: {
+    easConfig: { projectId: "fake-project" },
+    get expoConfig() {
+      return { extra: { sydneySideload: expoState.sideload } };
+    },
+  },
+}));
 
 // Expo runs every module's async functions on one serial native queue, so a call
 // that waits there holds up SecureStore too.
@@ -71,6 +79,7 @@ const fetch = vi.fn(async (url: string) => {
 let permission: ReturnType<typeof deferred<{ granted: boolean }>>;
 
 beforeEach(async () => {
+  expoState.sideload = false;
   native.reset();
   vi.stubGlobal("fetch", fetch);
   fetch.mockClear();
@@ -93,6 +102,16 @@ afterEach(() => {
 });
 
 describe("push registration on iOS", () => {
+  it("does not request permission or register push in sideload builds", async () => {
+    expoState.sideload = true;
+    await registerPushToken();
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(
+      expect.stringMatching(/notifications\/registerPush$/),
+      expect.anything(),
+    );
+  });
+
   it("loads the inbox while notification settings have not answered", async () => {
     void registerPushToken();
 

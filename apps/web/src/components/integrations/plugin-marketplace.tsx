@@ -469,6 +469,21 @@ export function PluginDetail({
         </div>
       ) : null}
 
+      {!skillsOnly && managedApp && parts.includes("connector") ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 px-4 py-3">
+          <span className="text-sm text-muted-foreground">
+            <Trans>Connect using the managed app</Trans>
+          </span>
+          <Button
+            variant="secondary"
+            disabled={busy || managedApp.connecting}
+            onClick={managedApp.connected ? managedApp.onManage : managedApp.onConnect}
+          >
+            {managedApp.connected ? <Trans>Added</Trans> : <Trans>Connect</Trans>}
+          </Button>
+        </div>
+      ) : null}
+
       {!skillsOnly && (managed || connectorCount) ? (
         <section>
           <h3 className="mb-2 flex gap-2 px-1 text-[14px] font-medium text-foreground">

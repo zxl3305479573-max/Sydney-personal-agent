@@ -12,6 +12,7 @@ import {
   isOneShotRoutineCrons,
   nextRoutineRunDateAcross,
 } from "@rakazo/core";
+import { resolveConversationExecutionScope } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { sanitizedError } from "@rakazo/logging/monitoring";
 import { protectedComputerLifecycleRefusal } from "./desktop-command-guard.js";
@@ -226,12 +227,16 @@ export async function wakeRoutine(deps: ExecutorDeps, routineId: string, schedul
       });
       if (fired) return "fired" as const;
     }
+    const executionScope = await resolveConversationExecutionScope(tx, {
+      spaceId: routine.spaceId, userId: routine.userId, botId: bot.id, threadId: thread.id,
+    });
     const task = await tx.task.create({
       data: {
         spaceId: routine.spaceId,
         botId: bot.id,
         threadId: thread.id,
         userId: routine.userId,
+        projectWorkspaceId: executionScope.projectWorkspaceId,
         prompt: routinePrompt,
         status: "queued",
       },
@@ -243,6 +248,7 @@ export async function wakeRoutine(deps: ExecutorDeps, routineId: string, schedul
         threadId: thread.id,
         taskId: task.id,
         userId: routine.userId,
+        projectWorkspaceId: task.projectWorkspaceId,
         status: "queued",
         trigger: "routine",
         routineId: routine.id,
@@ -414,12 +420,14 @@ export async function retryRoutineRun(deps: ExecutorDeps, runId: string) {
         select: { id: true },
       });
       if (!targetThread) return null;
+      const executionScope = await resolveConversationExecutionScope(tx, failed);
       const retryTask = await tx.task.create({
         data: {
           spaceId: failed.spaceId,
           botId: failed.botId,
           threadId: failed.threadId,
           userId: failed.userId,
+          projectWorkspaceId: executionScope.projectWorkspaceId,
           prompt: task.prompt,
           status: "queued",
         },
@@ -431,6 +439,7 @@ export async function retryRoutineRun(deps: ExecutorDeps, runId: string) {
           threadId: failed.threadId,
           taskId: retryTask.id,
           userId: failed.userId,
+          projectWorkspaceId: retryTask.projectWorkspaceId,
           status: "queued",
           trigger: "routine",
           routineId: failed.routineId,

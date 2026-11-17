@@ -36,7 +36,13 @@ import {
   modelSupportsRole,
   OPENAI_COMPATIBLE_PROVIDER_ID,
 } from "@rakazo/contracts";
-import { createGroupRepos, createRepos, recordSecurityEvent, runAsTenant } from "@rakazo/db";
+import {
+  createGroupRepos,
+  createRepos,
+  currentDbContext,
+  recordSecurityEvent,
+  runAsTenant,
+} from "@rakazo/db";
 import { createAgentImportServices } from "../agent-import-services.js";
 import { createAgentSkillsService } from "../agent-skills.js";
 import { createBotRemoval } from "../bot-removal.js";
@@ -57,16 +63,22 @@ export async function asTenant<T extends { output: unknown }>(
   actor: Actor,
   next: () => T | PromiseLike<T>,
 ): Promise<T> {
-  const result = await runAsTenant(actor, next);
+  const parent = currentDbContext();
+  const projectWorkspaceId =
+    parent?.kind === "tenant" && parent.spaceId === actor.spaceId && parent.userId === actor.userId
+      ? parent.projectWorkspaceId ?? null
+      : null;
+  const scope = { ...actor, projectWorkspaceId };
+  const result = await runAsTenant(scope, next);
   const output = result.output;
   if (!output || typeof output !== "object" || !(Symbol.asyncIterator in output)) return result;
   const iterator = output as AsyncIterator<unknown> & AsyncIterable<unknown>;
   const scoped: AsyncIterableIterator<unknown> = {
-    next: (...args) => runAsTenant(actor, () => iterator.next(...args)),
+    next: (...args) => runAsTenant(scope, () => iterator.next(...args)),
     return: (value) =>
-      runAsTenant(actor, () => iterator.return?.(value) ?? { done: true as const, value }),
+      runAsTenant(scope, () => iterator.return?.(value) ?? { done: true as const, value }),
     throw: (error) =>
-      runAsTenant(actor, () => (iterator.throw ? iterator.throw(error) : Promise.reject(error))),
+      runAsTenant(scope, () => (iterator.throw ? iterator.throw(error) : Promise.reject(error))),
     [Symbol.asyncIterator]() {
       return scoped;
     },
@@ -82,6 +94,7 @@ export function createRouterContext(deps: RouterDeps) {
     signal?: AbortSignal;
     /** Re-runs the request's auth so a long-lived stream notices sign-out and revocation. */
     stillAuthorized?: () => Promise<boolean>;
+    stillSessionAuthorized?: () => Promise<boolean>;
   }>();
   const repos = createRepos(deps.prisma, {
     phoneCallsEnabled: deps.env?.phoneCallsEnabled,

@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@rakazo/ui-web";
-import { Info, Lock, Plus, Users } from "lucide-react";
+import { Info, Lock, UserRoundPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { IconTooltip } from "../../components/IconTooltip";
 
@@ -69,7 +69,7 @@ export function BotCreatePicker({
                 className="gap-2"
               >
                 <span className="flex size-[22px] shrink-0 items-center justify-center">
-                  <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+                  <UserRoundPlus size={16} strokeWidth={1.8} aria-hidden="true" />
                 </span>
                 <Trans>New bot</Trans>
               </CommandItem>

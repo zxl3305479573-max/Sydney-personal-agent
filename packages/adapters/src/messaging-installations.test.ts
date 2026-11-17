@@ -18,6 +18,8 @@ function fixture() {
     botId: string;
     spaceId: string;
     userId: string;
+    returnTo?: string | null;
+    callbackReturnedAt?: Date | null;
     expiresAt: Date;
   } | null = null;
   let installation: Record<string, unknown> | null = null;
@@ -30,6 +32,19 @@ function fixture() {
         return data;
       }),
       findUnique: vi.fn(async ({ where }) => (session?.id === where.id ? session : null)),
+      updateMany: vi.fn(async ({ where, data }) => {
+        if (
+          !session ||
+          session.id !== where.id ||
+          session.provider !== where.provider ||
+          session.returnTo !== where.returnTo ||
+          session.callbackReturnedAt != null ||
+          session.expiresAt <= where.expiresAt.gt
+        )
+          return { count: 0 };
+        Object.assign(session, data);
+        return { count: 1 };
+      }),
       deleteMany: vi.fn(async ({ where }) => {
         if (where.id && session?.id === where.id) {
           session = null;
@@ -109,6 +124,7 @@ it("binds a hashed one-use state to the tenant and stores only the sealed creden
     userId: actor.userId,
     botId: "bot-a",
   });
+  expect(f.getSession()?.returnTo).toBe("web");
   expect(f.getSession()?.id).not.toBe(state);
   await f.manager.complete(actor, state, "code");
   expect(f.getInstallation()).toMatchObject({
@@ -121,6 +137,65 @@ it("binds a hashed one-use state to the tenant and stores only the sealed creden
   expect(JSON.stringify(f.getInstallation())).not.toContain("fake-token");
   await expect(f.manager.complete(actor, state, "code")).rejects.toThrow("expired");
   expect(f.provider.exchange).toHaveBeenCalledTimes(1);
+});
+it("records only an explicit mobile return target and leaves legacy sessions on web", async () => {
+  const f = fixture();
+  const legacyState = await begin(f);
+  expect(f.getSession()?.returnTo).toBe("web");
+  expect(await f.manager.returnToForState(legacyState)).toBe("web");
+  f.setSession({ ...f.getSession()!, returnTo: null });
+  expect(await f.manager.returnToForState(legacyState)).toBe("web");
+  f.setSession({ ...f.getSession()!, returnTo: undefined });
+  expect(await f.manager.returnToForState(legacyState)).toBe("web");
+  const mobile = new URL(await f.manager.start(actor, "bot-a", "mobile")).searchParams.get(
+    "state",
+  )!;
+  expect(f.getSession()?.returnTo).toBe("mobile");
+  expect(await f.manager.returnToForState(mobile)).toBe("mobile");
+  expect(await f.manager.returnToForState("malformed")).toBeNull();
+  f.setSession({ ...f.getSession()!, expiresAt: new Date(Date.now() - 1) });
+  expect(await f.manager.returnToForState(mobile)).toBeNull();
+  expect(f.provider.exchange).not.toHaveBeenCalled();
+});
+it("atomically forwards mobile authorization once without consuming the installation session", async () => {
+  const f = fixture();
+  const state = new URL(await f.manager.start(actor, "bot-a", "mobile")).searchParams.get("state")!;
+  expect(
+    await Promise.all([f.manager.claimMobileReturn(state), f.manager.claimMobileReturn(state)]),
+  ).toEqual([true, false]);
+  expect(f.getSession()?.callbackReturnedAt).toBeInstanceOf(Date);
+  expect(await f.manager.returnToForState(state)).toBeNull();
+  expect(f.provider.exchange).not.toHaveBeenCalled();
+  expect(f.prisma.messagingInstallSession.deleteMany).toHaveBeenCalledTimes(1);
+  await f.manager.complete(actor, state, "code");
+  expect(f.getSession()).toBeNull();
+  expect(f.provider.exchange).toHaveBeenCalledOnce();
+  await expect(f.manager.complete(actor, state, "code")).rejects.toThrow("expired");
+});
+it("rejects foreign providers, unknown targets, missing and expired callback sessions", async () => {
+  const f = fixture();
+  const state = await begin(f);
+  f.setSession({ ...f.getSession()!, provider: "other" });
+  expect(await f.manager.returnToForState(state)).toBeNull();
+  f.setSession({ ...f.getSession()!, provider: "slack", returnTo: "https://evil.test" });
+  expect(await f.manager.returnToForState(state)).toBeNull();
+  expect(await f.manager.claimMobileReturn(state)).toBe(false);
+  f.setSession({ ...f.getSession()!, returnTo: "mobile", expiresAt: new Date(0) });
+  expect(await f.manager.claimMobileReturn(state)).toBe(false);
+  expect(await f.manager.returnToForState("Q".repeat(43))).toBeNull();
+  expect(await f.manager.claimMobileReturn("bad")).toBe(false);
+  f.setSession(null);
+  expect(await f.manager.claimMobileReturn(state)).toBe(false);
+});
+it("keeps the authenticated claim single-use under concurrent mobile completions", async () => {
+  const f = fixture();
+  const state = new URL(await f.manager.start(actor, "bot-a", "mobile")).searchParams.get("state")!;
+  const results = await Promise.allSettled([
+    f.manager.complete(actor, state, "code"),
+    f.manager.complete(actor, state, "code"),
+  ]);
+  expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+  expect(f.provider.exchange).toHaveBeenCalledOnce();
 });
 it("rejects expired and forged state before contacting Slack", async () => {
   const f = fixture();

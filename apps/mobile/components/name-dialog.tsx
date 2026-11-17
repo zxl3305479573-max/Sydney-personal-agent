@@ -14,6 +14,7 @@ import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { isNameDialogAvailable } from "../lib/name-dialog-available";
 import { useThemedStyles } from "../lib/native";
+import { GlassSurface } from "./glass-surface";
 
 const ComposeNameDialog = lazy(() => import("./name-dialog-compose"));
 
@@ -93,7 +94,13 @@ export function TextFieldDialog({
           style={StyleSheet.absoluteFill}
           onPress={onClose}
         />
-        <View accessibilityViewIsModal style={styles.dialog}>
+        <GlassSurface
+          accessibilityViewIsModal
+          shape="roundedRectangle"
+          cornerRadius={28}
+          style={styles.dialog}
+          fallbackStyle={styles.dialogFallback}
+        >
           <Text accessibilityRole="header" style={styles.title}>
             {title}
           </Text>
@@ -148,7 +155,7 @@ export function TextFieldDialog({
               <Text style={[styles.actionText, disabled && styles.disabled]}>{submitLabel}</Text>
             </Pressable>
           </View>
-        </View>
+        </GlassSurface>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -170,8 +177,8 @@ function createStyles() {
       borderRadius: 28,
       padding: 24,
       gap: 16,
-      backgroundColor: tokens.card,
     },
+    dialogFallback: { backgroundColor: tokens.card },
     title: { fontSize: 24, lineHeight: 32, color: tokens.foreground },
     field: {
       borderWidth: 1,

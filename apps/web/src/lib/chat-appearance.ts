@@ -10,59 +10,105 @@ export type ChatBackground = {
   overlay: number;
 };
 
-export type BubbleSide = {
-  background: string;
-  foreground: string;
-  opacity: number;
-  radius: number;
-  border: string;
-  image?: Blob;
-};
-
 export type ChatBubbleStyle = {
-  id: string;
-  name: string;
-  user: BubbleSide;
-  bot: BubbleSide;
+  userBackground: string;
+  userForeground: string;
+  botBackground: string;
+  botForeground: string;
+  radius: number;
+  opacity: number;
 };
 
-export type ChatCombination = {
-  id: string;
-  name: string;
-  backgroundId: string | null;
-  bubbleId: string | null;
-};
+export const CHAT_BUBBLE_PRESETS: Array<{ name: string; value: ChatBubbleStyle }> = [
+  {
+    name: "默认",
+    value: {
+      userBackground: "#dbeafe",
+      userForeground: "#172554",
+      botBackground: "#f3f4f6",
+      botForeground: "#1f2937",
+      radius: 20,
+      opacity: 1,
+    },
+  },
+  {
+    name: "薄荷",
+    value: {
+      userBackground: "#bbf7d0",
+      userForeground: "#14532d",
+      botBackground: "#ecfdf5",
+      botForeground: "#064e3b",
+      radius: 20,
+      opacity: 1,
+    },
+  },
+  {
+    name: "紫夜",
+    value: {
+      userBackground: "#ddd6fe",
+      userForeground: "#2e1065",
+      botBackground: "#ede9fe",
+      botForeground: "#312e81",
+      radius: 16,
+      opacity: 1,
+    },
+  },
+];
+
+export function chatBubbleTextShadow(foreground: string, background: string, opacity: number) {
+  const luminance = (color: string) => {
+    const channels = [1, 3, 5].map((index) => {
+      const value = Number.parseInt(color.slice(index, index + 2), 16) / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+  };
+  const text = luminance(foreground);
+  const surface = luminance(background);
+  const contrast = (Math.max(text, surface) + 0.05) / (Math.min(text, surface) + 0.05);
+  if (opacity === 1 && contrast >= 4.5) return "none";
+  const outline = text > 0.18 ? "#000" : "#fff";
+  return `-1px -1px 1px ${outline}, 1px -1px 1px ${outline}, -1px 1px 1px ${outline}, 1px 1px 1px ${outline}`;
+}
 
 export type ChatAppearance = {
   mode?: "simple" | "custom";
+  userTextColor?: string | null;
+  botTextColor?: string | null;
   backgrounds: ChatBackground[];
-  bubbles: ChatBubbleStyle[];
-  combinations: ChatCombination[];
   backgroundId: string | null;
-  bubbleId: string | null;
+  chatBackgrounds?: Record<string, string>;
+  surfaceOpacity?: number;
+  bubble?: ChatBubbleStyle | null;
 };
 
 export const EMPTY_CHAT_APPEARANCE: ChatAppearance = {
   backgrounds: [],
-  bubbles: [],
-  combinations: [],
   backgroundId: null,
-  bubbleId: null,
+  bubble: { ...CHAT_BUBBLE_PRESETS[0]!.value },
 };
+
+export const DEFAULT_TEXT_COLOR_PICKER_VALUE = "#000000";
+export const DEFAULT_SURFACE_OPACITY = 80;
 
 const idSchema = z.string().min(1).max(100);
 const nameSchema = z.string().max(80);
 const colorSchema = z.string().regex(/^#[0-9a-f]{6}$/i);
-const bubbleSideSchema = z.object({
-  background: colorSchema,
-  foreground: colorSchema,
-  border: colorSchema,
-  opacity: z.number().int().min(20).max(100),
-  radius: z.number().int().min(0).max(32),
-  image: z.instanceof(Blob).optional(),
-});
 const appearanceSchema = z.object({
   mode: z.enum(["simple", "custom"]).optional(),
+  userTextColor: colorSchema.nullable().optional(),
+  botTextColor: colorSchema.nullable().optional(),
+  bubble: z
+    .object({
+      userBackground: colorSchema,
+      userForeground: colorSchema,
+      botBackground: colorSchema,
+      botForeground: colorSchema,
+      radius: z.number().min(0).max(40),
+      opacity: z.number().min(0).max(1),
+    })
+    .nullable()
+    .optional(),
   backgrounds: z
     .array(
       z.object({
@@ -75,50 +121,10 @@ const appearanceSchema = z.object({
       }),
     )
     .max(100),
-  bubbles: z
-    .array(
-      z.object({
-        id: idSchema,
-        name: nameSchema,
-        user: bubbleSideSchema,
-        bot: bubbleSideSchema,
-      }),
-    )
-    .max(100),
-  combinations: z
-    .array(
-      z.object({
-        id: idSchema,
-        name: nameSchema,
-        backgroundId: idSchema.nullable(),
-        bubbleId: idSchema.nullable(),
-      }),
-    )
-    .max(100),
   backgroundId: idSchema.nullable(),
-  bubbleId: idSchema.nullable(),
+  chatBackgrounds: z.record(z.string().min(1).max(500), idSchema).optional(),
+  surfaceOpacity: z.number().int().min(0).max(100).optional(),
 });
-
-export function newBubbleStyle(): ChatBubbleStyle {
-  return {
-    id: crypto.randomUUID(),
-    name: "新气泡样式",
-    user: {
-      background: "#000000",
-      foreground: "#ffffff",
-      opacity: 100,
-      radius: 20,
-      border: "#000000",
-    },
-    bot: {
-      background: "#000000",
-      foreground: "#ffffff",
-      opacity: 100,
-      radius: 20,
-      border: "#000000",
-    },
-  };
-}
 
 export function useAppearanceImage(image: Blob | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
@@ -135,32 +141,33 @@ export function useAppearanceImage(image: Blob | undefined): string | null {
 }
 
 export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
-  const backgrounds = value.backgrounds.filter(
-    (item) => item.image instanceof Blob,
-  );
-  const bubbles = value.bubbles;
+  const backgrounds = value.backgrounds.filter((item) => item.image instanceof Blob);
   const backgroundIds = new Set(backgrounds.map((item) => item.id));
-  const bubbleIds = new Set(bubbles.map((item) => item.id));
+  const surfaceOpacity =
+    typeof value.surfaceOpacity === "number" && Number.isFinite(value.surfaceOpacity)
+      ? Math.min(100, Math.max(0, Math.round(value.surfaceOpacity)))
+      : DEFAULT_SURFACE_OPACITY;
   return {
     mode: value.mode,
+    userTextColor: value.userTextColor,
+    botTextColor: value.botTextColor,
+    bubble: value.bubble === undefined ? { ...CHAT_BUBBLE_PRESETS[0]!.value } : value.bubble,
     backgrounds,
-    bubbles,
-    combinations: value.combinations.map((item) => ({
-      ...item,
-      backgroundId:
-        item.backgroundId && backgroundIds.has(item.backgroundId)
-          ? item.backgroundId
-          : null,
-      bubbleId:
-        item.bubbleId && bubbleIds.has(item.bubbleId) ? item.bubbleId : null,
-    })),
     backgroundId:
-      value.backgroundId && backgroundIds.has(value.backgroundId)
-        ? value.backgroundId
-        : null,
-    bubbleId:
-      value.bubbleId && bubbleIds.has(value.bubbleId) ? value.bubbleId : null,
+      value.backgroundId && backgroundIds.has(value.backgroundId) ? value.backgroundId : null,
+    ...(value.chatBackgrounds
+      ? {
+          chatBackgrounds: Object.fromEntries(
+            Object.entries(value.chatBackgrounds).filter(([, id]) => backgroundIds.has(id)),
+          ),
+        }
+      : {}),
+    surfaceOpacity,
   };
+}
+
+export function chatBackgroundKey(userId: string, kind: "bot" | "group", id: string): string {
+  return JSON.stringify([userId, kind, id]);
 }
 
 const DB_NAME = "sydney-chat-appearance";
@@ -182,11 +189,9 @@ function openDatabase(): Promise<IDBDatabase> {
       return;
     }
     const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () =>
-      request.result.createObjectStore(STORE_NAME);
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
-      reject(request.error ?? new Error("无法打开本地存储"));
+    request.onerror = () => reject(request.error ?? new Error("无法打开本地存储"));
     request.onblocked = () => reject(new Error("本地存储被其他页面占用"));
   });
 }
@@ -195,15 +200,37 @@ async function readSaved(): Promise<ChatAppearance> {
   const database = await openDatabase();
   try {
     return await new Promise((resolve, reject) => {
-      const transaction = database.transaction(STORE_NAME, "readonly");
-      const request = transaction.objectStore(STORE_NAME).get(RECORD_KEY);
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(RECORD_KEY);
+      let result = EMPTY_CHAT_APPEARANCE;
+      let invalid = false;
       request.onsuccess = () => {
         const parsed = appearanceSchema.safeParse(request.result);
-        if (request.result === undefined) resolve(EMPTY_CHAT_APPEARANCE);
-        else if (parsed.success) resolve(normalizeAppearance(parsed.data));
-        else reject(new Error("已保存的聊天外观数据无效"));
+        if (request.result === undefined) return;
+        if (!parsed.success) {
+          invalid = true;
+          transaction.abort();
+          return;
+        }
+        result = normalizeAppearance(parsed.data);
+        if (
+          Object.hasOwn(request.result, "bubbles") ||
+          Object.hasOwn(request.result, "bubbleId") ||
+          Object.hasOwn(request.result, "combinations")
+        ) {
+          store.put(result, RECORD_KEY);
+        }
       };
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(result);
+      transaction.onabort = () =>
+        reject(
+          invalid
+            ? new Error("已保存的聊天外观数据无效")
+            : (transaction.error ?? new Error("无法清理聊天外观")),
+        );
+      transaction.onerror = () => reject(transaction.error ?? new Error("无法清理聊天外观"));
     });
   } finally {
     database.close();
@@ -234,10 +261,8 @@ export async function saveChatAppearance(value: ChatAppearance): Promise<void> {
       const transaction = database.transaction(STORE_NAME, "readwrite");
       transaction.objectStore(STORE_NAME).put(normalized, RECORD_KEY);
       transaction.oncomplete = () => resolve();
-      transaction.onabort = () =>
-        reject(transaction.error ?? new Error("无法保存聊天外观"));
-      transaction.onerror = () =>
-        reject(transaction.error ?? new Error("无法保存聊天外观"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("无法保存聊天外观"));
+      transaction.onerror = () => reject(transaction.error ?? new Error("无法保存聊天外观"));
     });
     saved = normalized;
     current = normalized;
@@ -276,19 +301,13 @@ export function useChatAppearance(): ChatAppearance {
 }
 
 export async function validateBackgroundImage(file: File): Promise<void> {
-  if (file.size === 0 || file.size > 5 * 1024 * 1024)
-    throw new Error("请选择不超过 5 MB 的图片");
+  if (file.size === 0 || file.size > 5 * 1024 * 1024) throw new Error("请选择不超过 5 MB 的图片");
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const png =
     file.type === "image/png" &&
-    [137, 80, 78, 71, 13, 10, 26, 10].every(
-      (byte, index) => bytes[index] === byte,
-    );
+    [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
   const jpeg =
-    file.type === "image/jpeg" &&
-    bytes[0] === 255 &&
-    bytes[1] === 216 &&
-    bytes[2] === 255;
+    file.type === "image/jpeg" && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
   const webp =
     file.type === "image/webp" &&
     String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&

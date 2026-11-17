@@ -407,6 +407,7 @@ export function useThreadFeedback(
   }, [threadKey, echoed]);
   return {
     error,
+    outboxRestoreFailed: restored && !diskReadable,
     setError(value: string | null) {
       if (threadKey === activeThread.current) setError(value);
     },

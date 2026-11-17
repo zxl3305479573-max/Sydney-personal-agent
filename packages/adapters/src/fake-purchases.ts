@@ -11,7 +11,8 @@ import type {
   PurchaseRequest,
   PurchaseSnapshot,
 } from "@rakazo/adapter-kit";
-import type { PrismaClient, Purchase } from "@rakazo/db";
+import type { Prisma, PrismaClient, Purchase } from "@rakazo/db";
+import { currentDbContext } from "@rakazo/db";
 import { readStripeChargeChallenge, stripeChargeAuthorization } from "./mpp-stripe.js";
 
 export const FAKE_PAY_TOKEN = "fake_pay_token_secret";
@@ -108,28 +109,41 @@ export function fakePurchasePrisma(fixture: {
   userId: string;
   botId: string;
   threadId: string;
+  projectWorkspaceId?: string | null;
 }) {
+  const scope = {
+    spaceId: fixture.spaceId, userId: fixture.userId,
+    projectWorkspaceId: fixture.projectWorkspaceId ?? null,
+  };
   const purchases: Purchase[] = [];
   const runs: Row[] = [];
   const tasks: Row[] = [];
   const live = { thread: true, member: true, bot: true, threadGeneration: 0 };
+  const visible = (row: Row) => {
+    const context = currentDbContext();
+    return context?.kind === "system" || Boolean(
+      context && context.spaceId === scope.spaceId && context.userId === scope.userId &&
+      (context.kind !== "tenant" || (context.projectWorkspaceId ?? null) === scope.projectWorkspaceId)
+    ) && row.spaceId === scope.spaceId && row.userId === scope.userId &&
+      (row.projectWorkspaceId ?? null) === scope.projectWorkspaceId;
+  };
   let clock = 0;
   const stamp = () => new Date(Date.UTC(2026, 0, 1) + ++clock);
   const purchase = {
     findUnique: async ({ where }: { where: Row }) =>
-      purchases.find((row) => matches(row, where)) ?? null,
+      purchases.find((row) => visible(row) && matches(row, where)) ?? null,
     findFirst: async ({ where }: { where: Row }) =>
-      purchases.find((row) => matches(row, where)) ?? null,
+      purchases.find((row) => visible(row) && matches(row, where)) ?? null,
     findMany: async ({ where, select }: { where: Row; select?: Record<string, boolean> }) =>
       purchases
-        .filter((row) => matches(row, where))
+        .filter((row) => visible(row) && matches(row, where))
         .map((row) =>
           Object.fromEntries(
             Object.keys(select ?? { id: true }).map((key) => [key, row[key as keyof Purchase]]),
           ),
         ),
     upsert: async ({ where, create }: { where: Row; create: Row }) => {
-      const existing = purchases.find((row) => matches(row, where));
+      const existing = purchases.find((row) => visible(row) && matches(row, where));
       if (existing) return existing;
       const row = {
         id: `purchase-${purchases.length + 1}`,
@@ -142,6 +156,7 @@ export function fakePurchasePrisma(fixture: {
         paymentChallenge: null,
         requestCiphertext: null,
         credentialType: "card",
+        projectWorkspaceId: scope.projectWorkspaceId,
         createdAt: new Date(),
         ...create,
         updatedAt: stamp(),
@@ -150,26 +165,48 @@ export function fakePurchasePrisma(fixture: {
       return row;
     },
     updateMany: async ({ where, data }: { where: Row; data: Row }) => {
-      const found = purchases.filter((row) => matches(row, where));
+      const found = purchases.filter((row) => visible(row) && matches(row, where));
       for (const row of found) Object.assign(row, data, { updatedAt: stamp() });
       return { count: found.length };
     },
   };
   const tx = {
+    $queryRaw: async (statement: Prisma.Sql) => {
+      if (!statement.text.includes('FROM "threads" t')) throw new Error("Unexpected fixture query");
+      const context = currentDbContext();
+      if (
+        !context || !live.thread || !live.bot || !live.member ||
+        ![fixture.spaceId, fixture.userId, fixture.botId, fixture.threadId]
+          .every((value) => statement.values.includes(value)) ||
+        (context.kind === "tenant" && (
+          context.spaceId !== scope.spaceId || context.userId !== scope.userId ||
+          (context.projectWorkspaceId ?? null) !== scope.projectWorkspaceId
+        ))
+      ) return [];
+      return [scope];
+    },
     purchase,
     thread: {
       updateMany: async ({ where }: { where: Row }) => ({
         count:
-          live.thread &&
-          where.id === fixture.threadId &&
-          where.historyCompactionGeneration === live.threadGeneration
+          live.thread && matches({
+            id: fixture.threadId, ...scope,
+            historyCompactionGeneration: live.threadGeneration,
+          }, where)
             ? 1
             : 0,
       }),
-      findUniqueOrThrow: async () => ({ historyCompactionGeneration: live.threadGeneration }),
+      findUniqueOrThrow: async ({ where }: { where: Row }) => {
+        if (!live.thread || !matches({ id: fixture.threadId, ...scope }, where))
+          throw new Error("Fixture thread not found");
+        return { historyCompactionGeneration: live.threadGeneration };
+      },
     },
     spaceMember: { findUnique: async () => (live.member ? { id: "member" } : null) },
-    bot: { findFirst: async () => (live.bot ? { id: fixture.botId } : null) },
+    bot: { findFirst: async ({ where }: { where: Row }) => (
+      live.bot && matches({ id: fixture.botId, ...scope, archivedAt: null }, where)
+        ? { id: fixture.botId } : null
+    ) },
     task: {
       create: async ({ data }: { data: Row }) => {
         const row = { id: `task-${tasks.length + 1}`, ...data };

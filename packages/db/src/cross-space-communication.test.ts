@@ -5,12 +5,16 @@ import { crossSpaceCommunicationAllowed } from "./cross-space-communication.js";
 const sender = {
   id: "sender",
   spaceId: "space-a",
+  userId: "user-a",
+  projectWorkspaceId: null,
   crossSpaceCommunication: true,
   archivedAt: null,
 };
 const recipient = {
   id: "recipient",
   spaceId: "space-b",
+  userId: "user-b",
+  projectWorkspaceId: null,
   crossSpaceCommunication: true,
   archivedAt: null,
 };
@@ -46,6 +50,63 @@ describe("cross-space bot communication", () => {
         { ...recipient, spaceId: sender.spaceId, crossSpaceCommunication: false },
       ],
       allowed: true,
+    },
+    {
+      name: "same project and owner",
+      bots: [
+        { ...sender, projectWorkspaceId: "project-a", crossSpaceCommunication: false },
+        { ...recipient, spaceId: sender.spaceId, userId: sender.userId, projectWorkspaceId: "project-a", crossSpaceCommunication: false },
+      ],
+      allowed: true,
+    },
+    {
+      name: "different projects in the same space",
+      bots: [
+        { ...sender, projectWorkspaceId: "project-a" },
+        { ...recipient, spaceId: sender.spaceId, userId: sender.userId, projectWorkspaceId: "project-b" },
+      ],
+      allowed: false,
+    },
+    {
+      name: "home sender cannot reach a project",
+      bots: [sender, { ...recipient, spaceId: sender.spaceId, projectWorkspaceId: "project-a" }],
+      allowed: false,
+    },
+    {
+      name: "project sender cannot reach home",
+      bots: [{ ...sender, projectWorkspaceId: "project-a" }, recipient],
+      allowed: false,
+    },
+    {
+      name: "project cannot be shared with another member",
+      bots: [
+        { ...sender, projectWorkspaceId: "project-a" },
+        { ...recipient, spaceId: sender.spaceId, projectWorkspaceId: "project-a" },
+      ],
+      allowed: false,
+    },
+    {
+      name: "project cannot be shared with another space",
+      bots: [
+        { ...sender, projectWorkspaceId: "project-a" },
+        { ...recipient, userId: sender.userId, projectWorkspaceId: "project-a" },
+      ],
+      allowed: false,
+    },
+    {
+      name: "unknown project is not home",
+      bots: [sender, { ...recipient, projectWorkspaceId: undefined }],
+      allowed: false,
+    },
+    {
+      name: "missing owner",
+      bots: [sender, { ...recipient, userId: undefined }],
+      allowed: false,
+    },
+    {
+      name: "query must return the requested pair",
+      bots: [sender, { ...recipient, id: "unrelated" }],
+      allowed: false,
     },
   ])("$name", async ({ bots, allowed }) => {
     const prisma = { $queryRaw: vi.fn(async () => bots) };

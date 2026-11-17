@@ -303,8 +303,9 @@ export async function speakWithDeviceVoice(
   text: string,
   botId?: string,
   messageId?: string,
+  owner?: SpeechOwner,
 ): Promise<boolean> {
-  return speakOnDevice(text, botId, messageId);
+  return speakOnDevice(text, botId, messageId, undefined, owner);
 }
 
 async function speakOnDevice(
@@ -312,10 +313,11 @@ async function speakOnDevice(
   botId?: string,
   messageId?: string,
   epoch?: number,
+  owner?: SpeechOwner,
 ): Promise<boolean> {
   const utterances = toUtterances(text);
   if (utterances.length === 0) return false;
-  const mine = epoch ?? beginSpeech();
+  const mine = epoch ?? beginSpeech(owner);
   if (!isCurrentSpeech(mine)) return false;
   // Claim the session before importing so a newer call cannot start during
   // that await and then overlap this call's remaining chunks.

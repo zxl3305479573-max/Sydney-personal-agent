@@ -10,14 +10,18 @@ import {
   MODEL_REQUIRED_SEND_ERROR,
   QUEUE_HOLDING_RUN_STATUSES,
 } from "@rakazo/core";
-import type { Prisma } from "@rakazo/db";
+import type { Prisma, PrismaClient } from "@rakazo/db";
 import {
   AnswerTooLongError,
   appendEventInTransaction,
+  conversationProjectId,
+  conversationScopeWhere,
   createExternalConversationRepos,
   createThreadMessageInTransaction,
+  getProjectWorkspace,
   IsolationError,
   lockOwnedGroup,
+  resolveConversationExecutionScope,
   touchGroupUpdatedAt,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -72,35 +76,35 @@ const HANG_UP_PROMPT =
 /** A send with routines that already has runs saved under its nonce. */
 class SavedSubmission extends Error {}
 
+export async function assertProjectStreamAccess(
+  prisma: Pick<PrismaClient, "$queryRaw">,
+  actor: Actor,
+  projectWorkspaceId: string | null,
+): Promise<void> {
+  if (projectWorkspaceId !== null && !(await getProjectWorkspace(prisma, actor, projectWorkspaceId)))
+    throw new ORPCError("NOT_FOUND");
+}
+
 /** A chat reply hands the screen back to the bot whose run it steers, in a group as in a DM. */
 export function takeoverReleaser(deps: RouterDeps, actor: Actor, target: ThreadTarget) {
   return async (runId: string) => {
-    const botId =
-      target.kind === "bot"
-        ? target.botId
-        : (
-            await deps.prisma.run.findUnique({
-              where: { id: runId, spaceId: actor.spaceId },
-              select: { botId: true },
-            })
-          )?.botId;
+    const botId = (
+      await deps.prisma.run.findUnique({
+        where: {
+          id: runId,
+          threadId: target.threadId,
+          ...conversationScopeWhere(actor),
+          ...(target.kind === "bot" ? { botId: target.botId } : {}),
+        },
+        select: { botId: true },
+      })
+    )?.botId;
     if (botId) await releaseComputerControl(deps, actor, botId, "done", runId);
   };
 }
 
-export function threadsRoutes(ctx: RouterContext) {
-  const { deps, authed, callsEnabled, codexCatalog, repos, agentSkills } = ctx;
-  /** The bot a reaction can wake: the thread's bot, or in a group the bot that wrote the message. */
-  const reactedBotId = async (target: ThreadTarget, messageId: string) =>
-    target.kind === "bot"
-      ? target.botId
-      : ((
-          await deps.prisma.message.findFirst({
-            where: { id: messageId, threadId: target.threadId },
-            select: { botId: true },
-          })
-        )?.botId ?? target.memberBotIds[0]!);
-  const send = async (
+export function createThreadSender({ deps, codexCatalog }: RouterContext) {
+  return async (
     actor: Actor,
     input: Parameters<typeof sendThreadMessage>[3] & { botId?: string; groupId?: string },
     startRoutines?: Parameters<typeof sendThreadMessage>[5],
@@ -148,8 +152,107 @@ export function threadsRoutes(ctx: RouterContext) {
       throw error;
     });
   };
+}
+
+export async function* subscribeThread(
+  { deps }: RouterContext,
+  context: { actor: Actor; signal?: AbortSignal; stillAuthorized?: () => Promise<boolean> },
+  input: { botId?: string; groupId?: string; cursor: number },
+): AsyncGenerator<ProductEvent> {
+  const projectWorkspaceId = conversationProjectId(context.actor);
+  const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+  const peerRunCache = new Map<string, Promise<boolean>>();
+  const backgroundRunCache = new Map<string, Promise<boolean>>();
+  const follow = deps.events.follow(target.threadId, input.cursor, context.signal);
+  let pending: Promise<IteratorResult<ProductEvent>> | undefined;
+  let authorizedAt = Date.now();
+  const assertStillAuthorized = async () => {
+    if (!context.stillAuthorized || Date.now() - authorizedAt < SESSION_RECHECK_MS) return;
+    if (!(await context.stillAuthorized())) throw new ORPCError("UNAUTHORIZED");
+    authorizedAt = Date.now();
+  };
+  try {
+    while (!context.signal?.aborted) {
+      pending ??= follow.next();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const next = await Promise.race([
+        pending,
+        new Promise<"silent">((resolve) => {
+          timer = setTimeout(() => resolve("silent"), HEARTBEAT_MS);
+        }),
+      ]).finally(() => clearTimeout(timer));
+      if (next === "silent") {
+        await assertStillAuthorized();
+        await assertProjectStreamAccess(deps.prisma, context.actor, projectWorkspaceId);
+        yield {
+          id: "heartbeat",
+          spaceId: context.actor.spaceId,
+          threadId: target.threadId,
+          botId: target.kind === "bot" ? target.botId : target.threadId,
+          seq: 0,
+          type: "heartbeat",
+          createdAt: new Date().toISOString(),
+          payload: {},
+        };
+        continue;
+      }
+      pending = undefined;
+      if (next.done) return;
+      const event = next.value;
+      await assertStillAuthorized();
+      await assertProjectStreamAccess(deps.prisma, context.actor, projectWorkspaceId);
+      if (await isPeerRun(deps.prisma, event.runId, peerRunCache)) {
+        if (!shouldForwardPeerThreadEvent(event)) continue;
+      } else if (await isBackgroundRun(deps.prisma, event.runId, backgroundRunCache)) {
+        if (!shouldForwardBackgroundThreadEvent(event)) continue;
+      }
+      yield event;
+    }
+  } finally {
+    void follow.return(undefined).catch(() => {});
+  }
+}
+
+export function threadsRoutes(ctx: RouterContext) {
+  const { deps, authed, callsEnabled, repos, agentSkills } = ctx;
+  const send = createThreadSender(ctx);
+  /** The bot a reaction can wake: the thread's bot, or in a group the bot that wrote the message. */
+  const reactedBotId = async (target: ThreadTarget, messageId: string) =>
+    target.kind === "bot"
+      ? target.botId
+      : ((
+          await deps.prisma.message.findFirst({
+            where: { id: messageId, threadId: target.threadId },
+            select: { botId: true },
+          })
+        )?.botId ?? target.memberBotIds[0]!);
   return {
     threads: {
+      companionScreenStart: authed.threads.companionScreenStart.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
+          !(await context.stillSessionAuthorized())) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return deps.companionScreen.start(
+          context.actor, input.botId, context.sessionId, input.confirmed, context.stillSessionAuthorized, context.signal,
+        );
+      }),
+      companionScreenRespond: authed.threads.companionScreenRespond.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
+          !(await context.stillSessionAuthorized())) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return { reply: await deps.companionScreen.respond(
+          context.actor, input.botId, context.sessionId, input.id, input.text,
+          context.stillSessionAuthorized, context.signal,
+        ) };
+      }),
+      companionScreenStop: authed.threads.companionScreenStop.handler(async ({ context, input }) => {
+        if (!deps.companionScreen || !context.sessionId) {
+          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+        }
+        return { stopped: deps.companionScreen.stop(context.actor, input.botId, context.sessionId, input.id) };
+      }),
       head: authed.threads.head.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
         return threadHead(deps.prisma, target);
@@ -174,65 +277,9 @@ export function threadsRoutes(ctx: RouterContext) {
           input.includePeerReceipts,
         );
       }),
-      subscribe: authed.threads.subscribe.handler(async function* ({ context, input }) {
-        const target = await resolveThreadTarget(deps.prisma, context.actor, input);
-        const peerRunCache = new Map<string, Promise<boolean>>();
-        const backgroundRunCache = new Map<string, Promise<boolean>>();
-        const follow = deps.events.follow(target.threadId, input.cursor, context.signal);
-        // A half-open stream looks identical to an idle one, so punctuate silence:
-        // the client treats any frame as liveness and reconnects once they stop.
-        let pending: Promise<IteratorResult<ProductEvent>> | undefined;
-        // Auth ran once when the stream opened. Re-check before delivering more, so a signed-out
-        // or revoked session stops within SESSION_RECHECK_MS, or at the next heartbeat when idle.
-        let authorizedAt = Date.now();
-        const assertStillAuthorized = async () => {
-          if (!context.stillAuthorized || Date.now() - authorizedAt < SESSION_RECHECK_MS) return;
-          if (!(await context.stillAuthorized())) throw new ORPCError("UNAUTHORIZED");
-          authorizedAt = Date.now();
-        };
-        try {
-          while (!context.signal?.aborted) {
-            pending ??= follow.next();
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            const next = await Promise.race([
-              pending,
-              new Promise<"silent">((resolve) => {
-                timer = setTimeout(() => resolve("silent"), HEARTBEAT_MS);
-              }),
-            ]).finally(() => clearTimeout(timer));
-            if (next === "silent") {
-              await assertStillAuthorized();
-              // Keep `pending` so the in-flight read stays the next event in order.
-              yield {
-                id: "heartbeat",
-                spaceId: context.actor.spaceId,
-                threadId: target.threadId,
-                // A bot thread's id is not the bot. Groups have no single bot, so the thread id stands in.
-                botId: target.kind === "bot" ? target.botId : target.threadId,
-                seq: 0,
-                type: "heartbeat",
-                createdAt: new Date().toISOString(),
-                payload: {},
-              };
-              continue;
-            }
-            pending = undefined;
-            if (next.done) return;
-            const event = next.value;
-            // Filtered peer events also restart the heartbeat, so check before skipping them.
-            await assertStillAuthorized();
-            if (await isPeerRun(deps.prisma, event.runId, peerRunCache)) {
-              if (!shouldForwardPeerThreadEvent(event)) continue;
-            } else if (await isBackgroundRun(deps.prisma, event.runId, backgroundRunCache)) {
-              if (!shouldForwardBackgroundThreadEvent(event)) continue;
-            }
-            yield event;
-          }
-        } finally {
-          // Not awaited: closing can queue behind a read that the abort has not landed on yet.
-          void follow.return(undefined).catch(() => {});
-        }
-      }),
+      subscribe: authed.threads.subscribe.handler(({ context, input }) =>
+        subscribeThread(ctx, context, input),
+      ),
       send: authed.threads.send.handler(({ context, input }) => send(context.actor, input)),
       sendWithRoutines: authed.threads.sendWithRoutines.handler(async ({ context, input }) => {
         const { actor } = context;
@@ -437,12 +484,17 @@ export function threadsRoutes(ctx: RouterContext) {
           });
           let run: { id: string } | null = null;
           if (!active) {
+            const executionScope = await resolveConversationExecutionScope(tx, {
+              spaceId: context.actor.spaceId, userId: context.actor.userId,
+              botId, threadId: target.threadId,
+            });
             const task = await tx.task.create({
               data: {
                 spaceId: context.actor.spaceId,
                 botId,
                 threadId: target.threadId,
                 userId: context.actor.userId,
+                projectWorkspaceId: executionScope.projectWorkspaceId,
                 prompt: input.text,
                 status: "queued",
               },
@@ -454,6 +506,7 @@ export function threadsRoutes(ctx: RouterContext) {
                 threadId: target.threadId,
                 taskId: task.id,
                 userId: context.actor.userId,
+                projectWorkspaceId: task.projectWorkspaceId,
                 status: "queued",
                 trigger: "follow_up",
                 sourceMessageId: message.id,
@@ -578,12 +631,16 @@ export function threadsRoutes(ctx: RouterContext) {
               type: "thread.message.created",
               payload: { messageId: message.id, role: "bot", blocks, callId: input.callId },
             });
+            const executionScope = await resolveConversationExecutionScope(tx, {
+              spaceId: context.actor.spaceId, userId: context.actor.userId, botId, threadId,
+            });
             const task = await tx.task.create({
               data: {
                 spaceId: context.actor.spaceId,
                 botId,
                 threadId,
                 userId: context.actor.userId,
+                projectWorkspaceId: executionScope.projectWorkspaceId,
                 prompt: HANG_UP_PROMPT,
                 status: "queued",
               },
@@ -595,6 +652,7 @@ export function threadsRoutes(ctx: RouterContext) {
                 threadId,
                 taskId: task.id,
                 userId: context.actor.userId,
+                projectWorkspaceId: task.projectWorkspaceId,
                 status: "queued",
                 trigger: "call_end",
                 clientNonce: callClientNonce(input.callId),

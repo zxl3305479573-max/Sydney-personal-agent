@@ -59,6 +59,7 @@ export async function loadCurrentTurnImages(
     userId: string;
     botId: string;
     runId: string;
+    projectWorkspaceId?: string | null;
     signal: AbortSignal;
   },
 ) {
@@ -73,6 +74,7 @@ export async function loadCurrentTurnImages(
       id: { in: imageBlocks.map((block) => block.artifactId) },
       spaceId: context.spaceId,
       userId: context.userId,
+      projectWorkspaceId: context.projectWorkspaceId ?? null,
     },
   });
   const byId = new Map(rows.map((row) => [row.id, row]));
@@ -121,6 +123,7 @@ async function loadTurnImagesWithinBudget(
     userId: string;
     botId: string;
     runId: string;
+    projectWorkspaceId?: string | null;
     signal: AbortSignal;
   },
   budget: { remainingBytes: number; remainingImages: number },
@@ -150,6 +153,7 @@ async function loadTurnImagesWithinBudget(
       id: { in: imageBlocks.map((block) => block.artifactId) },
       spaceId: context.spaceId,
       userId: context.userId,
+      projectWorkspaceId: context.projectWorkspaceId ?? null,
     },
     select: { id: true, storageKey: true, size: true },
   });
@@ -297,6 +301,7 @@ export async function withRecentTurnImages(
     userId: string;
     botId: string;
     runId: string;
+    projectWorkspaceId?: string | null;
     signal: AbortSignal;
   },
   options: {

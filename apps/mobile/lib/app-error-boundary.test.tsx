@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppErrorBoundary } from "../components/app-error-boundary";
+import { ServerSettingsStartupError } from "./startup";
 
 vi.mock("./monitoring", () => ({ reportMobileError: vi.fn() }));
 vi.mock("expo-splash-screen", () => ({ hideAsync: vi.fn().mockResolvedValue(undefined) }));
@@ -31,9 +32,13 @@ vi.mock("react-native", () => ({
 }));
 
 let shouldThrow = true;
+let serverSettingsFailure = false;
 
 function Child() {
-  if (shouldThrow) throw new Error("render failed");
+  if (shouldThrow) {
+    if (serverSettingsFailure) throw new ServerSettingsStartupError("not verified");
+    throw new Error("render failed");
+  }
   return <div>Recovered content</div>;
 }
 
@@ -44,6 +49,7 @@ describe("AppErrorBoundary", () => {
 
   beforeEach(() => {
     shouldThrow = true;
+    serverSettingsFailure = false;
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     container = document.createElement("div");
@@ -68,12 +74,29 @@ describe("AppErrorBoundary", () => {
     );
 
     const retry = container.querySelector("button");
+    expect(container.textContent).not.toContain("Server settings or the saved session");
     expect(retry?.textContent).toBe("Try again");
     expect(SplashScreen.hideAsync).toHaveBeenCalledOnce();
 
     shouldThrow = false;
     act(() => retry?.click());
 
+    expect(container.textContent).toBe("Recovered content");
+  });
+
+  it("explains a server settings failure and retries the child", () => {
+    serverSettingsFailure = true;
+    act(() =>
+      root.render(
+        <AppErrorBoundary>
+          <Child />
+        </AppErrorBoundary>,
+      ),
+    );
+    expect(container.textContent).toContain("Server settings or the saved session could not be verified.");
+    const retry = container.querySelector("button");
+    shouldThrow = false;
+    act(() => retry?.click());
     expect(container.textContent).toBe("Recovered content");
   });
 });

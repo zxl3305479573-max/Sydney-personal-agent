@@ -20,11 +20,11 @@ test("created bots appear as regular bots and reorder across their creator", asy
   await page.keyboard.press("Enter");
 
   const scout = rosterRow(page, /Scout/);
-  const chief = rosterRow(page, /^Chief/);
+  const chief = rosterRow(page, /^Sydney/);
   await expect(scout).toBeVisible({ timeout: 30_000 });
   await expect(chief).toBeVisible();
   const sidebar = page.locator("aside").first();
-  await expect(sidebar.getByRole("button", { name: /^(Collapse|Expand) Chief$/ })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: /^(Collapse|Expand) Sydney$/ })).toHaveCount(0);
   // Both rows use the same inset; creation provenance must not indent a bot.
   const inset = (row: ReturnType<typeof rosterRow>) =>
     row.evaluate((element) => getComputedStyle(element).paddingInlineStart);

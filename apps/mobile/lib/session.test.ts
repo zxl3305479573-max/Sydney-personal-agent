@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAppBadge, syncAppBadge } from "./app-badge";
 import { artifactCacheSession } from "./artifact-cache-session";
+import { registerCompanionStop } from "./companion-lifecycle";
 import { stopLiveNotifications } from "./live-notifications.js";
 import { clearNetworkCache } from "./network-cache.js";
 import {
@@ -10,6 +11,7 @@ import {
   currentSessionGeneration,
   loadSessionToken,
   loadVerifiedIntegrationsScope,
+  loadVerifiedIntegrationsScopeForStartup,
   registerSessionDiskCache,
   replaceSessionTokenIfCurrent,
   restoreSessionToken,
@@ -81,6 +83,17 @@ describe("mobile session storage", () => {
     expect(clear).toHaveBeenCalledTimes(2);
     await restoreSessionToken("fake-b");
     expect(clear.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  it("ends companion activity when the account session is cleared", async () => {
+    const stop = vi.fn(async () => undefined);
+    registerCompanionStop(stop);
+    try {
+      await clearSessionToken();
+      expect(stop).toHaveBeenCalledOnce();
+    } finally {
+      registerCompanionStop(async () => undefined);
+    }
   });
 
   it("clears the icon badge on sign-out and server-session restoration", async () => {
@@ -468,6 +481,20 @@ describe("verified integration session scope", () => {
     expect(await loadVerifiedIntegrationsScope()).toEqual(scope);
     disk.set("rakazo.session_token", "fake-session-b");
     expect(await loadVerifiedIntegrationsScope()).toBeNull();
+  });
+  it("rejects a scope when the session changes during the record read", async () => {
+    await saveVerifiedIntegrationsScope(currentSessionGeneration(), scope);
+    let replacement: Promise<void> | undefined;
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
+      if (key === "rakazo.integrations-scope" && !replacement) {
+        const previous = disk.get(key) ?? null;
+        replacement = saveSessionToken("fake-session-b");
+        return previous;
+      }
+      return disk.get(key) ?? null;
+    });
+    await expect(loadVerifiedIntegrationsScopeForStartup()).rejects.toThrow();
+    await replacement;
   });
   it.each(["sign-out", "replacement", "restore"])("invalidates the scope on %s", async (change) => {
     await saveVerifiedIntegrationsScope(currentSessionGeneration(), scope);

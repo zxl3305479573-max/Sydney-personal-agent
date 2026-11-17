@@ -5,6 +5,7 @@ import type { MobileBot, MobileGroup } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useResolvedAppearance } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 import { Chevron } from "./row-accessories";
 
@@ -36,7 +37,12 @@ export function ArchivedBotList({
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ padding: 20 }}
     >
-      <View style={{ borderRadius: 14, backgroundColor: native.fill, overflow: "hidden" }}>
+      <GlassSurface
+        shape="roundedRectangle"
+        cornerRadius={14}
+        style={{ borderRadius: 14, overflow: "hidden" }}
+        fallbackStyle={{ backgroundColor: native.fill }}
+      >
         {bots.map((bot) => (
           <MenuView
             key={bot.id}
@@ -98,7 +104,7 @@ export function ArchivedBotList({
             </View>
           </MenuView>
         ))}
-      </View>
+      </GlassSurface>
     </ScrollView>
   );
 }

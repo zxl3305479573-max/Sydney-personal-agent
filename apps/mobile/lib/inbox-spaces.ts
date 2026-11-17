@@ -1,7 +1,14 @@
 import type { SpaceBot, SpaceGroup } from "@rakazo/contracts";
 import { botAvatarActivity, groupBotsForSidebar, logoAvatarNeedsAttention } from "@rakazo/core";
-import type { MobileBot, MobileGroup, MobileSpace } from "./api";
-import { adoptDeletedSpaceFallback, rpc, selectedSpaceId, selectSpace } from "./api";
+import type { MobileBot, MobileGroup, MobileSpace, ServerSessionScope } from "./api";
+import {
+  adoptDeletedSpaceFallback,
+  captureServerSessionScope,
+  isServerSessionScopeCurrent,
+  rpc,
+  selectedSpaceId,
+  selectSpace,
+} from "./api";
 import { t } from "./i18n";
 import { mobileLogoAvatarActivity } from "./logo-avatar-activity";
 import type { InboxSignal } from "./offscreen-unreads";
@@ -158,8 +165,15 @@ export async function selectInboxSpace(spaceId: string, refresh: () => Promise<v
   return true;
 }
 
-export async function retryInboxSpaceFallback(spaceId: string, refresh: () => Promise<void>) {
-  if (!(await adoptDeletedSpaceFallback(spaceId))) return false;
+export type InboxSpaceFallback = { spaceId: string; scope: ServerSessionScope };
+
+export async function retryInboxSpaceFallback(
+  fallback: InboxSpaceFallback,
+  refresh: () => Promise<void>,
+) {
+  if (!isServerSessionScopeCurrent(fallback.scope)) return false;
+  if (!(await adoptDeletedSpaceFallback(fallback.spaceId, fallback.scope))) return false;
+  if (!isServerSessionScopeCurrent(fallback.scope)) return false;
   await refresh();
   return true;
 }
@@ -169,16 +183,25 @@ export async function retryInboxSpaceFallback(spaceId: string, refresh: () => Pr
 export async function removeInboxSpace(
   spaceId: string,
   refresh: () => Promise<void>,
-): Promise<string | null> {
+): Promise<InboxSpaceFallback | null> {
+  const scope = captureServerSessionScope();
   const response = await rpc("spaces/remove", { spaceId });
+  if (!isServerSessionScopeCurrent(scope))
+    throw new Error(t("The server changed while starting the request"));
   if (selectedSpaceId() === spaceId) {
-    if (await selectSpace(response.activeSpaceId).catch(() => false)) {
+    if (await selectSpace(response.activeSpaceId, scope).catch(() => false)) {
+      if (!isServerSessionScopeCurrent(scope))
+        throw new Error(t("The server changed while starting the request"));
       await refresh();
       return null;
     }
-    const durable = await adoptDeletedSpaceFallback(response.activeSpaceId);
+    if (!isServerSessionScopeCurrent(scope))
+      throw new Error(t("The server changed while starting the request"));
+    const durable = await adoptDeletedSpaceFallback(response.activeSpaceId, scope);
+    if (!isServerSessionScopeCurrent(scope))
+      throw new Error(t("The server changed while starting the request"));
     await refresh();
-    return durable ? null : response.activeSpaceId;
+    return durable ? null : { spaceId: response.activeSpaceId, scope };
   }
   await refresh();
   return null;

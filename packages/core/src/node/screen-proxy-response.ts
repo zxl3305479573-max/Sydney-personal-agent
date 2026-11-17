@@ -21,6 +21,7 @@ export function safeScreenProxyResponseHeaders(headers: IncomingHttpHeaders) {
   safe["content-security-policy"] = [...policies, SCREEN_SANDBOX];
   // Module imports from the opaque sandbox origin still need access to noVNC assets.
   safe["access-control-allow-origin"] = "*";
+  safe["referrer-policy"] = "no-referrer";
   // A CDN in front of the web service must pass the screen through untouched: injected scripts,
   // minification and script loaders break noVNC's module scripts.
   const cacheControl = safe["cache-control"];

@@ -34,7 +34,12 @@ import { waitForMountedAppDocument } from "./app-document-state.js";
 import { fromAppFrame } from "./app-frame.js";
 import { createAppOpener } from "./app-opener.js";
 import type { ElectronAutoUpdater } from "./auto-update.js";
-import { DesktopUpdateController, LAUNCH_CHECK_DELAY_MS, updaterSupport } from "./auto-update.js";
+import {
+  DesktopUpdateController,
+  LAUNCH_CHECK_DELAY_MS,
+  sydneyUpdaterEnvironment,
+  updaterSupport,
+} from "./auto-update.js";
 import { createBadgeHandler } from "./badge.js";
 import { openBrowserAuth } from "./browser-auth.js";
 import { DOCKER_INSTALL_LINKS, isDesktopSetupLink, runDocker } from "./docker-cli.js";
@@ -149,12 +154,7 @@ let liveProbeWindows = 0;
 const WARM_WINDOW_TTL_MS = warmWindowTtlMs(process.env.RAKAZO_WARM_WINDOW_TTL_MS);
 
 const reportsErrors = desktopReportsErrors(app.isPackaged);
-const updaterEnvironment = {
-  // A `--dir` build has no update feed to read.
-  packaged: app.isPackaged && existsSync(path.join(process.resourcesPath, "app-update.yml")),
-  version: app.getVersion(),
-  disabled: process.env.RAKAZO_DISABLE_AUTO_UPDATE === "1",
-};
+const updaterEnvironment = sydneyUpdaterEnvironment(app.isPackaged, app.getVersion());
 /** Created once the app's language is known, so its first message is in it. */
 let desktopUpdater: DesktopUpdateController;
 let launchUpdateCheckScheduled = false;

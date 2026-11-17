@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
 import { create, get, isSupported } from "react-native-passkeys";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ServerSessionScope } from "./api";
 import {
   authHeaders,
   clearSpace,
@@ -33,6 +34,19 @@ vi.mock("./api", () => ({
   authHeaders: vi.fn(async () => ({ authorization: "Bearer current-session" })),
   clearSpace: vi.fn(async () => true),
   currentApiBase: vi.fn(() => "https://rakazo.example.test"),
+  captureServerSessionScope: vi.fn(() => ({
+    apiBase: currentApiBase(),
+    endpointGeneration: 1,
+    sessionGeneration: currentSessionGeneration(),
+  })),
+  isServerSessionScopeCurrent: vi.fn(
+    (scope: ServerSessionScope) =>
+      scope.apiBase === currentApiBase() && scope.sessionGeneration === currentSessionGeneration(),
+  ),
+  replaceMobileSession: vi.fn(async (scope: ServerSessionScope, token: string, clearSelectedSpace: boolean) => {
+    if (clearSelectedSpace && !(await clearSpace())) throw new Error("storage unavailable");
+    return replaceSessionTokenIfCurrent(scope.sessionGeneration, token);
+  }),
   fetchMobileJson: vi.fn(),
   passwordResetCapabilities: vi.fn(),
 }));

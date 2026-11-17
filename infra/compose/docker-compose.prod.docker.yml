@@ -45,6 +45,7 @@ services:
       dockerfile: infra/compose/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     restart: unless-stopped
     command: ["pnpm", "--filter", "@rakazo/sandbox-supervisor", "start"]
     init: true

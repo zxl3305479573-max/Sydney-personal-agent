@@ -899,17 +899,26 @@ export function mcpRoutes(ctx: RouterContext) {
       oauth: {
         begin: authed.mcp.oauth.begin.handler(async ({ context, input }) => {
           try {
-            const expectedRedirect = new URL("/mcp/oauth/callback", deps.env.webOrigin).toString();
-            // Native clients omit the redirect; the registered web callback is always used.
-            if (input.redirectUri && new URL(input.redirectUri).toString() !== expectedRedirect) {
+            const webRedirect = new URL("/mcp/oauth/callback", deps.env.webOrigin).toString();
+            if (input.redirectUri && new URL(input.redirectUri).toString() !== webRedirect) {
               throw new Error("MCP OAuth redirect URI is not allowed");
             }
-            return await mcpOAuth.begin({
-              ...input,
+            if (input.nativeCallback && input.redirectUri) {
+              throw new Error("MCP OAuth callback options conflict");
+            }
+            const expectedRedirect =
+              input.nativeCallback && deps.env.mcpNativeCallbackOrigin
+                ? new URL("/api/mcp/oauth/callback", deps.env.mcpNativeCallbackOrigin).toString()
+                : webRedirect;
+            const result = await mcpOAuth.begin({
+              serverId: input.serverId,
               redirectUri: expectedRedirect,
               spaceId: context.actor.spaceId,
               userId: context.actor.userId,
             });
+            return result.status === "authorization_required"
+              ? { ...result, callbackUri: expectedRedirect }
+              : result;
           } catch (error) {
             if (error instanceof McpOAuthClientRequiredError) {
               await recordMcpServerHealth(

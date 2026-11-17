@@ -2,7 +2,11 @@ import type { AdapterContext, JobPublisher } from "@rakazo/adapter-kit";
 import { cloudAgentPollJob } from "@rakazo/adapter-kit";
 import { cloudAgentBlockFromPayload } from "@rakazo/core";
 import type { CloudAgent, PrismaClient, ThreadEvents } from "@rakazo/db";
-import { appendEventInTransaction, createThreadMessageInTransaction } from "@rakazo/db";
+import {
+  appendEventInTransaction,
+  createThreadMessageInTransaction,
+  resolveConversationExecutionScope,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
 import { cloudAgentsEnabled } from "./cloud-agent-factory.js";
@@ -43,6 +47,10 @@ export async function executeCloudAgentTool(
         where: { id: run.threadId, userId: context.userId, spaceId: context.spaceId },
         data: { unread: false },
       });
+      const scope = await resolveConversationExecutionScope(tx, {
+        spaceId: context.spaceId, userId: context.userId,
+        botId: context.botId, threadId: run.threadId,
+      });
       const existing = await tx.cloudAgent.findUnique({
         where: { operationKey: context.operationId },
       });
@@ -50,7 +58,10 @@ export async function executeCloudAgentTool(
         if (
           existing.spaceId !== context.spaceId ||
           existing.userId !== context.userId ||
-          existing.providerKey !== connection.key
+          existing.providerKey !== connection.key ||
+          existing.botId !== context.botId ||
+          existing.threadId !== run.threadId ||
+          existing.projectWorkspaceId !== scope.projectWorkspaceId
         ) {
           throw new Error("Cloud agent operation scope changed");
         }
@@ -64,6 +75,7 @@ export async function executeCloudAgentTool(
           userId: context.userId,
           botId: context.botId,
           threadId: run.threadId,
+          projectWorkspaceId: scope.projectWorkspaceId,
           title: request.prompt.split(/\r?\n/, 1)[0]!.slice(0, 80),
           launchRequest: request,
         },
@@ -102,12 +114,17 @@ export async function executeCloudAgentTool(
         .notify(run.threadId, result.seq, result.firstResponseRunId)
         .catch(() => undefined);
   } else {
+    const scope = await resolveConversationExecutionScope(deps.prisma, {
+      spaceId: context.spaceId, userId: context.userId,
+      botId: context.botId, threadId: run.threadId,
+    });
     const owned = await deps.prisma.cloudAgent.findFirst({
       where: {
         id: String(args.id).trim(),
         providerKey: connection.key,
         spaceId: context.spaceId,
         userId: context.userId,
+        projectWorkspaceId: scope.projectWorkspaceId,
       },
     });
     if (!owned) return { error: "Unknown cloud agent." };

@@ -76,20 +76,20 @@ function noGroupMemberships() {
 
 describe("spawned bot creation", () => {
   it("returns the existing child when a spawn is retried", async () => {
-    const findUnique = vi.fn().mockResolvedValue({
+    const findFirst = vi.fn().mockResolvedValueOnce({ id: "parent-1" }).mockResolvedValueOnce({
       id: "child-1",
       name: "Scout",
       thread: { id: "thread-1" },
     });
     const enqueue = vi.fn().mockResolvedValue(undefined);
+    const findRun = vi.fn().mockResolvedValue({ id: "child-run-1" });
     const prisma = {
       bot: {
         count: vi.fn().mockResolvedValue(0),
-        findFirst: vi.fn().mockResolvedValue({ id: "parent-1" }),
-        findUnique,
+        findFirst,
       },
       deploymentSettings: { findUnique: vi.fn().mockResolvedValue(null) },
-      run: { findUnique: vi.fn().mockResolvedValue({ id: "child-run-1" }) },
+      run: { findFirst: findRun },
       $transaction: vi.fn().mockRejectedValue(new Error("unique spawn key")),
     } as unknown as PrismaClient;
 
@@ -113,12 +113,14 @@ describe("spawned bot creation", () => {
       },
     );
 
-    expect(findUnique).toHaveBeenCalledWith({
+    expect(findFirst).toHaveBeenLastCalledWith({
       where: {
-        spaceId_spawnKey: {
-          spaceId: "workspace-1",
-          spawnKey: "tool-call-1",
-        },
+        spaceId: "workspace-1",
+        userId: "user-1",
+        projectWorkspaceId: null,
+        spawnKey: "tool-call-1",
+        parentBotId: "parent-1",
+        archivedAt: null,
       },
       include: { thread: true },
     });
@@ -128,6 +130,17 @@ describe("spawned bot creation", () => {
       botId: "child-1",
       name: "Scout",
       threadId: "thread-1",
+    });
+    expect(findRun).toHaveBeenCalledWith({
+      where: {
+        spaceId: "workspace-1",
+        userId: "user-1",
+        projectWorkspaceId: null,
+        botId: "child-1",
+        threadId: "thread-1",
+        clientNonce: "spawn:tool-call-1",
+        trigger: "spawn",
+      },
     });
     expect(enqueue).toHaveBeenCalledOnce();
   });

@@ -39,7 +39,12 @@ import {
   teachRecordingTtlMs,
 } from "@rakazo/core";
 import type { createRepos, PrismaClient, ThreadEvents } from "@rakazo/db";
-import { clearEndedRunState, expireComputerExecutionLeases, IsolationError } from "@rakazo/db";
+import {
+  clearEndedRunState,
+  expireComputerExecutionLeases,
+  IsolationError,
+  resolveConversationExecutionScope,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 
 export interface TaughtSkillsDeps {
@@ -488,26 +493,34 @@ export function createTaughtSkillsService(deps: TaughtSkillsDeps) {
       const playbook = parsePlaybook(skill.playbook);
       const taskPrompt =
         prompt ?? formatSkillRunPrompt(skill.name || skill.goal.slice(0, 80), playbook, true);
-      const task = await deps.prisma.task.create({
-        data: {
-          spaceId: actor.spaceId,
-          botId: bot.id,
-          threadId: bot.thread.id,
-          userId: actor.userId,
-          prompt: taskPrompt,
-          status: "queued",
-        },
-      });
-      const run = await deps.prisma.run.create({
-        data: {
-          spaceId: actor.spaceId,
-          botId: bot.id,
-          threadId: bot.thread.id,
-          taskId: task.id,
-          userId: actor.userId,
-          status: "queued",
-          trigger: "skill",
-        },
+      const threadId = bot.thread.id;
+      const run = await deps.prisma.$transaction(async (tx) => {
+        const executionScope = await resolveConversationExecutionScope(tx, {
+          spaceId: actor.spaceId, userId: actor.userId, botId: bot.id, threadId,
+        });
+        const task = await tx.task.create({
+          data: {
+            spaceId: actor.spaceId,
+            botId: bot.id,
+            threadId,
+            userId: actor.userId,
+            projectWorkspaceId: executionScope.projectWorkspaceId,
+            prompt: taskPrompt,
+            status: "queued",
+          },
+        });
+        return tx.run.create({
+          data: {
+            spaceId: actor.spaceId,
+            botId: bot.id,
+            threadId,
+            taskId: task.id,
+            userId: actor.userId,
+            projectWorkspaceId: task.projectWorkspaceId,
+            status: "queued",
+            trigger: "skill",
+          },
+        });
       });
       await deps.jobs.enqueue(runContinueJob(run.id));
       return { runId: run.id };

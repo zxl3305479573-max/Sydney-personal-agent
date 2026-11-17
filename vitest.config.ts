@@ -29,7 +29,8 @@ const isolated = include
     (file) =>
       process.env.COPY_TEST_DATABASE ||
       mutatesSharedState.test(readFileSync(path.join(root, file), "utf8")),
-  );
+  )
+  .map((file) => file.split(path.sep).join("/"));
 
 export default defineConfig({
   resolve: {

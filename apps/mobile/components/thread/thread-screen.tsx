@@ -14,11 +14,13 @@ import {
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { I18nManager, ImageBackground, Platform, StyleSheet, View } from "react-native";
+import { Alert, I18nManager, ImageBackground, Platform, StyleSheet, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
-import { rpc } from "../../lib/api";
+import { isSpaceSelectionPending, rpc, selectedSpaceId, spaceSelectionSeq } from "../../lib/api";
+import { activeCompanionIdentity } from "../../lib/companion-activity";
+import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
 import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
@@ -31,6 +33,7 @@ import { useThemedStyles } from "../../lib/native";
 import { useInboxBot } from "../../lib/search-inbox";
 import { useSplitView } from "../../lib/split-view";
 import { useIncomingShareImport, useThreadAttachments } from "../../lib/thread-attachments";
+import { currentSessionGeneration } from "../../lib/session";
 import { useThreadBots } from "../../lib/thread-bots";
 import {
   threadColumnPadding,
@@ -69,6 +72,7 @@ import { ThreadComposerDock } from "./thread-composer-dock";
 import { BotActionsModal, useThreadHeader } from "./thread-header";
 import { LoadEarlierButton, ThreadWorkingFooter } from "./thread-list-controls";
 import { ThreadMessageList } from "./thread-message-list";
+import { ThreadModelSheet } from "./thread-model-sheet";
 import { useLatestRowActions, useThreadRows } from "./thread-rows";
 import { useThreadRunError } from "./thread-run-error";
 
@@ -110,6 +114,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     name,
     messageId,
     threadId,
+    companionVoice,
+    companionToken,
     readOnly: readOnlyParam,
   } = useLocalSearchParams<{
     botId?: string;
@@ -117,6 +123,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     name?: string;
     messageId?: string;
     threadId?: string;
+    companionVoice?: string;
+    companionToken?: string;
     readOnly?: string;
   }>();
   const readOnly = readOnlyParam === "1";
@@ -157,15 +165,20 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     maxAttachmentsPerMessage?: number;
   }>();
   const [needsModel, setNeedsModel] = useState<boolean>();
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [modelSheetOpen, setModelSheetOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<{ botId: string; modelId: string | null }>();
   // Re-read on focus so returning from Models settings updates unsent missing-model messages.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setSelectedModel(undefined);
       void rpc("me")
         .then((me) => {
           if (cancelled) return;
           setUploadConfig(me);
           setNeedsModel(me.needsModel);
+          setDefaultModel(me.defaultModel ?? null);
         })
         .catch(() => undefined);
       return () => {
@@ -243,8 +256,10 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   // Until the chat's own roster arrives, the bot as the inbox last loaded it.
   const inboxBot = useInboxBot(botId);
   const titleBot = currentBot ?? inboxBot;
-  // Without a name yet (a notification can leave it out), the title shows a placeholder.
-  const titleName = currentBot?.name ?? name ?? inboxBot?.name;
+  // Use a cached name until the chat's own roster arrives.
+  const titleName = [currentBot?.name, inboxBot?.name, name]
+    .map((candidate) => safeDisplayName(candidate, ""))
+    .find(Boolean);
   const displayName = safeDisplayName(titleName, inGroup ? t("Group") : t("Bot"));
   const composerPrompt = displayName ? t("Message {name}", { name: displayName }) : t("Message…");
   const notificationThreadId = snap?.threadId ?? requestedThreadId ?? currentBot?.threadId;
@@ -260,8 +275,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const activityLine = liveActivityLine(snap?.messages ?? []);
   const userBubble = useMemo(
     () =>
-      !inGroup && currentBot ? chatUserBubbleColors(currentBot.color, currentBot.id) : undefined,
-    [inGroup, currentBot?.color, currentBot?.id],
+      !inGroup && titleBot ? chatUserBubbleColors(titleBot.color, titleBot.id) : undefined,
+    [inGroup, titleBot?.color, titleBot?.id],
   );
   const activeGroupBots = useMemo(() => {
     if (!inGroup) return [];
@@ -420,6 +435,51 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     activeBotId,
   });
 
+  const companionVoiceHandled = useRef(false);
+  const companionVoiceFocused = useRef(focused);
+  companionVoiceFocused.current = focused;
+  useEffect(() => () => {
+    companionVoiceFocused.current = false;
+  }, []);
+  useEffect(() => {
+    if (companionVoice !== "1") {
+      companionVoiceHandled.current = false;
+      return;
+    }
+    if (!botId || inGroup || readOnly || !focused || companionVoiceHandled.current) return;
+    companionVoiceHandled.current = true;
+    const requestedBot = botId;
+    const generation = currentSessionGeneration();
+    const spaceId = selectedSpaceId();
+    const activity = activeCompanionIdentity();
+    const spaceSelection = spaceSelectionSeq();
+    router.setParams({ companionVoice: undefined, companionToken: undefined, companionLink: undefined });
+    if (!activity || !companionVoiceLinkMatches(companionToken, activity, requestedBot, spaceId) ||
+      isSpaceSelectionPending()) return;
+    Alert.alert("语音对话", "开始后将按照系统授权使用麦克风。", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "开始",
+        onPress: () => {
+          if (canStartCompanionVoice({
+            focused: companionVoiceFocused.current,
+            requestedBot,
+            activeBot: activeBotId.current,
+            requestGeneration: generation,
+            currentGeneration: currentSessionGeneration(),
+            requestSpace: spaceId,
+            currentSpace: selectedSpaceId(),
+            requestActivityId: activity.id,
+            activeActivity: activeCompanionIdentity(),
+            requestSpaceSelection: spaceSelection,
+            currentSpaceSelection: spaceSelectionSeq(),
+            spaceSelectionPending: isSpaceSelectionPending(),
+          })) void startVoiceCall(false, generation);
+        },
+      },
+    ]);
+  }, [companionVoice, companionToken, botId, inGroup, readOnly, focused]);
+
   const { runError, normalizedRunError, runErrorAction, detailsOpen, setDetailsOpen } =
     useThreadRunError(snap?.run, botId);
 
@@ -480,7 +540,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     onCall,
     displayName,
     mentionBots,
-    currentBot,
+    currentBot: titleBot,
     currentBotStatus,
     userBubble,
     columnWidth,
@@ -555,6 +615,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     <View style={{ flex: 1 }}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
+        resizeMode={chatAppearance.backgroundFit}
         imageStyle={{ opacity: chatAppearance.backgroundOpacity }}
         style={{ flex: 1 }}
       >
@@ -606,7 +667,19 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
             <ThreadComposerDock
               hidden={readOnly}
               columnPadding={columnPadding}
-              notice={<ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />}
+              notice={
+                <>
+                  {feedback.outboxRestoreFailed ? (
+                    <ThreadErrorNotice
+                      error={t(
+                        "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.",
+                      )}
+                      summary={null}
+                    />
+                  ) : null}
+                  <ThreadFetchErrorNotice error={error} showingSaved={showingSaved} />
+                </>
+              }
               onHeight={setDockHeight}
               replyTarget={replyTarget}
               replyAuthor={
@@ -642,6 +715,18 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                   (attachment) => attachment.id,
                 )}
                 botId={botId}
+                modelLabel={
+                  selectedModel && selectedModel.botId === botId
+                    ? (selectedModel.modelId ?? defaultModel ?? undefined)
+                    : currentBot
+                      ? (currentBot.modelId ?? defaultModel ?? undefined)
+                      : undefined
+                }
+                onModelPress={
+                  botId && !inGroup
+                    ? () => setModelSheetOpen(true)
+                    : undefined
+                }
                 onCall={onCall}
                 working={working}
                 sending={composer.sending || attachments.shareImporting}
@@ -657,6 +742,21 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           </View>
           {botActionsOpen ? (
             <BotActionsModal actions={botActions} onClose={closeBotActions} />
+          ) : null}
+          {modelSheetOpen && botId && !inGroup ? (
+            <ThreadModelSheet
+              key={botId}
+              botId={botId}
+              onClose={() => setModelSheetOpen(false)}
+              onChanged={(modelId) => {
+                setSelectedModel({ botId, modelId });
+                void refreshMentionBots();
+              }}
+              onAdd={() => {
+                setModelSheetOpen(false);
+                router.push("/models");
+              }}
+            />
           ) : null}
           {selectableText !== null ? (
             <SelectTextSheet text={selectableText} onClose={() => setSelectableText(null)} />

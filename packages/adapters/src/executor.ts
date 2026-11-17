@@ -1,4 +1,9 @@
-import type { AgentRunRequest, AgentRunModel, ComputerRef, SemanticMemoryProvider } from "@rakazo/adapter-kit";
+import type {
+  AgentRunModel,
+  AgentRunRequest,
+  ComputerRef,
+  SemanticMemoryProvider,
+} from "@rakazo/adapter-kit";
 import {
   DEFAULT_CONTEXT_STRATEGY,
   isModelCredentialRejected,
@@ -40,6 +45,7 @@ import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
   effectiveMemoryScope,
+  guardManagedRun,
   isPartialReplyClientNonce,
   isTooManyDatabaseConnections,
   loadRunHistoryMessages,
@@ -48,11 +54,10 @@ import {
   RunHistoryWriteError,
   readRunTimingFields,
   recordUsage,
+  runAsTenant,
   settleReleasedTakeoverCards,
   spaceHasModelAccess,
   teamChatRunFromOwner,
-  guardManagedRun,
-  runAsTenant,
 } from "@rakazo/db";
 import { enrichLogContext, getLogger } from "@rakazo/logging";
 import { sanitizedError } from "@rakazo/logging/monitoring";
@@ -60,8 +65,6 @@ import { formatAgentEnvironmentInstruction } from "./agent-environment.js";
 import { createApprovedEffectReplayQueue } from "./approval-effect.js";
 import { PARTIAL_REPLY_NOTE } from "./automated-messages.js";
 import { loadBotMessageContext } from "./bot-messages.js";
-import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
-import { filterManagedTaskTools } from "./managed-task-tools.js";
 import {
   commandCredentialRedactions,
   loadBotCommandEnvironment,
@@ -112,6 +115,8 @@ import {
   neutralizeSpeakerLabels,
   USER_SPEAKER,
 } from "./history-speakers.js";
+import { ManagedTaskControlStopped, watchManagedTaskControl } from "./managed-task-control.js";
+import { filterManagedTaskTools } from "./managed-task-tools.js";
 import { createMediaGenerationProvider } from "./media-generation-factory.js";
 import { loadAgentMemoryContext } from "./memory-context.js";
 import { HostedModelCreditsRequiredError } from "./model-credit-observer.js";
@@ -228,6 +233,7 @@ import {
 } from "./thread-artifacts.js";
 import { loadAgentTicketContext } from "./ticket-context.js";
 import { appendToolCompletionAudit } from "./tool-completion-audit.js";
+import { toolIntentCandidate } from "./tool-intent.js";
 import { toolResultFingerprint } from "./tool-loop.js";
 import { createWebProvider } from "./web-provider-factory.js";
 
@@ -513,9 +519,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       const managedControlWatch = managedTaskId
         ? watchManagedTaskControl(
             async () =>
-              runAsTenant({ userId: run.userId, spaceId: run.spaceId }, async () => {
+              runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, async () => {
                 const task = await deps.prisma.task.findFirst({
-                  where: { id: managedTaskId, userId: run.userId, spaceId: run.spaceId },
+                  where: {
+                    id: managedTaskId, userId: run.userId, spaceId: run.spaceId,
+                    projectWorkspaceId: run.projectWorkspaceId,
+                  },
                   select: { executionState: true },
                 });
                 const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
@@ -681,6 +690,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           userId: run.userId,
           botId: bot.id,
           runId,
+          projectWorkspaceId: run.projectWorkspaceId,
           screenLeaseId: screenLeaseIdForRun(computerLease, runId, fence),
           nativeRunLease: {
             owner: workerId,
@@ -715,8 +725,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                   },
                   select: { expiresAt: true },
                 });
-                if (!ownedComputer || !lease.valid || runAbortController?.signal.aborted) return null;
-                return Math.min(ownedRun.leaseExpiresAt.getTime(), ownedComputer.expiresAt.getTime());
+                if (!ownedComputer || !lease.valid || runAbortController?.signal.aborted)
+                  return null;
+                return Math.min(
+                  ownedRun.leaseExpiresAt.getTime(),
+                  ownedComputer.expiresAt.getTime(),
+                );
               }
               return ownedRun.leaseExpiresAt.getTime();
             },
@@ -725,10 +739,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
         };
-        const memoryScope = configuredMemory
+        const memoryScope = configuredMemory && !run.projectWorkspaceId
           ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
           : null;
-        const semanticMemory: SemanticMemoryProvider | null = configuredMemory?.provider ?? null;
+        const semanticMemory: SemanticMemoryProvider | null = run.projectWorkspaceId
+          ? null
+          : configuredMemory?.provider ?? null;
 
         await deps.events.append({
           spaceId: run.spaceId,
@@ -1272,6 +1288,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             phoneCallsEnabled: deps.phoneCallsEnabled,
             historyRetrievalEnabled: contextStrategy !== "current",
             graphicalToolsAllowed,
+            computerKind,
             pageBrowserAllowed,
             groupId: thread.groupId,
             trigger: run.trigger,
@@ -1361,6 +1378,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           heldForTakeover,
           graphicalToolsAllowed,
           graphical,
+          computerKind,
           disabled: disabledBuiltinTools,
         });
         const dockerToolInstruction = dockerComputerToolInstruction(
@@ -1483,6 +1501,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           },
           computer: {
             stored: storedComputer,
+            kind: computerKind,
             mode: computerMode,
             lease: computerLease,
             lazy: runComputer,
@@ -1710,29 +1729,32 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const managedCallObserver = (observer: AgentRunModel["callObserver"]) => {
           if (!managedTaskId) throw new Error("managed_task_missing_task_id");
           return {
-            beforeCall: async (call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0]) => {
-              await runAsTenant(
-                { userId: run.userId, spaceId: run.spaceId },
-                () =>
-                  guardManagedRun(
-                    deps.prisma,
-                    { userId: run.userId, spaceId: run.spaceId },
-                    managedTaskId,
-                    {
-                      runId,
-                      workerId,
-                      fence,
-                      action: { tool: "model_call", action: "execute", resource: "model" },
-                      reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
-                      executionId: call.callId,
-                    },
-                    0,
-                  ),
+            beforeCall: async (
+              call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0],
+            ) => {
+              await runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, () =>
+                guardManagedRun(
+                  deps.prisma,
+                  { userId: run.userId, spaceId: run.spaceId },
+                  managedTaskId,
+                  {
+                    runId,
+                    workerId,
+                    fence,
+                    action: { tool: "model_call", action: "execute", resource: "model" },
+                    reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
+                    executionId: call.callId,
+                  },
+                  0,
+                ),
               );
               const reservation = await observer?.beforeCall(call);
               return reservation ? `managed:${reservation}` : "managed-task-call";
             },
-            afterCall: async (reservationId: string, usage: Parameters<NonNullable<AgentRunModel["callObserver"]>["afterCall"]>[1]) => {
+            afterCall: async (
+              reservationId: string,
+              usage: Parameters<NonNullable<AgentRunModel["callObserver"]>["afterCall"]>[1],
+            ) => {
               if (reservationId === "managed-task-call") return;
               if (reservationId.startsWith("managed:")) {
                 await observer?.afterCall(reservationId.slice(8), usage);
@@ -1825,6 +1847,37 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               history: runtimeHistory,
               currentTurnImages,
               currentRunRequiresImageInput,
+              toolIntentCandidate: toolIntentCandidate({
+                enabled: process.env.RAKAZO_TOOL_INTENT_ROUTING === "1",
+                trigger: run.trigger,
+                sourceRole: sourceMessage?.role,
+                group: Boolean(
+                  thread.groupId || nonOwnerChatRun || messagingChannelRun || !ownerStartedRun,
+                ),
+                voiceCall,
+                scripted,
+                hasCheckpoint: Boolean(
+                  turnCheckpoint || checkpointLoadError || takeoverResume || resumeCheckpoint,
+                ),
+                hasAttachments: Boolean(currentTurnFiles.length || currentTurnImages?.length),
+                hasPriorContext: Boolean(
+                  runtimeHistory.some((entry) => entry.id !== run.sourceMessageId) ||
+                    messages.some((entry) => entry.id !== run.sourceMessageId) ||
+                    thread.historyCompactedUpToSeq ||
+                    memoryContext ||
+                    scratchpadContext ||
+                    ticketContext ||
+                    replyContext,
+                ),
+                hasCustomInstructions: Boolean(
+                  bot.instructions?.trim() ||
+                    bot.description?.trim() ||
+                    invokedSkill ||
+                    attachedFilesPrompt ||
+                    redactSecrets(task.prompt, runSecrets) !== task.prompt,
+                ),
+                message: task.prompt,
+              }),
               currentTurnImageFileFallback: Boolean(
                 currentTurnImages?.length &&
                   currentTurnFiles.length &&

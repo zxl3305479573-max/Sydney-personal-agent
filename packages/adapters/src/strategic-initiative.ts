@@ -2,7 +2,11 @@ import type { JobPublisher } from "@rakazo/adapter-kit";
 import { runContinueJob } from "@rakazo/adapter-kit";
 import { ACTIVE_RUN_STATUSES, escapePromptData, truncatePlainText } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
-import { STRATEGIC_INITIATIVE_NONCE_PREFIX, spaceHasModelAccess } from "@rakazo/db";
+import {
+  resolveConversationExecutionScope,
+  spaceHasModelAccess,
+  STRATEGIC_INITIATIVE_NONCE_PREFIX,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { isUniqueViolation } from "./run-messages.js";
 import { modelCreditBillingEnabled } from "./run-model.js";
@@ -229,12 +233,16 @@ async function queueStrategicInitiativeRun(
         select: { id: true },
       });
       if (existing) return null;
+      const executionScope = await resolveConversationExecutionScope(tx, {
+        spaceId: bot.spaceId, userId: bot.userId, botId: bot.id, threadId: bot.thread!.id,
+      });
       const task = await tx.task.create({
         data: {
           spaceId: bot.spaceId,
           botId: bot.id,
           threadId: bot.thread!.id,
           userId: bot.userId,
+          projectWorkspaceId: executionScope.projectWorkspaceId,
           prompt: initiativePrompt(bot),
           status: "queued",
         },
@@ -246,6 +254,7 @@ async function queueStrategicInitiativeRun(
           threadId: bot.thread!.id,
           taskId: task.id,
           userId: bot.userId,
+          projectWorkspaceId: task.projectWorkspaceId,
           status: "queued",
           trigger: "routine",
           clientNonce: nonce,

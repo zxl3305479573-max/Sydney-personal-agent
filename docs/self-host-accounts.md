@@ -224,6 +224,19 @@ email configured, **Send deletion code** sends a single-use code to the account 
 minutes. Enter it in account settings to confirm deletion. Email-code requests are rate-limited;
 invalid, expired or wrong-account codes fail. No password needs to be created for deletion.
 
+## Authentication email links
+
+By default, verification and password reset emails use the configured authentication and web
+origins. `AUTH_PUBLIC_LINK_ORIGIN` can optionally select a different canonical HTTPS origin for
+those links and the password reset page returned by the API. The origin must equal the
+`WEB_ORIGIN` origin or appear in `EXTRA_TRUSTED_ORIGINS`; otherwise the API refuses to start.
+It does not change `WEB_ORIGIN`, the passkey relying party, SSO callbacks or other service URLs.
+
+Before enabling it, verify that the selected origin has a trusted certificate and serves the
+authentication API, `/sign-in` and `/reset-password`. Test the complete email and client flows
+and preserve the previous entry and rollback path. A passkey bound to a domain does not become
+usable through an IP address just because email links use that address.
+
 ## Passkeys
 
 Passkeys are on whenever `WEB_ORIGIN` is an HTTPS domain (or `localhost` in development); the

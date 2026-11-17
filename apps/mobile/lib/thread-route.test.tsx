@@ -10,7 +10,8 @@ const state = vi.hoisted(() => ({
   selected: "space-1" as string | null,
   selectSpace: vi.fn(),
   replace: vi.fn(),
-  params: {} as { spaceId?: string },
+  params: {} as { spaceId?: string; botId?: string; companionLink?: string; companionVoice?: string; companionToken?: string },
+  activity: null as null | { id: string; botId: string; spaceId: string | null; linkToken: string },
 }));
 
 const { element } = vi.hoisted(() => ({
@@ -40,6 +41,7 @@ vi.mock("./api", () => ({
   selectedSpaceId: () => state.selected,
   selectSpace: state.selectSpace,
 }));
+vi.mock("./companion-activity", () => ({ activeCompanionIdentity: () => state.activity }));
 vi.mock("./i18n", () => {
   const t = (text: string) => text;
   return { t, useI18n: () => ({ t }) };
@@ -66,6 +68,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.selected = "space-1";
   state.params = {};
+  state.activity = null;
   state.selectSpace.mockReset();
   state.replace.mockReset();
   container = document.createElement("div");
@@ -105,4 +108,24 @@ it("shows the thread without switching when no space is requested", async () => 
   await render();
   expect(state.selectSpace).not.toHaveBeenCalled();
   expect(container.textContent).toBe("thread:user-1");
+});
+
+it("does not switch workspaces for an expired companion link", async () => {
+  state.params = { botId: "bot-1", spaceId: "space-2", companionLink: "1", companionToken: "old" };
+  state.activity = { id: "new", botId: "bot-1", spaceId: "space-2", linkToken: "new" };
+  await render();
+  expect(state.selectSpace).not.toHaveBeenCalled();
+  expect(container.textContent).not.toContain("thread:");
+});
+
+it("switches for a link belonging to the current companion activity", async () => {
+  state.params = { botId: "bot-1", spaceId: "space-2", companionLink: "1", companionToken: "new" };
+  state.activity = { id: "new", botId: "bot-1", spaceId: "space-2", linkToken: "new" };
+  state.selectSpace.mockImplementation(async (spaceId: string) => {
+    state.selected = spaceId;
+    return true;
+  });
+  await render();
+  expect(state.selectSpace).toHaveBeenCalledWith("space-2");
+  expect(container.textContent).toContain("thread:user-1");
 });

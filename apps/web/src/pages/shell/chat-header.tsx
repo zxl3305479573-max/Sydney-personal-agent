@@ -3,6 +3,7 @@ import type { Bot, Group, ThreadSnapshot } from "@rakazo/contracts";
 import { BotAvatar, Button, GroupAvatar } from "@rakazo/ui-web";
 import { ChevronLeft, Menu, MoreHorizontal, Phone } from "lucide-react";
 import { IconTooltip } from "../../components/IconTooltip";
+import { PageBreadcrumb } from "../../components/PageBreadcrumb";
 
 /** The floating header over the transcript: navigation, the chat's name and call. */
 export function ChatHeader({
@@ -37,7 +38,7 @@ export function ChatHeader({
       data-group={inGroup || undefined}
       className="sydney-grok-header pointer-events-none absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 py-[6px] [&_button]:pointer-events-auto"
     >
-      <div className="flex items-center">
+      <div className="flex min-w-0 items-center gap-1">
         <Button
           variant="floating"
           size="icon-lg"
@@ -51,6 +52,17 @@ export function ChatHeader({
             <Menu strokeWidth={1.7} className="size-[19px]" />
           )}
         </Button>
+        {inGroup || active ? (
+          <PageBreadcrumb
+            inline
+            translated
+            label={
+              inGroup
+                ? (activeGroup?.name ?? activeSnapshot?.groupName ?? t`Group`)
+                : (active?.name ?? t`Select a bot`)
+            }
+          />
+        ) : null}
       </div>
       <Button
         variant="floating"

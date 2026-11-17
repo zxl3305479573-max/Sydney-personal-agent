@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadEnv } from "./env.js";
 
@@ -7,6 +8,221 @@ const base = {
 };
 
 describe("loadEnv", () => {
+  it("requires an explicit opt-in and secure origins for API email verification returns", () => {
+    expect(loadEnv(base).nativeEmailVerificationOnApi).toBe(false);
+    const enabled = { ...base, SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API: "true" };
+    expect(loadEnv(enabled).nativeEmailVerificationOnApi).toBe(true);
+    expect(() => loadEnv({ ...enabled, BETTER_AUTH_URL: "http://auth.example.test" })).toThrow(
+      "HTTPS email verification links",
+    );
+    expect(() => loadEnv({ ...enabled, WEB_ORIGIN: "http://web.example.test" })).toThrow(
+      "HTTPS email verification links",
+    );
+    expect(() => loadEnv({ ...base, SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API: "yes" })).toThrow(
+      "must be true or false",
+    );
+    expect(
+      loadEnv({
+        ...enabled,
+        BETTER_AUTH_URL: "http://auth.example.test",
+        WEB_ORIGIN: "http://web.example.test",
+        AUTH_PUBLIC_LINK_ORIGIN: "https://public.example.test",
+        EXTRA_TRUSTED_ORIGINS: "https://public.example.test",
+      }).nativeEmailVerificationOnApi,
+    ).toBe(true);
+  });
+  it("keeps the legacy sign-in compatibility page off unless explicitly enabled", () => {
+    expect(loadEnv(base).legacySignInReturnOnApi).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API: "true" }).legacySignInReturnOnApi,
+    ).toBe(true);
+    expect(() => loadEnv({ ...base, SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API: "yes" })).toThrow(
+      "must be true or false",
+    );
+  });
+  it("rejects public HTTP reset emails and accepts a trusted public HTTPS mapping", () => {
+    const enabled = { ...base, SYDNEY_NATIVE_PASSWORD_RESET_ON_API: "true" };
+    expect(loadEnv(enabled).nativePasswordResetOnApi).toBe(true);
+    expect(() => loadEnv({ ...enabled, BETTER_AUTH_URL: "http://internal.example" })).toThrow(
+      "HTTPS password-reset email links",
+    );
+    expect(
+      loadEnv({
+        ...enabled,
+        BETTER_AUTH_URL: "http://internal.example",
+        AUTH_PUBLIC_LINK_ORIGIN: "https://public.example",
+        EXTRA_TRUSTED_ORIGINS: "https://public.example",
+      }).nativePasswordResetOnApi,
+    ).toBe(true);
+  });
+  it("requires explicit opt-in and an absolute directory for Wuying assets", () => {
+    expect(loadEnv(base).wuyingAssetsOnApi).toBe(false);
+    expect(loadEnv(base).nativePasswordResetOnApi).toBe(false);
+    const assetsDir = resolve("wuying-assets");
+    expect(
+      loadEnv({
+        ...base,
+        SYDNEY_WUYING_ASSETS_ON_API: "true",
+        SYDNEY_WUYING_ASSETS_DIR: assetsDir,
+      }),
+    ).toMatchObject({ wuyingAssetsOnApi: true, wuyingAssetsDir: assetsDir });
+    expect(() => loadEnv({ ...base, SYDNEY_WUYING_ASSETS_ON_API: "yes" })).toThrow(
+      "SYDNEY_WUYING_ASSETS_ON_API must be true or false",
+    );
+    for (const dir of [undefined, "relative"]) {
+      expect(() =>
+        loadEnv({
+          ...base,
+          SYDNEY_WUYING_ASSETS_ON_API: "true",
+          SYDNEY_WUYING_ASSETS_DIR: dir,
+        }),
+      ).toThrow("absolute SYDNEY_WUYING_ASSETS_DIR");
+    }
+  });
+  it("enables the API screen proxy only by explicit configuration", () => {
+    expect(loadEnv(base).screenProxyOnApi).toBe(false);
+    expect(loadEnv({ ...base, SYDNEY_SCREEN_PROXY_ON_API: "true" }).screenProxyOnApi).toBe(true);
+    expect(() => loadEnv({ ...base, SYDNEY_SCREEN_PROXY_ON_API: "yes" })).toThrow(
+      "SYDNEY_SCREEN_PROXY_ON_API must be true or false",
+    );
+    for (const API_PORT of ["0", "-1", "65536", "abc"]) {
+      expect(() => loadEnv({ ...base, SYDNEY_SCREEN_PROXY_ON_API: "true", API_PORT })).toThrow(
+        "SYDNEY_SCREEN_PROXY_ON_API requires a fixed API_PORT",
+      );
+    }
+    expect(loadEnv({ ...base, SYDNEY_SCREEN_PROXY_ON_API: "true", API_PORT: "3101" }).port).toBe(
+      3101,
+    );
+  });
+  it("keeps the API integration callback opt-in", () => {
+    expect(loadEnv(base).integrationApiCallbackEnabled).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_INTEGRATION_API_CALLBACK: "true" }).integrationApiCallbackEnabled,
+    ).toBe(true);
+  });
+  it("accepts only a canonical HTTPS origin for the optional MCP native callback", () => {
+    expect(loadEnv(base).mcpNativeCallbackOrigin).toBeUndefined();
+    expect(
+      loadEnv({ ...base, SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN: "https://api.example.test" })
+        .mcpNativeCallbackOrigin,
+    ).toBe("https://api.example.test");
+    for (const value of [
+      "http://api.example.test",
+      "https://api.example.test/",
+      "https://user:pass@api.example.test",
+      "https://api.example.test/path",
+      "https://*.example.test",
+    ]) {
+      expect(() => loadEnv({ ...base, SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN: value })).toThrow(
+        "SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN must be a canonical HTTPS origin",
+      );
+    }
+  });
+  it("enables project conversation creation only when explicitly configured", () => {
+    expect(loadEnv(base).projectConversationCreateExperiment).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true" })
+        .projectConversationCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "development",
+        SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true",
+      }).projectConversationCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+        SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true",
+      }).projectConversationCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+      }).projectConversationCreateExperiment,
+    ).toBe(false);
+  });
+  it("allows project creation only when explicitly configured", () => {
+    expect(loadEnv(base).projectWorkspaceCreateExperiment).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_PROJECT_CREATE_EXPERIMENT: "true" })
+        .projectWorkspaceCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "development",
+        SYDNEY_PROJECT_CREATE_EXPERIMENT: "true",
+      }).projectWorkspaceCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+        SYDNEY_PROJECT_CREATE_EXPERIMENT: "true",
+      }).projectWorkspaceCreateExperiment,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+      }).projectWorkspaceCreateExperiment,
+    ).toBe(false);
+  });
+  it("enables screen companion only when explicitly requested in test or development", () => {
+    expect(loadEnv(base).companionScreenExperimental).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_COMPANION_SCREEN_EXPERIMENT: "true" }).companionScreenExperimental,
+    ).toBe(true);
+    expect(
+      loadEnv({
+        ...base,
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "prod-auth-secret-with-enough-length",
+        ENCRYPTION_KEY: "prod-encryption-key-with-enough-length",
+        SCREEN_PROXY_SECRET: "prod-screen-proxy-secret-with-enough-length",
+        SYDNEY_COMPANION_SCREEN_EXPERIMENT: "true",
+      }).companionScreenExperimental,
+    ).toBe(false);
+  });
+  it("allows only explicitly trusted canonical HTTPS auth email origins", () => {
+    const configured = {
+      ...base,
+      WEB_ORIGIN: "https://old.example.test",
+      EXTRA_TRUSTED_ORIGINS: "https://192.0.2.10",
+    };
+    expect(loadEnv(configured).authPublicLinkOrigin).toBeUndefined();
+    expect(
+      loadEnv({ ...configured, AUTH_PUBLIC_LINK_ORIGIN: "https://192.0.2.10" })
+        .authPublicLinkOrigin,
+    ).toBe("https://192.0.2.10");
+    for (const origin of [
+      "http://192.0.2.10",
+      "https://192.0.2.10/",
+      "https://192.0.2.10/path",
+      "https://other.example.test",
+      "https://user@192.0.2.10",
+    ]) {
+      expect(() => loadEnv({ ...configured, AUTH_PUBLIC_LINK_ORIGIN: origin })).toThrow(
+        "AUTH_PUBLIC_LINK_ORIGIN",
+      );
+    }
+  });
   it("defaults the attachment count to four and accepts configured bounds", () => {
     expect(loadEnv(base).maxAttachmentsPerMessage).toBe(4);
     expect(loadEnv({ ...base, MAX_ATTACHMENTS_PER_MESSAGE: " " }).maxAttachmentsPerMessage).toBe(4);
@@ -388,6 +604,37 @@ describe("OIDC environment", () => {
 });
 
 describe("web origin", () => {
+  it("leaves the screen proxy origin unset unless explicitly configured", () => {
+    expect(loadEnv(base).screenProxyPublicOrigin).toBeUndefined();
+    expect(
+      loadEnv({ ...base, SCREEN_PROXY_PUBLIC_ORIGIN: "" }).screenProxyPublicOrigin,
+    ).toBeUndefined();
+    for (const origin of ["https://screen.example", "https://192.0.2.10:8443", "https://[::1]"]) {
+      expect(loadEnv({ ...base, SCREEN_PROXY_PUBLIC_ORIGIN: origin }).screenProxyPublicOrigin).toBe(
+        origin,
+      );
+    }
+  });
+
+  it.each([
+    " ",
+    "http://screen.example",
+    "https://screen.example/",
+    "https://SCREEN.example",
+    "https://screen.example:443",
+    "https://screen.example/path",
+    "https://screen.example?token=x",
+    "https://screen.example#fragment",
+    "https://user:password@screen.example",
+    "https://*.example",
+    "https://127.1",
+    "https://screen.example\\path",
+  ])("rejects noncanonical screen proxy origin %j", (value) => {
+    expect(() => loadEnv({ ...base, SCREEN_PROXY_PUBLIC_ORIGIN: value })).toThrow(
+      "SCREEN_PROXY_PUBLIC_ORIGIN must be a canonical HTTPS origin",
+    );
+  });
+
   it("drops trailing slashes so links never double up", () => {
     expect(loadEnv({ ...base, WEB_ORIGIN: "https://app.example.com/" }).webOrigin).toBe(
       "https://app.example.com",
@@ -452,6 +699,45 @@ describe("web origin", () => {
     const value = "postgres://user:password@db.example.test/database";
     const load = () => loadEnv({ ...base, [name]: value });
     expect(load).toThrow(`${name} must be an absolute http(s) URL`);
+    expect(load).not.toThrow(value);
+  });
+});
+
+describe("extra trusted origins", () => {
+  it("defaults to none and normalizes and deduplicates explicit HTTPS origins", () => {
+    expect(loadEnv(base).extraTrustedOrigins).toEqual([]);
+    expect(
+      loadEnv({
+        ...base,
+        EXTRA_TRUSTED_ORIGINS:
+          " https://192.0.2.10:443/, HTTPS://Example.TEST:8443,https://192.0.2.10 ",
+      }).extraTrustedOrigins,
+    ).toEqual(["https://192.0.2.10", "https://example.test:8443"]);
+  });
+
+  it.each([
+    "http://192.0.2.10",
+    "https://*.example.test",
+    "https://%2a.example.test",
+    "https://user:password@example.test",
+    "https://@example.test",
+    "https://example.test/path",
+    "https://example.test?",
+    "https://example.test#",
+    "https://example.test\\evil",
+    "https://example.test:",
+    "https://127.0.0.1:",
+    "https://[::1]:",
+    "https://127.1",
+    "https://0x7f000001",
+    "https://0177.0.0.1",
+    "https://2130706433",
+    "https://192.0.2.010",
+    "https://example.test,",
+    "null",
+  ])("rejects invalid origin %j without exposing it", (value) => {
+    const load = () => loadEnv({ ...base, EXTRA_TRUSTED_ORIGINS: value });
+    expect(load).toThrow("EXTRA_TRUSTED_ORIGINS must contain comma-separated HTTPS origins");
     expect(load).not.toThrow(value);
   });
 });

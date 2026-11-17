@@ -1,0 +1,68 @@
+name: Publish iOS sideload update
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime_version:
+        description: Confirm the installed iOS binary runtime version
+        required: true
+        type: string
+      notes:
+        description: Description of this JavaScript update
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ios-sideload-update
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "1"
+      SYDNEY_SIDELOAD_IOS: "1"
+      SYDNEY_IOS_BUNDLE_ID: xin.zxlup.sydney
+      EXPO_PUBLIC_API_URL: https://pc.zxlup.xin
+      SYDNEY_OTA_PROJECT_ID: ${{ vars.SYDNEY_OTA_PROJECT_ID }}
+      SYDNEY_OTA_OWNER: ${{ vars.SYDNEY_OTA_OWNER }}
+      SYDNEY_OTA_RUNTIME_VERSION: ${{ vars.SYDNEY_OTA_RUNTIME_VERSION }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      CONFIRMED_RUNTIME: ${{ inputs.runtime_version }}
+      UPDATE_NOTES: ${{ inputs.notes }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Check update configuration
+        run: |
+          set -euo pipefail
+          for name in SYDNEY_OTA_PROJECT_ID SYDNEY_OTA_OWNER SYDNEY_OTA_RUNTIME_VERSION EXPO_TOKEN; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing $name" >&2
+              exit 1
+            fi
+          done
+          if [[ "$CONFIRMED_RUNTIME" != "$SYDNEY_OTA_RUNTIME_VERSION" ]]; then
+            echo "Confirmed runtime does not match the configured installed binary." >&2
+            exit 1
+          fi
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385
+        with:
+          eas-version: latest
+          packager: pnpm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: pnpm install --frozen-lockfile
+      - name: Publish update
+        working-directory: apps/mobile
+        run: eas update --channel sideload --platform ios --environment production --message "$UPDATE_NOTES" --non-interactive

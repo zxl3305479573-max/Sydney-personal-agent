@@ -8,7 +8,7 @@
     "build": "cross-env NODE_ENV=production vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --root ../.. apps/web/src",
+    "test": "vitest run --root ../.. apps/web/src packages/core/src/node/screen-proxy.test.ts packages/core/src/node/novnc-html.test.ts",
     "e2e": "playwright test",
     "intl:extract": "lingui extract --clean",
     "intl:compile": "lingui compile"

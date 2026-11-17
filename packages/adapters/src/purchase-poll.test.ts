@@ -1,4 +1,5 @@
 import { PaymentWalletRequestRejected } from "@rakazo/adapter-kit";
+import { runAsTenant } from "@rakazo/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakePaymentWallet, fakeJobs, fakePurchasePrisma } from "./fake-purchases.js";
 import { PURCHASE_POLL_DEADLINE_MS, pollPurchase, reconcilePurchases } from "./purchase-poll.js";
@@ -14,8 +15,8 @@ vi.mock("./payment-wallets.js", () => ({
 
 const fixture = { spaceId: "space-1", userId: "user-1", botId: "bot-1", threadId: "thread-1" };
 
-async function setup() {
-  const db = fakePurchasePrisma(fixture);
+async function setup(projectWorkspaceId: string | null = null) {
+  const db = fakePurchasePrisma({ ...fixture, projectWorkspaceId });
   const queue = fakeJobs();
   const wallet = new FakePaymentWallet();
   const deps = {
@@ -24,7 +25,7 @@ async function setup() {
     jobs: queue.jobs,
     paymentWallet: wallet,
   };
-  await executePurchaseTool(
+  await runAsTenant(fixture, () => executePurchaseTool(
     deps,
     {
       operationId: "op-1",
@@ -45,12 +46,16 @@ async function setup() {
         2,
       ),
     },
-  );
+  ));
   queue.enqueued.length = 0;
   const approve = () =>
     wallet.snapshots.set("remote-op-1", { id: "remote-op-1", status: "approved" });
-  const poll = () => pollPurchase(deps, { purchaseId: "purchase-1" });
-  return { ...db, ...queue, wallet, deps, approve, poll, row: () => db.purchases[0]! };
+  const poll = () => runAsTenant(fixture, () => pollPurchase(deps, { purchaseId: "purchase-1" }));
+  return {
+    ...db, ...queue, wallet, deps, approve, poll, row: () => db.purchases[0]!,
+    pollIn: (scope: { spaceId: string; userId: string; projectWorkspaceId?: string | null }) =>
+      runAsTenant(scope, () => pollPurchase(deps, { purchaseId: "purchase-1" })),
+  };
 }
 
 afterEach(() => {
@@ -95,6 +100,17 @@ describe("pollPurchase", () => {
     // Settled: a later poll does nothing.
     await env.poll();
     expect(env.runs).toHaveLength(1);
+  });
+
+  it("wakes only within the purchase's original project", async () => {
+    const env = await setup("project-original");
+    env.approve();
+    await env.pollIn({ ...fixture, projectWorkspaceId: "project-other" });
+    expect(env.runs).toHaveLength(0);
+    expect(env.row().nextPollAt).not.toBeNull();
+    await env.pollIn({ ...fixture, projectWorkspaceId: "project-original" });
+    expect(env.row().projectWorkspaceId).toBe("project-original");
+    expect(env.runs).toEqual([expect.objectContaining({ projectWorkspaceId: "project-original" })]);
   });
 
   it("does not wake a bot that is gone, and stops polling", async () => {

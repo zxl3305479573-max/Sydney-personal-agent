@@ -14,6 +14,7 @@ import {
   screenPageStatus,
   screenRenewReadAt,
   screenStreamKey,
+  screenUrlForApi,
 } from "./computer.js";
 
 function computer(overrides: Partial<ComputerStatus> = {}): ComputerStatus {
@@ -65,61 +66,111 @@ describe("embeddableScreenUrl", () => {
     expect(embeddableScreenUrl(url, "http://localhost:3100")).toBe(url);
   });
 
-  it("rejects loopback HTTP screens rewritten to a public API host", () => {
+  it.each(["192.168.1.20", "10.0.2.2", "server.local", "127.0.0.1"])(
+    "rejects an undeclared HTTP screen on %s when the API uses HTTPS",
+    (host) => {
+      const url = `http://${host}:16080/embed.html?ticket=secret`;
+      expect(
+        embeddableScreenUrl(screenUrlForApi({ url }, "https://api.example"), "https://api.example"),
+      ).toBeNull();
+      expect(
+        embeddableScreenUrl(
+          screenUrlForApi({ url, proxy: "other" }, "https://api.example"),
+          "https://api.example",
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("keeps undeclared proxy and loopback origins", () => {
+    for (const url of [
+      "https://192.168.1.20/novnc/session/view/1.t/embed.html?view_only=true",
+      "https://screens.example.test/novnc/session/view/1.t/embed.html",
+    ]) {
+      expect(embeddableScreenUrl(url, "https://api.example")).toBe(url);
+    }
     expect(
       embeddableScreenUrl("http://localhost:16080/embed.html", "https://api.example"),
     ).toBeNull();
-  });
-
-  it("moves a proxied screen sealed for an unreachable address onto an HTTPS API origin", () => {
-    for (const sealed of [
-      "http://127.0.0.1:5173/novnc/session/view/1.t/embed.html?view_only=true",
-      "https://192.168.1.20/novnc/session/view/1.t/embed.html?view_only=true",
-    ]) {
-      expect(embeddableScreenUrl(sealed, "https://rakazo.example.test")).toBe(
-        "https://rakazo.example.test/novnc/session/view/1.t/embed.html?view_only=true",
-      );
-    }
-  });
-
-  it("keeps a proxied screen on its own public HTTPS host or for a local API", () => {
-    const remote = "https://screens.example.test/novnc/session/view/1.t/embed.html";
-    expect(embeddableScreenUrl(remote, "https://api.example.test")).toBe(remote);
     expect(
       embeddableScreenUrl(
         "http://127.0.0.1:5173/novnc/session/view/1.t/embed.html",
-        "http://10.0.2.2:3100",
+        "https://api.example",
       ),
-    ).toBe("http://10.0.2.2:5173/novnc/session/view/1.t/embed.html");
-  });
-
-  it("keeps loopback screens when the API is also loopback", () => {
-    const url = "http://127.0.0.1:16080/embed.html?view_only=true";
-    expect(embeddableScreenUrl(url, "http://127.0.0.1:3100")).toBe(url);
-    expect(embeddableScreenUrl(url, "http://localhost:3100")).toBe(url);
-  });
-
-  it("rewrites loopback screens onto the API host for a device or emulator", () => {
-    expect(
-      embeddableScreenUrl(
-        "http://127.0.0.1:16080/embed.html?view_only=false",
-        "http://10.0.2.2:3100",
-      ),
-    ).toBe("http://10.0.2.2:16080/embed.html?view_only=false");
-    expect(
-      embeddableScreenUrl("http://localhost:16080/embed.html", "http://192.168.1.20:3100"),
-    ).toBe("http://192.168.1.20:16080/embed.html");
+    ).toBeNull();
   });
 
   it("returns null when there is no screen", () => {
-    expect(embeddableScreenUrl(null, "http://127.0.0.1:3100")).toBeNull();
+    expect(embeddableScreenUrl(null, "https://api.example")).toBeNull();
   });
 
   it("does not send unsupported fixture URLs to the native WebView", () => {
     expect(
-      embeddableScreenUrl("fake://screen/fake-team-home/researcher", "http://10.0.2.2:3100"),
+      embeddableScreenUrl("fake://screen/fake-team-home/researcher", "https://api.example"),
     ).toBeNull();
-    expect(embeddableScreenUrl("not a URL", "http://10.0.2.2:3100")).toBeNull();
+    expect(embeddableScreenUrl("not a URL", "https://api.example")).toBeNull();
+  });
+});
+
+describe("screenUrlForApi", () => {
+  const api = "https://192.0.2.10:8443";
+  const url =
+    "https://old.example.test/novnc/session/view/1710000000000.token_ABC-123/vnc.html?path=socket#part";
+
+  it.each(["view", "control"])("preserves the declared %s proxy origin", (policy) => {
+    const source = url.replace("/view/", `/${policy}/`);
+    expect(screenUrlForApi({ url: source, proxy: "rakazo-novnc" }, api)).toBe(source);
+  });
+
+  it.each(["asset%20name.html", "%E4%B8%AD%E6%96%87.html", "vnc%2Ehtml"])(
+    "preserves a valid encoded proxy path %s",
+    (asset) => {
+      const source = `https://web.example.test/novnc/session/view/123.token/${asset}?path=socket`;
+      expect(screenUrlForApi({ url: source, proxy: "rakazo-novnc" }, api)).toBe(source);
+    },
+  );
+
+  it("leaves undeclared and third-party URLs untouched", () => {
+    expect(screenUrlForApi({ url }, api)).toBe(url);
+    expect(screenUrlForApi({ url, proxy: "other" }, api)).toBe(url);
+    expect(screenUrlForApi({ url: null, proxy: "rakazo-novnc" }, api)).toBeNull();
+  });
+
+  it.each([
+    "https://old.example.test/novnc/session/view/not-a-capability/vnc.html",
+    "https://old.example.test/novnc/session/other/123.token/vnc.html",
+    "https://old.example.test/novnc/session/view/123.token/../../other",
+    "https://old.example.test/novnc/session/view/123.token/../123.token/vnc.html",
+    "https://old.example.test/novnc/session/view/123.token/%2e%2e/123.token/vnc.html",
+    "https://old.example.test/novnc/session/view/123.token%2Fvnc.html",
+    "https://old.example.test/novnc/session/view/123.token/bad%2Fpath",
+    "https://old.example.test/novnc/session/view/123.token/bad%5cpath",
+    "https://old.example.test/novnc/session/view/123.token/%252e%252e",
+    "https://old.example.test/novnc/session/view/123.token/bad%xx",
+    "http://192.168.1.20/novnc/session/view/not-a-capability/vnc.html",
+    "https://user:pass@old.example.test/novnc/session/view/123.token/vnc.html",
+    "desktop://screen/novnc/session/view/123.token/vnc.html",
+    "not a URL",
+  ])("rejects invalid declared proxy URL %s", (invalid) => {
+    expect(screenUrlForApi({ url: invalid, proxy: "rakazo-novnc" }, api)).toBeNull();
+    expect(
+      screenUrlForApi({ url: invalid, proxy: "rakazo-novnc" }, "http://127.0.0.1:3100"),
+    ).toBeNull();
+  });
+
+  it("rejects a declared HTTP proxy when the API is HTTPS", () => {
+    const source = "http://192.168.1.20:5173/novnc/session/view/123.token/vnc.html?path=socket";
+    const result = screenUrlForApi({ url: source, proxy: "rakazo-novnc" }, api);
+    expect(result).toBeNull();
+    expect(embeddableScreenUrl(result, api)).toBeNull();
+  });
+
+  it("rejects a declared proxy when the API origin is invalid", () => {
+    expect(screenUrlForApi({ url, proxy: "rakazo-novnc" }, "not a URL")).toBeNull();
+  });
+
+  it("does not move a declared proxy to a cleartext API", () => {
+    expect(screenUrlForApi({ url, proxy: "rakazo-novnc" }, "http://127.0.0.1:3100")).toBe(url);
   });
 });
 
@@ -374,14 +425,30 @@ describe("screen page redirects and origin", () => {
     await expect(screenPageStatus("https://app.example.test/novnc/x", manual)).resolves.toBe(0);
   });
 
-  it("hears only the screen's own origin", () => {
+  it("hears only the exact capability page", () => {
     const screen = "https://app.example.test/novnc/session/control/1.t/vnc.html";
     expect(
       fromScreenPage("https://app.example.test/novnc/session/control/1.t/vnc.html", screen),
     ).toBe(true);
+    expect(fromScreenPage("https://app.example.test/elsewhere", screen, screen)).toBe(false);
+    expect(
+      fromScreenPage("https://app.example.test/novnc/session/control/2.t/vnc.html", screen, screen),
+    ).toBe(false);
+    expect(fromScreenPage(`${screen}?other=1`, screen, screen)).toBe(false);
+    expect(fromScreenPage(screen, screen, "https://app.example.test/elsewhere")).toBe(false);
     expect(fromScreenPage("https://elsewhere.example.test/", screen)).toBe(false);
     expect(fromScreenPage(undefined, screen)).toBe(false);
     expect(fromScreenPage("not a url", screen)).toBe(false);
+  });
+
+  it("accepts an Android origin only with the exact loaded page", () => {
+    const screen = "https://app.example.test/novnc/session/view/1.t/vnc.html?view_only=true";
+    expect(fromScreenPage("https://app.example.test", screen, screen)).toBe(true);
+    expect(fromScreenPage("https://app.example.test", screen)).toBe(false);
+    expect(
+      fromScreenPage("https://app.example.test", screen, "https://app.example.test/other"),
+    ).toBe(false);
+    expect(fromScreenPage("https://elsewhere.example.test", screen, screen)).toBe(false);
   });
 
   it("accepts an opaque Android origin only for the exact loaded proxy page", () => {

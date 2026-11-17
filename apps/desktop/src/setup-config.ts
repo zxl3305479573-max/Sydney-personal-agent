@@ -7,7 +7,8 @@ import { t } from "./i18n.js";
 /** Managed desktop origin; development keeps its usual web/API ports. */
 export const DEFAULT_LOCAL_WEB_URL = "http://127.0.0.1:45173";
 /** Hosted Rakazo; setup saves it as an `existing` server so it opens like any other. */
-export const RAKAZO_CLOUD_URL = "https://pc.zxlup.xin";
+export const RAKAZO_CLOUD_URL =
+  process.platform === "win32" ? "https://124.221.182.39" : "https://pc.zxlup.xin";
 export const PROBE_RESPONSE_LIMIT_BYTES = 64 * 1024;
 
 export const SETUP_FILE_NAME = "setup.json";
@@ -192,6 +193,18 @@ export function sessionPartitionForServerUrl(targetUrl: string): string | null {
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     const digest = createHash("sha256").update(url.origin).digest("hex").slice(0, 24);
     return `persist:rakazo-${digest}`;
+  } catch {
+    return null;
+  }
+}
+
+export function standaloneSessionPartitionForServerUrl(targetUrl: string): string | null {
+  try {
+    const url = new URL(targetUrl);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password)
+      return null;
+    const digest = createHash("sha256").update(url.origin).digest("hex").slice(0, 24);
+    return `persist:sydney-standalone-${digest}`;
   } catch {
     return null;
   }

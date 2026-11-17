@@ -18,6 +18,7 @@ x-app-environment: &app-environment
   # The app's own login, subject to row-level security (docs/self-host-configuration.md#database-roles).
   DATABASE_URL: postgres://rakazo_app:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rakazo}
   REALTIME_DATABASE_URL:
+  RAKAZO_TOOL_INTENT_ROUTING:
   DB_POOL_MAX:
   DATA_DIR: /data
   ENCRYPTION_KEY:
@@ -374,6 +375,7 @@ services:
       dockerfile: infra/compose/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     working_dir: /app/apps/api
     command: ["pnpm", "db:deploy"]
     restart: "no"
@@ -406,6 +408,7 @@ services:
       dockerfile: infra/compose/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     restart: unless-stopped
     # Node runs directly, not through pnpm: pnpm does not pass SIGTERM on, so a stop would kill the
     # process before its graceful shutdown finishes in-flight requests and jobs.
@@ -428,6 +431,20 @@ services:
       BETTER_AUTH_SECRET:
       BETTER_AUTH_URL:
       WEB_ORIGIN:
+      AUTH_PUBLIC_LINK_ORIGIN:
+      SYDNEY_INTEGRATION_API_CALLBACK:
+      SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN:
+      SYDNEY_COMPANION_SCREEN_EXPERIMENT:
+      SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT:-true}
+      SYDNEY_PROJECT_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CREATE_EXPERIMENT:-true}
+      SYDNEY_NATIVE_PASSWORD_RESET_ON_API:
+      SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API:
+      SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API:
+      SCREEN_PROXY_PUBLIC_ORIGIN:
+      SYDNEY_SCREEN_PROXY_ON_API:
+      SYDNEY_WUYING_ASSETS_ON_API:
+      SYDNEY_WUYING_ASSETS_DIR:
+      EXTRA_TRUSTED_ORIGINS:
       AUTH_PASSWORD_ENABLED: ${AUTH_PASSWORD_ENABLED:-true}
       AUTH_BREACHED_PASSWORD_CHECK_ENABLED: ${AUTH_BREACHED_PASSWORD_CHECK_ENABLED:-false}
       PASSKEY_APPLE_APP_IDS:
@@ -506,6 +523,7 @@ services:
       dockerfile: infra/compose/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     restart: unless-stopped
     # Directly, not through pnpm, so a stop reaches it (see the api command).
     working_dir: /app/apps/worker
@@ -555,6 +573,7 @@ services:
       dockerfile: infra/compose/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     restart: unless-stopped
     # Directly, not through pnpm, so a stop reaches it (see the api command).
     working_dir: /app/apps/web
@@ -643,6 +662,7 @@ services:
       # same services the operator runs by hand, so these are read from the environment rather
       # than pinned to the base stack. Defaults reproduce the previous behaviour exactly.
       RAKAZO_COMPOSE_FILE: ${RAKAZO_COMPOSE_FILE:-infra/compose/docker-compose.prod.yml}
+      RAKAZO_COMPOSE_OVERLAY_FILE: ${RAKAZO_COMPOSE_OVERLAY_FILE:-}
       RAKAZO_UPDATE_SERVICES: ${RAKAZO_UPDATE_SERVICES:-}
       COMPOSE_PATH_SEPARATOR: ${COMPOSE_PATH_SEPARATOR:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -657,6 +677,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${RAKAZO_DEPLOY_DIR:-/srv/rakazo}:${RAKAZO_DEPLOY_DIR:-/srv/rakazo}
+      - /etc/rakazo/compose:/etc/rakazo/compose:ro
     networks:
       - control
     healthcheck:
@@ -684,6 +705,9 @@ services:
     mem_limit: 256m
     environment:
       RAKAZO_HOST: ${RAKAZO_HOST:-app.example.com}
+      SYDNEY_SCREEN_PROXY_UPSTREAM: ${SYDNEY_SCREEN_PROXY_UPSTREAM:-web:5173}
+      SYDNEY_WUYING_SCREEN_UPSTREAM: ${SYDNEY_WUYING_SCREEN_UPSTREAM:-web:5173}
+      SYDNEY_SIGN_IN_UPSTREAM: ${SYDNEY_SIGN_IN_UPSTREAM:-web:5173}
       # Go listens with multipath TCP by default, which widens the kernel attack surface.
       GODEBUG: multipathtcp=0
     ports:

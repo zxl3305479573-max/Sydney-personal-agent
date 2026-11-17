@@ -22,7 +22,7 @@ import { notifyArchivedChatsChanged } from "./archived-chats";
 import { confirmDeleteBot, confirmDeleteGroup } from "./bot-lifecycle";
 import { confirmDeleteSection } from "./confirm-delete-section";
 import { useI18n } from "./i18n";
-import type { InboxChatKind, InboxRowAction } from "./inbox-swipe";
+import type { InboxChatKind, InboxRowAction, PinOverride } from "./inbox-swipe";
 import { chatTarget, createLatestQueue, unreadOverrideKey } from "./inbox-swipe";
 import { afterChatNotifyChange, dismissThreadNotifications } from "./live-notifications";
 import { removeFromSearchInbox } from "./search-inbox";
@@ -74,12 +74,79 @@ export function useInboxChatActions({
   const [archiving, setArchiving] = useState<ReadonlySet<string>>(() => new Set());
   // One path for the long-press sheet and the swipe actions.
   const [sendReadState] = useState(() => createLatestQueue<boolean>());
+  const [pinOverrides, setPinOverrides] = useState<ReadonlyMap<string, PinOverride>>(
+    () => new Map(),
+  );
+  const [sendPinState] = useState(() => createLatestQueue<boolean>());
+  const updatePin = useCallback(
+    (kind: InboxChatKind, chat: MobileBot | MobileGroup | SpaceBot | SpaceGroup, pinned: boolean) => {
+      const key = unreadOverrideKey(kind, chat.id);
+      const generation = currentSessionGeneration();
+      const apiBase = currentApiBase();
+      const spaceId = chat.spaceId ?? selectedSpaceId() ?? undefined;
+      const queueKey = JSON.stringify([generation, apiBase, spaceId, key]);
+      const matches = (entry: PinOverride | undefined) =>
+        entry?.generation === generation && entry.apiBase === apiBase && entry.spaceId === spaceId;
+      const isCurrent = () =>
+        generation === currentSessionGeneration() && apiBase === currentApiBase();
+      setPinOverrides((current) =>
+        new Map(current).set(key, { pinned, generation, apiBase, spaceId }),
+      );
+      void sendPinState(
+        queueKey,
+        pinned,
+        async (nextPinned) => {
+          const context = await captureApiRequestContext();
+          if (!isCurrent() || context.sessionGeneration !== generation) return;
+          const headers = { ...context.headers };
+          if (spaceId) headers["x-rakazo-space-id"] = spaceId;
+          else delete headers["x-rakazo-space-id"];
+          await rpc(`${kind}s/update`, { ...chatTarget(kind, chat.id), pinned: nextPinned }, {
+            requestContext: { ...context, headers },
+            skipSpaceAuthRecovery: true,
+          });
+          if (!isCurrent()) return;
+          const patch = <T extends { id: string; pinned?: boolean }>(items: T[]) =>
+            items.map((item) => (item.id === chat.id ? { ...item, pinned: nextPinned } : item));
+          if (!spaceId || selectedSpaceId() === spaceId) {
+            if (kind === "bot") setBots(patch);
+            else setGroups(patch);
+          }
+          setSpaces((current) =>
+            current.map((space) =>
+              space.id !== spaceId
+                ? space
+                : kind === "bot"
+                  ? { ...space, bots: patch(space.bots) }
+                  : { ...space, groups: patch(space.groups) },
+            ),
+          );
+        },
+        () => {
+          if (isCurrent()) void loadBots().catch(() => undefined);
+          setPinOverrides((current) => {
+            if (!matches(current.get(key))) return current;
+            const next = new Map(current);
+            next.delete(key);
+            return next;
+          });
+        },
+      ).catch((error: unknown) => {
+        if (isCurrent()) Alert.alert(t("Could not update chat"), errorText(error, t("Try again.")));
+      });
+    },
+    [loadBots, sendPinState, setBots, setGroups, setSpaces, t],
+  );
   const updateChat = useCallback(
     async (
       kind: InboxChatKind,
       chat: MobileBot | MobileGroup | SpaceBot | SpaceGroup,
       update: BotOrganizationUpdate,
     ) => {
+      if (update.pinned !== undefined && Object.keys(update).length === 1) {
+        updatePin(kind, chat, update.pinned);
+        return;
+      }
       await chatRpc(chat.spaceId, `${kind}s/update`, { ...chatTarget(kind, chat.id), ...update });
       if (kind === "bot" && update.notifyOnFinish !== undefined) {
         await afterChatNotifyChange(
@@ -95,7 +162,7 @@ export function useInboxChatActions({
       }
       await loadBots();
     },
-    [loadBots],
+    [loadBots, updatePin],
   );
   const runRowAction = useCallback(
     async (
@@ -285,6 +352,7 @@ export function useInboxChatActions({
   );
   return {
     unreadOverrides,
+    pinOverrides,
     archiving,
     updateChat,
     runRowAction,

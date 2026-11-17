@@ -445,9 +445,10 @@ export function RoutineEditor({
         >
           <ChevronLeft />
         </Button>
-        <div className="text-[15.5px] font-medium text-foreground">
+        <div className="sr-only">
           <Trans>Routine</Trans>
         </div>
+        <PageBreadcrumb label="Routine" inline />
         <Button
           variant="ghost"
           size="icon-sm"
@@ -458,7 +459,6 @@ export function RoutineEditor({
           <X />
         </Button>
       </div>
-      <PageBreadcrumb label="Routine" inline />
 
       <div className="mb-5 flex items-center justify-between gap-3">
         <label

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { RakazoDesktop } from "@rakazo/contracts";
+import { foregroundWindow } from "./foreground-window";
 
 const fixture = `<!doctype html>
 <html lang="en">
@@ -19,7 +20,7 @@ test("launches with a narrow preload bridge and an isolated renderer", async () 
   });
 
   try {
-    const page = await app.firstWindow();
+    const page = await foregroundWindow(app);
     await expect(page.getByText("Desktop fixture ready")).toBeVisible();
     await expect(page).toHaveTitle("Rakazo desktop smoke");
 

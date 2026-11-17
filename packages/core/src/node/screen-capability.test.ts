@@ -359,4 +359,30 @@ describe("remote screen capability reuse", () => {
     const local = "http://127.0.0.1:49152/embed.html?path=websockify%3Ftoken%3Dview-1";
     expect(issued(1_000_000, scope, local)).not.toBe(issued(1_000_001, scope, local));
   });
+
+  it("reuses an opted-in loopback capability only within its scope and lifetime", () => {
+    const local = "http://127.0.0.1:49152/vnc.html?view_only=true";
+    const now = 1_000_000;
+    const make = (time: number, currentScope = scope) =>
+      issueScreenCapability(
+        local,
+        "fake-secret",
+        "https://app.example",
+        currentScope,
+        time,
+        undefined,
+        true,
+      );
+    const first = make(now);
+    expect(make(now + 1)).toBe(first);
+    expect(make(now + 1, { ...scope, computerGeneration: scope.computerGeneration + 1 })).not.toBe(
+      first,
+    );
+    expect(make(now + 1, { ...scope, controlLeaseId: "other" })).not.toBe(first);
+    const refreshAt = now + SCREEN_PROXY_TTL_MS - REMOTE_SCREEN_CAPABILITY_MIN_REMAINING_MS;
+    expect(make(refreshAt)).not.toBe(first);
+    expect(
+      openScreenCapability(new URL(first).pathname, "fake-secret", now + SCREEN_PROXY_TTL_MS),
+    ).toBeNull();
+  });
 });

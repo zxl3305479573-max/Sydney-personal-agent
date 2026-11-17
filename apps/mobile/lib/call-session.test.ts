@@ -8,6 +8,7 @@ import {
   setCallProviderTranscribe,
   startCall,
   subscribe,
+  toggleCallSpeech,
   toggleMute,
 } from "./call-session";
 import type { SpeechRecognizer } from "./dictation";
@@ -179,6 +180,30 @@ function fakes(opts: { onDevice?: boolean } = {}) {
 afterEach(() => endCall());
 
 describe("mobile call session", () => {
+  it("independently stops bot speech and resumes listening without restarting muted input", async () => {
+    const fake = fakes();
+    startCall({ botId: "bot-1", botName: "Ada", greeting: "Hello" }, fake.deps);
+    await flush();
+    expect(fake.spoken).toEqual(["Hello"]);
+    toggleMute();
+    toggleCallSpeech();
+    await flush();
+    expect(fake.stopSpeaking).toHaveBeenCalled();
+    expect(getSnapshot()).toMatchObject({ muted: true, speechMuted: true, phase: "listening" });
+    expect(fake.recordings).toHaveLength(0);
+    toggleMute();
+    await flush();
+    expect(fake.recordings).toHaveLength(1);
+    fake.say("hello");
+    await flush();
+    fake.replyWith("message-1", "Silent reply", "run-1");
+    await flush();
+    expect(fake.spoken).toEqual(["Hello"]);
+    expect(getSnapshot()?.exchanges).toContainEqual({ role: "bot", text: "Silent reply" });
+    toggleCallSpeech();
+    expect(getSnapshot()?.speechMuted).toBe(false);
+  });
+
   it("starts listening for the bot on the call", async () => {
     const fake = fakes();
     startCall({ botId: "bot-1", botName: "Ada" }, fake.deps);

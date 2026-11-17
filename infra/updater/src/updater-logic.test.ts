@@ -8,6 +8,7 @@ import {
   readTagState,
   resolveUpdaterConfig,
   truncateOutput,
+  validateLocalComposeOverlay,
 } from "./updater-logic.js";
 
 const base = {
@@ -101,6 +102,52 @@ describe("resolveUpdaterConfig", () => {
   it("refuses a Compose file list that names nothing", () => {
     expect(() => resolveUpdaterConfig({ ...base, RAKAZO_COMPOSE_FILE: ":  :" })).toThrow(
       /RAKAZO_COMPOSE_FILE/,
+    );
+  });
+
+  it("adds and validates a persistent local overlay without changing the base default", () => {
+    const overlay = "/etc/rakazo/compose/production.overlay.yml";
+    const config = resolveUpdaterConfig(
+      {
+        ...base,
+        RAKAZO_COMPOSE_OVERLAY_FILE: overlay,
+      },
+      {
+        inspect: () =>
+          ({
+            mode: 0o640,
+            uid: 0,
+            isFile: () => true,
+            isSymbolicLink: () => false,
+          }) as never,
+      },
+    );
+    expect(config.composeFiles).toEqual([`/srv/rakazo/${DEFAULT_COMPOSE_FILE}`, overlay]);
+  });
+
+  it("accepts a regular private overlay file after the path contract passes", () => {
+    const overlay = "/etc/rakazo/compose/production.overlay.yml";
+    expect(
+      validateLocalComposeOverlay(
+        overlay,
+        () =>
+          ({
+            mode: 0o640,
+            uid: 0,
+            isFile: () => true,
+            isSymbolicLink: () => false,
+          }) as never,
+      ),
+    ).toBe(overlay);
+  });
+
+  it.each([
+    "/etc/rakazo/compose/missing.yml",
+    "/etc/rakazo/compose/../secret.yml",
+    "/var/lib/rakazo/compose/other.yml",
+  ])("refuses an unavailable or out-of-contract local overlay: %s", (overlay) => {
+    expect(() => resolveUpdaterConfig({ ...base, RAKAZO_COMPOSE_OVERLAY_FILE: overlay })).toThrow(
+      /RAKAZO_COMPOSE_OVERLAY_FILE|local Compose overlay/,
     );
   });
 

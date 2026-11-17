@@ -201,14 +201,12 @@ export async function createSandboxProvider(
           },
           createNativeLinuxTransport(opts.nativeLinuxSocketPath),
           opts.nativeLinuxScreenUserId &&
-          opts.nativeLinuxScreenSpaceId &&
-          opts.nativeLinuxScreenPort
+            opts.nativeLinuxScreenSpaceId &&
+            opts.nativeLinuxScreenPort
             ? {
                 userId: opts.nativeLinuxScreenUserId,
                 spaceId: opts.nativeLinuxScreenSpaceId,
-                ...(opts.nativeLinuxScreenBotId
-                  ? { botId: opts.nativeLinuxScreenBotId }
-                  : {}),
+                ...(opts.nativeLinuxScreenBotId ? { botId: opts.nativeLinuxScreenBotId } : {}),
                 port: opts.nativeLinuxScreenPort,
               }
             : undefined,

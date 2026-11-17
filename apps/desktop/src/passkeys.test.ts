@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { associatedPasskeyRpIds, PASSKEY_RP_ID, passkeyEntitlements } from "./passkeys.js";
-import { RAKAZO_CLOUD_URL } from "./setup-config.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
@@ -12,7 +11,7 @@ const base = readFileSync(path.join(root, pkg.build.mac.entitlements), "utf8");
 
 describe("associatedPasskeyRpIds", () => {
   const resourcesPath = "/Applications/Rakazo.app/Contents/Resources";
-  const profile = "/Applications/Rakazo.app/Contents/embedded.provisionprofile";
+  const profile = path.join(resourcesPath, "..", "embedded.provisionprofile");
 
   it("lists the hosted domain only for a packaged macOS app with an embedded profile", () => {
     const exists = (file: string) => file === profile;
@@ -85,9 +84,9 @@ describe("self-hosted passkey domain", () => {
     return import("./passkeys.js");
   }
 
-  it("defaults to the hosted server's domain", async () => {
+  it("keeps the existing passkey domain when the server address changes", async () => {
     const passkeys = await load("");
-    expect(passkeys.PASSKEY_RP_ID).toBe(new URL(RAKAZO_CLOUD_URL).hostname);
+    expect(passkeys.PASSKEY_RP_ID).toBe("pc.zxlup.xin");
   });
 
   it("associates the build with RAKAZO_PASSKEY_RP_ID", async () => {

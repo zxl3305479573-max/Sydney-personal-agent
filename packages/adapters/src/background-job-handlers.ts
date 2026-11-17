@@ -17,7 +17,7 @@ import {
   SandboxUnresponsiveError,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import { runAsSystem, runAsTenant } from "@rakazo/db";
+import { currentDbContext, getProjectWorkspace, runAsSystem, runAsTenant } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { settleCallRequest } from "./call-request.js";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
@@ -33,7 +33,7 @@ import { deliverMessagingOutbound, mirrorMessagingOutbound } from "./messaging-d
 import { pollPurchase } from "./purchase-poll.js";
 import { expireTaughtSkillTeaching } from "./teaching-session.js";
 
-type Tenant = { spaceId: string; userId: string };
+type Tenant = { spaceId: string; userId: string; projectWorkspaceId?: string | null };
 
 /**
  * A job that acts for one run, routine, computer, skill, thread, cloud agent or purchase runs
@@ -49,12 +49,28 @@ function asOwner<Key, P extends Key>(
     const tenant = await runAsSystem("find the tenant a background job acts for", () =>
       owner(payload),
     );
-    if (tenant) await runAsTenant(tenant, () => handler(payload, execution));
+    if (tenant) {
+      await runAsTenant({
+        spaceId: tenant.spaceId,
+        userId: tenant.userId,
+        projectWorkspaceId: tenant.projectWorkspaceId ?? null,
+      }, () => handler(payload, execution));
+    }
   };
 }
 
 const OWNER = { spaceId: true, userId: true } as const;
+const CONVERSATION_OWNER = { ...OWNER, projectWorkspaceId: true } as const;
 const CONTROL_EXPIRE_RETRY_MS = 30_000;
+
+function ownerWithBotProject(row: (Tenant & { bot: Tenant }) | null): Tenant | null {
+  if (!row || row.bot.spaceId !== row.spaceId || row.bot.userId !== row.userId) return null;
+  return {
+    spaceId: row.spaceId,
+    userId: row.userId,
+    projectWorkspaceId: row.bot.projectWorkspaceId ?? null,
+  };
+}
 
 export function createBackgroundJobHandlers(deps: {
   executor: ReturnType<typeof createRunExecutor>;
@@ -102,19 +118,23 @@ export function createBackgroundJobHandlers(deps: {
     );
   };
   const run = ({ runId }: { runId: string }) =>
-    deps.prisma.run.findUnique({ where: { id: runId }, select: OWNER });
-  const routine = ({ routineId }: { routineId: string }) =>
-    deps.prisma.routine.findUnique({ where: { id: routineId }, select: OWNER });
+    deps.prisma.run.findUnique({ where: { id: runId }, select: CONVERSATION_OWNER });
+  const routine = async ({ routineId }: { routineId: string }) =>
+    ownerWithBotProject(await deps.prisma.routine.findUnique({
+      where: { id: routineId }, select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
+    }));
   const computer = ({ computerId }: { computerId: string }) =>
     deps.prisma.computer.findUnique({ where: { id: computerId }, select: OWNER });
   const thread = ({ threadId }: { threadId: string }) =>
-    deps.prisma.thread.findUnique({ where: { id: threadId }, select: OWNER });
-  const skill = ({ skillId }: { skillId: string }) =>
-    deps.prisma.taughtSkill.findUnique({ where: { id: skillId }, select: OWNER });
+    deps.prisma.thread.findUnique({ where: { id: threadId }, select: CONVERSATION_OWNER });
+  const skill = async ({ skillId }: { skillId: string }) =>
+    ownerWithBotProject(await deps.prisma.taughtSkill.findUnique({
+      where: { id: skillId }, select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
+    }));
   const cloudAgent = ({ agentId }: { agentId: string }) =>
-    deps.prisma.cloudAgent.findUnique({ where: { id: agentId }, select: OWNER });
+    deps.prisma.cloudAgent.findUnique({ where: { id: agentId }, select: CONVERSATION_OWNER });
   const purchase = ({ purchaseId }: { purchaseId: string }) =>
-    deps.prisma.purchase.findUnique({ where: { id: purchaseId }, select: OWNER });
+    deps.prisma.purchase.findUnique({ where: { id: purchaseId }, select: CONVERSATION_OWNER });
   const updatedComputer = async ({ updateId }: { updateId: string }) =>
     (
       await deps.prisma.computerUpdate.findUnique({
@@ -125,6 +145,11 @@ export function createBackgroundJobHandlers(deps: {
 
   return {
     "run.continue": asOwner(run, async (payload, execution) => {
+      const context = currentDbContext();
+      if (context?.kind === "tenant" && context.projectWorkspaceId) {
+        const workspace = await getProjectWorkspace(deps.prisma, context, context.projectWorkspaceId);
+        if (!workspace) return;
+      }
       if (execution)
         await deps.executor.continueRun(payload.runId, deps.workerId, execution.onRunStarted);
       else await deps.executor.continueRun(payload.runId, deps.workerId);

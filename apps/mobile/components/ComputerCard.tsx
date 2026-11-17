@@ -7,6 +7,7 @@ import { useI18n } from "../lib/i18n";
 import { threadCardWidth } from "../lib/message-presentation";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 
 const styles = StyleSheet.create({
@@ -39,13 +40,15 @@ export function ComputerCard({
   const { width: windowWidth } = useWindowDimensions();
 
   return (
-    <View
+    <GlassSurface
       testID="computer-card"
+      shape="roundedRectangle"
+      cornerRadius={18}
+      fallbackStyle={{ backgroundColor: native.fill }}
       style={[
         styles.card,
         {
           width: threadCardWidth(windowWidth),
-          backgroundColor: native.fill,
         },
       ]}
     >
@@ -89,6 +92,6 @@ export function ComputerCard({
           <NativeActionButton label={t("Open computer")} fill={false} onPress={onOpen} />
         </View>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }

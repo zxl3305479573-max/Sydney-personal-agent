@@ -1,5 +1,17 @@
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./client.js";
+import { currentDbContext } from "./row-security.js";
+import { IsolationError } from "./scope.js";
+
+export function assertHomeArtifactWriteScope(owner: { spaceId: string; userId: string }): void {
+  const context = currentDbContext();
+  if (context?.kind === "tenant" &&
+    (context.spaceId !== owner.spaceId ||
+      context.userId !== owner.userId ||
+      context.projectWorkspaceId !== undefined)) {
+    throw new IsolationError();
+  }
+}
 
 export async function resolveNextArtifactVersion(
   prisma: Pick<PrismaClient, "artifact">,
@@ -7,6 +19,7 @@ export async function resolveNextArtifactVersion(
     spaceId: string;
     userId: string;
     botId: string;
+    projectWorkspaceId: string | null;
     groupId?: string | null;
     name: string;
   },
@@ -16,6 +29,7 @@ export async function resolveNextArtifactVersion(
       spaceId: params.spaceId,
       userId: params.userId,
       botId: params.botId,
+      projectWorkspaceId: params.projectWorkspaceId,
       groupId: params.groupId ?? null,
       name: { equals: params.name, mode: "insensitive" },
     },
@@ -43,6 +57,7 @@ export async function withResolvedArtifactVersion<T>(
     spaceId: string;
     userId: string;
     botId: string;
+    projectWorkspaceId: string | null;
     groupId?: string | null;
     name: string;
   },
@@ -71,16 +86,20 @@ function artifactVersionLockKey(params: {
   spaceId: string;
   userId: string;
   botId: string;
+  projectWorkspaceId: string | null;
   groupId?: string | null;
   name: string;
 }): string {
-  return [
+  const key = [
     params.spaceId,
     params.userId,
     params.botId,
     params.groupId ?? "",
     params.name.toLowerCase(),
   ].join("\u001f");
+  return params.projectWorkspaceId === null
+    ? key
+    : `${key}\u001fproject\u001f${params.projectWorkspaceId}`;
 }
 
 function isArtifactVersionConflict(error: unknown): boolean {

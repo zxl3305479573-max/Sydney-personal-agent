@@ -58,15 +58,30 @@ describe("capTextScaling", () => {
 
     const text = rendered(reactNative.Text, { children: "Hello" });
     expect(text.type).toBe(Text);
-    expect(text.props).toEqual({ children: "Hello", maxFontSizeMultiplier: MAX_FONT_SCALE });
+    expect(text.props).toMatchObject({ children: "Hello", maxFontSizeMultiplier: MAX_FONT_SCALE });
+    expect(text.props.style).toEqual([{ fontFamily: "serif" }, undefined]);
 
     const input = rendered(reactNative.TextInput, { placeholder: "Message" });
     expect(input.type).toBe(TextInput);
     expect(input.props.maxFontSizeMultiplier).toBe(MAX_FONT_SCALE);
 
-    expect(rendered(reactNative.Text, { maxFontSizeMultiplier: 1.2 }).props).toEqual({
+    expect(rendered(reactNative.Text, { maxFontSizeMultiplier: 1.2 }).props).toMatchObject({
       maxFontSizeMultiplier: 1.2,
     });
+  });
+
+  it("uses the web serif face on iOS and preserves explicit font overrides", () => {
+    const { reactNative } = fakeReactNative();
+    Object.defineProperty(reactNative, "Platform", { value: { OS: "ios" } });
+    capTextScaling(reactNative);
+    expect(rendered(reactNative.Text, { style: { fontFamily: "Menlo" } }).props.style).toEqual([
+      { fontFamily: "Iowan Old Style" },
+      { fontFamily: "Menlo" },
+    ]);
+    expect(rendered(reactNative.TextInput, {}).props.style).toEqual([
+      { fontFamily: "Iowan Old Style" },
+      undefined,
+    ]);
   });
 
   it("keeps refs and TextInput's statics, and caps only once", () => {

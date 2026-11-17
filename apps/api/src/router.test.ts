@@ -37,11 +37,13 @@ import type { PrismaClient } from "@rakazo/db";
 import {
   AnswerTooLongError,
   configureProviderTransactionPool,
+  runAsTenant,
   runProviderTransaction,
 } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mainRole, withModelRoles } from "../../../packages/adapters/src/testing/model-roles.js";
+import { loadEnv } from "./env.js";
 import type { RouterDeps } from "./router.js";
 import {
   botIntroPrompt,
@@ -649,7 +651,7 @@ describe("model setup gate", () => {
       email: "user@rakazo.test",
       isDeploymentOwner: true,
     } satisfies Actor;
-    return { actor, handler: new RPCHandler(createRouter(deps)) };
+    return { actor, deps, handler: new RPCHandler(createRouter(deps)) };
   }
 
   async function call(handler: RouterHandler, actor: Actor, path: string, body: unknown) {
@@ -664,6 +666,55 @@ describe("model setup gate", () => {
     );
     return response;
   }
+
+  it("keeps the screen companion unavailable without an injected service", async () => {
+    const { actor, handler } = modelGateDeps({ agentRuntime: "pi" });
+    for (const [path, body] of [
+      ["threads/companionScreenStart", { botId: "bot-1", confirmed: true }],
+      ["threads/companionScreenRespond", { botId: "bot-1", id: "session", text: "screen" }],
+      ["threads/companionScreenStop", { botId: "bot-1", id: "session" }],
+    ] as const) {
+      expect((await call(handler, actor, path, body)).status).toBe(403);
+    }
+  });
+
+  it("binds enabled screen companion calls to the authenticated session", async () => {
+    const { actor, deps } = modelGateDeps({ agentRuntime: "pi" });
+    const start = vi.fn(async () => ({ id: "screen-session", expiresAt: Date.now() + 10_000 }));
+    deps.companionScreen = { start } as unknown as RouterDeps["companionScreen"];
+    const handler = new RPCHandler(createRouter(deps));
+    const request = () =>
+      new Request("http://127.0.0.1/rpc/threads/companionScreenStart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ json: { botId: "bot-1", confirmed: true } }),
+      });
+    const denied = await handle(handler, request(), {
+      prefix: "/rpc",
+      context: { actor, sessionId: "session", stillSessionAuthorized: async () => false },
+    });
+    expect(denied.status).toBe(403);
+    expect(start).not.toHaveBeenCalled();
+    const controller = new AbortController();
+    const allowed = await handle(handler, request(), {
+      prefix: "/rpc",
+      context: {
+        actor,
+        sessionId: "session",
+        stillSessionAuthorized: async () => true,
+        signal: controller.signal,
+      },
+    });
+    expect(allowed.status).toBe(200);
+    expect(start).toHaveBeenCalledWith(
+      actor,
+      "bot-1",
+      "session",
+      true,
+      expect.any(Function),
+      controller.signal,
+    );
+  });
 
   it.each([undefined, 1, 8, 100])(
     "advertises the effective attachment count (%s)",
@@ -1128,7 +1179,16 @@ describe("thread stream authorization", () => {
         queued.push(event);
       }
     };
+    const projectCheck = vi.fn().mockResolvedValue([
+      {
+        id: "project-1",
+        name: "Project",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      },
+    ]);
     const prisma = {
+      $queryRaw: projectCheck,
       bot: {
         findFirst: vi.fn().mockResolvedValue({
           id: "bot-1",
@@ -1156,8 +1216,35 @@ describe("thread stream authorization", () => {
     const client = createRouterClient(createRouter(deps), {
       context: { actor, stillAuthorized },
     });
-    return { client, emit, follow, stillAuthorized };
+    return { actor, client, emit, follow, stillAuthorized, projectCheck };
   }
+
+  it("stops delivering project events after the project is no longer accessible", async () => {
+    const { actor, client, emit, follow, projectCheck } = threadStream();
+    const stream = await runAsTenant({ ...actor, projectWorkspaceId: "project-1" }, () =>
+      client.threads.subscribe({ botId: "bot-1", cursor: -1 }),
+    );
+    emit(1, "before");
+    await expect(stream.next()).resolves.toMatchObject({ value: { seq: 1 } });
+    expect(projectCheck).toHaveBeenCalledTimes(1);
+
+    projectCheck.mockResolvedValue([]);
+    emit(2, "after");
+    await expect(stream.next()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(follow.return).toHaveBeenCalled();
+  });
+
+  it("ends an idle project stream on its heartbeat after project access is revoked", async () => {
+    const { actor, client, follow, projectCheck } = threadStream();
+    const stream = await runAsTenant({ ...actor, projectWorkspaceId: "project-1" }, () =>
+      client.threads.subscribe({ botId: "bot-1", cursor: -1 }),
+    );
+    projectCheck.mockResolvedValue([]);
+    const ended = expect(stream.next()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_MS);
+    await ended;
+    expect(follow.return).toHaveBeenCalled();
+  });
 
   it("stops delivering a busy thread once the session is revoked", async () => {
     const { client, emit, follow, stillAuthorized } = threadStream();
@@ -2641,6 +2728,75 @@ describe("MCP server health", () => {
       );
     });
 
+    it("returns the server-selected callback for an MCP authorization attempt", async () => {
+      const h = harness({
+        row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
+      });
+      const begin = vi.fn(async () => ({
+        status: "authorization_required" as const,
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+      }));
+      Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
+      const client = createRouterClient(createRouter(h.deps), {
+        context: {
+          actor: {
+            spaceId: "workspace-1",
+            userId: "owner-1",
+            email: "owner@rakazo.test",
+            isDeploymentOwner: true,
+          },
+        } as never,
+      });
+      const result = await client.mcp.oauth.begin({ serverId: "server-1" });
+      expect(result).toEqual({
+        status: "authorization_required",
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+        callbackUri: "http://127.0.0.1:5173/mcp/oauth/callback",
+      });
+      expect(begin).toHaveBeenCalledWith(
+        expect.objectContaining({ redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback" }),
+      );
+    });
+
+    it.each([
+      [undefined, true, "http://127.0.0.1:5173/mcp/oauth/callback"],
+      ["https://api.example.test", false, "http://127.0.0.1:5173/mcp/oauth/callback"],
+      ["https://api.example.test", true, "https://api.example.test/api/mcp/oauth/callback"],
+    ])("selects the native callback only when configured and requested", async (origin, native, expected) => {
+      const h = harness({
+        row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
+      });
+      h.deps.env.mcpNativeCallbackOrigin = origin;
+      const begin = vi.fn(async () => ({
+        status: "authorization_required" as const,
+        sessionId: "synthetic-session",
+        authorizationUrl: "https://provider.example.test/authorize",
+      }));
+      Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
+      const client = createRouterClient(createRouter(h.deps), {
+        context: {
+          actor: {
+            spaceId: "workspace-1",
+            userId: "owner-1",
+            email: "owner@rakazo.test",
+            isDeploymentOwner: true,
+          },
+        } as never,
+      });
+      const result = await client.mcp.oauth.begin({ serverId: "server-1", nativeCallback: native });
+      expect(result).toMatchObject({ callbackUri: expected });
+      expect(begin).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: expected }));
+      await expect(
+        client.mcp.oauth.begin({
+          serverId: "server-1",
+          nativeCallback: true,
+          redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("probes the server once its OAuth session completes", async () => {
       const h = harness({ row: baseRow() });
       const complete = vi.fn(async () => undefined);
@@ -2756,94 +2912,124 @@ describe("private API connectors", () => {
 });
 
 describe("connections.begin", () => {
-  it("reuses a revoked row for the same provider instead of inserting a duplicate", async () => {
-    const begin = vi.fn().mockResolvedValue({ state: "gmail-state", authorizationUrl: null });
-    const update = vi.fn().mockResolvedValue({
-      id: "conn-old",
-      connectorId: "composio",
-      provider: "gmail",
-      displayName: "Gmail",
-      status: "pending",
-      createdAt: new Date("2026-08-26T00:00:00.000Z"),
-    });
-    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const create = vi.fn();
-    const prisma = {
-      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          $executeRaw: vi.fn().mockResolvedValue(undefined),
-          connection: {
-            findMany: vi.fn().mockResolvedValue([{ id: "conn-old", status: "revoked" }]),
-            update,
-            updateMany,
-            create,
-          },
-        };
-        return fn(tx);
-      }),
-    } as unknown as PrismaClient;
-    const deps = {
-      prisma,
-      connectors: {
-        managed: vi.fn(() => ({ begin })),
-      },
-      env: {
-        defaultProvider: "fake",
-        defaultModel: "fake-model",
-        webOrigin: "http://127.0.0.1:5173",
-        screenProxySecret: "fake-test-secret",
-        sandboxProvider: "fake",
-      },
-      dataDir: "/tmp/rakazo-router-test",
-    } as unknown as RouterDeps;
-    const actor = {
-      spaceId: "workspace-1",
-      userId: "user-1",
-      email: "user@rakazo.test",
-      isDeploymentOwner: true,
-    } satisfies Actor;
-    const handler = new RPCHandler(createRouter(deps));
-
-    const response = await handle(
-      handler,
-      new Request("http://127.0.0.1/rpc/connections/begin", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          json: {
-            connectorId: "composio",
-            provider: "gmail",
-            displayName: "Gmail",
-          },
-        }),
-      }),
-      { prefix: "/rpc", context: { actor } },
-    );
-
-    expect(response.status).toBe(200);
-    expect(begin).toHaveBeenCalledWith(
-      { provider: "gmail", redirectUrl: "http://127.0.0.1:5173/integrations/callback" },
-      expect.anything(),
-    );
-    // Complete and revoke hold the same lock across provider calls; begin must outwait them.
-    expect(vi.mocked(prisma.$transaction).mock.calls.map((call) => call[1])).toEqual([
-      { timeout: 60_000 },
-      { timeout: 60_000 },
-    ]);
-    expect(create).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "conn-old" },
-      data: {
+  it.each([
+    [
+      false,
+      "http://127.0.0.1:5173",
+      "https://api.example.test",
+      "http://127.0.0.1:5173/integrations/callback",
+    ],
+    [
+      false,
+      "https://legacy.example.test/prefix",
+      undefined,
+      "https://legacy.example.test/prefix/integrations/callback",
+    ],
+    [
+      true,
+      "http://127.0.0.1:5173",
+      undefined,
+      "http://127.0.0.1:5173/api/v1/integrations/callback",
+    ],
+    [
+      true,
+      "http://127.0.0.1:5173",
+      "https://api.example.test",
+      "https://api.example.test/api/v1/integrations/callback",
+    ],
+  ])(
+    "reuses a revoked connection with API callback %s and web origin %s",
+    async (enabled, webOrigin, publicOrigin, callback) => {
+      const begin = vi.fn().mockResolvedValue({ state: "gmail-state", authorizationUrl: null });
+      const update = vi.fn().mockResolvedValue({
+        id: "conn-old",
+        connectorId: "composio",
+        provider: "gmail",
         displayName: "Gmail",
         status: "pending",
-        providerRef: null,
-        metadata: {},
-      },
-    });
-    await expect(response.json()).resolves.toMatchObject({
-      json: { connectionId: "conn-old" },
-    });
-  });
+        createdAt: new Date("2026-08-26T00:00:00.000Z"),
+      });
+      const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+      const create = vi.fn();
+      const prisma = {
+        $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: vi.fn().mockResolvedValue(undefined),
+            connection: {
+              findMany: vi.fn().mockResolvedValue([{ id: "conn-old", status: "revoked" }]),
+              update,
+              updateMany,
+              create,
+            },
+          };
+          return fn(tx);
+        }),
+      } as unknown as PrismaClient;
+      const deps = {
+        prisma,
+        connectors: {
+          managed: vi.fn(() => ({ begin })),
+        },
+        env: {
+          defaultProvider: "fake",
+          defaultModel: "fake-model",
+          webOrigin,
+          authPublicLinkOrigin: publicOrigin,
+          integrationApiCallbackEnabled: enabled,
+          screenProxySecret: "fake-test-secret",
+          sandboxProvider: "fake",
+        },
+        dataDir: "/tmp/rakazo-router-test",
+      } as unknown as RouterDeps;
+      const actor = {
+        spaceId: "workspace-1",
+        userId: "user-1",
+        email: "user@rakazo.test",
+        isDeploymentOwner: true,
+      } satisfies Actor;
+      const handler = new RPCHandler(createRouter(deps));
+
+      const response = await handle(
+        handler,
+        new Request("http://127.0.0.1/rpc/connections/begin", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            json: {
+              connectorId: "composio",
+              provider: "gmail",
+              displayName: "Gmail",
+            },
+          }),
+        }),
+        { prefix: "/rpc", context: { actor } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(begin).toHaveBeenCalledWith(
+        { provider: "gmail", redirectUrl: callback },
+        expect.anything(),
+      );
+      // Complete and revoke hold the same lock across provider calls; begin must outwait them.
+      expect(vi.mocked(prisma.$transaction).mock.calls.map((call) => call[1])).toEqual([
+        { timeout: 60_000 },
+        { timeout: 60_000 },
+      ]);
+      expect(create).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "conn-old" },
+        data: {
+          displayName: "Gmail",
+          status: "pending",
+          providerRef: null,
+          metadata: {},
+        },
+      });
+      await expect(response.json()).resolves.toMatchObject({
+        json: { connectionId: "conn-old" },
+      });
+    },
+  );
 
   it("cancels the remote authorization when its result cannot be saved before the slot frees", async () => {
     vi.useFakeTimers();
@@ -3809,6 +3995,7 @@ describe("computer screen url", () => {
   const callScreenUrl = async (
     connectScreen: () => Promise<unknown>,
     updateMany = vi.fn().mockResolvedValue({ count: 1 }),
+    screenProxyPublicOrigin?: string,
   ) => {
     const endRun = vi.fn().mockResolvedValue(1);
     const prisma = {
@@ -3832,6 +4019,7 @@ describe("computer screen url", () => {
         defaultProvider: "fake",
         defaultModel: "fake-model",
         webOrigin: "http://127.0.0.1:5173",
+        screenProxyPublicOrigin,
         screenProxySecret: "fake-test-secret",
         sandboxProvider: "e2b",
       },
@@ -3842,7 +4030,11 @@ describe("computer screen url", () => {
       handler,
       new Request("http://127.0.0.1/rpc/computer/screenUrl", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-host": "attacker.example",
+          "x-forwarded-proto": "http",
+        },
         body: JSON.stringify({ json: { botId: "bot-1" } }),
       }),
       { prefix: "/rpc", context: { actor } },
@@ -3856,6 +4048,7 @@ describe("computer screen url", () => {
     }));
     expect(response.status).toBe(200);
     const { json } = await response.json();
+    expect(json.proxy).toBe("rakazo-novnc");
     const url = new URL(json.url);
     expect(url.origin).toBe("http://127.0.0.1:5173");
     expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
@@ -3868,6 +4061,24 @@ describe("computer screen url", () => {
       },
       target: { hostname: "screen.example", interactive: false },
     });
+  });
+
+  it("uses the configured public screen origin independently of forwarded headers and cache", async () => {
+    const connect = async () => ({ url: "https://screen.example/vnc.html?token=origin-test" });
+    const configured = loadEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgres://localhost/test",
+      SCREEN_PROXY_PUBLIC_ORIGIN: "https://screen-one.example",
+    });
+    const first = await callScreenUrl(connect, undefined, configured.screenProxyPublicOrigin);
+    const second = await callScreenUrl(connect, undefined, "https://screen-two.example");
+    const firstUrl = new URL((await first.response.json()).json.url);
+    const secondUrl = new URL((await second.response.json()).json.url);
+    expect(firstUrl.origin).toBe("https://screen-one.example");
+    expect(secondUrl.origin).toBe("https://screen-two.example");
+    expect(firstUrl.pathname).not.toBe(secondUrl.pathname);
+    expect(openScreenCapability(firstUrl.pathname, "fake-test-secret")).not.toBeNull();
+    expect(openScreenCapability(secondUrl.pathname, "fake-test-secret")).not.toBeNull();
   });
 
   it("returns desktop provider screen URLs without sealing them", async () => {
@@ -3939,7 +4150,11 @@ describe("computer terminal and file transfer", () => {
     controlBotId: "bot-1",
   };
 
-  function setup(computer: Record<string, unknown> = {}, maxUploadSizeBytes?: number) {
+  function setup(
+    computer: Record<string, unknown> = {},
+    maxUploadSizeBytes?: number,
+    screenProxyPublicOrigin?: string,
+  ) {
     const sandbox = {
       execute: vi.fn(async function* () {
         yield { type: "exit" as const, code: 0 };
@@ -3984,6 +4199,7 @@ describe("computer terminal and file transfer", () => {
       env: {
         maxUploadSizeBytes,
         webOrigin: "http://127.0.0.1:5173",
+        screenProxyPublicOrigin,
         screenProxySecret: "fake-test-secret",
         sandboxProvider: "docker",
       },
@@ -4087,6 +4303,18 @@ describe("computer terminal and file transfer", () => {
     );
     const url = new URL(body.json.url);
     expect(url.origin).toBe("http://127.0.0.1:5173");
+    expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
+      scope: { botId: "bot-1", controlLeaseId: "lease-1" },
+      target: { hostname: "screen.example", interactive: true },
+    });
+  });
+
+  it("uses the configured public origin for terminal capabilities", async () => {
+    const { call } = setup(controlled, undefined, "https://terminal.example");
+    const { status, body } = await call("terminalUrl", {});
+    expect(status).toBe(200);
+    const url = new URL(body.json.url);
+    expect(url.origin).toBe("https://terminal.example");
     expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
       scope: { botId: "bot-1", controlLeaseId: "lease-1" },
       target: { hostname: "screen.example", interactive: true },
@@ -5612,6 +5840,17 @@ describe("bot intro run", () => {
     );
   });
 
+  it("passes the saved account language to the intro", async () => {
+    const { create, deps } = introDeps();
+    vi.mocked(deps.prisma.user.findUnique).mockResolvedValue({
+      name: "Ada",
+      locale: "en",
+    } as never);
+    await enqueueBotIntroRun(deps, actor, bot);
+    const [taskCall] = create.mock.calls as Array<[{ data: { prompt?: string } }]>;
+    expect(taskCall?.[0].data.prompt).toContain("in English");
+  });
+
   it("does nothing when the bot has no thread", async () => {
     const { create, enqueue, deps } = introDeps();
 
@@ -5655,6 +5894,13 @@ describe("bot intro run", () => {
     expect(prompt([])).toContain("update_bot");
     expect(prompt(["ask_user", "update_bot"])).not.toContain("ask_user");
     expect(prompt(["ask_user", "update_bot"])).not.toContain("update_bot");
+  });
+
+  it("requests the account language for the intro and its options", () => {
+    const base = { userName: "Ada", spaceName: null, disabledBuiltinTools: [] };
+    expect(botIntroPrompt(base)).toContain("Simplified Chinese");
+    expect(botIntroPrompt({ ...base, locale: "zh-CN" })).toContain("Simplified Chinese");
+    expect(botIntroPrompt({ ...base, locale: "en" })).toContain("in English");
   });
 });
 

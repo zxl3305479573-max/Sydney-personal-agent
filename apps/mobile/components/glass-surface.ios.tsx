@@ -13,9 +13,15 @@ export function GlassSurface({
   style,
   fallbackStyle,
   children,
+  ...viewProps
 }: GlassSurfaceProps) {
   const scheme = useResolvedAppearance();
-  if (!iosAtLeast(26)) return <View style={[style, fallbackStyle]}>{children}</View>;
+  if (!iosAtLeast(26))
+    return (
+      <View {...viewProps} style={[style, fallbackStyle]}>
+        {children}
+      </View>
+    );
   const modifiers = [
     foregroundStyle("#00000000"),
     glassEffect({
@@ -25,7 +31,7 @@ export function GlassSurface({
     }),
   ];
   return (
-    <View style={style}>
+    <View {...viewProps} style={style}>
       <Host colorScheme={scheme} pointerEvents="none" style={StyleSheet.absoluteFill}>
         {shape === "circle" ? (
           <Circle modifiers={modifiers} />

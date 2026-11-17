@@ -9,7 +9,10 @@ import type { CreateBotDialogInput } from "./create-bot-dialog";
 vi.mock("@lingui/react/macro", () => {
   const t = (parts: TemplateStringsArray, ...values: unknown[]) =>
     parts.reduce((text, part, index) => `${text}${index > 0 ? values[index - 1] : ""}${part}`, "");
-  return { useLingui: () => ({ t }), Trans: ({ children }: { children: ReactNode }) => children };
+  return {
+    useLingui: () => ({ t, i18n: { locale: "en" } }),
+    Trans: ({ children }: { children: ReactNode }) => children,
+  };
 });
 
 import { CreateBotDialog } from "./create-bot-dialog";
@@ -50,13 +53,42 @@ describe("CreateBotDialog", () => {
       root.render(<CreateBotDialog onCancel={() => undefined} onCreate={create} />),
     );
 
+    expect(document.querySelector('[data-testid="personality-custom"]')).toBeNull();
+    expect(document.querySelector('[data-testid="personality-balanced"]')?.textContent).toContain(
+      "Balanced",
+    );
+    expect(
+      document.querySelector('[data-testid="personality-balanced"]')?.getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(document.querySelector('[aria-label="Color #10B981"]')).toBeNull();
     await act(async () =>
       document.querySelector<HTMLButtonElement>('[aria-label="橙花"]')!.click(),
     );
+    for (const id of ["professional", "friendly", "creative", "teacher", "balanced"]) {
+      const option = document.querySelector<HTMLButtonElement>(
+        `[data-testid="personality-${id}"]`,
+      )!;
+      await act(async () => option.click());
+      expect(option.getAttribute("aria-pressed")).toBe("true");
+      expect(
+        document.querySelectorAll('.sydney-personality-option[aria-pressed="true"]'),
+      ).toHaveLength(1);
+      expect(option.querySelector(".sydney-personality-option-check")).not.toBeNull();
+    }
     await act(async () =>
       document.querySelector<HTMLButtonElement>('[data-testid="personality-concise"]')!.click(),
     );
+    expect(
+      document.querySelector('[data-testid="personality-balanced"]')?.getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      document.querySelector('[data-testid="personality-concise"]')?.getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      document.querySelector(
+        '[data-testid="personality-concise"] .sydney-personality-option-check',
+      ),
+    ).not.toBeNull();
 
     const input = document.querySelector<HTMLInputElement>('input[placeholder="Name your Bot"]')!;
     await act(async () => {
@@ -77,7 +109,7 @@ describe("CreateBotDialog", () => {
       name: "Scout",
       color: "data:image/webp;base64,avatar",
       avatarSet: "organic",
-      instructions: expect.stringContaining("简洁高效"),
+      instructions: expect.stringContaining("优先使用简洁的短句"),
     });
     expect(CreateBotInput.parse(create.mock.calls[0]![0])).toMatchObject(create.mock.calls[0]![0]);
     await act(async () => root.unmount());

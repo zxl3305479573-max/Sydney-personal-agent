@@ -1,6 +1,65 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Pool, PoolClient } from "pg";
 import type { PrismaClient } from "./generated/prisma/client.js";
-import { rlsBypassKey, runAsSystem, runAsTenant, withRowLevelSecurity } from "./row-security.js";
+import { currentDbContext, installDbContext, rlsBypassKey, runAsSystem, runAsTenant, withRowLevelSecurity } from "./row-security.js";
+
+describe("tenant project context", () => {
+  const actor = { userId: "user-fixture", spaceId: "space-fixture" };
+
+  it("inherits a project only for the same tenant and restores it after nested work", async () => {
+    await runAsTenant({ ...actor, projectWorkspaceId: "project-a" }, async () => {
+      await runAsTenant(actor, () => {
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+      });
+      await runAsTenant({ ...actor, projectWorkspaceId: null }, () => {
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor });
+      });
+      await runAsTenant({ ...actor, userId: "other-user" }, () => {
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, userId: "other-user" });
+      });
+      expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+    });
+    expect(currentDbContext()).toBeUndefined();
+  });
+
+  it("keeps concurrent projects apart", async () => {
+    await Promise.all(["project-a", "project-b"].map((projectWorkspaceId) =>
+      runAsTenant({ ...actor, projectWorkspaceId }, async () => {
+        await Promise.resolve();
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId });
+      }),
+    ));
+    expect(currentDbContext()).toBeUndefined();
+  });
+
+  it("rejects an invalid project selection before invoking the callback", async () => {
+    const callback = vi.fn();
+    await expect(runAsTenant({ ...actor, projectWorkspaceId: "../other" }, callback)).rejects.toThrow();
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("clears a pooled project's SQL setting on home, system and unscoped checkouts", async () => {
+    const query = vi.fn(async () => ({}));
+    const client = { query, release: vi.fn() } as unknown as PoolClient;
+    const pool = {
+      options: { connectionString: "postgres://fixture:fixture@localhost/fixture" },
+      connect: () => Promise.resolve(client),
+    } as unknown as Pool;
+    installDbContext(pool);
+    await runAsTenant({ ...actor, projectWorkspaceId: "project-a" }, () => pool.connect());
+    await runAsTenant({ ...actor, projectWorkspaceId: "project-b" }, () => pool.connect());
+    await runAsTenant(actor, () => pool.connect());
+    await runAsSystem("synthetic context test", () => pool.connect());
+    await pool.connect();
+    expect(query.mock.calls).toEqual([
+      [expect.stringContaining("app.project_workspace_id"), [actor.spaceId, actor.userId, "off", "", "project-a"]],
+      [expect.any(String), [actor.spaceId, actor.userId, "off", "", "project-b"]],
+      [expect.any(String), [actor.spaceId, actor.userId, "off", "", ""]],
+      [expect.any(String), ["", "", "on", expect.stringMatching(/^[a-f0-9]{64}$/), ""]],
+      [expect.any(String), ["", "", "off", "", ""]],
+    ]);
+  });
+});
 
 describe("rlsBypassKey", () => {
   it("follows the password pg logs in with", () => {

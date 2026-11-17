@@ -909,7 +909,9 @@ it("offers a saved compatible model in the main picker and uses it", async () =>
 it("names each model checkbox by its id alone", async () => {
   const view = await renderCompatibleWithProbe(["model-a", "model-b"]);
   try {
-    const names = [...view.container.querySelectorAll("[role='checkbox']")].map(accessibleName);
+    const names = [
+      ...view.container.querySelectorAll("[data-testid='compatible-model-rows'] [role='checkbox']"),
+    ].map(accessibleName);
     expect(names).toEqual(["model-a", "model-b"]);
   } finally {
     await view.unmount();
@@ -921,7 +923,7 @@ it("lists not-connected providers by name alone", async () => {
   const view = await renderSettings();
   try {
     await openPicker("Change Main model");
-    expect(pickerOptions()).toEqual(["DeepSeek", "OpenAI-compatible", "Ollama Cloud"]);
+    expect(pickerOptions()).toEqual(["DeepSeek", "OpenAI-compatible"]);
     expect(document.querySelectorAll("[cmdk-group-heading]")).toHaveLength(0);
   } finally {
     await view.unmount();
@@ -1185,39 +1187,25 @@ it("disables Save for invalid custom header names", async () => {
   }
 });
 
-it("opens the Ollama preset with a required key and saves a compatible connection", async () => {
+it("opens a custom compatible connection without a preset endpoint", async () => {
   HTMLElement.prototype.scrollTo = vi.fn();
   models.list.mockResolvedValue([compatibleEntry]);
   models.credentials.mockResolvedValue([]);
   models.probeOpenAiCompatible.mockResolvedValue({ models: ["fixture-model"] });
   const view = await renderSettings(false);
   try {
-    await pick("Change Main model", "Ollama Cloud");
-    expect(titles(view.container)).toContain("Connect Ollama Cloud");
-    expect(baseUrlField(view.container).value).toBe("https://ollama.com/v1");
-    expect(
-      [...view.container.querySelectorAll("button")].filter(
-        (row) => row.textContent === "Setup help",
-      ),
-    ).toHaveLength(0);
-    expect(
-      [...view.container.querySelectorAll("button")].filter((row) => row.textContent === "API key"),
-    ).toHaveLength(0);
-    const key = view.container.querySelector(
-      'input[placeholder="Ollama API key"]',
-    ) as HTMLInputElement;
-    expect(key.required).toBe(true);
-    await typeInto(key, "fake-fixture-key");
+    await pick("Change Main model", "OpenAI-compatible");
+    expect(baseUrlField(view.container).value).toBe("");
+    await typeInto(baseUrlField(view.container), "https://models.example.test/v1");
     await click(buttons(view.container, "Find models")[0]);
     expect(models.probeOpenAiCompatible).toHaveBeenCalledWith(
-      expect.objectContaining({ baseUrl: "https://ollama.com/v1", apiKey: "fake-fixture-key" }),
+      expect.objectContaining({ baseUrl: "https://models.example.test/v1" }),
     );
     await click(buttons(view.container, "Save")[0]);
     expect(models.connect).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "openai-compatible",
-        baseUrl: "https://ollama.com/v1",
-        apiKey: "fake-fixture-key",
+        baseUrl: "https://models.example.test/v1",
         modelId: "fixture-model",
         makeDefault: true,
       }),
@@ -1248,7 +1236,7 @@ it("offers a saved Ollama connection's models without the Ollama preset", async 
   }
 });
 
-it("keeps the Ollama preset to connect beside a saved local connection", async () => {
+it("does not offer a preset beside a saved local connection", async () => {
   models.list.mockResolvedValue([compatibleEntry]);
   models.credentials.mockResolvedValue([
     {
@@ -1263,9 +1251,7 @@ it("keeps the Ollama preset to connect beside a saved local connection", async (
   const view = await renderSettings(false);
   try {
     await openPicker("Add fallback");
-    expect(pickerOptions()).toEqual(["fixture-model", "Ollama Cloud"]);
-    await choose("Ollama Cloud");
-    expect(baseUrlField(view.container).value).toBe("https://ollama.com/v1");
+    expect(pickerOptions()).toEqual(["fixture-model"]);
   } finally {
     await view.unmount();
   }

@@ -24,6 +24,7 @@ function fixture(catalog: unknown[]) {
   const deps = {
     prisma: {
       bot: { findFirst: vi.fn(async () => ({ id: "bot", thread: { id: "thread" } })) },
+      user: { findUnique: vi.fn(async () => ({ locale: null })) },
       $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(tx)),
     },
     events: { notify: vi.fn() },
@@ -48,6 +49,10 @@ describe("onboarding connection suggestions", () => {
       expect.objectContaining({ kind: "app_connect" }),
     );
     expect(posted.length).toBeGreaterThan(0);
+    expect(posted.flatMap((message) => message.blocks)).toContainEqual({
+      kind: "text",
+      text: "你想先做什么？",
+    });
     // The reply to the user's pick is read; suggestions after the catalog wait stay unread.
     expect(posted[0]?.markUnread).toBe(false);
     expect(posted.slice(1).every((message) => message.markUnread === true)).toBe(true);
@@ -84,7 +89,23 @@ describe("promptFocus", () => {
     const { deps, actor } = focusFixture();
     await promptFocus(deps, actor, "bot");
     expect(posted.flatMap((message) => message.blocks)).toContainEqual(
-      expect.objectContaining({ kind: "choice" }),
+      expect.objectContaining({
+        kind: "choice",
+        question: "你希望我先帮你做什么？",
+        options: expect.arrayContaining([expect.objectContaining({ label: "日常工作" })]),
+      }),
+    );
+  });
+
+  it("uses English for an English account", async () => {
+    const { deps, actor } = focusFixture();
+    vi.mocked(deps.prisma.user.findUnique).mockResolvedValue({ locale: "en-US" } as never);
+    await promptFocus(deps, actor, "bot");
+    expect(posted.flatMap((message) => message.blocks)).toContainEqual(
+      expect.objectContaining({
+        question: "What do you want me on first?",
+        options: expect.arrayContaining([expect.objectContaining({ label: "Day-to-day work" })]),
+      }),
     );
   });
 

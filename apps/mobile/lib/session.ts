@@ -4,6 +4,7 @@ import {
   rotateArtifactCacheSession,
   rotatedArtifactCacheToken,
 } from "./artifact-cache-session";
+import { stopCompanionOnSessionChange } from "./companion-lifecycle";
 import { stopLiveNotifications } from "./live-notifications";
 import { clearNetworkCache } from "./network-cache";
 import { clearFailedSends } from "./thread-feedback";
@@ -39,6 +40,9 @@ export function registerSessionDiskCache(clear: () => void): void {
 /** `keepUnsent` is for a new token of the same account and server; its unsent messages stay. */
 function invalidateSessionCaches(keepUnsent = false): Promise<void> {
   scopeInvalidated = true;
+  const stoppingCompanion = keepUnsent
+    ? Promise.resolve()
+    : stopCompanionOnSessionChange().catch(() => undefined);
   if (!keepUnsent) clearFailedSends();
   clearNetworkCache();
   for (const clear of sessionDiskCaches) {
@@ -50,6 +54,7 @@ function invalidateSessionCaches(keepUnsent = false): Promise<void> {
   }
   const clearingArtifacts = keepUnsent ? undefined : invalidateArtifactCacheSession();
   return enqueueScopeWrite(async () => {
+    await stoppingCompanion;
     await clearingArtifacts;
     try {
       await SecureStore.deleteItemAsync(INTEGRATIONS_SCOPE_KEY);
@@ -64,40 +69,38 @@ function invalidateSessionCaches(keepUnsent = false): Promise<void> {
 }
 
 export async function loadVerifiedIntegrationsScope(): Promise<VerifiedIntegrationsScope | null> {
-  const generation = sessionGeneration;
-  if (scopeInvalidated) return null;
   try {
-    const token = await snapshotSessionToken();
-    const stored = await SecureStore.getItemAsync(INTEGRATIONS_SCOPE_KEY);
-    if (
-      !token.ok ||
-      !token.value ||
-      !stored ||
-      generation !== sessionGeneration ||
-      scopeInvalidated
-    )
-      return null;
-    const data = JSON.parse(stored);
-    if (
-      data.token !== token.value ||
-      typeof data.apiBase !== "string" ||
-      !data.apiBase ||
-      typeof data.userId !== "string" ||
-      !data.userId ||
-      typeof data.spaceId !== "string" ||
-      !data.spaceId ||
-      !(data.selectionId === null || typeof data.selectionId === "string")
-    )
-      return null;
-    return {
-      apiBase: data.apiBase,
-      userId: data.userId,
-      spaceId: data.spaceId,
-      selectionId: data.selectionId,
-    };
+    return await loadVerifiedIntegrationsScopeForStartup();
   } catch {
     return null;
   }
+}
+
+export async function loadVerifiedIntegrationsScopeForStartup(): Promise<VerifiedIntegrationsScope | null> {
+  const generation = sessionGeneration;
+  const token = await snapshotSessionToken();
+  const stored = await SecureStore.getItemAsync(INTEGRATIONS_SCOPE_KEY);
+  if (!token.ok || !token.value || generation !== sessionGeneration)
+    throw new Error("Could not verify the saved server session");
+  if (stored == null) return null;
+  if (scopeInvalidated) throw new Error("Could not verify the saved server session");
+  const data = JSON.parse(stored);
+  if (
+    data?.token !== token.value ||
+    typeof data.apiBase !== "string" ||
+    !data.apiBase ||
+    typeof data.userId !== "string" ||
+    !data.userId ||
+    typeof data.spaceId !== "string" ||
+    !data.spaceId ||
+    !(data.selectionId === null || typeof data.selectionId === "string")
+  ) throw new Error("Could not verify the saved server session");
+  return {
+    apiBase: data.apiBase,
+    userId: data.userId,
+    spaceId: data.spaceId,
+    selectionId: data.selectionId,
+  };
 }
 
 export async function saveVerifiedIntegrationsScope(

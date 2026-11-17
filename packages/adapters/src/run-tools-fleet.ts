@@ -1,4 +1,8 @@
-import { BotSettingsValuesSchema } from "@rakazo/contracts";
+import {
+  BOT_INSTRUCTIONS_MAX_LENGTH,
+  BotSettingsValuesSchema,
+  replaceBotDuties,
+} from "@rakazo/contracts";
 import { redactSecrets } from "@rakazo/core";
 import {
   commitBotUpdate,
@@ -94,6 +98,9 @@ async function commitOwnInstructions(
     return { error: OWN_INSTRUCTIONS_BASELINE_UNKNOWN_ERROR };
   const { deps, run, runId, bot, context } = ctx;
   const previousInstructions = input.previousInstructions;
+  const instructions = replaceBotDuties(previousInstructions, input.instructions);
+  if (instructions.length > BOT_INSTRUCTIONS_MAX_LENGTH)
+    return { error: `instructions must be at most ${BOT_INSTRUCTIONS_MAX_LENGTH} characters.` };
   const committed = await deps.prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM threads WHERE id = ${run.threadId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`;
@@ -105,7 +112,7 @@ async function commitOwnInstructions(
     try {
       undoVersionId = await writeBotInstructions(tx, {
         botId: bot.id,
-        instructions: input.instructions,
+        instructions,
         reason: input.reason,
         expectedInstructions: previousInstructions,
       });
@@ -123,7 +130,7 @@ async function commitOwnInstructions(
         instructionUpdate: {
           botId: bot.id,
           before: redactSecrets(previousInstructions, ctx.secrets),
-          after: input.instructions,
+          after: instructions,
           reason: input.reason,
           undoVersionId,
         },
@@ -135,7 +142,7 @@ async function commitOwnInstructions(
     await deps.events
       .notify(run.threadId, committed.eventSeq, committed.firstResponseRunId)
       .catch((error) => getLogger().error("instruction update realtime notification", error));
-  ctx.state.ownInstructionsBaseline = input.instructions;
+  ctx.state.ownInstructionsBaseline = instructions;
   return { ok: true };
 }
 

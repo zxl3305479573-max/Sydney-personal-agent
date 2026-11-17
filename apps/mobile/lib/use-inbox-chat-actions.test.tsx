@@ -8,7 +8,7 @@ import { rpc } from "./api";
 import { notifyArchivedChatsChanged } from "./archived-chats";
 import { confirmDeleteBot, confirmDeleteGroup } from "./bot-lifecycle";
 import type { InboxRowAction } from "./inbox-swipe";
-import { applyUnreadOverrides, withoutArchiving } from "./inbox-swipe";
+import { applyPinOverrides, applyUnreadOverrides, withoutArchiving } from "./inbox-swipe";
 import { afterChatNotifyChange, dismissThreadNotifications } from "./live-notifications";
 import { removeFromSearchInbox } from "./search-inbox";
 import { useInboxChatActions } from "./use-inbox-chat-actions";
@@ -99,9 +99,11 @@ async function handlers(
     state: Object.defineProperties(lists, {
       // The hook's own state, as last rendered.
       overrides: { get: () => current().unreadOverrides },
+      pins: { get: () => current().pinOverrides },
       archiving: { get: () => current().archiving },
     }) as typeof lists & {
       overrides: ReadonlyMap<string, boolean>;
+      pins: Actions["pinOverrides"];
       archiving: ReadonlySet<string>;
     },
     runRowAction: (kind: "bot" | "group", chat: Chat, action: InboxRowAction) =>
@@ -254,8 +256,8 @@ it.each([
 ] as const)("%s %s calls %s and refreshes the inbox", async (kind, action, procedure, input) => {
   const h = await handlers(async () => ({ ok: true }));
   await h.runRowAction(kind, { id: "x" }, action);
-  expect(vi.mocked(rpc).mock.calls).toEqual([[procedure, input]]);
-  expect(h.loadBots).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(rpc).mock.calls.map(sent)).toEqual([[procedure, input]]);
+  await vi.waitFor(() => expect(h.loadBots).toHaveBeenCalledTimes(1));
 });
 
 it.each([
@@ -312,7 +314,7 @@ it("hides an archived chat at the tap and keeps it hidden from a reload until it
   await pending;
   expect(h.state.bots.map((bot) => bot.id)).toEqual(["b0", "b2"]);
   expect(h.state.spaces[0]!.bots).toEqual([]);
-  expect(h.loadBots).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(h.loadBots).toHaveBeenCalledTimes(1));
   expect(notifyArchivedChatsChanged).toHaveBeenCalledTimes(1);
   await vi.waitFor(() => expect(h.state.archiving.size).toBe(0));
   expect(session.alert).not.toHaveBeenCalled();
@@ -381,7 +383,58 @@ it("updates a chat from another space in that space without switching", async ()
       },
     ],
   ]);
+  await vi.waitFor(() => expect(h.loadBots).toHaveBeenCalledTimes(1));
+});
+
+it("shows pin immediately and serializes a quick unpin behind the first request", async () => {
+  const pending: Array<() => void> = [];
+  const h = await handlers(() => new Promise<void>((resolve) => pending.push(resolve)));
+  await h.updateChat("bot", { id: "b1", spaceId: "space-a" }, { pinned: true });
+  await vi.waitFor(() => expect(h.state.pins.get("bot:b1")?.pinned).toBe(true));
+  expect(h.loadBots).not.toHaveBeenCalled();
+  const shown = applyPinOverrides("bot", h.state.bots, h.state.pins, {
+    generation: 1, apiBase: "", spaceId: "space-a",
+  });
+  expect(shown[0]?.pinned).toBe(true);
+  await h.updateChat("bot", { id: "b1", spaceId: "space-a" }, { pinned: false });
+  await vi.waitFor(() => expect(h.state.pins.get("bot:b1")?.pinned).toBe(false));
+  expect(pending).toHaveLength(1);
+  pending.shift()!();
+  await vi.waitFor(() => expect(pending).toHaveLength(1));
+  expect(vi.mocked(rpc).mock.calls.map(sent)).toEqual([
+    ["bots/update", { botId: "b1", pinned: true }],
+    ["bots/update", { botId: "b1", pinned: false }],
+  ]);
+  expect(h.state.pins.get("bot:b1")?.pinned).toBe(false);
+  pending.shift()!();
+  await vi.waitFor(() => expect(h.state.pins.size).toBe(0));
+  expect(h.state.bots[0]?.pinned).toBe(false);
   expect(h.loadBots).toHaveBeenCalledTimes(1);
+});
+
+it("reverts the pending pin and reports an error when saving fails", async () => {
+  let rejectSave: (error: Error) => void = () => undefined;
+  const h = await handlers(() => new Promise<void>((_resolve, reject) => { rejectSave = reject; }));
+  await h.updateChat("bot", { id: "b1", spaceId: "space-a" }, { pinned: true });
+  await vi.waitFor(() => expect(h.state.pins.get("bot:b1")?.pinned).toBe(true));
+  rejectSave(new Error("offline"));
+  await vi.waitFor(() => expect(h.state.pins.size).toBe(0));
+  expect(h.state.bots[0]?.pinned).toBeUndefined();
+  expect(h.loadBots).toHaveBeenCalledTimes(1);
+  expect(session.alert).toHaveBeenCalledWith("Could not update chat", "Try again.");
+});
+
+it("does not apply a pending pin to a different session or space", () => {
+  const overrides = new Map([
+    ["bot:b1", { pinned: true, generation: 1, apiBase: "server", spaceId: "space-a" }],
+  ]);
+  const bots = [{ id: "b1", pinned: false }];
+  expect(applyPinOverrides("bot", bots, overrides, {
+    generation: 2, apiBase: "server", spaceId: "space-a",
+  })[0]?.pinned).toBe(false);
+  expect(applyPinOverrides("bot", bots, overrides, {
+    generation: 1, apiBase: "server", spaceId: "space-b",
+  })[0]?.pinned).toBe(false);
 });
 
 it("names the archive failure for bots", async () => {
@@ -390,10 +443,12 @@ it("names the archive failure for bots", async () => {
   });
   await h.runRowAction("bot", { id: "x" }, "archive");
   await h.runRowAction("group", { id: "x" }, "pin");
-  expect(session.alert.mock.calls.map(([title]) => title)).toEqual([
-    "Could not archive bot",
-    "Could not update chat",
-  ]);
+  await vi.waitFor(() =>
+    expect(session.alert.mock.calls.map(([title]) => title)).toEqual([
+      "Could not archive bot",
+      "Could not update chat",
+    ]),
+  );
   expect(notifyArchivedChatsChanged).not.toHaveBeenCalled();
   expect(removeFromSearchInbox).not.toHaveBeenCalled();
 });

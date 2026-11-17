@@ -7,6 +7,7 @@ import path from "node:path";
 import type { ElectronApplication } from "@playwright/test";
 import { _electron as electron, expect, test } from "@playwright/test";
 import { prepareHostComputer } from "../src/host-computer.js";
+import { foregroundWindow } from "./foreground-window";
 
 const APP_MARKER = "Local Rakazo stack ready";
 const IMAGE_TAG = "v9.9.9";
@@ -16,6 +17,7 @@ const COMPOSE_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "infra",
 
 type FakeDockerMode =
   | "ok"
+  | "gated-pull"
   | "daemon-down"
   | "compose-check-fails"
   | "pull-fails"
@@ -75,6 +77,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
+  await writeFile(path.join(userData, "release-pull"), "");
   await app?.close();
   app = undefined;
   await rm(userData, { recursive: true, force: true });
@@ -116,7 +119,9 @@ async function writeFakeDocker(mode: FakeDockerMode) {
     "  pull)",
     mode === "pull-fails"
       ? '    echo "Error response from daemon: manifest unknown" >&2; exit 1 ;;'
-      : '    echo " a235d761c5d1 Downloading 59.47MB"; echo " a235d761c5d1 Downloading 412.3MB"; echo "app Pulled"; sleep 2; echo "computer Pulled"; exit 0 ;;',
+      : mode === "gated-pull"
+        ? `    echo "app Pulled"; while [ ! -f '${path.join(userData, "release-pull")}' ]; do sleep 0.1; done; echo "computer Pulled"; exit 0 ;;`
+        : '    echo " a235d761c5d1 Downloading 59.47MB"; echo " a235d761c5d1 Downloading 412.3MB"; echo "app Pulled"; sleep 2; echo "computer Pulled"; exit 0 ;;',
     up,
     '  logs) echo "web-1 | listening"; exit 0 ;;',
     "esac",
@@ -163,7 +168,7 @@ async function readLog() {
 
 test("This computer installs and starts the stack, then opens the app", async () => {
   app = await launch("ok");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
 
   await setup.getByRole("radio", { name: /This computer/ }).check();
   // The panel is empty until a start begins, so check the attribute rather than the box.
@@ -173,7 +178,7 @@ test("This computer installs and starts the stack, then opens the app", async ()
 
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
-  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Rakazo…");
+  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Sydney…");
   await expect(setup.getByRole("button", { name: "Continue" })).toBeDisabled();
   // Docker output stays behind the details toggle; the phase, the bar, and the size show by default.
   await expect(setup.locator("#stack-detail")).toHaveText("412 MB downloaded");
@@ -219,7 +224,7 @@ test("This computer installs and starts the stack, then opens the app", async ()
 
 test("without Docker the app explains how to get it and offers to check again", async () => {
   app = await launch("missing");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
 
   await setup.getByRole("button", { name: "Continue" }).click();
@@ -244,11 +249,11 @@ test("without Docker the app explains how to get it and offers to check again", 
 
 test("switching to Existing instance while the stack starts keeps that choice", async () => {
   app = await launch("ok");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
 
   await setup.getByRole("button", { name: "Continue" }).click();
-  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Rakazo…");
+  await expect(setup.locator("#stack-phase")).toHaveText("Downloading Sydney…");
 
   // Fake docker sleeps during pull; leave This computer before ready so followStack must not save.
   await setup.getByRole("radio", { name: /Existing instance/ }).check();
@@ -274,7 +279,7 @@ test("switching to Existing instance while the stack starts keeps that choice", 
 
 test("a stopped Docker daemon is reported and Check again asks Docker once more", async () => {
   app = await launch("daemon-down");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
 
   await setup.getByRole("button", { name: "Continue" }).click();
@@ -292,7 +297,7 @@ test("a stopped Docker daemon is reported and Check again asks Docker once more"
 
 test("a failed Compose check shows diagnostics instead of installation help", async () => {
   app = await launch("compose-check-fails");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -309,7 +314,7 @@ test("a failed Compose check shows diagnostics instead of installation help", as
 
 test("unpublished images show the docker output and a Retry button", async () => {
   app = await launch("pull-fails");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
 
   await setup.getByRole("button", { name: "Continue" }).click();
@@ -339,13 +344,15 @@ test("a saved local stack that is down is started again without asking", async (
     { encoding: "utf8", mode: 0o600 },
   );
 
-  app = await launch("ok");
-  const setup = await app.firstWindow();
+  app = await launch("gated-pull");
+  const setup = await foregroundWindow(app);
   await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
   await expect(setup.locator("#stack")).toBeVisible();
   await expect(setup.locator("#status")).toBeEmpty();
 
-  const appWindow = await app.waitForEvent("window");
+  const nextWindow = app.waitForEvent("window");
+  await writeFile(path.join(userData, "release-pull"), "");
+  const appWindow = await nextWindow;
   await expect(appWindow.getByText(APP_MARKER)).toBeVisible();
   await expect.poll(savedSetup).toEqual({ mode: "new", serverUrl });
   expect((await readLog()).some((line) => line.includes(" pull"))).toBe(true);
@@ -371,7 +378,7 @@ test("a saved local stack is reused only after its private identity matches", as
   );
 
   app = await launch("ok");
-  const appWindow = await app.firstWindow();
+  const appWindow = await foregroundWindow(app);
   await expect(appWindow.getByText(APP_MARKER)).toBeVisible();
   expect(await readLog()).toEqual([]);
 });
@@ -408,11 +415,16 @@ test("a saved local target is the exact origin authenticated before reuse", asyn
       { encoding: "utf8", mode: 0o600 },
     );
 
-    app = await launch("ok");
-    const setup = await app.firstWindow();
+    app = await launch("gated-pull");
+    const setup = await foregroundWindow(app);
     await expect(setup.getByRole("radio", { name: /This computer/ })).toBeChecked();
     await expect(setup.locator("#stack")).toBeVisible();
     await expect(setup.getByText("Unchecked listener")).toHaveCount(0);
+    const nextWindow = app.waitForEvent("window");
+    await writeFile(path.join(userData, "release-pull"), "");
+    const appWindow = await nextWindow;
+    await expect(appWindow.getByText(APP_MARKER)).toBeVisible();
+    await expect(appWindow.getByText("Unchecked listener")).toHaveCount(0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       uncheckedServer.close((error) => (error ? reject(error) : resolve()));
@@ -427,7 +439,7 @@ test("an existing stack .env keeps its lines and gains only added secrets", asyn
   await writeFile(path.join(stackDir, ".env"), sentinel, { encoding: "utf8", mode: 0o600 });
 
   app = await launch("ok");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
@@ -441,7 +453,7 @@ test("an existing stack .env keeps its lines and gains only added secrets", asyn
 
 test("exhausted address pools explain recovery", async () => {
   app = await launch("pool-exhausted");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -455,7 +467,7 @@ test("exhausted address pools explain recovery", async () => {
 
 test("a port conflict opens and saves the replacement managed origin", async () => {
   app = await launch("port-conflict");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   const appWindowPromise = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue" }).click();
@@ -487,7 +499,7 @@ test("a port conflict opens and saves the replacement managed origin", async () 
 
 test("repeated port conflicts stop with a retry action", async () => {
   app = await launch("ports-exhausted");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   await setup.getByRole("button", { name: "Continue" }).click();
   await expect(setup.locator("#stack-phase")).toHaveText(
@@ -502,7 +514,7 @@ test("repeated port conflicts stop with a retry action", async () => {
 
 test("the desktop never exposes server administration or account impersonation", async () => {
   app = await launch("ok");
-  const setup = await app.firstWindow();
+  const setup = await foregroundWindow(app);
   await setup.getByRole("radio", { name: /This computer/ }).check();
   const nextWindow = app.waitForEvent("window");
   await setup.getByRole("button", { name: "Continue", exact: true }).click();

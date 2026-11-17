@@ -22,10 +22,12 @@ const CAPPED = Symbol.for("rakazo.cappedText");
 export function capTextScaling(reactNative: typeof ReactNative = require("react-native")) {
   const { Text, TextInput } = reactNative;
   if (CAPPED in Text) return;
+  const fontFamily = reactNative.Platform?.OS === "ios" ? "Iowan Old Style" : "serif";
   const CappedText = Object.assign(
     (props: TextProps) =>
       createElement(Text, {
         ...props,
+        style: [{ fontFamily }, props.style],
         maxFontSizeMultiplier: props.maxFontSizeMultiplier ?? MAX_FONT_SCALE,
       }),
     { [CAPPED]: true },
@@ -34,6 +36,7 @@ export function capTextScaling(reactNative: typeof ReactNative = require("react-
     (props: TextInputProps) =>
       createElement(TextInput, {
         ...props,
+        style: [{ fontFamily }, props.style],
         maxFontSizeMultiplier: props.maxFontSizeMultiplier ?? MAX_FONT_SCALE,
       }),
     TextInput,

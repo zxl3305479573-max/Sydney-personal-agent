@@ -131,7 +131,7 @@ export function CompatibleModelFields({
           value={baseUrl}
           onChange={(event) => updateBaseUrl(event.target.value)}
           aria-label={t`OpenAI-compatible server URL`}
-          placeholder="http://127.0.0.1:8000/v1"
+          placeholder="https://example.com/v1"
           autoComplete="off"
           className="mt-2 h-10 text-foreground"
         />
@@ -286,6 +286,18 @@ export function CompatibleModelFields({
           </Button>
         ) : null}
       </div>
+      <Label className="mt-4 font-normal text-foreground">
+        <Checkbox
+          checked={supportsImages}
+          disabled={busy}
+          onCheckedChange={(checked) => {
+            selectionRevisionRef.current += 1;
+            setSupportsImages(checked === true);
+            setNotice(null);
+          }}
+        />
+        <Trans>Supports images</Trans>
+      </Label>
       <ModelThinkingOptions
         reasoning={reasoning}
         onReasoningChange={(value) => {
@@ -324,12 +336,6 @@ export function CompatibleModelFields({
         }}
         contextWindowLabel={t`Context limit`}
         supportsImages={supportsImages}
-        onSupportsImagesChange={(value) => {
-          selectionRevisionRef.current += 1;
-          setSupportsImages(value);
-          setNotice(null);
-        }}
-        imagesLabel={t`Supports images`}
         maxImagesPerPrompt={maxImagesPerPrompt}
         onMaxImagesPerPromptChange={(value) => {
           selectionRevisionRef.current += 1;

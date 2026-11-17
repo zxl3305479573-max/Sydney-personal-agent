@@ -17,6 +17,7 @@ import {
 import type { PurchaseCardField } from "@rakazo/contracts";
 import { PurchaseIdInput, PurchaseRequestInput } from "@rakazo/contracts";
 import type { Purchase } from "@rakazo/db";
+import { conversationScopeWhere, resolveConversationExecutionScope } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { PaymentWalletDeps } from "./payment-wallets.js";
 import { withPaymentWalletCredential } from "./payment-wallets.js";
@@ -175,7 +176,7 @@ export function findBotPurchase(
   id: string,
 ): Promise<Purchase | null> {
   return deps.prisma.purchase.findFirst({
-    where: { id, spaceId: run.spaceId, userId: run.userId, botId: run.botId },
+    where: { id, ...conversationScopeWhere(run), botId: run.botId },
   });
 }
 
@@ -232,10 +233,25 @@ export async function createPurchase(
     requestCiphertext?: string;
   },
 ) {
+  const origin = await deps.prisma.$transaction(async (tx) => {
+    const scope = await resolveConversationExecutionScope(tx, {
+      spaceId: context.spaceId, userId: context.userId,
+      botId: context.botId, threadId: run.threadId,
+    });
+    const thread = await tx.thread.findUniqueOrThrow({
+      where: { id: run.threadId, ...scope },
+      select: { historyCompactionGeneration: true },
+    });
+    return {
+      ...scope, botId: context.botId, threadId: run.threadId,
+      threadGeneration: thread.historyCompactionGeneration,
+    };
+  });
   const existing = await deps.prisma.purchase.findUnique({
     where: { operationKey: context.operationId },
   });
-  if (existing) return purchaseView(ownedReplay(existing, context));
+  const providerId = provider.describe().id;
+  if (existing) return purchaseView(assertPurchaseOperationScope(existing, origin, providerId));
   let snapshot: PurchaseSnapshot;
   try {
     // The idempotency key makes a replay after a crash reuse the same remote purchase.
@@ -256,11 +272,7 @@ export async function createPurchase(
     return providerError(error);
   }
   const pending = PENDING_PURCHASE_STATUSES.has(snapshot.status);
-  const thread = await deps.prisma.thread.findUniqueOrThrow({
-    where: { id: run.threadId },
-    select: { historyCompactionGeneration: true },
-  });
-  const purchase = ownedReplay(
+  const purchase = assertPurchaseOperationScope(
     await deps.prisma.purchase.upsert({
       where: { operationKey: context.operationId },
       update: {},
@@ -270,8 +282,9 @@ export async function createPurchase(
         userId: context.userId,
         botId: context.botId,
         threadId: run.threadId,
-        threadGeneration: thread.historyCompactionGeneration,
-        provider: provider.describe().id,
+        projectWorkspaceId: origin.projectWorkspaceId,
+        threadGeneration: origin.threadGeneration,
+        provider: providerId,
         remoteId: snapshot.id,
         credentialType: request.credential.kind,
         merchantName: request.merchantName,
@@ -289,14 +302,26 @@ export async function createPurchase(
         wokenStatus: snapshot.status,
       },
     }),
-    context,
+    origin,
+    providerId,
   );
   if (purchase.nextPollAt) await enqueuePurchasePoll(deps, purchase.id, purchase.nextPollAt);
   return purchaseView(purchase, snapshot.card);
 }
 
-function ownedReplay(purchase: Purchase, context: AdapterContext) {
-  if (purchase.spaceId !== context.spaceId || purchase.userId !== context.userId)
+export function assertPurchaseOperationScope(purchase: Purchase, owner: {
+  spaceId: string;
+  userId: string;
+  projectWorkspaceId: string | null;
+  botId: string;
+  threadId: string;
+}, providerId: string) {
+  if (
+    purchase.spaceId !== owner.spaceId || purchase.userId !== owner.userId ||
+    purchase.projectWorkspaceId !== owner.projectWorkspaceId ||
+    purchase.botId !== owner.botId || purchase.threadId !== owner.threadId ||
+    purchase.provider !== providerId
+  )
     throw new Error("Purchase operation scope changed");
   return purchase;
 }
@@ -482,8 +507,7 @@ export async function loadPurchaseRedactions(
 ): Promise<string[]> {
   const rows = await deps.prisma.purchase.findMany({
     where: {
-      spaceId: run.spaceId,
-      userId: run.userId,
+      ...conversationScopeWhere(run),
       botId: run.botId,
       OR: [{ cardCiphertext: { not: null } }, { tokenCiphertext: { not: null } }],
       createdAt: { gte: new Date(Date.now() - REDACTION_WINDOW_MS) },

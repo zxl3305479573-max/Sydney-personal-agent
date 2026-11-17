@@ -3,6 +3,8 @@ import { reportMobileError } from "./monitoring";
 
 type StartupStep = "server" | "appearance" | "streaming" | "images" | "inbox" | "language";
 
+export class ServerSettingsStartupError extends Error {}
+
 const STARTUP_TIMEOUT_MS = 20_000;
 const pending = new Set<StartupStep>();
 let started = false;
@@ -60,6 +62,14 @@ export async function trackMobileStartup<T>(step: StartupStep, task: Promise<T>)
   } finally {
     pending.delete(step);
   }
+}
+
+export async function waitForMobileStartup(
+  server: Promise<unknown>,
+  tasks: Promise<unknown>[],
+): Promise<void> {
+  const [serverResult] = await Promise.allSettled([server, ...tasks]);
+  if (serverResult.status === "rejected") throw new Error("Could not load server settings");
 }
 
 /** A visible app or its error boundary ends startup monitoring. */

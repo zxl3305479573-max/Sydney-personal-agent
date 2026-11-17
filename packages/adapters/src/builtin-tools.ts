@@ -279,8 +279,11 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "computer_observe",
     description:
-      "Capture the current screen of this bot's computer. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop.",
-    inputSchema: { type: "object", properties: {} },
+      "Capture the current screen of this bot's computer for your own inspection. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop. Set share_with_user only when the user explicitly asks to see a screenshot; otherwise do not send screenshots to chat.",
+    inputSchema: {
+      type: "object",
+      properties: { share_with_user: { type: "boolean" } },
+    },
   },
   {
     name: "computer_act",
@@ -557,7 +560,7 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "request_takeover",
     description:
-      "Ask the user to take over the computer screen for CAPTCHA, payment, passkeys, or other protected input request_secret cannot take. Never ask the user to paste protected values in chat.",
+      "Ask the user to take over the computer screen when you are stuck and need human help, or for CAPTCHA, payment, passkeys, or other protected input request_secret cannot take. Never ask the user to paste protected values in chat.",
     inputSchema: {
       type: "object",
       properties: { reason: { type: "string" } },
@@ -1694,7 +1697,7 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "update_preferences",
     description:
-      "Read or change the user's own account preferences: timezone and Rakazo marketing emails. Change them only when the user asks. Call with no fields to read the current values. Email, password, sign-in, billing and account deletion are only in the app's settings.",
+      "Read or change the user's own account preferences: timezone and Sydney marketing emails. Change them only when the user asks. Call with no fields to read the current values. Email, password, sign-in, billing and account deletion are only in the app's settings.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1704,7 +1707,7 @@ export const builtinAgentTools: ConnectorTool[] = [
         },
         marketingEmails: {
           type: "boolean",
-          description: "false unsubscribes from Rakazo's product emails; true resubscribes.",
+          description: "false unsubscribes from Sydney's product emails; true resubscribes.",
         },
       },
       additionalProperties: false,
@@ -1713,7 +1716,7 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "feedback",
     description:
-      "Send a bug report or product feedback about Rakazo to the people who run this server. Only when the user asks you to report something. Describe what happened and what was expected in general terms; leave out names, contact details, message text, credentials and other personal details. The report already identifies this chat, bot and run.",
+      "Send a bug report or product feedback about Sydney to the people who run this server. Only when the user asks you to report something. Describe what happened and what was expected in general terms; leave out names, contact details, message text, credentials and other personal details. The report already identifies this chat, bot and run.",
     inputSchema: {
       type: "object",
       properties: {

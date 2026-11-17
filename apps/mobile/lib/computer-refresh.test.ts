@@ -30,6 +30,27 @@ function setup() {
 
 afterEach(() => vi.useRealTimers());
 describe("computer refresh lifecycle", () => {
+  it("discards a screen whose context changes before the refresh applies it", async () => {
+    const pending = deferred<{ url: string; isCurrent: () => boolean }>();
+    const onScreen = vi.fn();
+    const onReady = vi.fn();
+    const controller = createComputerRefresh({
+      readStatus: async () => running,
+      readScreen: () => pending.promise,
+      onStatus: vi.fn(),
+      onScreen,
+      onReady,
+      onInitialError: vi.fn(),
+    });
+    controller.start();
+    let current = true;
+    pending.resolve({ url: "https://old.example.test", isCurrent: () => current });
+    current = false;
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onScreen).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it("waits for a slow refresh to finish before scheduling the next poll", async () => {
     vi.useFakeTimers();
     const fixture = setup();

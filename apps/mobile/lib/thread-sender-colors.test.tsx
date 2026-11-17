@@ -112,6 +112,18 @@ function contrastRatio(text: string, surface: string): number {
   return (luminance(text) + 0.05) / (luminance(surface) + 0.05);
 }
 
+it("shows the default user bubble in a group without a bot-specific color", () => {
+  const html = renderToStaticMarkup(
+    <Bubble
+      groupId="group"
+      message={{ id: "message", role: "user", blocks: [{ kind: "text", text: "Hello" }] }}
+    />,
+  );
+  expect(html).toContain("border-radius:20px");
+  expect(html).toContain("background-color:");
+  expect(html).toContain(">Hello</span>");
+});
+
 it.each(["text", "image"] as const)("keeps per-bot sender colours on %s messages", (kind) => {
   for (const [index, color] of botColors.entries()) {
     const id = `bot-${index}`;

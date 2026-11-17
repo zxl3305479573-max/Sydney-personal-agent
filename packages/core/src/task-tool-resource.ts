@@ -16,18 +16,26 @@ export function taskToolResource(
 ): string | null {
   if (FORBIDDEN_TOOLS.has(tool)) return null;
   if (tool === "remember") {
-    return binding.grants.some((grant) => grant.tool === "remember" && grant.resource === `memory:${binding.botId}`)
+    return binding.grants.some(
+      (grant) => grant.tool === "remember" && grant.resource === `memory:${binding.botId}`,
+    )
       ? `memory:${binding.botId}`
       : null;
   }
   if (tool === "ask_user") {
-    return binding.grants.some((grant) => grant.tool === "ask_user" && grant.resource === `task:${binding.taskId}`)
+    return binding.grants.some(
+      (grant) => grant.tool === "ask_user" && grant.resource === `task:${binding.taskId}`,
+    )
       ? `task:${binding.taskId}`
       : null;
   }
   if (WORKSPACE_TOOLS.has(tool)) {
     const path = input.path ?? "";
-    if (path.startsWith("/") || /^[a-z]:/i.test(path) || path.split("/").some((part) => part === "..")) {
+    if (
+      path.startsWith("/") ||
+      /^[a-z]:/i.test(path) ||
+      path.split("/").some((part) => part === "..")
+    ) {
       return null;
     }
     return "workspace";
@@ -41,7 +49,9 @@ export function taskToolResource(
         parsed.hash = "";
         if (parsed.href !== binding.requireExactWebUrl) return null;
       }
-      return binding.grants.some((grant) => grant.tool === "web_fetch" && grant.resource === parsed.href)
+      return binding.grants.some(
+        (grant) => grant.tool === "web_fetch" && grant.resource === parsed.href,
+      )
         ? parsed.href
         : null;
     } catch {
@@ -49,7 +59,9 @@ export function taskToolResource(
     }
   }
   if (DESKTOP_TOOLS.has(tool)) {
-    return binding.grants.some((grant) => grant.tool === tool && grant.resource === `computer:${binding.botId}`)
+    return binding.grants.some(
+      (grant) => grant.tool === tool && grant.resource === `computer:${binding.botId}`,
+    )
       ? `computer:${binding.botId}`
       : null;
   }

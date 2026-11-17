@@ -3,9 +3,15 @@ import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN, resolveBotAvatarSet } from "@rakazo
 import { displayName } from "@rakazo/core";
 import { cancelRunsInTransaction } from "./cancel-runs.js";
 import type { Prisma, PrismaClient } from "./client.js";
-import { expireComputerExecutionLeases, restoreBotUnderComputerQuota } from "./computers.js";
+import {
+  expireComputerExecutionLeases,
+  lockUserForComputerQuota,
+  resolveMaxComputersPerUser,
+  restoreBotUnderComputerQuota,
+} from "./computers.js";
 import { transientRunEventsWhere } from "./events.js";
 import { withNewestThreadMessages } from "./preview-messages.js";
+import { conversationProjectId } from "./project-workspace-context.js";
 import { IsolationError } from "./scope.js";
 import { lockSpaceForContentCreation } from "./spaces.js";
 import {
@@ -101,7 +107,7 @@ function hasMinimumActiveMembers(members: readonly unknown[]) {
 }
 
 async function assertOwnedBots(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, "bot">,
   actor: Actor,
   botIds: string[],
 ): Promise<GroupMember[]> {
@@ -116,6 +122,7 @@ async function assertOwnedBots(
       id: { in: unique },
       spaceId: actor.spaceId,
       userId: actor.userId,
+      projectWorkspaceId: conversationProjectId(actor),
       archivedAt: null,
     },
     select: { id: true, name: true, color: true, avatarSet: true },
@@ -132,6 +139,32 @@ async function assertOwnedBots(
       avatarSet: resolveBotAvatarSet(bot.avatarSet),
     };
   });
+}
+
+async function lockOwnedActiveBots(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  requestedBotIds: string[],
+): Promise<GroupMember[]> {
+  const botIds = [...new Set(requestedBotIds)];
+  if (botIds.length < GROUP_MEMBER_MIN || botIds.length > GROUP_MEMBER_MAX) {
+    throw new IsolationError(
+      `Groups require ${GROUP_MEMBER_MIN} to ${GROUP_MEMBER_MAX} distinct bots`,
+    );
+  }
+  const projectWorkspaceId = conversationProjectId(actor);
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "bots"
+    WHERE "id" = ANY(${botIds}::text[])
+      AND "spaceId" = ${actor.spaceId}
+      AND "userId" = ${actor.userId}
+      AND "projectWorkspaceId" IS NOT DISTINCT FROM ${projectWorkspaceId}
+      AND "archivedAt" IS NULL
+    ORDER BY "id"
+    FOR UPDATE
+  `;
+  if (locked.length !== botIds.length) throw new IsolationError();
+  return assertOwnedBots(tx, actor, botIds);
 }
 
 /**
@@ -304,6 +337,7 @@ export function createGroupRepos(prisma: PrismaClient) {
         where: {
           spaceId: { in: spaceIds },
           userId: actor.userId,
+          projectWorkspaceId: null,
           archivedAt: null,
         },
         select: {
@@ -341,6 +375,7 @@ export function createGroupRepos(prisma: PrismaClient) {
         where: {
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId: conversationProjectId(actor),
           OR: [
             { archivedAt: { not: null } },
             { members: { some: { bot: { archivedAt: { not: null } } } } },
@@ -369,6 +404,7 @@ export function createGroupRepos(prisma: PrismaClient) {
           where: {
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId: conversationProjectId(actor),
             archivedAt: null,
           },
           include: groupInclude,
@@ -389,6 +425,7 @@ export function createGroupRepos(prisma: PrismaClient) {
           id: groupId,
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId: conversationProjectId(actor),
           ...(options.includeArchived ? {} : { archivedAt: null }),
         },
         include: groupInclude,
@@ -403,6 +440,7 @@ export function createGroupRepos(prisma: PrismaClient) {
           id: groupId,
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId: conversationProjectId(actor),
           archivedAt: null,
         },
         include: groupTargetInclude,
@@ -411,17 +449,52 @@ export function createGroupRepos(prisma: PrismaClient) {
       return group;
     },
 
-    async createGroup(actor: Actor, input: { name: string; botIds: string[] }): Promise<Group> {
-      const members = await assertOwnedBots(prisma, actor, input.botIds);
-      const created = await prisma.$transaction(async (tx) => {
+    async createGroup(actor: Actor, input: { id?: string; name: string; botIds: string[] }): Promise<Group> {
+      const projectWorkspaceId = conversationProjectId(actor);
+      const created = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
         await lockSpaceForContentCreation(tx, {
           spaceId: actor.spaceId,
           userId: actor.userId,
         });
+        if (input.id) {
+          let existing = await tx.chatGroup.findFirst({
+            where: {
+              id: input.id,
+              spaceId: actor.spaceId,
+              userId: actor.userId,
+              projectWorkspaceId,
+            },
+            include: groupInclude,
+          });
+          if (existing) {
+            await lockOwnedGroup(tx, actor, input.id);
+            existing = await tx.chatGroup.findFirst({
+              where: {
+                id: input.id,
+                spaceId: actor.spaceId,
+                userId: actor.userId,
+                projectWorkspaceId,
+              },
+              include: groupInclude,
+            });
+            if (!existing) throw new IsolationError();
+            const memberIds = existing.members.map((member) => member.bot.id);
+            if (existing.archivedAt || !existing.thread ||
+              existing.name !== displayName(input.name, "") ||
+              memberIds.length !== input.botIds.length ||
+              memberIds.some((id, index) => id !== input.botIds[index])) {
+              throw new IsolationError("Group creation request conflicts with an existing resource");
+            }
+            return attachNewestGroupMessage(tx, existing);
+          }
+        }
+        const members = await lockOwnedActiveBots(tx, actor, input.botIds);
         const group = await tx.chatGroup.create({
           data: {
+            ...(input.id ? { id: input.id } : {}),
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId,
             name: displayName(input.name, ""),
           },
         });
@@ -436,6 +509,7 @@ export function createGroupRepos(prisma: PrismaClient) {
             spaceId: actor.spaceId,
             groupId: group.id,
             userId: actor.userId,
+            projectWorkspaceId,
           },
         });
         const loaded = await tx.chatGroup.findFirstOrThrow({
@@ -443,7 +517,7 @@ export function createGroupRepos(prisma: PrismaClient) {
           include: groupInclude,
         });
         return attachNewestGroupMessage(tx, loaded);
-      });
+      }));
       return mapGroup(created as GroupRecord);
     },
 
@@ -458,8 +532,8 @@ export function createGroupRepos(prisma: PrismaClient) {
         sectionId?: string | null;
       },
     ): Promise<{ group: Group; cancelledRunIds: string[]; computers: RunTeardownTarget[] }> {
-      const members = input.botIds ? await assertOwnedBots(prisma, actor, input.botIds) : undefined;
-      const updated = await prisma.$transaction(async (tx) => {
+      const updated = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
+        const members = input.botIds ? await lockOwnedActiveBots(tx, actor, input.botIds) : undefined;
         await lockOwnedGroup(tx, actor, input.groupId);
         const current = await tx.chatGroup.findFirst({
           where: {
@@ -548,7 +622,7 @@ export function createGroupRepos(prisma: PrismaClient) {
           cancelledRunIds: runIds,
           computers: targets,
         };
-      });
+      }));
       if (!updated.group.thread) throw new IsolationError();
       return {
         group: mapGroup(updated.group as GroupRecord),
@@ -619,13 +693,45 @@ export function createGroupRepos(prisma: PrismaClient) {
     async restoreGroup(actor: Actor, groupId: string) {
       await withTransactionRetry(() =>
         prisma.$transaction(async (tx) => {
+          const projectWorkspaceId = conversationProjectId(actor);
+          const snapshot = await tx.chatGroup.findFirst({
+            where: {
+              id: groupId,
+              spaceId: actor.spaceId,
+              userId: actor.userId,
+              projectWorkspaceId,
+            },
+            select: { members: { select: { botId: true } } },
+          });
+          if (!snapshot) throw new IsolationError();
+          const botIds = snapshot.members.map((member) => member.botId).sort();
+          if (resolveMaxComputersPerUser() > 0) {
+            await lockUserForComputerQuota(tx, actor.userId);
+          }
+          if (botIds.length) {
+            const locked = await tx.$queryRaw<Array<{ id: string }>>`
+              SELECT "id" FROM "bots"
+              WHERE "id" = ANY(${botIds}::text[])
+                AND "spaceId" = ${actor.spaceId}
+                AND "userId" = ${actor.userId}
+                AND "projectWorkspaceId" IS NOT DISTINCT FROM ${projectWorkspaceId}
+              ORDER BY "id"
+              FOR UPDATE
+            `;
+            if (locked.length !== botIds.length) throw new IsolationError();
+          }
           await lockOwnedGroup(tx, actor, groupId);
-          const archived = await tx.chatGroupMember.findMany({
-            where: { groupId, bot: { archivedAt: { not: null } } },
-            select: { bot: { select: { id: true, computerId: true } } },
+          const members = await tx.chatGroupMember.findMany({
+            where: { groupId },
+            select: { botId: true, bot: { select: { id: true, computerId: true, archivedAt: true } } },
             orderBy: groupMemberOrder,
           });
-          for (const { bot } of archived) {
+          const currentIds = members.map((member) => member.botId).sort();
+          if (currentIds.length !== botIds.length || currentIds.some((id, index) => id !== botIds[index])) {
+            throw new IsolationError("Group members changed. Refresh and try again.");
+          }
+          for (const { bot } of members) {
+            if (!bot.archivedAt) continue;
             if (bot.computerId) {
               await restoreBotUnderComputerQuota(tx, {
                 userId: actor.userId,
@@ -691,6 +797,7 @@ export async function lockOwnedGroup(
     WHERE id = ${groupId}
       AND "spaceId" = ${actor.spaceId}
       AND "userId" = ${actor.userId}
+      AND "projectWorkspaceId" IS NOT DISTINCT FROM ${conversationProjectId(actor)}
     FOR UPDATE
   `;
   if (locked.length !== 1) throw new IsolationError();

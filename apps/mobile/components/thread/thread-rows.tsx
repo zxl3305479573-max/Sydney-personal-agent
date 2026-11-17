@@ -1,4 +1,5 @@
 import type { ThreadItem } from "@rakazo/core";
+import type { SpaceBot } from "@rakazo/contracts";
 import {
   answerableAskMessageIds,
   dismissableAskMessageIds,
@@ -13,6 +14,7 @@ import type { ListRenderItemInfo } from "react-native";
 import { StyleSheet, View } from "react-native";
 import type { MobileBot, MobileMessage, MobileSnapshot } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import { messageAvatarBotId } from "../../lib/message-row-layout";
 import { threadHeaderFloats } from "../../lib/thread-edges";
 import { previewMessageText } from "../../lib/thread-message-text";
 import type { useThreadTranscript } from "../../lib/thread-transcript";
@@ -90,7 +92,7 @@ export function useThreadRows({
   onCall: boolean;
   displayName?: string;
   mentionBots: MobileBot[];
-  currentBot?: MobileBot;
+  currentBot?: MobileBot | SpaceBot;
   currentBotStatus?: string;
   userBubble?: UserBubble;
   columnWidth: number;
@@ -129,12 +131,10 @@ export function useThreadRows({
             displayName ??
             t("Bot"));
       const messageReactions = reactionView.reactions.get(message.id);
-      const activityBotId =
-        !inGroup && message.role === "bot" && message.id.startsWith("progress:")
-          ? (message.botId ?? botId)
-          : undefined;
+      const activityBotId = messageAvatarBotId(message, inGroup, botId);
       const activityBot = activityBotId
         ? (snap?.members?.find((member) => member.botId === activityBotId) ??
+          mentionBots.find((bot) => bot.id === activityBotId) ??
           (currentBot?.id === activityBotId ? currentBot : undefined))
         : undefined;
       const activityStatus = activityBotId

@@ -310,6 +310,12 @@ describe("Dictation recorder fallback", () => {
       },
       language: "es-ES",
     });
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "rakazo.uiLocale" ? "zh-CN" : null),
+      setItem: () => undefined,
+      removeItem: () => undefined,
+      clear: () => undefined,
+    });
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       Response.json({ text: "hola" }),
     );
@@ -337,7 +343,7 @@ describe("Dictation recorder fallback", () => {
     await vi.waitFor(() => expect(onFinal).toHaveBeenCalledWith("hola"));
 
     const sent = fetchMock.mock.calls[0]?.[1] as { body?: string } | undefined;
-    expect(JSON.parse(String(sent?.body)).language).toBe("es");
+    expect(JSON.parse(String(sent?.body)).language).toBe("zh");
   });
 
   it("rejects oversized transcription responses without waiting for cancellation", async () => {
@@ -886,7 +892,7 @@ describe("Dictation web speech", () => {
 
   it("listens in the language the app is set to", async () => {
     vi.stubGlobal("localStorage", {
-      getItem: (key: string) => (key === "rakazo.uiLocale" ? "nl" : null),
+      getItem: (key: string) => (key === "rakazo.uiLocale" ? "zh-CN" : null),
       setItem: () => undefined,
       removeItem: () => undefined,
       clear: () => undefined,
@@ -895,11 +901,17 @@ describe("Dictation web speech", () => {
     const dictation = new Dictation();
     await dictation.listen({ mode: "hold", onFinal: () => undefined });
 
-    expect(instances[0]?.lang).toBe("nl-NL");
+    expect(instances[0]?.lang).toBe("zh-CN");
   });
 
   it("hears the browser's regional variant of the app's language", async () => {
     vi.stubGlobal("navigator", { language: "es-CL" });
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "rakazo.uiLocale" ? "en" : null),
+      setItem: () => undefined,
+      removeItem: () => undefined,
+      clear: () => undefined,
+    });
 
     const dictation = new Dictation();
     await dictation.listen({ mode: "hold", onFinal: () => undefined });
@@ -910,7 +922,7 @@ describe("Dictation web speech", () => {
   it("keeps the app's language when the browser speaks another one", async () => {
     vi.stubGlobal("navigator", { language: "de-DE" });
     vi.stubGlobal("localStorage", {
-      getItem: (key: string) => (key === "rakazo.uiLocale" ? "es" : null),
+      getItem: (key: string) => (key === "rakazo.uiLocale" ? "zh-CN" : null),
       setItem: () => undefined,
       removeItem: () => undefined,
       clear: () => undefined,
@@ -919,7 +931,7 @@ describe("Dictation web speech", () => {
     const dictation = new Dictation();
     await dictation.listen({ mode: "hold", onFinal: () => undefined });
 
-    expect(instances[0]?.lang).toBe("es-ES");
+    expect(instances[0]?.lang).toBe("zh-CN");
   });
 
   it.each([
@@ -943,13 +955,13 @@ describe("Dictation web speech", () => {
     expect(instances[0]?.lang).toBe(expected);
   });
 
-  it("keeps the browser language when the app has no catalog for it", async () => {
+  it("uses Chinese when nothing is saved and the browser language is unsupported", async () => {
     vi.stubGlobal("navigator", { language: "it-IT" });
 
     const dictation = new Dictation();
     await dictation.listen({ mode: "hold", onFinal: () => undefined });
 
-    expect(instances[0]?.lang).toBe("it-IT");
+    expect(instances[0]?.lang).toBe("zh-CN");
   });
 
   it("rides out a pause in the middle of a sentence", async () => {
@@ -1778,6 +1790,12 @@ describe("Dictation web speech", () => {
 describe("transcriptionLanguage", () => {
   it("hints the provider with the language the caller picked", () => {
     vi.stubGlobal("navigator", { language: "es-ES" });
-    expect(transcriptionLanguage()).toBe("es");
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "rakazo.uiLocale" ? "zh-CN" : null),
+      setItem: () => undefined,
+      removeItem: () => undefined,
+      clear: () => undefined,
+    });
+    expect(transcriptionLanguage()).toBe("zh");
   });
 });

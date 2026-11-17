@@ -79,26 +79,30 @@ export function ChatHeaderTitle({
   const inboxBot = useInboxBot(params.botId);
   const inboxGroup = useInboxGroup(params.groupId);
   const inGroup = Boolean(params.groupId);
+  const initialName = [inGroup ? inboxGroup?.name : inboxBot?.name, params.name]
+    .map((candidate) => safeDisplayName(candidate, ""))
+    .find(Boolean);
   const title: ChatTitle = published ?? {
     bot: inboxBot,
     status: inboxBot?.status,
     composing: false,
-    name: params.name || inboxBot?.name,
+    name: initialName,
     opens: chatTitleRoute({
       groupId: params.groupId,
       botId: params.botId,
-      name: params.name || inboxBot?.name,
+      name: initialName,
       readOnly: params.readOnly === "1",
     }),
   };
   // A group seats its members from the inbox's copy until the chat has loaded its own.
   const members = inGroup ? (title.members ?? inboxGroup?.members) : undefined;
-  const label = safeDisplayName(title.name, inGroup ? t("Group") : t("Bot")) || t("Thread");
+  const label = safeDisplayName(title.name, "");
+  const accessibilityLabel = label || t("Thread");
   const opens = title.opens;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={opens ? t(inGroup ? "Group settings" : "Profile") : label}
+      accessibilityLabel={opens ? t(inGroup ? "Group settings" : "Profile") : accessibilityLabel}
       disabled={!opens}
       onPress={() => {
         if (opens) router.push(opens);
@@ -109,7 +113,7 @@ export function ChatHeaderTitle({
           <ChatTitleAvatar bot={title.bot} status={title.status} composing={title.composing} />
         ) : null}
         {inGroup ? <GroupSeats members={members ?? []} size={CHAT_TITLE_AVATAR_SIZE} /> : null}
-        <ChatTitleLabel label={label} placeholder={!title.name} style={styles.title} />
+        <ChatTitleLabel label={label} placeholder={!label} style={styles.title} />
       </GlassSurface>
     </Pressable>
   );

@@ -4,6 +4,39 @@
 @source "../../packages/ui-web/src/**/*.{ts,tsx}";
 @source "./src/**/*.{ts,tsx}";
 
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-user,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot {
+  border-radius: var(--custom-chat-bubble-radius);
+  padding: 10px 14px;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-user {
+  background-color: var(--custom-chat-user-background);
+  text-shadow: var(--custom-chat-user-shadow);
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot {
+  background-color: var(--custom-chat-bot-background);
+  text-shadow: var(--custom-chat-bot-shadow);
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown a,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown blockquote,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown th,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown td,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown li::marker {
+  color: inherit;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-markdown a,
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot .rk-chat-link-label {
+  text-decoration-color: currentColor;
+}
+
+[data-custom-chat-bubble="true"] .sydney-chat-bubble-bot [data-testid="tool-activity"] > button {
+  color: var(--custom-chat-bot-foreground);
+}
+
 @media (max-width: 767px) {
   [data-theme="light"] {
     --sidebar: #fff;
@@ -51,10 +84,101 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root {
+  --sydney-surface-opacity: 0.8;
+  --sydney-surface-alpha: 80%;
+}
+
 /* viewport-fit=cover lets the shell reach the screen edges; keep it clear of notches and the home indicator. */
 #root {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
+  isolation: isolate;
+}
+
+.workspace-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+
+.workspace-background img,
+.workspace-background > div {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-background > div {
+  background: black;
+}
+
+.conversation-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+
+.conversation-background img,
+.conversation-background > div {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.conversation-background > div {
+  background: black;
+}
+
+html[data-workspace-background="true"] #root,
+html[data-workspace-background="true"] [data-testid="shell-root"],
+html[data-workspace-background="true"] [data-space-switch="main"],
+html[data-workspace-background="true"] [data-slot="sidebar-inner"],
+html[data-workspace-background="true"] .sydney-page-surface {
+  background: transparent;
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"],
+html[data-workspace-background="true"] [data-testid="side-panel"],
+html[data-workspace-background="true"] .sydney-settings-dialog {
+  isolation: isolate;
+  background: var(--background);
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::before,
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::before,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after,
+html[data-workspace-background="true"] .sydney-settings-dialog::before,
+html[data-workspace-background="true"] .sydney-settings-dialog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::before,
+html[data-workspace-background="true"] [data-testid="side-panel"]::before,
+html[data-workspace-background="true"] .sydney-settings-dialog::before {
+  background:
+    var(--workspace-background-image) center / var(--workspace-background-fit) no-repeat fixed;
+  opacity: var(--workspace-background-opacity);
+}
+
+html[data-workspace-background="true"] [data-testid="bots-sidebar"]::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after,
+html[data-workspace-background="true"] .sydney-settings-dialog::after {
+  background: black;
+  opacity: var(--workspace-background-overlay);
 }
 
 /* Switching spaces in place (lib/space-switch.ts): the sidebar holds still while the
@@ -155,7 +279,7 @@ body,
   .sydney-settings-group-list,
   .sydney-glass-list {
     border-color: rgb(225 225 225 / 78%);
-    background: rgb(255 255 255 / 78%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     box-shadow:
       0 1px 0 rgb(255 255 255 / 96%) inset,
       0 10px 26px rgb(0 0 0 / 6%);
@@ -169,28 +293,32 @@ body,
     max-height: none;
     border: 0;
     border-radius: 0;
-    background: rgb(255 255 255 / 92%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     box-shadow: none;
     backdrop-filter: blur(24px);
+  }
+
+  .sydney-settings-nav-row {
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
   }
 
   .sydney-settings-nav {
     padding: 9px 16px;
     border-bottom: 1px solid rgb(232 232 232 / 80%);
-    background: rgb(255 255 255 / 76%);
+    background: transparent;
   }
 
   .sydney-settings-nav > button {
     border: 1px solid transparent;
     border-radius: 999px;
-    background: rgb(255 255 255 / 58%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     color: rgb(95 95 95 / 84%);
     box-shadow: 0 1px 0 rgb(255 255 255 / 94%) inset;
   }
 
   .sydney-settings-nav > button[aria-current="page"] {
     border-color: rgb(218 218 218 / 84%);
-    background: rgb(255 255 255 / 92%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     color: rgb(35 35 35 / 92%);
     box-shadow:
       0 1px 0 rgb(255 255 255 / 98%) inset,
@@ -200,7 +328,7 @@ body,
   .sydney-settings-header {
     padding: 20px 20px 16px;
     border-bottom: 0;
-    background: rgb(255 255 255 / 66%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
   }
 
   .sydney-settings-scroll {
@@ -262,7 +390,7 @@ body,
   .sydney-list-surface > section > button {
     border: 1px solid rgb(225 225 225 / 72%);
     border-radius: 22px;
-    background: rgb(255 255 255 / 74%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     padding: 16px 18px;
     box-shadow:
       0 1px 0 rgb(255 255 255 / 96%) inset,
@@ -280,7 +408,7 @@ body,
     overflow: hidden;
     border-color: rgb(225 225 225 / 78%);
     border-radius: 24px;
-    background: rgb(255 255 255 / 78%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     box-shadow:
       0 1px 0 rgb(255 255 255 / 96%) inset,
       0 10px 26px rgb(0 0 0 / 6%);
@@ -292,7 +420,7 @@ body,
   select,
   input[type="search"] {
     border-color: rgb(220 220 220 / 84%);
-    background: rgb(255 255 255 / 72%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     box-shadow:
       0 1px 0 rgb(255 255 255 / 96%) inset,
       0 8px 18px rgb(0 0 0 / 5%);
@@ -300,8 +428,68 @@ body,
 
   .sydney-page-header {
     border-bottom-color: rgb(232 232 232 / 80%);
-    background: rgb(255 255 255 / 74%);
+    background: rgb(255 255 255 / var(--sydney-surface-opacity));
     box-shadow: 0 1px 0 rgb(255 255 255 / 96%) inset;
     backdrop-filter: blur(18px);
+  }
+
+  [data-theme="dark"] body,
+  [data-theme="dark"] #root,
+  [data-theme="dark"] .sydney-page-surface {
+    background: var(--background);
+  }
+
+  [data-theme="dark"] .rounded-xl.border-border,
+  [data-theme="dark"] .rounded-2xl.border-border,
+  [data-theme="dark"] .sydney-settings-group-list,
+  [data-theme="dark"] .sydney-glass-list,
+  [data-theme="dark"] .sydney-settings-panel > section > ul,
+  [data-theme="dark"] .sydney-settings-panel > section > div.rounded-xl,
+  [data-theme="dark"] [data-testid="plugin-submissions"] > ul,
+  [data-theme="dark"] .sydney-list-surface > button,
+  [data-theme="dark"] .sydney-list-surface > section > button {
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  }
+
+  [data-theme="dark"] .sydney-settings-dialog {
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
+  }
+
+  [data-theme="dark"] .sydney-settings-nav-row,
+  [data-theme="dark"] .sydney-settings-header,
+  [data-theme="dark"] .sydney-page-header {
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-nav > button {
+    background: transparent;
+    color: var(--muted-foreground);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-nav > button[aria-current="page"] {
+    border-color: var(--border);
+    background: var(--accent);
+    color: var(--foreground);
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] .sydney-settings-row + .sydney-settings-row,
+  [data-theme="dark"] .sydney-glass-list > li + li {
+    border-top-color: var(--border);
+  }
+
+  [data-theme="dark"] [data-slot="input"],
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] select,
+  [data-theme="dark"] input[type="search"] {
+    border-color: var(--input);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+    color: var(--foreground);
+    box-shadow: none;
   }
 }

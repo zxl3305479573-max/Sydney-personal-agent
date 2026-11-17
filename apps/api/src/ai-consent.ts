@@ -261,12 +261,13 @@ export async function allowAiConsent(
   deps: RouterDeps,
   actor: Actor,
   input: { scope: string; version: string; keys: string[]; settingsScope?: SettingsScope },
+  target: AiConsentQuery = {},
 ) {
   // Checked against the same settings copy the member reviewed.
   const current = await aiConsentStatus(
     deps,
     actor,
-    input.settingsScope ? { settingsScope: input.settingsScope } : {},
+    { ...target, ...(input.settingsScope ? { settingsScope: input.settingsScope } : {}) },
   );
   const known = new Set(current.recipients.map((recipient) => recipient.key));
   if (

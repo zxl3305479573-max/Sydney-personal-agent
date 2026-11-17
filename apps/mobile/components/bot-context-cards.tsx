@@ -6,6 +6,7 @@ import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { errorText } from "../lib/user-error";
+import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 
@@ -39,7 +40,7 @@ export function BotContextCards({ botId }: { botId: string }) {
     };
   }, [botId]);
   const heading = { color: tokens.mutedForeground, fontSize: 12, fontWeight: "500" as const };
-  const card = { backgroundColor: native.fill, borderRadius: 12, padding: 16, gap: 12 };
+  const card = { borderRadius: 12, padding: 16, gap: 12 };
   return (
     <>
       {work.length ? (
@@ -76,7 +77,12 @@ export function BotContextCards({ botId }: { botId: string }) {
               }}
             />
           </View>
-          <View style={card}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={12}
+            style={card}
+            fallbackStyle={{ backgroundColor: native.fill }}
+          >
             {(allWork ? work : work.slice(0, 5)).map((item) => (
               <View
                 key={item.id}
@@ -128,7 +134,7 @@ export function BotContextCards({ botId }: { botId: string }) {
                 <Text style={{ color: tokens.mutedForeground }}>{t("Show more")}</Text>
               </Pressable>
             ) : null}
-          </View>
+          </GlassSurface>
         </View>
       ) : null}
       {docs.length ? (
@@ -136,7 +142,12 @@ export function BotContextCards({ botId }: { botId: string }) {
           <Text accessibilityRole="header" style={[heading, { marginBottom: 8 }]}>
             {t("Memory")}
           </Text>
-          <View style={card}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={12}
+            style={card}
+            fallbackStyle={{ backgroundColor: native.fill }}
+          >
             {(allDocs ? docs : docs.slice(0, 5)).map((doc) => (
               <Pressable
                 key={doc.id}
@@ -171,7 +182,7 @@ export function BotContextCards({ botId }: { botId: string }) {
                 <Text style={{ color: tokens.mutedForeground }}>{t("Show more")}</Text>
               </Pressable>
             ) : null}
-          </View>
+          </GlassSurface>
         </View>
       ) : null}
       {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}

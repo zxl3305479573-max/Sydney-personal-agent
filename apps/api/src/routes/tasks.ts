@@ -4,6 +4,7 @@ import { SandboxKind } from "@rakazo/contracts";
 import { projectTask } from "@rakazo/core";
 import {
   confirmManagedTaskStopped,
+  conversationScopeWhere,
   controlManagedTask,
   createManagedTask,
   dispatchManagedTask,
@@ -39,8 +40,7 @@ export function tasksRoutes(ctx: RouterContext) {
       list: authed.tasks.list.handler(async ({ context, input }) => {
         const rows = await deps.prisma.task.findMany({
           where: {
-            userId: context.actor.userId,
-            spaceId: context.actor.spaceId,
+            ...conversationScopeWhere(context.actor),
             ...(input.botId ? { botId: input.botId } : {}),
             executionState: { path: ["format"], equals: 1 },
           },
@@ -187,8 +187,7 @@ export function tasksRoutes(ctx: RouterContext) {
           const row = await deps.prisma.task.findFirst({
             where: {
               id: input.taskId,
-              userId: context.actor.userId,
-              spaceId: context.actor.spaceId,
+              ...conversationScopeWhere(context.actor),
             },
           });
           if (!row) throw new IsolationError();

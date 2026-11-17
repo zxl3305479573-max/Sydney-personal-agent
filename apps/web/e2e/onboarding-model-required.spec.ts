@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { captureScreenshot, signup } from "./helpers";
+import { signup } from "./helpers";
 
 test.afterEach(async ({ page }) => {
   // Finish intercepted responses before the browser context is disposed.
@@ -29,11 +29,11 @@ test("onboarding cannot continue with an empty or failed model catalog", async (
     await expect(page.getByRole("heading", { name: "Connect a model" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
     await expect(page.getByRole("heading", { name: "Create your first bot" })).toHaveCount(0);
-    await expect(page.getByRole("combobox", { name: "Message Chief" })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Message Sydney" })).toHaveCount(0);
   }
 });
 
-test("Ollama Cloud onboarding requires a key before continuing", async ({ page }) => {
+test("onboarding requires a custom endpoint and text model", async ({ page }) => {
   await page.route("**/rpc/me", async (route) => {
     const response = await route.fetch();
     const body = (await response.json()) as { json: Record<string, unknown> };
@@ -42,23 +42,17 @@ test("Ollama Cloud onboarding requires a key before continuing", async ({ page }
   const stamp = Date.now();
   await signup(page, `ollama-${stamp}@rakazo.test`, "password12", "Model setup");
   await expect(page.getByRole("heading", { name: "Connect a model" })).toBeVisible();
-  await page.getByRole("combobox", { name: "Provider" }).click();
-  await page.getByRole("option", { name: "Ollama Cloud", exact: true }).click();
-  await page.getByLabel("Model id", { exact: true }).fill("test-model");
+  const endpoint = page.getByLabel("OpenAI-compatible server URL");
   const continueButton = page.getByRole("button", { name: "Continue", exact: true });
   await expect(continueButton).toBeDisabled();
-  const apiKey = page.getByLabel("API key", { exact: true });
-  await apiKey.fill("   ");
+  await expect(endpoint).toBeEmpty();
+  await endpoint.fill("https://models.example.test/v1");
   await expect(continueButton).toBeDisabled();
-  await apiKey.fill("fake-test-key");
+  await page.getByLabel("Model id", { exact: true }).fill("test-model");
   await expect(continueButton).toBeEnabled();
-  await apiKey.fill("");
-  await expect(continueButton).toBeDisabled();
 });
 
-test("Rakazo credits are chosen like a provider, with nothing else to fill in", async ({
-  page,
-}, testInfo) => {
+test("onboarding does not offer preset providers or credits", async ({ page }) => {
   await page.route("**/rpc/me", async (route) => {
     const response = await route.fetch();
     const body = (await response.json()) as { json: Record<string, unknown> };
@@ -67,20 +61,12 @@ test("Rakazo credits are chosen like a provider, with nothing else to fill in", 
       json: { json: { ...body.json, needsModel: true, billingEnabled: true } },
     });
   });
-  let funding: unknown = null;
-  await page.route("**/rpc/billing/selectFunding", async (route) => {
-    funding = route.request().postDataJSON().json;
-    await route.fulfill({ json: { json: { ok: true } } });
-  });
   await signup(page, `credits-${Date.now()}@rakazo.test`, "password12", "Credits");
   await expect(page.getByRole("heading", { name: "Connect a model" })).toBeVisible({
     timeout: 20_000,
   });
   await page.getByRole("combobox", { name: "Provider" }).click();
-  await page.getByRole("option", { name: "Rakazo credits", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveCount(0);
-  await expect(page.getByLabel(/API key/)).toHaveCount(0);
-  await captureScreenshot(page, testInfo, "onboarding-rakazo-credits");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect.poll(() => funding).toEqual({ funding: "credits" });
+  await expect(page.getByRole("option", { name: "Rakazo credits", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "Ollama Cloud", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "OpenAI-compatible", exact: true })).toBeVisible();
 });

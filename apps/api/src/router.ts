@@ -46,11 +46,14 @@ import { memoryRoutes } from "./routes/memory.js";
 import { messagingRoutes } from "./routes/messaging.js";
 import { modelsRoutes } from "./routes/models.js";
 import { paymentWalletRoutes } from "./routes/payment-wallet.js";
+import { personalityRoutes } from "./routes/personalities.js";
+import { projectWorkspaceRoutes } from "./routes/project-workspaces.js";
 import { routinesRoutes } from "./routes/routines.js";
 import { spacesRoutes } from "./routes/spaces.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { threadsRoutes } from "./routes/threads.js";
 import type { VoiceDeps } from "./voice.js";
+import type { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 
 export { nextConnectionLabel } from "./model-credentials.js";
 export { botIntroPrompt, enqueueBotIntroRun } from "./routes/bots.js";
@@ -58,6 +61,7 @@ export { HEARTBEAT_MS, SESSION_RECHECK_MS } from "./routes/shared.js";
 export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
+  companionScreen?: ReturnType<typeof createCompanionScreenCoordinator>;
   pushTokens: PushTokenStore;
   analytics?: ProductAnalytics;
   cloudAgent?: CloudAgentConnection | null;
@@ -114,6 +118,8 @@ export interface RouterDeps {
   onEmailError?: (error: unknown) => void;
   speechSummary?: VoiceDeps["speechSummary"];
   env: {
+    projectWorkspaceCreateExperiment?: boolean;
+    projectConversationCreateExperiment?: boolean;
     ticketBoardEnabled?: boolean;
     navLinks?: NavLink[];
     adminEmails?: string[];
@@ -129,6 +135,10 @@ export interface RouterDeps {
     deploymentModelConfigured?: boolean;
     deploymentModelHostCredentials?: boolean;
     webOrigin: string;
+    authPublicLinkOrigin?: string;
+    integrationApiCallbackEnabled?: boolean;
+    mcpNativeCallbackOrigin?: string;
+    screenProxyPublicOrigin?: string;
     privacyPolicyUrl?: string;
     screenProxySecret: string;
     sandboxProvider: string;
@@ -151,6 +161,8 @@ export function createRouter(deps: RouterDeps) {
     ...tasksRoutes(ctx),
     ...modelsRoutes(ctx),
     ...botsRoutes(ctx),
+    ...personalityRoutes(ctx),
+    ...projectWorkspaceRoutes(ctx),
     ...threadsRoutes(ctx),
     ...computerRoutes(ctx),
     ...memoryRoutes(ctx),

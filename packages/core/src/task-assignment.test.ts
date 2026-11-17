@@ -15,10 +15,12 @@ it("creates when no active run exists", () => {
 });
 
 it("rejects when an active run exists", () => {
-  expect(decideTaskAssignment({
-    ...base,
-    activeRun: { id: "run", status: "running", clientNonce: "n1" },
-  })).toEqual({ action: "reject", reason: "active_run_exists" });
+  expect(
+    decideTaskAssignment({
+      ...base,
+      activeRun: { id: "run", status: "running", clientNonce: "n1" },
+    }),
+  ).toEqual({ action: "reject", reason: "active_run_exists" });
 });
 
 it("rejects unknown effects and max runs", () => {

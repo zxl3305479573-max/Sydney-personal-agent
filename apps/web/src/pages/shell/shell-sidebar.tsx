@@ -9,7 +9,7 @@ import {
   InputGroupInput,
   Sidebar,
 } from "@rakazo/ui-web";
-import { Grid2X2Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { Folder, Grid2X2Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { InviteDialog } from "../../components/InviteDialog";
@@ -17,6 +17,7 @@ import { PasskeyOffer } from "../../components/PasskeyOffer";
 import { SidebarFooter } from "../../components/SidebarFooter";
 import { useBilling } from "../../components/SubscriptionGate";
 import { formatBillingDate } from "../../lib/billing";
+import { desktopBridge } from "../../lib/desktop";
 import type { BotsSidebarDensity } from "../../lib/bots-sidebar-density-pref";
 import type { Panel } from "../../lib/right-panel-state";
 import { useSignOut } from "../../lib/sign-out";
@@ -89,7 +90,8 @@ export function ShellSidebar({
   openIntegrations: () => void;
   openSkills: () => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
+  const projectLabel = i18n.locale.startsWith("zh") ? "项目" : "Projects";
   const {
     query,
     setQuery,
@@ -304,6 +306,14 @@ export function ShellSidebar({
           openIntegrations={openIntegrations}
           openSkills={openSkills}
         />
+        {desktopBridge() ? (
+          <button type="button" aria-label={projectLabel} title={projectLabel}
+            className="sydney-list-surface mx-2.5 mb-3 flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 py-2 hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring"
+            onClick={() => { setMobileOpen(false); navigate("/app/projects"); }}>
+            <Folder size={22} aria-hidden="true" />
+            {!mini ? <span>{projectLabel}</span> : null}
+          </button>
+        ) : null}
       </Sidebar>
     </>
   );

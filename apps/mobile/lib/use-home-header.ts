@@ -39,7 +39,7 @@ export function useHomeHeader({
           label: t("Account"),
           icon: { type: "sfSymbol" as const, name: "person.crop.circle" },
           accessibilityLabel: t("Account"),
-          onPress: () => router.push("/account"),
+          onPress: () => router.push("/settings-home"),
         },
       ],
       unstable_headerRightItems: () => [

@@ -28,6 +28,7 @@ import type { ComputerMode } from "./computers.js";
 import { ensureComputerRecord, parseComputerMode } from "./computers.js";
 import { createThreadMessageInTransaction } from "./messages.js";
 import { withNewestThreadMessages } from "./preview-messages.js";
+import { conversationProjectId } from "./project-workspace-context.js";
 import { BotSectionNameConflictError, IsolationError } from "./scope.js";
 import { lockSpaceForContentCreation } from "./spaces.js";
 import {
@@ -191,6 +192,7 @@ export function createRepos(
       where: {
         spaceId: { in: spaceIds },
         userId: actor.userId,
+        projectWorkspaceId: null,
         archivedAt: null,
       },
       select: {
@@ -378,6 +380,7 @@ export function createRepos(
             where: {
               spaceId: actor.spaceId,
               userId: actor.userId,
+              projectWorkspaceId: conversationProjectId(actor),
               archivedAt: options.archived ? { not: null } : null,
             },
             include: {
@@ -506,6 +509,7 @@ export function createRepos(
           id: botId,
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId: conversationProjectId(actor),
           ...(options.includeArchived ? {} : { archivedAt: null }),
         },
         include: { thread: true, computer: true },
@@ -544,6 +548,7 @@ export function createRepos(
         isolationLevel?: Prisma.TransactionIsolationLevel;
       },
     ): Promise<Bot> {
+      const projectWorkspaceId = conversationProjectId(actor);
       // A reserved preview identity is also an idempotency key if the response is lost.
       const spawnKey = input.spawnKey ?? input.id;
       let modelProvider = input.modelProvider ?? null;
@@ -556,6 +561,7 @@ export function createRepos(
             id: input.parentBotId,
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId,
           },
         });
         if (!parent) throw new IsolationError();
@@ -583,7 +589,7 @@ export function createRepos(
             userId: actor.userId,
           });
           const positions = await tx.bot.aggregate({
-            where: { spaceId: actor.spaceId, userId: actor.userId },
+            where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId },
             _max: { position: true },
           });
           const avatarSet = input.avatarSet ?? DEFAULT_NEW_BOT_AVATAR_SET;
@@ -591,7 +597,12 @@ export function createRepos(
           const avatar = chooseBotAvatar(
             avatarSet === "organic"
               ? await tx.bot.findMany({
-                  where: { spaceId: actor.spaceId, userId: actor.userId, archivedAt: null },
+                  where: {
+                    spaceId: actor.spaceId,
+                    userId: actor.userId,
+                    projectWorkspaceId,
+                    archivedAt: null,
+                  },
                   select: { id: true, color: true },
                 })
               : [],
@@ -609,6 +620,7 @@ export function createRepos(
               id: avatar.id,
               spaceId: actor.spaceId,
               userId: actor.userId,
+              projectWorkspaceId,
               name: displayName(input.name, ""),
               description: input.description,
               instructions: input.instructions,
@@ -632,6 +644,7 @@ export function createRepos(
               spaceId: actor.spaceId,
               botId: created.id,
               userId: actor.userId,
+              projectWorkspaceId,
             },
           });
           if (input.initialMessage) {
@@ -677,12 +690,12 @@ export function createRepos(
 
       const findBySpawnKey = async () => {
         if (!spawnKey) return null;
-        return prisma.bot.findUnique({
+        return prisma.bot.findFirst({
           where: {
-            spaceId_spawnKey: {
-              spaceId: actor.spaceId,
-              spawnKey,
-            },
+            spaceId: actor.spaceId,
+            userId: actor.userId,
+            projectWorkspaceId,
+            spawnKey,
           },
           include: { thread: true, computer: true },
         });
@@ -728,6 +741,7 @@ export function createRepos(
           where: {
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId: conversationProjectId(actor),
             archivedAt: null,
           },
           select: { id: true },
@@ -745,7 +759,12 @@ export function createRepos(
 
     async setBotComputer(actor: Actor, botId: string, mode: ComputerMode): Promise<Bot> {
       const bot = await prisma.bot.findFirst({
-        where: { id: botId, spaceId: actor.spaceId, userId: actor.userId },
+        where: {
+          id: botId,
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+          projectWorkspaceId: conversationProjectId(actor),
+        },
         include: { computer: true },
       });
       if (!bot?.computer) throw new IsolationError();

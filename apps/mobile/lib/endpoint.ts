@@ -14,6 +14,10 @@ export function defaultApiBase() {
 }
 
 export function normalizeApiBase(input: string): EndpointResult {
+  return parseApiBase(input, true);
+}
+
+function parseApiBase(input: string, requireOrigin: boolean): EndpointResult {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: t("Enter a server URL") };
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
@@ -27,6 +31,22 @@ export function normalizeApiBase(input: string): EndpointResult {
     return { ok: false, error: t("Use an http or https URL") };
   }
   if (!parsed.hostname) return { ok: false, error: t("That URL is missing a host") };
+  if (requireOrigin) {
+    const authority = withScheme.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#\\]*)(.*)$/i);
+    if (
+      !authority ||
+      authority[1] === undefined ||
+      authority[2] === undefined ||
+      /[\u0000-\u001f\u007f]/.test(withScheme) ||
+      authority[1].includes("@") ||
+      (authority[2] !== "" && authority[2] !== "/")
+    ) {
+      return {
+        ok: false,
+        error: t("Use only the server address, without credentials, a path, query, or fragment"),
+      };
+    }
+  }
   if (parsed.protocol === "http:" && !isPrivateNetworkHost(parsed.hostname)) {
     return { ok: false, error: "Public servers need https://" };
   }
@@ -68,11 +88,12 @@ export async function probeApiBase(
   if (!parsed.ok) return parsed;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_PROBE_TIMEOUT_MS);
+  const healthUrl = `${parsed.url}/rpc/health`;
   try {
     const res = await withAbort(
-      fetchImpl(`${parsed.url}/rpc/health`, {
+      fetchImpl(healthUrl, {
         method: "POST",
-        ...(Object.keys(headers).length ? { redirect: "error" as const } : {}),
+        redirect: "error",
         headers: { ...headers, "content-type": "application/json", origin: "rakazo://" },
         body: JSON.stringify({ json: {} }),
         signal: controller.signal,
@@ -80,7 +101,12 @@ export async function probeApiBase(
       controller.signal,
       "Request timed out",
     );
-    if (!res.ok) {
+    if (
+      !res.ok ||
+      res.redirected ||
+      res.type === "opaqueredirect" ||
+      (res.url && res.url !== healthUrl)
+    ) {
       cancelResponseBody(res);
       return { ok: false, error: t("That URL did not look like a Rakazo server") };
     }
@@ -107,6 +133,6 @@ export async function probeApiBase(
 }
 
 function originOnly(value: string) {
-  const parsed = normalizeApiBase(value);
+  const parsed = parseApiBase(value, false);
   return parsed.ok ? parsed.url : null;
 }

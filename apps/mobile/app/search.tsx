@@ -16,6 +16,7 @@ import { KeyboardController } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../components/bot-avatar";
 import { GlassIconButton } from "../components/glass-icon-button";
+import { GlassSurface } from "../components/glass-surface";
 import { GroupAvatar } from "../components/group-avatar";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
@@ -161,7 +162,11 @@ export default function SearchSheet() {
             router.back();
           }}
         />
-        <View style={styles.fieldPill}>
+        <GlassSurface
+          shape="capsule"
+          style={styles.fieldPill}
+          fallbackStyle={{ backgroundColor: tokens.muted }}
+        >
           <NativeSymbol
             ios="magnifyingglass"
             android="search"
@@ -203,7 +208,7 @@ export default function SearchSheet() {
               />
             </Pressable>
           ) : null}
-        </View>
+        </GlassSurface>
       </View>
       <FlatList
         data={rows}
@@ -287,7 +292,6 @@ function createStyles() {
       gap: 8,
       borderRadius: 22,
       paddingHorizontal: 12,
-      backgroundColor: tokens.muted,
     },
     field: {
       flex: 1,

@@ -11,7 +11,7 @@ import { ATTACHMENT_MAX_BYTES } from "@rakazo/contracts";
 import { z } from "zod";
 import { FAKE_VIDEO_BASE64 } from "./fake-media-assets.js";
 import type { ResolveHostname } from "./web-ssrf.js";
-import { fetchSafeWebBytes } from "./web-ssrf.js";
+import { fetchSafeHttpRequest, fetchSafeWebBytes } from "./web-ssrf.js";
 
 export const mediaPromptSchema = z.object({ prompt: z.string().trim().min(1).max(4000) });
 export function validateGeneratedMedia(
@@ -24,30 +24,6 @@ export function validateGeneratedMedia(
   if (output.bytes.byteLength > ATTACHMENT_MAX_BYTES) {
     throw new MediaGenerationError("output_limit");
   }
-}
-
-async function boundedBytes(response: Response, limit: number): Promise<Uint8Array> {
-  if (Number(response.headers.get("content-length")) > limit) {
-    await response.body?.cancel();
-    throw new MediaGenerationError("output_limit");
-  }
-  const reader = response.body?.getReader();
-  if (!reader) throw new MediaGenerationError("provider_failure");
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.length;
-      if (length > limit) throw new MediaGenerationError("output_limit");
-      chunks.push(value);
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
-  }
-  return Buffer.concat(chunks, length);
 }
 
 const queueJob = z.object({
@@ -112,18 +88,25 @@ export class FalMediaGenerationProvider implements MediaGenerationProvider {
   private async request(path: string, context: AdapterContext, body?: unknown): Promise<unknown> {
     context.signal.throwIfAborted();
     try {
-      const response = await (this.options.fetch ?? fetch)(this.path(path), {
-        method: body ? "POST" : "GET",
-        headers: {
-          Authorization: `Key ${this.options.apiKey}`,
-          ...(body ? { "Content-Type": "application/json" } : {}),
+      const response = await fetchSafeHttpRequest(
+        this.path(path),
+        {
+          method: body ? "POST" : "GET",
+          headers: {
+            Authorization: `Key ${this.options.apiKey}`,
+            ...(body ? { "Content-Type": "application/json" } : {}),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
         },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.any([context.signal, AbortSignal.timeout(30_000)]),
-        redirect: "error",
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
+        {
+          fetch: this.options.fetch,
+          resolveHostname: this.options.resolveHostname,
+          signal: context.signal,
+          timeoutMs: 30_000,
+          maxBytes: 100_000,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
         throw new MediaGenerationError(
           response.status === 429
             ? "rate_limit"
@@ -132,7 +115,8 @@ export class FalMediaGenerationProvider implements MediaGenerationProvider {
               : "provider_failure",
         );
       }
-      return JSON.parse(new TextDecoder().decode(await boundedBytes(response, 100_000)));
+      if (response.truncated) throw new MediaGenerationError("output_limit");
+      return JSON.parse(new TextDecoder().decode(response.body));
     } catch (error) {
       context.signal.throwIfAborted();
       if (error instanceof MediaGenerationError) throw error;

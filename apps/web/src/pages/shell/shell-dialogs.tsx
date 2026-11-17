@@ -10,8 +10,7 @@ import { Settings, Trash2 } from "lucide-react";
 import type { ComponentProps, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Panel } from "../../lib/right-panel-state";
-import type { createSpaceRpc } from "../../lib/rpc";
-import { selectSpace } from "../../lib/rpc";
+import { createSpaceRpc, selectSpace } from "../../lib/rpc";
 import type { CommandPaletteAction } from "./command-palette";
 import { CommandPalette } from "./command-palette";
 import type { CreateBotDialogInput } from "./create-bot-dialog";
@@ -31,7 +30,9 @@ type SectionTarget = { section: BotSection; spaceId: string };
 
 /** Which of the shell's dialogs and menus are open, and on what. */
 export function useShellDialogs() {
-  const [deleteTarget, setDeleteTarget] = useState<Bot | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Pick<Bot, "id" | "name" | "spaceId"> | null>(
+    null,
+  );
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<Group | null>(null);
   const [deleteSpaceTarget, setDeleteSpaceTarget] = useState<Space | null>(null);
   const [spaceMenu, setSpaceMenu] = useState<{
@@ -208,7 +209,10 @@ export function ShellDialogs({
           bot={deleteTarget}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async (deleteMemories) => {
-            await rpc.bots.remove({ botId: deleteTarget.id, deleteMemories });
+            await createSpaceRpc(deleteTarget.spaceId).bots.remove({
+              botId: deleteTarget.id,
+              deleteMemories,
+            });
             setDeleteTarget(null);
             setPanel(null);
             await refreshBots(true);

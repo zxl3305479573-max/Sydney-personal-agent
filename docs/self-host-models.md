@@ -111,9 +111,9 @@ link-local destinations remain blocked. This applies to discovery and model requ
 HTTPS still validates the hostname's certificate. Like private IP endpoints, trusted hostnames
 also permit HTTP with API keys; use HTTPS unless the network is trusted. Only allow hosts you
 control. Private endpoints require `MCP_ALLOW_PRIVATE_ENDPOINT=true` for the deployment; no app account bypasses that policy.
-If that endpoint's model
-accepts images, enable **Supports images** under **Advanced** when connecting so attachments and
-screenshot computer tools stay available. Existing connections default to disabled. For centrally
+New OpenAI-compatible connections enable **Supports images** by default, making image attachments
+and screenshot computer tools available. Turn it off if the selected model or endpoint cannot
+accept images. Existing connections retain their saved setting. For centrally
 managed endpoints, the deployment-wide fallback remains
 `RAKAZO_OPENAI_COMPATIBLE_VISION_MODELS=gpt4o-vision,llava`.
 

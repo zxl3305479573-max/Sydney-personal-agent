@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, ScrollView, Text, TextInput } from "react-native";
+import { GlassSurface } from "../components/glass-surface";
 import { NativeActionButton } from "../components/native-action-button";
 import { cancelHeaderOptions } from "../components/sheet-header";
 import { rpc, selectSpace } from "../lib/api";
@@ -49,24 +50,24 @@ export default function NewSpace() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>{t("Name")}</Text>
-        <TextInput
-          autoFocus
-          value={name}
-          maxLength={60}
-          onChangeText={setName}
-          onSubmitEditing={() => void create()}
-          placeholder={t("Customer support")}
-          placeholderTextColor={tokens.mutedForeground}
-          returnKeyType="done"
-          style={{
-            marginTop: 8,
-            backgroundColor: native.fill,
-            borderRadius: 11,
-            padding: 14,
-            color: tokens.foreground,
-            fontSize: 16,
-          }}
-        />
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={11}
+          style={{ marginTop: 8, borderRadius: 11 }}
+          fallbackStyle={{ backgroundColor: native.fill }}
+        >
+          <TextInput
+            autoFocus
+            value={name}
+            maxLength={60}
+            onChangeText={setName}
+            onSubmitEditing={() => void create()}
+            placeholder={t("Customer support")}
+            placeholderTextColor={tokens.mutedForeground}
+            returnKeyType="done"
+            style={{ padding: 14, color: tokens.foreground, fontSize: 16 }}
+          />
+        </GlassSurface>
         {error ? <Text style={{ color: tokens.destructive, marginTop: 14 }}>{error}</Text> : null}
         <NativeActionButton
           disabled={!name.trim() || pending}

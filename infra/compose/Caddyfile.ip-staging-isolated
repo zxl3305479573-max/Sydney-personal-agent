@@ -1,0 +1,15 @@
+{
+	admin off
+	default_sni {$STAGING_PUBLIC_IP}
+	auto_https disable_redirects
+}
+
+https://{$STAGING_PUBLIC_IP} {
+	tls {
+		issuer acme https://acme-staging-v02.api.letsencrypt.org/directory {
+			profile shortlived
+			disable_http_challenge
+		}
+	}
+	respond "Sydney IP staging OK"
+}

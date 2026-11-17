@@ -1,4 +1,5 @@
 import type { JobPublisher } from "@rakazo/adapter-kit";
+import { combinePersonalityInstructions } from "@rakazo/contracts";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FleetDeps, FleetPrepareDeps, FleetRun } from "./fleet-tools.js";
@@ -1375,6 +1376,21 @@ describe("prepareFleetRequest set_child_instructions", () => {
       await prepareFleetRequest(deps, run, "set_child_instructions", {
         ...edit,
         instructions: "i".repeat(20_001),
+      }),
+    ).toEqual({ ok: false, error: "instructions must be at most 20000 characters." });
+  });
+
+  it("counts the retained personality when validating a new duty", async () => {
+    const { deps } = fakeFleet({
+      bots: [
+        { id: "bot-self", name: "Designer" },
+        { ...child, instructions: combinePersonalityInstructions("旧职责", "温柔") },
+      ],
+    });
+    expect(
+      await prepareFleetRequest(deps, run, "set_child_instructions", {
+        ...edit,
+        instructions: "i".repeat(20_000),
       }),
     ).toEqual({ ok: false, error: "instructions must be at most 20000 characters." });
   });

@@ -5,6 +5,7 @@ import {
   runContinueJob,
 } from "@rakazo/adapter-kit";
 import type { Purchase } from "@rakazo/db";
+import { IsolationError, resolveConversationExecutionScope } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import type { PurchaseDeps } from "./purchase-service.js";
 import {
@@ -92,6 +93,7 @@ async function settle(
         id: purchase.threadId,
         spaceId: purchase.spaceId,
         userId: purchase.userId,
+        projectWorkspaceId: purchase.projectWorkspaceId,
         historyCompactionGeneration: purchase.threadGeneration,
       },
       data: { nextEventSeq: { increment: 0 } },
@@ -106,6 +108,7 @@ async function settle(
           id: purchase.botId,
           spaceId: purchase.spaceId,
           userId: purchase.userId,
+          projectWorkspaceId: purchase.projectWorkspaceId,
           archivedAt: null,
         },
         select: { id: true },
@@ -136,12 +139,21 @@ async function settle(
     });
     if (prior) return { nextPollAt };
     // Provider text is untrusted. Wake with local identity and status only.
+    let executionScope;
+    try {
+      executionScope = await resolveConversationExecutionScope(tx, purchase);
+    } catch (error) {
+      if (!(error instanceof IsolationError)) throw error;
+      return { nextPollAt };
+    }
+    if (executionScope.projectWorkspaceId !== purchase.projectWorkspaceId) return { nextPollAt };
     const task = await tx.task.create({
       data: {
         spaceId: purchase.spaceId,
         botId: purchase.botId,
         threadId: purchase.threadId,
         userId: purchase.userId,
+        projectWorkspaceId: executionScope.projectWorkspaceId,
         prompt: `Purchase ${purchase.id} is ${next.status}. Use purchase_status to continue.`,
         status: "queued",
       },
@@ -153,6 +165,7 @@ async function settle(
         threadId: purchase.threadId,
         userId: purchase.userId,
         taskId: task.id,
+        projectWorkspaceId: task.projectWorkspaceId,
         status: "queued",
         trigger: "purchase",
         clientNonce,

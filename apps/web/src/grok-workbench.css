@@ -10,8 +10,9 @@
   margin-bottom: 14px;
 }
 
-.sydney-assistant-content {
-  margin-left: 86px;
+.sydney-assistant-content[data-speaker="true"] {
+  margin-inline-start: 86px;
+  max-width: calc(100% - 86px);
 }
 
 .sydney-create-bot-close {
@@ -19,10 +20,7 @@
 }
 
 .sydney-create-bot-handle,
-.sydney-create-bot-intro,
-.sydney-create-bot-description,
-.sydney-create-bot-field,
-.sydney-create-bot-label {
+.sydney-create-bot-description {
   display: none;
 }
 
@@ -126,6 +124,7 @@
 }
 
 .sydney-personality-option {
+  position: relative;
   display: flex;
   width: 100%;
   min-height: 66px;
@@ -136,7 +135,7 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--muted);
-  padding: 10px 12px;
+  padding: 10px 36px 10px 12px;
   color: var(--foreground);
   text-align: start;
   transition:
@@ -151,11 +150,24 @@
 }
 
 .sydney-personality-option[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--foreground) 36%, transparent);
-  background: color-mix(in srgb, var(--card) 82%, transparent);
+  border-color: #5275e8;
+  background: color-mix(in srgb, #5275e8 12%, var(--card));
   box-shadow:
-    0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
+    0 0 0 1px #5275e8,
     0 6px 16px color-mix(in srgb, black 7%, transparent);
+}
+
+.sydney-personality-option-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5275e8;
+  color: white;
 }
 
 .sydney-personality-option-title {
@@ -173,7 +185,7 @@
   .sydney-create-bot,
   .sydney-integrations-dialog {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--dialog);
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 18px 48px color-mix(in srgb, black 14%, transparent);
@@ -183,7 +195,7 @@
   .sydney-mobile-glass,
   .sydney-mobile-glass-input {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--card);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 8px 20px color-mix(in srgb, black 7%, transparent);
@@ -203,6 +215,12 @@
     box-shadow:
       0 1px 0 color-mix(in srgb, white 88%, transparent) inset,
       0 10px 24px color-mix(in srgb, black 9%, transparent);
+  }
+
+  .sydney-mobile-glass input[data-slot="input-group-control"],
+  [data-theme="dark"] .sydney-mobile-glass input[data-slot="input-group-control"] {
+    background: transparent;
+    box-shadow: none;
   }
 
   .sydney-mobile-glass-item {
@@ -226,7 +244,7 @@
 
   .sydney-mobile-account-popover {
     border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--popover);
+    background: color-mix(in srgb, var(--popover) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 16px 36px color-mix(in srgb, black 14%, transparent);
@@ -235,17 +253,17 @@
 
   .sydney-mobile-account-trigger {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--card) 68%, transparent);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     box-shadow: 0 1px 0 color-mix(in srgb, white 78%, transparent) inset;
     backdrop-filter: blur(14px) saturate(1.1);
   }
 
   [data-slot="dialog-content"]:not(.sydney-settings-dialog):not(.sydney-create-bot):not(
-      .sydney-integrations-dialog
-    ),
+    .sydney-integrations-dialog
+  ),
   [data-slot="popover-content"]:not(.sydney-mobile-account-popover) {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: var(--popover);
+    background: color-mix(in srgb, var(--popover) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 1px 0 color-mix(in srgb, white 78%, transparent) inset,
       0 16px 36px color-mix(in srgb, black 12%, transparent);
@@ -255,13 +273,63 @@
   [data-slot="dialog-content"] .sydney-mobile-glass-input,
   [data-slot="dialog-content"] [data-slot="input"] {
     border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
-    background: color-mix(in srgb, var(--card) 70%, transparent);
+    background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
     backdrop-filter: blur(14px) saturate(1.08);
   }
 
   [data-mobile-chat="true"] .sydney-grok-header {
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding-inline: 16px;
+    background: var(--background);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::before,
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::before {
+    background-image: var(--workspace-background-image);
+    background-position: center;
+    background-size: var(--workspace-background-fit);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    opacity: var(--workspace-background-opacity);
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header::after {
+    background: black;
+    opacity: var(--workspace-background-overlay);
+  }
+
+  :is(
+      html[data-workspace-background="true"] [data-mobile-chat="true"],
+      [data-conversation-background="true"]
+    )
+    .sydney-grok-header
+    > * {
+    position: relative;
+    z-index: 1;
   }
 
   [data-mobile-chat="true"] .sydney-grok-header button {
@@ -271,7 +339,9 @@
   }
 
   [data-mobile-group="true"] .sydney-group-header-avatar,
-  [data-mobile-chat="true"] .sydney-assistant-context > :first-child {
+  [data-mobile-chat="true"]:not([data-mobile-group="true"])
+    .sydney-assistant-context
+    > :first-child {
     display: none;
   }
 
@@ -279,8 +349,20 @@
     margin-bottom: 6px;
   }
 
-  [data-mobile-chat="true"] .sydney-assistant-content {
-    margin-left: 0;
+  [data-mobile-chat="true"]:not([data-mobile-group="true"])
+    .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 0;
+    max-width: 100%;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-context > :first-child {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  [data-mobile-group="true"] .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 38px;
+    max-width: calc(100% - 38px);
   }
 
   [data-testid="composer-bar"][data-mobile-chat="true"] {
@@ -317,8 +399,9 @@
     height: 48px !important;
   }
 
-  .sydney-assistant-content {
-    margin-left: 60px;
+  .sydney-assistant-content[data-speaker="true"] {
+    margin-inline-start: 60px;
+    max-width: calc(100% - 60px);
   }
 
   .sydney-create-bot {
@@ -333,7 +416,7 @@
     padding: 16px 20px max(18px, env(safe-area-inset-bottom));
     border: 0;
     border-radius: 30px 30px 0 0;
-    background: color-mix(in srgb, var(--dialog) 86%, transparent);
+    background: color-mix(in srgb, var(--dialog) var(--sydney-surface-alpha), transparent);
     box-shadow:
       0 -1px 0 rgb(255 255 255 / 92%),
       0 -18px 48px rgb(0 0 0 / 12%);
@@ -482,6 +565,14 @@
     backdrop-filter: blur(14px) saturate(1.08);
   }
 
+  .sydney-create-bot .sydney-personality-option[aria-pressed="true"] {
+    border-color: #5275e8;
+    background: color-mix(in srgb, #5275e8 12%, var(--card));
+    box-shadow:
+      0 0 0 1px #5275e8,
+      0 6px 16px color-mix(in srgb, black 7%, transparent);
+  }
+
   .sydney-create-bot-footer {
     margin: 0;
     padding: 0;
@@ -510,6 +601,25 @@
     display: none;
   }
 
+  [data-theme="dark"] .sydney-create-bot-description,
+  [data-theme="dark"] .sydney-create-bot-close {
+    color: var(--muted-foreground);
+  }
+
+  [data-theme="dark"] .sydney-create-bot-label {
+    color: var(--foreground);
+  }
+
+  [data-theme="dark"] .sydney-create-bot-preview .sydney-bot-avatar,
+  [data-theme="dark"] .sydney-create-bot-preview .rakazo-logo-avatar {
+    background: var(--card);
+    box-shadow: 0 12px 22px rgb(0 0 0 / 25%);
+  }
+
+  [data-theme="dark"] .sydney-create-bot [data-slot="input"]::placeholder {
+    color: var(--muted-foreground);
+  }
+
   @keyframes sydney-create-bot-enter {
     from {
       opacity: 0;
@@ -530,6 +640,46 @@
 
 @media (min-width: 768px) {
   .sydney-grok-header {
-    grid-template-columns: 0 minmax(0, auto) 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   }
+}
+
+:root
+  :is(
+    [data-slot="dialog-content"],
+    [data-slot="popover-content"],
+    [data-testid="sidebar-search"],
+    [data-testid="side-panel"],
+    .sydney-settings-nav-row,
+    .sydney-settings-header,
+    .sydney-mobile-glass,
+    .sydney-mobile-glass-input,
+    .sydney-mobile-account-trigger
+  ) {
+  border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+  backdrop-filter: blur(20px) saturate(1.1);
+}
+
+:root
+  :is([data-slot="dialog-content"], [data-slot="popover-content"], [data-testid="side-panel"])
+  :is([data-slot="input"], select, textarea),
+:root .sydney-create-bot-footer button[type="submit"] {
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+}
+
+html[data-workspace-background="true"] .sydney-settings-dialog,
+html[data-workspace-background="true"] [data-testid="side-panel"] {
+  background: color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+}
+
+html[data-workspace-background="true"] .sydney-settings-dialog::after,
+html[data-workspace-background="true"] [data-testid="side-panel"]::after {
+  background:
+    linear-gradient(
+      rgb(0 0 0 / var(--workspace-background-overlay)),
+      rgb(0 0 0 / var(--workspace-background-overlay))
+    ),
+    color-mix(in srgb, var(--card) var(--sydney-surface-alpha), transparent);
+  opacity: 1;
 }

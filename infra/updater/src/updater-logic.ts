@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { lstatSync } from "node:fs";
 import path from "node:path";
 import {
   DEFAULT_IMAGE_TAG,
@@ -14,6 +15,7 @@ import {
 
 export const DEFAULT_UPDATER_PORT = 7092;
 export const DEFAULT_COMPOSE_FILE = "infra/compose/docker-compose.prod.yml";
+export const LOCAL_COMPOSE_OVERLAY_ROOT = "/etc/rakazo/compose";
 /** Compose's own convention for a multi-file list, matching COMPOSE_FILE. */
 export const DEFAULT_COMPOSE_PATH_SEPARATOR = ":";
 const SERVICE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
@@ -37,13 +39,50 @@ export interface UpdaterConfig {
   port: number;
 }
 
+export function validateLocalComposeOverlay(
+  localOverlay: string,
+  inspect: typeof lstatSync = lstatSync,
+): string {
+  const expectedPrefix = `${LOCAL_COMPOSE_OVERLAY_ROOT}/`;
+  if (
+    !localOverlay.startsWith(expectedPrefix) ||
+    localOverlay.split("/").includes("..") ||
+    !/^\/etc\/rakazo\/compose\/[A-Za-z0-9._-]+\.(?:yml|yaml)$/.test(localOverlay)
+  ) {
+    throw new Error(
+      "RAKAZO_COMPOSE_OVERLAY_FILE must name a .yml or .yaml file under /etc/rakazo/compose.",
+    );
+  }
+  let metadata: ReturnType<typeof lstatSync>;
+  try {
+    metadata = inspect(localOverlay);
+  } catch {
+    throw new Error("Configured local Compose overlay is missing or unreadable.");
+  }
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error("Configured local Compose overlay must be a regular file, not a symlink.");
+  }
+  if (metadata.uid !== 0) {
+    throw new Error("Configured local Compose overlay must be owned by root.");
+  }
+  if ((metadata.mode & 0o022) !== 0 || (metadata.mode & 0o004) !== 0) {
+    throw new Error(
+      "Configured local Compose overlay must not be group/world writable or world readable.",
+    );
+  }
+  return localOverlay;
+}
+
 /**
  * The deployment directory has to be an absolute path because Compose derives every relative bind
  * mount from it. Mounting it anywhere other than its host path would make this container reconcile
  * a *different* tree than the operator's. The project name is passed as `-p` separately so a custom
  * `docker compose -p` stack is the one that is updated.
  */
-export function resolveUpdaterConfig(env: NodeJS.ProcessEnv): UpdaterConfig {
+export function resolveUpdaterConfig(
+  env: NodeJS.ProcessEnv,
+  dependencies: { inspect?: typeof lstatSync } = {},
+): UpdaterConfig {
   const deployDir = env.RAKAZO_DEPLOY_DIR?.trim() ?? "";
   if (deployDir === "" || !path.posix.isAbsolute(deployDir)) {
     throw new Error("Set RAKAZO_DEPLOY_DIR to the absolute path of the deployment directory.");
@@ -66,6 +105,10 @@ export function resolveUpdaterConfig(env: NodeJS.ProcessEnv): UpdaterConfig {
     if (path.posix.isAbsolute(composeFile) || composeFile.split("/").includes("..")) {
       throw new Error("RAKAZO_COMPOSE_FILE must list paths inside the deployment directory.");
     }
+  }
+  const localOverlay = env.RAKAZO_COMPOSE_OVERLAY_FILE?.trim() ?? "";
+  if (localOverlay !== "") {
+    composeFiles.push(validateLocalComposeOverlay(localOverlay, dependencies.inspect));
   }
   // An overlay that adds a service built from the application image has to be recreated with the
   // rest, or an update leaves it running the old code. These are appended to the built-in set
@@ -97,7 +140,9 @@ export function resolveUpdaterConfig(env: NodeJS.ProcessEnv): UpdaterConfig {
   }
   return {
     deployDir,
-    composeFiles: composeFiles.map((composeFile) => path.posix.join(deployDir, composeFile)),
+    composeFiles: composeFiles.map((composeFile) =>
+      path.posix.isAbsolute(composeFile) ? composeFile : path.posix.join(deployDir, composeFile),
+    ),
     updateServices,
     envFile: path.posix.join(deployDir, ".env"),
     projectName: resolveComposeProjectName(env),

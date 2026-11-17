@@ -57,6 +57,7 @@ export function selectBuiltinToolsForRun(options: {
   phoneCallsEnabled?: boolean;
   historyRetrievalEnabled?: boolean;
   graphicalToolsAllowed: boolean;
+  computerKind?: string;
   /** Page browser tools need a graphical computer (Chrome), not model vision. */
   pageBrowserAllowed?: boolean;
   groupId: string | null;
@@ -84,7 +85,7 @@ export function selectBuiltinToolsForRun(options: {
 }) {
   const disabled = disabledBuiltinToolSet(options.disabledBuiltinTools);
   const ownerStartedRun = isOwnerStartedRun(options.trigger, Boolean(options.followUpFromUser));
-  return selectCloudAgentTools(
+  const selected = selectCloudAgentTools(
     selectMemoryTools(
       filterBuiltinToolsForRun(
         filterBuiltinToolsForThread(
@@ -103,6 +104,8 @@ export function selectBuiltinToolsForRun(options: {
   ).filter(
     (tool) =>
       !disabled.has(tool.name) &&
+      (options.computerKind !== "native-linux" ||
+        (tool.name !== "open_path" && tool.name !== "launch_app")) &&
       (options.trigger !== "created" || CREATED_RUN_TOOL_NAMES.has(tool.name)) &&
       (!FLEET_TOOL_NAMES_SET.has(tool.name) ||
         (Boolean(options.fleetManagement) && ownerStartedRun)) &&
@@ -147,6 +150,21 @@ export function selectBuiltinToolsForRun(options: {
           !tool.name.startsWith("scratchpad_") &&
           !tool.name.startsWith("ticket_"))),
   );
+  return selected.map((tool) => {
+    if (options.computerKind !== "native-linux" || tool.name !== "computer_act") return tool;
+    const schema = structuredClone(tool.inputSchema) as {
+      properties: { actions: { items: { oneOf: Record<string, unknown>[] } } };
+    };
+    schema.properties.actions.items.oneOf = schema.properties.actions.items.oneOf.slice(1);
+    return {
+      ...tool,
+      description: tool.description.replace(
+        ", focus (raises the application's window, launching it if absent)",
+        "",
+      ),
+      inputSchema: schema,
+    };
+  });
 }
 
 export const PAGE_BROWSER_TOOL_NAMES = new Set([

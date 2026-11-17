@@ -19,6 +19,7 @@ import { MarkdownLinkPrompt } from "./components/markdown-link-prompt";
 import { PageBreadcrumb } from "./components/PageBreadcrumb";
 import { PageLoading } from "./components/PageLoading";
 import { SubscriptionGate } from "./components/SubscriptionGate";
+import { WorkspaceBackground } from "./components/WorkspaceBackground";
 import { authClient } from "./lib/auth";
 import { getTicketBoardEnabled, subscribeTicketBoardEnabled } from "./lib/bootstrap";
 import { syncCallIdentity } from "./lib/call-session";
@@ -62,6 +63,7 @@ const ArtifactsPage = lazyComponent(() =>
   import("./pages/Artifacts").then((module) => module.ArtifactsPage),
 );
 const BoardPage = lazyComponent(() => import("./pages/Board").then((module) => module.BoardPage));
+const ProjectsPage = lazyComponent(() => import("./pages/Projects").then((module) => module.ProjectsPage));
 const AdminPluginsPage = lazyComponent(() =>
   import("./pages/AdminPluginsPage").then((module) => module.AdminPluginsPage),
 );
@@ -93,6 +95,7 @@ export function App() {
   return (
     <RemoteImagesContext.Provider value={loadRemoteImages}>
       <LinkFaviconsContext.Provider value={linkFavicons}>
+        <WorkspaceBackground />
         <ErrorBoundary fallback={<AppFailed />}>
           {window.location.pathname === SSO_CALLBACK_PATH ? (
             <SsoCallbackPage />
@@ -184,112 +187,122 @@ function SessionApp() {
   return (
     <QueryUserProvider value={user?.id ?? null}>
       <MarkdownLinkPrompt>
-        <div className="h-full" data-rakazo-app-state="ready">
+        <div className="flex h-full min-h-0 flex-col" data-rakazo-app-state="ready">
           <PageBreadcrumb />
-          <Suspense fallback={<PageLoading />}>
-            <Routes>
-              <Route path="/" element={user ? <Navigate to="/app" replace /> : <WelcomePage />} />
-              <Route
-                path="/sign-in"
-                element={
-                  user ? (
-                    <Navigate to={signInDestination} replace />
-                  ) : (
-                    <AuthPage key="in" mode="in" />
-                  )
-                }
-              />
-              <Route
-                path="/sign-up"
-                element={
-                  user ? <Navigate to="/onboarding" replace /> : <AuthPage key="up" mode="up" />
-                }
-              />
-              <Route
-                path="/forgot-password"
-                element={
-                  user ? <Navigate to="/app" replace /> : <AuthPage key="forgot" mode="forgot" />
-                }
-              />
-              <Route path="/reset-password" element={<PasswordResetPage />} />
-              <Route
-                path={MCP_OAUTH_CALLBACK_PATH}
-                element={
-                  user ? (
-                    <McpOAuthCallbackPage />
-                  ) : (
-                    <Navigate
-                      to={`/sign-in?next=${encodeURIComponent(pathname + search)}`}
-                      replace
-                    />
-                  )
-                }
-              />
-              <Route
-                path={SLACK_INSTALL_CALLBACK_PATH}
-                element={
-                  user ? (
-                    <SlackInstallCallbackPage />
-                  ) : (
-                    <Navigate
-                      to={`/sign-in?next=${encodeURIComponent(pathname + search)}`}
-                      replace
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/integrations/setup"
-                element={
-                  user ? (
-                    <IntegrationSetupPage />
-                  ) : (
-                    <Navigate to="/sign-in?next=/integrations/setup" replace />
-                  )
-                }
-              />
-              <Route
-                path="/admin/plugins"
-                element={
-                  user ? (
-                    <AdminPluginsPage />
-                  ) : (
-                    <Navigate to="/sign-in?next=/admin/plugins" replace />
-                  )
-                }
-              />
-              <Route
-                path="/admin/access"
-                element={
-                  user ? <AdminAccessPage /> : <Navigate to="/sign-in?next=/admin/access" replace />
-                }
-              />
-              <Route
-                element={
-                  user ? (
-                    <SubscriptionGate fallback={<PageLoading />}>
-                      <Outlet />
-                    </SubscriptionGate>
-                  ) : (
-                    <Navigate to="/sign-in" replace />
-                  )
-                }
-              >
-                <Route path="/app" element={<ShellPage />} />
-                <Route path="/app/g/:groupId" element={<ShellPage />} />
-                <Route path="/app/tasks" element={<Navigate to="/app" replace />} />
-                <Route element={<CallLayout />}>
-                  <Route path="/onboarding/:step?" element={<OnboardingPage />} />
-                  <Route path="/app/artifacts" element={<ArtifactsPage />} />
-                  <Route path="/app/artifacts/:artifactId" element={<ArtifactsPage />} />
-                  {ticketBoardEnabled ? <Route path="/app/board" element={<BoardPage />} /> : null}
-                  <Route path="/app/x/:linkId" element={<NavLinkPage />} />
+          <div className="min-h-0 flex-1">
+            <Suspense fallback={<PageLoading />}>
+              <Routes>
+                <Route path="/" element={user ? <Navigate to="/app" replace /> : <WelcomePage />} />
+                <Route
+                  path="/sign-in"
+                  element={
+                    user ? (
+                      <Navigate to={signInDestination} replace />
+                    ) : (
+                      <AuthPage key="in" mode="in" />
+                    )
+                  }
+                />
+                <Route
+                  path="/sign-up"
+                  element={
+                    user ? <Navigate to="/onboarding" replace /> : <AuthPage key="up" mode="up" />
+                  }
+                />
+                <Route
+                  path="/forgot-password"
+                  element={
+                    user ? <Navigate to="/app" replace /> : <AuthPage key="forgot" mode="forgot" />
+                  }
+                />
+                <Route path="/reset-password" element={<PasswordResetPage />} />
+                <Route
+                  path={MCP_OAUTH_CALLBACK_PATH}
+                  element={
+                    user ? (
+                      <McpOAuthCallbackPage />
+                    ) : (
+                      <Navigate
+                        to={`/sign-in?next=${encodeURIComponent(pathname + search)}`}
+                        replace
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path={SLACK_INSTALL_CALLBACK_PATH}
+                  element={
+                    user ? (
+                      <SlackInstallCallbackPage />
+                    ) : (
+                      <Navigate
+                        to={`/sign-in?next=${encodeURIComponent(pathname + search)}`}
+                        replace
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/integrations/setup"
+                  element={
+                    user ? (
+                      <IntegrationSetupPage />
+                    ) : (
+                      <Navigate to="/sign-in?next=/integrations/setup" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/plugins"
+                  element={
+                    user ? (
+                      <AdminPluginsPage />
+                    ) : (
+                      <Navigate to="/sign-in?next=/admin/plugins" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/access"
+                  element={
+                    user ? (
+                      <AdminAccessPage />
+                    ) : (
+                      <Navigate to="/sign-in?next=/admin/access" replace />
+                    )
+                  }
+                />
+                <Route
+                  element={
+                    user ? (
+                      <SubscriptionGate fallback={<PageLoading />}>
+                        <Outlet />
+                      </SubscriptionGate>
+                    ) : (
+                      <Navigate to="/sign-in" replace />
+                    )
+                  }
+                >
+                  <Route path="/app" element={<ShellPage />} />
+                  <Route path="/app/g/:groupId" element={<ShellPage />} />
+                  <Route path="/app/tasks" element={<Navigate to="/app" replace />} />
+                  <Route path="/app/projects" element={<ProjectsPage />} />
+                  <Route path="/app/projects/:workspaceId" element={<ProjectsPage />} />
+                  <Route element={<CallLayout />}>
+                    <Route path="/onboarding/:step?" element={<OnboardingPage />} />
+                    <Route path="/app/artifacts" element={<ArtifactsPage />} />
+                    <Route path="/app/artifacts/:artifactId" element={<ArtifactsPage />} />
+                    {ticketBoardEnabled ? (
+                      <Route path="/app/board" element={<BoardPage />} />
+                    ) : null}
+                    <Route path="/app/x/:linkId" element={<NavLinkPage />} />
+                  </Route>
+                  <Route path="/app/:botId" element={<ShellPage />} />
                 </Route>
-                <Route path="/app/:botId" element={<ShellPage />} />
-              </Route>
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Suspense>
+          </div>
         </div>
       </MarkdownLinkPrompt>
     </QueryUserProvider>

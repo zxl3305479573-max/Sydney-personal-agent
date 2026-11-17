@@ -16,6 +16,11 @@ describe("readShellOverlay", () => {
 
   it("opens a settings section, falling back to general for bare or unknown values", () => {
     expect(read("?settings=voice")).toEqual({ kind: "settings", section: "voice", spaceId: null });
+    expect(read("?settings=plugins")).toEqual({
+      kind: "settings",
+      section: "plugins",
+      spaceId: null,
+    });
     expect(read("?settings=space&space=sp_1")).toEqual({
       kind: "settings",
       section: "space",

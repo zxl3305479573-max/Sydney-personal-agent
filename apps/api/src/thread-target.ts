@@ -42,6 +42,7 @@ import {
   IsolationError,
   lockOwnedGroup,
   primaryActiveRun,
+  resolveConversationExecutionScope,
   retireWaitingQuestionInTransaction,
   touchGroupUpdatedAt,
   transientRunEventsWhere,
@@ -958,12 +959,17 @@ export async function sendThreadMessage(
           });
           return { message, runs: [active], routineRuns, eventSeq: event.seq };
         }
+        const executionScope = await resolveConversationExecutionScope(tx, {
+          spaceId: actor.spaceId, userId: actor.userId,
+          botId: target.botId, threadId: target.threadId,
+        });
         const task = await tx.task.create({
           data: {
             spaceId: actor.spaceId,
             botId: target.botId,
             threadId: target.threadId,
             userId: actor.userId,
+            projectWorkspaceId: executionScope.projectWorkspaceId,
             prompt: buildSendPrompt(input.text, artifacts, connectorNames),
             status: "queued",
           },
@@ -975,6 +981,7 @@ export async function sendThreadMessage(
             threadId: target.threadId,
             taskId: task.id,
             userId: actor.userId,
+            projectWorkspaceId: task.projectWorkspaceId,
             status: "queued",
             trigger: "user",
             clientNonce: sendRunClientNonce(input.clientNonce, message.id),
@@ -1128,12 +1135,16 @@ export async function sendThreadMessage(
           runs.push(active);
           continue;
         }
+        const executionScope = await resolveConversationExecutionScope(tx, {
+          spaceId: actor.spaceId, userId: actor.userId, botId, threadId: target.threadId,
+        });
         const task = await tx.task.create({
           data: {
             spaceId: actor.spaceId,
             botId,
             threadId: target.threadId,
             userId: actor.userId,
+            projectWorkspaceId: executionScope.projectWorkspaceId,
             prompt: buildSendPrompt(input.text, artifacts, connectorNames),
             status: "queued",
           },
@@ -1145,6 +1156,7 @@ export async function sendThreadMessage(
             threadId: target.threadId,
             taskId: task.id,
             userId: actor.userId,
+            projectWorkspaceId: task.projectWorkspaceId,
             status: "queued",
             trigger: "user",
             clientNonce: sendRunClientNonce(input.clientNonce, message.id, botId),
@@ -1415,12 +1427,16 @@ async function startReactionTurn(
     select: { id: true },
   });
   if (recentReaction) return [];
+  const executionScope = await resolveConversationExecutionScope(tx, {
+    spaceId: actor.spaceId, userId: actor.userId, botId, threadId,
+  });
   const task = await tx.task.create({
     data: {
       spaceId: actor.spaceId,
       botId,
       threadId,
       userId: actor.userId,
+      projectWorkspaceId: executionScope.projectWorkspaceId,
       prompt: input.reaction,
       status: "queued",
     },
@@ -1432,6 +1448,7 @@ async function startReactionTurn(
       threadId,
       taskId: task.id,
       userId: actor.userId,
+      projectWorkspaceId: task.projectWorkspaceId,
       status: "queued",
       trigger: "reaction",
       clientNonce: sendRunClientNonce(input.clientNonce, message.id),

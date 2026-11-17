@@ -4,13 +4,14 @@ import type { ReactNode } from "react";
 import { act, useEffect } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
-import { Linking } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import MessagingSettings from "../app/(settings)/messaging";
 import { rpc } from "./api";
+import { installSlackWorkspace } from "./messaging-install-return";
 
 const appState = vi.hoisted(() => ({ change: undefined as ((state: string) => void) | undefined }));
 vi.mock("./api", () => ({ rpc: vi.fn() }));
+vi.mock("./messaging-install-return", () => ({ installSlackWorkspace: vi.fn() }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({}) }));
 vi.mock("./native", () => ({
   native: {},
@@ -99,7 +100,6 @@ vi.mock("react-native", () => {
         return { remove: () => undefined };
       },
     },
-    Linking: { openURL: vi.fn() },
   };
 });
 
@@ -269,10 +269,10 @@ it("opens a team conversation's room settings", async () => {
   });
 });
 
-it("connects Slack to the default bot with workspace authorization", async () => {
+it("connects Slack with the native installation flow and refreshes the workspace list", async () => {
   responses["messaging/status"] = { enabled: true, providers: ["slack"], identities: [] };
   responses["messaging/installations/list"] = { available: true, installations: [] };
-  responses["messaging/installations/start"] = { url: "https://slack.example.test/authorize" };
+  vi.mocked(installSlackWorkspace).mockResolvedValueOnce("installed");
   await act(async () => root.render(<MessagingSettings />));
   const buttons = [...container.querySelectorAll("button")];
   expect(container.textContent).toContain("Chat with your bot from Slack.");
@@ -282,10 +282,39 @@ it("connects Slack to the default bot with workspace authorization", async () =>
       ["Slack", "Connect a chat app", "Link DMs"].includes(button.textContent ?? ""),
     ),
   ).toBe(false);
+  const listBefore = listCalls();
   await act(async () => buttons.find((button) => button.textContent === "Connect")!.click());
-  expect(rpc).toHaveBeenCalledWith("messaging/installations/start", {});
   expect(rpc).not.toHaveBeenCalledWith("messaging/link/start", expect.anything());
-  expect(Linking.openURL).toHaveBeenCalledWith("https://slack.example.test/authorize");
+  expect(installSlackWorkspace).toHaveBeenCalledOnce();
+  expect(installSlackWorkspace).toHaveBeenCalledWith(expect.any(AbortSignal));
+  expect(listCalls()).toBe(listBefore + 1);
+});
+
+it("refreshes after cancelling Slack authorization without showing an installation error", async () => {
+  responses["messaging/status"] = { enabled: true, providers: ["slack"], identities: [] };
+  responses["messaging/installations/list"] = { available: true, installations: [] };
+  vi.mocked(installSlackWorkspace).mockResolvedValueOnce("cancelled");
+  await act(async () => root.render(<MessagingSettings />));
+  const before = listCalls();
+  await press("Slack", "Connect");
+  expect(listCalls()).toBe(before + 1);
+  expect(container.textContent).not.toContain("Something went wrong");
+});
+
+it("prevents rapid duplicate install clicks and aborts an active install on unmount", async () => {
+  responses["messaging/status"] = { enabled: true, providers: ["slack"], identities: [] };
+  responses["messaging/installations/list"] = { available: true, installations: [] };
+  vi.mocked(installSlackWorkspace).mockImplementationOnce(() => new Promise(() => undefined));
+  await act(async () => root.render(<MessagingSettings />));
+  await act(async () => {
+    button("Slack", "Connect").click();
+    button("Slack", "Connect").click();
+  });
+  expect(installSlackWorkspace).toHaveBeenCalledOnce();
+  const signal = vi.mocked(installSlackWorkspace).mock.calls[0]?.[0];
+  expect(signal?.aborted).toBe(false);
+  await act(async () => root.render(null));
+  expect(signal?.aborted).toBe(true);
 });
 
 it("links DMs to the bot that answers in the workspace", async () => {

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { AgentRuntimeEvent, AgentUsage } from "@rakazo/adapter-kit";
+import { getLogger } from "@rakazo/logging";
 import { Agent } from "undici";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -59,6 +60,81 @@ async function run(usage?: object) {
 }
 
 describe("Pi usage accounting", () => {
+  it("excludes usage settlement time from the model stream duration", async () => {
+    let now = 1000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const log = vi.spyOn(getLogger(), "info");
+    try {
+      const stream = observedPiStream(
+        builtinModels(),
+        model,
+        { messages: [] },
+        {
+          apiKey: "fake-fixture-key",
+          fetch: async () => {
+            now += 200;
+            return new Response(sse(), { headers: { "content-type": "text/event-stream" } });
+          },
+        },
+        vi.fn(),
+        undefined,
+        { operationKind: "answer", runId: "timing-run" },
+        {
+          recordUsage: async () => {
+            now += 10_000;
+          },
+        },
+      );
+      for await (const _event of stream) {
+      }
+      await vi.waitFor(() =>
+        expect(log).toHaveBeenCalledWith(
+          "model.call_timing",
+          expect.objectContaining({ "run.id": "timing-run", "model.duration_ms": 200 }),
+        ),
+      );
+    } finally {
+      clock.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("records model duration without logging prompts, endpoints, or credentials", async () => {
+    const log = vi.spyOn(getLogger(), "info");
+    try {
+      const stream = observedPiStream(
+        builtinModels(),
+        model,
+        { systemPrompt: "private-prompt", messages: [] },
+        {
+          apiKey: "private-key",
+          fetch: async () =>
+            new Response(sse(), { headers: { "content-type": "text/event-stream" } }),
+        },
+        vi.fn(),
+        undefined,
+        { operationKind: "answer", runId: "fixture-run" },
+      );
+      for await (const _event of stream) {
+      }
+      await vi.waitFor(() =>
+        expect(log).toHaveBeenCalledWith(
+          "model.call_timing",
+          expect.objectContaining({
+            "run.id": "fixture-run",
+            "model.duration_ms": expect.any(Number),
+            "model.outcome": "completed",
+          }),
+        ),
+      );
+      const logged = JSON.stringify(log.mock.calls);
+      expect(logged).not.toContain("private-prompt");
+      expect(logged).not.toContain("private-key");
+      expect(logged).not.toContain(model.baseUrl);
+    } finally {
+      log.mockRestore();
+    }
+  });
   it.each([false, true])(
     "acknowledges a producer sink only after successful accounting (fails=%s)",
     async (fails) => {

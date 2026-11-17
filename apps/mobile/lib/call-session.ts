@@ -54,6 +54,7 @@ export type CallState = {
   botAvatarSet?: BotAvatarSet;
   phase: CallPhase;
   muted: boolean;
+  speechMuted: boolean;
   transcriptOpen: boolean;
   caption: string;
   heard: string;
@@ -235,6 +236,7 @@ export function startCall(
     botAvatarSet: call.botAvatarSet,
     phase: "listening",
     muted: false,
+    speechMuted: false,
     transcriptOpen: false,
     caption: "",
     heard: "",
@@ -317,6 +319,19 @@ export function toggleMute(): void {
   }
   consentBlocked = false;
   if (state.phase === "listening" && !opening) void listen();
+}
+
+export function toggleCallSpeech(): void {
+  if (!state) return;
+  const speechMuted = !state.speechMuted;
+  set({ speechMuted });
+  if (!speechMuted) return;
+  deps.stopSpeaking();
+  if (state.phase === "speaking" && !switching) {
+    speechSeq += 1;
+    interim.clear();
+    void listen();
+  }
 }
 
 export function toggleTranscript(): void {
@@ -565,7 +580,7 @@ async function switchCall(target: CallSwitch, heard: string): Promise<void> {
   await deps.cue("end").catch(() => undefined);
   if (!stillOn()) return;
   try {
-    await deps.speak(botId, notice);
+    if (!state?.speechMuted) await deps.speak(botId, notice);
   } catch (error) {
     if (!stillOn()) return;
     // A refused voice disclosure stays refused: mute here rather than ring a bot that would ask again.
@@ -598,6 +613,10 @@ function speakAndListen(text: string): void {
   // A prior disclosure refuse stays muted until unmute; do not re-open speech consent.
   if (consentBlocked) {
     set({ phase: "listening", heard: "" });
+    return;
+  }
+  if (state.speechMuted) {
+    void listen();
     return;
   }
   spokenMemory.remember(text);

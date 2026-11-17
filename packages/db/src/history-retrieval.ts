@@ -16,6 +16,7 @@ export interface HistoryScope {
   userId: string;
   threadId: string;
   botId: string;
+  projectWorkspaceId?: string | null;
   channelId?: string;
   /** Executor-only grant: direct human app runs, never external or background runs. */
   allowMyChats?: boolean;
@@ -86,6 +87,7 @@ function visible(scope: HistoryScope, myChats = false, targetThreadId?: string):
   if (myChats)
     return Prisma.sql`
     t."spaceId" = ${scope.spaceId} AND t."userId" = ${scope.userId}
+    AND t."projectWorkspaceId" IS NOT DISTINCT FROM ${scope.projectWorkspaceId ?? null}
     AND ${notWaiting}
     ${targetThreadId ? Prisma.sql`AND t.id = ${targetThreadId}` : Prisma.empty}
     AND ((t."groupId" IS NULL AND EXISTS (
@@ -98,6 +100,7 @@ function visible(scope: HistoryScope, myChats = false, targetThreadId?: string):
   const channel = scope.channelId;
   return Prisma.sql`
     t.id = ${scope.threadId} AND t."spaceId" = ${scope.spaceId}
+    AND t."projectWorkspaceId" IS NOT DISTINCT FROM ${scope.projectWorkspaceId ?? null}
     AND ${notWaiting}
     AND t."userId" = ${scope.userId}
     AND (t."botId" = ${scope.botId} OR (t."botId" IS NULL AND EXISTS (
@@ -418,6 +421,7 @@ export async function readHistory(
     where: {
       spaceId: scope.spaceId,
       userId: scope.userId,
+      projectWorkspaceId: scope.projectWorkspaceId ?? null,
       threadId: scope.threadId,
       ...(anchor.groupId ? {} : { botId: scope.botId }),
       ...(input.linkedRunId
@@ -475,6 +479,7 @@ export async function readHistory(
           where: {
             spaceId: scope.spaceId,
             userId: scope.userId,
+            projectWorkspaceId: scope.projectWorkspaceId ?? null,
             ...(anchor.groupId
               ? { groupId: anchor.groupId }
               : { botId: scope.botId, groupId: null }),

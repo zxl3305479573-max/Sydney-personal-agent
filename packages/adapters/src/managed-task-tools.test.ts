@@ -2,8 +2,14 @@ import { expect, it } from "vitest";
 import { filterManagedTaskTools } from "./managed-task-tools.js";
 
 it("exposes only supported tools explicitly granted for execution", () => {
-  const tools = ["read_file", "write_file", "run_subagent", "ask_user", "request_takeover", "web_fetch"]
-    .map((name) => ({ name }));
+  const tools = [
+    "read_file",
+    "write_file",
+    "run_subagent",
+    "ask_user",
+    "request_takeover",
+    "web_fetch",
+  ].map((name) => ({ name }));
   const grants = [
     { tool: "read_file", action: "execute", resource: "workspace" },
     { tool: "write_file", action: "inspect", resource: "workspace" },

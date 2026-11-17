@@ -33,8 +33,19 @@ describe("bundled desktop renderer", () => {
   });
 
   it("leaves APIs, screen proxying, and other origins on the network", () => {
-    for (const pathname of ["/api/auth/session", "/rpc/bots", "/novnc/socket"]) {
+    for (const pathname of [
+      "/api/auth/session",
+      "/rpc/bots",
+      "/novnc/socket",
+      "/wuying",
+      "/wuying/screen.html",
+      "/wuying/screen.js",
+      "/wuying/storage.js",
+      "/wuying/WuyingWebSDK.js",
+      "/wuying/sdk/ASP/container.html",
+    ]) {
       expect(bundledRendererCandidates(root, `${origin}${pathname}`, origin, false)).toBeNull();
+      expect(bundledRendererCandidates(root, `${origin}${pathname}`, origin, true)).toBeNull();
     }
     expect(
       bundledRendererCandidates(root, "https://example.net/assets/app-123.js", origin, false),
@@ -48,9 +59,50 @@ describe("bundled desktop renderer", () => {
     expect(bundledRendererCandidates(root, `${origin}/bad%00name.js`, origin, false)).toBeNull();
   });
 
+  it("does not treat encoded backend paths or backslashes as bundled pages", () => {
+    for (const pathname of [
+      "/%61pi/auth/session",
+      "/rpc%2fbots",
+      "/%6eovnc%2fsocket",
+      "/%77uying/screen.html",
+      "/wuying%2fsdk/ASP/container.html",
+      "/assets%5capp.js",
+      "/foo%2f..%2fapi/auth/session",
+      "/foo%2F.%2Frpc/bots",
+      "/bad%encoding",
+    ]) {
+      expect(bundledRendererCandidates(root, `${origin}${pathname}`, origin, true)).toBeNull();
+    }
+    expect(bundledRendererCandidates(root, `${origin}/apiary`, origin, true)).toEqual([
+      path.join(root, "apiary"),
+      path.join(root, "index.html"),
+    ]);
+  });
+
+  it("does not serve mobile domain association paths from the bundle", () => {
+    for (const pathname of [
+      "/.well-known/apple-app-site-association",
+      "/.well-known/assetlinks.json",
+      "/.well-known/%61ssetlinks.json",
+      "/.well-known/assetlinks.json.bak",
+      "/.well-known/assetlinks.json/extra",
+    ]) {
+      expect(bundledRendererCandidates(root, `${origin}${pathname}?v=1`, origin, true)).toBeNull();
+    }
+    expect(
+      bundledRendererCandidates(root, `${origin}/.well-known/assetlinks`, origin, true),
+    ).toEqual([path.join(root, ".well-known/assetlinks"), path.join(root, "index.html")]);
+  });
+
   it("assigns cache and content metadata", () => {
     expect(contentType("index.html")).toBe("text/html; charset=utf-8");
     expect(contentType("app.woff2")).toBe("font/woff2");
+    expect(
+      bundledRendererHeaders(
+        path.join(root, "avatar-library/blue-maid.webp"),
+        `${origin}/avatar-library/blue-maid.webp`,
+      ).get("content-type"),
+    ).toBe("image/webp");
     expect(immutableRendererAsset(path.join(root, "assets/app-123.js"))).toBe(true);
     expect(immutableRendererAsset(path.join(root, "index.html"))).toBe(false);
   });

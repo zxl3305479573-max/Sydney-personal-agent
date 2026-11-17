@@ -24,6 +24,7 @@ async function attachSessionMonitoring(): Promise<void> {
   const { currentSessionGeneration, subscribeSessionGeneration } = await import("./session");
   let selectedBase: string | undefined;
   const configure = async () => {
+    if (selectedBase === undefined) return;
     try {
       const generation = currentSessionGeneration();
       const base = currentApiBase();
@@ -49,6 +50,9 @@ async function attachSessionMonitoring(): Promise<void> {
     if (state === "active") void configure();
   });
   void loadApiBase()
-    .then(configure)
+    .then(() => {
+      selectedBase = currentApiBase();
+      return configure();
+    })
     .catch(() => undefined);
 }

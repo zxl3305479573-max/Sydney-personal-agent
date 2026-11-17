@@ -84,6 +84,13 @@ export function FixtureTranscript({
         answerableAskIds={answerableAskIds}
         dismissableAskIds={answerableAskIds}
         running={running}
+        workingRuns={
+          running
+            ? messages
+                .filter((message) => message.id.startsWith("progress:"))
+                .map((message) => ({ id: message.id.slice("progress:".length), status: "running" }))
+            : []
+        }
         workingBots={running ? [bots[0]!] : []}
         onLoadOlder={noop}
         onOpenBot={noop}

@@ -43,6 +43,20 @@ it("preserves the selected bubble style after reloading", async () => {
   );
 });
 
+it("applies transparency to the bubble background without fading its contents", async () => {
+  const mobile = await import("./chat-appearance");
+  const appearance = {
+    ...mobile.getMobileChatAppearance(),
+    bubble: { ...mobile.MOBILE_BUBBLE_PRESETS[0]!.value, radius: 12, opacity: 0.4 },
+  };
+  expect(
+    mobile.mobileBubbleSurfaceStyle(appearance, "user", { backgroundColor: "#000000" }),
+  ).toEqual({
+    backgroundColor: "rgba(219, 234, 254, 0.4)",
+    borderRadius: 12,
+  });
+});
+
 it("keeps the previous appearance when saving fails", async () => {
   const mobile = await import("./chat-appearance");
   const previous = mobile.getMobileChatAppearance();
@@ -57,4 +71,42 @@ it("keeps the previous appearance when saving fails", async () => {
   ).rejects.toThrow();
   expect(mobile.getMobileChatAppearance()).toBe(previous);
   expect(listener).not.toHaveBeenCalled();
+});
+
+it("restores legacy background settings and defaults its display mode to cover", async () => {
+  storage.value = JSON.stringify({
+    backgroundUri: "file://background",
+    backgroundOpacity: 0.6,
+    overlayOpacity: 0.3,
+    bubble: null,
+  });
+  const mobile = await import("./chat-appearance");
+  expect(await mobile.loadMobileChatAppearance()).toMatchObject({
+    backgroundUri: "file://background",
+    backgroundFit: "cover",
+    backgroundOpacity: 0.6,
+    overlayOpacity: 0.3,
+  });
+});
+
+it("persists background display controls without changing the selected bubble", async () => {
+  const mobile = await import("./chat-appearance");
+  const bubble = mobile.MOBILE_BUBBLE_PRESETS[1]!.value;
+  await mobile.saveMobileChatAppearance({
+    ...mobile.getMobileChatAppearance(),
+    backgroundUri: "file://background",
+    backgroundFit: "contain",
+    backgroundOpacity: 0.4,
+    overlayOpacity: 0.7,
+    bubble,
+  });
+  vi.resetModules();
+  const restored = await import("./chat-appearance");
+  expect(await restored.loadMobileChatAppearance()).toMatchObject({
+    backgroundUri: "file://background",
+    backgroundFit: "contain",
+    backgroundOpacity: 0.4,
+    overlayOpacity: 0.7,
+    bubble,
+  });
 });

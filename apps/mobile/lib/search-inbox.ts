@@ -69,8 +69,9 @@ export function searchInboxSession(): SearchInboxSession {
 /**
  * Puts a bot or group the inbox doesn't list yet (just created, or an archived bot being
  * opened) into the shared roster, so the chat it opens can draw its title at once. It goes in
- * its own space, or the default one, replacing an entry with the same id, and stays through the
- * inbox's refreshes until the inbox lists it itself. With no roster yet, or one from another
+ * its own space, or the default one when no space is supplied, replacing an entry with the
+ * same id. It stays through refreshes until the inbox lists it. With no roster or a missing
+ * explicit space it does nothing, as it does for a roster from another
  * session, it does nothing: one item never makes a roster. Pass the session the request
  * started in, so an answer that lands after a switch is dropped.
  */
@@ -83,6 +84,8 @@ export function addToSearchInbox(item: InboxAddition, askedIn?: SearchInboxSessi
     return;
   const current = getSearchInbox();
   if (current.length === 0) return;
+  const spaceId = additionSpaceId(item);
+  if (spaceId && !current.some((space) => space.id === spaceId)) return;
   additions = [...additions.filter((kept) => additionId(kept) !== additionId(item)), item];
   snapshot = withAddition(current, item);
   for (const listener of listeners) listener();
@@ -109,10 +112,9 @@ export function removeFromSearchInbox(id: string | undefined): void {
 
 function withAddition(spaces: readonly InboxSpace[], item: InboxAddition): readonly InboxSpace[] {
   const spaceId = additionSpaceId(item);
-  const target =
-    spaces.find((space) => space.id === spaceId) ??
-    spaces.find((space) => space.isDefault) ??
-    spaces[0]!;
+  const target = spaceId
+    ? spaces.find((space) => space.id === spaceId)
+    : (spaces.find((space) => space.isDefault) ?? spaces[0]);
   return spaces.map((space) => {
     if (space !== target) return space;
     if (item.kind === "bot") {

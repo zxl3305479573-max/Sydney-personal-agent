@@ -26,6 +26,11 @@ const {
   focus,
   session,
   requestContext,
+  companion,
+  screenSend,
+  screenAuto,
+  lifecycle,
+  workspaceSelection,
 } = vi.hoisted(() => ({
   rpc: vi.fn(),
   push: vi.fn(),
@@ -37,14 +42,66 @@ const {
   focus: new Set<() => (() => void) | undefined>(),
   session: { generation: 0 },
   requestContext: vi.fn(),
+  companion: {
+    available: vi.fn(() => false),
+    active: vi.fn(() => null as string | null),
+    activeSpace: "space-a" as string | null,
+    activityId: "activity-1",
+    start: vi.fn(async () => undefined),
+    stop: vi.fn(async () => undefined),
+    screenState: vi.fn(async () => "unsupported" as string),
+    subscribeScreen: vi.fn(() => () => undefined),
+    presentScreen: vi.fn(async () => undefined),
+    stopScreen: vi.fn(async () => undefined),
+    takeText: vi.fn(async () => null as string | null),
+  },
+  screenSend: {
+    capture: vi.fn(() => ({ activityId: "activity", botId: "bot-fixture", spaceId: "space-a", session: {} })),
+    send: vi.fn(async () => undefined),
+    current: vi.fn(() => true),
+  },
+  screenAuto: {
+    start: vi.fn(async () => undefined),
+    stop: vi.fn(),
+    state: { phase: "idle" } as { phase: "idle" | "active" | "starting"; botId?: string },
+  },
+  lifecycle: { listener: undefined as undefined | ((state: string) => void) },
+  workspaceSelection: { sequence: 0, pending: false },
 }));
 
+vi.mock("./companion-screen-send", () => ({
+  captureScreenSendScope: screenSend.capture,
+  screenSendScopeCurrent: screenSend.current,
+  sendReviewedScreenText: screenSend.send,
+}));
+vi.mock("./companion-screen-auto", () => ({
+  useCompanionScreenAuto: () => screenAuto.state,
+  startCompanionScreenAuto: screenAuto.start,
+  stopCompanionScreenAuto: screenAuto.stop,
+}));
+vi.mock("./companion-activity", () => ({
+  activeCompanionIdentity: () => {
+    const botId = companion.active();
+    return botId ? { id: companion.activityId, botId, spaceId: companion.activeSpace } : null;
+  },
+  companionAvailable: companion.available,
+  startCompanion: companion.start,
+  stopCompanion: companion.stop,
+  companionScreenState: companion.screenState,
+  subscribeCompanionScreenState: companion.subscribeScreen,
+  presentCompanionScreen: companion.presentScreen,
+  stopCompanionScreen: companion.stopScreen,
+  takeCompanionScreenText: companion.takeText,
+}));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./api", () => ({
   rpc,
   currentApiBase: () => "https://api.example",
   loadSessionToken: async () => "token",
   selectedSpaceId: () => "space-a",
+  spaceSelectionSeq: () => workspaceSelection.sequence,
+  isSpaceSelectionPending: () => workspaceSelection.pending,
+  subscribeSpaceSelection: () => () => undefined,
   captureApiRequestContext: requestContext,
 }));
 vi.mock("./session", () => ({ currentSessionGeneration: () => session.generation }));
@@ -73,6 +130,10 @@ vi.mock("react-native", () => {
   const view = ({ children }: { children?: ReactNode }) => createElement("div", null, children);
   return {
     Platform: { OS: "ios" },
+    AppState: { addEventListener: (_event: string, listener: (state: string) => void) => {
+      lifecycle.listener = listener;
+      return { remove: () => { lifecycle.listener = undefined; } };
+    } },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     useWindowDimensions: () => ({ fontScale: 1, width: 390 }),
     ActivityIndicator: () => createElement("progress"),
@@ -190,6 +251,15 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   params.current = { botId: "bot-fixture", name: "Fixture" };
+  companion.available.mockReturnValue(false);
+  companion.active.mockReturnValue(null);
+  companion.activeSpace = "space-a";
+  companion.activityId = "activity-1";
+  workspaceSelection.sequence = 0;
+  workspaceSelection.pending = false;
+  companion.screenState.mockResolvedValue("unsupported");
+  screenSend.current.mockReturnValue(true);
+  screenAuto.state = { phase: "idle" };
   // Each test starts a new session, so routines read in one never show in the next.
   session.generation += 1;
   requestContext.mockImplementation(async () => ({
@@ -269,6 +339,245 @@ const listCalls = () => rpc.mock.calls.filter(([procedure]) => procedure === "ro
 const routinesRow = () => button("Routines");
 
 describe("bot profile", () => {
+  it("requires explicit consent and rejects a changed activity before auto response", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("capturing");
+    screenSend.capture.mockReturnValue({ activityId: "activity-1", botId: "bot-fixture", spaceId: "space-a", session: {} });
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕自动回应").click());
+    expect(screenAuto.start).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("开启屏幕自动回应（实验功能）", expect.stringContaining("模型服务"), expect.any(Array));
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    companion.activityId = "activity-2";
+    screenSend.current.mockReturnValue(false);
+    await act(async () => choices[1]?.onPress?.());
+    expect(screenAuto.start).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
+  it("rejects automatic response after a workspace changes and changes back", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("capturing");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕自动回应").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    screenSend.current.mockReturnValue(false);
+    await act(async () => choices[1]?.onPress?.());
+    expect(screenAuto.start).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
+  it("lets the user choose on-device speech for automatic response", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("capturing");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕自动回应").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
+    expect(choices.map((choice) => choice.text)).toEqual(["取消", "仅文字", "同意并播报"]);
+    await act(async () => choices[2]?.onPress?.());
+    expect(screenAuto.start).toHaveBeenCalledWith("bot-fixture", true);
+  });
+
+  it("requires a choice before presenting the system screen picker", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("idle");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕识别").click());
+    expect(companion.presentScreen).not.toHaveBeenCalled();
+    const choices = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
+    expect(choices.map((choice) => choice.text)).toEqual(["取消", "选择共享画面"]);
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.presentScreen).toHaveBeenCalledWith("bot-fixture", "space-a");
+  });
+
+  it("does not present the screen picker after an account change", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("idle");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕识别").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    session.generation += 1;
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.presentScreen).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
+  it("offers a local preview and a stop action while capture is active", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("capturing");
+    companion.takeText.mockResolvedValue("示例文字");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("查看本机识别预览").click());
+    expect(alert).toHaveBeenLastCalledWith("确认分享屏幕文字", expect.stringContaining("示例文字"), expect.any(Array));
+    expect(screenSend.send).not.toHaveBeenCalled();
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    await act(async () => choices[1]?.onPress?.());
+    expect(screenSend.send).toHaveBeenCalledWith(expect.objectContaining({ botId: "bot-fixture" }), "示例文字");
+    await act(async () => button("停止屏幕识别").click());
+    expect(companion.stopScreen).toHaveBeenCalledOnce();
+  });
+
+  it("refreshes the system activity and capture state when the app returns", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("idle");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    expect(container.textContent).toContain("停止灵动岛陪伴");
+    companion.active.mockReturnValue(null);
+    companion.screenState.mockResolvedValue("failed");
+    await act(async () => lifecycle.listener?.("active"));
+    expect(container.textContent).toContain("开启灵动岛陪伴");
+    expect(container.textContent).toContain("停止屏幕识别");
+  });
+
+  it("does not overwrite a newer foreground capture check with an older result", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    let finishOld!: (state: string) => void;
+    companion.screenState.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    companion.screenState.mockResolvedValue("failed");
+    await act(async () => lifecycle.listener?.("active"));
+    await act(async () => finishOld("idle"));
+    expect(container.textContent).toContain("停止屏幕识别");
+    expect(container.textContent).not.toContain("开启屏幕识别（本机预览）");
+  });
+
+  it.each(["capturing", "failed"])("keeps the stop entry when the activity disappears and screen state is %s", async (screenState) => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue(null);
+    companion.screenState.mockResolvedValue(screenState);
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    expect(container.textContent).not.toContain("查看本机识别预览");
+    expect(container.textContent).not.toContain("开启屏幕自动回应");
+    await act(async () => button("停止屏幕识别").click());
+    expect(screenAuto.stop).toHaveBeenCalledOnce();
+    expect(companion.stopScreen).toHaveBeenCalledOnce();
+  });
+
+  it("shows that automatic response sends recognized text to a model", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("capturing");
+    screenAuto.state = { phase: "active", botId: "bot-fixture" };
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    expect(container.textContent).toContain("识别文字会发送给模型");
+    expect(container.textContent).not.toContain("仅在本机处理");
+  });
+
+  it("rejects a screen picker confirmation when its original scope changed", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.screenState.mockResolvedValue("idle");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启屏幕识别").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    screenSend.current.mockReturnValue(false);
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.presentScreen).not.toHaveBeenCalled();
+  });
+
+  it("asks before showing replies in the companion activity", async () => {
+    companion.available.mockReturnValue(true);
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启灵动岛陪伴").click());
+    expect(companion.start).not.toHaveBeenCalled();
+    const choices = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
+    expect(choices.map((choice) => choice.text)).toEqual(["取消", "仅显示状态", "显示回复"]);
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.start).toHaveBeenCalledWith("bot-fixture", "Fixture", "space-a", false, {
+      color: "c",
+      avatarSet: undefined,
+    }, expect.any(Function), expect.any(Function));
+    const startCall = companion.start.mock.calls.at(-1) as unknown as unknown[];
+    const isCurrent = startCall[5] as () => boolean;
+    expect(isCurrent()).toBe(true);
+    workspaceSelection.sequence += 1;
+    expect(isCurrent()).toBe(false);
+  });
+
+  it("does not start companion after the account changes while consent is open", async () => {
+    companion.available.mockReturnValue(true);
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启灵动岛陪伴").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
+    session.generation += 1;
+    await act(async () => choices[2]?.onPress?.());
+    expect(companion.start).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
+  it("rejects a companion choice after a workspace switch and switch back", async () => {
+    companion.available.mockReturnValue(true);
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启灵动岛陪伴").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    workspaceSelection.sequence += 2;
+    await act(async () => choices[2]?.onPress?.());
+    expect(companion.start).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
+  it("does not start or stop a companion while a workspace selection is pending", async () => {
+    companion.available.mockReturnValue(true);
+    workspaceSelection.pending = true;
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启灵动岛陪伴").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.start).not.toHaveBeenCalled();
+    companion.active.mockReturnValue("bot-fixture");
+    await act(async () => button("开启灵动岛陪伴").click());
+    expect(companion.stop).not.toHaveBeenCalled();
+  });
+
+  it("does not treat the same bot in another workspace as the active companion", async () => {
+    companion.available.mockReturnValue(true);
+    companion.active.mockReturnValue("bot-fixture");
+    companion.activeSpace = "space-b";
+    companion.screenState.mockResolvedValue("capturing");
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    expect(container.textContent).toContain("开启灵动岛陪伴");
+    expect(container.textContent).not.toContain("查看本机识别预览");
+    await act(async () => button("开启灵动岛陪伴").click());
+    expect(companion.stop).not.toHaveBeenCalled();
+  });
+
+  it("rejects a pending choice if another companion has since started", async () => {
+    companion.available.mockReturnValue(true);
+    profileRpc(async () => []);
+    await render(createElement(BotProfile));
+    await act(async () => button("开启灵动岛陪伴").click());
+    const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
+    companion.active.mockReturnValue("other-bot");
+    await act(async () => choices[1]?.onPress?.());
+    expect(companion.start).not.toHaveBeenCalled();
+    expect(companion.stop).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenLastCalledWith("会话已切换", expect.any(String));
+  });
+
   it("links the bot's settings, routines, artifacts and computer", async () => {
     profileRpc(async () => []);
     await render(createElement(BotProfile));

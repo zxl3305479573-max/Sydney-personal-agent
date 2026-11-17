@@ -77,6 +77,7 @@ import {
   reachesOtherSpaces,
   useOwnSpaces,
 } from "../components/integrations/space-availability";
+import { navigateAuthorizationPopup, openAuthorizationPopup } from "../lib/authorization-popup";
 import { connectedAppMarks } from "../lib/connected-apps";
 import { optionalCatalogFeedProbe } from "../lib/optional-catalog-feed";
 import { useSpaceQueries } from "../lib/query";
@@ -452,6 +453,8 @@ export function PluginsOverlay({
   }
 
   async function connect(item: ConnectionCatalogItem) {
+    const popup = openAuthorizationPopup("rakazo-plugin-connect");
+    let navigated = false;
     connectionAttempt.current?.abort();
     const controller = new AbortController();
     connectionAttempt.current = controller;
@@ -462,7 +465,10 @@ export function PluginsOverlay({
       const result = await connectCatalogItem(item, connections, {
         begin: (input) => rpc.connections.begin(input),
         complete: (input) => rpc.connections.complete(input),
-        openUrl: (url) => window.open(url, "rakazo-plugin-connect", "noopener,noreferrer"),
+        openUrl: (url) => {
+          navigateAuthorizationPopup(popup, url);
+          navigated = true;
+        },
         signal: controller.signal,
       });
       if (result.status === "aborted") return;
@@ -481,6 +487,7 @@ export function PluginsOverlay({
       if (controller.signal.aborted) return;
       setCatalogError(errorText(err, t`Could not connect`));
     } finally {
+      if (!navigated) popup?.close();
       if (connectionAttempt.current === controller) {
         connectionAttempt.current = null;
         setPending(null);
@@ -1685,37 +1692,10 @@ export function PluginsOverlay({
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {featuredTiles.map((tile) => {
                       const item = tile.item;
-                      const key = item ? catalogItemKey(item) : tile.id;
-                      const disabled = tile.missing || !item;
-                      if (item && !tile.missing) {
-                        // Featured is the stable hit target for connection-tile-* in E2E.
-                        return renderCatalogTile(item, tile.label, item.logo, {
-                          tileTestId: true,
-                        });
-                      }
-                      return (
-                        <div
-                          key={key}
-                          aria-disabled="true"
-                          className={`flex min-w-0 items-center gap-3 rounded-xl px-2.5 py-2 ${
-                            disabled ? "opacity-70" : ""
-                          }`}
-                        >
-                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-sm font-semibold text-foreground">
-                            {tile.label[0]}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[15px] font-medium text-foreground">
-                              {tile.label}
-                            </div>
-                            {disabled ? (
-                              <div className="truncate text-[12.5px] text-muted-foreground">
-                                <Trans>Not in the plugin catalog</Trans>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
+                      if (!item || tile.missing) return null;
+                      return renderCatalogTile(item, tile.label, item.logo, {
+                        tileTestId: true,
+                      });
                     })}
                   </div>
                 </div>

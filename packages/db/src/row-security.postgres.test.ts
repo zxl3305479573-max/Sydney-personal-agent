@@ -309,6 +309,49 @@ describePostgres("row-level security (PostgreSQL)", () => {
     );
   });
 
+  it("isolates personality presets by account for reads and writes", async () => {
+    const first = await owner.prisma.personalityPreset.create({
+      data: { userId: a.userId, name: `first-${suffix}`, instructions: "first" },
+    });
+    const second = await owner.prisma.personalityPreset.create({
+      data: { userId: b.userId, name: `second-${suffix}`, instructions: "second" },
+    });
+    const ids = [first.id, second.id];
+    const visible = (tenant: Tenant) =>
+      runAsTenant(tenant, () =>
+        db.personalityPreset.findMany({
+          where: { id: { in: ids } },
+          select: { id: true },
+        }),
+      );
+
+    expect(await visible(a)).toEqual([{ id: first.id }]);
+    expect(await visible(b)).toEqual([{ id: second.id }]);
+    expect(
+      await runAsTenant(a, () =>
+        db.personalityPreset.updateMany({
+          where: { id: second.id },
+          data: { instructions: "changed" },
+        }),
+      ),
+    ).toEqual({ count: 0 });
+    expect(
+      await runAsTenant(a, () => db.personalityPreset.deleteMany({ where: { id: second.id } })),
+    ).toEqual({ count: 0 });
+    await expect(
+      runAsTenant(a, () =>
+        db.personalityPreset.create({
+          data: { userId: b.userId, name: `foreign-${suffix}`, instructions: "foreign" },
+        }),
+      ),
+    ).rejects.toThrow(/row.level security/i);
+    expect(
+      await runAsSystem("verify personality isolation", () =>
+        db.personalityPreset.count({ where: { id: { in: ids } } }),
+      ),
+    ).toBe(2);
+  });
+
   it("keeps security events append-only and system-only for the runtime login", async () => {
     const id = `rls-security-event-${suffix}`;
     const system = <T>(fn: () => Promise<T>) => runAsSystem("row-level security test", fn);

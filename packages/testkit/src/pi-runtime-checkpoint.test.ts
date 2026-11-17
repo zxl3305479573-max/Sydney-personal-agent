@@ -17,6 +17,66 @@ async function collect(events: AsyncIterable<AgentRuntimeEvent>) {
 }
 
 describe("paused turn context", () => {
+  it.each([true, false])(
+    "requests takeover on a refused repeated desktop action only when offered (offered=%s)",
+    async (offered) => {
+      const model = await startModelEmulator({
+        steps: [
+          {
+            expect() {},
+            response: {
+              type: "tools",
+              calls: [
+                {
+                  id: "blocked-click",
+                  name: "computer_act",
+                  arguments: { actions: [{ kind: "click", x: 10, y: 10 }] },
+                },
+              ],
+            },
+          },
+          ...(!offered
+            ? [{ expect() {}, response: { type: "text" as const, text: "Stopped." } }]
+            : []),
+        ],
+      });
+      const executeTool = vi.fn(async () => ({
+        kind: "agent_tool_result" as const,
+        content: [{ type: "text" as const, text: "Action was not run again." }],
+        details: { unchangedVisualLoop: true, takeoverSuggested: true },
+      }));
+      try {
+        const events = await collect(
+          new PiAgentRuntime().run({
+            runId: "stuck-fixture",
+            botId: "bot",
+            threadId: "thread",
+            instructions: "Use the computer.",
+            prompt: "Continue.",
+            history: [],
+            model: model.model,
+            tools: builtinAgentTools.filter(
+              (tool) =>
+                tool.name === "computer_act" || (offered && tool.name === "request_takeover"),
+            ),
+            onCheckpoint: vi.fn(),
+            executeTool,
+          }),
+        );
+        const takeover = events.find((event) => event.type === "takeover");
+        expect(Boolean(takeover)).toBe(offered);
+        if (takeover?.type === "takeover") {
+          expect(takeover.executionId).toBeUndefined();
+          expect(takeover.reason).toContain("请检查当前画面");
+        }
+        expect(executeTool).toHaveBeenCalledOnce();
+        model.assertComplete();
+      } finally {
+        await model.close();
+      }
+    },
+  );
+
   it("keeps checkpointed tool batches parallel without serializing successful calls", async () => {
     const started: string[] = [];
     let release!: () => void;

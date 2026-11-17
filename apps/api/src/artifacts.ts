@@ -18,7 +18,7 @@ import {
   validateAttachmentMimeType,
 } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { IsolationError, Prisma, withResolvedArtifactVersion } from "@rakazo/db";
+import { assertHomeArtifactWriteScope, IsolationError, Prisma, withResolvedArtifactVersion } from "@rakazo/db";
 
 export async function createOwnedArtifact(
   deps: {
@@ -37,6 +37,7 @@ export async function createOwnedArtifact(
     clientNonce?: string;
   },
 ) {
+  assertHomeArtifactWriteScope(actor);
   const replayed = await findReplayedArtifact(deps.prisma, actor, input);
   if (replayed) return createdArtifact(replayed);
   const inferredType = inferAttachmentMimeType(input.name, input.mimeType);
@@ -68,6 +69,7 @@ export async function storeInboundAttachment(
     downloadDeadline?: number;
   },
 ): Promise<StoredInboundAttachment> {
+  assertHomeArtifactWriteScope(owner);
   const replayed = await findReplayedArtifact(deps.prisma, owner, input);
   if (replayed) return createdArtifact(replayed);
   const { attachment } = input;
@@ -130,6 +132,7 @@ async function storeOwnedArtifact(
       spaceId: actor.spaceId,
       userId: actor.userId,
       botId: input.botId,
+      projectWorkspaceId: null,
       groupId: input.groupId,
       name: input.name,
     },

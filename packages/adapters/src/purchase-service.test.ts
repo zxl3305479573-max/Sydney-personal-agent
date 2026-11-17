@@ -1,5 +1,6 @@
 import type { AdapterContext } from "@rakazo/adapter-kit";
 import { PaymentWalletDisconnected, PaymentWalletRequestRejected } from "@rakazo/adapter-kit";
+import { runAsTenant } from "@rakazo/db";
 import { Challenge, Credential } from "mppx";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -34,8 +35,9 @@ const request = {
   reason: "Two boxes of printer paper for the office, as the user asked this morning. ".repeat(2),
 };
 
-function setup(paidRequestFetch?: typeof fetch) {
-  const db = fakePurchasePrisma(fixture);
+function setup(paidRequestFetch?: typeof fetch, projectWorkspaceId: string | null = null) {
+  const db = fakePurchasePrisma({ ...fixture, projectWorkspaceId });
+  const tenant = { spaceId: fixture.spaceId, userId: fixture.userId, projectWorkspaceId };
   const queue = fakeJobs();
   const wallet = new FakePaymentWallet();
   const secrets = new Map<string, string>();
@@ -69,10 +71,13 @@ function setup(paidRequestFetch?: typeof fetch) {
     signal: new AbortController().signal,
   });
   const call = (name: string, args: Record<string, unknown>, operationId?: string) =>
-    executePurchaseTool(deps, context(operationId), { threadId: fixture.threadId }, name, args);
+    runAsTenant(tenant, () => executePurchaseTool(deps, context(operationId), { threadId: fixture.threadId }, name, args));
   const paid = (args: Record<string, unknown>, operationId?: string) =>
-    executePaidRequest(deps, context(operationId), { threadId: fixture.threadId }, args);
-  return { ...db, ...queue, wallet, deps, call, paid, secrets };
+    runAsTenant(tenant, () => executePaidRequest(deps, context(operationId), { threadId: fixture.threadId }, args));
+  return {
+    ...db, ...queue, wallet, deps, call, paid, secrets,
+    scoped: <T>(fn: () => Promise<T>) => runAsTenant(tenant, fn),
+  };
 }
 
 describe("request_purchase", () => {
@@ -110,6 +115,34 @@ describe("request_purchase", () => {
     expect(second).toEqual(first);
     expect(env.wallet.created).toHaveLength(1);
     expect(env.purchases).toHaveLength(1);
+  });
+
+  it("records the original project and rejects a replay from a different saved scope", async () => {
+    const scoped = setup(undefined, "project-fixture");
+    await scoped.call("request_purchase", request);
+    expect(scoped.purchases[0]).toMatchObject({ projectWorkspaceId: "project-fixture" });
+    scoped.purchases[0]!.projectWorkspaceId = "project-other";
+    await expect(scoped.call("request_purchase", request)).rejects.toThrow("Purchase operation scope changed");
+    expect(scoped.wallet.created).toHaveLength(1);
+  });
+
+  it("does not reach the wallet without a live originating conversation", async () => {
+    env.live.thread = false;
+    await expect(env.call("request_purchase", request)).rejects.toThrow();
+    expect(env.wallet.created).toHaveLength(0);
+  });
+
+  it("retains the pre-request generation and record if the chat disappears during wallet I/O", async () => {
+    const createRemote = env.wallet.createPurchase.bind(env.wallet);
+    env.wallet.createPurchase = async (...args) => {
+      const snapshot = await createRemote(...args);
+      env.live.threadGeneration += 1;
+      env.live.thread = false;
+      return snapshot;
+    };
+    await env.call("request_purchase", request);
+    expect(env.purchases[0]).toMatchObject({ projectWorkspaceId: null, threadGeneration: 0 });
+    expect(env.wallet.created).toHaveLength(1);
   });
 
   it("rejects invalid input before reaching the wallet", async () => {
@@ -198,31 +231,31 @@ describe("resolvePurchaseCardFill", () => {
     const env = setup();
     await env.call("request_purchase", request);
     const scope = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number")).toEqual({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"))).toEqual({
       error: expect.stringContaining("not approved"),
     });
     env.purchases[0]!.status = "approved";
-    const number = await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number");
+    const number = await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"));
     expect(number).toEqual({
       text: "4242424242424242",
       origin: "https://shop.example.test",
       redactions: ["4242424242424242", "4242 4242 4242 4242", "4242-4242-4242-4242"],
     });
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "cvc")).toMatchObject({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "cvc"))).toMatchObject({
       text: "123",
       origin: "https://shop.example.test",
     });
     expect(
-      await resolvePurchaseCardFill(
+      await env.scoped(() => resolvePurchaseCardFill(
         env.deps,
         { ...scope, userId: "someone-else" },
         "purchase-1",
         "cvc",
-      ),
+      )),
     ).toEqual({ error: "Unknown purchase." });
     // Another bot of the same user can't type it: its runs would not keep hiding the card.
     expect(
-      await resolvePurchaseCardFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1", "cvc"),
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1", "cvc")),
     ).toEqual({ error: "Unknown purchase." });
   });
 
@@ -231,7 +264,7 @@ describe("resolvePurchaseCardFill", () => {
     await env.call("request_purchase", request);
     const scope = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
     env.purchases[0]!.status = "approved";
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry")).toEqual({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry"))).toEqual({
       error: expect.stringContaining("not approved"),
     });
     const summary = { brand: "visa", last4: "4242", expMonth: 3, expYear: 2034 };
@@ -240,12 +273,12 @@ describe("resolvePurchaseCardFill", () => {
       status: "approved",
       card: summary,
     });
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry")).toEqual({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry"))).toEqual({
       text: "03/34",
       origin: "https://shop.example.test",
       redactions: [],
     });
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code")).toEqual({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code"))).toEqual({
       error: "This card has no billing postal code.",
     });
     env.wallet.snapshots.set("remote-op-1", {
@@ -262,7 +295,7 @@ describe("resolvePurchaseCardFill", () => {
       },
     });
     expect(
-      await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code"),
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code")),
     ).toMatchObject({ text: "94110", origin: "https://shop.example.test" });
     // Neither detail reveals the card, so nothing is sealed for later runs to hide.
     expect(env.purchases[0]!.cardCiphertext ?? null).toBeNull();
@@ -272,18 +305,18 @@ describe("resolvePurchaseCardFill", () => {
     const env = setup();
     await env.call("request_purchase", request);
     const run = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
-    expect(await loadPurchaseRedactions(env.deps, run)).toEqual([]);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, run))).toEqual([]);
     env.purchases[0]!.status = "approved";
-    await resolvePurchaseCardFill(env.deps, run, "purchase-1", "number");
-    await resolvePurchaseCardFill(env.deps, run, "purchase-1", "cvc");
+    await env.scoped(() => resolvePurchaseCardFill(env.deps, run, "purchase-1", "number"));
+    await env.scoped(() => resolvePurchaseCardFill(env.deps, run, "purchase-1", "cvc"));
     expect(env.purchases[0]!.cardCiphertext).toBe("sealed-1");
     expect(env.secrets.size).toBe(1);
-    expect(await loadPurchaseRedactions(env.deps, run)).toEqual([
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, run))).toEqual([
       "4242424242424242",
       "4242 4242 4242 4242",
       "4242-4242-4242-4242",
     ]);
-    expect(await loadPurchaseRedactions(env.deps, { ...run, botId: "bot-2" })).toEqual([]);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, { ...run, botId: "bot-2" }))).toEqual([]);
   });
 
   it("deletes a sealed card that two first fills raced to save", async () => {
@@ -292,8 +325,8 @@ describe("resolvePurchaseCardFill", () => {
     env.purchases[0]!.status = "approved";
     const run = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
     await Promise.all([
-      resolvePurchaseCardFill(env.deps, run, "purchase-1", "number"),
-      resolvePurchaseCardFill(env.deps, run, "purchase-1", "cvc"),
+      env.scoped(() => resolvePurchaseCardFill(env.deps, run, "purchase-1", "number")),
+      env.scoped(() => resolvePurchaseCardFill(env.deps, run, "purchase-1", "cvc")),
     ]);
     expect(env.secrets.size).toBe(1);
     expect(env.secrets.has(env.purchases[0]!.cardCiphertext!)).toBe(true);
@@ -318,7 +351,7 @@ describe("pay token purchases", () => {
       credentialType: "pay_token",
       merchantAccountId: "acct_fake123",
     });
-    expect(await resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")).toEqual({
+    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
       error: expect.stringContaining("not approved"),
     });
 
@@ -329,26 +362,26 @@ describe("pay token purchases", () => {
       next: expect.stringContaining("fill_pay_token"),
     });
     expect(JSON.stringify(status)).not.toContain(FAKE_PAY_TOKEN);
-    expect(await resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number")).toEqual({
+    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"))).toEqual({
       error: expect.stringContaining("without a card"),
     });
     expect(
-      await resolvePurchasePayTokenFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1"),
+      await env.scoped(() => resolvePurchasePayTokenFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1")),
     ).toEqual({ error: "Unknown purchase." });
-    expect(await resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")).toEqual({
+    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
       text: FAKE_PAY_TOKEN,
       origin: "https://shop.example.test",
       merchantAccountId: "acct_fake123",
       redactions: [FAKE_PAY_TOKEN],
     });
-    expect(await loadPurchaseRedactions(env.deps, scope)).toEqual([FAKE_PAY_TOKEN]);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, scope))).toEqual([FAKE_PAY_TOKEN]);
   });
 
   it("refuses a pay token fill for a card purchase", async () => {
     const env = setup();
     await env.call("request_purchase", request);
     env.purchases[0]!.status = "approved";
-    expect(await resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")).toEqual({
+    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
       error: expect.stringContaining("no pay token"),
     });
   });
@@ -472,7 +505,7 @@ describe("paid_request", () => {
     expect(api.seen.at(-1)!.authorization).toMatch(/^Payment /);
     expect(paid.redactions).toContain(FAKE_SHARED_PAYMENT_TOKEN);
     expect(env.purchases[0]).toMatchObject({ status: "completed", nextPollAt: null });
-    expect(await loadPurchaseRedactions(env.deps, fixture)).toContain(FAKE_SHARED_PAYMENT_TOKEN);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, fixture))).toContain(FAKE_SHARED_PAYMENT_TOKEN);
     expect((await env.paid({ purchase: "purchase-1" }, "op-3")).result).toEqual({
       error: expect.stringContaining("already used"),
     });

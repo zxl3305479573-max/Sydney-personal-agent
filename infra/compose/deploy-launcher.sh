@@ -4,14 +4,54 @@
 # this launcher is installed, and it rarely changes.
 set -Eeuo pipefail
 
-if [[ -z "${RAKAZO_DEPLOY_DIR:-}" && -r /etc/rakazo/deploy.env ]]; then
-  # shellcheck disable=SC1091
-  source /etc/rakazo/deploy.env
-fi
+load_deploy_config() {
+  local config_file=/etc/rakazo/deploy.env line key value
+  [[ -r "${config_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if [[ "${line}" =~ ^(RAKAZO_[A-Z0-9_]+)=([A-Za-z0-9_./:@+,%=&?-]*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if [[ "${key}" == RAKAZO_COMPOSE_OVERLAY_FILE ]]; then
+        echo "Set RAKAZO_COMPOSE_OVERLAY_FILE in the persistent .env so the updater uses the same file." >&2
+        exit 1
+      fi
+      printf -v "${key}" '%s' "${value}"
+      export "${key}"
+    else
+      echo "Invalid /etc/rakazo/deploy.env entry; refusing to execute it." >&2
+      exit 1
+    fi
+  done <"${config_file}"
+}
+
+load_env_assignment() {
+  local config_file="$1" wanted="$2" line key value
+  [[ -r "${config_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if [[ "${line}" =~ ^([A-Z][A-Z0-9_]*)=([A-Za-z0-9_./:@+,%=&?-]*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      if [[ "${key}" == "${wanted}" ]]; then
+        value="${BASH_REMATCH[2]}"
+        printf -v "${wanted}" '%s' "${value}"
+        export "${wanted}"
+      fi
+    elif [[ "${line}" == "${wanted}="* ]]; then
+      echo "Invalid ${wanted} entry; refusing to use it." >&2
+      return 1
+    fi
+  done <"${config_file}"
+}
+
+load_deploy_config
 APP_DIR="${RAKAZO_DEPLOY_DIR:-/srv/rakazo}"
 [[ "${APP_DIR}" == /* ]] || { echo "RAKAZO_DEPLOY_DIR must be an absolute path" >&2; exit 1; }
 
 cd "${APP_DIR}"
+if [[ -z "${RAKAZO_COMPOSE_OVERLAY_FILE:-}" ]]; then
+  load_env_assignment .env RAKAZO_COMPOSE_OVERLAY_FILE
+fi
 git fetch --quiet --prune origin main
 # Run it from memory: the deploy resets the checkout, which would rewrite a script file that bash
 # is still reading.
@@ -38,4 +78,9 @@ else
   revision="$(git rev-parse origin/main)"
 fi
 script="$(git show "${revision}:infra/compose/deploy-main.sh")"
+if [[ -n "${RAKAZO_COMPOSE_OVERLAY_FILE:-}" ]] &&
+  ! grep -Fq '# RAKAZO_LOCAL_COMPOSE_OVERLAY_SUPPORT=1' <<<"${script}"; then
+  echo "The requested revision does not support the configured local Compose overlay; refusing to deploy or roll back without it." >&2
+  exit 1
+fi
 RAKAZO_DEPLOY_REVISION="${revision}" exec bash -c "${script}" rakazo-deploy-main "$@"

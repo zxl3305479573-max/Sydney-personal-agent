@@ -43,6 +43,22 @@ describe("toComputerStatus", () => {
     expect(toComputerStatus("bot-1", computer, "Writer").busyBotName).toBe("Writer");
   });
 
+  it("exposes a native human lease only after its control fence is active", () => {
+    const computer = {
+      kind: "native-linux",
+      state: "running",
+      scope: "team",
+      controlHolder: "user",
+      controlBotId: "bot",
+      controlLeaseId: "lease",
+      controlFence: 1,
+      homeRevision: "revision",
+    };
+    expect(toComputerStatus("bot", computer).controlLeaseId).toBe("lease");
+    expect(toComputerStatus("bot", { ...computer, controlFence: 0 }).controlLeaseId).toBeNull();
+    expect(toComputerStatus("other", computer).controlLeaseId).toBeNull();
+  });
+
   it("sandbox-none-computer-status", () => {
     const stopped = toComputerStatus("bot-1", {
       kind: "none",

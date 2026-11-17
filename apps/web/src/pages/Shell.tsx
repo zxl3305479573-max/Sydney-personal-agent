@@ -22,6 +22,7 @@ import type { GroupAvatarMember } from "@rakazo/ui-web";
 import { Button } from "@rakazo/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import { Lock, Monitor, Moon, Plug, Plus, ScrollText, Sun, Users } from "lucide-react";
+import type { CSSProperties } from "react";
 import {
   Suspense,
   useCallback,
@@ -37,6 +38,7 @@ import { ComputerUpdateProgress } from "../components/ComputerUpdateProgress";
 import { CallCard, CallReturnBar } from "../components/call/CallCard";
 import { IncomingCall } from "../components/call/IncomingCall";
 import { PageLoading } from "../components/PageLoading";
+import { ConversationBackgroundLayer } from "../components/WorkspaceBackground";
 import type { ArtifactTarget } from "../lib/artifact-open";
 import { authClient } from "../lib/auth";
 import { peekBootstrapSeed } from "../lib/bootstrap";
@@ -47,6 +49,7 @@ import {
 } from "../lib/bots-sidebar-density-pref";
 import { readBotsSidebarCollapsed, writeBotsSidebarCollapsed } from "../lib/bots-sidebar-pref";
 import { setCallMinimized, startCall, useCallSession } from "../lib/call-session";
+import { chatBackgroundKey, useAppearanceImage, useChatAppearance } from "../lib/chat-appearance";
 import {
   getComposerEnterToSend,
   subscribeComposerEnterToSend,
@@ -286,6 +289,7 @@ function SpaceShell() {
   }, [isMobileSidebar]);
   const miniSidebar = botsSidebarCollapsed && !isMobileSidebar;
   const [botMenu, setBotMenu] = useState<{ kind: "bot" | "group"; id: string } | null>(null);
+  const [mobileBotActionError, setMobileBotActionError] = useState<string | null>(null);
   const closeBotMenu = useCallback(() => setBotMenu(null), []);
   const currentSpaceId = selectedSpaceId() ?? bootstrapMe?.spaceId ?? null;
   // null: settings follow the space the app is showing.
@@ -324,6 +328,15 @@ function SpaceShell() {
     [active?.color, active?.id],
   );
   const activeGroup = groups.find((group) => group.id === groupId);
+  const chatKey =
+    userId && (inGroup ? groupId : active?.id)
+      ? chatBackgroundKey(userId, inGroup ? "group" : "bot", (inGroup ? groupId : active?.id)!)
+      : undefined;
+  const appearance = useChatAppearance();
+  const chatBackground = appearance.backgrounds.find(
+    (background) => background.id === (chatKey ? appearance.chatBackgrounds?.[chatKey] : undefined),
+  );
+  const chatBackgroundUrl = useAppearanceImage(chatBackground?.image);
   const activeBotId = useRef<string | undefined>(inGroup ? undefined : active?.id);
   activeBotId.current = inGroup ? undefined : active?.id;
   const activeGroupId = useRef<string | undefined>(groupId);
@@ -1007,8 +1020,28 @@ function SpaceShell() {
             reorderRosterBot={roster.reorderRosterBot}
             activeSnapshot={activeSnapshot}
             botMenuContent={botMenuContent}
+            onToggleBotPinned={(bot) => {
+              setMobileBotActionError(null);
+              const space = sidebarSpaces.find((item) => item.id === bot.spaceId);
+              if (!bot.pinned && (space?.bots.filter((item) => item.pinned).length ?? 0) >= 4) {
+                setMobileBotActionError(t`Each space can have at most 4 main bots`);
+                return;
+              }
+              void createSpaceRpc(bot.spaceId)
+                .bots.update({ botId: bot.id, pinned: !bot.pinned })
+                .then(() => refreshBots())
+                .catch(() => {
+                  setMobileBotActionError(t`Could not save`);
+                  void refreshBots().catch(() => undefined);
+                });
+            }}
+            mobileBotActionError={mobileBotActionError}
+            onDeleteBot={dialogs.setDeleteTarget}
             onCreateBot={() => dialogs.setCreateBotOpen(true)}
-            onCreateGroup={() => setPanel("create-group")}
+            onCreateGroup={() => {
+              setMobileSidebarOpen(false);
+              setPanel("create-group");
+            }}
           />
         }
         archived={
@@ -1036,10 +1069,23 @@ function SpaceShell() {
         data-space-switch="main"
         data-mobile-chat={isMobileView ? "true" : undefined}
         data-mobile-group={isMobileView && inGroup ? "true" : undefined}
+        data-conversation-background={chatBackground && chatBackgroundUrl ? "true" : undefined}
         aria-hidden={mobileSidebarOpen || undefined}
         inert={mobileSidebarOpen}
-        className="isolate flex min-w-0 flex-1 flex-col bg-background"
+        className={`relative isolate flex min-w-0 flex-1 flex-col ${chatBackground ? "bg-transparent" : "bg-background"}`}
+        style={
+          chatBackground && chatBackgroundUrl
+            ? ({
+                "--workspace-background-image": `url("${chatBackgroundUrl}")`,
+                "--workspace-background-fit": chatBackground.fit,
+                "--workspace-background-opacity": chatBackground.opacity / 100,
+                "--workspace-background-overlay":
+                  (chatBackground.overlay * chatBackground.opacity) / 10_000,
+              } as CSSProperties)
+            : undefined
+        }
       >
+        <ConversationBackgroundLayer background={chatBackground} />
         {/* Inside main so the composer and its menus stay above it. */}
         {!mobileSidebarOpen ? (
           <div
@@ -1107,6 +1153,7 @@ function SpaceShell() {
               answerableAskIds={answerableAskIds}
               dismissableAskIds={dismissableAskIds}
               running={transcriptRunning}
+              workingRuns={workingRuns}
               workingBots={workingBots}
               userBubble={userBubble}
               onCallBack={
@@ -1220,8 +1267,13 @@ function SpaceShell() {
         rpc={rpc}
         panel={panel}
         setPanel={setPanel}
+        onCancelCreateGroup={() => {
+          setPanel(null);
+          if (isMobileSidebar) setMobileSidebarOpen(true);
+        }}
         active={active}
         activeGroup={activeGroup}
+        chatKey={chatKey}
         bots={bots}
         groups={groups}
         setBots={setBots}
@@ -1239,6 +1291,9 @@ function SpaceShell() {
               bot={active}
               computer={computer}
               computerOpen={computerOpen}
+              embeddedScreenUrl={computerControls.embeddedScreenUrl}
+              screenFrameKey={computerState.screenFrameKey}
+              screenFrameRef={computerState.setScreenFrame}
               computerScreenError={computerControls.computerScreenError}
               computerBooting={computerControls.computerBooting}
               booting={booting}

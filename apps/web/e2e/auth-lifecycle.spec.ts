@@ -2,6 +2,20 @@ import type { Request } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { captureScreenshot, completeOnboarding, signup, signupThroughForm } from "./helpers";
 
+test("a new account verifies its email and signs in again with its password", async ({ page }) => {
+  const email = `form-signup-${Date.now()}@rakazo.test`;
+  await signupThroughForm(page, email, "password12", "Form User");
+  await completeOnboarding(page);
+  await expect(page.getByRole("combobox", { name: "Message Sydney" })).toBeVisible();
+  await page.getByRole("button", { name: /Form User/i }).click();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password12");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Message Sydney" })).toBeVisible();
+});
+
 test(
   "sign-up stays blank until session and sign-in options are ready",
   { tag: "@nightly" },
@@ -38,7 +52,7 @@ test(
     await captureScreenshot(page, testInfo, "signup-options-pending");
 
     releaseCapabilities();
-    await expect(page.getByRole("heading", { name: "Create your Rakazo" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Create your Sydney" })).toBeVisible();
     await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
     await captureScreenshot(page, testInfo, "signup-ready");
   },
@@ -61,6 +75,7 @@ test("signup suggests a fix for a mistyped email domain", async ({ page }, testI
   await page.getByLabel("Name").fill("Typo User");
   await page.getByLabel("Email").fill("typo@gmial.com");
   await page.getByLabel("Password", { exact: true }).fill("password12");
+  await page.getByLabel("Confirm password").fill("password12");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   const fix = page.getByRole("button", { name: "typo@gmail.com" });
   await expect(fix).toBeVisible();
@@ -92,6 +107,7 @@ test(
     await page.getByLabel("Name").fill("Pending User");
     await page.getByLabel("Email").fill("pending@example.test");
     await page.getByLabel("Password", { exact: true }).fill("password12");
+    await page.getByLabel("Confirm password").fill("password12");
     await page.getByRole("button", { name: "Create account", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     await expect(page).toHaveURL(/\/sign-up\?verify=email$/);
@@ -99,7 +115,7 @@ test(
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     await captureScreenshot(page, testInfo, "signup-verification-required");
     await page.getByRole("link", { name: "Back to sign in" }).click();
-    await expect(page.getByRole("heading", { name: "Sign in to Rakazo" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
   },
 );
 
@@ -116,13 +132,13 @@ test(
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto("/");
     const main = page.getByRole("main");
-    await expect(main.getByRole("heading", { name: "Rakazo", level: 1 })).toBeVisible();
+    await expect(main.getByRole("heading", { name: "Sydney", level: 1 })).toBeVisible();
     await expect(main.getByRole("button", { name: "Sign up", exact: true })).toBeVisible();
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 320);
     await captureScreenshot(page, testInfo, "logged-out-welcome-phone");
     await main.getByRole("link", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
-    await expect(page.getByRole("heading", { name: "Sign in to Rakazo" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
   },
 );
 
@@ -146,17 +162,14 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   await page.goto("/sign-up");
   await expect(page.getByLabel("Name")).toHaveAttribute("autocomplete", "name");
   await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "username");
-  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
-    "autocomplete",
-    "new-password",
-  );
-
-  await signupThroughForm(page, email, password, userName);
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Confirm password", { exact: true })).toBeVisible();
+  await signup(page, email, password, userName);
   await completeOnboarding(page);
 
   await page.waitForURL(/\/app\/[^/]+$/);
   const protectedBotPath = new URL(page.url()).pathname;
-  await expect(page.getByPlaceholder("Message Chief")).toBeVisible();
+  await expect(page.getByPlaceholder("Message Sydney")).toBeVisible();
 
   await page.getByRole("button", { name: new RegExp(userName, "i") }).click();
   await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
@@ -171,7 +184,7 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   await expect(
     page.getByRole("alert").filter({ hasText: "Could not log out. Try again." }),
   ).toBeVisible();
-  await expect(page.getByPlaceholder("Message Chief")).toBeVisible();
+  await expect(page.getByPlaceholder("Message Sydney")).toBeVisible();
   await captureScreenshot(page, testInfo, "36-account-menu-logout-error");
   await page.unroute("**/api/auth/sign-out");
 
@@ -185,7 +198,7 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   };
   page.on("request", trackRefresh);
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByRole("heading", { name: "Sign in to Rakazo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
   page.off("request", trackRefresh);
   await Promise.all(refreshes);
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 250)));
@@ -195,14 +208,14 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   await expect(page.getByText(/Your team of always-on agents/)).toBeVisible();
   await page.getByRole("button", { name: /Sign up/ }).click();
   await expect(page).toHaveURL(/\/sign-up$/);
-  await expect(page.getByRole("heading", { name: "Create your Rakazo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create your Sydney" })).toBeVisible();
   await page.goto("/");
   await captureScreenshot(page, testInfo, "37-logged-out-welcome");
 
   await page.goto(protectedBotPath);
   await page.waitForURL((url) => url.pathname === "/sign-in");
-  await expect(page.getByRole("heading", { name: "Sign in to Rakazo" })).toBeVisible();
-  await expect(page.getByText("Chief", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Sign in to Sydney" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Message Sydney" })).toHaveCount(0);
   await expect(page.getByText(userName, { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "username webauthn");
   await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
@@ -227,10 +240,10 @@ test("logout protects bot deep links and sign-in restores the session", async ({
   await page.waitForURL((url) => url.pathname === protectedBotPath, {
     timeout: 20_000,
   });
-  const composer = page.getByRole("combobox", { name: "Message Chief" });
+  const composer = page.getByRole("combobox", { name: "Message Sydney" });
   await expect(composer).toHaveAttribute("name", "chat-message");
   await expect(composer).toHaveAttribute("autocomplete", "off");
-  await expect(composer).toHaveAttribute("aria-label", "Message Chief");
+  await expect(composer).toHaveAttribute("aria-label", "Message Sydney");
   await expect(page.getByRole("button", { name: new RegExp(userName, "i") })).toBeVisible();
 
   await composer.fill("line one");
@@ -338,7 +351,7 @@ test("changes and recovers an email password", async ({ page }, testInfo) => {
       html: string;
     }>;
     return messages.filter(
-      (message) => message.to === email && message.subject === "Reset your Rakazo password",
+      (message) => message.to === email && message.subject === "Reset your Sydney password",
     );
   };
   await expect.poll(async () => (await sentToUser()).length).toBeGreaterThan(0);

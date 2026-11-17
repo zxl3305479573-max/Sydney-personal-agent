@@ -13,6 +13,8 @@ import { getLogger } from "@rakazo/logging";
 import { credentialDigest } from "./credential-digest.js";
 import { installationSenderAddress } from "./installed-messaging-surface.js";
 
+export type MessagingInstallReturnTo = "web" | "mobile";
+
 /** OAuth state is short-lived, single-use and tied to a user, space and bot. */
 export class MessagingInstallations implements MessagingInstallationStore {
   constructor(
@@ -23,7 +25,12 @@ export class MessagingInstallations implements MessagingInstallationStore {
   ) {}
 
   /** Without a chosen bot, the workspace answers as the first bot in the user's default space. */
-  async start(actor: Actor, botId?: string): Promise<string> {
+  async start(
+    actor: Actor,
+    botId?: string,
+    returnTo: MessagingInstallReturnTo = "web",
+  ): Promise<string> {
+    if (returnTo !== "web" && returnTo !== "mobile") throw new Error("Invalid return target");
     const bot = botId
       ? await this.prisma.bot.findFirst({
           where: { id: botId, spaceId: actor.spaceId, userId: actor.userId, archivedAt: null },
@@ -44,10 +51,48 @@ export class MessagingInstallations implements MessagingInstallationStore {
           userId: actor.userId,
           botId: bot.id,
           expiresAt: new Date(Date.now() + 10 * 60_000),
+          returnTo,
         },
       });
     });
     return this.provider.authorizeUrl(state);
+  }
+
+  /** Public callbacks use this only to select a fixed redirect; completion stays authenticated. */
+  async returnToForState(state: string): Promise<MessagingInstallReturnTo | null> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(state)) return null;
+    return runAsSystem("resolve messaging workspace installation return target", async () => {
+      const session = await this.prisma.messagingInstallSession.findUnique({
+        where: { id: credentialDigest(state) },
+        select: { provider: true, returnTo: true, callbackReturnedAt: true, expiresAt: true },
+      });
+      if (
+        !session ||
+        session.provider !== this.provider.provider ||
+        session.expiresAt <= new Date()
+      )
+        return null;
+      if (session.returnTo === "mobile") return session.callbackReturnedAt ? null : "mobile";
+      return session.returnTo == null || session.returnTo === "web" ? "web" : null;
+    });
+  }
+
+  async claimMobileReturn(state: string): Promise<boolean> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(state)) return false;
+    return runAsSystem("return mobile messaging authorization once", async () => {
+      const now = new Date();
+      const result = await this.prisma.messagingInstallSession.updateMany({
+        where: {
+          id: credentialDigest(state),
+          provider: this.provider.provider,
+          returnTo: "mobile",
+          callbackReturnedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { callbackReturnedAt: now },
+      });
+      return result.count === 1;
+    });
   }
 
   private defaultBot(userId: string) {

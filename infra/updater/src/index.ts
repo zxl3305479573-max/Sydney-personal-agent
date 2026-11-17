@@ -767,15 +767,22 @@ export function createUpdaterApp(
       timeoutMs: STEP_TIMEOUT_MS[step.id] ?? DEFAULT_TIMEOUT_MS,
       env: step.command === "docker" ? { COMPOSE_PROJECT_NAME: config.projectName, ...env } : env,
     });
+    const usesLocalOverlay =
+      step.command === "docker" &&
+      config.composeFiles.some((composeFile) => step.args.includes(composeFile));
+    const safeResult =
+      usesLocalOverlay && !result.ok
+        ? { ...result, output: "Docker Compose failed while loading the configured local overlay." }
+        : result;
     record.steps.push({
       id: step.id,
       label: step.label,
-      ok: result.ok,
-      exitCode: result.exitCode,
-      output: result.output,
+      ok: safeResult.ok,
+      exitCode: safeResult.exitCode,
+      output: safeResult.output,
     });
-    if (!result.ok && setError) record.error = `${step.label} failed.`;
-    return result.ok;
+    if (!safeResult.ok && setError) record.error = `${step.label} failed.`;
+    return safeResult.ok;
   }
 
   function upToDateRecord(

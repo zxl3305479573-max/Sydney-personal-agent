@@ -35,6 +35,29 @@ export function unreadOverrideKey(kind: InboxChatKind, id: string) {
   return `${kind}:${id}`;
 }
 
+export type PinOverride = { pinned: boolean; generation: number; apiBase: string; spaceId?: string };
+
+export function applyPinOverrides<T extends { id: string; pinned?: boolean; spaceId?: string }>(
+  kind: InboxChatKind,
+  chats: T[],
+  overrides: ReadonlyMap<string, PinOverride>,
+  scope: { generation: number; apiBase: string; spaceId?: string },
+): T[] {
+  if (overrides.size === 0) return chats;
+  return chats.map((chat) => {
+    const override = overrides.get(unreadOverrideKey(kind, chat.id));
+    if (
+      !override ||
+      override.generation !== scope.generation ||
+      override.apiBase !== scope.apiBase ||
+      override.spaceId !== (chat.spaceId ?? scope.spaceId) ||
+      override.pinned === chat.pinned
+    )
+      return chat;
+    return { ...chat, pinned: override.pinned };
+  });
+}
+
 /** Leaves out chats being archived: the row goes at the tap, and a poll can't bring it back. */
 export function withoutArchiving<T extends { id: string }>(
   kind: InboxChatKind,
@@ -64,7 +87,7 @@ export function applyUnreadOverrides<T extends { id: string; unread?: boolean }>
  * `settled` runs synchronously once nothing is left to send, or after a failure.
  */
 export function createLatestQueue<T>() {
-  const latest = new Map<string, T>();
+  const latest = new Map<string, { value: T }>();
   return async function send(
     key: string,
     value: T,
@@ -72,13 +95,18 @@ export function createLatestQueue<T>() {
     settled: () => void,
   ): Promise<void> {
     const running = latest.has(key);
-    latest.set(key, value);
+    latest.set(key, { value });
     if (running) return;
     try {
       for (;;) {
-        const next = latest.get(key) as T;
-        await request(next);
-        if (latest.get(key) === next) return;
+        const next = latest.get(key)!;
+        try {
+          await request(next.value);
+        } catch (error) {
+          if (latest.get(key) === next) throw error;
+          continue;
+        }
+        if (latest.get(key)?.value === next.value) return;
       }
     } finally {
       latest.delete(key);

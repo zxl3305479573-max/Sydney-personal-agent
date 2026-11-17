@@ -1,7 +1,4 @@
-import { AppLocaleSchema } from "@rakazo/contracts";
-import { matchUiLocale } from "@rakazo/core";
-
-export const UI_LOCALES = AppLocaleSchema.options;
+export const UI_LOCALES: readonly ["zh-CN", "en"] = ["zh-CN", "en"];
 
 export type UiLocale = (typeof UI_LOCALES)[number];
 
@@ -9,24 +6,12 @@ export const UI_LOCALE_STORAGE_KEY = "rakazo.uiLocale";
 
 export const UI_LOCALE_LABELS: Record<UiLocale, string> = {
   en: "English",
-  de: "Deutsch",
-  ko: "한국어",
-  tr: "Türkçe",
-  hi: "हिन्दी",
-  "pt-BR": "Português (Brasil)",
   "zh-CN": "简体中文",
-  "zh-TW": "繁體中文",
-  es: "Español",
-  ru: "Русский",
-  fr: "Français",
-  he: "עברית",
-  nl: "Nederlands",
-  ja: "日本語",
 };
 
-/** Normalize BCP-47 tags (`de-DE`, `ko-KR`, `pt-BR`, `zh-CN`, `es-ES`) to a supported UI locale, else `en`. */
+/** Retain English preferences; map unsupported legacy preferences to Chinese. */
 export function normalizeUiLocale(raw: string | null | undefined): UiLocale {
-  return matchUiLocale(raw, UI_LOCALES);
+  return raw?.trim().toLowerCase().startsWith("en") ? "en" : "zh-CN";
 }
 
 function readStoredLocale(storage: Pick<Storage, "getItem"> | null | undefined): string | null {
@@ -43,15 +28,6 @@ function readEnvDefault(env: { VITE_DEFAULT_UI_LOCALE?: string } | undefined): s
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function readNavigatorLanguage(
-  nav: Pick<Navigator, "language" | "languages"> | null | undefined,
-): string | null {
-  if (!nav) return null;
-  if (typeof nav.language === "string" && nav.language) return nav.language;
-  const first = nav.languages?.[0];
-  return typeof first === "string" && first ? first : null;
-}
-
 export type ResolveUiLocaleOptions = {
   stored?: string | null;
   envDefault?: string | null;
@@ -62,8 +38,7 @@ export type ResolveUiLocaleOptions = {
 };
 
 /**
- * Order: saved choice (`localStorage`) → `VITE_DEFAULT_UI_LOCALE` →
- * `navigator.language` → English.
+ * Order: saved choice (`localStorage`) → `VITE_DEFAULT_UI_LOCALE` → Chinese.
  */
 export function resolveUiLocale(options: ResolveUiLocaleOptions = {}): UiLocale {
   const stored =
@@ -87,15 +62,7 @@ export function resolveUiLocale(options: ResolveUiLocaleOptions = {}): UiLocale 
         );
   if (envDefault) return normalizeUiLocale(envDefault);
 
-  const navigatorLanguage =
-    options.navigatorLanguage !== undefined
-      ? options.navigatorLanguage
-      : readNavigatorLanguage(
-          options.navigator ?? (typeof navigator !== "undefined" ? navigator : null),
-        );
-  if (navigatorLanguage) return normalizeUiLocale(navigatorLanguage);
-
-  return "en";
+  return "zh-CN";
 }
 
 export function persistUiLocale(

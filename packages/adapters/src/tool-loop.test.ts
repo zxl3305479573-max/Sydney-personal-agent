@@ -41,18 +41,18 @@ describe("advanceToolCallLoopGuard", () => {
     }
   });
 
-  it("stops six consecutive identical calls that return the same tool error", () => {
+  it("stops four consecutive identical calls that return the same tool error", () => {
     let streak = { key: undefined as string | undefined, count: 0 };
     let stuck = false;
 
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       const result = advanceToolCallLoopGuard(streak, "shell", { command: "npm test" }, failure());
       streak = result.streak;
       stuck = result.stuck;
     }
 
     expect(stuck).toBe(true);
-    expect(streak.count).toBe(6);
+    expect(streak.count).toBe(4);
   });
 
   it("stops calls that differ only by a number in a text argument", () => {
@@ -87,10 +87,8 @@ describe("advanceToolCallLoopGuard", () => {
       throw new Error("never stopped");
     };
 
-    expect(stopText(() => "npm test")).toContain(" with the same input 6 times in a row");
-    expect(stopText((call) => `echo noop-${call}`)).toContain(
-      " with nearly the same input 25 times",
-    );
+    expect(stopText(() => "npm test")).toContain("连续 4 次使用相同输入");
+    expect(stopText((call) => `echo noop-${call}`)).toContain("连续 25 次使用相似输入");
     expect(isLoopGuardStopText(stopText(() => "npm test"))).toBe(true);
     expect(isLoopGuardStopText("An ordinary reply")).toBe(false);
     expect(isLoopGuardStopText(stopText((call) => `echo noop-${call}`))).toBe(true);
@@ -101,7 +99,7 @@ describe("advanceToolCallLoopGuard", () => {
     for (let call = 1; call <= 10; call += 1) {
       streak = advanceToolCallLoopGuard(streak, "shell", { command: `echo noop-${call}` }).streak;
     }
-    for (let call = 0; call < 6; call += 1) {
+    for (let call = 0; call < 4; call += 1) {
       streak = advanceToolCallLoopGuard(
         streak,
         "shell",
@@ -109,7 +107,7 @@ describe("advanceToolCallLoopGuard", () => {
         failure(),
       ).streak;
     }
-    expect(loopGuardStopText("shell", streak)).toContain(" with the same input 6 times in a row");
+    expect(loopGuardStopText("shell", streak)).toContain("连续 4 次使用相同输入");
   });
 
   it.each([
@@ -136,15 +134,15 @@ describe("advanceToolCallLoopGuard", () => {
   });
 
   it.each([
-    ["the same failure", () => failure(), 6],
+    ["the same failure", () => failure(), 4],
     ["the same answer", () => answer("Still loading"), 25],
     ["an unknown answer", () => undefined, 25],
     ["a new answer each time", (call: number) => answer(`Downloaded ${call * 10}%`), undefined],
     // Only the first switch is new; after that both are known.
-    ["alternating failures", (call: number) => failure(call % 2 ? "a" : "b"), 7],
+    ["alternating failures", (call: number) => failure(call % 2 ? "a" : "b"), 26],
     ["alternating answers", (call: number) => answer(call % 2 ? "a" : "b"), 26],
-    // The first failure, from call 5, starts the run the sixth failing call stops.
-    ["a failure after four answers", (call: number) => (call <= 4 ? answer("ok") : failure()), 10],
+    // The first failure, from call 5, starts the run the fourth failing call stops.
+    ["a failure after four answers", (call: number) => (call <= 4 ? answer("ok") : failure()), 8],
     // Call 20's new answer starts the run over from it, so its 25th repeat stops.
     ["an answer that changes at call 20", (call: number) => answer(call < 20 ? "a" : "b"), 44],
     // A wait with transient errors: the first error starts the run over from call 4.
@@ -165,7 +163,7 @@ describe("advanceToolCallLoopGuard", () => {
   });
 
   it.each([
-    ["identical", () => "npm test", 6],
+    ["identical", () => "npm test", 4],
     ["digits-only", (call: number) => `cat page-${call}.txt`, 25],
   ])("counts %s calls once per model response", (_, command, limit) => {
     const stopsAt = (response: (call: number) => number) => {
@@ -266,8 +264,8 @@ describe("advanceOverLimitActionCalls", () => {
 describe("overLimitStopText", () => {
   it("names the over-limit batches and is recognised as a loop-guard stop", () => {
     const text = overLimitStopText("Computer act", 4);
-    expect(text).toContain("with too many actions 4 times in a row");
-    expect(text).not.toContain("same input");
+    expect(text).toContain("连续 4 次提交过多操作");
+    expect(text).not.toContain("相同输入");
     expect(isLoopGuardStopText(text)).toBe(true);
   });
 });

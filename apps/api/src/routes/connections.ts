@@ -333,7 +333,12 @@ export function connectionsRoutes(ctx: RouterContext) {
           const auth = await connector.begin(
             {
               provider: input.provider,
-              redirectUrl: `${deps.env.webOrigin}/integrations/callback`,
+              redirectUrl: deps.env.integrationApiCallbackEnabled
+                ? new URL(
+                    "/api/v1/integrations/callback",
+                    deps.env.authPublicLinkOrigin ?? deps.env.webOrigin,
+                  ).href
+                : `${deps.env.webOrigin}/integrations/callback`,
             },
             connectionContext(context.actor, "connections.begin", context.signal),
           );

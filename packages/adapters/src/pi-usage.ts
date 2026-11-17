@@ -15,6 +15,7 @@ import type {
   ModelCallObserver,
   UsageOperationKind,
 } from "@rakazo/adapter-kit";
+import { getLogger } from "@rakazo/logging";
 import { Agent } from "undici";
 import { withChatCompletionsCompatibility } from "./chat-completions-compat.js";
 import type { ContextBudget } from "./context-selection.js";
@@ -367,6 +368,10 @@ export function observedPiStream(
       let partialMessage: AssistantMessage | undefined;
       let providerError: unknown;
       let providerThrew = false;
+      let modelStartedAt: number | undefined;
+      let modelEndedAt: number | undefined;
+      let firstOutputAt: number | undefined;
+      let modelOutcome: "completed" | "error" | "interrupted" = "interrupted";
       try {
         // A tool-budget or cancellation stop can reach Pi's next-turn hook after
         // aborting. It is not a model invocation and must not create unknown usage.
@@ -416,6 +421,7 @@ export function observedPiStream(
           const reportRequestId = (id: string) =>
             reservation !== undefined ? observer?.onRequestId?.(reservation, id) : undefined;
           const callerOnProviderStreamEvent = streamOptions?.onProviderStreamEvent;
+          modelStartedAt = Date.now();
           upstream = models.streamSimple(
             model,
             preparedContext,
@@ -458,6 +464,13 @@ export function observedPiStream(
             })()
           : upstream;
         for await (const event of events) {
+          if (
+            firstOutputAt === undefined &&
+            (event.type === "text_delta" ||
+              event.type === "thinking_delta" ||
+              event.type === "toolcall_delta")
+          )
+            firstOutputAt = Date.now();
           if (hooks?.onProviderError) {
             partialMessage =
               event.type === "done"
@@ -467,6 +480,8 @@ export function observedPiStream(
                   : event.partial;
           }
           if (event.type === "done" || event.type === "error") {
+            modelEndedAt = Date.now();
+            modelOutcome = event.type === "done" ? "completed" : "error";
             const message = event.type === "done" ? event.message : event.error;
             normalized = normalizePiUsage(message.usage, model, reported);
             span?.setAttributes({
@@ -505,6 +520,8 @@ export function observedPiStream(
         }
         stream.end(await upstream.result());
       } catch (error) {
+        if (modelStartedAt !== undefined) modelEndedAt ??= Date.now();
+        modelOutcome = options?.signal?.aborted ? "interrupted" : "error";
         span?.setStatus({ status: "error" });
         let terminalError = error;
         if (started && normalized === null) {
@@ -551,6 +568,21 @@ export function observedPiStream(
         if (providerThrew && terminalError === providerError) hooks?.onProviderError?.(message);
         stream.push({ type: "error", reason: "error", error: message });
         stream.end(message);
+      } finally {
+        if (modelStartedAt !== undefined && attribution.runId) {
+          try {
+            getLogger().info("model.call_timing", {
+              "run.id": attribution.runId,
+              "model.operation": attribution.operationKind,
+              "model.duration_ms": Math.max(0, (modelEndedAt ?? Date.now()) - modelStartedAt),
+              "model.first_output_ms":
+                firstOutputAt === undefined
+                  ? undefined
+                  : Math.max(0, firstOutputAt - modelStartedAt),
+              "model.outcome": modelOutcome,
+            });
+          } catch {}
+        }
       }
     },
   );

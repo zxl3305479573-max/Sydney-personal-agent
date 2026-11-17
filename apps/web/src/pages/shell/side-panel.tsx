@@ -1,4 +1,4 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import type {
   AgentSkillCatalogEntry,
   Bot,
@@ -10,6 +10,7 @@ import { Button } from "@rakazo/ui-web";
 import { X } from "lucide-react";
 import type { ComponentProps, Dispatch, ReactNode, SetStateAction } from "react";
 import { ComputerMaintenanceActions } from "../../components/ComputerMaintenanceActions";
+import { ConversationBackgroundSettings } from "../../components/ConversationBackground";
 import { PageBreadcrumb } from "../../components/PageBreadcrumb";
 import type { Panel } from "../../lib/right-panel-state";
 import type { createSpaceRpc } from "../../lib/rpc";
@@ -28,8 +29,10 @@ export function ShellSidePanel({
   rpc,
   panel,
   setPanel,
+  onCancelCreateGroup,
   active,
   activeGroup,
+  chatKey,
   bots,
   groups,
   setBots,
@@ -55,8 +58,10 @@ export function ShellSidePanel({
   rpc: ReturnType<typeof createSpaceRpc>;
   panel: Panel;
   setPanel: (panel: Panel) => void;
+  onCancelCreateGroup: () => void;
   active: Bot | undefined;
   activeGroup: Group | undefined;
+  chatKey?: string;
   bots: Bot[];
   groups: Group[];
   setBots: Dispatch<SetStateAction<Bot[]>>;
@@ -80,7 +85,9 @@ export function ShellSidePanel({
   onClearBot: (bot: Bot) => void;
 }) {
   const { t } = useLingui();
-  const open = Boolean(panel && (active || activeGroup || panel === "import-agent"));
+  const open = Boolean(
+    panel && (active || activeGroup || panel === "import-agent" || panel === "create-group"),
+  );
   const botTab =
     panel === "computer" || panel === "routines" || panel === "settings" ? panel : null;
   const botPanelLabel =
@@ -105,11 +112,7 @@ export function ShellSidePanel({
           panel !== "group-settings" &&
           panel !== "import-agent" ? (
             <div className="mb-4 flex items-center justify-between">
-              {!active && panel !== "settings" ? (
-                <span className="text-[13.5px] text-muted-foreground">
-                  <Trans>Group</Trans>
-                </span>
-              ) : null}
+              {botTab && active ? <PageBreadcrumb label={botPanelLabel} inline /> : null}
               <div className="ml-auto flex gap-1">
                 {active &&
                 panel === "computer" &&
@@ -134,11 +137,10 @@ export function ShellSidePanel({
               </div>
             </div>
           ) : null}
-          {botTab && active ? <PageBreadcrumb label={botPanelLabel} inline /> : null}
           {panel === "create-group" ? (
             <CreateGroupForm
               bots={bots}
-              onCancel={() => setPanel(null)}
+              onCancel={onCancelCreateGroup}
               onCreate={(input) => createGroup(input)}
               onOpenBot={(botId) => {
                 setPanel(null);
@@ -151,6 +153,9 @@ export function ShellSidePanel({
               key={activeGroup.id}
               group={activeGroup}
               bots={bots}
+              backgroundSettings={
+                chatKey ? <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} /> : null
+              }
               onSave={async (input) => {
                 const updated = await rpc.groups.update({ groupId: activeGroup.id, ...input });
                 setGroups((current) =>
@@ -193,6 +198,9 @@ export function ShellSidePanel({
               }}
               computer={computerPanel}
               routines={routinesPanel}
+              backgroundSettings={
+                chatKey ? <ConversationBackgroundSettings key={chatKey} chatKey={chatKey} /> : null
+              }
               focusModel={modelFocusRequest}
               onOpenConnections={() => openSettings("models")}
               memoryProviderConfigured={memoryProviderConfigured}

@@ -1,8 +1,9 @@
 import type { PrismaClient } from "./client.js";
-import { IsolationError } from "./scope.js";
+import { Prisma } from "./generated/prisma/client.js";
+import { conversationScopeWhere } from "./project-workspace-context.js";
 import { currentDbContext } from "./row-security.js";
 import { RUN_TURN_CHECKPOINT_KIND } from "./run-turn-checkpoint.js";
-import { Prisma } from "./generated/prisma/client.js";
+import { IsolationError } from "./scope.js";
 
 type Tenant = { userId: string; spaceId: string };
 
@@ -37,13 +38,20 @@ export async function readTaskExecutionHistory(
     throw new IsolationError();
   }
   const maxRuns = Math.min(Math.max(limits.maxRuns ?? DEFAULT_LIMITS.maxRuns, 1), 10_000);
-  const maxAttempts = Math.min(Math.max(limits.maxAttempts ?? DEFAULT_LIMITS.maxAttempts, 1), 10_000);
+  const maxAttempts = Math.min(
+    Math.max(limits.maxAttempts ?? DEFAULT_LIMITS.maxAttempts, 1),
+    10_000,
+  );
   const maxEffects = Math.min(Math.max(limits.maxEffects ?? DEFAULT_LIMITS.maxEffects, 1), 10_000);
   const effectsPerRun = Math.max(1, Math.floor(maxEffects / maxRuns));
   return prisma.$transaction(
     async (tx) => {
       const runs = await tx.run.findMany({
-        where: { taskId, ...actor },
+        where: {
+          taskId,
+          ...conversationScopeWhere(actor),
+          task: { ...conversationScopeWhere(actor) },
+        },
         select: {
           id: true,
           status: true,

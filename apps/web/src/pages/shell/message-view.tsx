@@ -1,10 +1,7 @@
+import { i18n } from "@lingui/core";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import {
-  ChatMarkdown,
-  LinkifiedText,
-  withBlockMentions,
-} from "@rakazo/chat-ui/web";
+import { ChatMarkdown, LinkifiedText, withBlockMentions } from "@rakazo/chat-ui/web";
 import type {
   BotAvatarSet,
   LoginFieldInput,
@@ -12,7 +9,7 @@ import type {
   ThreadMessage,
 } from "@rakazo/contracts";
 import type { ChildBotBlock, PeerExchange } from "@rakazo/core";
-import { isPeerReceiptBlocks, isToolActivityBlock } from "@rakazo/core";
+import { isLoopGuardStopText, isPeerReceiptBlocks, isToolActivityBlock } from "@rakazo/core";
 import { BotAvatar, Button, cn, resolvePersonaColorDef } from "@rakazo/ui-web";
 import { UserRound } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
@@ -93,17 +90,12 @@ export const MessageView = memo(function MessageView({
     remember?: false,
   ) => Promise<void>;
   onOpenBot: (botId: string) => void;
-  onOpenPeerMessages: (peer: {
-    peerBotId: string;
-    peerBotName: string;
-  }) => void;
+  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
   /** The adjacent receipts represented by this peer line. */
   peerExchange?: PeerExchange;
   speakerName?: string;
   memberName?: (botId: string | undefined) => string | undefined;
-  peerBot: (
-    botId: string,
-  ) =>
+  peerBot: (botId: string) =>
     | {
         name?: string;
         color: string;
@@ -133,10 +125,7 @@ export const MessageView = memo(function MessageView({
     message.role === "bot" &&
     message.blocks.length > 0 &&
     message.blocks.every(
-      (block) =>
-        block.kind === "text" ||
-        block.kind === "progress" ||
-        block.kind === "steps",
+      (block) => block.kind === "text" || block.kind === "progress" || block.kind === "steps",
     );
   const isLive = message.id.startsWith("progress:");
   const quoteMessageId = message.id.includes(":") ? undefined : message.id;
@@ -152,10 +141,7 @@ export const MessageView = memo(function MessageView({
         : message.blocks,
     [message.blocks, mentions],
   );
-  const visibleNarrationBlocks = renderableMessageBlocks(
-    blocks,
-    showToolActivity,
-  );
+  const visibleNarrationBlocks = renderableMessageBlocks(blocks, showToolActivity);
   const renderMention = useCallback(
     (id: string) => {
       const block = mentions?.find((bot) => bot.botId === id);
@@ -197,9 +183,7 @@ export const MessageView = memo(function MessageView({
         size={68}
       />
       <div className="min-w-0 pt-1">
-        <div
-          className="mb-1 text-[17px] font-semibold tracking-tight text-foreground"
-        >
+        <div className="mb-1 text-[17px] font-semibold tracking-tight text-foreground">
           {speakerName}
         </div>
         {replyLine}
@@ -210,24 +194,55 @@ export const MessageView = memo(function MessageView({
   );
   // Anchored below the speaker and reply line so the rail centers on the bubble itself.
   // A message with text and attachments anchors it on its first text bubble.
-  const textAnchorIndex = message.blocks.findIndex(
-    (block) => block.kind === "text",
-  );
+  const textAnchorIndex = message.blocks.findIndex((block) => block.kind === "text");
   const hoverAnchorIndex =
     textAnchorIndex === -1
       ? message.blocks.findIndex((block) => block.kind === "ask")
       : textAnchorIndex;
   const peerReceipt = isPeerReceiptBlocks(message.blocks);
-  const hoverActions = peerReceipt || message.id.startsWith("pending:") ? null : (
-    <MessageHoverActions
-      message={message}
-      side={message.role === "user" ? "start" : "end"}
-      onReply={onReply}
-      onMarkUnread={onMarkUnread}
-      markedUnread={markedUnread}
-      onReact={onReact}
-    />
-  );
+  const hoverActions =
+    peerReceipt || message.id.startsWith("pending:") ? null : (
+      <MessageHoverActions
+        message={message}
+        side={message.role === "user" ? "start" : "end"}
+        onReply={onReply}
+        onMarkUnread={onMarkUnread}
+        markedUnread={markedUnread}
+        onReact={onReact}
+      />
+    );
+  const stopBlock = message.blocks.length === 1 ? message.blocks[0] : undefined;
+  if (
+    message.role === "bot" &&
+    !isLive &&
+    stopBlock?.kind === "text" &&
+    isLoopGuardStopText(stopBlock.text)
+  ) {
+    const chinese = !i18n.locale?.toLowerCase().startsWith("en");
+    return (
+      <>
+        {messageContext}
+        <div className="relative w-fit max-w-full">
+          <div role="status" className="rk-chat-type space-y-2 text-foreground/80">
+            <p>
+              {chinese
+                ? "任务因重复尝试未能继续，已停止。此前的部分操作可能已经执行，请先检查结果。"
+                : "The task stopped after repeated attempts. Some earlier actions may already have happened; check the results first."}
+            </p>
+            <p>
+              {chinese
+                ? "确认后，你可以回复说明下一步，或调整任务要求。"
+                : "After checking, reply with the next step or adjust your request."}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => onReply(message)}>
+              {chinese ? "回复说明下一步" : "Reply with next step"}
+            </Button>
+          </div>
+          {hoverActions}
+        </div>
+      </>
+    );
+  }
   if (isNarration) {
     if (visibleNarrationBlocks.length === 0) return null;
     if (isToolOnlyNarration(message.blocks, showToolActivity)) {
@@ -245,10 +260,14 @@ export const MessageView = memo(function MessageView({
       <>
         {messageContext}
         <div className="relative w-fit max-w-full [@media(hover:none)]:w-full">
-          <div className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full">
+          <div
+            data-speaker={speakerName ? "true" : undefined}
+            className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
+          >
             <div
               data-testid="message-bot-bubble"
-              className="rk-chat-type max-w-full space-y-2.5 text-foreground/80"
+              className="sydney-chat-bubble-bot rk-chat-type max-w-full space-y-2.5 text-foreground/80"
+              style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
               dir="auto"
             >
               {visibleNarrationBlocks.map((block, i) => {
@@ -262,9 +281,7 @@ export const MessageView = memo(function MessageView({
                     >
                       <ToolSteps
                         steps={block.steps}
-                        currentIndex={
-                          isLive ? block.steps.length - 1 : undefined
-                        }
+                        currentIndex={isLive ? block.steps.length - 1 : undefined}
                         limit={isLive ? LIVE_TOOL_STEP_WINDOW : undefined}
                       />
                     </ToolActivityDisclosure>
@@ -274,9 +291,7 @@ export const MessageView = memo(function MessageView({
                   return (
                     <div
                       key={i}
-                      data-quote-message-id={
-                        block.kind === "text" ? quoteMessageId : undefined
-                      }
+                      data-quote-message-id={block.kind === "text" ? quoteMessageId : undefined}
                     >
                       <ChatMarkdown
                         streaming={block.kind === "progress"}
@@ -290,9 +305,7 @@ export const MessageView = memo(function MessageView({
                 }
                 return null;
               })}
-              {!isLive &&
-              voiceReady &&
-              message.blocks.some((block) => block.kind === "text") ? (
+              {!isLive && voiceReady && message.blocks.some((block) => block.kind === "text") ? (
                 <Button
                   variant="text"
                   size="xs"
@@ -320,10 +333,7 @@ export const MessageView = memo(function MessageView({
         )}
       >
         {blocks.map((block, i) => {
-          if (
-            block.kind === "steps" &&
-            shouldRenderToolCard(block, showToolActivity)
-          ) {
+          if (block.kind === "steps" && shouldRenderToolCard(block, showToolActivity)) {
             return (
               <StandaloneToolActivity
                 key={i}
@@ -350,23 +360,16 @@ export const MessageView = memo(function MessageView({
               </div>
             );
           }
-          if (
-            block.kind === "bot_message_sent" ||
-            block.kind === "bot_message_received"
-          ) {
+          if (block.kind === "bot_message_sent" || block.kind === "bot_message_received") {
             const sent = block.kind === "bot_message_sent";
             if (
               i !==
               blocks.findIndex(
-                (b) =>
-                  b.kind === "bot_message_sent" ||
-                  b.kind === "bot_message_received",
+                (b) => b.kind === "bot_message_sent" || b.kind === "bot_message_received",
               )
             )
               return null;
-            const peer =
-              peerExchange?.peerBotName ??
-              (sent ? block.toBotName : block.fromBotName);
+            const peer = peerExchange?.peerBotName ?? (sent ? block.toBotName : block.fromBotName);
             const peerBotId = sent ? block.toBotId : block.fromBotId;
             const count = peerExchange?.count ?? 1;
             const label =
@@ -383,9 +386,7 @@ export const MessageView = memo(function MessageView({
                 avatarSet={peerBot(peerBotId)?.avatarSet}
                 identity={peerBotId}
                 label={label}
-                onClick={() =>
-                  onOpenPeerMessages({ peerBotId, peerBotName: peer })
-                }
+                onClick={() => onOpenPeerMessages({ peerBotId, peerBotName: peer })}
               />
             );
           }
@@ -419,11 +420,13 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
+                data-speaker={speakerName ? "true" : undefined}
                 className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full text-foreground/80"
+                  className="sydney-chat-bubble-bot rk-chat-type max-w-full text-foreground/80"
+                  style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
                   dir="auto"
                 >
                   <ChatMarkdown streaming renderMention={renderMention} showWebsiteUrls>
@@ -447,32 +450,19 @@ export const MessageView = memo(function MessageView({
                 />
                 {block.status === "created" ? null : (
                   <span className="text-muted-foreground">
-                    {block.status === "archived" ? (
-                      <Trans>archived</Trans>
-                    ) : (
-                      <Trans>deleted</Trans>
-                    )}
+                    {block.status === "archived" ? <Trans>archived</Trans> : <Trans>deleted</Trans>}
                   </span>
                 )}
               </div>
             );
           }
           if (block.kind === "choice") {
-            const botId =
-              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
-            return (
-              <ChoiceCard
-                key={i}
-                botId={botId}
-                block={block}
-                onBotChanged={onBotChanged}
-              />
-            );
+            return <ChoiceCard key={i} botId={botId} block={block} onBotChanged={onBotChanged} />;
           }
           if (block.kind === "app_connect") {
-            const botId =
-              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
             return (
               <div key={i} className="flex justify-start">
@@ -488,11 +478,7 @@ export const MessageView = memo(function MessageView({
           if (block.kind === "chart") {
             return (
               <div key={i} className="flex justify-start">
-                <ChartBlockView
-                  name={block.name}
-                  spec={block.spec}
-                  data={block.data}
-                />
+                <ChartBlockView name={block.name} spec={block.spec} data={block.data} />
               </div>
             );
           }
@@ -500,11 +486,7 @@ export const MessageView = memo(function MessageView({
             return (
               <div key={i} className="flex justify-start">
                 <ImportSetupCard
-                  botId={
-                    "botId" in artifactTarget
-                      ? artifactTarget.botId
-                      : message.botId
-                  }
+                  botId={"botId" in artifactTarget ? artifactTarget.botId : message.botId}
                   block={block}
                   onOpen={onOpenImportSetup}
                 />
@@ -512,16 +494,11 @@ export const MessageView = memo(function MessageView({
             );
           }
           if (block.kind === "mcp_approval") {
-            const botId =
-              "botId" in artifactTarget ? artifactTarget.botId : message.botId;
+            const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
             return (
               <div key={i} className="flex justify-start">
-                <McpApprovalCard
-                  botId={botId}
-                  threadId={message.threadId}
-                  block={block}
-                />
+                <McpApprovalCard botId={botId} threadId={message.threadId} block={block} />
               </div>
             );
           }
@@ -567,7 +544,8 @@ export const MessageView = memo(function MessageView({
                 <div
                   data-testid="message-user-bubble"
                   data-quote-message-id={quoteMessageId}
-                  className="rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
+                  className="sydney-chat-bubble-user rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
+                  style={{ color: "var(--custom-chat-user-foreground, var(--foreground))" }}
                   dir="auto"
                 >
                   <LinkifiedText>{block.text}</LinkifiedText>
@@ -580,14 +558,14 @@ export const MessageView = memo(function MessageView({
             return (
               <div
                 key={i}
+                data-speaker={speakerName ? "true" : undefined}
                 className="sydney-assistant-content relative flex w-fit max-w-full justify-start [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
               >
                 <div
                   data-testid="message-bot-bubble"
-                  className="rk-chat-type max-w-full text-foreground/80"
+                  className="sydney-chat-bubble-bot rk-chat-type max-w-full text-foreground/80"
                   style={{
-                    color:
-                      "var(--custom-chat-bot-foreground, var(--foreground))",
+                    color: "var(--custom-chat-bot-foreground, var(--foreground))",
                   }}
                   dir="auto"
                 >
@@ -600,9 +578,7 @@ export const MessageView = memo(function MessageView({
                     <Button
                       variant="text"
                       size="xs"
-                      aria-label={
-                        speaking ? t`Stop speaking` : t`Speak this reply`
-                      }
+                      aria-label={speaking ? t`Stop speaking` : t`Speak this reply`}
                       onClick={speak}
                       className="mt-2 font-normal"
                     >
@@ -619,14 +595,9 @@ export const MessageView = memo(function MessageView({
               <div key={i} className="flex justify-start">
                 <div className="flex flex-col gap-2 rounded-[20px] bg-muted px-5 py-4">
                   {block.lines.map((line) => (
-                    <div
-                      key={line.k}
-                      className="flex items-baseline gap-2.5 text-[15px]"
-                    >
+                    <div key={line.k} className="flex items-baseline gap-2.5 text-[15px]">
                       <span className="text-success">✓</span>
-                      <span className="font-semibold text-foreground">
-                        {line.k}
-                      </span>
+                      <span className="font-semibold text-foreground">{line.k}</span>
                       <span className="text-muted-foreground">→</span>
                       <span>{line.v}</span>
                     </div>
@@ -651,16 +622,11 @@ export const MessageView = memo(function MessageView({
               </div>
             );
           }
-          if (block.kind === "cloud_agent")
-            return <CloudAgentCard key={i} block={block} />;
+          if (block.kind === "cloud_agent") return <CloudAgentCard key={i} block={block} />;
           if (block.kind === "skill_draft") {
             return (
               <div key={i} className="flex justify-start">
-                <SkillDraftCard
-                  block={block}
-                  onRefresh={onRefresh}
-                  onAddRoutine={onAddRoutine}
-                />
+                <SkillDraftCard block={block} onRefresh={onRefresh} onAddRoutine={onAddRoutine} />
               </div>
             );
           }
@@ -732,25 +698,15 @@ function BotMention({
     <span
       dir="auto"
       className="font-medium"
-      style={
-        live
-          ? { color: resolvePersonaColorDef(block.botId, color).light }
-          : undefined
-      }
+      style={live ? { color: resolvePersonaColorDef(block.botId, color).light } : undefined}
     >
       {block.name}
     </span>
   );
   if (!live) {
     return (
-      <span
-        data-testid="bot-mention"
-        className="inline-flex items-baseline gap-1.5"
-      >
-        <UserRound
-          className="size-4 self-center text-muted-foreground"
-          aria-hidden="true"
-        />
+      <span data-testid="bot-mention" className="inline-flex items-baseline gap-1.5">
+        <UserRound className="size-4 self-center text-muted-foreground" aria-hidden="true" />
         {name}
       </span>
     );
@@ -763,12 +719,7 @@ function BotMention({
       className="-mx-1 inline-flex items-baseline gap-1.5 rounded-md px-1 transition-colors hover:bg-accent"
     >
       <span className="self-center">
-        <BotAvatar
-          avatarSet={avatarSet}
-          color={color}
-          identity={block.botId}
-          size={18}
-        />
+        <BotAvatar avatarSet={avatarSet} color={color} identity={block.botId} size={18} />
       </span>
       {name}
     </button>

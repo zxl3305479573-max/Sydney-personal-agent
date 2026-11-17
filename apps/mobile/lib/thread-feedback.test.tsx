@@ -66,6 +66,17 @@ vi.mock("./live-notifications", () => ({ resumeLiveNotifications: vi.fn() }));
 vi.mock("./network-cache", () => ({ clearNetworkCache: vi.fn() }));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
 vi.mock("./native", () => ({ useMobileTokens: () => ({}) }));
+vi.mock("./chat-appearance", () => ({
+  useMobileChatAppearance: () => ({ bubble: null }),
+  mobileBubbleSurfaceStyle: (
+    _appearance: unknown,
+    _role: string,
+    fallback: { backgroundColor: string },
+  ) => ({
+    ...fallback,
+    borderRadius: 20,
+  }),
+}));
 vi.mock("./i18n", () => ({
   t: (text: string) => text,
   useI18n: () => ({ t: (text: string) => text }),
@@ -289,7 +300,7 @@ describe("scoped mobile outbox", () => {
     });
     expect(disk.forget).not.toHaveBeenCalled();
   });
-  it.each(["Read failed", "OUTBOX_STORAGE_UNAVAILABLE"])(
+  it.each(["Read failed", "OUTBOX_STORAGE_UNAVAILABLE", "OUTBOX_SCOPE_MISMATCH"])(
     "finishes a failed restore (%s) without overwriting recoverable messages",
     async (message) => {
       act(() => clearFailedSends());
@@ -298,6 +309,7 @@ describe("scoped mobile outbox", () => {
         throw new Error(message);
       });
       act(() => restoreUnsentSends());
+      expect(feedback.outboxRestoreFailed).toBe(true);
       const attempt = feedback.sendAttempt(payload());
       await act(async () => {
         expect(await feedback.send(attempt)).toBe(true);
@@ -306,6 +318,8 @@ describe("scoped mobile outbox", () => {
       expect(disk.clear).not.toHaveBeenCalled();
       act(() => restoreUnsentSends());
       expect(disk.load).toHaveBeenCalledOnce();
+      act(() => clearFailedSends());
+      expect(feedback.outboxRestoreFailed).toBe(false);
     },
   );
   it("sends in a new session without loading discarded messages when clearing fails", async () => {

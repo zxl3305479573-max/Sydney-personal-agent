@@ -170,8 +170,10 @@ describe("iOS action styling", () => {
         { name: "controlSize", value: "regular" },
       ]),
     );
-    expect(modifiers).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "font" })]),
+    expect(modifiers).toEqual(
+      expect.arrayContaining([
+        { name: "font", value: { family: "Iowan Old Style", textStyle: "callout" } },
+      ]),
     );
     expect(modifiers).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "foregroundStyle" })]),

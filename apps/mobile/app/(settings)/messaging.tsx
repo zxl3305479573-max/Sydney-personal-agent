@@ -8,8 +8,8 @@ import type {
 } from "@rakazo/contracts";
 import { messagingConnectOptions, messagingProviderName } from "@rakazo/core";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { AppState, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LoadFailure } from "../../components/load-failure";
 import { MenuPicker, MenuPickerMenu } from "../../components/menu-picker";
 import { NativeActionButton } from "../../components/native-action-button";
@@ -18,6 +18,7 @@ import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import { installSlackWorkspace } from "../../lib/messaging-install-return";
 import { native, useThemedStyles } from "../../lib/native";
 import { errorText } from "../../lib/user-error";
 
@@ -45,6 +46,8 @@ export default function MessagingSettings() {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const installController = useRef<AbortController | null>(null);
+  useEffect(() => () => installController.current?.abort(), []);
   const refresh = useCallback(async () => {
     const [nextBots, nextStatus, nextInstallations, nextChannels, nextConnections, navigation] =
       await Promise.all([
@@ -150,9 +153,15 @@ export default function MessagingSettings() {
   const linkAddress = link ? status?.addresses?.[link.provider] : undefined;
 
   function installSlack() {
+    if (installController.current) return;
+    const controller = new AbortController();
+    installController.current = controller;
     void act(async () => {
-      const { url } = await rpc("messaging/installations/start", {});
-      await Linking.openURL(url);
+      try {
+        await installSlackWorkspace(controller.signal);
+      } finally {
+        installController.current = null;
+      }
     });
   }
 

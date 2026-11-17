@@ -2562,13 +2562,67 @@ describe("MCP OAuth", () => {
     });
 
     expect(sessions.deleteMany).toHaveBeenCalledWith({
-      where: { id: sessionId, spaceId: "workspace-1", userId: "user-1" },
+      where: {
+        id: sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+        createdAt: { gte: expect.any(Date) },
+      },
     });
     expect(new URLSearchParams(tokenRequestBody).get("code_verifier")).toBe("persisted-verifier");
     expect(prisma.mcpServer.update).toHaveBeenCalledWith({
       where: { id: "server-1" },
       data: { revision: { increment: 1 } },
     });
+  });
+
+  it("rejects a session that expires between reading and consuming it", async () => {
+    const sessionId = "5d259fd9-b9fa-478e-a268-cc778816a043";
+    const createdAt = Date.now();
+    let clock = createdAt;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const sessions = oauthSessionStore();
+    sessions.findFirst.mockResolvedValue({
+      id: sessionId,
+      serverId: "server-1",
+      endpoint: "https://mcp.example.test/mcp",
+      redirectUri: "https://app.example.test/mcp/oauth/callback",
+      oauthCiphertext: "synthetic",
+      createdAt: new Date(createdAt),
+    });
+    sessions.deleteMany.mockImplementation(async ({ where }) => {
+      if (!where.id) return { count: 0 };
+      return { count: createdAt >= where.createdAt.gte.getTime() ? 1 : 0 };
+    });
+    const prisma = {
+      mcpOAuthSession: sessions,
+      mcpServer: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "server-1",
+          endpoint: "https://mcp.example.test/mcp",
+        }),
+      },
+    };
+    const secrets = {
+      load: vi.fn(async () => {
+        clock = createdAt + 10 * 60_000 + 1;
+        return "{}";
+      }),
+    };
+    const broker = new McpOAuthBroker(prisma as never, secrets as never, TEST_NETWORK);
+
+    await expect(
+      broker.complete({
+        sessionId,
+        code: "synthetic-code",
+        state: sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+      }),
+    ).rejects.toThrow("MCP OAuth session is invalid or expired");
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("rotates the current credential inside a serialized database transaction", async () => {
