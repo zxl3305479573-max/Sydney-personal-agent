@@ -21,14 +21,16 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/cursor/integrate-remote-branches-7334'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       CI: "1"
       SYDNEY_SIDELOAD_IOS: "1"
+      EXPO_PUBLIC_SYDNEY_SIDELOAD: "1"
+      SYDNEY_COMPANION_EXPERIMENT: "0"
       SYDNEY_IOS_BUNDLE_ID: xin.zxlup.sydney
-      EXPO_PUBLIC_API_URL: https://pc.zxlup.xin
+      EXPO_PUBLIC_API_URL: https://124.221.182.39
       SYDNEY_OTA_PROJECT_ID: ${{ vars.SYDNEY_OTA_PROJECT_ID }}
       SYDNEY_OTA_OWNER: ${{ vars.SYDNEY_OTA_OWNER }}
       SYDNEY_OTA_RUNTIME_VERSION: ${{ vars.SYDNEY_OTA_RUNTIME_VERSION }}

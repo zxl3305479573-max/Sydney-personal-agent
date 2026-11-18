@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-18（PA-021 iOS 侧载资源路径修复与生产 IP OTA 底座构建）：当前窗口完成 `apps/mobile/sideload-asset-path.js` 哈希源修复、`apps/mobile/app.config.ts` 与 `.github/workflows/mobile-ios-{sideload,update}.yml` 生产 IP OTA 通道打通及 37 项定向测试，配合用户完成 GitHub `EXPO_TOKEN` 与 `SYDNEY_OTA_*` 配置，仅暂存提交本任务 12 个移动端/工作流/文档改动，完整保留工作区中其他并行窗口的全部未提交修改。
+
 2026-11-18（手机端全模块 UI 优化 P0/P1/P2）：当前窗口完成手机端 UI 优化方案的源码实施、七语种词表补齐与本机验证（15 个移动端测试文件共 314 项、`@rakazo/mobile` `tsc --noEmit` 与 33 个文件 Biome 检查全部通过），写集仅限 `apps/mobile/` 下对应界面组件、路由页面、词表、测试文件及共享文档；未调用子代理，完全未触碰 `apps/desktop` 及其他窗口未提交写集，云构建新 IPA 与 iPhone 真机验收待后续执行。
 
 2026-11-18（网页退役全仓审查与 Batch 1 收口完成）：当前窗口按用户要求围绕“网页退役”唯一目标启动 3 个并行只读审查子代理完成全仓代码 Review（`3003c81d-0459-48b6-b55b-6a92450d38c7` 审查桌面代理/能力注入与前端回环兼容、`a56a6bbe-86be-4201-a7b6-17059f894469` 审查服务端认证/回调与画面承载、`ab7a3461-52b1-4c5e-8585-a25646ea1ccd` 审查移动端/Caddy/画面网络/Compose/Updater/CI），补齐此前 Pascal 未交付的网页退役全量盘点并经主窗口逐行复核。随后完成 Batch 1 写集（`apps/desktop/src/{proxy-request-capability.ts,proxy-request-capability.test.ts,standalone-renderer-proxy.ts,standalone-renderer-proxy.test.ts,standalone-screen-socket.ts,electron-proxy-capability-experiment.cjs}` 及共享文档）：通过 116 项定向单测、桌面双 `tsc`、Biome 与真实 Electron 45 强制 `403` 联测（13/13 PASS），并经子代理 `3003c81d-0459-48b6-b55b-6a92450d38c7` 两轮独立复审关闭全部 4 项 P2；保留 `apps/mobile` 等其他窗口未提交改动。下一待领批次为 Batch 2（`main.ts` 固定端口登记与 `uiOrigin`/`remoteOrigin` 解耦接线）及服务端/画面网络/网关去 Web 批次。

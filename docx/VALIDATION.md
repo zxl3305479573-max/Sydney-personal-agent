@@ -1,5 +1,7 @@
 # 验证记录
 
+2026-11-18（PA-021 生产 IP 侧载 OTA 配置与资源路径联合验证）：运行 `pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/sideload-asset-path.test.ts --maxWorkers=1` 共 2 个文件 37 项全部通过（覆盖生产 IP 下开启 OTA、旧域名与其他地址拒绝混用 OTA 通道、三阶段资源哈希一致与幂等重入）；`@rakazo/mobile` `tsc --noEmit` 通过；4 个改动源码/测试文件 Biome 检查通过；`mobile-ios-sideload.yml` 全部 3 段内嵌 Python 校验脚本按 macOS 系统 Python 3.9 语法解析通过；只读核验 GitHub 仓库已存在 `EXPO_TOKEN` 密钥及 `SYDNEY_OTA_OWNER`、`SYDNEY_OTA_PROJECT_ID`、`SYDNEY_OTA_RUNTIME_VERSION` 三项变量。未执行：新底座 IPA 云构建产物下载核验、首条 `eas update` 线上推送及 iPhone 真机安装复验。
+
 2026-11-18（iOS 侧载包云构建 Run 44242990888 与产物核验）：提交 `45992470f` 推送至 `cursor/integrate-remote-branches-7334` 后自动触发 `mobile-ios-sideload.yml`，Run `44242990888` 全流程通过（工程预生成、移除推送权限、Pod 安装、权限审计、Xcode Release 无签名编译、打包路径预算校验与上传）。下载产物 `sydney-ios-unsigned-44242990888-1`（ZIP `25,754,482` 字节，Artifact ID `14401216722`）并解包至 `D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节）：本机重算 SHA256 为 `75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`，与 `SHA256.txt` 完全一致；压缩包共 167 项，最长内部路径 122 字符（满足 200 字符上限），不含 `PlugIns/` 扩展；`Info.plist` 中 `CFBundleIdentifier=xin.zxlup.sydney`、`CFBundleShortVersionString=1.0.12`、`NSAllowsLocalNetworking=true`；`main.jsbundle` 包含默认后台 `124.221.182.39`、`ignoreSafeArea` 及 `chat-appearance-live-preview` 等新增界面标识，旧域名仅作为迁移守卫常量出现 1 次。未执行：IPA 个人证书签名、安装至 iPhone 真机及真机登录/云电脑/UI 验收。
 
 2026-11-18（PA-018、PA-023 网页退役 Batch 1 桌面能力门禁与代理复验）：

@@ -89,9 +89,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ) {
       throw new Error("Sydney OTA requires its own valid project ID, owner and runtime version.");
     }
-    if (updatesRequested && process.env.EXPO_PUBLIC_API_URL !== "https://pc.zxlup.xin") {
+    if (
+      updatesRequested &&
+      new URL(process.env.EXPO_PUBLIC_API_URL!).origin !== "https://124.221.182.39"
+    ) {
       throw new Error(
-        "Sydney OTA is restricted to the existing server until update isolation is verified.",
+        "Sydney OTA is restricted to the production IP server until separate channels are verified.",
       );
     }
     result = {

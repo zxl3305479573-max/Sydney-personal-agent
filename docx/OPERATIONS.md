@@ -2056,15 +2056,14 @@ App ID、设备与每台设备安装数量限制；iCTRL 项目描述 SideStore�
 
 2026-11-10（PA-021 手机安装包）：提交 `72c4211fc` 的云构建 `42770297627` 成功，未签名 IPA 已下载至 `D:\s\Sydney-42770297627.ipa`，SHA-256 与构建产物清单一致；包内标识为 `xin.zxlup.sydney`，资源路径最长 122 字符。iPhone 已被 Windows 识别；按用户最新要求仅准备安装包，未签名、未安装或启动。本包因未配置独立 Expo 项目而关闭在线更新。
 
-## iPhone 侧载在线更新（待配置及实机验证）
+## iPhone 侧载在线更新（已配置 Expo 项目，待底座包实机验证）
 
-关联 PA-021、ADR-0020。现有侧载 IPA 的在线更新关闭，不能直接接收本次新增功能；首次启用需要重新构建、签名和安装。以下流程尚未实测：
+关联 PA-021、ADR-0020。2026-11-18 已将侧载 OTA 构建门禁与发布工作流统一切换至生产 IP（`https://124.221.182.39`）与 `xin.zxlup.sydney`，补齐发布工作流的 `EXPO_PUBLIC_SYDNEY_SIDELOAD=1` 及 IPA 内 `Expo.plist` 自动核验，并在 GitHub 仓库完成独立 Expo 项目的 3 项公开变量与 `EXPO_TOKEN` 配置。旧侧载 IPA 的在线更新仍为关闭，首次启用须签名安装开启 OTA 的新底座 IPA：
 
-1. 准备用户控制的免费 Expo 账号和独立项目 `sydney-sideload`，获取项目 UUID 与账号名；不要使用仓库原有上游 Expo 项目。
-2. 在 GitHub 仓库变量中配置 `SYDNEY_OTA_PROJECT_ID`、`SYDNEY_OTA_OWNER` 和 `SYDNEY_OTA_RUNTIME_VERSION`，三者必须同时存在。发布身份令牌放入 GitHub Secret `EXPO_TOKEN`，不要写入代码或文档。Expo 项目的 `production` 环境变量需与构建时环境一致，包括 `EXPO_PUBLIC_API_URL` 与以上 Sydney 侧载配置；具体配置及 CLI 环境变量优先级待真实项目验证。
-3. 通过侧载构建工作流生成新的 IPA，确认生成工程中的更新地址、`sideload` 通道和运行时版本，再签名安装并验证登录、聊天和设置内“检查更新”。当前更新发布工作流固定使用 `https://pc.zxlup.xin` 和 `xin.zxlup.sydney`；使用其他地址或 bundle ID 构建的包不能未经核对直接使用该发布流程。
-4. 仅当改动与已安装包的原生运行时兼容时，从 `main` 手动运行 `Publish iOS sideload update`，填写与安装包一致的运行时版本及说明。工作流的版本确认不是原生兼容性检查，发布前仍需审查依赖、Expo SDK、原生配置和插件差异。
-5. 在设备上验证下载、稍后重启或手动确认重启、离线失败、实际版本及回滚。版本未按预期生效时停止继续发布，检查项目、通道、环境和运行时；不要将凭据或用户数据写入日志。
+1. 用户控制的免费 Expo 独立项目 `sydney-sideload` 已绑定至 GitHub Actions 变量 `SYDNEY_OTA_PROJECT_ID`、`SYDNEY_OTA_OWNER` 与 `SYDNEY_OTA_RUNTIME_VERSION`（当前底座为 `sydney-ios-ip-1`），发布令牌存于 GitHub Secret `EXPO_TOKEN`（切勿写入代码、文档或聊天）。
+2. 通过侧载构建工作流（`mobile-ios-sideload.yml`）生成新的底座 IPA：构建步骤自动校验 `Payload/Sydney.app/Expo.plist` 中 `EXUpdatesEnabled=True`、`EXUpdatesURL` 与 `EXUpdatesRuntimeVersion`；随后用 iPASide 签名安装并验证登录、内置头像、聊天和设置内“检查更新”。
+3. 仅当改动纯属 JS/TS、界面或普通静态资源且与已安装底座包的原生运行时兼容时，在 `main` 或 `cursor/integrate-remote-branches-7334` 分支手动运行 `Publish iOS sideload update`（`mobile-ios-update.yml`），输入与安装包一致的 `runtime_version`（`sydney-ios-ip-1`）及更新说明。工作流的版本确认不是自动原生兼容性检查，发布前仍需审查依赖、Expo SDK、原生配置和插件差异。
+4. 在设备上验证启动/回前台自动下载或设置页手动“检查更新”、重启生效、离线失败与回滚。版本未按预期生效时停止继续发布，检查项目、通道、环境和运行时；不要将凭据或用户数据写入日志。
 
 更改原生依赖或原生配置后需变更运行时版本并重新构建安装；OTA 不能替代侧载证书续期。更新服务额度、回滚与数据保留以实际验证为准。
 

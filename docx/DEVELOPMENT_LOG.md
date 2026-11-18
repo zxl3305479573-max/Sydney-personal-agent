@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-18（PA-021 生产 IP 侧载 OTA 链路打通与内置头像修复合并）：（1）修复 iPhone 真机「新建 Bot」内置头像与包内静态资源因 `expo export:embed` 两阶段 `publicPath` 差异导致的哈希目录错位，将 `apps/mobile/sideload-asset-path.js` 改为按 `asset.fileSystemLocation` 相对路径稳定计算哈希；（2）按方案 A 将 `apps/mobile/app.config.ts`、`mobile-ios-sideload.yml` 与 `mobile-ios-update.yml` 的侧载 OTA 通道统一切换绑定至生产 IP `https://124.221.182.39` 与 `xin.zxlup.sydney`，补齐发布工作流的 `EXPO_PUBLIC_SYDNEY_SIDELOAD=1` 与工作分支条件，并在 IPA 打包步骤新增 `assets/sydney/*` 目录与 `Expo.plist`（`EXUpdatesEnabled`、`EXUpdatesURL`、`EXUpdatesRuntimeVersion`）自动校验；GitHub 仓库 `EXPO_TOKEN` 与三项 `SYDNEY_OTA_*` 变量已就绪，触发新底座 IPA 云构建。
+
 2026-11-18（iOS 侧载包最新云构建与本机核验）：将移动端底部栏修复、全模块 UI 优化及桌面代理候选合并提交推送（`45992470f`），自动触发 `mobile-ios-sideload.yml` 构建 Run `44242990888`，全部 29 步成功。已将产物 `sydney-ios-unsigned-44242990888-1`（Artifact ID `14401216722`）下载并解包至 `D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节），SHA256 核对一致（`75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`），包内默认后台地址为 `https://124.221.182.39` 且包含本轮 UI 优化字节码标记；个人签名、安装与 iPhone 真机联调待用户执行。
 
 2026-11-18（PA-018、PA-023 全仓网页退役代码审查与 Batch 1 能力门禁/代理收口）：

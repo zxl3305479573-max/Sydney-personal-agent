@@ -1,5 +1,13 @@
 # Sydney 开发总计划
 
+## PA-021 iOS 侧载包内置资源目录修复与生产 IP 在线更新（OTA）打通（2026-11-18）
+
+- **当前范围**：（1）修复 iPhone 真机「新建 Bot」内置头像及包内静态资源空白不显示的问题，将 `apps/mobile/sideload-asset-path.js` 改为基于 `asset.fileSystemLocation` 相对路径稳定计算哈希；（2）按方案 A 打通生产 IP（`https://124.221.182.39`）的 iOS 侧载 OTA 热更新链路：更新 `apps/mobile/app.config.ts`、`mobile-ios-sideload.yml` 与 `mobile-ios-update.yml`，将 `sideload` 更新通道从旧域名切换绑定至生产 IP 与 `xin.zxlup.sydney`，补齐发布工作流的 `EXPO_PUBLIC_SYDNEY_SIDELOAD=1` 与工作分支允许条件，并在 IPA 打包步骤新增 `assets/sydney/*` 目录一致性与 `Expo.plist`（`EXUpdatesEnabled`、`EXUpdatesURL`、`EXUpdatesRuntimeVersion`）自动校验。
+- **交付物**：`sideload-asset-path.js`、`app.config.ts`、`mobile-ios-sideload.yml`、`mobile-ios-update.yml` 更新，新增 `sideload-asset-path.test.ts` 与更新 `app-config.test.ts`，以及 `ADR-0020` 和运维/计划/验证文档同步。
+- **依赖**：GitHub 仓库配置独立 Expo 项目的 3 个 Variables（`SYDNEY_OTA_PROJECT_ID`、`SYDNEY_OTA_OWNER`、`SYDNEY_OTA_RUNTIME_VERSION`）与 1 个 Secret（`EXPO_TOKEN`）。
+- **验收条件**：`app-config.test.ts`（34 项）与 `sideload-asset-path.test.ts`（3 项）、移动端 `tsc --noEmit`、Biome 及工作流脚本语法检查全部通过；配置 GitHub 变量后重编的底座 IPA 通过 `Expo.plist` 与资源目录门禁，真机签名安装后内置头像正常显示且支持设置页与前台自动拉取 OTA 热更新。
+- **状态**：进行中（本机改造、37 项定向测试及 GitHub 仓库 `SYDNEY_OTA_*` / `EXPO_TOKEN` 配置已完成，提交推送触发启用 OTA 的新底座 IPA 云构建）。
+
 ## PA-021 / PA-022 手机端全模块 UI 优化与可用性打磨（2026-11-18）
 
 - **当前范围**：按已批准的手机端 UI 优化方案分三批实施：（1）P0 修复单聊模型切换弹层（`ThreadModelSheet`）底部安全区与关闭/加载反馈、新建项目群聊弹窗（`ProjectGroupModal`）软键盘避让与头像勾选态、全局语音播放条（`VoicePlayerBar`）显示时的双倍底部安全区叠加；（2）P1 重构项目列表（`projects.tsx`）右上角新建弹层与下拉刷新、项目详情（`projects/[workspaceId].tsx`）原生玻璃标题与头像成员行、新建 Bot 抽屉（`CreateBotModal`）三段式固定页眉/页脚与等尺寸头像格、个人人格库（`PersonalPersonalityLibrary`）分段胶囊与属性标签 Chip；（3）P2 统一繁简中文判断（`locale.startsWith("zh")`）、合并聊天外观（`chat-appearance.tsx`）综合实时预览与拖动滑条及预设勾选态、清理 `McpOAuthReturn` / `NativePasswordReset` / `computer.tsx` 硬编码边框色与贴底状态提示。
