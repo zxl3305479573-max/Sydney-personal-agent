@@ -1,6 +1,6 @@
 # GitHub 个人主页与开源探索模块实施方案
 
-状态：进行中（方案已确认，分模块并行实施离线代码与定向验证；未完成真实数据库与线上联网验收）。  
+状态：离线实现与全量单测验收完成（待服务器执行 Prisma 迁移与公网 PAT 联网验收）。  
 更新日期：2026-11-18。  
 关联需求：PA-004、PA-010、PA-017、PA-018、PA-022、PA-023、PA-024。  
 架构决策：[ADR-0023](../../docs/adr/0023-github-module-integration.md)。
@@ -37,3 +37,33 @@
 - **SSRF 与跨源隔离**：服务端客户端硬编码目标主机 `https://api.github.com`，禁用跨源重定向转发凭据，单次请求设超时与响应体大小上限。
 - **外部内容防注入**：README、Commit 说明与仓库简介均视为不可信外部数据；Agent 工具返回结果附带显式不可信数据边界提示。
 - **可选环境变量（待服务器验证）**：`GITHUB_PROVIDER`（默认 `github`，可选 `emulator` 或 `none`）。
+
+## 4. 后续 Agent 接续实施与验证指引
+
+后续接管或在服务器部署此模块的 Agent，请依据以下具体指引推进工作：
+
+### 4.1 生产/测试环境 PostgreSQL 数据库迁移
+- **文件位置**：`packages/db/prisma/migrations/20261118150000_github_connections/migration.sql`
+- **执行命令**：
+  ```bash
+  pnpm --filter @rakazo/db migrate
+  ```
+- **关键核验**：
+  - 检查 `github_connections` 表是否成功建立；
+  - 检查行级安全（Row Level Security, RLS）策略 `github_connections_user_isolation` 是否生效，保证用户只能检索自身绑定的连接。
+
+### 4.2 真实环境公网联调与验收清单
+- **前置配置**：确保服务端出站放行 `api.github.com:443`；环境变量保持默认 `GITHUB_PROVIDER=client`（或未指定）。
+- **联调步骤**：
+  1. **PAT 连接验证**：在 PC 前端 `/app/github` 点击「绑定 GitHub」，输入带有 `read:user` 与 `repo` 只读权限的 GitHub PAT；提交后检查状态栏显示 `@用户名` 及剩余配额；验证数据库中仅存密文句柄，前端 `localStorage` 无任何 Token 明文。
+  2. **个人主页与 52 周热力图**：验证 GraphQL `contributionsCollection` 正常返回，切换年份（如 2026、2025），悬停显示日贡献天数；验证隐私开关「隐藏私有仓库」对指标统计与仓库列表的即时遮罩效果。
+  3. **远端项目与开源检索**：测试项目列表的多维筛选（按归属角色、公开/私有状态、主要语言排序）；切换到「搜索开源项目」Tab，执行关键词与复合筛选（最低 Star、活跃时间），测试匿名与已连接配额下的正常响应。
+  4. **仓库抽屉与安全预览**：点击任意仓库，抽屉应展开并展示纯 React 渲染的 README 预览、近期 Commits 与 Release；点击「复制克隆链接」与「交给 Bot 分析」，验证跳转会话页且草稿框已安全填入结构化仓库信息。
+  5. **Agent 工具执行调用**：在聊天中向 Bot 提问（例如：“列出我最近更新的 3 个 GitHub 项目”或“帮我查一下 GitHub 上 Rust 编写的终端工具”），验证 `github_list_my_repos` 与 `github_search_repos` 工具成功被 Bot 调度，返回结果带有安全提示。
+
+### 4.3 离线与回归测试套件（本地已全量通过）
+在本地修改或扩展功能后，运行以下单测集进行回归：
+```bash
+pnpm exec vitest run packages/contracts/src/github.test.ts packages/core/src/action-approval.test.ts packages/core/src/product-analytics.test.ts packages/adapters/src/github-client.test.ts packages/adapters/src/github-connections.test.ts packages/adapters/src/github-tools.test.ts packages/adapters/src/builtin-tool-bridge.test.ts packages/adapters/src/index.test.ts apps/api/src/security-audit.test.ts apps/api/src/github-router.test.ts apps/web/src/pages/GithubPage.test.tsx apps/web/src/pages/github/GithubContributionHeatmap.test.tsx apps/web/src/pages/github/GithubExploreAndRepos.test.tsx apps/web/src/components/SidebarFooter.test.tsx apps/web/src/components/PageBreadcrumb.test.tsx --maxWorkers=1
+```
+

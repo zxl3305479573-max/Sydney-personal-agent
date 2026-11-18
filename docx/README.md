@@ -30,6 +30,7 @@
 | [iPhone 免费侧载操作指南](design/IOS_SIDELOAD_GUIDE.md) | Windows 与 iPhone 的候选签名安装流程及验证限制 | 签名、安装或续签流程变化时 |
 | [项目与工作区接入方案](design/PROJECT_WORKSPACE_PLAN.md) | 项目入口、云电脑与本地工作区、授权和分阶段验收 | 项目功能规划、实现或验收变化时 |
 | [GitHub 模块实施方案](design/GITHUB_MODULE_PLAN.md) | 个人主页、提交热力图、远端项目、开源检索与 Agent 只读工具融合 | GitHub 模块范围、实现或验收变化时 |
+| [GitHub 模块实施与交接指引](HANDOVER_GITHUB.md) | 数据库迁移、真实 PAT 联调验收、代码索引与回归测试 | 后续 Agent 接续实施或环境验收时 |
 | [GitHub 模块架构决策](../docs/adr/0023-github-module-integration.md) | 直连 REST/GraphQL 适配层、PAT 加密绑定与读写边界 | GitHub 接入方式或权限边界变化时 |
 | [工作区归属与元数据隔离决策](../docs/adr/0022-project-workspace-ownership.md) | 成员归属、数据库隔离及开放前阻断 | 工作区权限、数据模型或删除流程变化时 |
 | [PC 后台部署决策](../docs/adr/0015-pc-backend-on-cloud-computer.md) | 云电脑 PC 后台与主后台控制服务的边界和权限 | PC 后台部署、认证或资源边界变化时 |
