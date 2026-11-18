@@ -1,5 +1,7 @@
 # 验证记录
 
+PA-021 / PA-023 iOS 侧载候选包含空服务器配置恢复和启动错误重试。四个定向测试文件共 24 项通过。云构建、签名安装与真机验收待执行。
+
 2026-11-18（PA-024 GitHub 个人主页与开源探索模块跨包验证）：
 （1）跨包全量定向单元与集成测试：执行命令 `pnpm exec vitest run packages/contracts/src/github.test.ts packages/core/src/action-approval.test.ts packages/core/src/product-analytics.test.ts packages/adapters/src/github-client.test.ts packages/adapters/src/github-connections.test.ts packages/adapters/src/github-tools.test.ts packages/adapters/src/builtin-tool-bridge.test.ts packages/adapters/src/index.test.ts apps/api/src/security-audit.test.ts apps/api/src/github-router.test.ts apps/web/src/pages/GithubPage.test.tsx apps/web/src/pages/github/GithubContributionHeatmap.test.tsx apps/web/src/pages/github/GithubExploreAndRepos.test.tsx apps/web/src/components/SidebarFooter.test.tsx apps/web/src/components/PageBreadcrumb.test.tsx --maxWorkers=1`，**15 个测试文件共 203 项测试全部 PASS**（耗时 29.15s，0 失败）。
 - 契约与防穿越：验证合法/非法仓库全名（`owner/name`）、52 周贡献天数合法范围与路径穿越防护（拦截 `../secret` 与反斜杠）；

@@ -284,15 +284,16 @@ async function performLoadApiBase(
   } catch {
     throw new Error("Could not load server settings");
   }
-  if (stored != null) {
+  const hasSavedEndpoint = stored !== null && stored !== "";
+  if (hasSavedEndpoint) {
     const parsed = normalizeApiBase(stored);
     if (!parsed.ok) throw new Error("Could not load server settings");
     apiBase = parsed.url;
   }
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
-  apiBase = await compatibleDefaultOrigin(apiBase, stored != null);
+  apiBase = await compatibleDefaultOrigin(apiBase, hasSavedEndpoint);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
-  await guardDefaultOrigin(apiBase, stored != null);
+  await guardDefaultOrigin(apiBase, hasSavedEndpoint);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
   await loadServerHeaders(apiBase);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();

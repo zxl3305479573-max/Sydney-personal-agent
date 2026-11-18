@@ -337,17 +337,19 @@ function LayoutContent() {
   useEffect(() => watchForegroundUpdates(), []);
 
   useEffect(() => {
+    let active = true;
     markMobileStartupMounted();
     void waitForMobileStartup(trackMobileStartup("server", loadApiBase()), [
-      trackMobileStartup("appearance", loadAppearancePreference()).finally(() =>
-        setAppearanceReady(true),
-      ),
+      trackMobileStartup("appearance", loadAppearancePreference()).finally(() => {
+        if (active) setAppearanceReady(true);
+      }),
       trackMobileStartup("streaming", loadResponseStreamingPreference()),
       trackMobileStartup("images", loadRemoteImagesPreference()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])
       .then(() => {
+        if (!active) return;
         // The native poller stores the locale its notification copy uses, so the
         // restart waits for the language to load rather than saving the default.
         // Notification restoration must not keep the native splash visible.
@@ -358,7 +360,12 @@ function LayoutContent() {
           .catch(() => undefined);
         setReady(true);
       })
-      .catch(() => setStartupError(true));
+      .catch(() => {
+        if (active) setStartupError(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (startupError) throw new ServerSettingsStartupError("Could not load server settings");
