@@ -1,5 +1,43 @@
 # Sydney 开发总计划
 
+## PA-021 / PA-022 手机端全模块 UI 优化与可用性打磨（2026-11-18）
+
+- **当前范围**：按已批准的手机端 UI 优化方案分三批实施：（1）P0 修复单聊模型切换弹层（`ThreadModelSheet`）底部安全区与关闭/加载反馈、新建项目群聊弹窗（`ProjectGroupModal`）软键盘避让与头像勾选态、全局语音播放条（`VoicePlayerBar`）显示时的双倍底部安全区叠加；（2）P1 重构项目列表（`projects.tsx`）右上角新建弹层与下拉刷新、项目详情（`projects/[workspaceId].tsx`）原生玻璃标题与头像成员行、新建 Bot 抽屉（`CreateBotModal`）三段式固定页眉/页脚与等尺寸头像格、个人人格库（`PersonalPersonalityLibrary`）分段胶囊与属性标签 Chip；（3）P2 统一繁简中文判断（`locale.startsWith("zh")`）、合并聊天外观（`chat-appearance.tsx`）综合实时预览与拖动滑条及预设勾选态、清理 `McpOAuthReturn` / `NativePasswordReset` / `computer.tsx` 硬编码边框色与贴底状态提示。
+- **交付物**：移动端 P0/P1/P2 界面源码更新、对应单元测试与回归断言，以及计划、开发、验证和 iPhone 实施文档同步。
+- **依赖**：既有 `@rakazo/mobile` 路由、RPC 契约与 `GlassSurface` / `SegmentedPills` / `BotAvatar` 组件；不改 `rakazo://` 协议、存储键或 `apps/desktop` 未提交写集。
+- **验收条件**：模型弹层、项目群聊弹层与新建 Bot 抽屉均避让安全区与软键盘且具备固定页眉/关闭入口；项目页首屏直接展示项目列表并支持下拉刷新与右上角新建；聊天外观具备综合实时预览与拖动滑条；相关定向测试、移动端 `tsc --noEmit` 与改动文件 Biome 检查全部通过，云构建新 IPA 与真机视觉另行验收。
+- **状态**：进行中（P0/P1/P2 源码优化与七语种缺失词条补齐已完成；本机 15 个移动端测试文件共 314 项、`@rakazo/mobile` 全包 `tsc --noEmit` 及 33 个改动/新增文件的 Biome 检查全部通过；云构建新 IPA、签名安装与 iPhone 真机视觉待验收）。
+
+## PA-018 / PA-023 网页退役 Batch 1：桌面能力令牌首跳与沙箱窄授权收口（2026-11-18）
+
+- **当前范围**：完成全仓网页退役只读代码审查后，承接桌面能力令牌与本地代理候选（Batch 1）：补齐首次 `mainFrame` 导航及受控子 `subFrame` 导航令牌注入；修正 `proxy-request-capability.ts` 改按真实 `frame.origin` 与顶层 `mainFrame` 门禁，剥夺 `/html-viewer.html` 等不可信沙箱子页面令牌，并为 noVNC / Wuying 不透明屏幕子页面建立仅限匿名屏幕资源与 `websockify` 的窄能力授权；为 `StandaloneRendererProxy` 补充固定回环端口选项、可配置/放宽的上游响应头超时、Wuying `pathname` 匹配、顶层 `/artifacts/<含点ID>` 路由回退、`/sw.js` 本地拒绝，以及 `StandaloneScreenSocket` 配置头小写化与半开连接清理；将真实 Electron 45 实验升级为接入强制 `403` 的真实 `StandaloneRendererProxy` 联测，完成后交只读子代理独立复审。
+- **交付物**：`proxy-request-capability.ts`、`standalone-renderer-proxy.ts`、`standalone-screen-socket.ts`、对应单元测试、真实 Electron 45 强制 `403` 实验及网页退役文档更新；本批次仍不改动 `main.ts` 正式窗口入口或移动端写集。
+- **依赖**：锁定 Electron 45 `webRequest.onBeforeSendHeaders`（`frame.origin`、`frame.parent`、`initiatorOrigin`、`resourceType`）与现有 `StandaloneRendererProxy` 安全契约。
+- **验收条件**：真实 Electron 45 连接开启 `requireCapability: true` 的 `StandaloneRendererProxy` 时，主窗口首次导航、同源重定向、fetch/XHR、主页面 Worker 均 `200`；跨源重定向剥离令牌；第二同分区窗口请求拒绝 `403`；`/html-viewer.html` 沙箱子页面首跳 `200` 但其内部 fetch 与 Blob Worker 访问代理任意路径均无令牌并 `403`；noVNC 与 Wuying 屏幕子页面首跳、带查询串静态资源、嵌套容器 iframe 及 `websockify` WS 均可达，且屏幕子页面请求 `/api`、`/rpc` 均无令牌并 `403`；固定端口及占用拒绝、超时放宽、`/sw.js` 404 通过定向测试，且通过独立子代理复审。
+- **状态**：进行中。
+
+## PA-021 / PA-022 手机端底部导航栏并排布局与覆盖修复（2026-11-18）
+
+- **当前范围**：修复原生手机端首页下方导航栏（`InboxQuickActions`）将「项目」换行占满并叠放双层玻璃文件夹卡片的问题，改为「连接应用」与「项目」同行等宽胶囊并排布局；清理 `ProjectFolderCard` 双层重叠玻璃表面；为 iOS 26 `GlassSurface` / `GlassTitle` 的 SwiftUI `Host` 补充 `ignoreSafeArea="all"`，防止底部安全区或键盘把玻璃背景内缩错位；收紧首页列表容器裁剪与未读跳转胶囊底部边界。
+- **交付物**：移动端底部导航栏、项目卡片与 iOS 玻璃宿主修复、定向单元测试补齐与通过证据，以及计划、开发、验证和项目设计文档同步。
+- **依赖**：既有 `@expo/ui/swift-ui` `Host`、安全区内边距、`/integrations` 与 `/projects` 路由；不改动桌面端未提交写集、服务端或生产配置。
+- **验收条件**：「连接应用」与「项目」在底部单行并排且单行省略不互压；项目卡片无双层重叠玻璃边框；iOS 26 玻璃背景宿主忽略容器与键盘安全区；首页列表及浮层不越界覆盖底部栏；定向测试与格式检查通过，重新构建 IPA 与 iPhone 真机视觉另行验收。
+- **状态**：进行中（源码修复与本机 7 个定向测试文件 62 项、移动端 TypeScript 及 Biome 检查通过；重新云构建 IPA、签名安装与 iPhone 真机视觉待验收）。
+
+## PA-018 桌面独立后台迁移：能力令牌候选（2026-11-17）
+
+- **当前范围**：独立渲染代理生成每次实例的能力令牌，HTTP 与 noVNC WebSocket 入站均须携带；代理转发前剥离令牌，屏幕 WebSocket 也不转发令牌。新增 Electron `webRequest` 注入候选，只对 app 窗口、同源 frame 且请求目标为自身代理时写入令牌，其他调用方一律剥离。
+- **交付物**：代理与注入候选实现、定向合成测试、网页退役文档更新；仍未接入正式 Electron 窗口。
+- **依赖**：真实 Electron 对 WebSocket、worker、iframe、重定向和导航的实际注入覆盖须另行实验验证。
+- **验收条件**：无令牌、伪造令牌和跨源/跨端口请求拒绝；正确令牌可达 HTTP 与屏幕升级；令牌不进入上游；loopback 同机进程不能凭伪造头借用配置头。
+- **状态**：合成验收完成。真实 Electron 实验确认 fetch/XHR、WebSocket、iframe 后续请求、Worker fetch 和同源重定向可注入，跨源重定向剥离；但首次主页面导航与 iframe 导航的 `frame` 为空导致不注入，受保护代理会拒绝首次加载。注入候选必须补齐首次导航授权并重新实验；正式窗口接线仍阻断，网页退役未完成。
+
+2026-11-17 桌面启动链设计：Bernoulli 交付
+[桌面独立启动链设计](design/DESKTOP_STANDALONE_STARTUP.md)，覆盖固定
+回环来源、启动上下文、能力注入顺序、独立分区、旧数据迁移、提交与回滚
+矩阵，并列出 H-01 至 H-12 待验证假设。设计本身不代表实现；首个已实测
+阻断是首次导航/iframe 导航缺令牌。
+
 ## PA-021 手机默认后台地址迁移（2026-11-16）
 
 - **范围**：侧载客户端默认固定使用生产 HTTPS IP，不因旧会话自动回退域名；同一生产服务器的旧验证会话元数据迁移到 IP。用户明确保存的其他服务器地址保持不变。

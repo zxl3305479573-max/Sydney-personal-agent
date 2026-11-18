@@ -1,5 +1,23 @@
 # 对话窗口分工与交接
 
+2026-11-18（手机端全模块 UI 优化 P0/P1/P2）：当前窗口完成手机端 UI 优化方案的源码实施、七语种词表补齐与本机验证（15 个移动端测试文件共 314 项、`@rakazo/mobile` `tsc --noEmit` 与 33 个文件 Biome 检查全部通过），写集仅限 `apps/mobile/` 下对应界面组件、路由页面、词表、测试文件及共享文档；未调用子代理，完全未触碰 `apps/desktop` 及其他窗口未提交写集，云构建新 IPA 与 iPhone 真机验收待后续执行。
+
+2026-11-18（网页退役全仓审查与 Batch 1）：当前窗口按用户要求围绕“网页退役”唯一目标启动 3 个并行只读审查子代理完成全仓代码 Review（`3003c81d-0459-48b6-b55b-6a92450d38c7` 审查桌面代理/能力注入与前端回环兼容、`a56a6bbe-86be-4201-a7b6-17059f894469` 审查服务端认证/回调与画面承载、`ab7a3461-52b1-4c5e-8585-a25646ea1ccd` 审查移动端/Caddy/画面网络/Compose/Updater/CI），补齐此前 Pascal 未交付的网页退役全量盘点并经主窗口逐行复核。现领取 Batch 1 写集：`apps/desktop/src/{proxy-request-capability.ts,proxy-request-capability.test.ts,standalone-renderer-proxy.ts,standalone-renderer-proxy.test.ts,standalone-screen-socket.ts,electron-proxy-capability-experiment.cjs}` 及共享文档；保留 `apps/mobile` 等其他窗口未提交改动，实现与本机验证后调用只读子代理独立复审。
+
+2026-11-18：当前窗口完成 PA-021 / PA-022 手机端底部导航栏并排布局与底部覆盖的源码修复及本机定向验证（7 个测试文件 62 项、移动端 `tsc --noEmit` 与 Biome 检查通过），写集仅限 `apps/mobile/components/inbox-header.tsx`、`apps/mobile/components/project-folder-card.tsx`、`apps/mobile/components/glass-surface.ios.tsx`、`apps/mobile/components/glass-title.ios.tsx`、`apps/mobile/components/home-styles.ts`、`apps/mobile/app/index.tsx`、3 个移动端测试文件及共享文档；未调用子代理，保留 `apps/desktop` 等其他未提交写集，重新构建 IPA 与 iPhone 实机验收待后续执行。
+
+2026-11-17：当前窗口完成 PA-018 能力令牌候选，写集仅涉及独立代理、
+屏幕 socket、Electron 注入候选、对应测试及网页退役文档。Goodall 上一轮
+review 指出的 loopback 认证缺失已推进到候选令牌与注入实现；下一步真实
+Electron 注入覆盖实验和正式窗口接线仍是独立任务。不触碰移动端、服务器
+配置或生产入口。
+
+Epicurus 完成 Electron 覆盖实验，写集仅新增
+`apps/desktop/src/electron-proxy-capability-experiment.cjs`；主窗口复核
+结论并同步共享文档。Bernoulli 启动链设计文档已交付，写集仅限
+`docx/design/DESKTOP_STANDALONE_STARTUP.md`。Pascal 网页退役盘点因模型
+服务不支持工具调用失败，未交付；后续重派。
+
 2026-11-16：当前窗口领取手机默认后台地址迁移，写集限定
 `apps/mobile/lib/default-origin-guard.ts`、专属
 `api-default-origin.test.ts` 及对应计划、运维、开发和验证记录；不改

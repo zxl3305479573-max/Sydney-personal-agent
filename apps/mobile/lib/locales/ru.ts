@@ -4,8 +4,10 @@ export const RU_MESSAGES: Record<string, string> = {
     "Не удалось подтвердить удаление аккаунта. Проверьте его состояние перед повторной попыткой.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "Исходный аккаунт удалён, но локальная очистка не удалась, а текущий сеанс изменился.",
-  "The original account was deleted. Your current session has changed.": "Исходный аккаунт удалён. Текущий сеанс изменился.",
-  "The session changed. Open account deletion again.": "Сеанс изменился. Откройте удаление аккаунта заново.",
+  "The original account was deleted. Your current session has changed.":
+    "Исходный аккаунт удалён. Текущий сеанс изменился.",
+  "The session changed. Open account deletion again.":
+    "Сеанс изменился. Откройте удаление аккаунта заново.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "Аккаунт удалён, но очистить локальный сеанс не удалось. Перезапустите приложение и попробуйте выйти из аккаунта.",
   Computers: "Компьютеры",
@@ -1332,23 +1334,65 @@ export const RU_MESSAGES: Record<string, string> = {
     "Ботов переведено на модель пространства по умолчанию: {count}.",
   "Could not switch {failedNames}. Try again.":
     "Не удалось переключить {failedNames}. Попробуйте снова.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Используется пользовательский фон.",
+  "A custom bubble style is active.": "Используется пользовательский стиль пузырей.",
+  "Background and bubbles": "Фон и пузыри",
+  "Bubble presets": "Готовые стили пузырей",
+  "Bubble style": "Стиль пузырей",
+  Change: "Изменить",
+  "Chat appearance": "Оформление чата",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "Оформление чата сохраняется только на этом устройстве и не загружается на сервер.",
+  "Chat background": "Фон чата",
+  Custom: "Свой",
+  "Default bubbles": "Стандартные пузыри",
+  "Remove background": "Удалить фон",
+  "The image could not be removed.": "Не удалось удалить изображение.",
+  "The image could not be saved on this device.":
+    "Не удалось сохранить изображение на этом устройстве.",
+  "Use the default background.": "Использовать стандартный фон.",
+  "Use the default bubbles.": "Использовать стандартные пузыри.",
+  "Add model": "Добавить модель",
+  "Check for updates": "Проверить обновления",
+  "Check the screen, then release and take control again.":
+    "Проверьте экран, затем освободите управление и возьмите его снова.",
+  "Checking for updates…": "Проверка обновлений…",
+  "Complete connection": "Завершить подключение",
+  "Computer control is unavailable. Release and take control again.":
+    "Управление компьютером недоступно. Освободите его и возьмите снова.",
+  "Computer input failed. Take control again.":
+    "Ошибка ввода на компьютере. Возьмите управление снова.",
+  "Could not check for updates. Try again later.":
+    "Не удалось проверить обновления. Попробуйте позже.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "Не удалось подтвердить подключение. Начните подключение заново.",
+  "Could not restart. Reopen the app to apply the update.":
+    "Не удалось перезапустить. Откройте приложение заново, чтобы применить обновление.",
+  "Could not save changes": "Не удалось сохранить изменения",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Если браузер не может завершить вход, скопируйте полный адрес возврата и вставьте его сюда.",
+  "MCP callback address": "Адрес возврата MCP",
+  "Paste callback address": "Вставьте адрес возврата",
+  Restart: "Перезапустить",
+  "Restart the app now? Save unfinished work first.":
+    "Перезапустить приложение сейчас? Сначала сохраните незавершенную работу.",
+  "The account, server, or space changed. Start the connection again.":
+    "Аккаунт, сервер или пространство изменились. Начните подключение заново.",
+  "The callback address does not match this connection attempt.":
+    "Адрес возврата не соответствует этой попытке подключения.",
+  "This update needs a new app installation.": "Для этого обновления требуется переустановка.",
+  "Update downloaded": "Обновление загружено",
+  "Updates are unavailable in this build.": "Обновления недоступны в этой сборке.",
+  "Waiting for screen dimensions…": "Ожидание размеров экрана…",
+  "Your app is up to date.": "Установлена последняя версия.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Смена сервера завершит вход и может удалить неотправленные сообщения и вложения. Сначала отправьте или сохраните их.",
+  "Disable bot voice": "Отключить голос бота",
+  "Enable bot voice": "Включить голос бота",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "Не удалось загрузить сохраненные неотправленные сообщения. Новые недоставленные сообщения могут быть потеряны при закрытии приложения.",
+  "Server settings or the saved session could not be verified.":
+    "Не удалось проверить настройки сервера или сохраненную сессию.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

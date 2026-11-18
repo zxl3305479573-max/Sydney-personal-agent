@@ -6,26 +6,54 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
+import { ProjectFolderCard } from "../components/project-folder-card";
 
 const header = vi.hoisted(() => ({
   platform: { OS: "ios" },
   push: vi.fn(),
   locale: "en",
 }));
-const { labelled } = vi.hoisted(() => ({
-  labelled:
-    (tag: string) =>
-    ({
-      children,
-      accessibilityLabel,
-      onPress,
-    }: {
-      children?: ReactNode;
-      accessibilityLabel?: string;
-      onPress?: () => void;
-    }) =>
-      createElement(tag, { "aria-label": accessibilityLabel, onClick: onPress }, children),
-}));
+const { labelled } = vi.hoisted(() => {
+  function flattenStyle(style: unknown): Record<string, unknown> {
+    if (!style) return {};
+    if (Array.isArray(style)) return Object.assign({}, ...style.map(flattenStyle));
+    return typeof style === "object" ? (style as Record<string, unknown>) : {};
+  }
+  return {
+    labelled:
+      (tag: string) =>
+      ({
+        children,
+        accessibilityLabel,
+        disabled,
+        onPress,
+        style,
+      }: {
+        children?: ReactNode;
+        accessibilityLabel?: string;
+        disabled?: boolean;
+        onPress?: () => void;
+        style?: unknown;
+      }) => {
+        const resolved = flattenStyle(
+          typeof style === "function" ? style({ pressed: false }) : style,
+        );
+        return createElement(
+          tag,
+          {
+            "aria-label": accessibilityLabel,
+            disabled,
+            onClick: disabled ? undefined : onPress,
+            "data-flex-direction": resolved.flexDirection,
+            "data-flex-wrap": resolved.flexWrap,
+            "data-flex": resolved.flex,
+            "data-position": resolved.position,
+          },
+          children,
+        );
+      },
+  };
+});
 
 vi.mock("react-native", () => ({
   Platform: header.platform,
@@ -73,7 +101,11 @@ vi.mock("./appearance", () => ({
 vi.mock("./i18n", () => {
   return { useI18n: () => ({ t: (text: string) => text, locale: header.locale }) };
 });
-vi.mock("./native", () => ({ native: {}, useThemedStyles: () => ({}) }));
+vi.mock("./native", () => ({
+  native: {},
+  useMobileTokens: () => ({}),
+  useThemedStyles: () => ({}),
+}));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -133,11 +165,35 @@ it.each(["android", "ios"])("creates from the %s menu", (platform) => {
   expect(runCreateAction.mock.calls).toEqual([["bot"], ["group"], ["space"]]);
 });
 
-it("opens integrations without a duplicate bottom search action", () => {
+it("renders Connect apps and Projects side by side without wrapping or a duplicate bottom search", () => {
   act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
-  act(() => container.querySelector<HTMLElement>('[aria-label="Connect apps"]')?.click());
+  const bar = container.firstElementChild as HTMLElement;
+  expect(bar.getAttribute("data-flex-direction")).toBe("row");
+  expect(bar.getAttribute("data-flex-wrap")).toBeNull();
+  expect(bar.children).toHaveLength(2);
+  expect(Array.from(bar.children, (child) => child.getAttribute("data-flex"))).toEqual(["1", "1"]);
   expect(container.querySelector('[aria-label="Search"]')).toBeNull();
-  expect(header.push.mock.calls).toEqual([["/integrations"]]);
+
+  act(() => container.querySelector<HTMLElement>('[aria-label="Connect apps"]')?.click());
+  act(() => container.querySelector<HTMLElement>('[aria-label="Projects"]')?.click());
+  expect(header.push.mock.calls).toEqual([["/integrations"], ["/projects"]]);
+});
+
+it("localizes the side-by-side bottom Projects action in Chinese", () => {
+  header.locale = "zh-CN";
+  act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
+  act(() => container.querySelector<HTMLElement>('[aria-label="项目"]')?.click());
+  expect(header.push.mock.calls).toEqual([["/projects"]]);
+});
+
+it("renders ProjectFolderCard as a single non-overlapping surface", () => {
+  const onPress = vi.fn();
+  act(() =>
+    root.render(<ProjectFolderCard label="Sydney" subtitle="Open project" onPress={onPress} />),
+  );
+  expect(container.querySelector('[data-position="absolute"]')).toBeNull();
+  act(() => container.querySelector<HTMLElement>('[aria-label="Sydney · Open project"]')?.click());
+  expect(onPress).toHaveBeenCalledOnce();
 });
 
 it("keeps the group creation shortcut in the roster", () => {

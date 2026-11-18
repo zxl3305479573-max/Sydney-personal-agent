@@ -77,6 +77,8 @@ export function createHomeStyles() {
     },
     listArea: {
       flex: 1,
+      minHeight: 0,
+      overflow: "hidden",
     },
     list: {
       flexGrow: 1,

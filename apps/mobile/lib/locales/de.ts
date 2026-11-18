@@ -4,8 +4,10 @@ export const DE_MESSAGES: Record<string, string> = {
     "Die Kontolöschung konnte nicht bestätigt werden. Prüfen Sie Ihr Konto, bevor Sie es erneut versuchen.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "Das ursprüngliche Konto wurde gelöscht, aber die lokale Bereinigung ist fehlgeschlagen und Ihre Sitzung hat sich geändert.",
-  "The original account was deleted. Your current session has changed.": "Das ursprüngliche Konto wurde gelöscht. Ihre aktuelle Sitzung hat sich geändert.",
-  "The session changed. Open account deletion again.": "Die Sitzung hat sich geändert. Öffnen Sie die Kontolöschung erneut.",
+  "The original account was deleted. Your current session has changed.":
+    "Das ursprüngliche Konto wurde gelöscht. Ihre aktuelle Sitzung hat sich geändert.",
+  "The session changed. Open account deletion again.":
+    "Die Sitzung hat sich geändert. Öffnen Sie die Kontolöschung erneut.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "Das Konto wurde gelöscht, aber die lokale Sitzung konnte nicht bereinigt werden. Starten Sie die App neu und versuchen Sie, sich abzumelden.",
   Computers: "Computer",
@@ -1299,23 +1301,65 @@ export const DE_MESSAGES: Record<string, string> = {
   "{count} bots now use the space default.": "{count} Bots verwenden jetzt den Space-Standard.",
   "Could not switch {failedNames}. Try again.":
     "{failedNames} konnte nicht umgestellt werden. Versuche es erneut.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Ein eigener Hintergrund ist aktiv.",
+  "A custom bubble style is active.": "Ein eigener Sprechblasenstil ist aktiv.",
+  "Background and bubbles": "Hintergrund und Sprechblasen",
+  "Bubble presets": "Sprechblasen-Vorlagen",
+  "Bubble style": "Sprechblasenstil",
+  Change: "Ändern",
+  "Chat appearance": "Chat-Darstellung",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "Die Chat-Darstellung wird nur auf diesem Gerät gespeichert und nicht hochgeladen.",
+  "Chat background": "Chat-Hintergrund",
+  Custom: "Eigene",
+  "Default bubbles": "Standard-Sprechblasen",
+  "Remove background": "Hintergrund entfernen",
+  "The image could not be removed.": "Das Bild konnte nicht entfernt werden.",
+  "The image could not be saved on this device.":
+    "Das Bild konnte auf diesem Gerät nicht gespeichert werden.",
+  "Use the default background.": "Standardhintergrund verwenden.",
+  "Use the default bubbles.": "Standard-Sprechblasen verwenden.",
+  "Add model": "Modell hinzufügen",
+  "Check for updates": "Nach Updates suchen",
+  "Check the screen, then release and take control again.":
+    "Prüfe den Bildschirm, gib die Steuerung frei und übernimm sie erneut.",
+  "Checking for updates…": "Suche nach Updates…",
+  "Complete connection": "Verbindung abschließen",
+  "Computer control is unavailable. Release and take control again.":
+    "Computersteuerung nicht verfügbar. Gib sie frei und übernimm sie erneut.",
+  "Computer input failed. Take control again.":
+    "Computereingabe fehlgeschlagen. Übernimm die Steuerung erneut.",
+  "Could not check for updates. Try again later.":
+    "Updates konnten nicht geprüft werden. Versuche es später erneut.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "Verbindung konnte nicht bestätigt werden. Starte einen neuen Versuch.",
+  "Could not restart. Reopen the app to apply the update.":
+    "Neustart fehlgeschlagen. Öffne die App erneut, um das Update anzuwenden.",
+  "Could not save changes": "Änderungen konnten nicht gespeichert werden",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Falls der Browser nicht abschließen kann, kopiere die vollständige Rücksprungadresse und füge sie hier ein.",
+  "MCP callback address": "MCP-Rücksprungadresse",
+  "Paste callback address": "Rücksprungadresse einfügen",
+  Restart: "Neu starten",
+  "Restart the app now? Save unfinished work first.":
+    "App jetzt neu starten? Speichere zuerst ungesicherte Arbeit.",
+  "The account, server, or space changed. Start the connection again.":
+    "Konto, Server oder Space hat sich geändert. Starte die Verbindung erneut.",
+  "The callback address does not match this connection attempt.":
+    "Die Rücksprungadresse passt nicht zu diesem Verbindungsversuch.",
+  "This update needs a new app installation.": "Dieses Update erfordert eine Neuinstallation.",
+  "Update downloaded": "Update heruntergeladen",
+  "Updates are unavailable in this build.": "Updates sind in diesem Build nicht verfügbar.",
+  "Waiting for screen dimensions…": "Warte auf Bildschirmgröße…",
+  "Your app is up to date.": "Deine App ist auf dem neuesten Stand.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Beim Serverwechsel wirst du abgemeldet und ungesendete Nachrichten sowie Anhänge können gelöscht werden. Sende oder speichere sie zuerst.",
+  "Disable bot voice": "Bot-Stimme deaktivieren",
+  "Enable bot voice": "Bot-Stimme aktivieren",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "Gespeicherte ungesendete Nachrichten konnten nicht geladen werden. Neue nicht zugestellte Nachrichten können beim Schließen der App verloren gehen.",
+  "Server settings or the saved session could not be verified.":
+    "Servereinstellungen oder gespeicherte Sitzung konnten nicht überprüft werden.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

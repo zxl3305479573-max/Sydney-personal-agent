@@ -8,10 +8,10 @@ import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
+import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { GlassSurface } from "./glass-surface";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { NativeSymbol } from "./native-symbol";
-import { ProjectFolderCard } from "./project-folder-card";
 
 export function InboxQuickActions({
   columnInsets,
@@ -22,55 +22,77 @@ export function InboxQuickActions({
   const projectLabel = locale.startsWith("zh") ? "项目" : "Projects";
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const buttonStyle = {
-    minHeight: 44,
-    borderRadius: 22,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 8,
-    paddingHorizontal: 16,
-  };
+  const bottomClaimed = useBottomSafeAreaClaimed();
+  const items = [
+    {
+      key: "integrations",
+      label: t("Connect apps"),
+      ios: "square.grid.2x2",
+      android: "grid-outline" as const,
+      onPress: () => router.push("/integrations"),
+    },
+    {
+      key: "projects",
+      label: projectLabel,
+      ios: "folder",
+      android: "folder-outline" as const,
+      onPress: () => router.push("/projects"),
+    },
+  ];
   return (
     <View
       style={{
+        flexShrink: 0,
         flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 8,
+        alignItems: "center",
+        gap: 10,
         paddingTop: 8,
-        paddingBottom: Math.max(insets.bottom, 12),
+        paddingBottom: bottomClaimed ? 8 : Math.max(insets.bottom, 12),
         paddingLeft: 16 + columnInsets.left,
         paddingRight: 16 + columnInsets.right,
       }}
     >
-      <GlassSurface
-        style={{ borderRadius: 22 }}
-        fallbackStyle={{
-          backgroundColor: native.fill,
-          borderWidth: 1,
-          borderColor: native.separator,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("Connect apps")}
-          onPress={() => router.push("/integrations")}
-          style={buttonStyle}
+      {items.map((item) => (
+        <GlassSurface
+          key={item.key}
+          shape="capsule"
+          style={{ flex: 1, minWidth: 0, borderRadius: 22 }}
+          fallbackStyle={{
+            backgroundColor: native.fill,
+            borderWidth: 1,
+            borderColor: native.separator,
+          }}
         >
-          <NativeSymbol ios="square.grid.2x2" android="grid-outline" size={18} />
-          <Text
-            style={{
-              color: native.label,
-              fontSize: 15,
-              fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-            }}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={item.label}
+            onPress={item.onPress}
+            style={({ pressed }) => ({
+              minHeight: 44,
+              borderRadius: 22,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              paddingHorizontal: 14,
+              opacity: pressed ? 0.7 : 1,
+            })}
           >
-            {t("Connect apps")}
-          </Text>
-        </Pressable>
-      </GlassSurface>
-      <View style={{ width: "100%" }}>
-        <ProjectFolderCard label={projectLabel} onPress={() => router.push("/projects")} />
-      </View>
+            <NativeSymbol ios={item.ios} android={item.android} size={18} />
+            <Text
+              numberOfLines={1}
+              style={{
+                flexShrink: 1,
+                color: native.label,
+                fontSize: 15,
+                fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+              }}
+            >
+              {item.label}
+            </Text>
+          </Pressable>
+        </GlassSurface>
+      ))}
     </View>
   );
 }
@@ -95,10 +117,14 @@ export function InboxRosterHeading({
       }}
     >
       <Text style={{ color: native.label, fontSize: 20, fontWeight: "600" }}>
-        {locale === "zh-CN"
+        {locale.startsWith("zh")
           ? kind === "bot"
-            ? "小伙伴"
-            : "群聊"
+            ? locale === "zh-TW"
+              ? "小夥伴"
+              : "小伙伴"
+            : locale === "zh-TW"
+              ? "群組對話"
+              : "群聊"
           : t(kind === "bot" ? "Bots" : "Group")}
       </Text>
       {kind === "group" ? (

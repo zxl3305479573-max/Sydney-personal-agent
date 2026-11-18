@@ -1,5 +1,46 @@
 # 验证记录
 
+2026-11-18（PA-021、PA-022 手机端全模块 UI 优化与多语言补齐）：Windows 本机运行
+15 个移动端定向测试文件（`mobile-ui-sheets`、`chat-appearance-screen`、
+`chat-model-picker`、`artifacts-navigation`、`glass-surface`、`glass-title`、
+`account-screen`、`computer-screen`、`thread-composer`、`i18n`、`inbox-render`、
+`inbox-archived`、`unread-jump-overlay`、`share-route`、`use-mcp-oauth-return`）
+共 314 项全部通过；新增 `mobile-ui-sheets.test.tsx` 覆盖 `ProjectGroupModal`
+软键盘避让与多选建群、`CreateBotModal` 固定页眉关闭/头像上传格与创建门禁，扩充
+`chat-appearance-screen` 综合实时预览与预设勾选断言，并修复此前 `i18n.test.ts`
+在非英文词表缺失翻译项的遗留失败。`@rakazo/mobile` 全包 `tsc --noEmit` 通过，
+33 个改动与新增文件的 Biome 检查通过。本次为本机离线测试与静态检查；云端 iOS
+IPA 重新构建、签名安装及 iPhone 实机视觉交互仍待单独验收。
+
+2026-11-18（PA-021、PA-022 手机端底部导航栏并排布局与覆盖修复）：Windows 本机运行
+7 个移动端定向测试文件（`artifacts-navigation`、`glass-surface`、`glass-title`、
+`inbox-archived`、`unread-jump-overlay`、`inbox-render`、`share-route`）共 62 项
+通过；修复此前 `artifacts-navigation.test.tsx` 缺少 `useMobileTokens` mock 的遗留
+失败，新增 `InboxQuickActions` 单行不换行双等宽胶囊并排、中英文项目入口路由、
+`ProjectFolderCard` 无绝对定位重叠层以及 `GlassSurface` / `GlassTitle` 的
+`ignoreSafeArea="all"` 断言。`@rakazo/mobile` 全包 TypeScript 类型检查
+（`tsc --noEmit`）通过，9 个改动源码与测试文件的 Biome 检查通过。本次仅执行本机
+离线测试与静态检查；未触发云端 iOS IPA 构建、签名安装或 iPhone 真机界面验收，
+手机上已安装的旧 IPA 需重新构建安装后才会生效。
+
+2026-11-17（PA-018 桌面独立后台能力令牌候选）：代理、屏幕撤销与注入
+候选三个定向测试文件 104 项通过、2 项跳过；桌面 TypeScript 检查和五个
+改动源码/测试文件 Biome 检查通过。覆盖 HTTP 与屏幕 WebSocket 的令牌
+校验、伪造拒绝、正确令牌可达且不上传、每实例令牌不同、注入候选的同源
+写入与跨源/跨窗口剥离。均为本机合成验证；真实 Electron 对 WebSocket/
+worker/iframe/重定向的注入覆盖、正式窗口接线、生产屏幕和网页停用均未
+验收。
+
+2026-11-17（真实 Electron 能力注入实验，Epicurus）：实验文件为
+`apps/desktop/src/electron-proxy-capability-experiment.cjs`，在
+`apps/desktop` 通过 `pnpm exec electron src/electron-proxy-capability-experiment.cjs`
+复跑。真实 Electron 观察到页面内 fetch/XHR、WebSocket、iframe 加载后的
+fetch、Worker fetch 和同源重定向可注入令牌；跨源重定向剥离令牌。
+关键 FAIL：首次主页面导航与 iframe 导航的 `frame` 为空，候选不注入，
+受保护代理会拒绝首次加载。实验服务未强制令牌，iframe 后续请求成功不能
+证明受保护代理下 iframe 加载正常。其他窗口隔离、正式代理联调和更多
+Worker 类型未验证。该实验阻断正式窗口接线。
+
 2026-11-16（PA-021 手机默认后台地址迁移）：静态核对默认来源及旧
 会话绑定分支，更新专属测试以覆盖缺失、旧域名、IP、未知及损坏作用域；
 按用户偏好未执行测试、类型检查、构建或真机验证。新 IPA 尚未生成，

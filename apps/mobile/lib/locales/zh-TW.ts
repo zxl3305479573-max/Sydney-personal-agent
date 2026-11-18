@@ -1,12 +1,15 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
-  "Server settings or the saved session could not be verified.": "無法驗證伺服器設定或已儲存的登入狀態。",
+  "Server settings or the saved session could not be verified.":
+    "無法驗證伺服器設定或已儲存的登入狀態。",
   "Account deleted": "帳號已刪除",
   "Could not confirm account deletion. Check your account before trying again.":
     "無法確認帳號是否已刪除。請先檢查帳號狀態，再決定是否重試。",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "原帳號已刪除，但本機清理失敗，且目前的登入工作階段已變更。",
-  "The original account was deleted. Your current session has changed.": "原帳號已刪除，目前的登入工作階段已變更。",
-  "The session changed. Open account deletion again.": "登入工作階段已變更，請重新開啟帳號刪除頁面。",
+  "The original account was deleted. Your current session has changed.":
+    "原帳號已刪除，目前的登入工作階段已變更。",
+  "The session changed. Open account deletion again.":
+    "登入工作階段已變更，請重新開啟帳號刪除頁面。",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "帳號已刪除，但本機工作階段清理失敗。請重新啟動應用程式並嘗試登出。",
   Computers: "電腦裝置",
@@ -1305,23 +1308,53 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "1 bot now uses the space default.": "1 個機器人已改用空間預設模型。",
   "{count} bots now use the space default.": "{count} 個機器人已改用空間預設模型。",
   "Could not switch {failedNames}. Try again.": "無法切換 {failedNames}，請再試一次。",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "已啟用自訂背景。",
+  "A custom bubble style is active.": "已啟用自訂氣泡樣式。",
+  "Background and bubbles": "背景與氣泡",
+  "Bubble presets": "氣泡預設",
+  "Bubble style": "氣泡樣式",
+  Change: "更換",
+  "Chat appearance": "聊天外觀",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "聊天外觀儲存在此裝置上，不會上傳至伺服器。",
+  "Chat background": "聊天背景",
+  Custom: "自訂",
+  "Default bubbles": "預設氣泡",
+  "Remove background": "移除背景",
+  "The image could not be removed.": "無法移除背景圖片。",
+  "The image could not be saved on this device.": "無法在此裝置上儲存該圖片。",
+  "Use the default background.": "使用預設背景。",
+  "Use the default bubbles.": "使用預設氣泡。",
+  "Add model": "新增模型",
+  "Check for updates": "檢查更新",
+  "Check the screen, then release and take control again.": "請先查看畫面，再釋放並重新接管。",
+  "Checking for updates…": "正在檢查更新…",
+  "Complete connection": "完成連結",
+  "Computer control is unavailable. Release and take control again.":
+    "電腦接管暫不可用，請釋放後重新接管。",
+  "Computer input failed. Take control again.": "電腦輸入失敗，請重新接管。",
+  "Could not check for updates. Try again later.": "無法檢查更新，請稍後再試。",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "無法確認連結狀態，請重新發起連結。",
+  "Could not restart. Reopen the app to apply the update.":
+    "無法自動重新啟動，請重新開啟應用程式以套用更新。",
+  "Could not save changes": "無法儲存變更",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "若瀏覽器無法完成回跳，請複製完整的回呼網址並貼到這裡。",
+  "MCP callback address": "MCP 回呼網址",
+  "Paste callback address": "貼上回呼網址",
+  Restart: "重新啟動",
+  "Restart the app now? Save unfinished work first.":
+    "要立即重新啟動應用程式嗎？請先儲存未完成的工作。",
+  "The account, server, or space changed. Start the connection again.":
+    "帳號、伺服器或空間已變更，請重新發起連結。",
+  "The callback address does not match this connection attempt.":
+    "此回呼網址與本次連結請求不一致。",
+  "This update needs a new app installation.": "此更新需要重新安裝應用程式。",
+  "Update downloaded": "更新已下載",
+  "Updates are unavailable in this build.": "此建置版本不支援線上更新。",
+  "Waiting for screen dimensions…": "正在等待電腦畫面尺寸…",
+  "Your app is up to date.": "目前已是最新版本。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

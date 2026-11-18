@@ -301,7 +301,15 @@ vi.mock("react-native", () => {
     Linking: { openURL: vi.fn() },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     ScrollView: view,
-    Modal: ({ children, visible, onDismiss }: { children?: ReactNode; visible: boolean; onDismiss: () => void }) => {
+    Modal: ({
+      children,
+      visible,
+      onDismiss,
+    }: {
+      children?: ReactNode;
+      visible: boolean;
+      onDismiss: () => void;
+    }) => {
       useEffect(() => {
         if (!visible) onDismiss();
       }, [visible, onDismiss]);
@@ -1781,7 +1789,12 @@ describe("chat model sheet", () => {
     const onAdd = vi.fn();
     await act(async () =>
       root.render(
-        <ThreadModelSheet botId="bot-fixture" onClose={onClose} onChanged={onChanged} onAdd={onAdd} />,
+        <ThreadModelSheet
+          botId="bot-fixture"
+          onClose={onClose}
+          onChanged={onChanged}
+          onAdd={onAdd}
+        />,
       ),
     );
     expect(container.textContent).toContain("Space default");
@@ -1794,7 +1807,9 @@ describe("chat model sheet", () => {
     );
     expect(onChanged).toHaveBeenCalledWith("vendor/model-2");
     expect(onClose).toHaveBeenCalled();
-    await act(async () => buttonWithText("＋ Add model")!.click());
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
+    expect(onClose).toHaveBeenCalledTimes(2);
+    await act(async () => buttonWithText("Add model")!.click());
     expect(onAdd).toHaveBeenCalledOnce();
   });
 });

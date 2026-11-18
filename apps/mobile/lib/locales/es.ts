@@ -4,8 +4,10 @@ export const ES_MESSAGES: Record<string, string> = {
     "No se pudo confirmar la eliminación de la cuenta. Comprueba tu cuenta antes de volver a intentarlo.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "La cuenta original se eliminó, pero falló la limpieza local y tu sesión ha cambiado.",
-  "The original account was deleted. Your current session has changed.": "La cuenta original se ha eliminado. Tu sesión actual ha cambiado.",
-  "The session changed. Open account deletion again.": "La sesión ha cambiado. Abre de nuevo la eliminación de la cuenta.",
+  "The original account was deleted. Your current session has changed.":
+    "La cuenta original se ha eliminado. Tu sesión actual ha cambiado.",
+  "The session changed. Open account deletion again.":
+    "La sesión ha cambiado. Abre de nuevo la eliminación de la cuenta.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "La cuenta se ha eliminado, pero no se pudo limpiar la sesión local. Reinicia la aplicación e intenta cerrar sesión.",
   Computers: "Ordenadores",
@@ -1241,23 +1243,67 @@ export const ES_MESSAGES: Record<string, string> = {
     "{count} bots ahora usan el modelo predeterminado del espacio.",
   "Could not switch {failedNames}. Try again.":
     "No se pudo cambiar {failedNames}. Vuelve a intentarlo.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Hay un fondo personalizado activo.",
+  "A custom bubble style is active.": "Hay un estilo de burbuja personalizado activo.",
+  "Background and bubbles": "Fondo y burbujas",
+  "Bubble presets": "Ajustes preestablecidos de burbujas",
+  "Bubble style": "Estilo de burbuja",
+  Change: "Cambiar",
+  "Chat appearance": "Apariencia del chat",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "La apariencia del chat se guarda en este dispositivo y no se sube.",
+  "Chat background": "Fondo del chat",
+  Custom: "Personalizado",
+  "Default bubbles": "Burbujas predeterminadas",
+  "Remove background": "Quitar fondo",
+  "The image could not be removed.": "No se pudo quitar la imagen.",
+  "The image could not be saved on this device.":
+    "No se pudo guardar la imagen en este dispositivo.",
+  "Use the default background.": "Usar el fondo predeterminado.",
+  "Use the default bubbles.": "Usar las burbujas predeterminadas.",
+  "Add model": "Añadir modelo",
+  "Check for updates": "Buscar actualizaciones",
+  "Check the screen, then release and take control again.":
+    "Revisa la pantalla, libera el control y vuelve a tomarlo.",
+  "Checking for updates…": "Buscando actualizaciones…",
+  "Complete connection": "Completar conexión",
+  "Computer control is unavailable. Release and take control again.":
+    "El control del equipo no está disponible. Libéralo y vuelve a tomarlo.",
+  "Computer input failed. Take control again.":
+    "Falló la entrada del equipo. Vuelve a tomar el control.",
+  "Could not check for updates. Try again later.":
+    "No se pudieron buscar actualizaciones. Inténtalo más tarde.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "No se pudo confirmar la conexión. Inicia un nuevo intento.",
+  "Could not restart. Reopen the app to apply the update.":
+    "No se pudo reiniciar. Vuelve a abrir la aplicación para aplicar la actualización.",
+  "Could not save changes": "No se pudieron guardar los cambios",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Si el navegador no puede terminar, copia la dirección completa de retorno y pégala aquí.",
+  "MCP callback address": "Dirección de retorno MCP",
+  "Paste callback address": "Pegar dirección de retorno",
+  Restart: "Reiniciar",
+  "Restart the app now? Save unfinished work first.":
+    "¿Reiniciar la aplicación ahora? Guarda primero el trabajo sin terminar.",
+  "The account, server, or space changed. Start the connection again.":
+    "La cuenta, el servidor o el espacio cambiaron. Inicia la conexión de nuevo.",
+  "The callback address does not match this connection attempt.":
+    "La dirección de retorno no coincide con este intento de conexión.",
+  "This update needs a new app installation.":
+    "Esta actualización requiere volver a instalar la aplicación.",
+  "Update downloaded": "Actualización descargada",
+  "Updates are unavailable in this build.":
+    "Las actualizaciones no están disponibles en esta compilación.",
+  "Waiting for screen dimensions…": "Esperando las dimensiones de la pantalla…",
+  "Your app is up to date.": "Tu aplicación está actualizada.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Cambiar de servidor cierra tu sesión y puede eliminar mensajes y archivos adjuntos no enviados. Envíalos o guárdalos primero.",
+  "Disable bot voice": "Desactivar voz del bot",
+  "Enable bot voice": "Activar voz del bot",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "No se pudieron cargar los mensajes guardados sin enviar. Los mensajes nuevos no entregados pueden perderse al cerrar la aplicación.",
+  "Server settings or the saved session could not be verified.":
+    "No se pudieron verificar los ajustes del servidor o la sesión guardada.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

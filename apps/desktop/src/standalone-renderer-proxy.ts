@@ -16,6 +16,10 @@ export interface StandaloneRendererProxyOptions {
   rendererRoot: string;
   remoteOrigin: string;
   setup?: unknown;
+  /** Loopback port to bind (`0` allocates an ephemeral port). Defaults to `0`. */
+  port?: number;
+  /** Response-header timeout for upstream HTTP requests in ms. Defaults to 120_000. */
+  upstreamTimeoutMs?: number;
   /** Defaults to true; only tests that never emulate the Electron injector may disable it. */
   requireCapability?: boolean;
   logger?: { warn(message: string, bindings?: Record<string, unknown>): void };
@@ -23,6 +27,7 @@ export interface StandaloneRendererProxyOptions {
 }
 
 export const PROXY_CAPABILITY_HEADER = "x-sydney-proxy-capability";
+export const DEFAULT_UPSTREAM_TIMEOUT_MS = 120_000;
 
 const BACKEND_PATHS = ["/api", "/rpc", "/novnc", "/wuying", "/.well-known"];
 const OPAQUE_SCREEN_ASSETS = new Set([
@@ -99,6 +104,7 @@ function hasControlCharacters(value: string) {
 }
 
 function capabilityMatches(actual: string | string[] | undefined, expected: string) {
+  if (Array.isArray(actual) || (typeof actual === "string" && actual.includes(","))) return false;
   const value = Array.isArray(actual) ? actual[0] : actual;
   if (typeof value !== "string") return false;
   const given = Buffer.from(value, "utf8");
@@ -186,7 +192,10 @@ function upstreamHeaders(
     const source = new URL(headers.referer);
     forwarded.set("referer", `${remote.origin}${source.pathname}${source.search}`);
   }
-  for (const [name, value] of Object.entries(configured)) forwarded.set(name, value);
+  for (const [name, value] of Object.entries(configured)) {
+    if (name === PROXY_CAPABILITY_HEADER) continue;
+    forwarded.set(name, value);
+  }
   return forwarded;
 }
 
@@ -236,9 +245,13 @@ function fail(response: ServerResponse, status: number, message: string) {
 export class StandaloneRendererProxy {
   readonly websocketSupport = "screen-only" as const;
   readonly secureCookiePolicy = "preserve" as const;
-  /** Only the Electron injector for this window may present it; never forwarded upstream. */
+  /** Only the Electron injector for this window's trusted main frame may present it; never forwarded upstream. */
   readonly capability: string;
+  /** Narrow token accepted only on anonymous screen assets and screen WebSockets; never forwarded upstream. */
+  readonly screenCapability: string;
   private readonly remote: URL;
+  private readonly port: number;
+  private readonly upstreamTimeoutMs: number;
   private readonly serverHeaders: Readonly<Record<string, string>>;
   private readonly fetchImpl: typeof fetch;
   private readonly screenSocket: StandaloneScreenSocket;
@@ -252,8 +265,23 @@ export class StandaloneRendererProxy {
     if (!path.isAbsolute(options.rendererRoot)) {
       throw new Error("rendererRoot must be an absolute directory");
     }
+    if (
+      options.port !== undefined &&
+      (!Number.isInteger(options.port) || options.port < 0 || options.port > 65_535)
+    ) {
+      throw new Error("port must be an integer between 0 and 65535");
+    }
+    if (
+      options.upstreamTimeoutMs !== undefined &&
+      (!Number.isFinite(options.upstreamTimeoutMs) || options.upstreamTimeoutMs <= 0)
+    ) {
+      throw new Error("upstreamTimeoutMs must be a positive number");
+    }
     this.remote = remoteUrl(options.remoteOrigin);
+    this.port = options.port ?? 0;
+    this.upstreamTimeoutMs = options.upstreamTimeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS;
     this.capability = randomBytes(32).toString("base64url");
+    this.screenCapability = randomBytes(32).toString("base64url");
     const setup = options.setup == null ? null : parseSetupInput(options.setup);
     if (options.setup != null && setup === null) {
       throw new Error("setup must be a valid desktop server configuration");
@@ -281,7 +309,7 @@ export class StandaloneRendererProxy {
     this.screenSocket = new StandaloneScreenSocket(
       this.remote,
       this.serverHeaders,
-      options.requireCapability === false ? undefined : this.capability,
+      options.requireCapability === false ? undefined : [this.capability, this.screenCapability],
     );
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
   }
@@ -321,9 +349,12 @@ export class StandaloneRendererProxy {
         this.screenSocket.handle(request, socket, head, new URL(this.localUrl));
       });
       await new Promise<void>((resolve, reject) => {
-        const onError = (error: Error) => reject(error);
+        const onError = (error: Error) => {
+          server.close();
+          reject(error);
+        };
         server.once("error", onError);
-        server.listen(0, "127.0.0.1", () => {
+        server.listen(this.port, "127.0.0.1", () => {
           server.removeListener("error", onError);
           resolve();
         });
@@ -376,13 +407,14 @@ export class StandaloneRendererProxy {
     const pathname = requestPath(raw);
     if (!pathname) return fail(response, 400, "Invalid request path");
     if (!this.localUrl) return fail(response, 403, "Request source rejected");
-    if (
-      this.options.requireCapability !== false &&
-      !capabilityMatches(request.headers[PROXY_CAPABILITY_HEADER], this.capability)
-    )
-      return fail(response, 403, "Request source rejected");
     const local = new URL(this.localUrl);
     const anonymousScreenAsset = opaqueScreenAsset(request, local, raw);
+    if (this.options.requireCapability !== false) {
+      const header = request.headers[PROXY_CAPABILITY_HEADER];
+      const validApp = capabilityMatches(header, this.capability);
+      const validScreen = anonymousScreenAsset && capabilityMatches(header, this.screenCapability);
+      if (!validApp && !validScreen) return fail(response, 403, "Request source rejected");
+    }
     if (!trustedRequest(request, local) && !anonymousScreenAsset)
       return fail(response, 403, "Request source rejected");
     const method = request.method ?? "";
@@ -398,7 +430,7 @@ export class StandaloneRendererProxy {
       return this.forward(request, response, raw, anonymousScreenAsset);
     }
     if (method !== "GET" && method !== "HEAD") return fail(response, 405, "Method not allowed");
-    if (pathname.split("/").some((part) => part.startsWith(".")))
+    if (pathname === "/sw.js" || pathname.split("/").some((part) => part.startsWith(".")))
       return fail(response, 404, "Local resource not found");
     const requested = pathname === "/" ? "index.html" : pathname.slice(1);
     const candidates = [path.resolve(root, requested)];
@@ -415,7 +447,7 @@ export class StandaloneRendererProxy {
       acceptsHtml &&
       (!path.extname(pathname) ||
         (request.headers["sec-fetch-dest"] === "document" &&
-          /^\/app\/(?:[^/]+|g\/[^/]+|projects\/[^/]+|artifacts\/[^/]+|x\/[^/]+)$/.test(
+          /^(?:\/artifacts\/[^/]+|\/app\/(?:[^/]+|g\/[^/]+|projects\/[^/]+|artifacts\/[^/]+|x\/[^/]+))$/.test(
             pathname,
           ))) &&
       !pathname.startsWith("/assets/")
@@ -461,7 +493,7 @@ export class StandaloneRendererProxy {
     const abort = () => controller.abort();
     request.once("aborted", abort);
     response.once("close", abort);
-    const timeout = setTimeout(abort, 30_000);
+    const timeout = setTimeout(abort, this.upstreamTimeoutMs);
     timeout.unref();
     const screenPrefix = backendPath(raw.split("?", 1)[0]!);
     const screenResponse = screenPrefix === "/novnc" || screenPrefix === "/wuying";

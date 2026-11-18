@@ -1,5 +1,17 @@
 # 手机与桌面客户端迁移方案
 
+2026-11-17 能力令牌候选：独立 loopback 代理生成每次实例令牌并校验
+HTTP 与屏幕 WebSocket；Electron 注入候选只在 app 窗口同源请求写入，
+其他调用方剥离。合成测试通过。这解决了同机进程仅凭伪造 loopback
+头借用配置头的路径，但仍未接入正式窗口；真实 Electron 对 WebSocket、
+worker、iframe、重定向和导航的覆盖必须单独实验验证，不能视为生产认证。
+
+2026-11-17 真实 Electron 注入实验：fetch/XHR、WebSocket、iframe 后续
+fetch、Worker fetch 和同源重定向可注入，跨源重定向剥离；但首次主页面
+导航与 iframe 导航的 `frame` 为空，不注入令牌，受保护代理会拒绝首次
+加载。实验未强制令牌，iframe 完整加载仍未证明。候选必须补齐首次导航
+授权并重做实验后才可考虑接线。
+
 2026-11-16 桌面代理服务头候选：代理可从与远端来源匹配的桌面设置
 读取经过既有契约校验的自定义头，并用于 HTTP 与屏幕 WebSocket；仅
 HTTPS 或 loopback HTTP 可携带配置头，匿名画面不转发页面 Cookie/

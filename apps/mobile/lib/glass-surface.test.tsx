@@ -35,8 +35,18 @@ vi.mock("react-native", () => ({
   ),
 }));
 vi.mock("@expo/ui/swift-ui", () => ({
-  Host: ({ children, pointerEvents }: { children?: ReactNode; pointerEvents?: string }) => (
-    <div data-glass-host={pointerEvents}>{children}</div>
+  Host: ({
+    children,
+    ignoreSafeArea,
+    pointerEvents,
+  }: {
+    children?: ReactNode;
+    ignoreSafeArea?: string;
+    pointerEvents?: string;
+  }) => (
+    <div data-glass-host={pointerEvents} data-ignore-safe-area={ignoreSafeArea}>
+      {children}
+    </div>
   ),
   Capsule: () => <div data-shape="capsule" />,
   Circle: () => <div data-shape="circle" />,
@@ -73,7 +83,11 @@ it("keeps glass behind interactive content on iOS 26", () => {
   ).toBe("Connection");
   expect(element.querySelector('[role="alert"]')?.getAttribute("aria-live")).toBe("assertive");
   expect(element.querySelector('[role="alert"]')?.getAttribute("data-modal")).toBe("true");
-  expect(element.querySelector('[data-glass-host="none"] [data-radius="12"]')).not.toBeNull();
+  expect(
+    element.querySelector(
+      '[data-glass-host="none"][data-ignore-safe-area="all"] [data-radius="12"]',
+    ),
+  ).not.toBeNull();
 });
 
 it("retains children and test identity when native glass is unavailable", () => {

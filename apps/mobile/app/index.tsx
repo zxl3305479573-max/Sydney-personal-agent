@@ -420,11 +420,16 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     () =>
       withoutArchiving(
         "group",
-        applyPinOverrides("group", applyUnreadOverrides("group", groups, unreadOverrides), pinOverrides, {
-          generation,
-          apiBase: currentApiBase(),
-          spaceId: me?.spaceId,
-        }),
+        applyPinOverrides(
+          "group",
+          applyUnreadOverrides("group", groups, unreadOverrides),
+          pinOverrides,
+          {
+            generation,
+            apiBase: currentApiBase(),
+            spaceId: me?.spaceId,
+          },
+        ),
         archiving,
       ),
     [groups, unreadOverrides, pinOverrides, archiving, generation, me?.spaceId],
@@ -438,14 +443,18 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
             bots: withoutArchiving(
               "bot",
               applyPinOverrides("bot", space.bots, pinOverrides, {
-                generation, apiBase: currentApiBase(), spaceId: space.id,
+                generation,
+                apiBase: currentApiBase(),
+                spaceId: space.id,
               }),
               archiving,
             ),
             groups: withoutArchiving(
               "group",
               applyPinOverrides("group", space.groups, pinOverrides, {
-                generation, apiBase: currentApiBase(), spaceId: space.id,
+                generation,
+                apiBase: currentApiBase(),
+                spaceId: space.id,
               }),
               archiving,
             ),
@@ -567,8 +576,9 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     keys: jumpKeys,
     listRef,
     // The Liquid Glass header floats over the list; the older header sits above it.
+    // Outside share-picking, `InboxQuickActions` sits below `listArea` and owns the bottom inset.
     topInset: nativeHeader ? headerHeight : 0,
-    bottomInset: insets.bottom,
+    bottomInset: onShareSelect ? insets.bottom : 0,
   });
   const router = useRouter();
   const pathname = usePathname();
@@ -694,22 +704,31 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     [deleteInboxSpace, t],
   );
 
-  const createBot = useCallback(async (identity: InboxBotIdentity): Promise<Href | null> => {
-    if (creatingBotRef.current || spaceActionRef.current.busy || spaceActionRef.current.recoveryId)
-      throw new Error(t("Could not create bot"));
-    creatingBotRef.current = true;
-    try {
-      let destination: Href | null = null;
-      await createInboxBot({
-        identity,
-        refreshBots,
-        openChat: (href) => { destination = href; },
-      });
-      return destination;
-    } finally {
-      creatingBotRef.current = false;
-    }
-  }, [refreshBots, t]);
+  const createBot = useCallback(
+    async (identity: InboxBotIdentity): Promise<Href | null> => {
+      if (
+        creatingBotRef.current ||
+        spaceActionRef.current.busy ||
+        spaceActionRef.current.recoveryId
+      )
+        throw new Error(t("Could not create bot"));
+      creatingBotRef.current = true;
+      try {
+        let destination: Href | null = null;
+        await createInboxBot({
+          identity,
+          refreshBots,
+          openChat: (href) => {
+            destination = href;
+          },
+        });
+        return destination;
+      } finally {
+        creatingBotRef.current = false;
+      }
+    },
+    [refreshBots, t],
+  );
 
   const runCreateAction = useCallback(
     (action: CreateAction) => {

@@ -5,6 +5,7 @@ import { currentApiBase, resetPasswordFromToken } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { passwordResetToken } from "../lib/password-reset-link";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 
 export function NativePasswordReset({
@@ -89,71 +90,93 @@ export function NativePasswordReset({
     }
   }
 
+  const surfaceFallback = {
+    backgroundColor: tokens.background,
+    borderColor: tokens.border,
+    borderWidth: 1,
+  };
   const fieldStyle = {
-    marginTop: 10,
     minHeight: 48,
     color: tokens.foreground,
-    backgroundColor: tokens.background,
-    borderColor: tokens.input,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   };
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 10 }}>
       {complete ? (
         <Text accessibilityRole="alert" style={{ color: tokens.foreground }}>
           {text("密码已更新，请返回登录。", "Password updated. Return to sign in.")}
         </Text>
       ) : (
         <>
-          <Text style={{ color: tokens.mutedForeground }}>
+          <Text style={{ color: tokens.mutedForeground, lineHeight: 20 }}>
             {text(
               "复制邮件中的原始重置链接并粘贴到这里，即可在 App 内设置新密码。",
               "Copy the original reset link from your email and paste it here to set a new password in the app.",
             )}
           </Text>
-          <TextInput
-            accessibilityLabel={text("重置链接", "Reset link")}
-            value={link}
-            onChangeText={setLink}
-            editable={!pending}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={4096}
-            placeholder={text("粘贴邮件中的链接", "Paste the link from your email")}
-            placeholderTextColor={tokens.mutedForeground}
-            style={fieldStyle}
-          />
-          <TextInput
-            accessibilityLabel={text("新密码", "New password")}
-            value={password}
-            onChangeText={setPassword}
-            editable={!pending}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="new-password"
-            textContentType="newPassword"
-            passwordRules={PASSWORD_RULES}
-            maxLength={MAX_PASSWORD_LENGTH}
-            placeholder={text("新密码", "New password")}
-            placeholderTextColor={tokens.mutedForeground}
-            style={fieldStyle}
-          />
-          <TextInput
-            accessibilityLabel={text("确认新密码", "Confirm new password")}
-            value={confirmation}
-            onChangeText={setConfirmation}
-            editable={!pending}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={MAX_PASSWORD_LENGTH}
-            placeholder={text("确认新密码", "Confirm new password")}
-            placeholderTextColor={tokens.mutedForeground}
-            style={fieldStyle}
-          />
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={12}
+            style={{ borderRadius: 12, marginTop: 4 }}
+            fallbackStyle={surfaceFallback}
+          >
+            <TextInput
+              accessibilityLabel={text("重置链接", "Reset link")}
+              value={link}
+              onChangeText={setLink}
+              editable={!pending}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={4096}
+              placeholder={text("粘贴邮件中的链接", "Paste the link from your email")}
+              placeholderTextColor={tokens.mutedForeground}
+              style={fieldStyle}
+            />
+          </GlassSurface>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={12}
+            style={{ borderRadius: 12 }}
+            fallbackStyle={surfaceFallback}
+          >
+            <TextInput
+              accessibilityLabel={text("新密码", "New password")}
+              value={password}
+              onChangeText={setPassword}
+              editable={!pending}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="new-password"
+              textContentType="newPassword"
+              passwordRules={PASSWORD_RULES}
+              maxLength={MAX_PASSWORD_LENGTH}
+              placeholder={text("新密码", "New password")}
+              placeholderTextColor={tokens.mutedForeground}
+              style={fieldStyle}
+            />
+          </GlassSurface>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={12}
+            style={{ borderRadius: 12 }}
+            fallbackStyle={surfaceFallback}
+          >
+            <TextInput
+              accessibilityLabel={text("确认新密码", "Confirm new password")}
+              value={confirmation}
+              onChangeText={setConfirmation}
+              editable={!pending}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={MAX_PASSWORD_LENGTH}
+              placeholder={text("确认新密码", "Confirm new password")}
+              placeholderTextColor={tokens.mutedForeground}
+              style={fieldStyle}
+            />
+          </GlassSurface>
           {error ? (
             <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
               {error}

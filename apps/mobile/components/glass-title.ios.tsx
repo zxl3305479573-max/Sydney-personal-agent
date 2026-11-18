@@ -34,7 +34,7 @@ export function GlassTitle({ title }: { title: string }) {
       >
         {title}
       </RNText>
-      <Host colorScheme={scheme} style={StyleSheet.absoluteFill}>
+      <Host colorScheme={scheme} ignoreSafeArea="all" style={StyleSheet.absoluteFill}>
         <Text
           modifiers={[
             font({ textStyle: "body", weight: "semibold" }),

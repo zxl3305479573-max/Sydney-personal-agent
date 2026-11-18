@@ -32,7 +32,12 @@ export function GlassSurface({
   ];
   return (
     <View {...viewProps} style={style}>
-      <Host colorScheme={scheme} pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Host
+        colorScheme={scheme}
+        ignoreSafeArea="all"
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+      >
         {shape === "circle" ? (
           <Circle modifiers={modifiers} />
         ) : shape === "roundedRectangle" ? (

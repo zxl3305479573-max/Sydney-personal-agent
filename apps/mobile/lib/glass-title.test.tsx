@@ -31,7 +31,9 @@ vi.mock("react-native", () => ({
   useWindowDimensions: () => window,
 }));
 vi.mock("@expo/ui/swift-ui", () => ({
-  Host: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Host: ({ children, ignoreSafeArea }: { children: ReactNode; ignoreSafeArea?: string }) => (
+    <div data-ignore-safe-area={ignoreSafeArea}>{children}</div>
+  ),
   Text: ({ children, modifiers }: { children: ReactNode; modifiers: unknown[] }) => (
     <span data-modifiers={JSON.stringify(modifiers)}>{children}</span>
   ),
@@ -54,7 +56,9 @@ it.each(["", "   "])("omits glass chrome for an empty title %j", (title) => {
 });
 
 it("preserves a named floating header", () => {
-  expect(renderToStaticMarkup(<GlassTitle title="Models" />)).toContain("Models");
+  const markup = renderToStaticMarkup(<GlassTitle title="Models" />);
+  expect(markup).toContain("Models");
+  expect(markup).toContain('data-ignore-safe-area="all"');
 });
 
 it("draws the glass at the header buttons' height", () => {

@@ -32,6 +32,7 @@ import { ComputerKeyboardBar } from "../components/computer-keyboard-bar";
 import { ComputerMaintenanceActions } from "../components/computer-maintenance-actions";
 import { ComputerModePicker } from "../components/computer-mode-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
+import { GlassSurface } from "../components/glass-surface";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeComputerControl } from "../components/native-computer-control";
 import {
@@ -1007,22 +1008,36 @@ export default function Computer() {
                       pointerEvents="none"
                       style={{
                         position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        padding: 10,
-                        backgroundColor: tokens.background,
+                        bottom: 12,
+                        left: 16,
+                        right: 16,
                       }}
                     >
-                      <Text accessibilityRole="alert" style={{ color: tokens.foreground }}>
-                        {nativeLease && nativeLease === nativeInputBlockedLease
-                          ? "请先释放当前接管，核对画面后重新接管。"
-                          : !nativeLease
-                            ? t("Computer control is unavailable. Release and take control again.")
-                            : nativeInputError
-                              ? `${nativeInputError} ${t("Check the screen, then release and take control again.")}`
-                              : t("Waiting for screen dimensions…")}
-                      </Text>
+                      <GlassSurface
+                        shape="roundedRectangle"
+                        cornerRadius={14}
+                        style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 }}
+                        fallbackStyle={{
+                          backgroundColor: tokens.card,
+                          borderWidth: 1,
+                          borderColor: tokens.border,
+                        }}
+                      >
+                        <Text
+                          accessibilityRole="alert"
+                          style={{ color: tokens.foreground, fontSize: 13 }}
+                        >
+                          {nativeLease && nativeLease === nativeInputBlockedLease
+                            ? "请先释放当前接管，核对画面后重新接管。"
+                            : !nativeLease
+                              ? t(
+                                  "Computer control is unavailable. Release and take control again.",
+                                )
+                              : nativeInputError
+                                ? `${nativeInputError} ${t("Check the screen, then release and take control again.")}`
+                                : t("Waiting for screen dimensions…")}
+                        </Text>
+                      </GlassSurface>
                     </View>
                   ) : null}
                 </>

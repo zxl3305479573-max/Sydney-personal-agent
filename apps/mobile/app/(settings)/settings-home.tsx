@@ -20,7 +20,8 @@ export default function SettingsHome() {
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const account = accountDisplay(me ?? {}, t("Your account"));
-  const chinese = locale === "zh-CN";
+  const chinese = locale.startsWith("zh");
+  const traditional = locale === "zh-TW";
 
   function accountSection(section: string) {
     router.push({ pathname: "/account", params: { section } });
@@ -124,9 +125,9 @@ export default function SettingsHome() {
 
         <SettingsGroup>{link(t("Connect apps"), "/integrations")}</SettingsGroup>
 
-        <SettingsGroup label={chinese ? "小伙伴" : t("Bots")}>
+        <SettingsGroup label={chinese ? (traditional ? "小夥伴" : "小伙伴") : t("Bots")}>
           <SettingsRow
-            title={chinese ? "权限" : t("Rules")}
+            title={chinese ? (traditional ? "權限" : "权限") : t("Rules")}
             accessibilityRole="button"
             chevron="right"
             onPress={() => accountSection("permissions")}

@@ -1,5 +1,62 @@
 # 开发过程记录
 
+2026-11-18（PA-021、PA-022 手机端全模块 UI 优化与多语言补齐）：按用户批准的
+方案完成三批界面优化：
+（1）P0 可用性与安全区：`ThreadModelSheet` 补齐 `useSafeAreaInsets().bottom`、
+顶部拖动条、右上关闭按钮、行内保存 `ActivityIndicator` 与 `Checkmark`；
+`ProjectGroupModal` 外层接入 `KeyboardAvoidingView` 避免群名输入框被 iOS 软键盘
+遮挡，并改为固定页眉 + 成员卡片（首字母头像与图标勾选）+ 底部输入与主按钮；
+新增 `BottomSafeAreaClaimedContext`，当根布局 `VoicePlayerBar` 显示时自动收敛
+首页 `InboxQuickActions` 与聊天 `ThreadComposerDock` 的重复底部安全区留白。
+（2）P1 核心模块原生体验：`projects.tsx` 接入 `glassHeaderOptions`、下拉刷新
+`RefreshControl`、空状态引导卡，并将「新建项目」收进右上角 `+` 按钮触发的软键盘
+避让底部抽屉；`projects/[workspaceId].tsx` 将「切换项目」移至导航栏右侧，项目
+头部改为文件夹玻璃摘要卡，成员分区改用带图标徽标与分隔线的列表卡并合并重复提示；
+`CreateBotModal` 重构为固定页眉 + 滚动表单 + 固定底部创建栏的三段式抽屉，统一
+内置/已保存/上传头像为 `68×68` 格子并将人格预设改为等比双列；`PersonalPersonalityLibrary`
+改用 `SegmentedPills` 分类/权重分段器与流式属性标签 Chip 压缩纵向高度。
+（3）P2 细节一致性与七语种词表：`chat-appearance.tsx` 合并顶部「背景 + 遮罩 +
+双气泡」综合实时预览卡，升级支持手势拖动实时预览与松手落盘的滑块（保留步进按钮
+与无障碍动作）并补充预设勾选态；统一 `inbox-header`、`settings-home`、`chat-appearance`
+的繁简中文判断；移除 `McpOAuthReturn` 硬编码边框色，统一 `NativePasswordReset`
+与 `computer.tsx` 底部状态胶囊的玻璃表面样式；同时补齐 `zh`、`zh-TW`、`ru`、
+`de`、`nl`、`ja`、`es` 七份词表中聊天外观英文占位及此前遗漏的 28 条界面翻译，
+恢复 `i18n.test.ts` 全量通过。重新构建 IPA 与 iPhone 真机验收待后续执行。
+
+2026-11-18（PA-021、PA-022 手机端底部导航栏并排布局与覆盖修复）：排查此前
+`e3a16f580` 遗留的手机底部导航栏问题，定位四处原因：一是首页下方
+`InboxQuickActions` 开启 `flexWrap` 并将 `ProjectFolderCard` 包在
+`width: "100%"` 容器内，导致「连接应用」与「项目」未按同行并排展示，而是
+拆成上下两层占高；二是 `ProjectFolderCard` 用 `position: "absolute"` 叠放
+第二个 `GlassSurface` 标签块，与主卡片在顶部重叠 12pt，在 iOS 26 透明液态
+玻璃及边框下产生双层重叠；三是 `glass-surface.ios.tsx` 与
+`glass-title.ios.tsx` 的 SwiftUI `Host` 未传 `ignoreSafeArea="all"`，子
+`UIHostingController` 在贴近底部安全区、导航栏或键盘时会再次套用安全区内缩，
+使玻璃背景与 React Native 文字图标错位互压；四是首页 `listArea` 未显式设置
+`minHeight: 0` 与 `overflow: "hidden"`，且普通首页模式下 `useUnreadJumpPills`
+重复计入已由底部栏承担的 `insets.bottom`。现将 `InboxQuickActions` 改为单行
+不换行的同行等宽双胶囊按钮（「连接应用」与「项目」并排、单行省略、保留底部
+安全区内边距），移除 `ProjectFolderCard` 的重叠副玻璃块，为 `GlassSurface`
+与 `GlassTitle` 宿主补齐 `ignoreSafeArea="all"`，并收紧首页列表裁剪与未读
+胶囊底部边界；同时修复此前因缺少 `useMobileTokens` mock 而失修的
+`artifacts-navigation.test.tsx` 并补充并排布局与玻璃宿主安全区断言。新 IPA
+重新构建、签名安装及 iPhone 实机视觉仍待单独验收。
+
+2026-11-17（PA-018 桌面独立后台能力令牌候选）：独立代理新增每次实例
+能力令牌；HTTP 与 noVNC WebSocket 入站均校验，转发前剥离，屏幕升级
+也不向上游发送。新增 Electron `webRequest` 注入候选，仅允许 app
+主窗口、同源 frame 且请求目标为自身代理时写入，其他调用方剥离同名头。
+定向测试覆盖 HTTP/WS 正确与伪造令牌、跨实例令牌不同、匿名出站不转发
+令牌、WebSocket 302 不跟随，以及注入候选同源/跨源/跨窗口/无代理场景。
+本轮排查发现此前 WS 令牌测试失败由测试请求缺少最终空行导致，实现与
+正式服务路径未因此改变。
+
+真实 Electron 注入实验（Epicurus，仅新增实验文件）：Electron 45 下
+页面内 fetch/XHR、WebSocket、iframe 后续 fetch、Worker fetch 和同源
+重定向可注入；跨源重定向剥离。首次主页面导航和 iframe 导航的 `frame`
+为空，候选不注入，受保护代理会拒绝首次加载。实验未强制令牌，不能证明
+iframe 完整加载；正式窗口接线保持阻断。
+
 2026-11-16（PA-021 手机默认后台地址迁移）：默认侧载地址不再因旧
 会话来源自动回退到生产域名；已验证为旧生产域名的会话作用域会在
 会话代次一致时改写到生产 IP，并复核写入结果。缺少来源作用域的
