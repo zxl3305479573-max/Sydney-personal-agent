@@ -1,6 +1,8 @@
 # Sydney 桌面独立启动链设计
 
-更新日期为 2026-11-17。关联需求为 PA-018、PA-023。
+更新日期为 2026-11-18。关联需求为 PA-018、PA-023。
+
+> 2026-11-18 Batch 1 进展：`StandaloneRendererProxy` 已支持显式固定端口 `port`、默认 `120_000ms` 响应头超时、本地 `/sw.js` 拒绝及独立窄令牌 `screenCapability`；`installProxyCapability` 已按 `frame.origin`、`mainFrame` 与 `webContents` 严格 Fail-Closed 门禁完成首次/恢复顶层导航、受控子文档首跳、同源 `<a download>` 下载、noVNC/Wuying（含嵌套 `container.html`）窄能力注入及 `/html-viewer.html` 零令牌隔离，在真实 Electron 45 对接强制 `403` 代理 13/13 项验证通过（覆盖 H-03、H-04、H-05 的合成代理与 Electron 层门槛）。`main.ts` 正式窗口接线（须同时解决 `userDevices` 配对 HTTP 与监控 `session.fetch` 因 `127.0.0.1` Cookie 无法直发远端产生的 401/403 问题）及真实后台/SDK 验收仍属后续批次。
 
 ## 1. 范围、交付与验收
 

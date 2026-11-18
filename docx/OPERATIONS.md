@@ -26,6 +26,8 @@ WebSocket 入站校验，出站剥离。注入候选只对 app 窗口自身代�
 和导航的覆盖未测量。因此不要把该令牌当作生产调用者认证，也不要在覆盖
 实验通过前接入正式窗口。现有配置和生产行为不变。
 
+2026-11-18 实验与全仓盘点更新：桌面能力注入候选与独立代理已完成首跳导航、错误页恢复、`<a download>` 下载、双令牌屏幕窄授权、固定回环端口选项与 120s 默认响应头超时修复，在锁定的 Electron 45 中直连强制 `403` 代理通过 13/13 项实验，并经独立子代理两轮复审；但 `main.ts` 正式窗口尚未切换，桌面安装包生产行为仍保持不变。同时全仓网页退役代码审查确认：下线线上 `web` 容器前，除完成桌面正式接线与双端 Slack/MCP 回调闭环外，还须在原生 Linux 部署配置补充 `service:api` 的 `127.0.0.1:16080 -> screen.sock` 画面桥接、在 Docker `supervisor` 支持将 `service=api` 加入隔离沙箱网络、在 Caddy 补齐 `/.well-known/*` 与 `/integrations/callback` 指向 `api:3100`，并解除 `docker-compose.prod.yml`（`caddy.depends_on.web`）、`deploy-main.sh` 与 `updater` 对 `web` 容器的强制依赖；未完成上述改造与隔离演练前，禁止直接停止线上 `web` 服务。
+
 2026-11-17 实验更新：真实 Electron 实验确认页面内 fetch/XHR、WebSocket、
 iframe 后续请求、Worker fetch 和同源重定向可注入，但首次主页面导航与
 iframe 导航没有令牌，接入受保护代理会拒绝首次加载。该实验文件仅供复跑，
@@ -2875,18 +2877,16 @@ Docker、固定镜像及隔离条件。演练使用占位角色和合成会话�
 不存在这两个路径。按候选说明先完成独立审查，再在受控隔离环境安排测试、
 确认工具来源及清理；不得以此用例采集真实卷或解除生产硬阻断。
 
-# 2026-11-17 获取 iOS 侧载包
+# 2026-11-17 / 2026-11-18 获取 iOS 侧载包
 
 构建工作流 `.github/workflows/mobile-ios-sideload.yml` 在推送 `apps/mobile/**`
 改动时自动运行，也可手动 `workflow_dispatch` 指定 `api_url` 与 `bundle_id`。
 产物为无签名 IPA，需由用户自行签名安装。
 
-- 本轮 Run：`44006236585`（提交 `e3a16f580`），产物 `sydney-ios-unsigned-44006236585-1`，
-  保留 7 天。
-- 下载地址（需登录仓库账号）：
-  `https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44006236585`
-- 本机已下载并解包的位置：`D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`，
-  同目录含 `SHA256.txt` 与原始压缩包。
+- 最新 Run（2026-11-18）：`44242990888`（提交 `45992470f`），产物 `sydney-ios-unsigned-44242990888-1`（Artifact ID `14401216722`，保留 7 天），包含手机底部导航栏修复、全模块 UI 优化及七语种词表补齐。
+- 最新下载地址（需登录仓库账号）：
+  `https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44242990888`
+- 本机最新解包位置：`D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节，SHA256 `75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`），同目录含 `SHA256.txt` 与 `sydney-ios-unsigned-44242990888-1.zip`（历史上一版 Run `44006236585` 的 `sydney-ios-unsigned-44006236585-1.zip` 亦保留于该目录）。
 - 该目录不属于仓库工作区，不会进入版本控制；如需长期保留，请自行复制到其他位置。
 - 产物内默认后台地址为构建变量注入的 `https://124.221.182.39`，不包含旧域名默认入口。
 - 未验证：签名、安装、真机登录与功能验收均由用户侧完成，本机无法代做。

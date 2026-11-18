@@ -6,15 +6,15 @@
 - **交付物**：移动端 P0/P1/P2 界面源码更新、对应单元测试与回归断言，以及计划、开发、验证和 iPhone 实施文档同步。
 - **依赖**：既有 `@rakazo/mobile` 路由、RPC 契约与 `GlassSurface` / `SegmentedPills` / `BotAvatar` 组件；不改 `rakazo://` 协议、存储键或 `apps/desktop` 未提交写集。
 - **验收条件**：模型弹层、项目群聊弹层与新建 Bot 抽屉均避让安全区与软键盘且具备固定页眉/关闭入口；项目页首屏直接展示项目列表并支持下拉刷新与右上角新建；聊天外观具备综合实时预览与拖动滑条；相关定向测试、移动端 `tsc --noEmit` 与改动文件 Biome 检查全部通过，云构建新 IPA 与真机视觉另行验收。
-- **状态**：进行中（P0/P1/P2 源码优化与七语种缺失词条补齐已完成；本机 15 个移动端测试文件共 314 项、`@rakazo/mobile` 全包 `tsc --noEmit` 及 33 个改动/新增文件的 Biome 检查全部通过；云构建新 IPA、签名安装与 iPhone 真机视觉待验收）。
+- **状态**：进行中（P0/P1/P2 源码优化与七语种缺失词条补齐已完成；本机 15 个移动端测试文件共 314 项、`@rakazo/mobile` 全包 `tsc --noEmit` 及 33 个改动/新增文件的 Biome 检查全部通过；已推送提交 `45992470f` 并完成 GitHub Actions 云构建 Run `44242990888`，产物 `sydney-ios-unsigned-44242990888-1` 已下载解包至 `D:\33054\sydney-ipa-output\Sydney-unsigned.ipa` 并通过 SHA256 与包内资源核验；签名安装与 iPhone 真机视觉待验收）。
 
 ## PA-018 / PA-023 网页退役 Batch 1：桌面能力令牌首跳与沙箱窄授权收口（2026-11-18）
 
-- **当前范围**：完成全仓网页退役只读代码审查后，承接桌面能力令牌与本地代理候选（Batch 1）：补齐首次 `mainFrame` 导航及受控子 `subFrame` 导航令牌注入；修正 `proxy-request-capability.ts` 改按真实 `frame.origin` 与顶层 `mainFrame` 门禁，剥夺 `/html-viewer.html` 等不可信沙箱子页面令牌，并为 noVNC / Wuying 不透明屏幕子页面建立仅限匿名屏幕资源与 `websockify` 的窄能力授权；为 `StandaloneRendererProxy` 补充固定回环端口选项、可配置/放宽的上游响应头超时、Wuying `pathname` 匹配、顶层 `/artifacts/<含点ID>` 路由回退、`/sw.js` 本地拒绝，以及 `StandaloneScreenSocket` 配置头小写化与半开连接清理；将真实 Electron 45 实验升级为接入强制 `403` 的真实 `StandaloneRendererProxy` 联测，完成后交只读子代理独立复审。
-- **交付物**：`proxy-request-capability.ts`、`standalone-renderer-proxy.ts`、`standalone-screen-socket.ts`、对应单元测试、真实 Electron 45 强制 `403` 实验及网页退役文档更新；本批次仍不改动 `main.ts` 正式窗口入口或移动端写集。
-- **依赖**：锁定 Electron 45 `webRequest.onBeforeSendHeaders`（`frame.origin`、`frame.parent`、`initiatorOrigin`、`resourceType`）与现有 `StandaloneRendererProxy` 安全契约。
-- **验收条件**：真实 Electron 45 连接开启 `requireCapability: true` 的 `StandaloneRendererProxy` 时，主窗口首次导航、同源重定向、fetch/XHR、主页面 Worker 均 `200`；跨源重定向剥离令牌；第二同分区窗口请求拒绝 `403`；`/html-viewer.html` 沙箱子页面首跳 `200` 但其内部 fetch 与 Blob Worker 访问代理任意路径均无令牌并 `403`；noVNC 与 Wuying 屏幕子页面首跳、带查询串静态资源、嵌套容器 iframe 及 `websockify` WS 均可达，且屏幕子页面请求 `/api`、`/rpc` 均无令牌并 `403`；固定端口及占用拒绝、超时放宽、`/sw.js` 404 通过定向测试，且通过独立子代理复审。
-- **状态**：进行中。
+- **当前范围**：完成全仓网页退役只读代码审查后，承接桌面能力令牌与本地代理候选（Batch 1）：补齐首次及错误页恢复 `mainFrame` 导航、受控子 `subFrame` 导航、同源 `<a download>` 下载与 `/api/csp-report` 令牌注入；修正 `proxy-request-capability.ts` 改按真实 `frame.origin` 与顶层 `mainFrame` 严格 Fail-Closed 门禁，剥夺 `/html-viewer.html` 等不可信沙箱子页面令牌，并为 noVNC / Wuying 不透明屏幕子页面建立仅限匿名屏幕资源与 `websockify` 的独立窄能力令牌 `screenCapability`；为 `StandaloneRendererProxy` 补充固定回环端口 `port`、默认 `120_000ms` 可配置响应头超时、顶层 `/artifacts/<含点ID>` 路由回退、`/sw.js` 本地拒绝，以及 `StandaloneScreenSocket` 配置头小写化与半开连接清理；将真实 Electron 45 实验升级为直连开启 `requireCapability: true` 的真实 `StandaloneRendererProxy` 联测，并完成两轮独立只读子代理复审。
+- **交付物**：`proxy-request-capability.ts`、`standalone-renderer-proxy.ts`、`standalone-screen-socket.ts`、对应单元测试、真实 Electron 45 强制 `403` 实验（13 项检查）及全仓网页退役审查结论与文档同步；本批次未改动 `main.ts` 正式窗口入口、服务端或移动端写集。
+- **依赖**：锁定 Electron 45 `webRequest.onBeforeSendHeaders`（`frame.origin`、`frame.parent`、`initiatorOrigin`、`resourceType`、`webContents`）与现有 `StandaloneRendererProxy` 安全契约。
+- **验收条件**：真实 Electron 45 连接开启 `requireCapability: true` 的 `StandaloneRendererProxy` 时，错误页恢复与首次主页面导航、同源 `<a download>` 导出、同源重定向、fetch/XHR、主页面 Worker 均 `200`；跨源重定向剥离令牌；第二同分区窗口请求拒绝 `403`；`/html-viewer.html` 沙箱子页面首跳 `200` 但其内部 fetch、屏幕静态资源探测与 Blob Worker 均无令牌并被阻断；noVNC 与 Wuying 屏幕子页面首跳、静态资源、嵌套 `container.html` 及 `websockify` WS 仅获 `screenCapability` 且可达，请求 `/api`、`/rpc` 均无令牌并被阻断；固定端口及占用拒绝、超时放宽、`/sw.js` 404 与已销毁 frame 抛错兜底通过测试，且通过独立子代理复审。
+- **状态**：已完成（本机 3 个定向测试文件 116 项通过、2 项既有跳过，桌面双 tsconfig 与 Biome 通过，真实 Electron 45 联测 13/13 PASS，独立子代理两轮复审 0 P1 且 4 项 P2 全关闭；正式 `main.ts` 启动接线、服务端回调收口、画面容器网络与线上网页停服仍属后续 Batch 2–6，整体网页退役未完成）。
 
 ## PA-021 / PA-022 手机端底部导航栏并排布局与覆盖修复（2026-11-18）
 
@@ -22,7 +22,7 @@
 - **交付物**：移动端底部导航栏、项目卡片与 iOS 玻璃宿主修复、定向单元测试补齐与通过证据，以及计划、开发、验证和项目设计文档同步。
 - **依赖**：既有 `@expo/ui/swift-ui` `Host`、安全区内边距、`/integrations` 与 `/projects` 路由；不改动桌面端未提交写集、服务端或生产配置。
 - **验收条件**：「连接应用」与「项目」在底部单行并排且单行省略不互压；项目卡片无双层重叠玻璃边框；iOS 26 玻璃背景宿主忽略容器与键盘安全区；首页列表及浮层不越界覆盖底部栏；定向测试与格式检查通过，重新构建 IPA 与 iPhone 真机视觉另行验收。
-- **状态**：进行中（源码修复与本机 7 个定向测试文件 62 项、移动端 TypeScript 及 Biome 检查通过；重新云构建 IPA、签名安装与 iPhone 真机视觉待验收）。
+- **状态**：进行中（源码修复与本机 7 个定向测试文件 62 项、移动端 TypeScript 及 Biome 检查通过；包含该修复的最新无签名 IPA 已通过云构建 Run `44242990888` 生成并下载校验；签名安装与 iPhone 真机视觉待验收）。
 
 ## PA-018 桌面独立后台迁移：能力令牌候选（2026-11-17）
 

@@ -1,5 +1,7 @@
 # 手机与桌面客户端迁移方案
 
+2026-11-18 全仓网页退役审查与 Batch 1 收口：三个只读审查子代理完成桌面/前端、服务端/回调、移动端/网关编排全量代码盘点。桌面侧完成 Batch 1 候选收口：拆分主框架完整令牌 `capability` 与仅限匿名屏幕资源/noVNC WS 的窄令牌 `screenCapability`，补齐首次及错误页恢复 `mainFrame` 导航、显式子壳层/屏幕文档首跳、同源 `<a download>` 下载与 `/api/csp-report`，剥夺 `/html-viewer.html` 内部请求与 Blob Worker 令牌，并支持固定回环端口、120s 默认上游超时与本地 `/sw.js` 404；真实 Electron 45 连接强制 `403` 代理 13/13 项通过且经子代理两轮终审通过。正式停用线上 `web` 前仍须按序完成：`main.ts` 固定端口登记与 `uiOrigin`/`remoteOrigin` 解耦接线、桌面端 Slack/MCP 回调闭环与 MCP 动态客户端 `redirect_uri` 变更重注册、`buildTrustedOrigins` 补入 `apiUrl`、移动端 `session.ts` 空串自愈与错误页恢复入口、原生 Linux `service:api` 画面桥接与 Docker `supervisor` 隔离网络接入 `api`、Caddy 补齐 `/.well-known/*` 与 `/integrations/callback` 路由，以及解除 `deploy-main.sh` 和 `updater` 对 `web` 容器的硬绑定。
+
 2026-11-17 能力令牌候选：独立 loopback 代理生成每次实例令牌并校验
 HTTP 与屏幕 WebSocket；Electron 注入候选只在 app 窗口同源请求写入，
 其他调用方剥离。合成测试通过。这解决了同机进程仅凭伪造 loopback

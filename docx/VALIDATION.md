@@ -1,5 +1,13 @@
 # 验证记录
 
+2026-11-18（iOS 侧载包云构建 Run 44242990888 与产物核验）：提交 `45992470f` 推送至 `cursor/integrate-remote-branches-7334` 后自动触发 `mobile-ios-sideload.yml`，Run `44242990888` 全流程通过（工程预生成、移除推送权限、Pod 安装、权限审计、Xcode Release 无签名编译、打包路径预算校验与上传）。下载产物 `sydney-ios-unsigned-44242990888-1`（ZIP `25,754,482` 字节，Artifact ID `14401216722`）并解包至 `D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节）：本机重算 SHA256 为 `75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`，与 `SHA256.txt` 完全一致；压缩包共 167 项，最长内部路径 122 字符（满足 200 字符上限），不含 `PlugIns/` 扩展；`Info.plist` 中 `CFBundleIdentifier=xin.zxlup.sydney`、`CFBundleShortVersionString=1.0.12`、`NSAllowsLocalNetworking=true`；`main.jsbundle` 包含默认后台 `124.221.182.39`、`ignoreSafeArea` 及 `chat-appearance-live-preview` 等新增界面标识，旧域名仅作为迁移守卫常量出现 1 次。未执行：IPA 个人证书签名、安装至 iPhone 真机及真机登录/云电脑/UI 验收。
+
+2026-11-18（PA-018、PA-023 网页退役 Batch 1 桌面能力门禁与代理复验）：
+（1）定向单元测试：`standalone-renderer-proxy.test.ts`、`standalone-screen-revocation.test.ts`、`proxy-request-capability.test.ts` 三个文件共 **116 项通过、2 项跳过**（既有 Windows 符号链接与显式 OpenSSL 条件跳过），覆盖双令牌隔离、固定端口绑定与 `EADDRINUSE`、120s 默认超时与 40ms 超时中止、`/sw.js` 404、顶层 `/artifacts/<含点ID>` 回退、ScreenSocket 大小写头归一化、错误页恢复导航、`<a download>` 与 `/api/csp-report`、`/html-viewer.html` 零令牌隔离及已销毁 `WebFrameMain` getter 抛错 Fail-Closed。
+（2）静态检查：`pnpm --filter @rakazo/desktop check`（`tsconfig.json` 与 `tsconfig.jsdom.json`）及 6 个改动/新增文件的 Biome 检查全部通过。
+（3）真实 Electron 45 强制 `403` 联测：在 `apps/desktop` 运行 `pnpm exec electron src/electron-proxy-capability-experiment.cjs`，连接开启 `requireCapability: true` 的真实 `StandaloneRendererProxy`，**13/13 项全部 PASS**（覆盖不透明错误页恢复 + 带点路由首跳 `200`、`<a download>` 触发 `will-download` 完整落盘、POST fetch 覆盖伪造头、XHR、同源 302 保留令牌、跨源 302 第二跳剥离已注入真令牌、主页面 Worker、`/sw.js` 404、无内联 CSP 的 `/html-viewer.html` 内 fetch/屏幕探测/Blob Worker 均无令牌且未达上游、noVNC 模块 + 双斜杠 WS 101 仅获 `screenToken` 且 `/api` 被拒、Wuying 脚本 + 嵌套 `container.html` 仅获 `screenToken` 且 `/api` 脚本被剥离令牌、同分区第二窗口 `403`、以及上游全程未见能力头且携带配置头）。
+（4）独立审查与未验证边界：只读审查子代理（`3003c81d-0459-48b6-b55b-6a92450d38c7`）完成两轮代码复审，确认 0 P1 且 4 项 P2 全部关闭。本次仍属桌面独立模块与隐藏 Electron 实验，真实阿里云 `WuyingWebSDK.js` 请求参数、正式 `main.ts` 窗口切换、真实认证 Cookie/回调、跨后台迁移与停用服务器 `web` 容器尚未验收。
+
 2026-11-18（PA-021、PA-022 手机端全模块 UI 优化与多语言补齐）：Windows 本机运行
 15 个移动端定向测试文件（`mobile-ui-sheets`、`chat-appearance-screen`、
 `chat-model-picker`、`artifacts-navigation`、`glass-surface`、`glass-title`、

@@ -1,5 +1,11 @@
 # 开发过程记录
 
+2026-11-18（iOS 侧载包最新云构建与本机核验）：将移动端底部栏修复、全模块 UI 优化及桌面代理候选合并提交推送（`45992470f`），自动触发 `mobile-ios-sideload.yml` 构建 Run `44242990888`，全部 29 步成功。已将产物 `sydney-ios-unsigned-44242990888-1`（Artifact ID `14401216722`）下载并解包至 `D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节），SHA256 核对一致（`75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`），包内默认后台地址为 `https://124.221.182.39` 且包含本轮 UI 优化字节码标记；个人签名、安装与 iPhone 真机联调待用户执行。
+
+2026-11-18（PA-018、PA-023 全仓网页退役代码审查与 Batch 1 能力门禁/代理收口）：
+（1）全仓只读审查：启动 3 个并行只读审查子代理分别梳理桌面端与前端回环兼容、服务端认证与第三方回调、移动端与网关/画面网络/Compose/Updater/CI，补齐此前未交付的网页退役全量盘点。定位后续下线线上 `web` 服务前的全部关键阻断：桌面端能力门禁首跳 `403` 与沙箱 `frame.url` 越权、`main.ts` 本地 `uiOrigin` 与远端 `remoteOrigin` 混用（影响远程探测、设备配对 `401`/WS `403` 与监控）、服务端桌面 Slack/MCP/SSO 回调断链及 MCP 动态注册客户端绑定旧 `WEB_ORIGIN`、`buildTrustedOrigins` 遗漏 `apiUrl`、移动端 `session.ts` 空串异常在侧载守卫下缺恢复入口、原生 Linux `native-screen-web-loopback` 与 Docker `supervisor` 画面网络硬绑 `web` 容器、Caddy 缺少 `/.well-known/*` 与 `/integrations/callback` 路由，以及 `deploy-main.sh` / `updater` 强制拉起 `web`。
+（2）Batch 1 实现与复审修复：`StandaloneRendererProxy` 新增独立 256-bit 窄令牌 `screenCapability`（仅在匿名屏幕资源与 `StandaloneScreenSocket` 生效，访问 `/`、`/api`、`/rpc` 等一律 `403`）、可选固定回环端口 `port`（`EADDRINUSE` 立即关闭释放）、默认 `120_000ms` 可配置响应头超时（覆盖 70s 语音转写与沙箱冷启动）、顶层带点 `/artifacts/<id>` 文档回退及本地 `/sw.js` 404 拒绝；`StandaloneScreenSocket` 补齐配置头小写化、`timer.unref()` 与非 101 半开 socket 销毁；`proxy-request-capability.ts` 改为严格校验 `webContents` 与真实 `frame.origin`/`mainFrame`，补齐首次及错误页恢复 `mainFrame` 导航、显式子壳层/屏幕文档首跳、同源 `<a download>` 导出与 `POST /api/csp-report`，对 `/novnc/session/...` 与 `/wuying/...`（含嵌套 `container.html`）仅发 `screenToken`，彻底剥夺 `/html-viewer.html` 内部请求与 Blob Worker 令牌，并包裹 `try/catch` 防止已销毁 `WebFrameMain` getter 抛错挂起请求。修复此前 `standalone-renderer-proxy.test.ts` 中 `never sends a configured header named as the proxy capability` 因 `restartWithSetup` 关闭令牌校验造成的测试配置矛盾。独立子代理首轮提出 4 项 P2 与 1 项 P3，返修后二轮终审全部关闭。尚未改动 `main.ts` 正式启动入口或线上服务。
+
 2026-11-18（PA-021、PA-022 手机端全模块 UI 优化与多语言补齐）：按用户批准的
 方案完成三批界面优化：
 （1）P0 可用性与安全区：`ThreadModelSheet` 补齐 `useSafeAreaInsets().bottom`、
