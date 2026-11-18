@@ -194,4 +194,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Search…": "Zoek…",
   "The window closed before the app loaded.":
     "Het venster werd gesloten voordat de app was geladen.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "De lokale rendererpoort {port} is al in gebruik. Sluit de conflicterende app en probeer het opnieuw.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "Het lokale renderer-oorsprongsbestand kon niet worden gelezen. Herstel of verwijder standalone-origins.json en probeer het opnieuw.",
 };

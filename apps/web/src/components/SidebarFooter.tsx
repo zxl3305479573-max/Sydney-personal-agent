@@ -5,6 +5,7 @@ import {
   Download,
   FolderOpen,
   Gauge,
+  GitBranch,
   Grid2X2Plus,
   Link2,
   LogOut,
@@ -31,6 +32,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onIntegrations: () => void;
   onSkills: () => void;
+  onGithub?: () => void;
   onBoard?: () => void;
   links?: NavLink[];
   onLink?: (link: NavLink) => void;
@@ -60,6 +62,7 @@ export function SidebarFooter({
   onOpenChange,
   onIntegrations,
   onSkills,
+  onGithub,
   onBoard,
   links = [],
   onLink,
@@ -166,6 +169,16 @@ export function SidebarFooter({
               <FolderOpen className="text-muted-foreground" strokeWidth={1.75} />
               <Trans>Artifacts</Trans>
             </Button>
+            {onGithub ? (
+              <Button
+                variant="ghost"
+                className="h-9 w-full justify-start gap-2.5 font-normal"
+                onClick={onGithub}
+              >
+                <GitBranch className="text-muted-foreground" strokeWidth={1.75} />
+                GitHub
+              </Button>
+            ) : null}
             {onBoard ? (
               <Button
                 variant="ghost"

@@ -191,4 +191,8 @@ export const FR_MESSAGES: Record<string, string> = {
   "Search…": "Rechercher…",
   "The window closed before the app loaded.":
     "La fenêtre s’est fermée avant le chargement de l’app.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "Le port local du moteur de rendu {port} est déjà utilisé. Fermez l’application en conflit, puis réessayez.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "Impossible de lire le fichier d’origine du moteur de rendu local. Réparez ou supprimez standalone-origins.json, puis réessayez.",
 };

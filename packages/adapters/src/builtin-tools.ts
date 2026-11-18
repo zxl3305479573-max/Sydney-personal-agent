@@ -25,6 +25,7 @@ import {
 import { z } from "zod";
 import { allowPrivateHttpSecretOrigins } from "./bot-secrets.js";
 import { BROWSER_ACT_KINDS } from "./browser-tools.js";
+import { githubBuiltinTools } from "./github-tools.js";
 import { messageUserMaxLength } from "./user-progress.js";
 import { MAX_WEB_FETCH_OFFSET } from "./web-limits.js";
 
@@ -793,6 +794,7 @@ export const builtinAgentTools: ConnectorTool[] = [
     },
     readOnly: true,
   },
+  ...githubBuiltinTools,
   {
     name: "cloud_agent_launch",
     description:

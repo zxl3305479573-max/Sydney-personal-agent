@@ -202,6 +202,10 @@ describe("unattendedTriggerToolRequiresApproval", () => {
       "run_subagent",
       "list_fleet",
       "purchase_status",
+      "github_get_profile",
+      "github_list_my_repos",
+      "github_search_repos",
+      "github_read_repo",
     ]) {
       expect(unattendedTriggerToolRequiresApproval("webhook", name, false)).toBe(false);
     }

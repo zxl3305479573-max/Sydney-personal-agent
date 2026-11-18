@@ -47,6 +47,7 @@ model User {
   modelCredentials            UserModelCredential[]
   voiceCredentials            UserVoiceCredential[]
   paymentWallet               PaymentWallet?
+  githubConnection            GithubConnection?
   secrets                     Secret[]
   mcpServers                  McpServer[]
   botSections                 BotSection[]
@@ -1149,6 +1150,30 @@ model PaymentWallet {
   updatedAt  DateTime  @updatedAt
 
   @@map("payment_wallets")
+}
+
+model GithubConnection {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String
+  authKind       String    @default("pat")
+  status         String
+  githubUserId   String
+  login          String
+  displayName    String?
+  avatarUrl      String?
+  htmlUrl        String
+  scopes         Json      @default("[]")
+  highRiskScopes Json      @default("[]")
+  ciphertext     String
+  invalidMessage String?
+  connectedAt    DateTime  @default(now())
+  lastVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("github_connections")
 }
 
 model Purchase {

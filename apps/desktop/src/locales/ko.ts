@@ -187,4 +187,8 @@ export const KO_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "사이드바 전환",
   "Search…": "검색…",
   "The window closed before the app loaded.": "앱을 불러오기 전에 윈도우가 닫혔습니다.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "로컬 렌더러 포트 {port}이(가) 이미 사용 중입니다. 충돌하는 앱을 종료한 후 다시 시도하세요.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "로컬 렌더러 출처 파일을 읽을 수 없습니다. standalone-origins.json을 복구하거나 삭제한 후 다시 시도하세요.",
 };

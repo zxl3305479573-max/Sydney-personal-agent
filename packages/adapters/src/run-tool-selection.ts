@@ -2,6 +2,7 @@ import {
   disabledBuiltinToolSet,
   FLEET_TOOL_NAMES,
   FLEET_WRITE_TOOL_NAMES,
+  GITHUB_TOOL_NAMES,
 } from "@rakazo/contracts";
 import { isBackgroundRunTrigger, isOwnerStartedRun } from "@rakazo/core";
 import { builtinAgentTools } from "./builtin-tools.js";
@@ -33,10 +34,14 @@ export const READ_ONLY_AGENT_TOOLS = new Set([
   "list_secrets",
   "cloud_agent_status",
   "purchase_status",
+  ...GITHUB_TOOL_NAMES,
 ]);
 
 /** Offered only to a user who connected a wallet. */
 const PURCHASE_TOOL_NAMES = new Set(["request_purchase", "purchase_status", "paid_request"]);
+
+/** Offered only to a user who connected a GitHub account. */
+const GITHUB_TOOL_NAMES_SET: ReadonlySet<string> = new Set(GITHUB_TOOL_NAMES);
 
 export const BUILTIN_AGENT_TOOL_NAMES = new Set(builtinAgentTools.map((tool) => tool.name));
 
@@ -68,6 +73,8 @@ export function selectBuiltinToolsForRun(options: {
   cloudAgentEnabled?: boolean;
   /** The run's user connected a payment wallet. */
   paymentWalletEnabled?: boolean;
+  /** The run's user connected a GitHub account. */
+  githubEnabled?: boolean;
   mediaImagesEnabled?: boolean;
   mediaVideoEnabled?: boolean;
   messagingChannelRun: boolean;
@@ -111,6 +118,7 @@ export function selectBuiltinToolsForRun(options: {
         (Boolean(options.fleetManagement) && ownerStartedRun)) &&
       (ownerStartedRun || (tool.name !== "update_preferences" && tool.name !== "feedback")) &&
       (options.paymentWalletEnabled || !PURCHASE_TOOL_NAMES.has(tool.name)) &&
+      (options.githubEnabled || !GITHUB_TOOL_NAMES_SET.has(tool.name)) &&
       (options.mediaImagesEnabled || tool.name !== "generate_image") &&
       (options.mediaVideoEnabled || tool.name !== "generate_video") &&
       (options.ticketBoardEnabled ||

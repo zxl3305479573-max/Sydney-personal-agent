@@ -355,4 +355,30 @@ describe("user device client", () => {
       vi.useRealTimers();
     }
   });
+
+  it("forwards custom server headers on loopback/TLS upgrades without letting them override Bearer auth", async () => {
+    client = startUserDeviceClient({
+      serverUrl,
+      token,
+      root,
+      headers: {
+        "CF-Access-Client-Id": "client-123",
+        Authorization: "Bearer wrong-token",
+        Host: "spoofed.example",
+        Origin: "https://spoofed.example",
+        Cookie: "session=leaked",
+        "Sec-Fetch-Site": "cross-site",
+      },
+      onRevoked: revoked,
+      authorize: async () => true,
+      retryMs: { min: 20, max: 40 },
+    });
+    await connection();
+    expect(upgrades[0]!.headers["cf-access-client-id"]).toBe("client-123");
+    expect(upgrades[0]!.headers.authorization).toBe(`Bearer ${token}`);
+    expect(upgrades[0]!.headers.host).not.toBe("spoofed.example");
+    expect(upgrades[0]!.headers.origin).toBeUndefined();
+    expect(upgrades[0]!.headers.cookie).toBeUndefined();
+    expect(upgrades[0]!.headers["sec-fetch-site"]).toBeUndefined();
+  });
 });

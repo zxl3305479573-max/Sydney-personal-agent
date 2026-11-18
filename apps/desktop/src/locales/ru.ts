@@ -193,4 +193,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "Показать или скрыть боковую панель",
   "Search…": "Найти…",
   "The window closed before the app loaded.": "Окно закрылось до загрузки приложения.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "Локальный порт отрисовщика {port} уже занят. Закройте конфликтующее приложение и повторите попытку.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "Не удалось прочитать файл локального источника отрисовщика. Исправьте или удалите standalone-origins.json и повторите попытку.",
 };

@@ -2,6 +2,8 @@
 
 更新日期为 2026-11-18。关联需求为 PA-018、PA-023。
 
+> 2026-11-18 Batch 2 进展：`main.ts` 已完成独立渲染模式正式接线（打包态固定读取 `resources/web`，非打包态支持 `SYDNEY_STANDALONE_RENDERER_DIR` 测试注入），落地 `standalone-origin-store.ts`（`standalone-origins.json` 私有原子写与损坏/占用 Fail-Closed）、`standalone-session-hooks.ts`（单 Session `onBeforeSendHeaders`/`onCompleted` 复用、`isStandaloneManagedSession` 隔离及主进程一次性随机数 `x-sydney-main-nonce` 驱动的 `fetchBackend`），完成窗口 `uiOrigin` 与后台 `remoteOrigin` 全链路解耦（覆盖 `userDevices` 配对/WS 自定义头、`activateDesktopMonitoring`、`remoteDeviceOrigin`、OAuth 回调排除源与 `isManagedLocalSetup`），并通过 Electron 45 E2E（覆盖 H-01 重启保存储、H-02 端口占用拒绝、H-06/H-11 `A -> B` 与 `A -> A` 回滚恢复、H-07 回环 `__Secure-` `Secure` Cookie 保持及 H-08 设备配对/监控合成验证）与独立子代理三轮终审。旧远端分区 `localStorage`/`IndexedDB` 自动读取迁移（第 6 节，H-09/H-10）及真实公网服务器/第三方 OAuth 联调仍待后续完成。
+
 > 2026-11-18 Batch 1 进展：`StandaloneRendererProxy` 已支持显式固定端口 `port`、默认 `120_000ms` 响应头超时、本地 `/sw.js` 拒绝及独立窄令牌 `screenCapability`；`installProxyCapability` 已按 `frame.origin`、`mainFrame` 与 `webContents` 严格 Fail-Closed 门禁完成首次/恢复顶层导航、受控子文档首跳、同源 `<a download>` 下载、noVNC/Wuying（含嵌套 `container.html`）窄能力注入及 `/html-viewer.html` 零令牌隔离，在真实 Electron 45 对接强制 `403` 代理 13/13 项验证通过（覆盖 H-03、H-04、H-05 的合成代理与 Electron 层门槛）。`main.ts` 正式窗口接线（须同时解决 `userDevices` 配对 HTTP 与监控 `session.fetch` 因 `127.0.0.1` Cookie 无法直发远端产生的 401/403 问题）及真实后台/SDK 验收仍属后续批次。
 
 ## 1. 范围、交付与验收

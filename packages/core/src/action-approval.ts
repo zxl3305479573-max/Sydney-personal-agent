@@ -74,6 +74,10 @@ const UNATTENDED_SAFE_BUILTIN_TOOLS = new Set([
   "skill_read",
   "web_fetch",
   "web_search",
+  "github_get_profile",
+  "github_list_my_repos",
+  "github_search_repos",
+  "github_read_repo",
 ]);
 
 const READ_ONLY_CONNECTOR_PATTERN = /(^|[_-])(get|list|search|find|read)([_-]|$)/i;

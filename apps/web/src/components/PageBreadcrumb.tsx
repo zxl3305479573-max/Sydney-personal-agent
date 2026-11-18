@@ -65,13 +65,15 @@ function RoutePageBreadcrumb() {
                 ? t`Artifacts`
                 : pathname === "/app/board"
                   ? t`Board`
-                  : pathname.startsWith("/app/x/") || pathname === "/integrations/setup"
-                    ? t`Connect apps`
-                    : pathname === "/admin/plugins"
-                      ? t`Plugins`
-                      : pathname === "/admin/access"
-                        ? t`Access management`
-                        : null;
+                  : pathname === "/app/github"
+                    ? "GitHub"
+                    : pathname.startsWith("/app/x/") || pathname === "/integrations/setup"
+                      ? t`Connect apps`
+                      : pathname === "/admin/plugins"
+                        ? t`Plugins`
+                        : pathname === "/admin/access"
+                          ? t`Access management`
+                          : null;
   if (!translatedLabel) return null;
 
   return (

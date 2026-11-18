@@ -176,4 +176,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "切換側邊欄",
   "Search…": "搜尋…",
   "The window closed before the app loaded.": "App 載入完成前視窗已關閉。",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "本機介面連接埠 {port} 已被佔用。請關閉衝突的應用程式後再試一次。",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "無法讀取本機介面來源檔案。請修復或移除 standalone-origins.json 後再試一次。",
 };

@@ -16,6 +16,30 @@ export function parseMessagingInstallCallback(
   input: string,
   expectedState: string,
 ): { state: string; code: string } | null {
+  const link = parseCallbackLink(input, expectedState);
+  if (!link) return null;
+  if (
+    link.searchParams.getAll("code").length !== 1 ||
+    [...link.searchParams.keys()].some((key) => key !== "state" && key !== "code")
+  )
+    return null;
+  const code = link.searchParams.get("code");
+  return code && /^[\x21-\x7e]{1,4096}$/.test(code) ? { state: expectedState, code } : null;
+}
+
+export function isMessagingInstallCancellation(input: string, expectedState: string): boolean {
+  const link = parseCallbackLink(input, expectedState);
+  if (!link) return false;
+  if (
+    link.searchParams.getAll("error").length !== 1 ||
+    [...link.searchParams.keys()].some((key) => key !== "state" && key !== "error")
+  )
+    return false;
+  const error = link.searchParams.get("error");
+  return Boolean(error && /^[A-Za-z0-9_-]{1,128}$/.test(error));
+}
+
+function parseCallbackLink(input: string, expectedState: string): URL | null {
   if (input.length > 16_384 || !/^[A-Za-z0-9_-]{43}$/.test(expectedState)) return null;
   try {
     const link = new URL(input);
@@ -29,15 +53,10 @@ export function parseMessagingInstallCallback(
       link.password ||
       link.hash ||
       link.searchParams.getAll("state").length !== 1 ||
-      link.searchParams.getAll("code").length !== 1 ||
-      [...link.searchParams.keys()].some((key) => key !== "state" && key !== "code")
+      link.searchParams.get("state") !== expectedState
     )
       return null;
-    const state = link.searchParams.get("state");
-    const code = link.searchParams.get("code");
-    return state === expectedState && code && /^[\x21-\x7e]{1,4096}$/.test(code)
-      ? { state, code }
-      : null;
+    return link;
   } catch {
     return null;
   }
@@ -124,6 +143,7 @@ export async function installSlackWorkspace(
     requireCurrent();
     if (result.type === "cancel" || result.type === "dismiss") return "cancelled";
     if (result.type !== "success") throw new Error(t("Could not continue"));
+    if (isMessagingInstallCancellation(result.url, state)) return "cancelled";
     const callback = parseMessagingInstallCallback(result.url, state);
     if (!callback) throw new Error(t("Could not continue"));
     const current = await rpc("me", {}, options);

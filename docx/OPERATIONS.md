@@ -1,5 +1,27 @@
 # 运维手册
 
+## GitHub 模块运维与部署（PA-024，2026-11-18）
+
+1. **数据库迁移**：
+   - 本次新增表 `github_connections`，包含了按用户隔离的连接元数据及 `secret_handle`；
+   - 在生产/测试环境执行 Prisma 迁移命令：
+     ```bash
+     pnpm --filter @rakazo/db migrate
+     ```
+   - 迁移脚本位置：`packages/db/prisma/migrations/20261118150000_github_connections/migration.sql`，内置了 PostgreSQL 行级安全策略（RLS），确保租户数据物理级隔离。
+2. **环境变量与 Provider 配置**：
+   - `GITHUB_PROVIDER`：控制 GitHub 提供者类型，可选值为 `client`（默认）与 `emulator`；
+   - 生产环境默认使用 `client`（原生直连 `https://api.github.com`）；在无公网或离线测试环境可设为 `GITHUB_PROVIDER=emulator` 启用内置仿真数据。
+3. **凭据安全与 SecretStore**：
+   - 用户的 GitHub PAT 在进入 API 后直接通过 `SecretStore` 加密，数据库仅存储密文句柄 `secret_handle`，明文 Token 严禁进入日志、审计事件或返回前端；
+   - 用户断开连接时，系统会自动在数据库将状态置为 `disconnected` 并同步物理删除 `SecretStore` 中的密文；
+   - 建议在前端或文档中引导用户创建只读权限的 Personal Access Token（经典 Token 需 `read:user` 和 `repo` 只读，无需任何写入或管理员权限）。
+4. **网络与缓存机制**：
+   - 服务端出站需允许访问 `api.github.com:443`；
+   - GraphQL 贡献热力图数据在服务端内存中保持 5 分钟租户隔离缓存，防止重复请求耗尽 GraphQL 5000 points/hr 配额；
+   - 匿名开源检索走 GitHub 公开 REST Search API（未授权限流 10 次/分钟），已连接用户走其专属 Token 配额（30 次/分钟）。
+
+
 ## 手机默认后台地址迁移（2026-11-16，源码待安装验收）
 
 后续 iOS 侧载包以构建时的 `EXPO_PUBLIC_API_URL` 为默认后台；当前
@@ -25,6 +47,8 @@ WebSocket 入站校验，出站剥离。注入候选只对 app 窗口自身代�
 但该候选未接入 Electron，真实窗口对 WebSocket、worker、iframe、重定向
 和导航的覆盖未测量。因此不要把该令牌当作生产调用者认证，也不要在覆盖
 实验通过前接入正式窗口。现有配置和生产行为不变。
+
+2026-11-18 Batch 2 桌面启动接线更新：打包桌面客户端连接现有远端服务器（`mode: "existing"`，含默认云地址与 `SYDNEY_PC_BACKEND_URL`）已正式切换为内置渲染器 + 本地固定端口 `StandaloneRendererProxy` 模式（可通过 `RAKAZO_DISABLE_BUNDLED_RENDERER=1` 紧急回退旧远程页面加载；`SYDNEY_STANDALONE_RENDERER_DIR` 仅在非打包开发/测试态生效，打包版固定读取 `resources/web`）。桌面应用在 `userData/standalone-origins.json` 按规范化后台 origin 持久化本地回环端口与 `persist:sydney-standalone-<摘要>` 分区：若该端口被本机其他进程占用（`EADDRINUSE`），客户端会拒绝启动并停留在设置恢复界面提示关闭冲突进程，不会自动改换端口以免丢失本地存储；若 `standalone-origins.json` 损坏，客户端保持原文件并提示修复或删除后重试。升级到独立模式后，因使用新的独立会话分区，用户首次需在桌面端重新登录。当前线上 `web` 服务仍不可停用：桌面/移动双端 Slack 与 MCP OAuth 回调闭环、认证 `buildTrustedOrigins` 的 `apiUrl` 放行、移动端启动自愈、云电脑画面容器网络与 Caddy/Compose/Updater 去 `web` 改造尚未完成部署验收。
 
 2026-11-18 实验与全仓盘点更新：桌面能力注入候选与独立代理已完成首跳导航、错误页恢复、`<a download>` 下载、双令牌屏幕窄授权、固定回环端口选项与 120s 默认响应头超时修复，在锁定的 Electron 45 中直连强制 `403` 代理通过 13/13 项实验，并经独立子代理两轮复审；但 `main.ts` 正式窗口尚未切换，桌面安装包生产行为仍保持不变。同时全仓网页退役代码审查确认：下线线上 `web` 容器前，除完成桌面正式接线与双端 Slack/MCP 回调闭环外，还须在原生 Linux 部署配置补充 `service:api` 的 `127.0.0.1:16080 -> screen.sock` 画面桥接、在 Docker `supervisor` 支持将 `service=api` 加入隔离沙箱网络、在 Caddy 补齐 `/.well-known/*` 与 `/integrations/callback` 指向 `api:3100`，并解除 `docker-compose.prod.yml`（`caddy.depends_on.web`）、`deploy-main.sh` 与 `updater` 对 `web` 容器的强制依赖；未完成上述改造与隔离演练前，禁止直接停止线上 `web` 服务。
 
@@ -2056,14 +2080,17 @@ App ID、设备与每台设备安装数量限制；iCTRL 项目描述 SideStore�
 
 2026-11-10（PA-021 手机安装包）：提交 `72c4211fc` 的云构建 `42770297627` 成功，未签名 IPA 已下载至 `D:\s\Sydney-42770297627.ipa`，SHA-256 与构建产物清单一致；包内标识为 `xin.zxlup.sydney`，资源路径最长 122 字符。iPhone 已被 Windows 识别；按用户最新要求仅准备安装包，未签名、未安装或启动。本包因未配置独立 Expo 项目而关闭在线更新。
 
-## iPhone 侧载在线更新（已配置 Expo 项目，待底座包实机验证）
+## iPhone 侧载在线更新（待配置 Expo 项目及实机验证）
 
-关联 PA-021、ADR-0020。2026-11-18 已将侧载 OTA 构建门禁与发布工作流统一切换至生产 IP（`https://124.221.182.39`）与 `xin.zxlup.sydney`，补齐发布工作流的 `EXPO_PUBLIC_SYDNEY_SIDELOAD=1` 及 IPA 内 `Expo.plist` 自动核验，并在 GitHub 仓库完成独立 Expo 项目的 3 项公开变量与 `EXPO_TOKEN` 配置。旧侧载 IPA 的在线更新仍为关闭，首次启用须签名安装开启 OTA 的新底座 IPA：
+关联 PA-021、ADR-0020。2026-11-18 已将侧载 OTA 构建门禁与发布工作流统一切换至生产 IP（`https://124.221.182.39`）与 `xin.zxlup.sydney`，并补齐发布工作流的 `EXPO_PUBLIC_SYDNEY_SIDELOAD=1` 及 IPA 内 `Expo.plist` 自动核验。现有已安装的旧侧载 IPA 在线更新处于关闭状态，首次启用仍需配置 Expo 项目参数后重新构建、签名和安装底座 IPA：
 
-1. 用户控制的免费 Expo 独立项目 `sydney-sideload` 已绑定至 GitHub Actions 变量 `SYDNEY_OTA_PROJECT_ID`、`SYDNEY_OTA_OWNER` 与 `SYDNEY_OTA_RUNTIME_VERSION`（当前底座为 `sydney-ios-ip-1`），发布令牌存于 GitHub Secret `EXPO_TOKEN`（切勿写入代码、文档或聊天）。
-2. 通过侧载构建工作流（`mobile-ios-sideload.yml`）生成新的底座 IPA：构建步骤自动校验 `Payload/Sydney.app/Expo.plist` 中 `EXUpdatesEnabled=True`、`EXUpdatesURL` 与 `EXUpdatesRuntimeVersion`；随后用 iPASide 签名安装并验证登录、内置头像、聊天和设置内“检查更新”。
-3. 仅当改动纯属 JS/TS、界面或普通静态资源且与已安装底座包的原生运行时兼容时，在 `main` 或 `cursor/integrate-remote-branches-7334` 分支手动运行 `Publish iOS sideload update`（`mobile-ios-update.yml`），输入与安装包一致的 `runtime_version`（`sydney-ios-ip-1`）及更新说明。工作流的版本确认不是自动原生兼容性检查，发布前仍需审查依赖、Expo SDK、原生配置和插件差异。
-4. 在设备上验证启动/回前台自动下载或设置页手动“检查更新”、重启生效、离线失败与回滚。版本未按预期生效时停止继续发布，检查项目、通道、环境和运行时；不要将凭据或用户数据写入日志。
+1. 准备用户控制的免费 Expo 账号和独立项目 `sydney-sideload`，获取项目 UUID（`Project ID`）与账号名（`Owner`）；不要使用仓库原有上游 Expo 项目。
+2. 在 GitHub 仓库 Settings → Secrets and variables → Actions 中：
+   - 配置 3 个 **Repository variables**：`SYDNEY_OTA_PROJECT_ID`（UUID）、`SYDNEY_OTA_OWNER`（Expo 账号名）、`SYDNEY_OTA_RUNTIME_VERSION`（如 `sydney-ios-ip-1`），三者必须同时存在；
+   - 配置 1 个 **Repository secret**：`EXPO_TOKEN`（Expo 个人访问令牌，切勿发到聊天或写进代码/文档）。
+3. 通过侧载构建工作流（`mobile-ios-sideload.yml`）生成新的底座 IPA：构建步骤会自动校验 `Payload/Sydney.app/Expo.plist` 中 `EXUpdatesEnabled=True`、`EXUpdatesURL` 与 `EXUpdatesRuntimeVersion`；随后用 iPASide 签名安装并验证登录、聊天和设置内“检查更新”。
+4. 仅当改动纯属 JS/TS、界面或普通静态资源且与已安装底座包的原生运行时兼容时，在 `main` 或 `cursor/integrate-remote-branches-7334` 分支手动运行 `Publish iOS sideload update`（`mobile-ios-update.yml`），输入与安装包一致的 `runtime_version` 及更新说明。工作流的版本确认不是自动原生兼容性检查，发布前仍需审查依赖、Expo SDK、原生配置和插件差异。
+5. 在设备上验证启动/回前台自动下载或设置页手动“检查更新”、重启生效、离线失败与回滚。版本未按预期生效时停止继续发布，检查项目、通道、环境和运行时；不要将凭据或用户数据写入日志。
 
 更改原生依赖或原生配置后需变更运行时版本并重新构建安装；OTA 不能替代侧载证书续期。更新服务额度、回滚与数据保留以实际验证为准。
 
@@ -2882,10 +2909,10 @@ Docker、固定镜像及隔离条件。演练使用占位角色和合成会话�
 改动时自动运行，也可手动 `workflow_dispatch` 指定 `api_url` 与 `bundle_id`。
 产物为无签名 IPA，需由用户自行签名安装。
 
-- 最新 Run（2026-11-18）：`44242990888`（提交 `45992470f`），产物 `sydney-ios-unsigned-44242990888-1`（Artifact ID `14401216722`，保留 7 天），包含手机底部导航栏修复、全模块 UI 优化及七语种词表补齐。
+- 最新 Run（2026-11-18，启用 OTA + 内置头像修复底座包）：`44263086859`（提交 `2b613f98f`），产物 `sydney-ios-unsigned-44263086859-1`（Artifact ID `14410575873`，保留 7 天），已开启 `sideload` 通道在线热更新（`EXUpdatesRuntimeVersion=sydney-ios-ip-1`）并修复全部 9 个包内静态资源目录映射。
 - 最新下载地址（需登录仓库账号）：
-  `https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44242990888`
-- 本机最新解包位置：`D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,169` 字节，SHA256 `75ccb5a73a6f6bdc4d4b88684998a3d65613d26d043e0777e914431c2c9d0a38`），同目录含 `SHA256.txt` 与 `sydney-ios-unsigned-44242990888-1.zip`（历史上一版 Run `44006236585` 的 `sydney-ios-unsigned-44006236585-1.zip` 亦保留于该目录）。
+  `https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44263086859`
+- 本机最新解包位置：`D:\33054\sydney-ipa-output\Sydney-unsigned.ipa`（`25,984,466` 字节，SHA256 `6a5629f2ec8ad4c5d8f9b0922d1c9e0cff525bc9eeb2528caf23dd5515e52e15`），同目录含 `SHA256.txt` 与 `sydney-ios-unsigned-44263086859-1.zip`。
 - 该目录不属于仓库工作区，不会进入版本控制；如需长期保留，请自行复制到其他位置。
 - 产物内默认后台地址为构建变量注入的 `https://124.221.182.39`，不包含旧域名默认入口。
 - 未验证：签名、安装、真机登录与功能验收均由用户侧完成，本机无法代做。

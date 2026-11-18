@@ -185,4 +185,8 @@ export const HE_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "הצגה/הסתרה של סרגל הצד",
   "Search…": "חיפוש…",
   "The window closed before the app loaded.": "החלון נסגר לפני שהאפליקציה נטענה.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "יציאת התצוגה המקומית {port} כבר נמצאת בשימוש. יש לסגור את האפליקציה המתנגשת ולנסות שוב.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "לא ניתן היה לקרוא את קובץ מקור התצוגה המקומית. יש לתקן או להסיר את standalone-origins.json ולנסות שוב.",
 };

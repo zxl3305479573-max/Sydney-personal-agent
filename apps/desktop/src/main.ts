@@ -103,8 +103,20 @@ import {
   serverHeadersFor,
   servesBundledRenderer,
   sessionPartitionForServerUrl,
+  standaloneSessionPartitionForServerUrl,
 } from "./setup-config.js";
 import { clearSetup, readSetup, readUiLocale, writeSetup, writeUiLocale } from "./setup-store.js";
+import {
+  readStandaloneOriginRegistry,
+  recordStandaloneOrigin,
+  StandaloneOriginStoreError,
+} from "./standalone-origin-store.js";
+import { StandaloneRendererProxy } from "./standalone-renderer-proxy.js";
+import {
+  bindStandaloneSession,
+  isStandaloneManagedSession,
+  observeMainFrameCompleted,
+} from "./standalone-session-hooks.js";
 import { finishAfterStartup } from "./startup-handoff.js";
 import { createSystemSpeech } from "./system-speech.js";
 import type { UserDeviceAccess } from "./user-device.js";
@@ -132,13 +144,46 @@ let startupWindow: BrowserWindow | null = null;
 /** The server or the network refused the page; the setup window says so and the server logs its side. */
 class ServerUnavailable extends Error {}
 
+interface StandaloneContext {
+  readonly window: BrowserWindow | null;
+  readonly rendererRoot: string;
+  readonly remoteOrigin: string;
+  readonly uiOrigin: string;
+  readonly port: number;
+  readonly partition: string;
+  readonly session: Session;
+  readonly setupSnapshot: DesktopSetup;
+  readonly proxy: StandaloneRendererProxy;
+  readonly unbindSession: () => void;
+  readonly fetchBackend: (urlOrPath: string, init?: RequestInit) => Promise<Response>;
+}
+
+type PendingPreviousStandalone =
+  | { readonly kind: "live"; readonly context: StandaloneContext }
+  | {
+      readonly kind: "paused-same-origin";
+      readonly rendererRoot: string;
+      readonly remoteOrigin: string;
+      readonly port: number;
+      readonly partition: string;
+      readonly session: Session;
+      readonly setupSnapshot: DesktopSetup;
+    };
+
 const appWindowTargets = new WeakMap<BrowserWindow, string>();
+const appWindowRemoteOrigins = new WeakMap<BrowserWindow, string | null>();
 let setupWindow: BrowserWindow | null = null;
 const bundledRendererInstallations = new Set<string>();
 let currentSetup: DesktopSetup | null = null;
 let currentTargetUrl: string | null = null;
+let directWebOverrideUrl: string | null = null;
+let pcBackendOverrideUrl: string | null = null;
+let preProbedOrigin: string | null = null;
+let activeStandalone: StandaloneContext | null = null;
+let pendingPreviousStandalone: PendingPreviousStandalone | null = null;
 let monitoringSession: Session | undefined;
 let monitoringTargetUrl: string | undefined;
+let monitoringFetchOverride: ((path: string, init?: RequestInit) => Promise<Response>) | undefined;
 let stopMonitoringSession: (() => void) | undefined;
 let setupError: string | null = null;
 let setupSaveInProgress = false;
@@ -307,7 +352,11 @@ async function defaultSessionHasOriginData(origin: string): Promise<boolean> {
   }
 }
 
-function createWindow(url: string, partition: string | null) {
+function buildAppWindow(
+  url: string,
+  partition: string | null,
+  remoteOrigin?: string | null,
+): BrowserWindow {
   markOnce("rk:main:window-create-start");
   const icon = developmentIcon();
   const win = new BrowserWindow({
@@ -327,12 +376,16 @@ function createWindow(url: string, partition: string | null) {
   );
   mainWindow = win;
   appWindowTargets.set(win, url);
+  if (remoteOrigin !== undefined) appWindowRemoteOrigins.set(win, remoteOrigin);
   const targetOrigin = safeOrigin(url);
   // Intentional OAuth flows open the provider's authorize page via a named
   // window; give those and same-origin popups a normal frame. Everything else
   // opens in the system browser so a connected server cannot navigate us away.
   // Hoisted for loopback OAuth capture so MCP/in-app localhost callbacks are skipped.
   const appOrigin = targetOrigin ?? safeOrigin(url);
+  const excludedCallbackOrigins = [appOrigin, remoteOrigin ?? null].filter(
+    (origin, index, array): origin is string => origin !== null && array.indexOf(origin) === index,
+  );
   win.webContents.setWindowOpenHandler(({ url: childUrl, frameName }) => {
     if (shouldOpenInAppPopup(appOrigin, childUrl, frameName)) {
       return {
@@ -373,7 +426,7 @@ function createWindow(url: string, partition: string | null) {
       if (details.isMainFrame === false) return;
       const callback = oauthCallbackFrom(details.url, {
         frameName,
-        excludeOrigins: appOrigin !== null ? [appOrigin] : [],
+        excludeOrigins: excludedCallbackOrigins,
       });
       if (!callback) return;
       details.preventDefault();
@@ -399,7 +452,18 @@ function createWindow(url: string, partition: string | null) {
   });
   win.once("closed", () => {
     clearTimeout(warmWindowTimer);
-    if (mainWindow === win) mainWindow = null;
+    if (mainWindow === win) {
+      mainWindow = null;
+      if (activeStandalone?.window === win) {
+        const closingStandalone = activeStandalone;
+        activeStandalone = null;
+        void stopStandaloneContext(closingStandalone);
+      }
+      if (!appOpener.busy() && !setupSaveInProgress) {
+        activateDesktopMonitoring(undefined);
+        syncHostComputerAccess();
+      }
+    }
   });
   markOnce("rk:main:window-created");
   if (win.isVisible()) markOnce("rk:main:window-shown");
@@ -408,8 +472,17 @@ function createWindow(url: string, partition: string | null) {
   win.webContents.once("dom-ready", () => markOnce("rk:main:dom-ready"));
   win.webContents.once("did-finish-load", () => markOnce("rk:main:did-finish-load"));
   win.webContents.once("did-stop-loading", () => markOnce("rk:main:did-stop-loading"));
+  if (!launchUpdateCheckScheduled) {
+    launchUpdateCheckScheduled = true;
+    setTimeout(() => void desktopUpdater.check(false), LAUNCH_CHECK_DELAY_MS).unref();
+    setInterval(() => void desktopUpdater.check(false), 60 * 60 * 1_000).unref();
+  }
+  return win;
+}
+
+function startAppWindowLoad(win: BrowserWindow, url: string): Promise<AppDocumentState> {
   markOnce("rk:main:load-url-start");
-  const loaded = loadAppUrl(win, url).then(
+  return loadAppUrl(win, url).then(
     (state) => {
       markOnce("rk:main:load-url-resolved");
       return state;
@@ -419,11 +492,11 @@ function createWindow(url: string, partition: string | null) {
       throw error;
     },
   );
-  if (!launchUpdateCheckScheduled) {
-    launchUpdateCheckScheduled = true;
-    setTimeout(() => void desktopUpdater.check(false), LAUNCH_CHECK_DELAY_MS).unref();
-    setInterval(() => void desktopUpdater.check(false), 60 * 60 * 1_000).unref();
-  }
+}
+
+function createWindow(url: string, partition: string | null, remoteOrigin?: string | null) {
+  const win = buildAppWindow(url, partition, remoteOrigin);
+  const loaded = startAppWindowLoad(win, url);
   return { loaded, win };
 }
 
@@ -462,12 +535,13 @@ function loadAppUrl(win: BrowserWindow, url: string): Promise<AppDocumentState> 
   const contents = win.webContents;
   const targetSession = contents.session;
   let mainStatus: number | undefined;
-
-  targetSession.webRequest.onCompleted({ urls: ["*://*/*"] }, (details) => {
-    if (details.webContentsId === contents.id && details.resourceType === "mainFrame") {
-      mainStatus = details.statusCode;
-    }
-  });
+  const stopObservingCompleted = observeMainFrameCompleted(
+    targetSession,
+    contents.id,
+    (statusCode) => {
+      mainStatus = statusCode;
+    },
+  );
 
   return new Promise<AppDocumentState>((resolve, reject) => {
     let settled = false;
@@ -477,7 +551,7 @@ function loadAppUrl(win: BrowserWindow, url: string): Promise<AppDocumentState> 
       contents.removeListener("did-fail-load", onFail);
       // Keep render-process-gone until document readiness finishes so a crash
       // during mount still fails the switch.
-      targetSession.webRequest.onCompleted(null);
+      stopObservingCompleted();
       if (error) {
         contents.removeListener("render-process-gone", onGone);
         reject(error);
@@ -783,7 +857,7 @@ async function installUpdate() {
 function installApplicationMenu() {
   const computerAccess: Electron.MenuItemConstructorOptions = {
     label: t("Computer Access…"),
-    visible: currentSetup?.mode === "new",
+    visible: isManagedLocalSetup(),
     click: () => mainWindow?.webContents.send("desktop.computer.configure"),
   };
   const revokeComputerAccess: Electron.MenuItemConstructorOptions = {
@@ -819,7 +893,7 @@ function installApplicationMenu() {
     label: t("Stop Local Stack"),
     // The stack keeps running after quit (bots are always on); this is the explicit off switch.
     click: () => {
-      if (currentSetup?.mode === "new") {
+      if (isManagedLocalSetup()) {
         hostComputer?.activate(false);
         installApplicationMenu();
         void localStack.stop();
@@ -1071,22 +1145,40 @@ function openFailureDetail(error: unknown): string {
   return errorDetail(error) ?? probeFailureMessage(error);
 }
 
-function activateDesktopMonitoring(url: string | undefined, targetSession?: Session) {
-  if (monitoringTargetUrl === url && monitoringSession === targetSession) return;
+function activateDesktopMonitoring(
+  url: string | undefined,
+  targetSession?: Session,
+  customFetch?: (path: string, init?: RequestInit) => Promise<Response>,
+) {
+  if (
+    monitoringTargetUrl === url &&
+    monitoringSession === targetSession &&
+    monitoringFetchOverride === customFetch
+  )
+    return;
   stopMonitoringSession?.();
   stopMonitoringSession = undefined;
   monitoringTargetUrl = url;
   monitoringSession = targetSession;
+  monitoringFetchOverride = customFetch;
   if (!url || !targetSession) {
     disableDesktopMonitoring();
     return;
   }
   const fetchMonitoringConfig = () =>
-    targetSession.fetch(new URL("/api/monitoring/config", url).href, {
-      signal: AbortSignal.timeout(8_000),
-    });
+    customFetch
+      ? customFetch("/api/monitoring/config", {
+          signal: AbortSignal.timeout(8_000),
+        })
+      : targetSession.fetch(new URL("/api/monitoring/config", url).href, {
+          signal: AbortSignal.timeout(8_000),
+        });
   const refreshMonitoringUser = () => {
-    if (monitoringSession === targetSession && monitoringTargetUrl === url)
+    if (
+      monitoringSession === targetSession &&
+      monitoringTargetUrl === url &&
+      monitoringFetchOverride === customFetch
+    )
       void refreshDesktopMonitoringUser(fetchMonitoringConfig);
   };
   targetSession.cookies.on("changed", refreshMonitoringUser);
@@ -1102,9 +1194,12 @@ function activateDesktopMonitoring(url: string | undefined, targetSession?: Sess
 let headerSession: Session | undefined;
 
 function configureHeaderSession(value: Session | undefined) {
-  if (headerSession) headerSession.webRequest.onBeforeSendHeaders(null);
+  if (headerSession && !isStandaloneManagedSession(headerSession)) {
+    headerSession.webRequest.onBeforeSendHeaders(null);
+  }
   headerSession = undefined;
-  if (!value || !currentSetup?.headers || Object.keys(currentSetup.headers).length === 0) return;
+  if (!value || isStandaloneManagedSession(value)) return;
+  if (!currentSetup?.headers || Object.keys(currentSetup.headers).length === 0) return;
   headerSession = value;
   installServerHeaders(
     value,
@@ -1113,24 +1208,347 @@ function configureHeaderSession(value: Session | undefined) {
   );
 }
 
+function isManagedLocalSetup(): boolean {
+  return (
+    currentSetup?.mode === "new" && directWebOverrideUrl === null && pcBackendOverrideUrl === null
+  );
+}
+
+function standaloneRendererRoot(): string | null {
+  if (process.env.RAKAZO_DISABLE_BUNDLED_RENDERER === "1") return null;
+  if (app.isPackaged) return path.join(process.resourcesPath, "web");
+  const override = process.env.SYDNEY_STANDALONE_RENDERER_DIR?.trim();
+  return override ? path.resolve(override) : null;
+}
+
+function standaloneSetupForTarget(targetUrl: string): DesktopSetup | null {
+  if (directWebOverrideUrl !== null && targetUrl === directWebOverrideUrl) return null;
+  if (isManagedLocalSetup() && targetUrl === localStack.webUrl()) return null;
+  const normalized = normalizeServerUrl(targetUrl);
+  if (normalized === null) return null;
+  if (currentSetup?.mode === "existing" && currentSetup.serverUrl === normalized) {
+    return currentSetup;
+  }
+  return { mode: "existing", serverUrl: normalized };
+}
+
+function markPreProbed(url: string) {
+  preProbedOrigin = normalizeServerUrl(url);
+}
+
+function consumePreProbed(normalizedOrigin: string): boolean {
+  const matched = preProbedOrigin === normalizedOrigin;
+  preProbedOrigin = null;
+  return matched;
+}
+
+async function stopStandaloneContext(context: StandaloneContext | null | undefined) {
+  if (!context) return;
+  context.unbindSession();
+  await context.proxy.stop().catch(() => undefined);
+}
+
+async function restorePausedStandalone(
+  paused: Extract<PendingPreviousStandalone, { kind: "paused-same-origin" }>,
+  previousWin: BrowserWindow | null,
+): Promise<StandaloneContext> {
+  const proxy = new StandaloneRendererProxy({
+    rendererRoot: paused.rendererRoot,
+    remoteOrigin: paused.remoteOrigin,
+    setup: paused.setupSnapshot,
+    port: paused.port,
+    requireCapability: true,
+  });
+  const uiOrigin = await proxy.start();
+  const bound = bindStandaloneSession(paused.session, {
+    proxyOrigin: uiOrigin,
+    remoteOrigin: paused.remoteOrigin,
+    capability: proxy.capability,
+    screenCapability: proxy.screenCapability,
+    appContentsId: () =>
+      previousWin && !previousWin.isDestroyed() ? previousWin.webContents.id : undefined,
+  });
+  if (previousWin && !previousWin.isDestroyed()) {
+    appWindowTargets.set(previousWin, uiOrigin);
+    appWindowRemoteOrigins.set(previousWin, paused.remoteOrigin);
+  }
+  return {
+    window: previousWin,
+    rendererRoot: paused.rendererRoot,
+    remoteOrigin: paused.remoteOrigin,
+    uiOrigin,
+    port: paused.port,
+    partition: paused.partition,
+    session: paused.session,
+    setupSnapshot: paused.setupSnapshot,
+    proxy,
+    unbindSession: bound.unbind,
+    fetchBackend: bound.fetchBackend,
+  };
+}
+
+async function openStandaloneOnce(
+  rendererRoot: string,
+  setupSnapshot: DesktopSetup,
+  switching: boolean,
+): Promise<boolean> {
+  const remoteOrigin = setupSnapshot.serverUrl;
+  const alreadyProbed = consumePreProbed(remoteOrigin);
+  hostComputer?.activate(false);
+
+  const partition = standaloneSessionPartitionForServerUrl(remoteOrigin);
+  if (partition === null) {
+    if (mainWindow === null) {
+      showSetupWindow(
+        t("Could not open that server. {detail}", {
+          detail: t("Enter a valid http:// or https:// address."),
+        }),
+      );
+    }
+    return false;
+  }
+
+  if (!alreadyProbed) {
+    const reachability = await probeServer(remoteOrigin, undefined, setupSnapshot.headers);
+    if (!reachability.ok) {
+      const detail = reachability.error ?? t("Could not reach that address.");
+      if (mainWindow === null) {
+        showSetupWindow(t("Could not open that server. {detail}", { detail }));
+      }
+      return false;
+    }
+  }
+
+  const userDataDir = app.getPath("userData");
+  const previous = mainWindow;
+  const previousStandalone = activeStandalone;
+  let pausedSameOrigin: Extract<PendingPreviousStandalone, { kind: "paused-same-origin" }> | null =
+    null;
+
+  if (previousStandalone?.remoteOrigin === remoteOrigin) {
+    pausedSameOrigin = {
+      kind: "paused-same-origin",
+      rendererRoot: previousStandalone.rendererRoot,
+      remoteOrigin: previousStandalone.remoteOrigin,
+      port: previousStandalone.port,
+      partition: previousStandalone.partition,
+      session: previousStandalone.session,
+      setupSnapshot: previousStandalone.setupSnapshot,
+    };
+    activeStandalone = null;
+    await stopStandaloneContext(previousStandalone);
+  }
+
+  let win: BrowserWindow | null = null;
+  let candidate: StandaloneContext | null = null;
+
+  try {
+    let existingPort: number | undefined;
+    try {
+      const registry = await readStandaloneOriginRegistry(userDataDir);
+      existingPort = registry.get(remoteOrigin)?.port;
+    } catch (error) {
+      if (error instanceof StandaloneOriginStoreError) {
+        throw withDetail(
+          new ServerUnavailable(error.message),
+          t(
+            "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.",
+          ),
+        );
+      }
+      throw error;
+    }
+
+    const proxy = new StandaloneRendererProxy({
+      rendererRoot,
+      remoteOrigin,
+      setup: setupSnapshot,
+      port: existingPort ?? 0,
+      requireCapability: true,
+    });
+    let uiOrigin: string;
+    try {
+      uiOrigin = await proxy.start();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "EADDRINUSE" && existingPort !== undefined) {
+        throw withDetail(
+          new ServerUnavailable(`Local renderer port ${existingPort} is already in use.`),
+          t(
+            "The local renderer port {port} is already in use. Close the conflicting app and retry.",
+            { port: existingPort },
+          ),
+        );
+      }
+      throw error;
+    }
+
+    const boundPort = Number(new URL(uiOrigin).port);
+    if (existingPort === undefined) {
+      try {
+        await recordStandaloneOrigin(userDataDir, {
+          remoteOrigin,
+          port: boundPort,
+          partition,
+        });
+      } catch (error) {
+        await proxy.stop().catch(() => undefined);
+        if (error instanceof StandaloneOriginStoreError) {
+          throw withDetail(
+            new ServerUnavailable(error.message),
+            t(
+              "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.",
+            ),
+          );
+        }
+        throw error;
+      }
+    }
+
+    const targetSession = session.fromPartition(partition);
+    win = buildAppWindow(uiOrigin, partition, remoteOrigin);
+    const bound = bindStandaloneSession(targetSession, {
+      proxyOrigin: uiOrigin,
+      remoteOrigin,
+      capability: proxy.capability,
+      screenCapability: proxy.screenCapability,
+      appContentsId: () => (win !== null && !win.isDestroyed() ? win.webContents.id : undefined),
+    });
+    candidate = {
+      window: win,
+      rendererRoot,
+      remoteOrigin,
+      uiOrigin,
+      port: boundPort,
+      partition,
+      session: targetSession,
+      setupSnapshot,
+      proxy,
+      unbindSession: bound.unbind,
+      fetchBackend: bound.fetchBackend,
+    };
+
+    if (previous === null) {
+      activateDesktopMonitoring(remoteOrigin, targetSession, bound.fetchBackend);
+    }
+
+    const state = await startAppWindowLoad(win, uiOrigin);
+    if (switching && state === "pending") {
+      throw withDetail(
+        new ServerUnavailable("The server page did not become ready."),
+        t("The server page did not become ready."),
+      );
+    }
+    if (switching && state === "failed") {
+      throw withDetail(
+        new Error("The server page did not become ready."),
+        t("The server page did not become ready."),
+      );
+    }
+
+    activeStandalone = candidate;
+    currentTargetUrl = remoteOrigin;
+    activateDesktopMonitoring(remoteOrigin, targetSession, bound.fetchBackend);
+    setupError = null;
+
+    const hasLivePrevious = previous !== null && !previous.isDestroyed() && previous !== win;
+    pendingPreviousWindow = hasLivePrevious ? previous : null;
+    if (pendingPreviousWindow !== null) pendingPreviousWindow.hide();
+    if (pausedSameOrigin !== null) {
+      pendingPreviousStandalone = hasLivePrevious ? pausedSameOrigin : null;
+    } else if (previousStandalone !== null) {
+      if (hasLivePrevious) {
+        pendingPreviousStandalone = { kind: "live", context: previousStandalone };
+      } else {
+        await stopStandaloneContext(previousStandalone);
+        pendingPreviousStandalone = null;
+      }
+    } else {
+      pendingPreviousStandalone = null;
+    }
+    return true;
+  } catch (error) {
+    const closed = win?.isDestroyed() === true;
+    if (!closed && !(error instanceof ServerUnavailable)) {
+      reportDesktopError(error, "desktop.startup");
+    }
+    await stopStandaloneContext(candidate);
+    pendingPreviousWindow = null;
+    pendingPreviousStandalone = null;
+
+    let destroyUnrestoredPrevious: BrowserWindow | null = null;
+    if (previous !== null && !previous.isDestroyed()) {
+      if (pausedSameOrigin !== null) {
+        activeStandalone = await restorePausedStandalone(pausedSameOrigin, previous).catch(
+          () => null,
+        );
+        if (activeStandalone !== null) {
+          mainWindow = previous;
+          activateDesktopMonitoring(
+            activeStandalone.remoteOrigin,
+            activeStandalone.session,
+            activeStandalone.fetchBackend,
+          );
+        } else {
+          mainWindow = null;
+          activateDesktopMonitoring(undefined);
+          destroyUnrestoredPrevious = previous;
+        }
+      } else {
+        mainWindow = previous;
+        if (activeStandalone !== null) {
+          activateDesktopMonitoring(
+            activeStandalone.remoteOrigin,
+            activeStandalone.session,
+            activeStandalone.fetchBackend,
+          );
+        }
+      }
+    } else {
+      if (pausedSameOrigin === null && previousStandalone !== null) {
+        await stopStandaloneContext(previousStandalone);
+      }
+      mainWindow = null;
+      activeStandalone = null;
+      activateDesktopMonitoring(undefined);
+    }
+
+    if (closed && destroyUnrestoredPrevious === null) return false;
+    showSetupWindow(
+      t("Could not open that server. {detail}", { detail: openFailureDetail(error) }),
+    );
+    if (destroyUnrestoredPrevious !== null && !destroyUnrestoredPrevious.isDestroyed()) {
+      destroyUnrestoredPrevious.destroy();
+    }
+    if (win !== null && !win.isDestroyed()) win.destroy();
+    return false;
+  }
+}
+
 async function openAppOnce(targetUrl: string, switching: boolean) {
-  hostComputer?.activate(currentSetup?.mode === "new" && targetUrl === localStack.webUrl());
+  const rendererRoot = standaloneRendererRoot();
+  const standaloneSetup = rendererRoot !== null ? standaloneSetupForTarget(targetUrl) : null;
+  if (rendererRoot !== null && standaloneSetup !== null) {
+    return openStandaloneOnce(rendererRoot, standaloneSetup, switching);
+  }
+  consumePreProbed(normalizeServerUrl(targetUrl) ?? "");
+
+  hostComputer?.activate(isManagedLocalSetup() && targetUrl === localStack.webUrl());
   const target = await resolveSessionForTarget(targetUrl);
   configureHeaderSession(target.value);
   // A failed switch must leave telemetry with the window that remains selected.
   if (mainWindow === null) activateDesktopMonitoring(targetUrl, target.value);
   const previous = mainWindow;
+  const previousStandalone = activeStandalone;
   let win: BrowserWindow | null = null;
   try {
     const documentError = await probeDocument(targetUrl);
     if (documentError !== null) throw documentError;
-    await installBundledRenderer(
+    await installBundledRenderer(targetUrl, target.value, target.partition, isManagedLocalSetup());
+    const created = createWindow(
       targetUrl,
-      target.value,
       target.partition,
-      currentSetup?.mode === "new",
+      isManagedLocalSetup() ? null : safeOrigin(targetUrl),
     );
-    const created = createWindow(targetUrl, target.partition);
     win = created.win;
     // On launch the window stays up: the web app shows its own loading, reconnecting or error
     // screen and recovers from it. Switching to a server that is not ready keeps the previous one.
@@ -1147,13 +1565,24 @@ async function openAppOnce(targetUrl: string, switching: boolean) {
         t("The server page did not become ready."),
       );
     }
+    activeStandalone = null;
     currentTargetUrl = targetUrl;
     activateDesktopMonitoring(targetUrl, target.value);
     setupError = null;
+    const hasLivePrevious = previous !== null && !previous.isDestroyed() && previous !== win;
     // Keep the previous window until the caller commits (after setup.json is written).
-    pendingPreviousWindow =
-      previous !== null && !previous.isDestroyed() && previous !== win ? previous : null;
+    pendingPreviousWindow = hasLivePrevious ? previous : null;
     if (pendingPreviousWindow !== null) pendingPreviousWindow.hide();
+    if (previousStandalone !== null) {
+      if (hasLivePrevious) {
+        pendingPreviousStandalone = { kind: "live", context: previousStandalone };
+      } else {
+        await stopStandaloneContext(previousStandalone);
+        pendingPreviousStandalone = null;
+      }
+    } else {
+      pendingPreviousStandalone = null;
+    }
     return true;
   } catch (error) {
     const closed = win?.isDestroyed() === true;
@@ -1161,8 +1590,14 @@ async function openAppOnce(targetUrl: string, switching: boolean) {
       reportDesktopError(error, "desktop.startup");
     }
     pendingPreviousWindow = null;
+    pendingPreviousStandalone = null;
     // Keep the previous app window so Cancel / close can restore it.
-    if (previous !== null && !previous.isDestroyed()) mainWindow = previous;
+    if (previous !== null && !previous.isDestroyed()) {
+      mainWindow = previous;
+    } else {
+      mainWindow = null;
+      activateDesktopMonitoring(undefined);
+    }
     // Closing the window while it loads is the user leaving, not a failure to explain.
     if (closed) return false;
     // Show the setup window BEFORE destroying the failed one: on Windows/Linux,
@@ -1176,20 +1611,32 @@ async function openAppOnce(targetUrl: string, switching: boolean) {
   }
 }
 
-function syncHostComputerAccess() {
+function syncHostComputerAccess(forceReconnectDevices = false) {
   hostComputer?.activate(
-    currentSetup?.mode === "new" &&
+    isManagedLocalSetup() &&
       mainWindow !== null &&
       !mainWindow.isDestroyed() &&
       appWindowTargets.get(mainWindow) === localStack.webUrl(),
   );
-  void userDevices?.select(remoteServerOrigin()).catch(() => undefined);
+  const origin = remoteServerOrigin();
+  if (forceReconnectDevices && origin !== null) {
+    void userDevices
+      ?.select(null)
+      .then(() => userDevices?.select(remoteServerOrigin()))
+      .catch(() => undefined);
+  } else {
+    void userDevices?.select(origin).catch(() => undefined);
+  }
   installApplicationMenu();
 }
 
 /** The server the app window shows, unless it is the app-managed local stack. */
 function remoteServerOrigin() {
-  if (currentSetup?.mode === "new" || mainWindow === null || mainWindow.isDestroyed()) return null;
+  if (mainWindow === null || mainWindow.isDestroyed()) return null;
+  if (appWindowRemoteOrigins.has(mainWindow)) {
+    return appWindowRemoteOrigins.get(mainWindow) ?? null;
+  }
+  if (isManagedLocalSetup()) return null;
   const target = appWindowTargets.get(mainWindow);
   return target === undefined ? null : safeOrigin(target);
 }
@@ -1238,7 +1685,15 @@ function deviceTokenCipher() {
 
 /** Drop the previous app window after the new server is opened and persisted. */
 function commitPendingAppSwitch() {
-  syncHostComputerAccess();
+  if (activeStandalone !== null) {
+    configureHeaderSession(undefined);
+  }
+  const previousStandalone = pendingPreviousStandalone;
+  pendingPreviousStandalone = null;
+  if (previousStandalone?.kind === "live") {
+    void stopStandaloneContext(previousStandalone.context);
+  }
+  syncHostComputerAccess(previousStandalone?.kind === "paused-same-origin");
   const previous = pendingPreviousWindow;
   pendingPreviousWindow = null;
   if (previous !== null && !previous.isDestroyed() && previous !== mainWindow) previous.destroy();
@@ -1248,21 +1703,63 @@ function commitPendingAppSwitch() {
  * Undo an open that could not be persisted. When a prior session exists, restore
  * it. On first run keep the connected window so the user can retry save.
  */
-function abandonPendingAppSwitch(
+async function abandonPendingAppSwitch(
   previousSetup: DesktopSetup | null,
   previousUrl: string | null,
-): "restored" | "kept" {
+  previousDirectOverride: string | null = directWebOverrideUrl,
+  previousPcBackendOverride: string | null = pcBackendOverrideUrl,
+): Promise<"restored" | "kept" | "unrestorable"> {
   const previous = pendingPreviousWindow;
+  const previousStandalone = pendingPreviousStandalone;
   pendingPreviousWindow = null;
+  pendingPreviousStandalone = null;
   if (previous !== null && !previous.isDestroyed()) {
     const failed = mainWindow;
-    if (failed !== null && !failed.isDestroyed() && failed !== previous) failed.destroy();
+    const failedStandalone = activeStandalone;
     mainWindow = previous;
+    activeStandalone = null;
+    await stopStandaloneContext(failedStandalone);
+    if (failed !== null && !failed.isDestroyed() && failed !== previous) failed.destroy();
     currentSetup = previousSetup;
-    configureHeaderSession(mainWindow?.webContents.session);
+    directWebOverrideUrl = previousDirectOverride;
+    pcBackendOverrideUrl = previousPcBackendOverride;
     currentTargetUrl = previousUrl;
-    activateDesktopMonitoring(previousUrl ?? undefined, previous.webContents.session);
-    syncHostComputerAccess();
+
+    if (previousStandalone?.kind === "live") {
+      activeStandalone = previousStandalone.context;
+      configureHeaderSession(undefined);
+      activateDesktopMonitoring(
+        activeStandalone.remoteOrigin,
+        activeStandalone.session,
+        activeStandalone.fetchBackend,
+      );
+    } else if (previousStandalone?.kind === "paused-same-origin") {
+      activeStandalone = await restorePausedStandalone(previousStandalone, previous).catch(
+        () => null,
+      );
+      configureHeaderSession(undefined);
+      if (activeStandalone !== null) {
+        activateDesktopMonitoring(
+          activeStandalone.remoteOrigin,
+          activeStandalone.session,
+          activeStandalone.fetchBackend,
+        );
+      } else {
+        mainWindow = null;
+        activateDesktopMonitoring(undefined);
+        syncHostComputerAccess();
+        if (setupWindow === null || setupWindow.isDestroyed()) {
+          showSetupWindow(t("Could not save that address. Try again."));
+        }
+        if (!previous.isDestroyed()) previous.destroy();
+        return "unrestorable";
+      }
+    } else {
+      configureHeaderSession(mainWindow?.webContents.session);
+      activateDesktopMonitoring(previousUrl ?? undefined, previous.webContents.session);
+    }
+
+    syncHostComputerAccess(previousStandalone?.kind === "paused-same-origin");
     // If setup was already closed (e.g. during a slow write), make the restored
     // session visible — otherwise macOS can be left with no shown window.
     if (setupWindow === null || setupWindow.isDestroyed()) {
@@ -1314,19 +1811,36 @@ async function recoverFromCrashedSave(
   userDataDir: string,
   previousSetup: DesktopSetup | null,
   previousUrl: string | null,
+  previousDirectOverride: string | null = directWebOverrideUrl,
+  previousPcBackendOverride: string | null = pcBackendOverrideUrl,
 ): Promise<string> {
-  const outcome = abandonPendingAppSwitch(previousSetup, previousUrl);
+  const outcome = await abandonPendingAppSwitch(
+    previousSetup,
+    previousUrl,
+    previousDirectOverride,
+    previousPcBackendOverride,
+  );
   await rollbackSetupFile(userDataDir, previousSetup);
   if (outcome === "kept") {
-    if (mainWindow !== null && !mainWindow.isDestroyed()) mainWindow.destroy();
+    const crashedWindow = mainWindow;
+    const crashedStandalone = activeStandalone;
     mainWindow = null;
+    activeStandalone = null;
+    await stopStandaloneContext(crashedStandalone);
+    if (crashedWindow !== null && !crashedWindow.isDestroyed()) crashedWindow.destroy();
     currentSetup = previousSetup;
+    directWebOverrideUrl = previousDirectOverride;
+    pcBackendOverrideUrl = previousPcBackendOverride;
     configureHeaderSession(undefined);
     currentTargetUrl = previousUrl;
-    if (previousUrl) {
+    if (
+      previousUrl &&
+      (standaloneRendererRoot() === null || standaloneSetupForTarget(previousUrl) === null)
+    ) {
       const restored = await resolveSessionForTarget(previousUrl);
       activateDesktopMonitoring(previousUrl, restored.value);
     } else activateDesktopMonitoring(undefined);
+    syncHostComputerAccess();
   }
   const message =
     previousSetup !== null
@@ -1433,15 +1947,26 @@ async function startDesktop() {
     }),
     confirm: (host) => confirmRemoteComputerAccess(host),
     // The app window's session carries the sign-in for that server; the token never reaches it.
-    fetch: (url, init) =>
-      (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(url, {
-        ...init,
-        bypassCustomProtocolHandlers: true,
-      }),
+    fetch: (url, init) => {
+      if (activeStandalone !== null && safeOrigin(url) === activeStandalone.remoteOrigin) {
+        return activeStandalone.fetchBackend(url, init);
+      }
+      return (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(
+        url,
+        {
+          ...init,
+          bypassCustomProtocolHandlers: true,
+        },
+      );
+    },
     connect: (origin, token, events) =>
       startUserDeviceClient({
         serverUrl: origin,
         token,
+        headers: serverHeadersFor(
+          origin,
+          activeStandalone?.remoteOrigin === origin ? activeStandalone.setupSnapshot : currentSetup,
+        ),
         root: path.join(userDataDir, "computers"),
         screen: hostScreen,
         ...events,
@@ -1482,10 +2007,24 @@ async function startDesktop() {
     saved: currentSetup,
     forceSetup: process.env.RAKAZO_FORCE_SETUP === "1",
   });
+  directWebOverrideUrl = target.kind === "app" && target.source === "env" ? target.url : null;
+  pcBackendOverrideUrl =
+    target.kind === "app" && target.source === "pc-env"
+      ? (normalizeServerUrl(target.url) ?? target.url)
+      : null;
   if (process.env.RAKAZO_PERFORMANCE_CLEAR_CACHE === "1") {
     const cacheSessions = new Set<Session>([session.defaultSession]);
     if (target.kind === "app") {
-      cacheSessions.add((await resolveSessionForTarget(target.url)).value);
+      const standaloneSetup =
+        standaloneRendererRoot() !== null ? standaloneSetupForTarget(target.url) : null;
+      const standalonePartition = standaloneSetup
+        ? standaloneSessionPartitionForServerUrl(standaloneSetup.serverUrl)
+        : null;
+      if (standalonePartition !== null) {
+        cacheSessions.add(session.fromPartition(standalonePartition));
+      } else {
+        cacheSessions.add((await resolveSessionForTarget(target.url)).value);
+      }
     }
     await Promise.all(
       [...cacheSessions].flatMap((value) => [value.clearCache(), value.clearCodeCaches({})]),
@@ -1546,7 +2085,7 @@ async function startDesktop() {
   const isManagedComputerRequest = (event: Electron.IpcMainInvokeEvent) =>
     fromMainWindow(event) &&
     event.senderFrame === event.sender.mainFrame &&
-    currentSetup?.mode === "new" &&
+    isManagedLocalSetup() &&
     appWindowTargets.get(mainWindow!) === localStack.webUrl() &&
     safeOrigin(event.senderFrame.url) === safeOrigin(localStack.webUrl());
   const persistHostChoice = async (computerHost: "docker" | "this-mac") => {
@@ -1606,12 +2145,7 @@ async function startDesktop() {
   /** The remote server's own page in the app window, never a frame or another window. */
   const remoteDeviceOrigin = (event: Electron.IpcMainInvokeEvent) => {
     const origin = remoteServerOrigin();
-    return fromMainWindow(event) &&
-      event.senderFrame === event.sender.mainFrame &&
-      origin !== null &&
-      safeOrigin(event.senderFrame.url) === origin
-      ? origin
-      : null;
+    return origin !== null && fromAppFrame(permissionTarget(), event) ? origin : null;
   };
   const deviceState = async (origin: string | null): Promise<RakazoDesktopDevice | null> => {
     const state = origin === null ? null : userDevices?.state(origin);
@@ -1721,6 +2255,8 @@ async function startDesktop() {
     setupSaveInProgress = true;
     const previousSetup = currentSetup;
     const previousUrl = currentTargetUrl;
+    const previousDirectOverride = directWebOverrideUrl;
+    const previousPcBackendOverride = pcBackendOverrideUrl;
     try {
       const setup = parseSetupInput(payload);
       if (setup === null) {
@@ -1750,14 +2286,22 @@ async function startDesktop() {
 
       // Open before persisting so a failed renderer load keeps the last working setup.
       currentSetup = openSetup;
+      directWebOverrideUrl = null;
+      pcBackendOverrideUrl = null;
+      markPreProbed(openSetup.serverUrl);
       const opened = await appOpener.open(openSetup.serverUrl, { switching: true });
       if (!opened) {
         currentSetup = previousSetup;
+        directWebOverrideUrl = previousDirectOverride;
+        pcBackendOverrideUrl = previousPcBackendOverride;
         configureHeaderSession(mainWindow?.webContents.session);
         syncHostComputerAccess();
+        const hasRestoredWindow = mainWindow !== null && !mainWindow.isDestroyed();
         return {
           ok: false,
-          error: t("Could not open that server. The previous instance was left unchanged."),
+          error: hasRestoredWindow
+            ? t("Could not open that server. The previous instance was left unchanged.")
+            : (setupError ?? t("Could not save that address. Try again.")),
         };
       }
 
@@ -1769,30 +2313,55 @@ async function startDesktop() {
       try {
         await writeSetup(userDataDir, openSetup);
         if (rendererWatch?.crashed()) {
-          const message = await recoverFromCrashedSave(userDataDir, previousSetup, previousUrl);
+          const message = await recoverFromCrashedSave(
+            userDataDir,
+            previousSetup,
+            previousUrl,
+            previousDirectOverride,
+            previousPcBackendOverride,
+          );
           return { ok: false, error: message };
         }
         // Commit while the crash listener is still armed.
         commitPendingAppSwitch();
         if (rendererWatch?.crashed()) {
-          const message = await recoverFromCrashedSave(userDataDir, previousSetup, previousUrl);
+          const message = await recoverFromCrashedSave(
+            userDataDir,
+            previousSetup,
+            previousUrl,
+            previousDirectOverride,
+            previousPcBackendOverride,
+          );
           return { ok: false, error: message };
         }
         destroySetupWindow();
         // Final check after setup closes — a crash in this gap still rolls back.
         if (rendererWatch?.crashed()) {
-          const message = await recoverFromCrashedSave(userDataDir, previousSetup, previousUrl);
+          const message = await recoverFromCrashedSave(
+            userDataDir,
+            previousSetup,
+            previousUrl,
+            previousDirectOverride,
+            previousPcBackendOverride,
+          );
           return { ok: false, error: message };
         }
         return { ok: true };
       } catch {
-        const outcome = abandonPendingAppSwitch(previousSetup, previousUrl);
+        const outcome = await abandonPendingAppSwitch(
+          previousSetup,
+          previousUrl,
+          previousDirectOverride,
+          previousPcBackendOverride,
+        );
         return {
           ok: false,
           error:
             outcome === "restored"
               ? t("Could not save setup. The previous instance was restored.")
-              : t("Connected, but could not save setup for the next launch. Try Continue again."),
+              : outcome === "unrestorable"
+                ? t("Could not save that address. Try again.")
+                : t("Connected, but could not save setup for the next launch. Try Continue again."),
         };
       } finally {
         rendererWatch?.dispose();
@@ -1848,8 +2417,13 @@ async function startDesktop() {
   if (target.kind === "setup") {
     showSetupWindow();
   } else if (target.source === "pc-env") {
-    const reachability = await probeServer(target.url);
+    const reachability = await probeServer(
+      target.url,
+      undefined,
+      serverHeadersFor(target.url, currentSetup),
+    );
     if (reachability.ok && reachability.url) {
+      markPreProbed(reachability.url);
       if (await appOpener.open(reachability.url)) {
         commitPendingAppSwitch();
         destroySetupWindow();
@@ -1876,6 +2450,7 @@ async function startDesktop() {
     } else {
       const reachability = await probeServer(target.url, undefined, currentSetup?.headers);
       if (reachability.ok) {
+        markPreProbed(target.url);
         if (await appOpener.open(target.url)) {
           commitPendingAppSwitch();
           destroySetupWindow();
@@ -1906,6 +2481,14 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   quitting = true;
   clearTimeout(warmWindowTimer);
+  const currentStandalone = activeStandalone;
+  const pendingStandalone = pendingPreviousStandalone;
+  activeStandalone = null;
+  pendingPreviousStandalone = null;
+  void stopStandaloneContext(currentStandalone);
+  if (pendingStandalone?.kind === "live") {
+    void stopStandaloneContext(pendingStandalone.context);
+  }
   // Containers keep running; only an in-flight pull/up is cut short.
   hostComputer?.activate(false);
   void hostComputer?.close();

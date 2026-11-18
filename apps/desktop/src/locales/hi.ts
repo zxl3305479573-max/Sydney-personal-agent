@@ -184,4 +184,8 @@ export const HI_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "साइडबार दिखाएँ/छिपाएँ",
   "Search…": "खोजें…",
   "The window closed before the app loaded.": "ऐप लोड होने से पहले विंडो बंद हो गई।",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "लोकल रेंडरर पोर्ट {port} पहले से उपयोग में है। टकराने वाले ऐप को बंद करें और फिर से कोशिश करें।",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "लोकल रेंडरर ओरिजिन फ़ाइल पढ़ी नहीं जा सकी। standalone-origins.json को ठीक करें या हटाएँ और फिर से कोशिश करें।",
 };

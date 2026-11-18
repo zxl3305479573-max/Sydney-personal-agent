@@ -5,7 +5,7 @@ import type {
   WebFrameMain,
 } from "electron";
 import { describe, expect, it, vi } from "vitest";
-import { installProxyCapability } from "./proxy-request-capability.js";
+import { installProxyCapability, MAIN_PROCESS_NONCE_HEADER } from "./proxy-request-capability.js";
 
 const proxyOrigin = "http://127.0.0.1:51423";
 const appToken = "synthetic-app-capability";
@@ -369,5 +369,80 @@ describe("proxy capability hook", () => {
     expect(withoutToken.send(`${proxyOrigin}/api`)).toEqual({ Accept: "*/*" });
     const withoutProxy = hook({ proxyOrigin: () => undefined });
     expect(withoutProxy.send(`${proxyOrigin}/api`)).toEqual({ Accept: "*/*" });
+  });
+
+  it("authenticates main-process session.fetch requests via a one-time nonce and strips the nonce everywhere", () => {
+    const validNonces = new Set(["nonce-get", "nonce-post"]);
+    const { send } = hook({
+      consumeMainRequestNonce: (nonce) => {
+        if (!validNonces.has(nonce)) return false;
+        validNonces.delete(nonce);
+        return true;
+      },
+    });
+
+    // Main-process GET consumes nonce, strips it, and injects app capability without forcing Origin.
+    expect(
+      send(`${proxyOrigin}/api/monitoring/config`, {
+        webContentsId: undefined,
+        webContents: undefined,
+        frame: null,
+        method: "GET",
+        headers: { [MAIN_PROCESS_NONCE_HEADER]: "nonce-get" },
+      }),
+    ).toEqual({
+      Accept: "*/*",
+      "x-sydney-proxy-capability": appToken,
+    });
+
+    // Replaying the consumed nonce fails closed and still strips the nonce header.
+    expect(
+      send(`${proxyOrigin}/api/monitoring/config`, {
+        webContentsId: undefined,
+        webContents: undefined,
+        frame: null,
+        method: "GET",
+        headers: { [MAIN_PROCESS_NONCE_HEADER]: "nonce-get" },
+      }),
+    ).toEqual({ Accept: "*/*" });
+
+    // Main-process POST consumes nonce, injects capability, and supplies canonical Origin for proxy CSRF check.
+    expect(
+      send(`${proxyOrigin}/api/v1/user-devices/pair`, {
+        webContentsId: undefined,
+        webContents: undefined,
+        frame: null,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [MAIN_PROCESS_NONCE_HEADER]: "nonce-post",
+        },
+      }),
+    ).toEqual({
+      Accept: "*/*",
+      "Content-Type": "application/json",
+      origin: proxyOrigin,
+      "x-sydney-proxy-capability": appToken,
+    });
+
+    // Renderer or cross-origin requests can never use or leak the main-process nonce header.
+    validNonces.add("nonce-renderer");
+    expect(
+      send(`${proxyOrigin}/api/secret`, {
+        webContentsId: 99,
+        headers: { [MAIN_PROCESS_NONCE_HEADER]: "nonce-renderer" },
+      }),
+    ).toEqual({ Accept: "*/*" });
+    expect(validNonces.has("nonce-renderer")).toBe(true);
+
+    expect(
+      send("https://evil.example/collect", {
+        webContentsId: undefined,
+        webContents: undefined,
+        frame: null,
+        headers: { [MAIN_PROCESS_NONCE_HEADER]: "nonce-renderer" },
+      }),
+    ).toEqual({ Accept: "*/*" });
+    expect(validNonces.has("nonce-renderer")).toBe(true);
   });
 });

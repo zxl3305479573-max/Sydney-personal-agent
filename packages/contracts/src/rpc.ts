@@ -44,6 +44,18 @@ import {
   VaultRevealInput,
 } from "./bot-secrets.js";
 import {
+  GithubConnectInputSchema,
+  GithubConnectionStatusSchema,
+  GithubListMyReposInputSchema,
+  GithubProfileOverviewInputSchema,
+  GithubProfileOverviewSchema,
+  GithubRepoDetailInputSchema,
+  GithubRepoDetailSchema,
+  GithubRepoPageSchema,
+  GithubSearchReposInputSchema,
+  GithubSearchReposOutputSchema,
+} from "./github.js";
+import {
   AccessGrantInputSchema,
   AccessGrantSchema,
   AccountItemSchema,
@@ -1245,10 +1257,12 @@ export const appContract = {
         .input(
           z.object({
             botId: Id.optional(),
-            returnTo: z.enum(["web", "mobile"]).optional(),
+            returnTo: z.enum(["web", "mobile", "native"]).optional(),
           }),
         )
-        .output(z.object({ url: z.string(), returnTo: z.enum(["web", "mobile"]).optional() })),
+        .output(
+          z.object({ url: z.string(), returnTo: z.enum(["web", "mobile", "native"]).optional() }),
+        ),
       complete: oc
         .input(z.object({ state: z.string().max(64), code: z.string().max(4096) }))
         .output(z.object({ ok: z.literal(true) })),
@@ -1497,6 +1511,25 @@ export const appContract = {
     remove: oc
       .input(z.object({ botId: Id, name: StoredBotSecretName }))
       .output(z.object({ ok: z.literal(true) })),
+  },
+  github: {
+    status: oc
+      .input(z.object({ verifyRemote: z.boolean().optional() }).optional())
+      .output(GithubConnectionStatusSchema),
+    connect: oc.input(GithubConnectInputSchema).output(GithubConnectionStatusSchema),
+    disconnect: oc.output(GithubConnectionStatusSchema),
+    profileOverview: oc
+      .input(GithubProfileOverviewInputSchema.optional())
+      .output(GithubProfileOverviewSchema),
+    listMyRepos: oc
+      .input(GithubListMyReposInputSchema.optional())
+      .output(GithubRepoPageSchema),
+    searchRepos: oc
+      .input(GithubSearchReposInputSchema)
+      .output(GithubSearchReposOutputSchema),
+    repoDetail: oc
+      .input(GithubRepoDetailInputSchema)
+      .output(GithubRepoDetailSchema),
   },
 };
 

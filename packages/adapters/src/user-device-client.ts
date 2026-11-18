@@ -1,4 +1,5 @@
 import { USER_DEVICE_CONNECT_PATH } from "@rakazo/contracts";
+import { isLoopbackHost } from "@rakazo/contracts/network-host";
 import WebSocket from "ws";
 import type { HostComputerFrame } from "./host-computer-protocol.js";
 import { HOST_COMPUTER_MAX_BYTES } from "./host-computer-protocol.js";
@@ -22,6 +23,8 @@ export interface UserDeviceClientOptions {
   serverUrl: string;
   token: string;
   root: string;
+  /** Optional validated server headers (e.g. Cloudflare Access) sent on TLS or loopback upgrades. */
+  headers?: Readonly<Record<string, string>>;
   /** Drives this computer's apps. Owned by the caller, which closes it. */
   screen?: HostScreen;
   /** The server revoked the device or rejected its token. The client has already stopped. */
@@ -29,6 +32,48 @@ export interface UserDeviceClientOptions {
   /** Whether this computer lets the server's bots run anything. Asked before every request. */
   authorize: () => Promise<boolean>;
   retryMs?: { min: number; max: number };
+}
+
+const RESERVED_UPGRADE_HEADERS = new Set([
+  "authorization",
+  "connection",
+  "cookie",
+  "host",
+  "keep-alive",
+  "origin",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "sec-websocket-extensions",
+  "sec-websocket-key",
+  "sec-websocket-protocol",
+  "sec-websocket-version",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+function buildUpgradeHeaders(
+  url: URL,
+  token: string,
+  extra?: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (extra && (url.protocol === "wss:" || isLoopbackHost(url.hostname))) {
+    for (const [name, value] of Object.entries(extra)) {
+      const lower = name.toLowerCase();
+      if (
+        RESERVED_UPGRADE_HEADERS.has(lower) ||
+        lower.startsWith("sec-") ||
+        lower.startsWith("proxy-")
+      ) {
+        continue;
+      }
+      headers[lower] = value;
+    }
+  }
+  headers.authorization = `Bearer ${token}`;
+  return headers;
 }
 
 /**
@@ -42,6 +87,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
   runner.setEnabled(true);
   const url = new URL(USER_DEVICE_CONNECT_PATH, options.serverUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  const upgradeHeaders = buildUpgradeHeaders(url, options.token, options.headers);
   let stopped = false;
   let attempt = 0;
   let socket: WebSocket | undefined;
@@ -81,7 +127,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
   function connect() {
     if (stopped) return;
     const ws = new WebSocket(url, {
-      headers: { authorization: `Bearer ${options.token}` },
+      headers: upgradeHeaders,
       maxPayload: USER_DEVICE_MAX_MESSAGE_BYTES,
       handshakeTimeout: 15_000,
       followRedirects: false,

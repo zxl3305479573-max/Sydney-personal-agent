@@ -173,4 +173,8 @@ export const ZH_CN_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "切换边栏",
   "Search…": "搜索…",
   "The window closed before the app loaded.": "应用加载完成前窗口已关闭。",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "本地界面端口 {port} 已被占用。请关闭冲突的应用后重试。",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "无法读取本地界面来源文件。请修复或删除 standalone-origins.json 后重试。",
 };

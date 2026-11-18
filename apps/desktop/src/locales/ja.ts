@@ -194,4 +194,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "サイドバーを切り替え",
   "Search…": "検索…",
   "The window closed before the app loaded.": "アプリの読み込み前にウインドウが閉じられました。",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "ローカルレンダラーのポート {port} はすでに使用されています。競合しているアプリを閉じてから再試行してください。",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "ローカルレンダラーのオリジンファイルを読み込めませんでした。standalone-origins.json を修復または削除してから再試行してください。",
 };

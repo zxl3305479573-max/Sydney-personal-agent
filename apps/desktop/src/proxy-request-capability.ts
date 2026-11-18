@@ -7,6 +7,8 @@ import type {
 
 /** Carries the proxy capability from the app's own window to its loopback proxy. */
 export const PROXY_CAPABILITY_HEADER = "x-sydney-proxy-capability";
+/** One-time main-process request nonce consumed and stripped in `onBeforeSendHeaders`. */
+export const MAIN_PROCESS_NONCE_HEADER = "x-sydney-main-nonce";
 
 const OPAQUE_SCREEN_ASSETS = new Set([
   "/wuying/screen.js",
@@ -28,6 +30,11 @@ export interface ProxyCapabilityOptions {
    */
   screenToken?: () => string | undefined;
   appContentsId: () => number | undefined;
+  /**
+   * Validates and atomically consumes a one-time nonce issued by the main process
+   * for `session.fetch` calls targeting the active loopback proxy.
+   */
+  consumeMainRequestNonce?: (nonce: string) => boolean;
 }
 
 /**
@@ -48,20 +55,62 @@ export interface ProxyCapabilityOptions {
 export function installProxyCapability(value: Session, options: ProxyCapabilityOptions) {
   value.webRequest.onBeforeSendHeaders((details, callback) => {
     const requestHeaders = { ...details.requestHeaders };
+    let extractedNonce: string | undefined;
+    let seenNonceHeader = false;
+    let invalidNonceHeader = false;
     for (const name of Object.keys(requestHeaders)) {
-      if (name.toLowerCase() === PROXY_CAPABILITY_HEADER) delete requestHeaders[name];
+      const lower = name.toLowerCase();
+      if (lower === PROXY_CAPABILITY_HEADER) {
+        delete requestHeaders[name];
+      } else if (lower === MAIN_PROCESS_NONCE_HEADER) {
+        const raw = requestHeaders[name];
+        if (seenNonceHeader || typeof raw !== "string" || raw.length === 0 || raw.includes(",")) {
+          invalidNonceHeader = true;
+        } else {
+          extractedNonce = raw;
+        }
+        seenNonceHeader = true;
+        delete requestHeaders[name];
+      }
     }
 
     try {
       const token = options.token();
       const canonicalOrigin = parseHttpOrigin(options.proxyOrigin());
-      const appContentsId = options.appContentsId();
-      if (token && canonicalOrigin && appContentsId !== undefined) {
-        const scope = classifyRequestScope(details, canonicalOrigin, appContentsId);
-        if (scope === "app") {
-          requestHeaders[PROXY_CAPABILITY_HEADER] = token;
-        } else if (scope === "screen") {
-          requestHeaders[PROXY_CAPABILITY_HEADER] = options.screenToken?.() ?? token;
+      if (token && canonicalOrigin) {
+        if (
+          (details.webContentsId === undefined || details.webContentsId === -1) &&
+          details.webContents === undefined &&
+          (details.frame ?? null) === null
+        ) {
+          if (!invalidNonceHeader && extractedNonce && options.consumeMainRequestNonce) {
+            const target = parseTargetForProxy(details.url, canonicalOrigin);
+            if (
+              target &&
+              !target.isWebSocketUrl &&
+              options.consumeMainRequestNonce(extractedNonce)
+            ) {
+              requestHeaders[PROXY_CAPABILITY_HEADER] = token;
+              const method = (details.method ?? "GET").toUpperCase();
+              if (
+                method !== "GET" &&
+                method !== "HEAD" &&
+                !hasHeaderCaseInsensitive(requestHeaders, "origin")
+              ) {
+                requestHeaders.origin = canonicalOrigin;
+              }
+            }
+          }
+        } else {
+          const appContentsId = options.appContentsId();
+          if (appContentsId !== undefined) {
+            const scope = classifyRequestScope(details, canonicalOrigin, appContentsId);
+            if (scope === "app") {
+              requestHeaders[PROXY_CAPABILITY_HEADER] = token;
+            } else if (scope === "screen") {
+              requestHeaders[PROXY_CAPABILITY_HEADER] = options.screenToken?.() ?? token;
+            }
+          }
         }
       }
     } catch {
@@ -69,6 +118,10 @@ export function installProxyCapability(value: Session, options: ProxyCapabilityO
     }
     callback({ requestHeaders });
   });
+}
+
+function hasHeaderCaseInsensitive(headers: Record<string, unknown>, targetLower: string): boolean {
+  return Object.keys(headers).some((key) => key.toLowerCase() === targetLower);
 }
 
 function classifyRequestScope(

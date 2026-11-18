@@ -186,4 +186,8 @@ export const TR_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "Kenar Çubuğunu Aç/Kapat",
   "Search…": "Ara…",
   "The window closed before the app loaded.": "Pencere, uygulama yüklenmeden kapandı.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "Yerel oluşturucu bağlantı noktası {port} zaten kullanımda. Çakışan uygulamayı kapatıp yeniden deneyin.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "Yerel oluşturucu kaynak dosyası okunamadı. standalone-origins.json dosyasını onarın veya kaldırıp yeniden deneyin.",
 };

@@ -2,6 +2,7 @@ import type {
   AgentRunModel,
   AgentRunRequest,
   ComputerRef,
+  GithubProvider,
   SemanticMemoryProvider,
 } from "@rakazo/adapter-kit";
 import {
@@ -100,6 +101,8 @@ import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import type { ExecutorDeps } from "./executor-deps.js";
 import type { FleetRun } from "./fleet-tools.js";
+import { hasConnectedGithubAccount } from "./github-connections.js";
+import { createGithubToolConnector, isGithubToolName } from "./github-tools.js";
 import { loadBotGroupDirectory, loadGroupContext } from "./group-handoff.js";
 import {
   formatCompactedSummary,
@@ -254,6 +257,15 @@ async function verbatimMcpServersForRun(
   });
   if (!servers?.length) return undefined;
   return { ids: servers.map((server) => server.id), slugs: servers.map((server) => server.slug) };
+}
+
+export type { ExecutorDeps } from "./executor-deps.js";
+
+declare module "./executor-deps.js" {
+  interface ExecutorDeps {
+    /** Optional GitHub provider; null/omit keeps GitHub tools uninjected. */
+    github?: GithubProvider | null;
+  }
 }
 
 export function createRunExecutor(executorDeps: ExecutorDeps) {
@@ -519,22 +531,31 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       const managedControlWatch = managedTaskId
         ? watchManagedTaskControl(
             async () =>
-              runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, async () => {
-                const task = await deps.prisma.task.findFirst({
-                  where: {
-                    id: managedTaskId, userId: run.userId, spaceId: run.spaceId,
-                    projectWorkspaceId: run.projectWorkspaceId,
-                  },
-                  select: { executionState: true },
-                });
-                const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
-                return Boolean(
-                  parsed.success &&
-                    parsed.data.currentRunId === runId &&
-                    parsed.data.control.intent === "continue" &&
-                    (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
-                );
-              }),
+              runAsTenant(
+                {
+                  userId: run.userId,
+                  spaceId: run.spaceId,
+                  projectWorkspaceId: run.projectWorkspaceId,
+                },
+                async () => {
+                  const task = await deps.prisma.task.findFirst({
+                    where: {
+                      id: managedTaskId,
+                      userId: run.userId,
+                      spaceId: run.spaceId,
+                      projectWorkspaceId: run.projectWorkspaceId,
+                    },
+                    select: { executionState: true },
+                  });
+                  const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
+                  return Boolean(
+                    parsed.success &&
+                      parsed.data.currentRunId === runId &&
+                      parsed.data.control.intent === "continue" &&
+                      (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
+                  );
+                },
+              ),
             runAbortController,
           )
         : undefined;
@@ -739,12 +760,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
         };
-        const memoryScope = configuredMemory && !run.projectWorkspaceId
-          ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
-          : null;
+        const memoryScope =
+          configuredMemory && !run.projectWorkspaceId
+            ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
+            : null;
         const semanticMemory: SemanticMemoryProvider | null = run.projectWorkspaceId
           ? null
-          : configuredMemory?.provider ?? null;
+          : (configuredMemory?.provider ?? null);
 
         await deps.events.append({
           spaceId: run.spaceId,
@@ -1213,6 +1235,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               run.userId,
             )
           : false;
+        const github = deps.github;
+        const githubEnabled = github
+          ? await hasConnectedGithubAccount(
+              { prisma: deps.prisma, secretStore: deps.secretStore, github },
+              run.userId,
+            )
+          : false;
         const messagingContext =
           [
             hasMessagingIdentity ? messagingDmSurfaceNote() : null,
@@ -1298,6 +1327,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             mediaVideoEnabled: Boolean(deps.artifacts && mediaGeneration?.capabilities.video),
             cloudAgentEnabled: cloudAgentsEnabled(cloudAgent, run.spaceId),
             paymentWalletEnabled,
+            githubEnabled,
             messagingChannelRun: nonOwnerChatRun,
             voiceCall,
             disabledBuiltinTools: bot.disabledBuiltinTools,
@@ -1732,21 +1762,27 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             beforeCall: async (
               call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0],
             ) => {
-              await runAsTenant({ userId: run.userId, spaceId: run.spaceId, projectWorkspaceId: run.projectWorkspaceId }, () =>
-                guardManagedRun(
-                  deps.prisma,
-                  { userId: run.userId, spaceId: run.spaceId },
-                  managedTaskId,
-                  {
-                    runId,
-                    workerId,
-                    fence,
-                    action: { tool: "model_call", action: "execute", resource: "model" },
-                    reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
-                    executionId: call.callId,
-                  },
-                  0,
-                ),
+              await runAsTenant(
+                {
+                  userId: run.userId,
+                  spaceId: run.spaceId,
+                  projectWorkspaceId: run.projectWorkspaceId,
+                },
+                () =>
+                  guardManagedRun(
+                    deps.prisma,
+                    { userId: run.userId, spaceId: run.spaceId },
+                    managedTaskId,
+                    {
+                      runId,
+                      workerId,
+                      fence,
+                      action: { tool: "model_call", action: "execute", resource: "model" },
+                      reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
+                      executionId: call.callId,
+                    },
+                    0,
+                  ),
               );
               const reservation = await observer?.beforeCall(call);
               return reservation ? `managed:${reservation}` : "managed-task-call";
@@ -1967,7 +2003,30 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               executeTool: scripted
                 ? undefined
                 : (name, args, executionId, route, observer) =>
-                    applyTool(ctx, name, args, executionId, route, observer),
+                    applyTool(
+                      isGithubToolName(name)
+                        ? {
+                            ...ctx,
+                            deps: {
+                              ...ctx.deps,
+                              connector: createGithubToolConnector(
+                                ctx.deps.connector,
+                                {
+                                  prisma: deps.prisma,
+                                  secretStore: deps.secretStore,
+                                  github,
+                                },
+                                { userId: run.userId, spaceId: run.spaceId },
+                              ),
+                            },
+                          }
+                        : ctx,
+                      name,
+                      args,
+                      executionId,
+                      route,
+                      observer,
+                    ),
               resolveModel: scripted
                 ? undefined
                 : (provider, modelId) =>

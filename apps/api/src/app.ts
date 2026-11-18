@@ -44,6 +44,8 @@ import {
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
+  createGithubAccountService,
+  createGithubProvider,
   createIdleComputerSweeper,
   createJobReconciler,
   createMessagingContextLoader,
@@ -647,6 +649,16 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     PAYMENT_WALLET_PROVIDER: env.paymentWalletProvider,
     PAYMENT_WALLET_CLIENT_ID: env.paymentWalletClientId,
   });
+  const githubProvider = createGithubProvider({
+    GITHUB_PROVIDER: env.githubProvider,
+  });
+  const github = githubProvider
+    ? createGithubAccountService({
+        prisma,
+        secretStore: secrets,
+        github: githubProvider,
+      })
+    : null;
   // One cache serves models.list, selection validation, and run-time model
   // resolution alike, so a list call warms the run path in this process.
   const codexCatalog = new CodexCatalogCache();
@@ -700,6 +712,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     cloudAgent,
     userDevices: userDevicesOverride ?? userDevices,
     paymentWallet,
+    github: githubProvider,
     shutdownSignal: shutdown.signal,
   });
 
@@ -786,6 +799,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     pluginMarketplaceRead,
     cloudAgent,
     paymentWallet,
+    github,
     codexCatalog,
     prisma,
     pushTokens,

@@ -206,4 +206,8 @@ export const ES_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "Mostrar u ocultar la barra lateral",
   "Search…": "Buscar…",
   "The window closed before the app loaded.": "La ventana se cerró antes de que cargara la app.",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "El puerto local del renderizador {port} ya está en uso. Cierra la app en conflicto y vuelve a intentarlo.",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "No se pudo leer el archivo de origen del renderizador local. Repara o elimina standalone-origins.json y vuelve a intentarlo.",
 };
