@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import sydneyRelease from "../sydney-release.json";
 
 const updates = vi.hoisted(() => ({
   isEnabled: true,
   createdAt: new Date("2026-10-22T09:30:15Z") as Date | null,
   checkForUpdateAsync: vi.fn(async () => ({ isAvailable: false })),
-  fetchUpdateAsync: vi.fn(async () => ({ isNew: true })),
+  fetchUpdateAsync: vi.fn(
+    async (): Promise<{ isNew: boolean; manifest?: unknown }> => ({
+      isNew: true,
+    }),
+  ),
   reloadAsync: vi.fn(async () => {}),
 }));
 const appConfig = vi.hoisted(() => ({ expoConfig: { extra: { sydneySideload: false } } }));
@@ -73,14 +78,29 @@ describe("mobile client build", () => {
 describe("manual update checks", () => {
   it("distinguishes disabled, current and downloaded updates", async () => {
     updates.isEnabled = false;
-    expect(await checkForManualUpdate()).toBe("disabled");
+    expect(await checkForManualUpdate()).toEqual({ status: "disabled" });
     updates.isEnabled = true;
     updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false });
-    expect(await checkForManualUpdate()).toBe("current");
+    expect(await checkForManualUpdate()).toEqual({ status: "current" });
     updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
-    expect(await checkForManualUpdate()).toBe("downloaded");
+    expect(await checkForManualUpdate()).toEqual({ status: "downloaded", release: null });
     expect(updates.fetchUpdateAsync).toHaveBeenCalledOnce();
     expect(updates.reloadAsync).not.toHaveBeenCalled();
+  });
+
+  it("uses release notes from the downloaded manifest", async () => {
+    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
+    updates.fetchUpdateAsync.mockResolvedValueOnce({
+      isNew: true,
+      manifest: { extra: { expoClient: { extra: { sydneyMobileRelease: sydneyRelease } } } },
+    });
+    expect(await checkForManualUpdate()).toEqual({ status: "downloaded", release: sydneyRelease });
+  });
+
+  it("reports a failed download without offering a restart", async () => {
+    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
+    updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false });
+    await expect(checkForManualUpdate()).rejects.toThrow("Could not check for updates");
   });
 
   it("reports network errors to the caller", async () => {

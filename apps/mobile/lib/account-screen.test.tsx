@@ -9,6 +9,7 @@ import { Alert } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Account from "../app/(settings)/account";
 import SettingsHome from "../app/(settings)/settings-home";
+import sydneyRelease from "../sydney-release.json";
 import {
   deleteAccount,
   fetchAccountSecurity,
@@ -44,6 +45,7 @@ const { element, account } = vi.hoisted(() => ({
     >,
     push: vi.fn(),
     fetchAvatar: vi.fn(),
+    release: null as typeof sydneyRelease | null,
     pickAvatar: vi.fn(),
     updateAvatar: vi.fn(),
     params: {} as { section?: string; focus?: string },
@@ -66,7 +68,7 @@ vi.mock("./query", async () => {
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: account.pickAvatar }));
 vi.mock("./client-update", () => ({
-  checkForManualUpdate: vi.fn(async () => "downloaded"),
+  checkForManualUpdate: vi.fn(async () => ({ status: "downloaded", release: null })),
   restartForUpdate: vi.fn(async () => undefined),
 }));
 vi.mock("expo-notifications", () => ({
@@ -231,7 +233,7 @@ vi.mock("./api", () => ({
 }));
 vi.mock("./app-version", () => ({
   formatUpdateLabel: () => "",
-  getAppVersionInfo: () => ({ version: "1.0.0", build: "1" }),
+  getAppVersionInfo: () => ({ nativeLabel: "1.0.12 (4)", release: account.release }),
 }));
 vi.mock("./appearance", () => ({
   getCachedAppearancePreference: () => "system",
@@ -246,7 +248,11 @@ vi.mock("./auth-routing", () => ({ replaceWithSignIn: vi.fn() }));
 vi.mock("./delete-account-prompt", () => ({ promptAccountDeletion: vi.fn() }));
 vi.mock("./i18n", () => {
   // Stable across renders, as the real hook's is.
-  const i18n = { t: (text: string) => text, locale: "en" };
+  const i18n = {
+    t: (text: string, values?: Record<string, string>) =>
+      text.replace(/\{(\w+)\}/g, (match, key) => values?.[key] ?? match),
+    locale: "en",
+  };
   return { dateLocaleForUi: () => "en", useI18n: () => i18n };
 });
 vi.mock("./live-notifications", () => ({
@@ -314,6 +320,7 @@ let container: HTMLDivElement | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  account.release = null;
   account.fetchAvatar.mockResolvedValue(null);
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
   queryClient.clear();
@@ -379,6 +386,10 @@ it("reads the saved avatar on a fresh load when the server omits it from me", as
 });
 
 it("offers to restart after downloading a manual update", async () => {
+  vi.mocked(checkForManualUpdate).mockResolvedValueOnce({
+    status: "downloaded",
+    release: sydneyRelease,
+  });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = document.createElement("div");
   document.body.append(container);
@@ -389,10 +400,32 @@ it("offers to restart after downloading a manual update", async () => {
   );
   await act(async () => button?.click());
   expect(checkForManualUpdate).toHaveBeenCalledOnce();
+  expect(Alert.alert).toHaveBeenLastCalledWith(
+    `Version ${sydneyRelease.version} downloaded`,
+    expect.stringContaining(`• ${sydneyRelease.notes.en[0]}`),
+    expect.any(Array),
+  );
   const buttons = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
   expect(restartForUpdate).not.toHaveBeenCalled();
   await act(async () => buttons?.find((item) => item.text === "Restart")?.onPress?.());
   expect(restartForUpdate).toHaveBeenCalledOnce();
+});
+
+it("shows the running version and its release notes in Settings", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  account.release = sydneyRelease;
+  container = document.createElement("div");
+  root = createRoot(container);
+  await act(async () => root?.render(<SettingsHome />));
+  const row = (title: string) =>
+    [...container!.querySelectorAll("button")].find((element) => element.textContent === title);
+  expect(row("Current version")?.getAttribute("data-value")).toBe(sydneyRelease.version);
+  await act(async () => row("Release notes")?.click());
+  expect(Alert.alert).toHaveBeenLastCalledWith(
+    `Version ${sydneyRelease.version}`,
+    expect.stringContaining(sydneyRelease.releasedOn),
+    [{ text: "Close" }],
+  );
 });
 
 it.each([

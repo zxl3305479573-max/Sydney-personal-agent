@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import sydneyMobileRelease from "./sydney-release.json";
 
 const RELEASE_PROFILES = new Set(["preview", "production", "android-apk", "diagnostic"]);
 
@@ -105,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       extra: {
         ...extra,
         sydneySideload: true,
-        ...(updatesRequested ? { eas: { projectId: updateProject } } : {}),
+        ...(updatesRequested ? { eas: { projectId: updateProject }, sydneyMobileRelease } : {}),
       },
       ...(updatesRequested ? { runtimeVersion: updateRuntime } : {}),
       updates: updatesRequested

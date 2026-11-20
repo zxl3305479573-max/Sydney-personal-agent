@@ -1,0 +1,24 @@
+{
+  "version": "1.0.13",
+  "releasedOn": "2026-11-20",
+  "notes": {
+    "zh-CN": [
+      "检查更新时显示版本号和改动内容，更新后可在设置中回看。",
+      "首页底栏加入应用、项目和 GitHub。GitHub 保留连接状态并在后台刷新。",
+      "支持从相册更换个人头像。你和 Bot 的消息都使用磨砂透明气泡。",
+      "在对话中可快速切换模型，也可以恢复使用空间默认模型。"
+    ],
+    "zh-TW": [
+      "檢查更新時顯示版本號和變更內容，更新後可在設定中回看。",
+      "首頁底欄加入應用程式、專案和 GitHub。GitHub 保留連線狀態並在背景重新整理。",
+      "支援從相簿更換個人頭像。你和 Bot 的訊息都使用磨砂透明泡泡。",
+      "可在對話中快速切換模型，也可以恢復使用空間預設模型。"
+    ],
+    "en": [
+      "See the version and release notes when you check for an update or review it in Settings.",
+      "Use the new Apps, Projects, and GitHub tabs. GitHub keeps your connection visible during refresh.",
+      "Choose a profile photo from your library and see translucent bubbles on both sides of a chat.",
+      "Switch models in a conversation or return to the space default."
+    ]
+  }
+}

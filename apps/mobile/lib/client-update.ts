@@ -11,6 +11,8 @@ import type { AppStateStatus } from "react-native";
 import { Alert, AppState, Linking, Platform } from "react-native";
 import { configureClientBuild } from "./api";
 import { t } from "./i18n";
+import type { SydneyRelease } from "./sydney-release";
+import { sydneyReleaseFromManifest } from "./sydney-release";
 
 /** Foreground returns closer together than this reuse the last update check. */
 export const FOREGROUND_UPDATE_CHECK_MS = 15 * 60_000;
@@ -35,17 +37,21 @@ export function clientBuildHeaders(): Record<string, string> {
 }
 
 /** Download a newer update; expo-updates runs it on the next launch unless the app reloads. */
-async function downloadUpdate(): Promise<boolean> {
-  if (!Updates.isEnabled) return false;
+async function downloadUpdate() {
+  if (!Updates.isEnabled) return null;
   const check = await Updates.checkForUpdateAsync();
-  if (!check.isAvailable) return false;
-  await Updates.fetchUpdateAsync();
-  return true;
+  if (!check.isAvailable) return null;
+  return Updates.fetchUpdateAsync();
 }
 
-export async function checkForManualUpdate(): Promise<"disabled" | "current" | "downloaded"> {
-  if (!Updates.isEnabled) return "disabled";
-  return (await downloadUpdate()) ? "downloaded" : "current";
+export async function checkForManualUpdate(): Promise<
+  { status: "disabled" | "current" } | { status: "downloaded"; release: SydneyRelease | null }
+> {
+  if (!Updates.isEnabled) return { status: "disabled" };
+  const update = await downloadUpdate();
+  if (!update) return { status: "current" };
+  if (!update.isNew) throw new Error(t("Could not check for updates. Try again later."));
+  return { status: "downloaded", release: sydneyReleaseFromManifest(update.manifest) };
 }
 
 export async function restartForUpdate(): Promise<void> {
@@ -55,7 +61,7 @@ export async function restartForUpdate(): Promise<void> {
 /** Apply an over-the-air update now if one exists; otherwise send the user to the store. */
 export async function applyRequiredUpdate(): Promise<void> {
   try {
-    if (await downloadUpdate()) {
+    if ((await downloadUpdate())?.isNew) {
       await Updates.reloadAsync();
       return;
     }

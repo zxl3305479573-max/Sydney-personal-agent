@@ -1,6 +1,7 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import appConfig from "../app.config";
+import sydneyRelease from "../sydney-release.json";
 
 beforeEach(() => {
   vi.stubEnv("EAS_BUILD_PROFILE", "production");
@@ -141,7 +142,10 @@ describe("mobile app config", () => {
     ).toMatchObject({
       owner: "sydney",
       runtimeVersion: "sydney-ios-ip-1",
-      extra: { eas: { projectId: "12345678-1234-4234-8234-123456789abc" } },
+      extra: {
+        eas: { projectId: "12345678-1234-4234-8234-123456789abc" },
+        sydneyMobileRelease: sydneyRelease,
+      },
       updates: {
         url: "https://u.expo.dev/12345678-1234-4234-8234-123456789abc",
         requestHeaders: { "expo-channel-name": "sideload" },

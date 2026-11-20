@@ -41,6 +41,10 @@ For Sydney `1.0.12` builds `2` and `4`, the iOS update channel is `sideload` and
 is `sydney-ios-ip-1`. Use **Settings → Check for updates** to download a published update, then
 restart to apply it. The version row in account settings shows the currently running update.
 
+**Settings → Software update** shows the Sydney release version and its release notes. Updates
+with notes show their version, date and changes before you restart. **Settings → Account** also
+shows the iOS build and running OTA identifier.
+
 ## What stays on web and desktop
 
 - Creating or editing [routines](./routines.md). On mobile you can pause, delete and review them, or

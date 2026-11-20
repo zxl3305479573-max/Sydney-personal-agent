@@ -227,7 +227,16 @@ export default function Account() {
   const styles = useThemedStyles(createAccountStyles);
   const versionInfo = getAppVersionInfo();
   const updateLabel = formatUpdateLabel(versionInfo.update, t);
-  const versionAccessibility = [versionInfo.nativeLabel, updateLabel].filter(Boolean).join(". ");
+  const releaseLabel = versionInfo.release
+    ? t("Version {version}", { version: versionInfo.release.version })
+    : null;
+  const nativeVersionLabel =
+    versionInfo.release && versionInfo.nativeLabel
+      ? t("Installed build {build}", { build: versionInfo.nativeLabel })
+      : versionInfo.nativeLabel;
+  const versionAccessibility = [releaseLabel, nativeVersionLabel, updateLabel]
+    .filter(Boolean)
+    .join(". ");
   const approvals = useApprovalSettings(ACCOUNT_SETTINGS);
   const settingsLink = ({ title, href }: { title: string; href: Extract<Href, string> }) => (
     <SettingsRow
@@ -802,17 +811,18 @@ export default function Account() {
           </>
         ) : null}
 
-        {showAll ? (
+        {showAccount ? (
           <View style={styles.about}>
             <AppMark />
-            {versionInfo.nativeLabel || updateLabel ? (
+            {versionAccessibility ? (
               <View
                 accessibilityLabel={versionAccessibility}
                 accessibilityRole="summary"
                 style={styles.versionFooter}
               >
-                {versionInfo.nativeLabel ? (
-                  <Text style={styles.versionLine}>{versionInfo.nativeLabel}</Text>
+                {releaseLabel ? <Text style={styles.versionLine}>{releaseLabel}</Text> : null}
+                {nativeVersionLabel ? (
+                  <Text style={styles.versionLine}>{nativeVersionLabel}</Text>
                 ) : null}
                 {updateLabel ? <Text style={styles.versionLine}>{updateLabel}</Text> : null}
               </View>

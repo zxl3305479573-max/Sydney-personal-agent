@@ -8,12 +8,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AccountAvatar } from "../../components/account-avatar";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { useAccountAvatar } from "../../lib/account-avatar";
+import { getAppVersionInfo } from "../../lib/app-version";
 import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { accountRpcQuery, queryClient } from "../../lib/query";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
+import { sydneyReleaseNotes } from "../../lib/sydney-release";
 
 export default function SettingsHome() {
   const { t, locale } = useI18n();
@@ -22,6 +24,8 @@ export default function SettingsHome() {
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const { release, nativeLabel } = getAppVersionInfo();
+  const currentVersion = release?.version ?? nativeLabel;
   const account = accountDisplay(me ?? {}, t("Your account"));
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
@@ -35,19 +39,34 @@ export default function SettingsHome() {
     setCheckingUpdate(true);
     try {
       const result = await checkForManualUpdate();
-      if (result === "disabled") Alert.alert(t("Updates are unavailable in this build."));
-      else if (result === "current") Alert.alert(t("Your app is up to date."));
-      else {
-        Alert.alert(t("Update downloaded"), t("Restart the app now? Save unfinished work first."), [
-          { text: t("Not Now"), style: "cancel" },
-          {
-            text: t("Restart"),
-            onPress: () =>
-              void restartForUpdate().catch(() =>
-                Alert.alert(t("Could not restart. Reopen the app to apply the update.")),
-              ),
-          },
-        ]);
+      if (result.status === "downloaded") {
+        const restartMessage = t("Restart the app now? Save unfinished work first.");
+        const downloaded = result.release;
+        Alert.alert(
+          downloaded
+            ? t("Version {version} downloaded", { version: downloaded.version })
+            : t("Update downloaded"),
+          downloaded
+            ? `${downloaded.releasedOn}\n\n${sydneyReleaseNotes(downloaded, locale)}\n\n${restartMessage}`
+            : restartMessage,
+          [
+            { text: t("Not Now"), style: "cancel" },
+            {
+              text: t("Restart"),
+              onPress: () =>
+                void restartForUpdate().catch(() =>
+                  Alert.alert(t("Could not restart. Reopen the app to apply the update.")),
+                ),
+            },
+          ],
+        );
+      } else if (result.status === "disabled") {
+        Alert.alert(t("Updates are unavailable in this build."));
+      } else {
+        Alert.alert(
+          t("Your app is up to date."),
+          currentVersion ? t("Version {version}", { version: currentVersion }) : undefined,
+        );
       }
     } catch {
       Alert.alert(t("Could not check for updates. Try again later."));
@@ -153,6 +172,26 @@ export default function SettingsHome() {
             onPress={() => accountSection("advanced")}
           />
           {link(t("Archived"), "/archived-bots")}
+        </SettingsGroup>
+
+        <SettingsGroup label={t("Software update")}>
+          {currentVersion ? (
+            <SettingsRow title={t("Current version")} value={currentVersion} />
+          ) : null}
+          {release ? (
+            <SettingsRow
+              title={t("Release notes")}
+              accessibilityRole="button"
+              chevron="right"
+              onPress={() =>
+                Alert.alert(
+                  t("Version {version}", { version: release.version }),
+                  `${release.releasedOn}\n\n${sydneyReleaseNotes(release, locale)}`,
+                  [{ text: t("Close") }],
+                )
+              }
+            />
+          ) : null}
           <SettingsRow
             title={checkingUpdate ? t("Checking for updates…") : t("Check for updates")}
             accessibilityRole="button"
