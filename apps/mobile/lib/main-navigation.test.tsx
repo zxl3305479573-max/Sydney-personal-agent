@@ -42,6 +42,8 @@ vi.mock("./native", () => ({
   useMobileTokens: () => ({
     primary: "blue",
     mutedForeground: "gray",
+    muted: "lightgray",
+    accent: "silver",
     background: "white",
     border: "gray",
   }),
@@ -128,7 +130,9 @@ describe("main mobile navigation", () => {
       act(() => root.render(<MainBottomNavigation />));
       const selected = container.querySelectorAll<HTMLButtonElement>('[data-selected="true"]');
       expect(selected).toHaveLength(1);
+      expect(selected[0]!.style.backgroundColor).toBe("lightgray");
       expect(selected[0]!.querySelector("span")?.style.color).toBe("blue");
+      expect(selected[0]!.querySelector("span")?.style.fontWeight).toBe("700");
       act(() => selected[0]!.click());
       expect(state.router.push).not.toHaveBeenCalled();
       expect(state.router.replace).not.toHaveBeenCalled();

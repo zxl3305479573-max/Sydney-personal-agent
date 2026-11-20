@@ -596,7 +596,7 @@ export function ThreadComposer({
                     end: 0,
                     fontSize: 17,
                     lineHeight: 22,
-                    color: tokens.faintForeground,
+                    color: tokens.mutedForeground,
                   }}
                 >
                   {composerPrompt}
@@ -726,7 +726,13 @@ export function ThreadComposer({
                 accessibilityLabel={t("Model")}
                 accessibilityValue={modelLabel ? { text: modelLabel } : undefined}
                 onPress={onModelPress}
-                style={{ minHeight: 44, justifyContent: "center", flexShrink: 1 }}
+                style={({ pressed }) => ({
+                  minHeight: 44,
+                  minWidth: 44,
+                  justifyContent: "center",
+                  flexShrink: 1,
+                  opacity: pressed ? 0.72 : 1,
+                })}
               >
                 <GlassSurface
                   shape="capsule"
@@ -787,6 +793,7 @@ export function ThreadComposer({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Send")}
+                accessibilityState={{ disabled: sending || !canSend, busy: sending }}
                 disabled={sending || !canSend}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                 onPress={() => void send()}
