@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { runContinueJob } from "@rakazo/adapter-kit";
 import { AI_CONSENT_REQUIRED } from "@rakazo/contracts";
 import {
   createProjectWorkspace,
@@ -9,16 +10,22 @@ import {
   runAsTenant,
   runInProjectWorkspace,
 } from "@rakazo/db";
-import { resolveThreadTarget, threadSnapshot } from "../thread-target.js";
+import { getLogger } from "@rakazo/logging";
+import { getProjectThreadArtifact } from "../artifacts.js";
+import { resolveThreadTarget, stopThreadRuns, threadSnapshot } from "../thread-target.js";
 import { aiConsentStatus, allowAiConsent } from "../ai-consent.js";
 import type { RouterContext } from "./context.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
+import { projectDirectoryRoutes } from "./project-directories.js";
+import { projectCloudDirectoryRoutes } from "./project-cloud-directories.js";
 
 export function projectWorkspaceRoutes(routerContext: RouterContext) {
   const { deps, authed, repos, groupRepos } = routerContext;
   const send = createThreadSender(routerContext);
   return {
     projectWorkspaces: {
+      ...projectDirectoryRoutes(routerContext),
+      ...projectCloudDirectoryRoutes(routerContext),
       capabilities: authed.projectWorkspaces.capabilities.handler(async () => ({
         create: deps.env?.projectWorkspaceCreateExperiment === true,
         removeEmpty: deps.env?.projectWorkspaceCreateExperiment === true,
@@ -115,6 +122,45 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           if (status.recipients.some((recipient) => !recipient.allowed))
             throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });
           return send(context.actor, input);
+        });
+      }),
+      cancelRun: authed.projectWorkspaces.cancelRun.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+          await stopThreadRuns(deps, context.actor, target, input.runId);
+          return { ok: true as const };
+        });
+      }),
+      answerApproval: authed.projectWorkspaces.answerApproval.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+          const answered = await deps.events.answerRunInput({
+            spaceId: context.actor.spaceId,
+            threadId: target.threadId,
+            runId: input.runId,
+            messageId: input.messageId,
+            answeredByUserId: context.actor.userId,
+            answer: input.decision,
+            projectApproval: { projectId: input.projectId, effectId: input.effectId },
+          });
+          if (!answered)
+            throw new ORPCError("CONFLICT", { message: "This approval is no longer pending" });
+        });
+        await deps.jobs.enqueue(runContinueJob(input.runId)).catch((error) => {
+          getLogger().error("project approval enqueue", error);
+        });
+        return { ok: true as const };
+      }),
+      getArtifact: authed.projectWorkspaces.getArtifact.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input, { includeArchived: true });
+          return getProjectThreadArtifact(deps, context.actor, { ...input, threadId: target.threadId });
         });
       }),
       subscribe: authed.projectWorkspaces.subscribe.handler(async function* ({ context, input }) {

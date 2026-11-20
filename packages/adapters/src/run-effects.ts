@@ -21,6 +21,7 @@ import { USE_TOOL } from "./builtin-tool-bridge.js";
 import type { ExecutorDeps } from "./executor-deps.js";
 import { uniquifyInstalledToolName } from "./lazy-tool-catalog.js";
 import { runLeaseFor } from "./run-messages.js";
+import { isProjectFileTool, PROJECT_WINDOWS_TERMINAL } from "./run-project-policy.js";
 
 /** Effects that got past the approval gate: approved, allowed by a rule or review, or run. */
 export const PASSED_EFFECT_STATUSES = ["approved", "executing", "uncertain", "completed"];
@@ -102,6 +103,20 @@ export function buildApprovalContinuation(
         return `${uniquified ?? effect.kind}: ${formatRequest(bound.args)}`;
       }
       const exposed = options?.exposedToolNames;
+      if (effect.kind === PROJECT_WINDOWS_TERMINAL && effect.request && typeof effect.request === "object") {
+        const { command } = effect.request as { command?: unknown };
+        const args = { command };
+        return exposed && !exposed.has(effect.kind) && exposed.has(USE_TOOL)
+          ? `${USE_TOOL}: ${formatRequest({ name: effect.kind, arguments: args })}`
+          : `${effect.kind}: ${formatRequest(args)}`;
+      }
+      if (isProjectFileTool(effect.kind) && effect.request && typeof effect.request === "object") {
+        const { path, text } = effect.request as { path?: unknown; text?: unknown };
+        const args = { path, ...(typeof text === "string" ? { text } : {}) };
+        return exposed && !exposed.has(effect.kind) && exposed.has(USE_TOOL)
+          ? `${USE_TOOL}: ${formatRequest({ name: effect.kind, arguments: args })}`
+          : `${effect.kind}: ${formatRequest(args)}`;
+      }
       return exposed && !exposed.has(effect.kind) && exposed.has(USE_TOOL)
         ? `${USE_TOOL}: ${formatRequest({ name: effect.kind, arguments: effect.request })}`
         : `${effect.kind}: ${formatRequest(effect.request)}`;

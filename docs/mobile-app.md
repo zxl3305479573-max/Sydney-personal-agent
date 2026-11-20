@@ -27,23 +27,36 @@ the sign-in screen and enter its address. For a server on your local network, fo
 The first time you send something, the app asks permission to share it with the AI services your
 server uses. Review or withdraw it later in **AI data sharing** in Settings.
 
-### Sydney iPhone sideload builds
+In a bot chat, the composer shows the bot's current model. A new bot inherits the space's main
+model. Tap the model name to search connected models and see which option is selected. Picking
+a model saves it for that bot. Choose **Space default** to inherit the space's main model again.
 
-Home has a fixed bottom bar for **Apps**, **Projects**, and **GitHub**. GitHub keeps the last
-connection status for the current server, account, and space while it refreshes. Pull down to
-refresh the screen manually.
+The current mobile source adds a fixed, full-width **Apps / Projects / GitHub** bottom bar on
+Home and the three module lists. Module switches keep one return to Home. Chat, computer,
+settings, project details, app connection forms and repository details hide the bar. Apps now
+opens on the main stack; existing Settings links and OAuth callbacks keep working. The voice
+player sits above the bar, with one owner for the bottom safe area.
 
-Use **Settings → Account → Edit avatar** to choose a photo. Your messages and Bot replies
-appear in translucent bubbles. Tap the model name in a Bot conversation to switch models or
-restore the space default. Open **Models** in Settings to manage model connections.
+The native GitHub screen reuses the server's connection, profile, contribution calendar,
+repository search and detail APIs. PAT input clears on submission or when leaving the page.
+Bot analysis prepares a draft and preserves any existing draft. Build 4 loads results in the
+background when users switch years, filter, search, page through results, or open a repository.
+The refresh indicator appears when the user pulls down to refresh. The user confirmed a
+successful GitHub connection on build 2. Build 4 is available as an unsigned IPA and awaits
+device validation. It caches GitHub connection status under the verified server, account and
+space and refreshes it in the background. In **Settings → Account**, tap **Edit avatar** to
+choose a photo. Both sides of a chat use translucent glass bubbles. Tapping the current chat
+model opens a sheet over the conversation. Add and manage models from Settings. See the
+[mobile evaluation](../docx/MOBILE_NAV_GITHUB_EVALUATION.md).
 
-For Sydney `1.0.12` builds `2` and `4`, the iOS update channel is `sideload` and the runtime
-is `sydney-ios-ip-1`. Use **Settings → Check for updates** to download a published update, then
-restart to apply it. The version row in account settings shows the currently running update.
+The released `1.0.13` OTA adds **Settings → Software update** and release notes.
+**Settings → Account** also shows the native iOS build and running OTA identifier.
 
-**Settings → Software update** shows the Sydney release version and its release notes. Updates
-with notes show their version, date and changes before you restart. **Settings → Account** also
-shows the iOS build and running OTA identifier.
+The next iOS update flow checks after startup and shows one alert per available update. The
+alert and **Settings → Check for updates** show the version and release notes before download.
+Tap **Update** to download, then **Install and restart** to apply it immediately. The current
+Sydney version appears in **Settings → About**. This flow is implemented in source. A new
+sideload build is needed to disable the native startup download configured in build 4.
 
 ## What stays on web and desktop
 

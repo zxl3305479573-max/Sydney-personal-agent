@@ -113,6 +113,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ? {
             url: `https://u.expo.dev/${updateProject}`,
             requestHeaders: { "expo-channel-name": "sideload" },
+            checkAutomatically: "NEVER",
           }
         : { enabled: false },
       plugins: result.plugins?.filter((plugin) => {

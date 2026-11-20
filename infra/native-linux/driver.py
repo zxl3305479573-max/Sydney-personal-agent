@@ -17,6 +17,7 @@ import uuid
 
 MAX_REQUEST = 40 * 1024 * 1024
 MAX_FILE = 8 * 1024 * 1024
+PROJECT_FILE_LIMIT = 64 * 1024
 MAX_EXPORT = 24 * 1024 * 1024
 MAX_OUTPUT = 1024 * 1024
 MAX_FILES = 500
@@ -128,24 +129,94 @@ class Driver:
         max_bytes = min(max_bytes, MAX_FILE)
         directory = self.directory(bot_id, parts[:-1])
         try:
-            descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-            try:
-                metadata = os.fstat(descriptor)
-                if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > max_bytes:
-                    raise Refused("File unavailable or too large")
-                data = bytearray()
-                while len(data) <= max_bytes:
-                    chunk = os.read(descriptor, min(65536, max_bytes + 1 - len(data)))
-                    if not chunk:
-                        break
-                    data.extend(chunk)
-                if len(data) > max_bytes:
-                    raise Refused("File too large")
-                return bytes(data)
-            finally:
-                os.close(descriptor)
+            return self.read_regular_file(directory, parts[-1], max_bytes)
         finally:
             os.close(directory)
+
+    def read_regular_file(self, directory, name, limit, device=None):
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode) or metadata.st_size > limit
+                or (device is not None and (metadata.st_dev != device or metadata.st_nlink != 1))
+            ):
+                raise Refused("File unavailable or too large")
+            data = bytearray()
+            while len(data) <= limit:
+                chunk = os.read(descriptor, min(65536, limit + 1 - len(data)))
+                if not chunk:
+                    break
+                data.extend(chunk)
+            if len(data) > limit:
+                raise Refused("File too large")
+            return bytes(data)
+        finally:
+            os.close(descriptor)
+
+    def project_path_parts(self, path):
+        if not isinstance(path, str) or len(path) > 1024 or any(
+            ord(character) < 32 or ord(character) == 127 for character in path
+        ):
+            raise Refused("Invalid project path")
+        parts = self.path_parts(path)
+        if any(len(part.encode("utf-8")) > 255 for part in parts):
+            raise Refused("Invalid project path")
+        return parts
+
+    def project_folder(self, bot_id, path):
+        root = self.directory(bot_id, self.project_path_parts(path))
+        try:
+            metadata = os.fstat(root)
+            return {"path": path, "device": str(metadata.st_dev), "inode": str(metadata.st_ino)}
+        finally:
+            os.close(root)
+
+    def project_file(self, request, connection):
+        folder, file = request.get("folder"), request.get("file")
+        if not isinstance(folder, dict) or not isinstance(file, dict):
+            raise Refused("Project folder and operation are required")
+        operation = file.get("operation")
+        parts = self.project_path_parts(file.get("path"))
+        if operation == "create":
+            text = file.get("text")
+            if not isinstance(text, str) or not parts[-1].lower().endswith(".md"):
+                raise Refused("Only new UTF-8 Markdown is supported")
+            data = text.encode("utf-8")
+            if len(data) > PROJECT_FILE_LIMIT:
+                raise Refused("Project file is too large")
+        elif operation != "read":
+            raise Refused("Unknown project file operation")
+        root = self.directory(request["botId"], self.project_path_parts(folder.get("path")))
+        current = root
+        try:
+            identity = os.fstat(root)
+            if folder.get("device") != str(identity.st_dev) or folder.get("inode") != str(identity.st_ino):
+                raise Refused("Authorized directory changed")
+            for part in parts[:-1]:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                if current != root:
+                    os.close(current)
+                current = child
+                if os.fstat(current).st_dev != identity.st_dev:
+                    raise Refused("Project directory crosses devices")
+            with self.lock:
+                if select.select([connection], [], [], 0)[0]:
+                    raise Refused("Project request disconnected")
+                self.authorize_run(request)
+                if operation == "read":
+                    content = self.read_regular_file(current, parts[-1], PROJECT_FILE_LIMIT, identity.st_dev)
+                    return {"operation": "read", "text": content.decode("utf-8")}
+                descriptor = os.open(
+                    parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=current,
+                )
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(data)
+                return {"operation": "create", "bytes": len(data)}
+        finally:
+            if current != root:
+                os.close(current)
+            os.close(root)
 
     def write_file(self, bot_id, path, content, executable=False):
         parts = self.path_parts(path)
@@ -524,6 +595,10 @@ class Driver:
             return self.control_input(request)
         if method == "control_revoke":
             return self.revoke_control(request)
+        if method == "project_folder":
+            return self.project_folder(bot_id, request.get("path"))
+        if method == "project_file":
+            return self.project_file(request, connection)
         if method == "list":
             self.authorize_run(request)
             return self.list_files(bot_id, "" if request.get("path") == "/" else request.get("path", ""))

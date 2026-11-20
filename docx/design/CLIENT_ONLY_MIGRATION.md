@@ -1,5 +1,7 @@
 # 手机与桌面客户端迁移方案
 
+2026-11-20 范围调整：用户允许网页退役后直接删除，生产已停止的旧 Web 与专用画面桥容器已删除；取消恢复旧 Web／再次切流演练，以下历史计划中的该项不再作为必执行步骤。源码生产部署已移除独立网页服务，`apps/web` 仍供 Windows 包内界面构建，API／认证／屏幕能力保留；源码配置尚未整体发布。原目标面板由用户清除，本次不新建目标。最新状态与生产覆盖清理条件见 [总计划](../PLAN.md#当前实施删除退役-web-部署pa-0232026-11-20)、[运维](../OPERATIONS.md#删除退役-web2026-11-20) 和 [ADR-0025](../../docs/adr/0025-retired-web-removal.md)。
+
 2026-11-18 网页退役 Batch 2 收口：桌面端 `main.ts` 已正式接入固定回环端口登记（`standalone-origins.json`）、`persist:sydney-standalone-<摘要>` 独立分区、单 Session `webRequest` 门禁管理与主进程一次性随机数 `fetchBackend` 通道，彻底移除对远程 `/` 页面与默认会话的启动探测，解耦本地 `uiOrigin` 与远端 `remoteOrigin`（打通 `userDevices` 配对/WS 自定义头与监控配置拉取），并通过 Electron 45 Playwright E2E 实测确认回环 `__Secure-` `Secure` Cookie 持久、`EADDRINUSE` 零泄露拒绝以及 `A -> B`/`A -> A` 事务回滚，独立只读子代理三轮终审 0 阻断。下一步进入 Batch 3（服务端 Slack/MCP 双端回调闭环、`buildTrustedOrigins` 补 `apiUrl` 与前端回环展示修复）。
 
 2026-11-18 全仓网页退役审查与 Batch 1 收口：三个只读审查子代理完成桌面/前端、服务端/回调、移动端/网关编排全量代码盘点。桌面侧完成 Batch 1 候选收口：拆分主框架完整令牌 `capability` 与仅限匿名屏幕资源/noVNC WS 的窄令牌 `screenCapability`，补齐首次及错误页恢复 `mainFrame` 导航、显式子壳层/屏幕文档首跳、同源 `<a download>` 下载与 `/api/csp-report`，剥夺 `/html-viewer.html` 内部请求与 Blob Worker 令牌，并支持固定回环端口、120s 默认上游超时与本地 `/sw.js` 404；真实 Electron 45 连接强制 `403` 代理 13/13 项通过且经子代理两轮终审通过。正式停用线上 `web` 前仍须按序完成：`main.ts` 固定端口登记与 `uiOrigin`/`remoteOrigin` 解耦接线、桌面端 Slack/MCP 回调闭环与 MCP 动态客户端 `redirect_uri` 变更重注册、`buildTrustedOrigins` 补入 `apiUrl`、移动端 `session.ts` 空串自愈与错误页恢复入口、原生 Linux `service:api` 画面桥接与 Docker `supervisor` 隔离网络接入 `api`、Caddy 补齐 `/.well-known/*` 与 `/integrations/callback` 路由，以及解除 `deploy-main.sh` 和 `updater` 对 `web` 容器的硬绑定。

@@ -6,6 +6,7 @@ import { mobileTokens } from "../lib/appearance";
 import { t } from "../lib/i18n";
 import { reportMobileError } from "../lib/monitoring";
 import { completeMobileStartup, ServerSettingsStartupError } from "../lib/startup";
+import { getUiModeSnapshot, resetUiModeToClassic } from "../lib/ui-mode";
 
 type Props = { children: ReactNode };
 type State = { failed: boolean; serverSettingsError: boolean };
@@ -20,6 +21,11 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error) {
     reportMobileError(error, "react.render");
+    if (!(error instanceof ServerSettingsStartupError) && !getUiModeSnapshot().isClassic) {
+      void resetUiModeToClassic();
+      this.setState({ failed: false, serverSettingsError: false });
+      return;
+    }
     void SplashScreen.hideAsync()
       .then(completeMobileStartup)
       .catch(() => undefined);

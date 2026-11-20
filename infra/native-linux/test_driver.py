@@ -109,6 +109,82 @@ class NativeDriverPolicyTests(unittest.TestCase):
         self.assertEqual(self.driver.path_parts("notes/result.md"), ["notes", "result.md"])
 
     @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_project_file_checks_identity_connection_and_lease_before_opening_output(self, _clock):
+        request = {
+            "method": "project_file", "botId": "bot", "generation": "generation",
+            "folder": {"path": "project", "device": "12", "inode": "34"},
+            "file": {"operation": "create", "path": "result.md", "text": "样本"},
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+        }
+        identity = types.SimpleNamespace(st_dev=12, st_ino=34)
+        peer = object()
+        with patch.object(self.driver, "directory", return_value=10), \
+             patch.object(MODULE.os, "fstat", return_value=identity), \
+             patch.object(MODULE.os, "O_NOFOLLOW", getattr(MODULE.os, "O_NOFOLLOW", 0x20000), create=True), \
+             patch.object(MODULE.os, "close"), \
+             patch.object(MODULE.os, "open", return_value=11) as opened, \
+             patch.object(MODULE.os, "fdopen") as file, \
+             patch.object(MODULE.select, "select", return_value=([], [], [])) as selected:
+            result = self.driver.dispatch(request, peer)
+            self.assertEqual(result, {"operation": "create", "bytes": 6})
+            opened.assert_called_once_with(
+                "result.md", MODULE.os.O_WRONLY | MODULE.os.O_CREAT | MODULE.os.O_EXCL | MODULE.os.O_NOFOLLOW,
+                0o600, dir_fd=10,
+            )
+            file.return_value.__enter__.return_value.write.assert_called_once_with("样本".encode("utf-8"))
+            opened.reset_mock()
+            identity.st_ino = 35
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(request, peer)
+            identity.st_ino = 34
+            selected.return_value = ([peer], [], [])
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(request, peer)
+            selected.return_value = ([], [], [])
+            request["run"]["expiresAt"] = 1000
+            with self.assertRaises(MODULE.Refused):
+                self.driver.dispatch(request, peer)
+            opened.assert_not_called()
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux directory descriptors")
+    def test_project_file_accesses_only_the_authorized_linux_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            self.driver.root = temporary
+            home = pathlib.Path(temporary, "bot")
+            folder = home / "project"
+            folder.mkdir(parents=True)
+            (folder / "sample.txt").write_text("样本", encoding="utf-8")
+            outside = home / "outside.txt"
+            outside.write_text("outside", encoding="utf-8")
+            (folder / "link.txt").symlink_to(outside)
+            (folder / "hard.txt").hardlink_to(outside)
+            source, peer = socket.socketpair()
+            with source, peer:
+                request = {
+                    "method": "project_file", "botId": "bot", "generation": "generation",
+                    "folder": self.driver.project_folder("bot", "project"),
+                    "file": {"operation": "read", "path": "sample.txt"},
+                    "run": {"id": "run", "fence": 1, "expiresAt": int(time.time() * 1000) + 5000},
+                }
+                self.assertEqual(self.driver.dispatch(request, source), {
+                    "operation": "read", "text": "样本",
+                })
+                for rejected in ("../outside.txt", "link.txt", "hard.txt"):
+                    request["file"]["path"] = rejected
+                    with self.subTest(path=rejected), self.assertRaises((MODULE.Refused, OSError)):
+                        self.driver.dispatch(request, source)
+                request["file"] = {"operation": "create", "path": "result.md", "text": "样本"}
+                self.assertEqual(self.driver.dispatch(request, source), {"operation": "create", "bytes": 6})
+                with self.assertRaises(FileExistsError):
+                    self.driver.dispatch(request, source)
+                self.assertEqual((folder / "result.md").read_text(encoding="utf-8"), "样本")
+                folder.rename(home / "previous")
+                folder.mkdir()
+                with self.assertRaises(MODULE.Refused):
+                    self.driver.dispatch(request, source)
+                self.assertFalse((folder / "result.md").exists())
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
     def test_fence_and_physical_desktop_exclusivity(self, _clock):
         first = {"botId": "bot", "run": {"id": "run", "fence": 2, "expiresAt": 2000}}
         self.assertEqual(self.driver.authorize_run(first), "run")

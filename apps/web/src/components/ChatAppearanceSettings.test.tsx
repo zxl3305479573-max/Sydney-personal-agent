@@ -8,6 +8,7 @@ import {
   EMPTY_CHAT_APPEARANCE,
   getSavedChatAppearance,
   loadChatAppearance,
+  restoreChatBackground,
   saveChatAppearance,
 } from "../lib/chat-appearance";
 import { ChatAppearanceSettings } from "./ChatAppearanceSettings";
@@ -62,6 +63,28 @@ function mockIndexedDb(initial?: unknown, failWrite = false) {
   });
   return () => record;
 }
+
+it("restores only an available background for a current conversation", async () => {
+  mockIndexedDb({
+    backgroundId: null,
+    backgrounds: [
+      { id: "legacy", name: "Legacy", image: new Blob(), fit: "cover", opacity: 100, overlay: 0 },
+      { id: "local", name: "Local", image: new Blob(), fit: "cover", opacity: 100, overlay: 0 },
+    ],
+    chatBackgrounds: { existing: "local", cleared: null },
+  });
+  await restoreChatBackground("existing", "legacy", () => true);
+  await restoreChatBackground("cleared", "legacy", () => true);
+  await restoreChatBackground("switched", "legacy", () => false);
+  await restoreChatBackground("missing", "unknown", () => true);
+  await restoreChatBackground("restored", "legacy", () => true);
+  expect(getSavedChatAppearance().chatBackgrounds).toEqual({
+    existing: "local",
+    cleared: null,
+    restored: "legacy",
+  });
+  await saveChatAppearance(EMPTY_CHAT_APPEARANCE);
+});
 
 it("removes legacy bubble data from storage while preserving background and colors", async () => {
   const image = new Blob(["background"], { type: "image/png" });
@@ -237,7 +260,7 @@ it("adjusts an uploaded background's transparency in the preview and saves it", 
     const upload = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(upload, "files", { configurable: true, value: [file] });
     await act(async () => upload.dispatchEvent(new Event("change", { bubbles: true })));
-    const slider = container.querySelector<HTMLInputElement>('input[type="range"]')!;
+    const slider = container.querySelector<HTMLInputElement>('[aria-label="背景透明度"]')!;
     expect(slider.value).toBe("0");
     expect(container.textContent).toContain("背景透明度");
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;

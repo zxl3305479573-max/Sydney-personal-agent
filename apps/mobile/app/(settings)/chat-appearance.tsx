@@ -11,7 +11,7 @@ import {
   MOBILE_BUBBLE_PRESETS,
   mobileBubbleSurfaceStyle,
   saveMobileChatAppearance,
-  useMobileChatAppearance,
+  useSavedMobileChatAppearance,
 } from "../../lib/chat-appearance";
 import { useI18n } from "../../lib/i18n";
 import { useThemedStyles } from "../../lib/native";
@@ -37,7 +37,7 @@ export default function ChatAppearanceScreen() {
   const tokens = mobileTokens();
   const styles = useThemedStyles(createStyles);
   const stacked = useStackedSettings();
-  const appearance = useMobileChatAppearance();
+  const appearance = useSavedMobileChatAppearance();
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Partial<AppearanceState> | null>(null);
 

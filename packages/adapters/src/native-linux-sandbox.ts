@@ -18,6 +18,8 @@ import type {
   ScreenSession,
   SnapshotRef,
 } from "@rakazo/adapter-kit";
+import type { ProjectCloudFolder, ProjectFileOperation, ProjectFileResult } from "@rakazo/contracts";
+import { ProjectCloudFolderSchema, ProjectFileOperationSchema, ProjectFileResultSchema } from "@rakazo/contracts";
 import { computerHomeKey } from "@rakazo/db";
 
 type Transport = (
@@ -255,6 +257,36 @@ export class NativeLinuxSandbox implements SandboxProvider {
   }
 
   async prepare(_computer: ComputerRef, _context: AdapterContext): Promise<void> {}
+
+  async identifyProjectFolder(
+    computer: ComputerRef,
+    path: string,
+    context: AdapterContext,
+  ): Promise<ProjectCloudFolder> {
+    this.assertComputer(context, computer);
+    const result = ProjectCloudFolderSchema.parse(
+      await this.transport("project_folder", { path }, context, computer),
+    );
+    if (result.path !== path) throw new Error("native_project_folder_mismatch");
+    return result;
+  }
+
+  async executeProjectFile(
+    computer: ComputerRef,
+    folder: ProjectCloudFolder,
+    file: ProjectFileOperation,
+    context: AdapterContext,
+  ): Promise<ProjectFileResult> {
+    const checkedFolder = ProjectCloudFolderSchema.parse(folder);
+    const checkedFile = ProjectFileOperationSchema.parse(file);
+    const guarded = await this.guard(context, computer);
+    const result = ProjectFileResultSchema.parse(
+      await this.transport("project_file", { folder: checkedFolder, file: checkedFile }, guarded, computer),
+    );
+    if (result.operation !== checkedFile.operation)
+      throw new Error("native_project_file_result_mismatch");
+    return result;
+  }
 
   async *execute(
     computer: ComputerRef,

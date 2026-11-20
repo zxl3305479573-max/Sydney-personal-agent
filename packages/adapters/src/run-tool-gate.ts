@@ -70,6 +70,7 @@ import {
 } from "./run-effects.js";
 import { renewRunLease } from "./run-lifecycle.js";
 import { notifyRun } from "./run-notifications.js";
+import { isProjectDeviceTool } from "./run-project-policy.js";
 import { resolveCompletedSecretLeftover } from "./run-secret.js";
 import type { ToolRequest } from "./run-tool-request.js";
 import { BUILTIN_AGENT_TOOL_NAMES, READ_ONLY_AGENT_TOOLS } from "./run-tool-selection.js";
@@ -320,7 +321,9 @@ export async function gateToolCall(
         mode,
         mandatory: requiresMandatoryApproval,
         steerable:
-          guardedInNeverAsk && mode === "never"
+          isProjectDeviceTool(name)
+            ? true
+            : guardedInNeverAsk && mode === "never"
             ? !ctx.source.ownerStartedRun || (await isRunTainted(ctx))
             : undefined,
         consequential: requiresApprovalByDefault,
@@ -348,7 +351,9 @@ export async function gateToolCall(
         error:
           approvalResolved.decision === "deny"
             ? `${name} is blocked in this space${blockingRuleSuffix(approvalResolved)}. Don't try it another way; tell the user it's blocked.`
-            : `${name} needs the owner's approval because it could have been asked for by someone else, and this space never asks. Don't retry; tell the user.`,
+            : isProjectDeviceTool(name)
+              ? "Project device operations need one-time approval. This space is set to never ask."
+              : `${name} needs the owner's approval because it could have been asked for by someone else, and this space never asks. Don't retry; tell the user.`,
       },
     };
   }

@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const composeDir = path.resolve(import.meta.dirname, "../../compose");
-const caddyfiles = ["Caddyfile.prod", "Caddyfile.cloudflare.example"];
+const caddyfiles = ["Caddyfile.prod", "Caddyfile.cloudflare.example", "Caddyfile.ip.example"];
 
 describe.each(caddyfiles)("%s deployment retry", (filename) => {
   const config = readFileSync(path.join(composeDir, filename), "utf8");
@@ -14,10 +14,21 @@ describe.each(caddyfiles)("%s deployment retry", (filename) => {
     expect(config).toContain("lb_try_interval 250ms");
   });
 
-  it("applies the retry policy to every API and web upstream", () => {
-    expect(
-      config.match(/reverse_proxy api:3100 \{[\s\S]*?import deploy_retry[\s\S]*?\}/g),
-    ).toHaveLength(3);
-    expect(config.match(/reverse_proxy web:5173 \{\s*import deploy_retry\s*\}/g)).toHaveLength(1);
+  it("applies the retry policy to every remaining API upstream", () => {
+    const lines = config.split(/\r?\n/);
+    const upstreams = lines.flatMap((line, index) =>
+      line.trimStart().startsWith("reverse_proxy ") ? [{ line, index }] : [],
+    );
+    expect(upstreams).toHaveLength(8);
+    for (const upstream of upstreams) {
+      expect(upstream.line).toContain("api:3100");
+      expect(lines[upstream.index + 1]?.trim()).toBe("import deploy_retry");
+    }
+  });
+
+  it("retains health and readiness probes while closing browser application routes", () => {
+    expect(config).toContain("@health path /health /ready");
+    expect(config).toMatch(/handle \{\s*respond 404\s*\}/);
+    expect(config).not.toContain("web:5173");
   });
 });

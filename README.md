@@ -4,7 +4,7 @@
 
 Rakazo 源码、Sydney 二次开发代码、Linux 驱动和项目配置现在统一位于本仓库根目录。`docx/` 保存计划、开发记录、验证记录和运维文档，`docs/` 保存产品、架构和 ADR。
 
-本项目仍处于离线内核开发和接口接线阶段，未完成真实模型、PostgreSQL、Linux 桌面和服务器部署验收。应用代码基于 Rakazo 固定提交 `aebca9dcf`，继续复用 Pi Runtime、Run、工具、审批、记忆和 Provider 接口。
+本项目基于 Rakazo 固定提交 `aebca9dcf` 二次开发，复用 Pi Runtime、Run、工具、审批、记忆和 Provider 接口。已有生产后台；2026-11-19 按用户授权切换客户端直连，2026-11-20 删除已停止的旧 Web 容器及专用画面桥，API 保持运行。旧 Web 恢复演练已按用户要求取消；双端登录、真实授权、画面和升级等验收仍逐项记录，不能由服务删除推定全部通过。`apps/web` 是 Windows 包内界面的共用构建源码，继续保留。实际状态见 [总计划](docx/PLAN.md) 与 [验证记录](docx/VALIDATION.md)。
 
 按用户要求，本机只进行范围受控的编辑和离线验证；不自动启动 Docker、数据库、桌面服务或全工作区构建。阶段状态以 [docx/PLAN.md](docx/PLAN.md) 为准。
 
@@ -38,7 +38,7 @@ Rakazo 源码、Sydney 二次开发代码、Linux 驱动和项目配置现在统
 
 用户已确定 TypeScript、PC 优先、Linux 和可插拔接入方向，并同意基于 Rakazo 二次开发。当前同机方案中 Agent 仅以桌面账号操控授权资源，默认无整机 root、后台账号或云账号管理权限。
 
-PC 入口暂按浏览器工作台规划，原生安装包形式待确定。前端参考 Grok Bot 的功能组织，首版不同时实现其多 Bot、语音、定时任务等全部能力。
+PC 入口使用 `Sydney-partner` Windows 桌面安装包，配合 iPhone 客户端连接现有 HTTPS 后台；浏览器应用入口已退役。前端参考 Grok Bot 的功能组织，完整功能可用范围仍以逐项验收为准。
 
 暂不将多用户、后台定时执行、复杂多智能体协作和动态插件市场列入第一版。沿用 Rakazo 的 React / Vite、Hono、PostgreSQL / Prisma、Graphile Worker 和 Pi，按 [ADR-0004](docs/adr/0004-native-server-and-task-orchestration.md) 规划原生 Linux 电脑适配及任务编排；首个业务任务、生产模型和部署细节尚待确定。
 

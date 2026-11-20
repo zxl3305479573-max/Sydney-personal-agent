@@ -1,6 +1,515 @@
 # 验证记录
 
-PA-021 / PA-023 iOS 侧载候选包含空服务器配置恢复和启动错误重试。四个定向测试文件共 24 项通过。云构建、签名安装与真机验收待执行。
+## 个人生产首版复核（2026-11-20）
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 生产退役和直连 | 默认 Compose 排除 `web` 与 `native-screen-web-loopback`，启用全部 profiles 时仍解析出两项旧定义。两服务当前无容器，API、Worker、PostgreSQL 为 healthy，现用 `native-screen-api-loopback` 运行。生产 IP 的 `/health`、`/ready`、`/api/auth/capabilities` 返回 200，`/app` 返回 404。仅只读检查 |
+| Windows 安装 | `%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe` 版本为 `0.4.0.0`，存在包内 `resources/web/index.html` 和旧 `resources/stack`，当时无 `Sydney-partner` 进程。新版安装与运行待验 |
+| Windows 安装候选工作流 | 手动工作流已改用 Node 24 同时生成 NSIS 和展开目录，保留构建产物的既有直连门禁。发布工作流、安装设置和渲染代理回归共 186 项通过、2 项跳过，YAML 解析和测试文件 Biome 检查通过。尚未推送或触发 Windows 构建，未生成本轮 NSIS |
+| iPhone 安装及发布 | USB InstallationProxy 确认 iOS `27.0.1` 上已装 Sydney `1.0.12` 构建 `4`。GitHub Actions `44750564292` 发布应用版本 `1.0.13`，已下载校验 `sideload` 更新 `01a1f94b-6b80-7974-88ca-88494c9f622a` 的启动包及 55 项资源。设备生效标识及功能仍待验，详见 [OTA 记录](#手机-1013-版本与更新说明2026-11-20) |
+| 首页兼容 | 修正旧首页发送、队列续行及入站夹具的数据库上下文与首页归属结果。`events.test.ts` 与 `executor-readonly-approval.test.ts` 复测合计 398 项通过，覆盖此前失败的 20 项。数据库与适配层 TypeScript、两文件 Biome lint 及差异检查通过 |
+
+仍需生产持久配置清理、真实项目 PostgreSQL／Worker、匹配的 Windows 与 iPhone 项目候选、双端功能及版本回退。已安装的构建 `4` 和本次发布的 OTA 覆盖手机基础体验。
+
+## 退役配置与 IP 代理候选（2026-11-20）
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 原生 Compose | 用合成必填环境值合并生产 Compose 与原生 Linux 覆盖示例，开启全部 profiles 后保留 API、Worker 和共享 API 网络命名空间的画面桥；服务名单无 `web` 或 `native-screen-web-loopback`。未启动容器 |
+| 更新与回退 | 6 个 updater／Compose／Caddy 定向测试文件共 96 项通过，Biome lint 通过。扩展运行共 99 项通过、15 项失败，其中 14 项使用的 Windows 临时路径被 Linux 部署路径校验拒绝，1 项依赖 POSIX shebang 执行。更新器 HTTP 回退仍需 Linux 复验 |
+| IP 代理演练 | 三参数脚本通过 Git Bash `bash -n`，6 个内嵌 Python 块通过语法检查，工作区 Caddyfile 模板转换通过。默认 API 上游的隔离运行、WebSocket 和日志断言尚未执行 |
+| 生产只读回跳 | IP `/api/mcp/oauth/callback`、`/integrations/callback`、`/sign-in` 返回 200 和 `no-store`，旧浏览器 MCP 回调 404。运行 API 的原生 MCP 来源和 API 回调／画面开关已核对。真实 OAuth 授权完成与取消仍需客户端验收 |
+
+合并复跑退役与 Windows 候选工作流相关 7 个文件，135 项通过。再次用全 profiles 检查源码 Compose 服务清单，保留 API 画面桥且无两项旧服务。核对本批相关文档 35 处本地链接和锚点，`git diff --check` 通过。
+
+补测可选 updater 的原生覆盖。通过 Compose 合并解析确认 `RAKAZO_UPDATE_SERVICES` 未配置时包含 API 画面桥，已配置时保留追加服务，默认 profiles 仍不启动 updater。3 个定向测试文件共 88 项通过，覆盖更新名单去重、过滤旧服务和重建命令，变更测试的 Biome 检查通过。未运行容器、执行更新或验证真实命名空间重新附着。
+
+生产配置与服务未改动，持久定义清理和重建仍待验收。[退役运维](OPERATIONS.md#删除退役-web2026-11-20)
+
+## Windows 项目终端授权（2026-11-20）
+
+8 个定向测试文件 230 项通过。覆盖项目作用域、固定 Windows 设备、一次性审批参数、真实 Windows `ver`／`chcp`、本机拒绝、取消后停在执行前、回环通道及旧的整机授权。7 个相关 TypeScript 项目和桌面 DOM 类型检查、9 个文件的 Biome lint 通过。原生对话框在测试中用了确认回调，安装版窗口及真实生产 Worker 待验。扩大回归另有 3 个入站邮件／Web 内容／Webhook 测试在发送阶段因缺少租户上下文失败。扩大回归当次 468 项通过。
+
+发布准备另运行 Windows 安装设置、直连渲染代理和发布工作流 6 个文件，196 项通过、5 项跳过。核对本批 32 处 Markdown 锚点及 `git diff --check` 通过。生产发布前置条件及版本回退材料见 [发布顺序](OPERATIONS.md#个人生产首版发布顺序2026-11-20)。
+
+## 云电脑项目目录执行（2026-11-20）
+
+10 个定向测试文件中 9 个通过，合计 116 项通过、9 项跳过。覆盖专属 Provider 分派、项目 Run 上下文、双端目录相关回归和 Windows 文件路径。Python 执行 24 项，21 项通过、3 项跳过，Windows 上跳过依赖 Linux 文件系统的场景。相关七个 TypeScript 项目、Prisma 校验、七个变更文件的 Biome lint 及 `git diff --check` 通过。未执行生产迁移、驱动部署、真实 Linux 文件任务和双端下载。
+
+## 项目 Markdown 产物下载（2026-11-20）
+
+13 个定向文件中 12 个文件 152 项通过。覆盖设备确认写入但副本存储不可用、下载服务核对同一项目和来源会话、双端项目页面、原有产物与分享回归。项目真实 PostgreSQL 文件 42 项按条件跳过，候选迁移未执行。数据库、共享内核、契约、适配层、API、Windows 包内界面及 iPhone TypeScript 通过。两端安装、双端实际文件下载、项目 A／B／首页真实对照以及取消时事务落库均待验收。
+
+## Windows 项目审批与 Worker 分派（2026-11-20）
+
+15 个定向文件中 14 个文件 240 项通过，包括 Worker 固定设备、审批重放换绑拒绝、失去 Run 范围时取消、读取结束后撤权丢弃、创建结果不明，以及重新验证本机目录主进程、NT 句柄及回环设备。DB 审批事务另有 65 项定向通过。真实目录 PostgreSQL 6 项按条件跳过。扩大执行完整 `events.test.ts` 时，17 个旧收发／排队夹具在缺少租户上下文的范围解析处失败。一次并行 Node 选择被系统旧版本覆盖，按 `fnm exec --using=24.15.0` 重跑后通过定向组合。未执行生产项目迁移、目录实际生产 Worker 或双端候选安装。
+
+## Windows 项目目录文件执行（2026-11-20）
+
+| 范围 | 实际结果 |
+| --- | --- |
+| Windows 文件系统 | 实际临时目录读取 UTF-8、独占创建 Markdown、收到相同名称时保留原文件。9 项原生检查覆盖越界、目录 junction、硬链接、目录身份替换、非法路径、内容超限及写前取消。已安装 Electron 的 Node 模式实测能加载 NT API 并检查目录句柄 |
+| 授权与传输 | 13 个定向文件共 177 项通过。包括回环设备 WebSocket 调用实际 Windows 文件执行、独立授权、拒绝只读写入、断开／取消请求不返回文件内容、绑定及撤销和双端目录状态 |
+| 类型与迁移 | 契约、数据库、适配层、API、桌面、包内渲染及手机 TypeScript 通过，Prisma 静态校验与 21 文件 Biome lint 通过。5 项 PostgreSQL 按条件跳过，权限意图迁移未执行 |
+| 旧整机回归 | 扩大验证时旧整机写入测试另有 3 项失败。两项本机不能创建文件 symlink，报 EPERM；一项 Windows `mkdir` 模拟预期抛错但实际未抛。项目文件的实际 junction 拒绝用例通过 |
+
+本轮使用临时样本和本机回环测试。生产 Worker 尚无项目文件工具入口，未执行生产迁移、打包安装、双端实际任务、云电脑或真实停止。部署依赖与失败后核对见 [项目发布边界](OPERATIONS.md#github-与项目工作区发布边界2026-11-20)。
+
+## 项目任务取消（2026-11-20）
+
+| 范围 | 实际结果 |
+| --- | --- |
+| 定向回归 | `stopThreadRuns` 7 项通过，含活动／终态／越界 Run；项目 RPC、共享会话、Windows 渲染界面、iPhone 页面及传输共 7 文件 75 项通过。覆盖同一群聊保留其他活动 Run、重复点击、失联后以快照确认、切换作用域和保留草稿 |
+| 扩大回归 | 全文件组合共 148 项通过、22 项失败。失败均在普通发送／反应测试的 RLS 执行范围解析，直接调用的旧夹具没有生产 RPC 提供的租户上下文；该发送／反应路径未改动 |
+| 类型与检查 | API、契约、共享内核、Windows 包内界面及手机 TypeScript 通过，14 文件 Biome lint、`git diff --check` 及新增 5 处文档链接通过。手机 `check` 集成命令先在 `expo install --check` 报告 12 个现有包版本与 Expo 建议不一致，随后单独执行 TypeScript 通过。未升级或安装依赖 |
+| 生产与设备 | 未执行真实 PostgreSQL、Worker、双端安装或设备停止验证，未执行生产更新。后台终态与电脑实际停止证据在 [首版测评](ACCEPTANCE.md#个人生产首版测评) 分别登记 |
+
+## 项目文字会话开放候选（2026-11-20）
+
+补测 Worker 预检。项目 Run 改在项目 Graphile 用例中创建，避免被此前首页唤醒场景的后台扫描领取。`VERIFY_DATABASE=1` 缺少双连接配置时，定向命令在连接前退出并报告错误。正常离线运行 67 项通过、4 项真实 PostgreSQL 用例跳过；适配层 TypeScript 与所改文件 Biome lint 通过。运行角色及系统上下文检查需实际连接后验证。没有运行数据库或 Worker 服务，备份恢复与执行器验收分开使用隔离临时库，见 [发布顺序](OPERATIONS.md#个人生产首版发布顺序2026-11-20)。
+
+| 范围 | 结果 |
+| --- | --- |
+| 生产配置与文字会话离线回归 | 定向 10 文件，8 文件 203 项通过。覆盖生产 Compose 默认开关和环境变量清单、API 环境解析与项目路由、执行范围解析及 Worker 任务分派 |
+| PostgreSQL 与 Graphile | 两文件共 46 项按 `VERIFY_DATABASE` 条件跳过。新增用例通过正常 Bot／群聊创建和发送写入数据，构造同账号同 Space 双项目、首页及跨账号对照；真实 Graphile 用例使用执行器替身观察范围恢复和禁止跨范围写入 |
+| 类型及静态检查 | 首轮发现新测试文本块字段和 Space 成员 ID 两处类型错误。修正后数据库及适配层 TypeScript、三个测试文件 Biome lint 和 `git diff --check` 通过；本批新增的 7 处相对文档链接及锚点通过。合并生产源码与客户端覆盖，所有 profile 下仅列出 API、Worker、updater、Caddy、PostgreSQL、PITR 与迁移服务，未启动容器 |
+| 迁移源码 | 核对 `20261120130000_project_text_conversations` 排在 `20261120120000_project_directory_bindings` 之后，事务仅删除五个项目禁写 CHECK。迁移未执行 |
+
+恢复后原本机测试会话句柄不可用，已重新执行定向验证。未迁移生产、打开开关或运行真实 PostgreSQL、Worker 执行器与双端验收。发布和数据保留回退见 [项目迁移依赖](OPERATIONS.md#项目迁移依赖与保持关闭的部分)。
+
+## 个人生产首版退役收尾（2026-11-20）
+
+本轮执行 [个人生产首版计划](PLAN.md#个人生产首版交付2026-11-20) 的退役收尾及项目文字回归，按 [首版测评](ACCEPTANCE.md#个人生产首版测评) 区分源码、实际生产和设备证据。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 生产只读复核 | API、Worker、PostgreSQL 健康，现用 `native-screen-api-loopback` 正常运行。旧 `web` 和 `native-screen-web-loopback` 按标签查询均为 0；有效 Compose 服务名单无两项旧服务。生产 HTTPS IP `/health` 和 `/ready` 均为 200，`/app` 为 404。API 容器内标准路径存在无影 SDK |
+| 持久配置 | `/srv/rakazo/infra/compose/docker-compose.prod.yml` 仍声明 `web`；`/etc/rakazo/compose/production.overlay.yml` 仍声明 `web` 和 `native-screen-web-loopback`，另有现用 API 桥。未写入、重载或重启生产，首个远端组合探针的 HTTP 段受命令换行影响未执行，分离后的本机 HTTPS 探针通过 |
+| Compose、更新和桌面单元测试 | 12 文件 294 项通过。包括四套 Compose `GITHUB_PROVIDER` 校验、生产 `server` 构建目标、默认更新名单及旧服务过滤、Windows 旧本地栈配置直连回归。额外 7 项无影 SDK 脚本定向测试通过 |
+| 项目和定时唤醒 | 5 文件 210 项通过，真实 PostgreSQL 2 文件 46 项按条件跳过。生产 Worker 原本就在 `asOwner` 中解析真实所有者并建立租户上下文；8 个旧失败用例改用相同上下文和范围查询测试数据，执行器、归属校验与 RLS 规则未放宽 |
+| 生产迁移账本 | 独立只读事务确认已完成 211 项，未结束 0 项。GitHub 表存在；项目及目录绑定表均不存在，当前运行 API 的两个项目功能开关未设置 |
+| 类型及脚本 | updater 和 Windows 桌面相关 TypeScript 通过。首次桌面检查在既有 Node `22.22.0` 因仓库最低版本限制未运行，切换本机已装的 `24.15.0` 后通过。生产部署与 PITR 脚本的 `bash -n` 通过 |
+| 部署脚本模拟 | Windows Git Bash 首轮 36 项中 24 项通过、12 项失败。修正已部署时增加配置复核的测试预期，并为本机扩大用例超时后，定向复测 8 项通过，覆盖无变更、正常直连部署、拒绝旧服务及版本回退。首轮另有 Git 远端改写 128 退出及 6 项部署启动器用例未正常启动，未在 Linux 复验 |
+| 源码合并 Compose | 使用 `docker compose config --no-interpolate --services` 核对生产与客户端覆盖、原生 API 桥示例，启用所有 profile 时仍无退役服务，现用 API 桥在名单中。未启动容器 |
+| Windows 安装包验收 | 候选工作流新增检查，要求 `resources/web/index.html` 存在且 `resources/stack` 不存在；新增旧 profile 到直连设置、启动 IPC 被拒及 profile 原样保留的 Playwright 用例。`--list` 已确认能发现用例，实际打包、运行与安装回归未执行 |
+| 手机离线回归 | 导航、GitHub、换肤、会话模型、画面与重试、产物入口、输入栏和目录状态共 11 文件 301 项通过，移动端 TypeScript 通过 |
+| 设备只读复核 | 实际连着一台 iPhone，iOS `27.0.1`，安装代理返回 `Sydney 1.0.12` 构建 `1`。当前 Windows `Sydney-partner 0.4.0.0` 有包内渲染器及旧栈资源，未切到本轮候选。当前进程无 Expo 发布令牌，未签名、安装、发布或读取设备个人内容 |
+
+本轮未构建或发布镜像、IPA 或 Windows 安装包，未执行项目迁移、真实 Worker 联调、版本回退或真机验收。生产历史定义的清理与发布路径见 [运维手册](OPERATIONS.md#删除退役-web2026-11-20)。
+
+## 删除退役 Web（2026-11-20）
+
+用户允许退役后直接删除，取消恢复旧 Web／再次切流演练；原目标面板已由用户清除。当前窗口独立执行，保留桌面共用 `apps/web`、API／Worker、认证与屏幕服务。仅编辑部署候选和相关文档，生产只删除两个原本已停止的专属容器，未部署其他工作区功能。
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| 生产删除前核对 | 通过现有 SSH 只读确认 `rakazo-prod-web-18` 与 `rakazo-prod-native-screen-web-loopback-1` 均属 `rakazo-prod`，服务分别为 `web`、`native-screen-web-loopback`，状态均 `exited`；删除前再次核对标签与状态 |
+| 实际删除 | 北京时间 15:55:14 `docker rm` 两个明确容器成功，无强制删除或卷删除；随后按两项服务标签查询均无结果。共用应用／socat 镜像、旧资源卷、数据库、工作区和备份保留 |
+| 运行健康与旧入口 | 删除后 API、Worker、PostgreSQL healthy；Caddy、API 画面桥、宿主桥及驱动代理仍运行。生产 IP `/health`、`/ready` 为 200，IP `/app` 为 404。首个组合命令末尾的域名 curl 因终端传输 URL 格式问题未执行成功；改用独立命令后原域名 `/app` 返回 404，两个删除目标再次查询仍为空 |
+| 源码配置 | 生产 Compose 不再声明 `web` 与 `webassets`；网关只依赖 API，四条客户端认证／屏幕上游默认 API，浏览器应用兜底显式 404，健康及就绪探针保留。生产更新器不再重建 Web；客户端覆盖和原生 API 桥示例不声明旧服务。开发预览与本地镜像拓扑保留 |
+| 网关语法 | 用生产现有 Caddy 二进制从标准输入执行源码 `Caddyfile.prod` 的 `caddy adapt`，退出 0；仅提示输入未按 `caddy fmt` 排版。没有载入或重载生产配置 |
+| 首轮定向回归 | 网关日志、网关重试／入口、Compose 网页线程／退役与 updater-logic 四文件共 80 项通过；新增原生 API 桥断言后的收口结果在下方补记，不与本轮重叠计数 |
+| 生产更新器服务 | `compose-service.test.ts` 限定生产 provider、Worker 配置和 updater 三组，21 项通过；PITR 组 5 项未选中。验证使用实际 `resolveUpdaterConfig` 解析生产停用 Web 的配置，没有执行镜像摘要计算或生产更新 |
+| 扩展环境清单 | `compose-env.test.ts` 10 项通过、4 项失败，四套 Compose 的 API 清单均缺少既有 `GITHUB_PROVIDER` 声明；本批未改 GitHub Provider 或这些声明，没有补改其他拓扑，也不宣称扩展检查通过 |
+| 类型与格式 | updater 的 `tsc --noEmit` 退出 0；四个改动测试文件 Biome 检查通过，部署／测试范围 `git diff --check` 通过。原生 API 桥新增断言后的检查另在收口补记 |
+
+收口补记：增加原生 API 桥示例断言后，重新运行上述四个定向文件，81 项全部通过；同批 updater TypeScript 复查退出 0。格式检查发现新增断言的折行不符合 Biome，按提示修正折行，最终格式检查与文档链接结果见下方交付检查，不把本轮初次格式失败记为通过。
+
+交付检查：四个改动测试文件最终 Biome 检查退出 0；相关源码与 10 份 Markdown 当前差异的 `git diff --check` 通过，新增 ADR 与两个未跟踪覆盖文件无行尾空白；检查这些文档当前新增／改动行的 122 条本地文件及标题链接，全部能解析。检查范围包含其他窗口同文件的既有差异，不把链接总数当作本批独占改动；未检查远端网址。Git 仅提示 PLAN 既有 CRLF 后续将规范为 LF，未改变全仓行尾策略。
+
+实际定向命令为 `node ./node_modules/vitest/vitest.mjs run` 加 `infra/updater/src/{compose-web-threads,caddy-access-log,caddy-deploy-retry,updater-logic}.test.ts` 四个文件并设 `--maxWorkers=1`；生产服务单独运行 `infra/updater/src/compose-service.test.ts`，`-t 'the production computer provider|worker error reporting configuration|the updater compose service'`。花括号仅为文档缩写，PowerShell 实际逐项传入文件。类型检查为 `node ./node_modules/typescript/bin/tsc --noEmit -p infra/updater/tsconfig.json`，没有构建整工作区、安装依赖、迁移、提交或推送。
+
+源码生产配置未整体发布；服务器持久文件仍保留停用 profile 下的历史定义，后续发布前须清理 overlay 中旧服务段并验证合并配置，步骤见 [运维](OPERATIONS.md#删除退役-web2026-11-20)。本次结果不覆盖 iPhone 真机、登录／OAuth／升级、GitHub 或项目模块上线；旧 Web 恢复演练已取消，不能标成执行通过。
+
+## 手机固定导航、GitHub 与模型交付（2026-11-20）
+
+关联 PA-021、PA-022、PA-024；用户要求先设定目标及测评，再按 Stop That Shit 技能实施。用例与设备完成条件见 [专项测评](MOBILE_NAV_GITHUB_EVALUATION.md)。当前窗口独立实施，没有子代理、提交、推送、依赖安装、本机服务启动或全工作区构建。既有授权服务器已完成独立 GitHub 候选、备份、唯一迁移及 API／Worker 切换；不恢复数据或打开项目开关，客户端尚未发布。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 首轮手机回归 | 11 文件：232 项通过、2 项失败。失败为应用页 OAuth 测试仍断言旧 `mcp/oauth/begin` 参数与旧回调路径；按现有契约补入 `nativeCallback: true` 与 `/api/mcp/oauth/callback`，没有修改回调安全逻辑 |
+| 路由与 OAuth 复测 | 13 文件 251 项通过；另一次移动／服务定向检查 14 文件 160 项通过。两批存在重叠，不相加计数 |
+| 导航／模型／GitHub 联合回归 | 22 文件 334 项通过，包含根级三入口、选中与重复点击、模块替换及返回、详情焦点隐藏／恢复、GitHub 安全输入／错误／草稿／范围隔离、模型选择与会话、应用 OAuth、设置链接与首页原有交互，以及 GitHub API／契约／Provider／工具。应用连接详情随后补充回归，收口结果另附 |
+| 应用详情与数据库补充收口 | 最后复跑 integrations-screen、main-navigation、settings-sheet、github-screen、row-security 及新 PostgreSQL 文件：5 文件 76 项通过，1 文件／1 项因本机未配数据库而跳过；随后移动端 TypeScript 退出 0。应用连接详情隐藏底栏、页头返回恢复主列表的新增用例通过；其余未改动测试沿用上行证据，不把重叠计数相加 |
+| TypeScript | 手机与 db 的 `tsc --noEmit` 退出 0。服务器候选完整 API 及缩小发布入口的检查被 1536 MiB 容器终止（`Killed`），该两次不能算通过。随后从候选镜像导出源码到本机 `.tmp/mobile-github-candidate-source`，SHA-256 核对锁文件与本机依赖一致，仅将现有外部依赖链接入隔离源码、内部 `@rakazo/*` 均指回候选源码；通过候选完整 `apps/api/tsconfig.json` 和 `apps/worker/tsconfig.json`（包括各自测试），未修改工作区源码或重新安装依赖 |
+| Biome 与差异 | 20 个本轮手机／数据库测试文件完整 Biome 通过；数据库 `row-security.ts` 的 lint 通过，只插入 GitHub 模型名，未顺带重排旧格式。限定写集 `git diff --check` 通过；Git 提示既有 PLAN 行尾将转 LF，不作为功能失败 |
+| 数据库上下文回归 | 本机 `row-security.test.ts` 9 项通过；`github-connections.postgres.test.ts` 未配置数据库时整文件 1 项条件跳过，不启动本机数据库 |
+| 生产只读复核 | 2026-11-20：API／Worker 健康，GitHub 连接表不存在，两服务镜像内没有 GitHub 契约源码；210 项已完成迁移、无未结束项，两个项目实验开关均未设置。运行角色非超级用户、非 BYPASSRLS；现有凭据表的系统策略调用 `app_rls_bypass()`，默认表权限已授予运行角色 |
+| 独立服务候选 | 从生产 API 镜像 `sha256:62df407f3e70422b79b2bdf80a2a3ab783c51d803159613d00c201a917990698` 筛选原 GitHub 提交 `5bff060a7` 及本轮必要数据库修正，30 文件补丁 SHA-256 `cf7ced78af80087d814e619b5c7ffb5dfd9ac05b5a140f170e676fd0996a7ceb`。未纳入工作区项目目录／会话等修改；生产已含的 env 字段予以保留，旧 RLS 文件仅补 GitHub 模型名。API／Worker 构建通过，新候选标签 `sydney-pa024-github:20261120`，镜像摘要 `sha256:8b8bcb260be90f79da1e689a35230d75730c778170bdd283233692b85d7e8149` |
+| 候选离线测试 | 在不挂生产数据卷、不注入凭据、禁网络的临时容器中运行 API GitHub 路由、共享契约、客户端、连接与工具 5 文件 30 项，通过。首试因 node 用户无法写 Vitest 临时配置而退出，改为仅该临时容器内 root 后通过；生产进程用户未改 |
+| 真实 PostgreSQL | 15:39（北京时间）候选新增数据库测试 1 项通过：实际运行登录无超级／旁路权限；在 owner 事务中试建 GitHub 表与合成用户，切换到实际运行角色，逐项验证本人可读、另一账号读写不可见、换绑拒绝、伪造旁路密钥拒绝、空上下文不可见、合法系统密钥可读。最终 ROLLBACK；该测试不代表 Prisma 正式迁移或真实 PAT 绑定已完成 |
+| 迁移与发布 | 发布前候选迁移源码与 210 项账本 SHA-256 逐项匹配，筛选目录只新增 GitHub，SQL 摘要 `0c3a002b4d54bdbf70d62765bb213741a37a9284cb5f2017e025f091e70535af`。16:03:46—16:04:08（北京时间）完成 2,519,456 字节自定义格式备份并用 `pg_restore --list` 检查可读，备份 SHA-256 `6b121a7ebbf4931371149c2265ef35793e8fe55669f9f7c9c7fbb2801c011f64`；直接 Prisma deploy 只应用 GitHub，账本增加唯一一项至 211。正式覆盖文件仅变更 api／worker／migrate 三个镜像引用，合并配置其余字段逐项相同 |
+| 服务切换 | API／Worker 均已运行 `sha256:8b8bcb260be90f79da1e689a35230d75730c778170bdd283233692b85d7e8149` 并健康。因画面回环桥共享 API 网络命名空间，同时重建原桥以重新附着；桥镜像和配置未变。发布前无 queued／running Run 或有效电脑租约；项目表仍不存在、两个实验开关未设置；原生 display／desktop／VNC／noVNC 均 active，未重启这些原生服务 |
+| 发布后真实验证 | 16:08 再次完成 PostgreSQL 1 项隔离测试，合成账号全部回滚，新表有两条 RLS 策略、密钥旁路函数和完整运行角色权限，无未结束迁移、无合成用户残留。运行中 API 的 Prisma 在虚构租户上下文读取 GitHub 表成功且可见 0 行。验证脚本首试误用不存在的 `db.close()`，查询已成功但清理时报错；改为现有 `$disconnect()`／`pool.end()` 后整套退出 0，未变更业务源码 |
+| 真实 GitHub 与公网 | 运行中 API 的真实 `github` Provider 在无 PAT 时搜索 `octocat/Hello-World` 并读取公开仓库详情及 README 成功，明确 `authenticated=false`；不计真实个人账号／私有仓库／贡献图验收。公网 `/health` 和 `/ready` 为 200，未登录 `POST /rpc/github/status` 为 401，根入口 `/` 仍为 404，没有恢复 Web |
+| 手机与发布条件 | USB 只读探针返回设备数 0；当前进程无 Expo 发布令牌，本机 `.expo/state.json` 没有 auth 会话。没有安装 EAS CLI 或重新安装依赖。以 `sideload`／`sydney-ios-ip-1` 查询更新端点，支持的 multipart Accept 请求返回 HTTP 204，无 manifest；初次不支持的 Accept 返回 406，未误记更新成功 |
+| 原生兼容差异 | 只读打开旧侧载记录对应的 Run `44298985618` 源 IPA，`Expo.plist` 确认 OTA 启用、`ALWAYS` 启动检查、`sideload` 通道、`sydney-ios-ip-1` runtime，项目 URL 与现有配置一致。相对该构建提交 `0ca3357a5`，移动端依赖、Expo 配置、原生插件／模块、iOS 原生目录和锁文件无 Git 差异。复查 USB 仍为 0，无法读取已安装实例。远程发布工作流未触发 |
+
+联合回归命令：
+
+```powershell
+node ./node_modules/vitest/vitest.mjs run --maxWorkers=1 apps/mobile/lib/main-navigation.test.tsx apps/mobile/lib/artifacts-navigation.test.tsx apps/mobile/lib/integrations-screen.test.tsx apps/mobile/lib/settings-sheet.test.ts apps/mobile/lib/settings-layout.test.tsx apps/mobile/lib/use-mcp-oauth-return.test.tsx apps/mobile/lib/github-screen.test.tsx apps/mobile/lib/use-github.test.tsx apps/mobile/lib/github-bot-analysis.test.tsx apps/mobile/lib/chat-model-picker.test.tsx apps/mobile/lib/thread-composer.test.tsx apps/mobile/lib/thread-route.test.tsx apps/mobile/lib/chat-title-avatar.test.tsx apps/mobile/lib/account-screen.test.tsx apps/mobile/lib/inbox-render.test.tsx apps/mobile/lib/unread-jump-overlay.test.tsx apps/api/src/github-router.test.ts packages/contracts/src/github.test.ts packages/adapters/src/github-client.test.ts packages/adapters/src/github-connections.test.ts packages/adapters/src/github-tools.test.ts packages/adapters/src/github-webhook-emulator.test.ts
+```
+
+尚未执行：真实 GitHub PAT／个人主页与私有仓库联调、OTA／IPA 发布、当前 iPhone runtime 与更新生效、布局／安全区／语音／键盘真机测评及本轮实际回退。模型设置扩展的 3 项失败已通过下方补测解决。整体手机交付目标保持未完成。
+
+同日 OTA 候选核验。在脱离分支的 `.tmp/mobile-ota-candidate` 以 `0ca3357a5` 为基线复现旧底座的 lockfile 与原生配置，只选本轮手机导航、GitHub、应用回跳与模型改动。候选补丁以干净 Git 索引重放，重放后的二进制 diff 与原补丁完全一致。共享文件未夹带项目目录／会话或 UI 换肤写集。34 文件、SHA-256 `807fffcfa7d0a6968a014d7e1fdd7ab48079230fe60226e9ab8e58ff0216a6db`。附带已有设备设置路由分类和启动代码的类型收窄，启动空值和 UI 颜色类型使用对应测试夹具调整。
+
+候选单 worker 移动端回归先修正设备设置路由分类，再测 19 文件 665 项通过、1 项失败。剩余失败为旧启动断言仍将空字符串视为错误。仅同步基线已实现的 null／空串回退行为后，`api.test.ts` 和 `settings-sheet.test.ts` 共 341 项通过，其余文件沿用 19 文件联合结果。TypeScript 通过，32 个受影响现存文件 Biome 检查通过。`api.test.ts` 保留基线的旧导入顺序、格式与一个未使用参数告警，差异检查通过。Expo CLI 在离线模式读取公开配置，输出的 bundle `xin.zxlup.sydney`、项目、更新 URL、runtime `sydney-ios-ip-1` 及通道 `sideload` 与旧源 IPA 一致。
+
+使用现有 Expo CLI、同配置、单 worker 执行 `expo export --platform ios --max-workers 1 --dump-assetmap`，离线导出 `.tmp/mobile-ota-ios-export`。Metro 打包 3,639 个模块并退出 0。`metadata.json` 只描述 iOS，所指的 55 项资源均在目录内且非空。Hermes bundle 为 12,542,876 字节，SHA-256 `0fa5dc3ea10d0f5f22b92db2957f591b976deadb9846a56b38a3447d38e34b87`，头部 magic 和版本 `98` 与 Run `44298985618` 源 IPA 的嵌入字节码相同。未安装依赖、构建原生包或发布。
+
+后续 USB 探针确认 iOS `27.0.1` 已连接，未挂载开发者镜像。基于安装代理和唯一匹配当前设备的 iPASide 记录，确认 Sydney `1.0.12` 构建 `1`；签名后的标识与未签源包不同，按未签标识精确查询为空。对应记录的源 IPA SHA-256 匹配 Run `44298985618`。此证据核对设备安装与记录，尚未读取运行中的 Expo runtime／updateId。更新服务同参数复查两次均为 404，响应明确报告项目中没有 `sideload` 通道，当前仍无认证执行通道管理及发布。
+
+签名侧载备选：保持相同隔离源码、Expo 项目和 runtime，使用 `expo export:embed --platform ios --dev false --entry-file index.ts --bytecode --max-workers 1` 生成 `main.jsbundle` 及资源，使用同版 `expo-updates` 的原生构建清单生成器生成 `EXUpdates.bundle/app.manifest`。嵌入更新标识 `e9c9be2d-4cc4-4ea4-8fe7-b8b8773d930e`，Hermes 版本 `98`，字节码 SHA-256 `4e9d2abc5259edc5736abe8e82c0457e287bfd0cc3360a1201f9254e4781938c`。三栏、GitHub RPC、空间默认字节码标记存在，54 条清单均定位于 52 个非空资源文件，9 个目录均有 bundle 引用。旧包已有 `clear-icon.png` 和 `close-icon.png` 两组同路径别名，新包的别名哈希集合相同。
+
+组装基于 SHA-256 已固定的 Run `44298985618` 未签名 IPA。替换嵌入 bundle、清单和资源，`Info.plist` 只把构建号变为 `2`。首次验证因原 ZIP 条目对象被写入修改而失败，复制条目后复测通过。最终产物 `.tmp/Sydney-1.0.12-2-unsigned.ipa`，SHA-256 `1c443d7ae38d844b99e848572ce8635185e3a21dbe8a71abd26bdc857a477c6c`。ZIP 完整、无重复条目、最长路径 122 字符，保留的 101 个归档项逐项与原包的内容一致，包括原生二进制、框架与 `Expo.plist`。本包缺个人签名与描述文件，尚无 iPhone 上的构建 `2` 或嵌入更新标识。OTA 通道同步复查依旧 404。
+
+恢复目标后复查：首次 USB 查询无设备，随后识别 iOS `27.0.1`。安装代理仍只返回 Sydney `1.0.12` 构建 `1`，与当前设备的旧侧载记录一致。构建 `2` 未签名 IPA 和候选补丁摘要仍与上述记录一致。Expo 返回 404，确认 `sideload` 通道仍不存在，本机无发布令牌和 EAS CLI。等待个人签名覆盖安装或获得 Expo 发布条件，真机用例仍待执行。
+
+追加 GitHub 后台加载修复：用户报告构建 `2` 已安装，GitHub 绑定成功，但点击操作会触发下拉动画。将 `RefreshControl` 的状态与一般读取分离，只有主动下拉才显示该指示，筛选请求继续保留旧结果。运行 `node ./node_modules/vitest/vitest.mjs run --maxWorkers=1` 定向检查 `use-github`、`github-screen`、`github-bot-analysis`、`main-navigation`，4 文件 42 项通过。4 个修改文件的 Biome 检查通过。隔离手机候选 TypeScript 通过；共享工作区的移动端 TypeScript 仍在并行项目会话文件 `app/projects/[workspaceId]/chat.tsx:140` 报参数类型不符，未纳入本批改动或构建。
+
+在构建 `2` 的隔离源码追加上述四个文件，离线导出嵌入包，并使用同版本 Expo 工具生成嵌入清单。最初字符串探针误以为通用的 `pullToRefresh` 仅出现在新包，实际旧包也包含该名称，废弃此断言，改用候选源码内容比对及归档逐项核对。生成 `D:/33054/sydney-ipa-output/Sydney-1.0.12-3-unsigned.ipa`，26,002,317 字节，SHA-256 `7e545757e485a062e94c5f40dcda4fae2e8a6b02c815f054af49fd7c7b11e207`。嵌入更新 ID `fa21155e-4e4b-49fe-ba1a-fbad7d072249`。相较构建 `2`，只有嵌入 JS、更新清单和构建号条目发生变化，52 个资源、Hermes 版本和 Expo 配置均匹配。构建 `3` 未签名、安装或发布 OTA，iPhone 滚动和刷新手势待复测。
+
+## 手机真机体验追加目标（2026-11-20）
+
+按 [专项测评](MOBILE_NAV_GITHUB_EVALUATION.md#真机体验追加目标) 验证 GitHub 状态回显、本人头像、双方磨砂气泡、半屏模型选择和项目候选。使用现有 Node 24 与单 worker Vitest。首次使用 PATH 中的 Node 22.14.0 时，jsdom worker 因 undici 启动失败；改用本机 Node 24 后成功。账户页首轮测试缺少相册替身，按实际界面补齐。并行项目产物接线曾导致项目测试夹具和类型失败，随后对齐并复测，未计入成功数。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 联合回归 | 12 文件 501 项通过，覆盖 GitHub 页面及 hook、集成缓存、账号设置、模型选择、消息外观、发送者气泡、手机 API、手机项目页与 hook、项目路由及共享项目会话 |
+| 磁盘缓存补测 | `integrations-cache.test.ts` 14 项通过，包含 GitHub 状态写入、同账号同空间读回、隔离、剥除多余凭据字段及断开覆盖。与联合回归部分重叠，不相加 |
+| 类型和静态检查 | `tsc --noEmit -p apps/mobile/tsconfig.json` 和对应 API 检查退出 0。追加客户端文件 Biome 完整检查通过，部分共享文件范围限定 lint 通过 |
+| 交付状态 | 没有操作数据库、启用项目生产开关、部署头像 API、生成新 IPA 或发布 OTA。没有实测相册、缓存冷启动、玻璃效果、模型半屏、项目 Worker 或手机会话闭环 |
+
+## 手机构建 4 与项目只读复核（2026-11-20）
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 构建候选 | 以构建 `3` 的隔离源码加 GitHub 状态缓存、个人相册头像、磨砂气泡及对话内半屏选择。设置首页与账号页复用头像读取；旧版 `me` 省略字段时通过现有会话回读，并核对返回用户。并行换肤与项目会话候选未混入。可重放补丁 `.tmp/mobile-experience-4-20261120.patch` 共 196,984 字节，SHA-256 `15718f1339aaee0e1186296d1d8c809d535b313d8c8ac4922785d7118892ca95`，在该候选执行反向应用检查通过 |
+| 离线回归 | 隔离候选 10 文件 490 项通过，包含旧后台头像回显、错误用户拒绝及已有导航与 GitHub 流程。主工作区另有 7 文件 413 项通过，覆盖项目气泡、客户端作用域、项目会话 API、草稿和发送确认。两批包含重叠用例，分别记录。主工作区与隔离候选移动端 TypeScript 均通过。头像相关四文件完整 Biome 通过，项目页面与测试保留并行改动的既有格式，限定非格式检查通过 |
+| 包体验证 | `D:/33054/sydney-ipa-output/Sydney-1.0.12-4-unsigned.ipa`，25,999,366 字节，SHA-256 `35305d0e9d3f8315fd68cfd285e4ac4a1749eb330f369f93ac82b73b549965b9`，嵌入更新 ID `933293db-3013-461e-af07-b52dec28133f`。ZIP 完整，54 条清单引用 52 个资源，Hermes 98，Expo runtime `sydney-ios-ip-1`。与构建 `3` 逐项比对，仅嵌入 JS、清单和构建号变化 |
+| 项目只读复核 | 真实生产 API 和 Worker 均健康，账本 211 项已完成、0 项未结束，`project_workspaces` 不存在，两个项目开关均未设置。实际迁移、真实运行角色测试、Worker 执行及项目 A／B／首页隔离待执行 |
+| 设备与 OTA | USB 只读 InstallationProxy 确认一台 iPhone 上装有 Sydney `1.0.12` 构建 `2`。构建 `4` 未签名、未安装，OTA 未发布。相册授权、覆盖后的冷启动、视觉效果和会话操作继续待 iPhone 实测 |
+
+## 手机构建 4 OTA 发布准备（2026-11-20）
+
+通过现有 Expo CLI 从构建 `4` 隔离源码导出 `.tmp/mobile-experience-4-ios-ota`。`metadata.json` 引用的 55 个资源均存在且非空，JS 含候选的 GitHub 状态缓存与头像会话回读，Hermes 98，与构建 `4` IPA 的字节码头匹配。OTA bundle SHA-256 `b2a34b1ebd6d5b07ee67ec898e2c185fd4f3cd797844a3c61a726125a8b3b482`。以安装包配置查询 Expo，`sideload` 返回 404 并明确提示通道不存在。
+
+用户授权后，隔离候选提交 `bf5638ab7` 快进推送至 `cursor/integrate-remote-branches-7334`。对应的 `mobile-ios-update.yml` Run `44748053276` 运行完成并成功。构建 `4` 的原生 channel、runtime 和嵌入标识请求 Expo 获 HTTP 200，返回 `01a1f93c-8582-79e0-8919-a24122ab145c`，发布时间北京时间 2026-11-20 21:54:15，包含 55 项资源。普通 HTTP 探针首次读取 CDN 主程序返回 403，按 manifest `extensions.assetRequestHeaders` 补齐 Expo iOS 客户端所用的资源请求头后，下载成功。主程序 10,511,588 字节，Hermes 98，候选功能标记和清单 SHA-256 核验通过。
+
+按清单下载的 55 个资源逐个核对 SHA-256，全部通过。USB 只读确认目标 iPhone 已安装 Sydney `1.0.12` 构建 `4`。设备实际下载、重启及账号页运行标识 `sideload 01a1f93c` 仍待确认。主工作区其他文件未进入该提交。
+
+## 手机 1.0.13 版本与更新说明（2026-11-20）
+
+主工作区与从 `bf5638ab7` 筛选的手机候选分别运行账号设置、客户端更新、版本号和 Expo 配置测试，两次各 79 项通过，移动端 TypeScript 均通过。本轮 13 个改动源码与测试文件经 Biome 检查通过。覆盖实际下载清单、旧清单缺少说明回退、下载失败不提示重启和设置中的版本与说明。
+
+Expo 公开配置保留原生版本 `1.0.12`、通道 `sideload`、runtime `sydney-ios-ip-1`，附带应用发布版本 `1.0.13` 和简体中文、繁体中文、英文说明。隔离 iOS 导出 `.tmp/sydney-1.0.13-ios-ota`，Hermes 98，55 个引用资源均存在。字节码带版本说明解析与下载标题，SHA-256 `0e93c9d16e1c4fdfb60faef7c00cc02d88304794b4b6f99c95b010957bd5b28a`。
+
+用户授权后，隔离提交 `40328e108` 快进推送至 `cursor/integrate-remote-branches-7334`。GitHub Actions `44750564292` 发布成功。按已安装的构建 `4` 请求，Expo 返回 HTTP 200、更新标识 `01a1f94b-6b80-7974-88ca-88494c9f622a` 和 runtime `sydney-ios-ip-1`，发布时间为北京时间 2026-11-20 22:10:31。清单版本 `1.0.13`、发布日期及三种语言的完整说明与源码配置一致。线上 Hermes 98 启动包共 10,420,340 字节，SHA-256 `de4f087bb017c9df9ac3e5e997c3a240c37a78a63211d8219ad6f1cf6d3a746e`，与清单一致。55 项资源逐项下载并通过 SHA-256 校验。真机下载、重启、版本说明和运行标识待核对。
+
+## 手机启动更新提示与关于（2026-11-20）
+
+Node 24 下合跑更新流程、版本号、Expo 配置、账号设置和设置导航共 5 个 Vitest 文件，89 项通过。覆盖启动和回前台检查只读清单、每条更新仅自动提示一次、取消不下载、设置可再打开、下载失败不提供重启、下载和重启各自确认、已缓存版本及「关于」显示当前运行版本。移动端 `tsc --noEmit` 和 11 个相关文件的 Biome 检查通过。
+
+从现有构建 `4` 的 IPA 读取到 `EXUpdatesCheckOnLaunch = ALWAYS`。使用 Expo 公开配置与本机已安装的 iOS 配置插件离线生成新版 plist 字段，验证 `EXUpdatesEnabled = true`、`EXUpdatesCheckOnLaunch = NEVER`、通道 `sideload` 与 runtime `sydney-ios-ip-1`。尚未生成新版 IPA、推送 OTA 或在手机上验证弹窗及重启。
+
+## 本机项目目录授权绑定（2026-11-20）
+
+范围：PA-022／P2 的 Windows 本机目录候选、PC／手机共享状态与撤销；当前窗口独立实施，不调用子代理。使用已有 Windows 工作区依赖和单 Worker Vitest，不启动本机数据库、Docker 或桌面服务，不安装依赖，不执行生产操作。测试使用合成账号、目录与设备；原生对话框和生产连接未实测。
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| 收口定向回归 | 17 文件：16 通过、1 条件跳过；245 项通过、5 项跳过、0 失败。包含原生选择／作用域变化／冲突清理、独立目录配对、旧配对更新、预加载桥、真实私有 grant 存储、窗口权限、严格契约、数据库查询替身、API 身份与会话匹配、双端状态／撤销、设备连接和跨进程转发；不代表真实设备或 PostgreSQL 通过 |
+| 真实数据库候选 | 新增 `project-directory.postgres.test.ts` 的 5 项：运行角色 RLS、同用户跨项目／首页及跨用户拒绝、幂等绑定与换绑拒绝、设备所有者外键、绑定项目删除限制及条件撤销。未提供授权服务器的数据库验证上下文，因此整个文件跳过，未启动本机数据库 |
+| TypeScript | `node ./node_modules/typescript/bin/tsc --noEmit -p` 分别检查 contracts、db、adapters、api、desktop、web、mobile 的 `tsconfig.json`，7 项均退出 0；最后补齐旧配对更新后，桌面 TypeScript 和两文件 lint 再次通过。没有构建或生成客户端安装包 |
+| Prisma 模型 | 在 `packages/db` 通过已有 `node_modules/.bin/prisma.cmd validate`，最终退出 0。首次校验提示一对一关系缺少完整复合唯一键，已同步补入模型和迁移索引后复测通过；没有运行 generate 或 migrate |
+| 工具与格式限制 | 最初 `pnpm --filter @rakazo/db exec prisma validate` 被现有引擎检查拒绝：本机 Node 22.22.0 低于仓库要求的 22.22.2；未修改引擎要求或安装依赖，改用既有 Prisma 入口完成静态校验。新增 16 文件完整 Biome 通过；既有 24 文件关闭 formatter／assist 后 lint 通过。`Projects.tsx` 原创建表单的自定义 Input label 和混合类型导入仍有两条 lint 诊断，不为本批目录接线重排或改写原创建表单，不计该文件全量 lint 通过。首次新文件检查的生成器与控制字符规则已修正，未跳过新文件规则 |
+| 运行边界 | 本批仍保留 P1 文字工具限制、项目数据库禁写 CHECK 和关闭的生产开关；目录存在性／规范路径检查不构成项目文件读取或执行验收。此前 P1 扩展回归的 8 项定时上下文失败未在本批修复，也未用本批测试替代 |
+
+交付前检查本批 10 份相关 Markdown 当前 diff 新增的 106 条本地文件／标题链接，全部能解析；未检查远端网址。43 个相关源码／迁移／模型文件及上述文档的范围限定 `git diff --check` 退出 0，另检查 17 个未跟踪新增源码／迁移文件无行尾空白。范围不扩展到其他窗口的全部未提交写集。
+
+收口实际命令（仓库根目录）：
+
+```powershell
+pnpm exec vitest run apps/desktop/src/project-directory.test.ts apps/desktop/src/user-device.test.ts apps/desktop/src/preload.test.ts apps/desktop/src/workspace-grants.test.ts apps/desktop/src/session-permissions.test.ts packages/contracts/src/project-directory.test.ts packages/db/src/project-directory.test.ts packages/db/src/project-directory.postgres.test.ts packages/db/src/project-workspace-read.test.ts apps/api/src/project-directories.test.ts apps/api/src/routes/project-workspaces.test.ts apps/api/src/routes/project-workspace-thread.test.ts apps/mobile/lib/use-project-directory.test.tsx apps/web/src/pages/ProjectDirectory.test.tsx packages/adapters/src/user-device-client.test.ts packages/adapters/src/user-device-gateway.test.ts packages/adapters/src/user-device-emulator.test.ts --maxWorkers=1
+```
+
+早期 6 文件 73 项、后续 3 文件 34 项、中间综合 171 项及补齐旧配对前的 244 项均已有通过结果，均被最后 245 项收口范围覆盖，不相加计数。补查发现旧本机配对可能缺少 userId／deviceId，最初无法进入可信目录范围；已在用户明确选择目录时撤销旧 token、串行清理旧配对后重新配对，不改变整机授权，增加对应回归并复测上述完整范围。待验：真实 PostgreSQL 迁移及 RLS、Windows OS 选择／重启与撤权、iPhone 前后台与离线状态、真实账号切换、生产双端安装、云电脑目录绑定、项目文件执行链；对应步骤见 [目录测评](ACCEPTANCE.md#本机项目目录授权pa-022) 和 [候选运维](OPERATIONS.md#本机项目目录候选)。
+
+## 手机会话模型显示与切换（2026-11-20）
+
+PA-021 的 Windows 工作区离线验证。`chat-model-picker.test.tsx`、`thread-composer.test.tsx`、`thread-route.test.tsx` 与 `chat-title-avatar.test.tsx` 共 147 项通过。覆盖 Bot 信息未到时解析空间默认模型、当前项标记、切换与恢复继承、缓存先于返回更新、保存失败、重复点击、保存期间离开，以及打开选择页保留输入草稿。移动端 TypeScript 与 7 个修改的源码／测试文件 Biome 检查通过。
+
+扩展加入 `model-settings.test.tsx` 时，5 文件共 171 项通过、3 项失败。失败集中于模型设置的「添加备用模型」连接选项及指定空间的供应商跳转，相关设置页和测试文件本轮未修改。未运行改动前的对照。尚未生成 IPA／OTA 或执行 iPhone 真机验收。
+
+同日补测时，单跑 `model-settings.test.tsx` 复现 24 项通过、3 项失败。提交 `e3a16f580` 已将新增连接改为账号设置直接打开自定义 OpenAI 兼容表单，旧预设选项和跳转断言因此失效。更新测试和目录夹具，验证已有连接／部署提供的候选、账号表单无预填端点，以及 `models/setRole` 在目标 Space 请求上下文中保存备用模型。业务源码未改。以单 worker 合跑上述 5 文件，174 项通过；移动端 TypeScript、所改测试 Biome 及限定写集差异检查通过。另复查 USB 无设备，当前进程无 Expo 发布令牌及 EAS CLI，`sideload` 更新请求仍返回 204，响应体为空。
+
+## 项目文字任务执行边界（2026-11-20）
+
+范围：PA-022 的 P1 Worker 文字会话权限。当前 Windows 工作区、既有依赖、Vitest 单 Worker；没有启动数据库／服务、安装依赖、执行全量构建或生产操作。实现按持久 Run 项目标识区分首页与项目，不以界面显示、提示词或请求参数建立目录授权。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 首批定向回归 | `run-project-policy.test.ts`、`run-tools.test.ts`、`executor-lazy-computer.test.ts` 共 3 文件 91 项通过；后续增加运行时／审批恢复用例，以收口结果为准 |
+| 扩展执行器与首页兼容 | 13 文件共 332 项：324 通过、8 失败。失败均在 `executor.test.ts` 的定时唤醒用例，`run-routines.ts:230` 调用归属解析时没有数据库租户上下文，抛出 `IsolationError`。定时唤醒实现、归属解析和该测试文件均未修改；本轮未修复这些用例，也未运行改动前的完整对照，不能宣称整套回归通过 |
+| 收口定向回归 | `run-project-policy.test.ts`、`run-tools.test.ts`、`executor-lazy-computer.test.ts`、`strategic-initiative-run.test.ts`、`executor-approval-replay.test.ts` 共 5 文件 120 项通过。覆盖文字工具及自身身份字段白名单、首页工具保留、原调用与旧审批恢复拒绝、电脑切换中继续文字回复、无租约／环境探测／插件发现／共享上下文、直接文件请求拒绝、脚本运行器不打开流、接管／助手事件拒绝及脚本文件／两类记忆不提交 |
+| TypeScript | `node ./node_modules/typescript/bin/tsc --noEmit -p packages/adapters/tsconfig.json` 最后退出 0。接线期间先修正 MCP 原生运行参数的禁用值（应为 `undefined`，不能传数组），再修正新增测试的脚本字段（`assistant`）；此前两次类型失败不作通过证据 |
+| 格式与 lint | 9 个本批文件完整 Biome 检查通过；`run-tools.ts` 仅执行关闭 formatter 的 lint 检查并通过。该文件原有托管任务块不符合 formatter 输出，保留其既有排版，未顺带重排。未检查全仓格式 |
+| 数据库、发布与设备 | 未运行 PostgreSQL 集成、迁移、真实模型／Worker 项目闭环、PAT 或设备验收。项目 CHECK 与生产开关未改；没有构建／发布 Windows、IPA 或 OTA，不计 P1 整体完成 |
+
+扩展回归另含：`executor.test.ts`、`builtin-tool-bridge.test.ts`、`github-tools.test.ts`、`native-computer-tools.test.ts`、`packages/db/src/history-retrieval.test.ts`、`memory-context.test.ts`、`background-job-handlers.test.ts`、`executor-mcp-session.test.ts`、`executor-start-timing.test.ts`，以及上述收口范围的前四个文件。各批有重叠，不能把 91、324 和 120 相加当作不同用例总数。
+
+交付前检查 10 份相关 Markdown 当前改动中新增的 70 条本地文件／标题链接，均可解析；本批已跟踪代码与相关文档的 `git diff --check` 退出 0，仅提示 PLAN 既有 CRLF 将规范为 LF。检查不覆盖远端网址可用性。完整的项目隔离验收仍按 [测评清单](ACCEPTANCE.md#项目基础文字会话pa-022) 和 [运维边界](OPERATIONS.md#项目文字执行候选的权限范围) 继续。
+
+## GitHub 与项目会话续作（2026-11-20）
+
+范围：PA-022、PA-024 追加目标的离线实施。当前窗口复核既有 PC／API／GitHub 只读工具，新增手机原生 GitHub 与分析草稿，接入双端项目文字会话和共享状态，并同步实际发布依赖。运行环境为当前 Windows 工作区及既有依赖，Vitest 单 Worker；不启动服务、Docker 或数据库，不安装依赖，不执行全工作区构建、提交或推送。生产只读基线沿用本日上一轮记录：GitHub 连接表、项目元数据表不存在，两项目实验开关未配置；本轮未再次变更生产。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 既有 GitHub 回归 | 15 文件首轮：14 文件 197 项通过，仓库检索／速览组件文件 6 项因测试缺少实际 `@lingui/react` Provider 失败。保留界面源码，仅补真实 I18nProvider 后，该文件 6 项单独复测通过；修正后的复测仅覆盖该文件 |
+| 新增手机 GitHub | 3 文件 19 项通过，覆盖 scope 固定、匿名搜索、PAT 校验与绑定解绑、筛选分页、离焦取消、旧详情忽略、隐藏私有及撤销清缓存；页面覆盖密文输入与离焦清空、外部 HTML 只显示文字、重试／解绑；分析草稿覆盖验证 Bot、保留旧稿、存储失败、账号切换与空名单 |
+| 项目及相关导航综合回归 | 19 文件首轮 475 项通过、8 项失败。失败集中在设置布局替身未提供 `locale`（7 项），及原设置注册表遗漏已有 `devices`／新 `ui-mode` 页面（1 项）。补齐替身、两条注册项，并增加 GitHub 根路由先关闭设置页的用例后，两文件 18 项复测通过。未变更的另外 17 文件 466 项继续使用首轮通过证据；合计 19 文件 484 个不同用例均有通过结果，修正后仅重跑这两个受影响文件 |
+| 项目核心与双端 | 上述综合范围含共享会话 11 项、手机传输 5 项、手机页面 4 项和桌面页面 6 项。覆盖项目／群目标、旧账号及旧流忽略、慢快照不回退、文本渲染、授权确认不自动发送、重复提交、未知结果 nonce 复用、手机离焦回焦以及读断线重连；API 项目门禁、范围恢复和授权、数据库元数据／上下文替身、Worker 持久范围与共享记忆排除亦在综合范围。收口补齐读取明确拒绝后清除快照及授权显示，上述 4 文件 26 项再次复测通过，核心 TypeScript 与两文件 Biome 复核退出 0 |
+| 移动 API 旧断言调整 | 更早一轮因空服务器设置仍断言应拒绝而出现 1 项失败。现有逻辑已将空设置视为默认地址，本轮只调整测试：保留存储不可读／非法地址拒绝，分别新增 null／空串回退默认地址；后续完整 API 文件通过。另补项目授权提示中取消后不得继续授权／发送，并将取消信号传入项目授权子请求 |
+| TypeScript | `apps/mobile/tsconfig.json`、`apps/web/tsconfig.json`、`packages/core/tsconfig.json` 的 `tsc --noEmit` 均退出 0。新页面、RPC 参数及共享状态使用现有契约；未用构建或设备运行代替类型证据 |
+| Biome | 21 个明确指定的新文件／已格式化的改动文件检查退出 0；不对原有整份未格式化的 `Projects.tsx` 或大型 API 测试进行全局格式重写 |
+| 文档链接及空白 | 检查 11 份本轮相关 Markdown 改动中新增的 67 条本地链接／标题锚点，均能解析到文件或标题。`git diff --check` 退出 0；Git 仅提示 PLAN 现有 CRLF 将规范为 LF，未改变行尾策略 |
+| 实际数据库与生产 | 未运行 PostgreSQL 集成测试、迁移或禁写解除；没有执行真实 GitHub PAT、模型／Worker 项目闭环或两个真实项目的数据库隔离测试。Windows／iPhone 尚未安装本轮代码，未做真机布局或升级验收 |
+
+综合用例文件为：
+
+- `packages/core/src/project-thread-session.test.ts`；`packages/contracts/src/project-workspace.test.ts`。
+- `apps/mobile/lib/{use-project-thread.test.tsx,project-chat-screen.test.tsx,api.test.ts,use-github.test.tsx,github-screen.test.tsx,github-bot-analysis.test.tsx,settings-sheet.test.ts,settings-layout.test.tsx,project-workspace-list.test.tsx}`。
+- `apps/web/src/pages/ProjectThread.test.tsx`；`apps/api/src/routes/{project-workspaces.test.ts,project-workspace-thread.test.ts,context-project-stream.test.ts}`。
+- `packages/db/src/{project-workspace-read.test.ts,project-workspace-context.test.ts}`；`packages/adapters/src/{background-job-handlers.test.ts,memory-context.test.ts}`。
+
+实际命令使用现有 `node ./node_modules/vitest/vitest.mjs run <上述逐项文件> --maxWorkers=1`；类型检查为 `node ./node_modules/typescript/bin/tsc --noEmit -p <对应 tsconfig>`。本节聚合经过整理的结果，不保存原始测试输出或个人数据。
+
+当前缺口：项目资源迁移仍有明确非空禁写 CHECK，目录授权／后台绑定／真实连接状态未接通，项目高级操作和较早历史分页未实施。项目草稿及未确认发送状态只在当前页面生命周期保留，不承诺跨路由销毁／重启恢复。GitHub 手机速览为原生可选中文本，未实现桌面式 Markdown 抽屉或悬停，不据此推定双端视觉相同。部署筛选与回退边界见 [运维方案](OPERATIONS.md#github-与项目工作区发布边界2026-11-20)，各项测评见 [验收清单](ACCEPTANCE.md#项目基础文字会话pa-022)。
+
+## PA-023 云电脑画面全覆盖修复（2026-11-20）
+
+范围：修复 noVNC 远程桌面在宽屏容器中保持 4:3 比例而产生左右黑边的问题。`infra/sandboxes/computer/embed.html` 为 noVNC 画布设置容器宽高 100%、块级布局并取消等比 CSS 变换；VNC 连接、只读状态、远程输入和移动端键盘／触控板逻辑未改。资源测试新增嵌入页全覆盖规则断言。
+
+上一轮离线验证：`mobile-keyboard.test.ts` 的 17 项通过，Biome 与差异空白检查通过；仅证明嵌入资源，不能证明生产生效。用户随后明确要求部署，发现原生生产使用 `/usr/share/novnc/vnc.html`，没有 `embed.html`；本轮新增 `infra/native-linux/novnc-full-coverage.css` 并接入实际原生页面，修正此前按电脑镜像交付的判断。
+
+2026-11-20 北京时间 14:26:57 部署：备份现有 `vnc.html`、`vnc_lite.html` 后，原子写入新增样式和两页的引用；页面及 CSS 的回环 HTTP 校验通过。发布目录为 `/srv/rakazo-releases/pa023-coverage-20261120T062657Z`（0700），包含原文件、存在性基线与结果摘要；CSS SHA-256 为 `f75a4a855af8e1be50a104b6b49fb7585e7f7656d597285a92806717414cec01`。没有重建镜像、重启远程桌面／驱动／API／Worker 或修改数据库。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 部署前 Windows 基线 | 已安装 Sydney-partner 原登录会话有效，通过正常电脑面板打开原生 noVNC；1024×768 画布，视口约 1267×743，画布左侧偏移 138.10px，尚无新增 CSS。首次采样仍为单色，不作为真实帧证据 |
+| 部署后真实帧与全覆盖 | 同一客户端和正常画面路径，1024×768 像素缓冲不变；视口约 1267×743，显示画布约 1267.43×743.43，左上偏移均为 0，32×32 抽样网格发现 93 种颜色。已确认新增样式加载，noVNC `viewOnly=true` |
+| 窗口变化 | 窗口调整为 1500×950、1180×900 后，画面视口分别约 1487×859、1167×809，画布显示尺寸分别约 1487.43×859.43、1167.43×809.14；四边误差小于 1 CSS 像素，抽样仍为 93 种颜色、只读保持 |
+| 服务状态 | display、desktop、VNC、websockify 四服务 active；API、Worker、PostgreSQL 仍 healthy；公网 `/health` 返回 `ok=true`，无服务重启 |
+| 本轮未执行 | iPhone 真机、接管后的输入与本轮主动断线重连、回退演练未执行；较早画面重连证据单列保留。非等比填满会改变显示比例，远程桌面内容完整保留；不声称是分辨率自适应 |
+
+本次原生页面部署已验证 Windows 全覆盖；镜像 `embed.html` 改动仍未构建发布。noVNC 软件包升级可能覆盖页面引用，升级后需按 [运维记录](OPERATIONS.md#云电脑全覆盖样式部署2026-11-20) 重新核对。
+
+收口检查：新增 CSS 的 Biome 检查退出 0，产生 6 条 `noImportantStyles` 警告；这些覆盖用于优先于 noVNC 在画布上写入的内联尺寸／边距，保留并记录，未静默屏蔽。相关文档的 `git diff --check` 通过。自动化客户端已正常退出，并以无调试参数的普通方式重新启动已安装客户端；未保存截图、会话内容或画面票据到文档。
+
+## PA-023 云电脑画面恢复（2026-11-20）
+
+范围：用户要求先恢复云电脑画面，随后明确手机端也需要修复。首次恢复现有专属账号的显示／画面服务，验证 Windows 已安装客户端，并修正移动端画面读取错误被吞掉的问题，未写数据库。之后用户明确回复“允许”，追加授权暂停生产 Worker、校准团队连接引用并恢复 Worker；续作证据单列在本节末尾。不含 Web 恢复演练或取消／回答用户任务。
+
+| 用例 | 实际结果 |
+| --- | --- |
+| 故障定位 | 专属驱动运行，但 `/tmp/.X11-unix/X10` 缺失；VNC 在等待该 socket 时持续失败。服务器已有 Xorg／xorgxrdp、XFCE、xauth 和 xdpyinfo，没有可直接调用的 Xvfb；未借用其他账号的显示 |
+| 专属服务恢复 | 部署 `infra/native-linux/xrdp/` 三个配置。Xorg、XFCE、VNC、websockify 均 active／enabled，运行期间未观察到新 display／desktop 重启；未执行主机重启验收 |
+| 启动中断与修正 | 首次启动因 `ProtectSystem=strict` 禁止写入 `/tmp/.tX10-lock` 失败。核对失败进程和锁文件状态后，仅为新显示／桌面服务补齐 `/tmp` 写路径，再部署成功；未重启驱动、API 或 Worker |
+| 画面上游 | 以专属账号运行 xdpyinfo 成功，1024×768；回环 VNC 的 RFB 003.008 握手和 ServerInit 成功；noVNC `vnc.html` 返回 200 |
+| 监听边界 | 5900 仅监听 `127.0.0.1`／`::1`，6080 仅监听 `127.0.0.1`，未发现 X11 TCP 6010 监听；既有 VNC `10-view-only.conf` 和 `-viewonly` 保留 |
+| Windows 真实加载 | 已安装 Sydney-partner 0.4.0 正常关闭后，使用原 profile 验证，登录会话保留。通过其正常电脑面板加载同一账号的专属电脑，画面地址 RPC 200；noVNC 页面及所需脚本 200，真实画布 1024×768、抽样颜色 443 种。观察到可选 `package.json` 探测 404，未影响实际连接 |
+| Windows 自动重连 | 主动关闭当前画面 WebSocket 后，客户端重新签发／加载画面并自动连接，新连接重新收到非单色真实帧；关闭前／重连后分别记录 40／41 条服务端 WebSocket 消息。仅覆盖画面断线，不代表服务器或路由重启恢复 |
+| 只读限制 | noVNC 运行态 `viewOnly=true`；通过已授权画面连接发送无按键指针移动请求，前后两次服务器指针坐标一致。未发送按键、点击、文本或剪贴板输入，不据此声称这些输入均做了端到端测试 |
+| 未授权拒绝 | 公网无效签名路径 `/novnc/session/view/0.invalid/vnc.html` 返回 403；未签发合成能力或绕过正常画面授权 |
+| 团队电脑首次定位 | 当时团队电脑画面地址 RPC 500，API 日志为原生驱动拒绝。只读事务使用配置限定的租户身份查询：专属电脑现有引用 status 成功，团队旧引用失败；团队 homeKey 与引用格式有效，使用同一 socket 上已验证的当前代次做只读 status 成功。首次定位未改数据库引用或电脑状态；后续修复见下表 |
+| 首次维护边界 | 维护前团队电脑有一条 waiting_input Run、零有效执行租约、controlHolder 为 none 但保留旧 controlLeaseId；driver inspect 为 unknown，不能证明历史进程登记或旧任务已结束。首次定位保留任务、租约和引用，取得用户追加维护授权后再执行下述操作 |
+| 手机端源码修复 | 画面读取失败通知页面并显示错误和重试；成功读取清除错误，保留原有可用 URL；异步失败在目标废弃后不回写。预览和完整窗口均展示失败；重试读取画面，不额外调用 boot 或 recover |
+| iPhone | 沿用本日既有只读设备证据：Sydney 1.0.12（构建 1）、iOS 27.0.1，开发者镜像未挂载。未取得本轮真机 WebView／重连证据，未安装、发布 IPA／OTA；手机是否包含本轮修复保持未验证 |
+
+本机执行 `node ./node_modules/vitest/vitest.mjs run apps/mobile/lib/computer-refresh.test.ts apps/mobile/lib/computer.test.ts apps/mobile/lib/computer-screen.test.tsx apps/mobile/lib/screen-navigation.test.ts --maxWorkers=1`：4 文件 165 项通过。`node ./node_modules/typescript/bin/tsc --noEmit -p apps/mobile/tsconfig.json` 通过。Biome 检查 `computer-refresh.ts`、两个改动测试及 `app/computer.tsx` 退出 0，保留屏幕测试中既有一条字符串拼接 info，未作无关修改。
+
+首次屏幕组件测试因现有 RN 替身缺少新模式宿主引入的 StyleSheet 而在收集阶段失败；将本测试的模式宿主替换为经典视图透传，模式宿主本身仍由其专属测试覆盖。新增重试用例最初把页面既有首次 boot 计为重试副作用，改为比较点击重试前后的调用数后，全量定向复测通过。未安装依赖或运行全工作区构建。
+
+生产 `systemd-analyze verify` 对两份新单元及既有 VNC 单元退出 0；另有既有 `tat_agent.service` 的旧 PIDFile 路径提示，未修改该服务。12:14 完成最后一轮画面／重连检查后，关闭临时调试实例并以不带调试参数的已安装客户端重新启动。配置回退材料在 `/srv/rakazo-releases/pa023-screen-20261120/rollback/`，本轮未执行回退或 PA-023 完整恢复演练。
+
+改动范围内 `git diff --check` 退出 0（PLAN 另有既有换行格式提示）；新增三个标题锚点、三个源码链接与新单元行尾空白检查通过。三份部署配置与仓库源码在规范化换行后逐字一致；哈希比较命令被当前 Guard 拒绝，实际采用直接文本比较。正常重启后的 Sydney-partner 进程存在，未带调试参数。
+
+### 团队连接维护与复验（2026-11-20）
+
+| 用例 | 实际结果 |
+| --- | --- |
+| 授权与前置复核 | 用户明确允许本次 Worker 短停和团队连接校准。原生专属／团队电脑均无 queued、leased、running Run、有效执行租约或进行中的电脑更新；团队保留一条 waiting_input，接管租约已过期且 holder 为 none。驱动无直接子进程；inspect 仍为 unknown，未将其解释为历史任务已结束 |
+| Worker 停止与恢复 | 北京时间 12:27:50—12:28:05（含健康等待）完成维护。`rakazo-prod-worker-16` 使用无限等待的优雅停止，退出码 0，未强杀；原容器启动后恢复 healthy。API 保持 healthy，原生驱动 PID 不变 |
+| 受限备份 | 服务器 `/srv/rakazo-releases/pa023-screen-20261120/team-reference-maintenance/20261120T042750Z-before.json` 保存电脑、Bot、Run 状态和租约元数据，不包含会话正文；对应 `20261120T042750Z-result.json` 保存维护结果。目录 0700、文件 0600，不写入仓库或回显实际身份／连接代次／控制令牌 |
+| 事务校准 | 使用 API 运行环境和限定租户，在短事务内对 computers、bots、runs、computer_execution_leases、computer_updates 取 SHARE ROW EXCLUSIVE 锁；设置锁与语句超时。快照与备份一致且无有效租约／执行任务后，用相同驱动已验证的当前引用对团队身份复核 status。条件更新仅变更团队 providerRef、screenGeneration 加 1 和 updatedAt；提交前对照快照确认其他记录未变，更新后驱动 status 成功 |
+| 过期接管处理 | 校准事务保留原任务和接管数据。恢复后正常画面读取／后台过期处理可以成功撤销旧接管，后续只读复核显示 controlLeaseId、controlLeaseExpiresAt、controlBotId 已清空，holder 仍为 none、controlFence 未变。这是既有过期清理链路恢复，不是维护脚本重置租约；未恢复过期令牌。原团队 Run 状态全部未变，waiting_input 仍为 1，有效执行租约仍为 0 |
+| 双端共用画面接口 | 已登录 Windows 会话调用团队 computer/screenUrl 返回 200、有效画面地址和 rakazo-novnc；通过正常打开入口触发的 boot、heartbeat、screenUrl 均 200。没有模拟签名或跳过 generation／status 校验；此项只证明共用后台接口恢复，不代表 iPhone WebView 实测 |
+| Windows 团队真实画面 | 使用已安装 Sydney-partner 0.4.0 和原登录 profile，点击电脑面板「打开」，完整窗口连接成功，真实画布 1024×768、48×48 网格抽样 135 种颜色；运行态 viewOnly=true |
+| Windows 团队自动重连与预览 | 主动关闭该画面 WebSocket，自动建立新连接并重新收到非单色真实帧，仍为 1024×768、抽样 135 种颜色；新连接记录 50 条服务端消息，viewOnly=true。关闭完整窗口后，预览 iframe 再次 connected，分辨率 1024×768 |
+| 自动化首次中断与修正 | 首次脚本仅等待团队预览 iframe，35 秒超时；当时界面显示「团队电脑／打开」，没有 iframe，不能判定画面加载通过。改为按用户正常入口点击「打开」，再验证完整窗口和返回预览，实际链路通过；未为测试修改产品代码 |
+| 授权拒绝与清理 | 已登录客户端经正常代理访问无效画面能力返回 403。验证后正常关闭调试实例、普通启动已安装客户端，主进程存在且无 inspect／remote-debugging 参数，9315 无监听。Web 容器仍未运行；原驱动及四个画面服务 active |
+
+本次续作未改新的移动端源码，复用上方仍适用的 165 项回归、类型和格式检查证据。未发布 IPA／OTA，未安装手机新版本，iPhone 首次加载、重连和前后台切换继续待验；未执行引用回退、主机重启或完整 Web 恢复演练。
+
+续作文档验收：七份受影响文档的 `git diff --check` 退出 0，PLAN 仍有既有 CRLF 转 LF 提示；本轮相关章节中的 18 个本地文档／源码链接及目标标题锚点检查通过。未重新运行未发生源码变更的移动端回归。
+
+## 移动端模式选择与内置皮肤离线验收（2026-11-20）
+
+- 关联 PA-018、PA-020、PA-021。用户确认 iPhone App 名称为 `Sydney`；`apps/mobile/app.json` 中 `expo.name` 与之相符。Windows 包 `productName` 为 `Sydney-partner`，本轮未修改双端名称。
+- 新增 iOS「设置 → 界面模式」页面及 `midnight`（午夜）内置模式。使用深蓝色令牌、深色外观锁和实体玻璃回退，沿用原聊天外观；不加载远程皮肤或新增依赖。默认仍为 `classic`。
+- 执行 `node ./node_modules/vitest/vitest.mjs run apps/mobile/lib/ui-mode-screen.test.tsx apps/mobile/lib/ui-mode.test.ts apps/mobile/lib/ui-mode-store.test.ts apps/mobile/lib/ui-mode-registry.test.ts apps/mobile/lib/ui-mode-provider.test.tsx apps/mobile/lib/ui-mode-slots.test.tsx apps/mobile/lib/appearance.test.ts apps/mobile/lib/chat-appearance.test.ts apps/mobile/lib/chat-appearance-screen.test.tsx apps/mobile/lib/glass-surface.test.tsx apps/mobile/lib/app-error-boundary.test.tsx --maxWorkers=1`：11 个文件、64 项通过。新增覆盖界面预览不写盘、取消、应用后新建 store 水合恢复、离开／卸载页面取消预览、重置及 Android／Web 平台过滤；集成用例覆盖内置模式先注册后水合，以及恢复用户原明暗偏好。
+- 执行 `node ./node_modules/typescript/bin/tsc --noEmit -p apps/mobile/tsconfig.json` 通过；Biome 检查 8 个本轮改动源码／测试文件通过。首次通过 `pnpm.cmd` 传递含括号路径在命令解析阶段失败，随后直接调用已安装工具入口；首次 Biome 报告测试替身的 radio 语义问题，改用原生 HTML radio 后单独复测页面文件，4 项通过。未安装或升级依赖。
+- `git diff --check` 通过；本轮新增的 4 处文档链接及标题锚点检查通过。检查后再次运行移动端 TypeScript，通过。
+- 以上为本机离线验证；未构建、发布或安装 IPA／OTA，未操作手机数据，未连接服务器或切换生产服务。后续只读查询已确认手机现有 Sydney 为 `1.0.12`（构建 `1`），具体设备和源包关联见下文准备复核；带本轮功能的候选、系统字号、切换视觉及升级仍按 [测评清单](ACCEPTANCE.md#iphone-多模式换肤pa-018pa-020pa-021) 待验。原内核在 SecureStore 写入失败时仅保留进程内模式，本轮未改变该行为；成功持久化用例不覆盖设备 Keychain 写入失败。
+
+## 移动端多模式 UI 离线验收（2026-11-20）
+
+- UI 模式存储、注册表、Provider、屏幕宿主、外观、聊天外观、设置页、玻璃表面和应用错误边界共 10 个定向测试文件，59 项全部通过。
+- `pnpm --filter @rakazo/mobile exec tsc --noEmit -p tsconfig.json` 通过。
+- Biome 检查本轮 21 个移动端源码和测试文件通过。
+- 覆盖模式持久化/预览/恢复、平台门禁、主题 Provider 更新、同 ID 定义替换、页面插槽与 Hook 保序、屏幕崩溃回退、玻璃策略、根错误恢复及原聊天设置保留。
+- 未执行 IPA／OTA 构建、签名、安装或 iPhone 真机验收；本机未启动 Docker、数据库或桌面服务。
+
+## 续作测评记录
+
+2026-11-19。操作与通过条件见 [续作测评清单](ACCEPTANCE.md#续作测评)，证据明细见 [历史验证记录](#历史验证记录)。
+
+实测时写明日期、环境、API／Worker 版本及适用的客户端产物版本。按验收清单中的测评项逐条追加结果。证据可引用脱敏截图、Run 编号、构建号或健康检查摘要。失败时写入实际行为及复验条件。
+
+### PA-023 环境与候选准备复核（2026-11-20）
+
+#### 旧账号登录成功反馈（同日 11:15 更新）
+
+用户先反馈此前注册的账号无法登录，随后明确回复“可以登录哦”，并提供 Windows 客户端已进入会话页面、显示既有会话的截图。本机只读核对：`%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe` 已在运行，主窗口标题为 `Sydney`，本项目 profile 保存地址仍为生产 HTTPS 后台。另一个目录下 Sydney 进程的窗口标题为 `Sydney · 个人工作 OS`，不混用两者证据。
+
+本项记为“旧账号登录成功、会话加载：用户实测及截图确认”，不再将账号无法登录或客户端未运行列为当前阻塞。未读取密码、会话令牌或复制聊天内容；未额外提交登录请求、重置账号或修改认证代码。截图不覆盖冷启动、退出重登、消息发送、双端隔离、Slack／MCP 回跳、画面、升级或 Web 恢复演练，相关项目仍逐项待验。以下较早的未运行、未登录状态保留为历史时点记录。
+
+本机只读检查结果（补入同日实际设备查询）：
+
+- Windows 即插即用当前枚举到状态为 `OK` 的 Apple iPhone，Apple Mobile Device Service 运行。通过已安装 iPASide 的内置 Python 与 `pymobiledevice3`，在 `autopair=False` 下成功只读查询 USB 设备和已安装应用：设备报告 iOS `27.0.1`，目标应用显示名与内部名称均为 `Sydney`，版本 `1.0.12`、构建 `1`；应用标识为 `xin.zxlup.sydney` 加重签后缀（脱敏）。本机存在可用设备库，不需要为了查询重新安装依赖。
+- Windows 卸载登记显示 `Sydney-partner 0.4.0` 已安装，`%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe` 存在，`%USERPROFILE%\.sydney-partner\setup.json` 保存后台 `https://124.221.182.39`。当前未运行该客户端；正在运行的 `D:\33054\Sydney\Sydney.exe` 属于另一桌面项目，不作为本项目验收证据。本轮未启动、安装或登录 Windows 客户端。
+- `Sydney-partner 0.4.0` 安装候选存在，Authenticode 状态为 `NotSigned`。本地 iOS 构建 `44298985618` 的 IPA 未包含 `embedded.mobileprovision` 或 `_CodeSignature/CodeResources`，不能作为已签名可安装候选；此前 IPA 查找范围仅覆盖本仓库、指定候选目录、Downloads 和 Desktop，不代表整机没有其他签名包。
+- 手机应用与当前 USB 设备精确匹配到 1 条本机侧载续签记录。记录源文件存在，为 `25,989,087` 字节，SHA-256 `5f4333747c6faf8775dc487ccdd452d218dfa4818f0a80f0d424508390bbc058`，与本地云构建 `44298985618` 的 `SHA256.txt` 一致。这证明记录源包对应既有候选，未读取已安装应用的可执行文件来证明其字节相同，也不代表包含本轮未发布的换肤代码。
+- Misagent 只读返回 5 份与目标应用标识匹配的描述文件，查询时均未过期；未确定已安装应用实际嵌入哪一份，因此不据此承诺该安装的剩余有效期。现有 `scripts/iphone_image_readonly_probe.py` 实测为已连接、`personalized_image_found: false`；本轮未挂载开发者镜像、配对、签名、续签、启动或覆盖手机应用。
+- SSH 配置中没有经确认的隔离测试环境入口；已知生产主机不能替代测试环境，另一个 SSH 别名也未核实为测试环境。本轮未连接任何服务器。当前工作区没有测试环境地址或登录凭据。
+- 未登录真实测试账号，未执行 Windows/iPhone 登录、Slack/MCP 授权、云电脑画面或客户端升级测试。未执行 Compose/画面桥恢复、网关 reload 或任何生产流量修改。
+- 本次仅补入设备与安装候选证据，`git diff --check` 和新增 2 处准备记录链接／标题锚点检查通过；没有为文档更新重跑应用测试。
+
+结论：设备连接、已安装 Sydney 版本及记录源包的候选关联已补齐，不能继续将“未读取手机应用”列为阻塞。已安装 Sydney 可作为后续非升级用例的被测版本，升级用例仍需另备目标签名候选。没有新增登录、回跳、画面或恢复等 PA-023 必测用例通过；仍需获授权测试环境的明确入口、用户自行登录的 Windows 验收账号/profile，以及该环境可用的 Slack/MCP 和画面条件。若仍只有现有生产，恢复 Web 与再切回直连必须先确认本次维护范围和时段；此前已执行的首次生产切换不自动覆盖恢复演练。按 [验收清单](ACCEPTANCE.md#停用-web-与恢复演练pa-023) 逐项执行，不以设备元数据替代业务结果。
+
+同日北京时间 10:45 的后续复核：Sydney-partner 进程数为 `0`，已安装 profile 的保存来源仍为 `https://124.221.182.39`。没有收到本次生产恢复／再切换的维护确认，也没有新的获授权测试环境入口。环境与账号条件在恢复目标后的连续续作中持续缺失；可独立推进的换肤离线代码和手机版本识别已经完成，当前无法执行剩余真实用例。目标工具已返回 `blocked`，不是 `complete`。本轮仅同步阻塞状态，未启动客户端、连接服务器、触发外部授权或更改生产流量；待条件落实后恢复同一完整目标。
+
+| 测评范围 | 已有证据 | 本轮待执行 |
+| --- | --- | --- |
+| 发布基线 | GitHub 离线基线为 `5bff060a7`。iOS 已有 `0ca3357a5` 的候选产物 | 确认发布候选纳入的改动、对应定向回归及 API／Worker 与双端产物的版本组合 |
+| GitHub 模块 | 基线离线回归 15 个测试文件、203 项通过 | 在授权 PostgreSQL 验证迁移与应用角色隔离，使用真实测试 PAT 完成页面、只读工具和解绑验收 |
+| Windows | `Sydney-partner 0.4.0` 已安装并配置生产 API；此前健康 RPC 与认证能力接口均返回 `200`。同日 11:15 用户确认旧账号成功登录并提供会话页截图，本机确认该客户端正在运行、窗口标题为 `Sydney`。另有合成 profile 的旧数据迁移证据 | 冷启动、退出重登、消息发送、真实旧 profile 迁移和账号／工作区切换仍需分别记录；不再列账号无法登录为阻塞 |
+| iPhone | 已通过 USB 只读确认 iOS `27.0.1` 上安装 `Sydney 1.0.12`（构建 `1`）；对应本机侧载记录的源包摘要与提交 `0ca3357a5` 的云构建 `44298985618` 校验文件一致 | 使用已安装版本验证冷启动、空服务器配置恢复、重新登录与会话隔离；升级另备目标签名候选并分项记录；未挂载开发者镜像 |
+| 停用 Web 与恢复 | 生产已切换客户端直连，Web 和旧桥已停止，公网应用入口 `404`、API 就绪；配置和数据库备份已保留 | 双端真实授权与升级、恢复缺失的原生桌面会话并验证画面；实际恢复演练未执行 |
+
+本轮文档检查核对了续作计划、测评清单和验证记录中的 13 处链接及标题锚点，确认 14 项测评用例和 5 条证据记录的表格格式正确。
+
+### PA-023 切换前验收预检
+
+2026-11-19。以前述停用 Web 用例为完成标准。执行与恢复顺序见 [运维手册](OPERATIONS.md#pa-023-切换与恢复顺序)。
+
+#### PA-023 继续验收复核（2026-11-19）
+
+北京时间约 22:25 起复核。现有环境只有生产，之前按用户授权完成的直连切换仍生效；本轮没有独立测试环境可用于恢复流量演练。按本条“生产切换须经用户确认后执行”的要求，未再次切换生产、重启服务或恢复旧入口。以下区分实际通过的预检与未完成的端到端验收。
+
+| 必测项 | 本轮实际证据 | 结论与继续条件 |
+| --- | --- | --- |
+| 停用 Web 与 API 就绪 | `rakazo-prod` 中 API、Worker、PostgreSQL 健康，Web 和旧 Web 回环桥已退出；新 API 回环桥运行。HTTPS `/health` 和 `/ready` 均为 `200`，`degraded=false`，`/app` 为 `404`。当前覆盖的默认服务清单排除 Web 和旧桥 | 服务拓扑检查通过；不能替代双端业务验收 |
+| Windows 安装与重新登录 | 本机 `Sydney-partner 0.4.0` 安装器仍为 137,081,069 字节、未签名。普通启动的已安装程序停在 `/sign-in`，邮箱输入框存在。从该窗口调用 `/api/auth/get-session` 为 `200`，返回无有效登录会话 | 登录、注销、重登及消息发送未执行。需用户在客户端登录验收账号；本轮未生成会话或绕过认证 |
+| iPhone 候选与连接 | Apple Mobile Device Service 和 Bonjour 均运行；直接向本机 usbmux 查询成功，设备数为 `0`。本地仍有云构建 `44298985618` 的未签名 IPA | 当前无法进行设备操作，签名候选安装、冷启动、登录、聊天和附件均待实测。需连接并解锁 iPhone，确认安装的应用及构建号 |
+| Slack 安装完成与取消 | 实际 API 容器的 `SLACK_CLIENT_ID`、`SLACK_CLIENT_SECRET` 等安装凭据均未设置；仅检查是否存在，没有读取或记录明文 | 未执行，当前缺少真实安装配置。Slack 是本目标必测项，不能以未配置改记为通过或免测 |
+| MCP OAuth 完成与取消 | 已有返回页可达和离线用例证据；当前 Windows 无登录会话，iPhone 未连接，没有本轮真实 OAuth 事务 | 未执行。需登录后的双端、目标 MCP 服务和用户授权交互；返回页 `200` 不证明授权回跳完成 |
+| 已启用的密码重置 | 生产认证能力实际返回 `passwordAuth=true`、`passwordReset=true`、`emailCode=true`，重置入口为 IP 原生页面 | 未执行真实重置。需受控验收邮箱，记录成功、取消／失效及客户端返回，不向未知邮箱发送邮件 |
+| 原生 noVNC 画面及重连 | `sydney-screen-vnc.service` 处于失败自动重启，`sydney-screen-websockify.service` 未运行；`/tmp/.X11-unix/X10` 不存在。实际服务指定专属桌面账号、`DISPLAY=:10` 及 `-viewonly`，该账号没有运行中的 X 桌面进程 | 当前画面链路失败，既有故障仍未恢复。需恢复原授权桌面会话，再启 VNC／websockify，并在双端验证加载、只读及断线重连；不替换为其他 X 显示 |
+| 无影画面及重连 | 本轮没有新的真实无影连接证据；已有 SDK 静态资源可达证据 | 待登录后核对目标账号实际启用的 Provider；启用无影时必须在双端实测，不能由 SDK 可达推断画面通过 |
+| Windows 安装包升级与版本提示 | 已有同版本更新安装和更新防护合成测试证据，本轮没有跨版本升级或真实 `426` 交互 | 未执行真实升级与升级后会话／数据保留核验 |
+| iPhone 签名升级及 OTA | 当前没有已连接的设备，本地产物为未签名候选 | 未执行签名升级、升级后恢复及启用时的 OTA 验收 |
+| 原 Compose、Web 与旧桥恢复 | 以实际 `.env` 解析原覆盖，服务清单包含 `api`、`web`、`native-screen-web-loopback`；原 API、Web 和桥的镜像均仍可在服务器本地找到。生产 `.env` 与切换前 `deploy.env` 逐项比较相同 | 恢复预检通过；未执行服务协调、Web 健康检查或真实画面恢复 |
+| 网关原流量恢复 | 通过现有 Caddy 容器的标准输入校验原 `Caddyfile.prod` 成功。备份配置、环境、脚本和 2,486,534 字节的数据库备份均存在、权限为 `0600` | 仅语法和材料预检通过；未 reload 旧配置，旧入口登录和画面流量未验收。完整维护演练等待生产操作确认 |
+
+当前 API 运行容器由 Compose 的 `api` 服务解析，名称为 `rakazo-prod-api-21`；操作命令使用 `compose ps -q api`，不假设固定 `api-1`。已将原 Web 恢复、健康后恢复网关、再切回直连的操作顺序补入 [生产恢复与再切换方案](OPERATIONS.md#pa-023-后续维护演练与再切换方案)。该方案尚未实机执行；没有重新运行首次发布脚本，也没有覆盖切换前的回退材料。目标保持进行中。
+
+2026-11-19 22:37 再次读取实际 Windows 窗口和会话：仍在 `/sign-in`，会话查询为 `200`、无登录会话；usbmux 查询成功但设备数仍为 `0`。完整验收目标在连续三轮遇到相同阻塞后标记为 `blocked`，不是验收完成。生产恢复与再切换的用户确认尚未收到；Slack 配置、原桌面会话、真实授权及升级条件尚未补齐。没有新的必测项通过，也没有执行生产流量变更。继续条件为用户登录 Windows 验收账号、连接安装签名候选的 iPhone、补齐实际 OAuth／桌面条件并确认维护演练范围；恢复后继续原完整清单。
+
+文档校验：维护方案的 3 个 Bash 命令块合并后通过 `bash -n`，5 处新增文档链接及标题锚点核对通过，受影响文档的 `git diff --check` 通过。首次检查使用的默认 Git Bash 路径不存在，改用本机已安装 Git 目录后完成校验，没有安装依赖。上述命令块只检查语法，未执行其中的生产变更命令。
+
+#### 2026-11-19 生产直连切换结果
+
+用户确认只有生产环境并授权直接切换。北京时间约 21:35 在 `sydney-cloud-admin` 的 `rakazo-prod` 完成切换。生产原 API 为 `1993995e572fd4235c7684c533db23eb6cf0554e`，当前运行 `sydney-pa023-api:20261119`：基于原 API 镜像和既有锁定依赖，仅补入客户端回调、认证来源、API 画面代理及其必要契约。没有发布 PA-024、项目工作区模型或其他待应用迁移；Worker、数据库实例和云电脑驱动保持原版本。
+
+| 实测项 | 结果与证据 |
+| --- | --- |
+| 候选构建与回归 | 在服务器构建候选，重新生成仅增加 Slack 返回字段的 Prisma Client。候选镜像在无网络、无生产数据挂载的临时容器中通过 12 个定向测试文件、343 项测试。首次误用镜像的生产模式导致认证测试夹具失败，明确使用 `NODE_ENV=test` 并同步对应网关模板后复验通过 |
+| 备份与迁移 | 原覆盖、Caddy、部署环境及原部署脚本保留在 `/srv/rakazo-releases/pa023-direct-20261119/rollback/`。数据库自定义格式备份为 2,486,534 字节，`pg_restore --list` 可读取；没有执行数据库恢复。仅应用 `20261119200000_messaging_install_return_to` 和 `20261120000000_messaging_install_native_return` 两项兼容迁移 |
+| 实际拓扑 | API 健康，`/ready` 为 `200` 且 `degraded=false`；Worker 和 PostgreSQL 保持健康。默认 Compose 服务清单排除 `web` 和 `native-screen-web-loopback`；原 Web 及旧桥实际状态均为 `Exited (143)`。`native-screen-api-loopback` 已运行并共享 API 网络命名空间 |
+| 公网入口 | Windows 外部请求和服务器侧 HTTPS 检查均确认 IP `/health` 为 `200`、`/app` 为 `404`。服务器检查 IP `/` 为 `404`；原域名 `/health` 为 `200`、`/app` 为 `404`。未关闭证书校验 |
+| 认证与回调 | 匿名 `/api/auth/get-session` 为 `200`，响应 `null`；`/rpc/health` 返回 Sydney 健康响应。MCP 返回页、两条集成返回页、邮箱验证返回页、旧 `/sign-in` 兼容页及原生密码重置页均为 `200`。认证能力返回 IP 原生重置地址，域名 Passkey RP 保持 `pc.zxlup.xin`。生产没有配置 Slack 安装凭据，该回调路由为 `404`，未声称真实 Slack 授权通过 |
+| 画面依赖 | 五个无影静态资源均为 `200`，嵌套 SDK 容器没有 `X-Frame-Options`，其他页面保留限制。无效 noVNC 票据返回 `403`。API 到新桥的 TCP 连接成功，但桥后 `127.0.0.1:6080` 拒绝 HTTP 连接：主机原有 `sydney-screen-vnc.service` 依赖的 `/tmp/.X11-unix/X10` 不存在，已持续重启；`sydney-screen-websockify.service` 未运行。未新建桌面会话或将其他 X 显示替换为用户桌面，真实画面加载和重连待恢复既有 `:10` 会话后验证 |
+| 持久配置与恢复 | 使用原 `.env` 指定的单份 `/etc/rakazo/compose/production.overlay.yml`，`migrate` 和 API 固定到候选镜像，Web 加入 `legacy-web` profile，更新器配置跳过 Web；生产当前没有运行 updater。部署脚本同步仅跳过未启用 Web 的改动，`bash -n` 通过。首次 Caddy 预检因只读根文件系统不能复制临时配置而中止，当时生产尚未更改；改为标准输入验证后切换成功。未执行切换后的 Web 或数据库恢复演练 |
+
+生产发布源码清单、局部源文件、构建和验证摘要留在 `/srv/rakazo-releases/pa023-direct-20261119/`，只在服务器保留运维备份。实际运行版本是原生产基线加局部补丁，不是当前工作区 HEAD 的全量部署。双端登录、发送消息、真实 OAuth、签名 iPhone 升级及真实画面仍待逐项实测。
+
+Windows 安装名已调整为 `Sydney-partner`，应用标识保持 `dev.rakazo.desktop`，与 `D:\33054\Sydney` 的另一个应用拥有不同卸载注册项。初次 NSIS 安装返回 `0`；包元数据检查和两项打包版 Playwright 用例通过。真实首次启动发现 Roaming 目录中配置文件原子重命名返回 `EXDEV`，用独立文件操作复现；改用 LocalAppData 后仍失败，因此放弃该路径。用户主目录下 `.sydney-partner` 的两次独立文件重命名均成功，最终 Windows 打包版默认使用此目录，保留原子写入，不删除旧 profile。
+
+最终安装器为 `apps/desktop/out/pa-023-partner/Sydney-partner-Setup-0.4.0.exe`，137,081,069 字节，仍是本地未签名候选，未发布。桌面代码已重新构建，Web 使用已有内置构建；产物来自当前含既有未提交改动的工作区，不能据此声明为干净提交构建。桌面两套 TypeScript 检查通过，包元数据与配置存储两个测试文件合计 8 项通过、3 项按 Windows 平台条件跳过。
+
+更新安装返回 `0`。通过 Playwright 从 `%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe` 启动已安装程序，未设置测试 profile 覆盖，选择或恢复生产 `https://124.221.182.39` 后加载本地 `http://127.0.0.1:49366/sign-in`，邮箱登录表单可见；完全退出后再次启动，同一地址、端口和登录页均恢复，实际用户数据目录为 `%USERPROFILE%\.sydney-partner`。已查看登录页截图确认页面正常。没有输入账号凭据，不将登录页可见等同真实登录、聊天或 OAuth 验收。
+
+用户随后提供连接失败的设置页截图。本轮核对正在运行的普通启动进程：可执行文件为上述 `Sydney-partner.exe`，原始命令行没有自动化参数，保存的服务器仍为生产 IP。读取实际窗口时，当前已显示本地注册／登录首页，没有设置页或连接错误。从该窗口发起 `/rpc/health` 与 `/api/auth/capabilities` 请求均返回 `200`，健康结果为 `ok: true`，确认内置界面经本地代理连接生产 API。随后切到登录页供用户操作。此次没有重新安装或改动连接代码，也没有复现截图中的失败；不为该次失败追加未经证实的新原因。
+
+| 测评项 | 本轮观察 | 真实环境结果 |
+| --- | --- | --- |
+| 候选与设备 | Windows 已改名、生成未签名 `Sydney-partner-Setup-0.4.0.exe` 并安装，正常启动和冷启动后均可进入生产登录页。iPhone 云构建 `44298985618` 的未签名 IPA 为 `1.0.12`（构建 `1`），先前手机安装查询未返回对应应用标识 | Windows 真实账号登录、旧数据和跨版本升级待验；iPhone 已签名候选及真实生产逐项验收待确认 |
+| 服务拓扑 | 用合成值及显式 `updater` profile 解析原部署的原生 Linux 组合，以及通用、原生 Linux、Docker 三种客户端专用组合。原配置包含 Web 和旧画面桥。三个候选均排除 Web，网关上游与更新器配置正确，原生 API 画面桥和 Docker supervisor 屏幕对端分别核对通过 | 已按用户授权在生产切换，运行态结果见上表；当前没有运行 updater |
+| 双端认证与回调 | 先前 6 个离线文件 197 项通过；生产局部补丁候选 12 个文件 343 项通过。返回页已由生产 API 提供，Windows 从安装包显示登录页 | 逐项实测双端登录及已配置的真实授权。当前生产没有配置 Slack 安装凭据，不将该链路记为通过 |
+| 双端云电脑画面 | 静态配置通过，API 侧画面桥已运行，无影静态资源可用 | 生产原有 `:10` 会话缺失，noVNC 上游不可用；需先恢复该授权桌面，再验证双端实际加载及重连 |
+| 双端升级 | Windows 打包版更新防护首次因英文提示断言失败。改为核对 `unsupported` 状态、非空提示及未访问更新源后，用同一打包产物复测通过（1 项） | 待实测 Windows 安装包升级和 iPhone 签名候选升级，启用 OTA 时覆盖 OTA |
+| 恢复 Web | 原配置、镜像、Web 容器及数据库备份已保留，切换失败处理与手工回退入口已记录 | 本次成功切换后未执行实际恢复演练，不将备份存在记为恢复成功 |
+
+Windows 安装器位于 `apps/desktop/out/pa-023-validation/Sydney-Setup-0.4.0.exe`，大小为 137,080,912 字节，Authenticode 为 `NotSigned`。使用 Node 24.22.3、仓库已有的 Web 和桌面构建产物及 Electron 45.0.0 打包，核对了包内 `resources/web/index.html`。打包保留工作区其他改动，未重新构建 Web 或桌面，也未以此次打包证明产物对应某个干净的源码提交。默认 Node 引擎不匹配；改用现有 Node 24 后，先后遇到 Electron 下载停滞及工具缓存重命名错误，改用本地 Electron 和独立打包缓存后生成成功。
+
+## 历史验证记录
+
+PA-021 / PA-023 iOS 侧载候选包含空服务器配置恢复和启动错误重试。四个定向测试文件共 24 项通过。提交 `0ca3357a5` 的云构建 `44298985618` 成功，未签名 IPA 已下载并通过 SHA-256 校验。2026-11-18 用户反馈 iPhone 实测正常。冷启动、重新登录及停用 Web 后的授权回跳和画面仍需逐项确认。
+
+移动端恢复复验通过四个测试文件共 24 项，覆盖默认服务器来源、启动任务、启动错误分类和错误边界。本机存在 2026-11-18 的未签名 OTA 底座 IPA（云构建 `44263086859`，提交 `2b613f98f`）和 2026-11-11 的 Windows 解包产物。退役恢复和迁移代码仍有未提交改动，缺少对应当前源码的验收包。本机设备清单未检出可用于本轮验收的 iPhone。iPhone 冷启动、重新登录与实际旧 profile 的安装包迁移仍待验收。
+
+使用本机 Compose CLI 和合成环境变量分别解析基础、客户端专用、Docker 沙箱与原生 Linux 四套配置。基础配置包含 Web，Caddy 的五个浏览器、登录、回调和画面上游指向 Web，更新器启用 Web。三套客户端专用配置均排除 Web，五个上游改指 API，更新器禁用 Web。真实服务协调和流量恢复待目标环境验证。
+
+发布脚本静态复核发现，失败回滚沿用进程启动时读取的 Compose 文件清单。既有替身用例验证由 Git 版本决定服务清单的回滚路径。独立于 Git 的持久覆盖恢复、Web 容器和网关流量待授权环境演练。
+
+网页退役发布脚本的两项定向用例在 Windows Git Bash 上分别通过。Docker、磁盘检查和公网健康检查使用替身。仅客户端部署跳过 Web，候选公网健康检查失败时恢复上一 Git 版本，并按旧版本服务清单重新纳入 Web。其余部署脚本用例本轮未执行。真实网关、容器、流量和回滚仍待演练。
+
+目标已有外观记录的 Electron 合成分区实验通过。迁移保留目标主题、全局背景选择和会话清除记录，旧图片的 MIME 类型和字节核对一致，重复调用未重复导入。
+
+头像迁移读取及写入通过 Electron 临时 profile 实测，覆盖旧账号标记不匹配、匹配导入及重复导入。Web App 和头像库 11 项测试通过。真实服务端会话、旧 profile 和安装包触发仍需验收。
+
+全局聊天外观的产品读取和导入函数通过 Electron 合成分区实验。导入后读取背景 Blob 和 MIME 类型并逐字节核对，重复导入保留已有外观。会话专属背景的定向回归覆盖目标已有映射、主动清除、素材缺失、会话切换及成功恢复。外观设置、工作区背景、编辑器及 App 共 116 项通过，桌面和 Web TypeScript 检查通过。真实旧 profile 及安装包待验收。
+
+草稿、编辑器、头像库和 App 定向回归共 114 项通过。草稿用例覆盖成功恢复、用户开始编辑、切换工作区和切换账号。安装包通过真实后台核验会话权限的全链路待验收。
+
+侧栏密度迁移产品读取和写入函数通过 Electron 临时 profile 验证。普通导航使用旧 Service Worker，迁移窗口读取合成旧值后导入新分区，旧 Worker 随后仍可服务。独立桌面入口的类型检查通过。真实旧 profile 与安装包冷启动仍待验收。
+
+网页退役移动端恢复。默认来源保护、启动监听和错误页重试共 19 项通过。回归覆盖空字符串服务器配置下的已验证旧会话迁移与外部来源会话拒绝，以及偏好加载卡住时的服务器设置错误。变更的启动代码及 `api.ts` 通过 Biome 检查。真机冷启动与重新登录待验收。
+
+Electron 合成迁移实验通过。旧 Service Worker 在普通导航中接管页面。迁移窗口启用绕过后读到受控文档及旧数据，拦截非允许路径，退出绕过后旧 Worker 恢复接管。第二个分区写入侧栏密度和合成 Blob，刷新后重试导入逐字节保留了已有值和 MIME 类型。实际头像和聊天外观结构、账号绑定草稿及真实 profile 仍待接线和验证。
+
+2026-11-18 网页退役 Batch 3 定向验证。认证、API 配置及原生密码重置的 3 个测试文件共 167 项通过。版本门禁、Web 更新及 Slack 服务端和移动端回跳的 5 个测试文件共 90 项通过。Slack 回归首次运行有一项仍断言旧关闭页，按现有一次性原生回跳更新断言后通过。真实服务商、安装包及线上停服联调待执行。
+
+Routine 编辑器现有 4 项测试通过，桌面 IPC 与各变更代码通过定向 Biome 检查。桌面安装包中的真实 IPC 调用待联调。
+
+桌面和 Web 的主 `tsc --noEmit` 通过。MCP OAuth、原生回调及桌面弹窗权限的 5 个测试文件共 176 项通过，涵盖 MCP 回调同源限制和迁移前保留存量凭据。21 个变更源文件 Biome 检查通过。未运行 Caddy 配置加载及生产停服演练。
+
+客户端专用部署静态验证通过。Compose 合并结果排除 `web`，Caddy 依赖 API，更新器跳过 `web`，原生画面桥使用 `service:api`。Git Bash 的发布脚本语法检查通过。认证与更新器合跑 148 项通过，更新器独立运行遇到契约初始化顺序错误。Supervisor 屏幕网络 10 项通过。部署脚本完整回归在 Windows 因固定 `/bin/bash` 路径无法运行，需在 Linux 重跑。未启动服务。
 
 2026-11-18（PA-024 GitHub 个人主页与开源探索模块跨包验证）：
 （1）跨包全量定向单元与集成测试：执行命令 `pnpm exec vitest run packages/contracts/src/github.test.ts packages/core/src/action-approval.test.ts packages/core/src/product-analytics.test.ts packages/adapters/src/github-client.test.ts packages/adapters/src/github-connections.test.ts packages/adapters/src/github-tools.test.ts packages/adapters/src/builtin-tool-bridge.test.ts packages/adapters/src/index.test.ts apps/api/src/security-audit.test.ts apps/api/src/github-router.test.ts apps/web/src/pages/GithubPage.test.tsx apps/web/src/pages/github/GithubContributionHeatmap.test.tsx apps/web/src/pages/github/GithubExploreAndRepos.test.tsx apps/web/src/components/SidebarFooter.test.tsx apps/web/src/components/PageBreadcrumb.test.tsx --maxWorkers=1`，**15 个测试文件共 203 项测试全部 PASS**（耗时 29.15s，0 失败）。

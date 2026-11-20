@@ -391,10 +391,10 @@ describe("updater orchestration", () => {
     );
   });
 
-  it("uses the persistent overlay for rollback recovery", async () => {
+  it("uses the persistent API screen overlay for rollback recovery", async () => {
     const fixture = await deployment(undefined, {
       overlay: true,
-      updateServices: "native-screen-web-loopback",
+      updateServices: "web,native-screen-web-loopback,native-screen-api-loopback",
     });
     const calls: string[][] = [];
     const run: UpdaterCommandRunner = async (_command, args) => {
@@ -403,14 +403,18 @@ describe("updater orchestration", () => {
     };
     const response = await request(createUpdaterApp(fixture.config, { run }), "/rollback");
     expect(response.status).toBe(200);
-    expect(calls.find((args) => args.includes("up"))).toEqual(
+    const recreate = calls.find((args) => args.includes("up"));
+    expect(recreate).toEqual(
       expect.arrayContaining([
         "--file",
         "/etc/rakazo/compose/production.overlay.yml",
-        "web",
-        "native-screen-web-loopback",
+        "api",
+        "worker",
+        "native-screen-api-loopback",
       ]),
     );
+    expect(recreate).not.toContain("web");
+    expect(recreate).not.toContain("native-screen-web-loopback");
   });
 
   it("preserves the environment owner and surrounding values with mode 0600", async () => {

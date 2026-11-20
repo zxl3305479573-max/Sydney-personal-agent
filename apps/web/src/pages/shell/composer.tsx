@@ -16,6 +16,7 @@ import {
   serializeComposerPrompt,
   truncateSlashDescription,
   updateComposerMentionBindings,
+  validateComposerMentionBindings,
 } from "@rakazo/core";
 import { Button } from "@rakazo/ui-web";
 import { ArrowUp, Box, Paperclip, Plus, Settings, Square, X } from "lucide-react";
@@ -28,7 +29,8 @@ import {
 } from "../../components/composer/HoldToTalk";
 import type { ArtifactTarget } from "../../lib/artifact-open";
 import { attachmentPickerAccept } from "../../lib/attachment-picker-accept";
-import { useCallSession } from "../../lib/call-session";
+import { SIGNED_IN_USER_KEY, useCallSession } from "../../lib/call-session";
+import { chatBackgroundKey, restoreChatBackground } from "../../lib/chat-appearance";
 import {
   beginComposerDraftSubmission,
   readComposerDraft,
@@ -37,7 +39,9 @@ import {
   subscribeComposerDraftAccepted,
   writeComposerDraft,
 } from "../../lib/composer-draft";
+import { desktopBridge } from "../../lib/desktop";
 import { isFileDrag, isFilePaste } from "../../lib/pending-attachments";
+import { selectedSpaceId } from "../../lib/rpc";
 import { ComposerReplyPreview } from "./chat-context";
 import type { PendingAttachment } from "./chat-shared";
 import { previewMessageText } from "./chat-shared";
@@ -140,6 +144,63 @@ export const Composer = memo(function Composer({
   const mentionBindings = composition.bindings;
   const compositionRef = useRef(composition);
   compositionRef.current = composition;
+  useEffect(() => {
+    const settings = desktopBridge()?.settings;
+    if (!settings?.readLegacyDraft) return;
+    const space = selectedSpaceId();
+    if (!space) return;
+    let active = true;
+    const recover = () => {
+      void settings
+        .readLegacyDraft?.(draftKey, space)
+        .then(async (result) => {
+          if (!result) return;
+          const isCurrent = () =>
+            active &&
+            selectedSpaceId() === space &&
+            localStorage.getItem(SIGNED_IN_USER_KEY) === result.owner;
+          if (!isCurrent()) return;
+          const thread = /^(bot|group):(.+)$/.exec(draftKey);
+          if (thread && result.backgroundId) {
+            const kind = thread[1] === "bot" ? "bot" : "group";
+            await restoreChatBackground(
+              chatBackgroundKey(result.owner, kind, thread[2]!),
+              result.backgroundId,
+              isCurrent,
+            ).catch(() => undefined);
+          }
+          if (
+            !isCurrent() ||
+            !result.draft ||
+            compositionRef.current.text ||
+            readComposerDraft(draftKey)
+          )
+            return;
+          const marker = `sydney.migration.draft.v1.${result.owner}.${space}.${draftKey}`;
+          if (localStorage.getItem(marker)) return;
+          let bindings: ReturnType<typeof validateComposerMentionBindings> = [];
+          try {
+            const record = result.bindings ? JSON.parse(result.bindings) : null;
+            if (record?.version === 1 && record.text === result.draft) {
+              bindings = validateComposerMentionBindings(result.draft, record.bindings);
+            }
+          } catch {}
+          writeComposerDraft(draftKey, result.draft, undefined, bindings);
+          if (readComposerDraft(draftKey) !== result.draft) return;
+          localStorage.setItem(marker, "1");
+          setComposition({ text: result.draft, bindings });
+        })
+        .catch(() => undefined);
+    };
+    const stop = settings.onLegacyMigrationReady?.(recover);
+    window.addEventListener("sydney:legacy-appearance-imported", recover);
+    recover();
+    return () => {
+      active = false;
+      window.removeEventListener("sydney:legacy-appearance-imported", recover);
+      stop?.();
+    };
+  }, [draftKey]);
   const selectedMentions = useMemo(
     () => composerSelectedMentions(mentionBindings),
     [mentionBindings],

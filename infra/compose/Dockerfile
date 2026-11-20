@@ -1,4 +1,4 @@
-FROM node:24.22.1-bookworm@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a
+FROM node:24.22.1-bookworm@sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a AS backend
 # pnpm lives in the image so containers start without downloading it.
 ENV COREPACK_HOME=/usr/local/share/corepack
 RUN corepack enable
@@ -35,14 +35,23 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lo
 # leave the copied tree unreadable to USER node at runtime.
 COPY --chmod=755 . .
 ARG SYDNEY_PREPARE_WUYING_ASSETS=false
-RUN case "$SYDNEY_PREPARE_WUYING_ASSETS" in true) node scripts/wuying-web-sdk.mjs ;; false) : ;; *) exit 1 ;; esac
+RUN case "$SYDNEY_PREPARE_WUYING_ASSETS" in true) node scripts/wuying-web-sdk.mjs --target=api ;; false) : ;; *) exit 1 ;; esac
 RUN pnpm --filter @rakazo/db generate
 RUN pnpm --filter @rakazo/api --filter @rakazo/worker build
-RUN RAKAZO_ALLOW_DEV_SECRETS=1 pnpm --filter @rakazo/web build
-RUN install -d -m 750 -o node -g node /data /app/apps/web/node_modules/.vite-temp /app/apps/web/asset-archive
+RUN install -d -m 750 -o node -g node /data
 ARG GIT_SHA
 ENV NODE_ENV=production
 ENV GIT_SHA=$GIT_SHA
-EXPOSE 3100 5173 7091
+EXPOSE 3100 7091
 USER node
 CMD ["pnpm", "--filter", "@rakazo/api", "start"]
+
+FROM backend AS self-host
+USER root
+RUN if [ "$SYDNEY_PREPARE_WUYING_ASSETS" = true ]; then node scripts/wuying-web-sdk.mjs --target=web; fi
+RUN RAKAZO_ALLOW_DEV_SECRETS=1 pnpm --filter @rakazo/web build
+RUN install -d -m 750 -o node -g node /app/apps/web/node_modules/.vite-temp /app/apps/web/asset-archive
+EXPOSE 5173
+USER node
+
+FROM backend AS server

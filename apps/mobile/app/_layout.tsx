@@ -45,10 +45,12 @@ import {
   subscribeSessionRejected,
 } from "../lib/api";
 import { clearAppBadge } from "../lib/app-badge";
-import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
+import { loadAppearancePreference } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { AvatarScreenFocus } from "../lib/avatar-life";
-import { installClientUpdates, watchForegroundUpdates } from "../lib/client-update";
+import { installClientUpdates, useStartupUpdatePrompt } from "../lib/client-update";
+import { loadUiMode } from "../lib/ui-mode";
+import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
 import { MainBottomNavigation } from "../components/main-bottom-navigation";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
@@ -305,14 +307,16 @@ function LayoutContent() {
     };
   }, [ready, screen]);
   const [appearanceReady, setAppearanceReady] = useState(false);
+  const [splashHidden, setSplashHidden] = useState(false);
+  useStartupUpdatePrompt(splashHidden);
   const resolved = useResolvedAppearance();
+  const tokens = useMobileTokens();
   const loadRemoteImages = useSyncExternalStore(
     subscribeRemoteImages,
     getCachedRemoteImagesEnabled,
     () => false,
   );
   const navigationTheme = useMemo(() => {
-    const tokens = mobileTokens();
     return {
       ...DarkTheme,
       dark: resolved === "dark",
@@ -326,12 +330,15 @@ function LayoutContent() {
         notification: tokens.foreground,
       },
     };
-  }, [resolved]);
+  }, [resolved, tokens]);
 
   useEffect(() => {
     if (appearanceReady && ready)
       void SplashScreen.hideAsync()
-        .then(completeMobileStartup)
+        .then(() => {
+          completeMobileStartup();
+          setSplashHidden(true);
+        })
         .catch(() => undefined);
   }, [appearanceReady, ready]);
 
@@ -346,13 +353,14 @@ function LayoutContent() {
     return startUnsentSends();
   }, [ready]);
 
-  useEffect(() => watchForegroundUpdates(), []);
-
   useEffect(() => {
     let active = true;
     markMobileStartupMounted();
     void waitForMobileStartup(trackMobileStartup("server", loadApiBase()), [
-      trackMobileStartup("appearance", loadAppearancePreference()).finally(() => {
+      trackMobileStartup(
+        "appearance",
+        Promise.all([loadAppearancePreference(), loadUiMode()]),
+      ).finally(() => {
         if (active) setAppearanceReady(true);
       }),
       trackMobileStartup("streaming", loadResponseStreamingPreference()),
@@ -493,6 +501,12 @@ function LayoutContent() {
                         options={glassHeaderOptions(locale.startsWith("zh") ? "项目" : "Project")}
                       />
                       <Stack.Screen
+                        name="projects/[workspaceId]/chat"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh") ? "项目会话" : "Project chat",
+                        )}
+                      />
+                      <Stack.Screen
                         name="group-thread"
                         options={({ route }) => ({
                           title: t("Group"),
@@ -565,9 +579,11 @@ function LayoutContent() {
 export default function Layout() {
   return (
     <AppErrorBoundary>
-      <MainNavigationProvider>
-        <LayoutContent />
-      </MainNavigationProvider>
+      <UiModeProvider>
+        <MainNavigationProvider>
+          <LayoutContent />
+        </MainNavigationProvider>
+      </UiModeProvider>
     </AppErrorBoundary>
   );
 }

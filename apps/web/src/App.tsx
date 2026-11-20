@@ -66,6 +66,9 @@ const BoardPage = lazyComponent(() => import("./pages/Board").then((module) => m
 const ProjectsPage = lazyComponent(() =>
   import("./pages/Projects").then((module) => module.ProjectsPage),
 );
+const ProjectThreadPage = lazyComponent(() =>
+  import("./pages/ProjectThread").then((module) => module.ProjectThreadPage),
+);
 const GithubPage = lazyComponent(() =>
   import("./pages/GithubPage").then((module) => module.GithubPage),
 );
@@ -167,6 +170,27 @@ function SessionApp() {
   }, [gate, analyticsUserId]);
   useEffect(() => {
     if (gate === "authenticated" || gate === "anonymous") setQueryUser(analyticsUserId ?? null);
+  }, [gate, analyticsUserId]);
+  useEffect(() => {
+    if (gate !== "authenticated" || !analyticsUserId) return;
+    const settings = desktopBridge()?.settings;
+    const migrate = () => {
+      void settings
+        ?.migrateLegacyAvatars?.(analyticsUserId)
+        .then(async (imported) => {
+          if (!imported) return;
+          const [avatars, appearance] = await Promise.all([
+            import("./lib/avatar-library"),
+            import("./lib/chat-appearance"),
+          ]);
+          await Promise.all([avatars.refreshAvatarLibrary(), appearance.refreshChatAppearance()]);
+          window.dispatchEvent(new Event("sydney:legacy-appearance-imported"));
+        })
+        .catch(() => undefined);
+    };
+    const stop = settings?.onLegacyMigrationReady?.(migrate);
+    migrate();
+    return stop;
   }, [gate, analyticsUserId]);
   const [holdingUnreachable, setHoldingUnreachable] = useState(false);
   const nextHolding = holdUnreachableGate(gate, holdingUnreachable);
@@ -293,6 +317,7 @@ function SessionApp() {
                   <Route path="/app/tasks" element={<Navigate to="/app" replace />} />
                   <Route path="/app/projects" element={<ProjectsPage />} />
                   <Route path="/app/projects/:workspaceId" element={<ProjectsPage />} />
+                  <Route path="/app/projects/:workspaceId/chat" element={<ProjectThreadPage />} />
                   <Route path="/app/github" element={<GithubPage />} />
                   <Route element={<CallLayout />}>
                     <Route path="/onboarding/:step?" element={<OnboardingPage />} />

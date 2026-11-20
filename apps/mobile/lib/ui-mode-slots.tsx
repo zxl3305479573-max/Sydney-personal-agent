@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Component, createContext, useContext } from "react";
 import type { ViewStyle } from "react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { classicUiMode } from "../ui-modes/classic";
 import type {
   ModeApprovalContainerSlotProps,
   ModeCardSlotProps,
@@ -21,41 +22,16 @@ import type {
 } from "../ui-modes/types";
 import { CLASSIC_UI_MODE_ID } from "../ui-modes/types";
 
-const DEFAULT_CLASSIC_GEOMETRY: UiModeGeometryTokens = {
-  cardRadius: 16,
-  controlRadius: 12,
-  pillRadius: 999,
-  borderWidth: 1,
-  cornerShape: "continuous",
-  chamferSize: 0,
-  topSpecularHighlight: null,
-};
+const DEFAULT_CLASSIC_GEOMETRY: UiModeGeometryTokens = classicUiMode.geometry;
 
 const DEFAULT_CLASSIC_TYPOGRAPHY: UiModeTypographyTokens = {
   uppercaseLabels: false,
   letterSpacingScale: 1,
 };
 
-const DEFAULT_CLASSIC_GLASS_POLICY: UiModeGlassPolicy = {
-  mode: "liquid",
-  defaultCornerRadius: 16,
-};
+const DEFAULT_CLASSIC_GLASS_POLICY: UiModeGlassPolicy = classicUiMode.glassPolicy;
 
-const DEFAULT_CLASSIC_MODE_DEFINITION: UiModeDefinition = {
-  id: CLASSIC_UI_MODE_ID,
-  name: "Classic",
-  description: "Default system-aligned interface.",
-  version: "1.0.0",
-  order: 0,
-  supportedPlatforms: ["ios", "android", "web"],
-  colorSchemeLock: "none",
-  systemColorPolicy: "platform",
-  glassPolicy: DEFAULT_CLASSIC_GLASS_POLICY,
-  chatAppearancePolicy: "preserve",
-  hapticProfile: "subtle",
-  geometry: DEFAULT_CLASSIC_GEOMETRY,
-  typography: DEFAULT_CLASSIC_TYPOGRAPHY,
-};
+const DEFAULT_CLASSIC_MODE_DEFINITION: UiModeDefinition = classicUiMode;
 
 export const DEFAULT_CLASSIC_RESOLVED_THEME: ResolvedUiModeTheme = {
   mode: DEFAULT_CLASSIC_MODE_DEFINITION,

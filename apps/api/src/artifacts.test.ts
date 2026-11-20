@@ -6,6 +6,7 @@ import {
   ArtifactListCursorError,
   createOwnedArtifact,
   deleteArtifactFamily,
+  getProjectThreadArtifact,
   listSpaceArtifacts,
   resolveGroupSendAttachments,
   resolveSendAttachments,
@@ -56,6 +57,34 @@ function scopedClause(query: { strings: string[] }) {
   const text = statement(query);
   return text.slice(text.indexOf("WITH scoped"), text.indexOf("latest AS"));
 }
+
+describe("project artifact downloads", () => {
+  it("reads bytes only for the owner, project, and source conversation", async () => {
+    const findArtifact = vi.fn().mockResolvedValue({
+      ...listRow("artifact-a", "result.md"),
+      runId: "run-a",
+      storageKey: "fixture-key",
+    });
+    const findRun = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "run-a" });
+    const get = vi.fn().mockResolvedValue(Buffer.from("sample"));
+    const deps = {
+      prisma: { artifact: { findFirst: findArtifact }, run: { findFirst: findRun } } as unknown as PrismaClient,
+      artifacts: { get } as unknown as ArtifactStore,
+    };
+    const scope = { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-a" };
+    const input = { artifactId: "artifact-a", projectId: "project-a", threadId: "thread-a" };
+    await expect(getProjectThreadArtifact(deps, actor, { ...input, threadId: "thread-b" })).rejects.toThrow();
+    expect(get).not.toHaveBeenCalled();
+    await expect(getProjectThreadArtifact(deps, actor, input)).resolves.toMatchObject({
+      id: input.artifactId, name: "result.md", contentBase64: "c2FtcGxl",
+    });
+    expect(findArtifact).toHaveBeenLastCalledWith({ where: { id: input.artifactId, ...scope } });
+    expect(findRun).toHaveBeenLastCalledWith({
+      where: { id: "run-a", threadId: input.threadId, ...scope }, select: { id: true },
+    });
+    expect(get).toHaveBeenCalledExactlyOnceWith("fixture-key", expect.objectContaining(scope));
+  });
+});
 
 describe("listSpaceArtifacts", () => {
   it("pages families in the database instead of slicing a fixed newest-row snapshot", async () => {
@@ -544,7 +573,7 @@ describe("storeInboundAttachment", () => {
     });
     expect(replayed.bytes).toBeUndefined();
     expect(findFirst).toHaveBeenCalledWith({
-      where: { spaceId: actor.spaceId, userId: actor.userId, clientNonce: "nonce-1" },
+      where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: null, clientNonce: "nonce-1" },
     });
     expect(fetch).not.toHaveBeenCalled();
     expect(put).not.toHaveBeenCalled();

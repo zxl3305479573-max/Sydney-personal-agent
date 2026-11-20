@@ -1,17 +1,28 @@
 import { z } from "zod";
-import type { HostComputerRequest } from "./host-computer-protocol.js";
+import {
+  ProjectFileRequestSchema,
+  ProjectWindowsTerminalRequestSchema,
+  WorkspaceGrantRequestSchema,
+} from "@rakazo/contracts";
 import { hostComputerRequest } from "./host-computer-protocol.js";
 
 export const userDeviceRevokeReason = z.enum(["session-ended"]);
 /** Carries the revoke reason on a refused connection, which has no message to put it in. */
 export const USER_DEVICE_REVOKED_HEADER = "x-rakazo-device-revoked";
 export type UserDeviceRevokeReason = z.infer<typeof userDeviceRevokeReason>;
+export const userDeviceRequest = z.union([
+  hostComputerRequest,
+  WorkspaceGrantRequestSchema,
+  ProjectFileRequestSchema,
+  ProjectWindowsTerminalRequestSchema,
+]);
+export type UserDeviceRequest = z.infer<typeof userDeviceRequest>;
 
 export const userDeviceServerMessage = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("request"),
     id: z.string().min(1).max(64),
-    request: hostComputerRequest,
+    request: userDeviceRequest,
   }),
   z.object({ type: z.literal("cancel"), id: z.string().min(1).max(64) }),
   // "session-ended": the sign-in that paired it ended, so the next sign-in pairs again.
@@ -43,7 +54,7 @@ export interface UserDeviceGateway {
    */
   request<T>(
     userId: string,
-    request: HostComputerRequest,
+    request: UserDeviceRequest,
     signal: AbortSignal,
     deviceId?: string,
   ): AsyncIterable<T>;

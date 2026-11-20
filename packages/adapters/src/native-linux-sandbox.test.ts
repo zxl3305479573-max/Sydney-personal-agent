@@ -33,6 +33,31 @@ const computer: ComputerRef = {
   kind: "native-linux",
 };
 
+it("probes a relative project folder and passes a guarded lease with the exact file request", async () => {
+  const folder = { path: "project", device: "12", inode: "34" };
+  const transport = vi.fn()
+    .mockResolvedValueOnce(folder)
+    .mockResolvedValueOnce({ operation: "read", text: "sample" });
+  const validate = vi.fn().mockResolvedValue(Date.now() + 5_000);
+  const sandbox = new NativeLinuxSandbox(validate, transport);
+  await expect(sandbox.identifyProjectFolder(computer, folder.path, context)).resolves.toEqual(folder);
+  expect(validate).not.toHaveBeenCalled();
+  const file = { operation: "read", path: "source.txt" } as const;
+  await expect(sandbox.executeProjectFile(computer, folder, file, context)).resolves.toEqual({
+    operation: "read", text: "sample",
+  });
+  expect(transport).toHaveBeenLastCalledWith(
+    "project_file", { folder, file },
+    expect.objectContaining({ nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }) }),
+    computer,
+  );
+  validate.mockResolvedValue(null);
+  await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toThrow(
+    "native_run_lease_invalid",
+  );
+  expect(transport).toHaveBeenCalledTimes(2);
+});
+
 it("uses a separately validated human lease for RPC input and binds revocation to its token", async () => {
   const transport = vi.fn().mockResolvedValue({ completed: 1 });
   const sandbox = new NativeLinuxSandbox(async () => null, transport, {

@@ -85,6 +85,12 @@ export function loadAvatarLibrary(): Promise<void> {
   return loadPromise;
 }
 
+export async function refreshAvatarLibrary(): Promise<void> {
+  await loadPromise;
+  loadPromise = undefined;
+  await loadAvatarLibrary();
+}
+
 export function getSavedAvatars(): readonly SavedAvatar[] {
   return savedAvatars;
 }

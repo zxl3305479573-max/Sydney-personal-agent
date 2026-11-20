@@ -1,4 +1,4 @@
-import { useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react";
 import type { Bot, GithubCommitSummary, GithubReleaseSummary } from "@rakazo/contracts";
 import { Badge, Button, cn, NativeSelect, NativeSelectOption, Spinner } from "@rakazo/ui-web";
 import { useQuery } from "@tanstack/react-query";

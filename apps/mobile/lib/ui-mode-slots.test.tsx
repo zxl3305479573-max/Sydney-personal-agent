@@ -6,6 +6,7 @@ import { act, Component, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { classicUiMode } from "../ui-modes/classic";
 import type {
   ModeApprovalContainerSlotProps,
   ModeCardSlotProps,
@@ -266,6 +267,8 @@ describe("ui-mode-slots", () => {
   it("renders renderClassic directly and resolves classicPrimitiveSlots in default classic mode", () => {
     expect(DEFAULT_CLASSIC_RESOLVED_THEME.mode.id).toBe(CLASSIC_UI_MODE_ID);
     expect(DEFAULT_CLASSIC_RESOLVED_THEME.tokens).toBe(darkTokens);
+    expect(DEFAULT_CLASSIC_RESOLVED_THEME.geometry).toEqual(classicUiMode.geometry);
+    expect(DEFAULT_CLASSIC_RESOLVED_THEME.glassPolicy).toEqual(classicUiMode.glassPolicy);
 
     function ClassicProbe() {
       const Card = useUiModePrimitive("Card");

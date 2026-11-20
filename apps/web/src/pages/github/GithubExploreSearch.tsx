@@ -1,4 +1,4 @@
-import { useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react";
 import { RemoteImagesContext } from "@rakazo/chat-ui/web";
 import type { GithubRepoSummary, GithubSearchSort } from "@rakazo/contracts";
 import {

@@ -1,5 +1,31 @@
 # 对话窗口分工与交接
 
+2026-11-20（PA-021 iOS `1.0.13`）：当前窗口按用户授权将隔离候选的 13 个手机文件和手机技术文档作为提交 `40328e108` 推送至集成分支，由工作流 `44750564292` 发布 `sideload`。本地同步计划、运维、开发及测评记录。线上验证通过，真机生效待核对。[本批验证](VALIDATION.md#手机-1013-版本与更新说明2026-11-20)。
+
+2026-11-20（PA-021 首次 iOS 热更新）：当前窗口经用户授权，在隔离候选单独提交并推送 `bf5638ab7`，写集为手机候选、头像契约字段和手机文档。工作流 `44748053276` 发布 `sideload`，清单、主程序与 55 个资源通过线上验证。主工作区共享验收文档本地同步，尚待 iPhone 实际运行标识。不涉及子代理或项目迁移。[本批验证](VALIDATION.md#手机构建-4-ota-发布准备2026-11-20)。
+
+2026-11-20（PA-021／PA-022／PA-024 手机构建 `4`）：当前窗口独立实施，写集为手机账号资料读取及测试、项目聊天气泡及测试、隔离候选及交付文档。已在用户指定目录生成未签名 IPA。生产操作仅为只读核对项目迁移、表、服务和开关。没有提交、推送或调用子代理。见 [本批验证](VALIDATION.md#手机构建-4-与项目只读复核2026-11-20)。
+
+2026-11-20（PA-021／PA-022／PA-024 手机交付）：当前窗口独立按指定 Stop That Shit 技能实施固定底栏、应用主路由／旧链接、应用与 GitHub 详情显隐，以及模型修复回归；写集为移动端对应路由／导航组件／测试、GitHub 单表迁移策略与数据库上下文诊断／新 PostgreSQL 测试及共享文档。先建立专项测评，保留其他已有修改，无子代理、提交或推送。服务器只筛选 GitHub 补丁，16:04 完成备份、唯一迁移和 API／Worker 更新，必要的共享命名空间回环桥随 API 重建，项目迁移／开关及原生显示服务未动。手机 OTA／IPA 与真机仍待交付，具体结果见 [测评](MOBILE_NAV_GITHUB_EVALUATION.md)。
+
+同一窗口另在 `.tmp/mobile-ota-candidate` 拣选本批手机候选，实际发布写集限于 `apps/mobile` 34 个补丁路径。共享根布局、首页、聊天与设置按本轮范围取舍；主工作区的其他改动保持原样。未派发其他窗口。
+
+2026-11-20（PA-023 删除退役 Web）：当前窗口执行，未创建其他窗口或子代理。写集为生产 Compose／客户端覆盖、三个生产 Caddy 模板、原生 API 桥示例、四个部署／更新器测试、ADR-0025、需求及共享计划／测评／运维／验证记录。保留其他窗口的手机导航和业务功能改动。生产只删除两个已停止的旧 Web 专用容器，活动服务未重启；没有部署整套工作区或执行迁移。旧 Web 恢复演练按用户新要求取消，原目标面板由用户清除，不恢复或新建目标。
+
+2026-11-20（PA-022 本机目录授权）：当前窗口独立完成本机目录选择／绑定、设备受限状态／撤销、PC／手机详情及离线验证，不调用子代理。写集为新增 `project-directory*` 契约／存储／API／原生协调器／双端组件及测试，设备协议／网关／配对／主进程／预加载桥的必要接线、Prisma 模型与独立迁移、项目空删除条件及对应共享文档。保留其他窗口的手机会话模型、noVNC 样式及其生产记录，不派发或虚报并行任务。补齐旧配对后最后收口 245 项通过、5 项 PostgreSQL 条件跳过，7 项类型检查和 Prisma 静态校验通过；云电脑目录与真实数据库／设备验收待办。本批未做生产维护、提交或推送，阶段只在 [总计划](PLAN.md#当前实施本机项目目录授权绑定pa-0222026-11-20) 维护，证据见 [本批验证](VALIDATION.md#本机项目目录授权绑定2026-11-20)。
+
+2026-11-20（PA-011／PA-018／PA-023 云电脑全覆盖）：当前窗口独立核对和部署原生 noVNC 静态页样式，新增 `infra/native-linux/novnc-full-coverage.css`，更新计划／开发／验证／运维／入口文档；保留上一轮镜像嵌入页及资源断言。生产仅新增 CSS 并修改两份 noVNC HTML 引用，备份目录为 `/srv/rakazo-releases/pa023-coverage-20261120T062657Z`。Windows 原登录客户端三种窗口尺寸全覆盖及真实帧通过，未调用子代理、提交或推送，未发布其他功能。
+
+2026-11-20（PA-022 项目文字执行边界）：当前窗口独立完成 `packages/adapters/src/run-project-policy*`、执行器、工具选择／分派、运行时事件／脚本产物限制、指令、新增测试及 3 份既有测试更新，以及计划／开发／验证／测评／运维／设计／ADR／需求文档同步。未创建子代理或其他窗口，保留客户端及其他既有改动，未提交、推送或维护生产。收口 5 文件 120 项通过；扩展 13 文件 324 通过、8 项未改动定时路径的上下文测试失败，详见 [本批验证](VALIDATION.md#项目文字任务执行边界2026-11-20)。接手后继续 P1 实际 PostgreSQL／Worker 隔离与 P2 可信目录接线，不将文字权限候选当作目录已连接或项目已开放。
+
+2026-11-20（PA-022／PA-024 追加目标）：当前窗口完成既有 GitHub 离线复核、手机 GitHub 页面／Hook／Bot 草稿和设置入口，新增共享 `packages/core/src/project-thread-session*`、手机 `use-project-thread*`／项目聊天页及桌面 `ProjectThread*`，接入原有项目名单。必要后续改动包括移动 API 的项目授权取消、旧断言与设置路由注册／替身修正，以及 `docx` 与需求文档同步。保留桌面、手机、API 和文档的既有未提交改动；未创建子代理或其他窗口，未提交或推送。484 个综合用例分批通过，生产迁移／目录绑定／发布与设备验收尚未完成，不复用上轮连接校准维护授权。详见 [本轮验证](VALIDATION.md#github-与项目会话续作2026-11-20)。
+
+2026-11-20（PA-010／PA-018／PA-023 团队连接维护续作）：用户明确允许 Worker 短停后，由当前窗口独立完成受限备份、团队引用条件更新、画面票据代次递增及原 Worker 恢复 healthy。未创建子代理或其他窗口；本轮仓库写集仅为共享计划、验证、运维、开发记录、测评清单、入口及本分工文档。Windows 团队正常打开、真实帧、自动重连和返回预览通过；待回答任务保留，过期接管由正常接口／后台清理。原驱动、API 和网关配置未改，Web 仍停止。手机源码修复沿用上一轮证据，未发布、iPhone 未验。
+
+2026-11-20（PA-010／PA-018／PA-023 云电脑画面恢复及手机端错误提示）：当前窗口独立执行，未创建子代理或其他窗口。实际写集为 `infra/native-linux/xrdp/` 三个配置、`apps/mobile/app/computer.tsx`、`apps/mobile/lib/computer-refresh.ts` 及两个对应测试，以及共享文档。生产仅部署专属 display／desktop 和 VNC 依赖覆盖，原只读设置保留。Windows 专属电脑画面／自动重连通过，团队旧代次、iPhone 画面验收及手机修复发布继续待办；任务、接管租约、数据库与 API／Worker 未改。
+
+2026-11-20（PA-018 / PA-020 / PA-021 移动端多模式 UI）：此前 UI-M1 至 UI-M4 的模式注册表、状态和外观桥接已由当前窗口完成宿主收口，接入 inbox、单聊、群聊及云电脑控制器。定向测试 59 项、移动端 TypeScript 和 Biome 检查通过。本轮未创建子代理或独立窗口；具体视觉皮肤、模式选择 UI、IPA／OTA 和真机验证留待后续阶段。
+
 2026-11-18（网页退役 Batch 3 进行中）：当前窗口在完成 Batch 2 后继续领取 PA-018 / PA-021 / PA-023 服务端双端回调闭环、认证信任源与前端回环修复，写集限定 `packages/contracts/src/{rpc.ts,client-build.ts,client-build.test.ts,desktop.ts}`（仅触碰 `messaging.installations.start` 枚举，保留 `PA-024` 新增 `github` 契约）、`packages/db/prisma/migrations/20261120000000_messaging_install_native_return/migration.sql`、`packages/adapters/src/{messaging-installations.ts,messaging-installations.test.ts,mcp-oauth.ts,mcp-oauth.test.ts}`、`packages/auth/src/{index.ts,identity-trust.test.ts}`、`apps/api/src/{env.ts,env.test.ts,app.ts,routes/messaging.ts,routes/messaging-install-return.test.ts}`（`env.ts` 仅补布尔校验键，保留 `PA-024` 修改）、`apps/desktop/src/{window-open.ts,window-open.test.ts,oauth-callback.ts,oauth-callback.test.ts,preload.cjs,main.ts}`、`apps/mobile/lib/{messaging-install-return.ts,messaging-install-return.test.ts}`、`apps/web/src/{lib/mcp-connect.ts,lib/mcp-connect.test.ts,lib/rpc.ts,lib/client-update.ts,lib/client-update.test.ts,pages/MessagingSettingsPanel.tsx,pages/shell/use-routine-editor.ts}` 及共享文档；完成后复用只读子代理 `a56a6bbe-86be-4201-a7b6-17059f894469` 执行独立代码审查。完全不触碰并行窗口的移动端多模式 UI 及 `PA-024` GitHub 组件写集。
 
 2026-11-18（PA-018 / PA-020 / PA-021 iOS 多模式可切换 UI 整体架构实施中）：当前窗口按用户授权采用多阶段多模块子代理协作落地移动端 UI 模式架构底座（暂不实施新视觉皮肤）。主窗口已完成阶段 0 写集（`docs/adr/0024-ios-multi-mode-ui-architecture.md`、`docx/design/IOS_UI_MODE_ARCHITECTURE.md`、`apps/mobile/ui-modes/types.ts` 及计划登记）；阶段 1 三个互斥实现子代理已全部交付并通过单测与 Biome 检查——UI-M1（`02fa178c-063b-4c78-ad14-5a693e6bc78c`，注册表与 `classic` 基准，9 项单测通过）、UI-M2（`705f1a87-b882-4faf-b8a0-3bf7bfc0f8f1`，持久化状态机内核，12 项单测通过）、UI-M3（`31ed948d-2d35-4589-b149-21b842647528`，保序插槽宿主与崩溃自愈边界，7 项单测通过）；现已启动阶段 2 宿主桥接子代理 UI-M4（`ea17bfa8-2cd6-4347-b3d1-5ff21b9fd618`，统一门面 `apps/mobile/lib/ui-mode.{ts,test.ts}` 及 `apps/mobile/lib/{appearance,native,chat-appearance}.*`、`apps/mobile/app/(settings)/chat-appearance.tsx`、`apps/mobile/components/{glass-surface.ios,app-error-boundary}.tsx`、`apps/mobile/lib/{glass-surface,app-error-boundary}.test.tsx`、`apps/mobile/app/_layout.tsx`），待其返回后启动阶段 3 独立只读复审子代理 UI-R1。严格保留并行窗口的 `PA-024`（`packages/**`、`apps/api/**`、`apps/web/**`）及 `apps/desktop/**`、`apps/mobile/app.config.ts`、`apps/mobile/sideload-asset-path*` 等未提交写集不触碰。

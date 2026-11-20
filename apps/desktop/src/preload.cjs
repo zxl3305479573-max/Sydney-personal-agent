@@ -23,10 +23,19 @@ contextBridge.exposeInMainWorld("rakazoDesktop", {
   },
   settings: {
     onOpen: subscribe("desktop.settings.open"),
+    serverOrigin: () => ipcRenderer.invoke("desktop.settings.serverOrigin"),
+    migrateLegacyAvatars: (userId) =>
+      ipcRenderer.invoke("desktop.settings.migrateLegacyAvatars", userId),
+    onLegacyMigrationReady: subscribe("desktop.settings.legacyMigrationReady"),
+    readLegacyDraft: (key, space) =>
+      ipcRenderer.invoke("desktop.settings.readLegacyDraft", key, space),
   },
   device: {
     state: () => ipcRenderer.invoke("desktop.device.state"),
     setAllowed: (allowed) => ipcRenderer.invoke("desktop.device.setAllowed", allowed),
+  },
+  projectDirectory: {
+    choose: (input) => ipcRenderer.invoke("desktop.projectDirectory.choose", input),
   },
   locale: {
     set: (locale) => ipcRenderer.invoke("desktop.locale.set", locale),

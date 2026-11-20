@@ -71,7 +71,7 @@ vi.mock("./native", () => ({ useThemedStyles: (factory: () => unknown) => factor
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text, locale: "zh-CN" }) }));
 vi.mock("./chat-appearance", () => ({
   getMobileChatAppearance: () => store.current,
-  useMobileChatAppearance: () => store.current,
+  useSavedMobileChatAppearance: () => store.current,
   saveMobileChatAppearance: store.save,
   chooseMobileChatBackground: vi.fn(),
   clearMobileChatBackground: vi.fn(),

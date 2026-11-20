@@ -29,6 +29,7 @@ import type {
   RemoteConnectorDependencies,
   TicketChangeNotifier,
   verifyModelServesAgents,
+  UserDevices,
 } from "@rakazo/adapters";
 import type { Auth } from "@rakazo/auth";
 import type { NavLink } from "@rakazo/contracts";
@@ -63,6 +64,7 @@ export { HEARTBEAT_MS, SESSION_RECHECK_MS } from "./routes/shared.js";
 export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
+  userDevices?: Pick<UserDevices, "request" | "list" | "releaseSignedOut"> | null;
   companionScreen?: ReturnType<typeof createCompanionScreenCoordinator>;
   pushTokens: PushTokenStore;
   analytics?: ProductAnalytics;

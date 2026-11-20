@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { setupI18n } from "@lingui/core";
+import { I18nProvider } from "@lingui/react";
 import { RemoteImagesContext } from "@rakazo/chat-ui/web";
 import type {
   Bot,
@@ -126,6 +128,7 @@ function makeBot(id: string, name: string): Bot {
 let queryClient: QueryClient;
 let container: HTMLDivElement;
 let root: Root;
+const i18n = setupI18n({ locale: "zh-CN", messages: { "zh-CN": {} } });
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -176,14 +179,16 @@ async function renderWithProviders(
   const { initialPath = "/app/github", allowRemoteImages = false } = options;
   await act(async () => {
     root.render(
-      <QueryClientProvider client={queryClient}>
-        <RemoteImagesContext.Provider value={allowRemoteImages}>
-          <MemoryRouter initialEntries={[initialPath]}>
-            {ui}
-            <LocationProbe />
-          </MemoryRouter>
-        </RemoteImagesContext.Provider>
-      </QueryClientProvider>,
+      <I18nProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <RemoteImagesContext.Provider value={allowRemoteImages}>
+            <MemoryRouter initialEntries={[initialPath]}>
+              {ui}
+              <LocationProbe />
+            </MemoryRouter>
+          </RemoteImagesContext.Provider>
+        </QueryClientProvider>
+      </I18nProvider>,
     );
   });
   await settle();

@@ -6,8 +6,29 @@ const workflow = readFileSync(
   path.resolve(import.meta.dirname, "../../../.github/workflows/release-desktop.yml"),
   "utf8",
 );
+const windowsCandidate = readFileSync(
+  path.resolve(import.meta.dirname, "../../../.github/workflows/desktop-windows-build.yml"),
+  "utf8",
+);
 
 const expression = (inner: string) => `\${{ ${inner} }}`;
+
+it("uploads an unpublished Windows installer after testing its bundled renderer and direct connection", () => {
+  expect(windowsCandidate).toContain("node-version: 24");
+  expect(windowsCandidate).toContain("electron-builder --win nsis --x64 --publish never");
+  expect(windowsCandidate).toContain(
+    'if ($installer.Length -eq 0) { throw "Windows installer is empty" }',
+  );
+  expect(windowsCandidate).toContain(
+    "packaged Windows opens direct setup for a legacy local profile",
+  );
+  expect(windowsCandidate).toContain("apps/desktop/out/Sydney-partner-Setup-*.exe");
+  expect(windowsCandidate).toContain(`name: sydney-windows-installer-${expression("github.sha")}`);
+  expect(windowsCandidate).toContain("apps/desktop/out/win-unpacked/");
+  expect(windowsCandidate.indexOf("Verify packaged PC backend connection")).toBeLessThan(
+    windowsCandidate.indexOf("Upload unpublished installer"),
+  );
+});
 
 describe("desktop release workflow", () => {
   it("cannot execute contributor pull-request code with release credentials", () => {

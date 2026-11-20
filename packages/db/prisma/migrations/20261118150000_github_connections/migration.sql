@@ -31,4 +31,4 @@ ALTER TABLE "github_connections" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY github_connections_tenant ON "github_connections"
   USING ("userId" = NULLIF(current_setting('app.user_id', true), ''));
 CREATE POLICY github_connections_system ON "github_connections"
-  USING (current_setting('app.rls_bypass', true) = 'on');
+  USING ((SELECT app_rls_bypass()));

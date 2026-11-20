@@ -2,6 +2,7 @@ import { File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useSyncExternalStore } from "react";
+import { getActiveUiMode, subscribeUiMode } from "./ui-mode";
 
 export type MobileBubbleStyle = {
   userBackground: string;
@@ -37,6 +38,8 @@ const listeners = new Set<() => void>();
 function notify() {
   for (const listener of listeners) listener();
 }
+
+subscribeUiMode(notify);
 
 function validColor(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
@@ -87,6 +90,10 @@ function normalize(value: unknown): MobileChatAppearance {
 
 export function getMobileChatAppearance(): MobileChatAppearance {
   return appearance;
+}
+
+export function getEffectiveMobileChatAppearance(): MobileChatAppearance {
+  return getActiveUiMode().chatAppearancePolicy === "suspend" ? DEFAULT_APPEARANCE : appearance;
 }
 
 export async function loadMobileChatAppearance(): Promise<MobileChatAppearance> {
@@ -143,6 +150,17 @@ export function subscribeMobileChatAppearance(listener: () => void): () => void 
 }
 
 export function useMobileChatAppearance(): MobileChatAppearance {
+  useEffect(() => {
+    if (!loaded) void loadMobileChatAppearance();
+  }, []);
+  return useSyncExternalStore(
+    subscribeMobileChatAppearance,
+    getEffectiveMobileChatAppearance,
+    () => DEFAULT_APPEARANCE,
+  );
+}
+
+export function useSavedMobileChatAppearance(): MobileChatAppearance {
   useEffect(() => {
     if (!loaded) void loadMobileChatAppearance();
   }, []);

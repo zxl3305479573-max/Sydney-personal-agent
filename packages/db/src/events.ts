@@ -277,6 +277,7 @@ export interface AnswerRunInput {
   messageId: string;
   answeredByUserId: string;
   answer: string;
+  projectApproval?: { projectId: string; effectId: string };
   /** Identifies a spoken answer as part of a live voice call. */
   clientNonce?: string;
   /** A login card's answer, one per requested field. */
@@ -842,6 +843,9 @@ async function commitAnswerRunInput(
       spaceId: input.spaceId,
       threadId: input.threadId,
       status: "waiting_input",
+      ...(input.projectApproval
+        ? { projectWorkspaceId: input.projectApproval.projectId, userId: input.answeredByUserId }
+        : {}),
     },
     select: {
       botId: true,
@@ -868,6 +872,13 @@ async function commitAnswerRunInput(
   );
   if (pendingAsk?.kind !== "ask") return null;
   const approvalAsk = isApprovalAskBlock(pendingAsk);
+  if (
+    input.projectApproval &&
+    (!approvalAsk ||
+      pendingAsk.approvalEffectId !== input.projectApproval.effectId ||
+      (input.answer !== "allow" && input.answer !== "deny"))
+  )
+    return null;
   const secretAsk = isSecretAskBlock(pendingAsk);
   const choiceAsk = !approvalAsk && !secretAsk && Boolean(pendingAsk.actions?.length);
   const selectedChoice = choiceAsk ? resolveAskChoice(input.answer, pendingAsk.actions) : undefined;

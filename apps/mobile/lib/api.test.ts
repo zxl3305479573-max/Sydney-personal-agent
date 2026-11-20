@@ -1914,6 +1914,34 @@ describe("mobile API authentication", () => {
     expect(init?.body).not.toContain("private content");
   });
 
+  it("does not grant project consent or send text after cancelling its consent prompt", async () => {
+    let resolvePrompt!: (accepted: boolean) => void;
+    let promptOpened!: () => void;
+    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    vi.mocked(promptAiConsent).mockImplementation(() => {
+      promptOpened();
+      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+    });
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
+      paths.push(new URL(String(url)).pathname);
+      return jsonResponse({ json: {
+        scope: "account-space", version: "2026-09-14",
+        recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
+      } });
+    }));
+    const controller = new AbortController();
+    const send = rpc("projectWorkspaces/sendText", {
+      projectId: "project-a", botId: "bot-a", text: "private", clientNonce: "nonce-a",
+    }, { signal: controller.signal });
+    const rejected = expect(send).rejects.toThrow();
+    await opened;
+    controller.abort();
+    resolvePrompt(true);
+    await rejected;
+    expect(paths).toEqual(["/rpc/projectWorkspaces/consentStatus"]);
+  });
+
   it("does not prompt or send screen text when automatic model consent is missing", async () => {
     vi.mocked(promptAiConsent).mockClear();
     const fetchMock = vi.fn(async (_url: string | URL | Request) => jsonResponse({

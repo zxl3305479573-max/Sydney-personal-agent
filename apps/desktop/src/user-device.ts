@@ -5,9 +5,15 @@ import { hostname } from "node:os";
 import path from "node:path";
 import type { UserDeviceClientOptions } from "@rakazo/adapters/user-device-client";
 import type {
+  ProjectFileRequest,
+  ProjectFileResult,
+  ProjectWindowsTerminalRequest,
+  ProjectWindowsTerminalResult,
   RakazoDesktopDevice,
   UserDevicePairRequest,
   UserDevicePairResponse,
+  WorkspaceGrantRequest,
+  WorkspaceGrantResult,
 } from "@rakazo/contracts";
 import { USER_DEVICE_PAIR_PATH, USER_DEVICE_PATH } from "@rakazo/contracts";
 import { readPrivateFile, writePrivateFile } from "./setup-store.js";
@@ -138,19 +144,27 @@ export function createUserDeviceAccess(deps: {
   /** The native consent prompt. Resolves true only when the person clicks Allow. */
   confirm: (host: string) => Promise<boolean>;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
+  workspaceGrant?: (origin: string, device: PairedDevice, request: WorkspaceGrantRequest) => Promise<WorkspaceGrantResult>;
+  projectFile?: (origin: string, device: PairedDevice, request: ProjectFileRequest, signal: AbortSignal) => Promise<ProjectFileResult>;
+  projectWindowsTerminal?: (
+    origin: string, request: ProjectWindowsTerminalRequest, signal: AbortSignal,
+  ) => Promise<ProjectWindowsTerminalResult>;
   connect: (
     origin: string,
     token: string,
     events: {
       onRevoked: UserDeviceClientOptions["onRevoked"];
       authorize: () => Promise<boolean>;
+      workspaceGrant?: UserDeviceClientOptions["workspaceGrant"];
+      projectFile?: UserDeviceClientOptions["projectFile"];
+      projectWindowsTerminal?: UserDeviceClientOptions["projectWindowsTerminal"];
     },
   ) => { close(): void; cancelAll(): void };
 }) {
   let current: string | null = null;
   let generation = 0;
   let client: { origin: string; close(): void; cancelAll(): void } | undefined;
-  const paired = new Map<string, Omit<PairedDevice, "token">>();
+  const paired = new Map<string, PairedDevice>();
   const consent = new Map<string, SavedConsent | null>();
   /** Bumped on every consent change, so a prompt answered after one is ignored. */
   const changes = new Map<string, number>();
@@ -168,6 +182,7 @@ export function createUserDeviceAccess(deps: {
 
   function start(origin: string, token: string) {
     disconnect();
+    const identity = paired.get(origin);
     const active = {
       origin,
       close: () => connection.close(),
@@ -193,6 +208,21 @@ export function createUserDeviceAccess(deps: {
         if (current === origin) void pair();
       },
       authorize: () => authorize(origin),
+      workspaceGrant: (request) => {
+        if (!identity || current !== origin || paired.get(origin) !== identity || !deps.workspaceGrant)
+          return Promise.resolve({ state: "unauthorized" });
+        return deps.workspaceGrant(origin, identity, request);
+      },
+      projectFile: async (request, signal) => {
+        if (!identity || current !== origin || paired.get(origin) !== identity || !deps.projectFile)
+          throw new Error("Project device authorization is unavailable");
+        return deps.projectFile(origin, identity, request, signal);
+      },
+      projectWindowsTerminal: async (request, signal) => {
+        if (!identity || current !== origin || paired.get(origin) !== identity || !deps.projectWindowsTerminal)
+          throw new Error("Project device authorization is unavailable");
+        return deps.projectWindowsTerminal(origin, request, signal);
+      },
     });
     client = active;
   }
@@ -264,6 +294,7 @@ export function createUserDeviceAccess(deps: {
   }
 
   async function pairWith(origin: string) {
+    await removals.get(origin);
     if (!(await deps.cipher.available())) {
       unavailable.add(origin);
       return;
@@ -309,7 +340,7 @@ export function createUserDeviceAccess(deps: {
       unavailable.add(origin);
       return;
     }
-    paired.set(origin, { deviceId: device.deviceId, userId: device.userId });
+    paired.set(origin, device);
     if (current === origin) start(origin, device.token);
   }
 
@@ -343,7 +374,7 @@ export function createUserDeviceAccess(deps: {
       if (selection !== generation) return;
       if (consent.get(origin)?.consent !== "declined") consent.set(origin, choice);
       if (device) {
-        paired.set(origin, { deviceId: device.deviceId, userId: device.userId });
+        paired.set(origin, device);
         start(origin, device.token);
       } else {
         paired.delete(origin);
@@ -352,6 +383,27 @@ export function createUserDeviceAccess(deps: {
     },
     /** Pairs the current server when it is not paired yet, e.g. once the person signs in. */
     pair,
+    async pairForDirectory(origin: string) {
+      if (origin !== current) throw new Error("The desktop server changed");
+      const legacy = paired.get(origin);
+      if (legacy && (!legacy.userId || !legacy.deviceId)) {
+        if (client?.origin === origin) disconnect();
+        paired.delete(origin);
+        const removal = (removals.get(origin) ?? Promise.resolve()).then(async () => {
+          await revokeToken(origin, legacy.token);
+          await deletePairedDevice(deps.userDataDir, origin).catch(() => undefined);
+        });
+        removals.set(origin, removal);
+      }
+      unavailable.delete(origin);
+      await pairOnce(origin);
+      if (origin !== current || !paired.get(origin)?.userId || !paired.get(origin)?.deviceId)
+        throw new Error("Could not pair this desktop for a project folder");
+    },
+    pairing(origin: string): PairedDevice | null {
+      const device = origin === current ? paired.get(origin) : null;
+      return device ? { ...device } : null;
+    },
     state(origin: string): Omit<RakazoDesktopDevice, "name"> | null {
       if (origin !== current) return null;
       return { deviceId: paired.get(origin)?.deviceId ?? null, allowed: isAllowed(origin) };

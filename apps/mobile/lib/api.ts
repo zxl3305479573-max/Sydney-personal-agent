@@ -1312,7 +1312,6 @@ async function request(
   const uses = aiDataUsesForProcedure(proc, body);
   const companionConsent =
     proc === "threads/companionScreenStart" || proc === "threads/companionScreenRespond";
-  const companionSignal = companionConsent ? options.signal : undefined;
   const consentTarget = aiConsentTarget(body);
   const projectConsentTarget =
     proc === "projectWorkspaces/sendText" &&
@@ -1324,6 +1323,7 @@ async function request(
       : undefined;
   if (proc === "projectWorkspaces/sendText" && !projectConsentTarget)
     throw new Error("Project consent scope is missing");
+  const consentSignal = companionConsent || projectConsentTarget ? options.signal : undefined;
   const consentContext =
     options.requestContext ?? (uses.length ? await captureApiRequestContext() : undefined);
   await ensureAiDataConsent({
@@ -1332,20 +1332,20 @@ async function request(
       projectConsentTarget
         ? rpc("projectWorkspaces/consentStatus", projectConsentTarget, {
             requestContext: consentContext,
-            signal: companionSignal,
+            signal: consentSignal,
           })
         : rpc(
             "aiConsent/status",
             { uses, ...consentTarget },
-            { requestContext: consentContext, signal: companionSignal },
+            { requestContext: consentContext, signal: consentSignal },
           ),
     prompt:
       options.allowConsentPrompt === false
         ? async () => false
         : async (recipient, privacyUrl) => {
-            if (companionSignal?.aborted) return false;
+            if (consentSignal?.aborted) return false;
             const accepted = await promptAiConsent(recipient, privacyUrl);
-            return accepted && !companionSignal?.aborted;
+            return accepted && !consentSignal?.aborted;
           },
     allow: (input) =>
       projectConsentTarget
@@ -1354,7 +1354,7 @@ async function request(
             { ...projectConsentTarget, ...input },
             {
               requestContext: consentContext,
-              signal: companionSignal,
+              signal: consentSignal,
             },
           )
         : rpc(
@@ -1362,7 +1362,7 @@ async function request(
             consentTarget.settingsScope
               ? { ...input, settingsScope: consentTarget.settingsScope }
               : input,
-            { requestContext: consentContext, signal: companionSignal },
+            { requestContext: consentContext, signal: consentSignal },
           ),
     coalesceKey: consentContext
       ? `${aiConsentCoalesceKey(consentContext)}${companionConsent ? `\0companion:${++companionConsentCheckSequence}` : ""}`

@@ -99,6 +99,20 @@ async function observe() {
   });
 }
 
+it("joins only the configured API screen peer from the supervisor's Compose project", async () => {
+  vi.stubEnv("SANDBOX_SCREEN_PEER_SERVICE", "api");
+  const { members } = fixture();
+  mocks.listContainers.mockResolvedValue([{ Id: "api-peer" }]);
+  expect((await observe()).status).toBe(200);
+  expect(mocks.listContainers).toHaveBeenCalledWith({
+    all: true,
+    filters: {
+      label: ["com.docker.compose.project=example", "com.docker.compose.service=api"],
+    },
+  });
+  expect(members).toEqual(new Set(["supervisor-peer", "api-peer"]));
+});
+
 async function openScreen() {
   const { supervisorApp } = await import("./index.js");
   return supervisorApp.request("/computers/computer/screen-mode", {

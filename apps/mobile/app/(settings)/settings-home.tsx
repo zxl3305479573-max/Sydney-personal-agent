@@ -9,13 +9,17 @@ import { AccountAvatar } from "../../components/account-avatar";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { useAccountAvatar } from "../../lib/account-avatar";
 import { getAppVersionInfo } from "../../lib/app-version";
-import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
+import {
+  checkForManualUpdate,
+  promptForAvailableUpdate,
+  useClientUpdateState,
+} from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { accountRpcQuery, queryClient } from "../../lib/query";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
-import { sydneyReleaseNotes } from "../../lib/sydney-release";
+import { sydneyReleaseFromManifest, sydneyReleaseNotes } from "../../lib/sydney-release";
 
 export default function SettingsHome() {
   const { t, locale } = useI18n();
@@ -24,6 +28,13 @@ export default function SettingsHome() {
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const { update, downloaded, downloading } = useClientUpdateState();
+  const availableRelease = sydneyReleaseFromManifest(update?.manifest);
+  const availableVersion = update
+    ? availableRelease
+      ? t("Version {version} available", { version: availableRelease.version })
+      : t("Update available")
+    : undefined;
   const { release, nativeLabel } = getAppVersionInfo();
   const currentVersion = release?.version ?? nativeLabel;
   const account = accountDisplay(me ?? {}, t("Your account"));
@@ -35,31 +46,16 @@ export default function SettingsHome() {
   }
 
   async function checkUpdate() {
-    if (checkingUpdate) return;
+    if (checkingUpdate || downloading) return;
+    if (update && downloaded) {
+      promptForAvailableUpdate({ id: update.updateId, release: availableRelease }, true);
+      return;
+    }
     setCheckingUpdate(true);
     try {
       const result = await checkForManualUpdate();
-      if (result.status === "downloaded") {
-        const restartMessage = t("Restart the app now? Save unfinished work first.");
-        const downloaded = result.release;
-        Alert.alert(
-          downloaded
-            ? t("Version {version} downloaded", { version: downloaded.version })
-            : t("Update downloaded"),
-          downloaded
-            ? `${downloaded.releasedOn}\n\n${sydneyReleaseNotes(downloaded, locale)}\n\n${restartMessage}`
-            : restartMessage,
-          [
-            { text: t("Not Now"), style: "cancel" },
-            {
-              text: t("Restart"),
-              onPress: () =>
-                void restartForUpdate().catch(() =>
-                  Alert.alert(t("Could not restart. Reopen the app to apply the update.")),
-                ),
-            },
-          ],
-        );
+      if (result.status === "available") {
+        promptForAvailableUpdate(result.update);
       } else if (result.status === "disabled") {
         Alert.alert(t("Updates are unavailable in this build."));
       } else {
@@ -164,6 +160,9 @@ export default function SettingsHome() {
             onPress={() => accountSection("appearance")}
           />
           {link(t("Language"), "/language")}
+          {Platform.OS === "ios"
+            ? link(chinese ? (traditional ? "介面模式" : "界面模式") : "Interface mode", "/ui-mode")
+            : null}
           {link(t("Chat appearance"), "/chat-appearance")}
           <SettingsRow
             title={t("Advanced")}
@@ -175,9 +174,6 @@ export default function SettingsHome() {
         </SettingsGroup>
 
         <SettingsGroup label={t("Software update")}>
-          {currentVersion ? (
-            <SettingsRow title={t("Current version")} value={currentVersion} />
-          ) : null}
           {release ? (
             <SettingsRow
               title={t("Release notes")}
@@ -193,10 +189,26 @@ export default function SettingsHome() {
             />
           ) : null}
           <SettingsRow
-            title={checkingUpdate ? t("Checking for updates…") : t("Check for updates")}
+            title={
+              downloading
+                ? t("Downloading update…")
+                : checkingUpdate
+                  ? t("Checking for updates…")
+                  : t("Check for updates")
+            }
+            detail={availableVersion}
             accessibilityRole="button"
-            disabled={checkingUpdate}
+            disabled={checkingUpdate || downloading}
             onPress={() => void checkUpdate()}
+          />
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsRow
+            title={t("About")}
+            value={currentVersion ?? undefined}
+            accessibilityRole="button"
+            chevron="right"
+            onPress={() => router.push("/about")}
           />
         </SettingsGroup>
       </ScrollView>

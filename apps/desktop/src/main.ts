@@ -1,17 +1,21 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { HostScreen } from "@rakazo/adapters/host-screen";
 import { startUserDeviceClient } from "@rakazo/adapters/user-device-client";
+import {
+  captureWindowsProjectRoot,
+  executeWindowsProjectFile,
+} from "@rakazo/adapters/windows-project-files";
 import type {
   DesktopMenuCommand,
   DesktopReachability,
   DesktopSetup,
   RakazoDesktopDevice,
 } from "@rakazo/contracts";
-import { parseServerHeaders } from "@rakazo/contracts";
+import { parseServerHeaders, ProjectDirectoryInput } from "@rakazo/contracts";
 import type { Session } from "electron";
 import {
   app,
@@ -42,6 +46,7 @@ import {
 } from "./auto-update.js";
 import { createBadgeHandler } from "./badge.js";
 import { openBrowserAuth } from "./browser-auth.js";
+import { createProjectWindowsTerminal } from "./project-windows-terminal.js";
 import { DOCKER_INSTALL_LINKS, isDesktopSetupLink, runDocker } from "./docker-cli.js";
 import { prepareHostComputer } from "./host-computer.js";
 import {
@@ -59,6 +64,13 @@ import {
   t,
   withDetail,
 } from "./i18n.js";
+import { migrateLegacyAppearance, migrateLegacyAvatars } from "./legacy-avatar-library.js";
+import {
+  importLegacySidebarDensity,
+  needsLegacySidebarDensity,
+  readLegacySidebarDensity,
+  readLegacyStorage,
+} from "./legacy-sidebar-density.js";
 import { saveLocalComputerHost } from "./local-settings.js";
 import {
   LocalStackController,
@@ -121,6 +133,7 @@ import { finishAfterStartup } from "./startup-handoff.js";
 import { createSystemSpeech } from "./system-speech.js";
 import type { UserDeviceAccess } from "./user-device.js";
 import { createUserDeviceAccess, deviceName } from "./user-device.js";
+import { createProjectDirectoryAccess } from "./project-directory.js";
 import { oauthPopupSessionPreferences, shouldOpenInAppPopup } from "./window-open.js";
 import {
   browserWindowOptions,
@@ -213,6 +226,11 @@ markOnce("rk:main:module-evaluated");
 if (PERFORMANCE_USER_DATA) {
   app.setPath("userData", PERFORMANCE_USER_DATA);
   app.setPath("sessionData", path.join(PERFORMANCE_USER_DATA, "session"));
+} else if (process.platform === "win32" && app.isPackaged) {
+  const windowsUserData = path.join(app.getPath("home"), `.${app.getName().toLowerCase()}`);
+  mkdirSync(path.join(windowsUserData, "session"), { recursive: true });
+  app.setPath("userData", windowsUserData);
+  app.setPath("sessionData", path.join(windowsUserData, "session"));
 }
 app.once("will-finish-launching", () => markOnce("rk:main:will-finish-launching"));
 app.once("ready", () => markOnce("rk:main:ready"));
@@ -427,14 +445,21 @@ function buildAppWindow(
       const callback = oauthCallbackFrom(details.url, {
         frameName,
         excludeOrigins: excludedCallbackOrigins,
+        serverOrigin: remoteOrigin,
       });
       if (!callback) return;
       details.preventDefault();
       if (!win.isDestroyed()) win.webContents.send("desktop.oauth.callback", callback);
       if (!popup.isDestroyed()) popup.close();
     };
-    popup.webContents.on("will-redirect", (details) => capture(details));
-    popup.webContents.on("will-navigate", (details) => capture(details));
+    if (frameName === "rakazo-slack-install") {
+      popup.webContents.on("did-navigate", (_event, callbackUrl, status) => {
+        if (status === 200) capture({ url: callbackUrl, preventDefault: () => undefined });
+      });
+    } else {
+      popup.webContents.on("will-redirect", (details) => capture(details));
+      popup.webContents.on("will-navigate", (details) => capture(details));
+    }
   });
   win.on("close", (event) => {
     if (
@@ -1210,8 +1235,15 @@ function configureHeaderSession(value: Session | undefined) {
 
 function isManagedLocalSetup(): boolean {
   return (
-    currentSetup?.mode === "new" && directWebOverrideUrl === null && pcBackendOverrideUrl === null
+    managedLocalAvailable() &&
+    currentSetup?.mode === "new" &&
+    directWebOverrideUrl === null &&
+    pcBackendOverrideUrl === null
   );
+}
+
+function managedLocalAvailable(): boolean {
+  return process.platform !== "win32" || !app.isPackaged;
 }
 
 function standaloneRendererRoot(): string | null {
@@ -1431,7 +1463,31 @@ async function openStandaloneOnce(
       activateDesktopMonitoring(remoteOrigin, targetSession, bound.fetchBackend);
     }
 
-    const state = await startAppWindowLoad(win, uiOrigin);
+    let state = await startAppWindowLoad(win, uiOrigin);
+    const legacyPartition = sessionPartitionKey(remoteOrigin);
+    if (
+      previous === null &&
+      state === "ready" &&
+      legacyPartition !== null &&
+      (await needsLegacySidebarDensity(win, uiOrigin).catch(() => false))
+    ) {
+      const prefersDefault = existsSync(legacyDefaultSessionFlag(legacyPartition));
+      const legacySession = prefersDefault
+        ? session.defaultSession
+        : session.fromPartition(legacyPartition);
+      let density = await readLegacySidebarDensity(legacySession, remoteOrigin).catch(() => null);
+      if (density === null && !prefersDefault && defaultSessionProfileExists()) {
+        density = await readLegacySidebarDensity(session.defaultSession, remoteOrigin).catch(
+          () => null,
+        );
+      }
+      if (
+        density &&
+        (await importLegacySidebarDensity(win, uiOrigin, density).catch(() => false))
+      ) {
+        state = await startAppWindowLoad(win, uiOrigin);
+      }
+    }
     if (switching && state === "pending") {
       throw withDetail(
         new ServerUnavailable("The server page did not become ready."),
@@ -1446,6 +1502,7 @@ async function openStandaloneOnce(
     }
 
     activeStandalone = candidate;
+    win.webContents.send("desktop.settings.legacyMigrationReady");
     currentTargetUrl = remoteOrigin;
     activateDesktopMonitoring(remoteOrigin, targetSession, bound.fetchBackend);
     setupError = null;
@@ -1937,6 +1994,58 @@ async function startDesktop() {
         return { png: fitted.toPNG(), ...fitted.getSize() };
       },
     });
+  const deviceFetch = (url: string, init: RequestInit) => {
+    if (activeStandalone !== null && safeOrigin(url) === activeStandalone.remoteOrigin)
+      return activeStandalone.fetchBackend(url, init);
+    return (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(url, {
+      ...init,
+      bypassCustomProtocolHandlers: true,
+    });
+  };
+  const projectDirectories = createProjectDirectoryAccess({
+    userDataDir,
+    current: () => {
+      const origin = remoteServerOrigin();
+      const device = origin ? userDevices?.pairing(origin) : null;
+      return origin && device ? { origin, device } : null;
+    },
+    fetch: deviceFetch,
+    choose: async (scope) => {
+      const window = mainWindow;
+      if (!window || window.isDestroyed()) return null;
+      const result = await dialog.showOpenDialog(window, {
+        title: `Sydney — ${scope.projectName}`,
+        message: "选择要绑定的项目目录。完整路径仅保存在本机。",
+        buttonLabel: "绑定此目录",
+        properties: ["openDirectory", "dontAddToRecent"],
+      });
+      return result.canceled ? null : result.filePaths[0] ?? null;
+    },
+    files: process.platform === "win32" ? {
+      capture: captureWindowsProjectRoot,
+      execute: executeWindowsProjectFile,
+      confirm: async (scope, directory, origin) => {
+        const window = mainWindow;
+        if (!window || window.isDestroyed()) return null;
+        const { response } = await dialog.showMessageBox(window, {
+          type: "question",
+          title: "Sydney 项目目录授权",
+          message: `允许项目「${scope.projectName}」访问此目录？`,
+          detail: [
+            directory,
+            `服务器 ${origin}`,
+            "允许读取的文本可能发送给此服务器和任务所选的 AI 模型。完整目录路径留在本机。",
+            "若允许新建，项目还可以在此目录内创建新的 Markdown 文件。已有文件会保留。",
+          ].join("\n\n"),
+          buttons: ["取消", "只读", "读取并允许新建"],
+          defaultId: 1,
+          cancelId: 0,
+          noLink: true,
+        });
+        return response === 1 ? "read-only" : response === 2 ? "read-write" : null;
+      },
+    } : undefined,
+  });
   userDevices = createUserDeviceAccess({
     userDataDir,
     cipher: deviceTokenCipher(),
@@ -1947,18 +2056,33 @@ async function startDesktop() {
     }),
     confirm: (host) => confirmRemoteComputerAccess(host),
     // The app window's session carries the sign-in for that server; the token never reaches it.
-    fetch: (url, init) => {
-      if (activeStandalone !== null && safeOrigin(url) === activeStandalone.remoteOrigin) {
-        return activeStandalone.fetchBackend(url, init);
-      }
-      return (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(
-        url,
-        {
-          ...init,
-          bypassCustomProtocolHandlers: true,
-        },
-      );
-    },
+    fetch: deviceFetch,
+    workspaceGrant: (origin, device, request) => projectDirectories.request(origin, device, request),
+    projectFile: (origin, device, request, signal) =>
+      projectDirectories.execute(origin, device, request, signal),
+    projectWindowsTerminal: createProjectWindowsTerminal(async (origin, request, signal) => {
+      const window = mainWindow;
+      if (!window || window.isDestroyed()) return false;
+      const { response } = await dialog.showMessageBox(window, {
+        type: "question",
+        title: "Sydney Windows 终端授权",
+        message: "允许本次 Windows 诊断？",
+        detail: [
+          `项目：${request.projectName}`,
+          `服务器：${origin}`,
+          `任务：${request.runId}`,
+          `执行位置：这台 Windows 电脑`,
+          request.command === "ver" ? "ver · 读取 Windows 版本" : "chcp · 读取终端代码页",
+          "结果将发送给该任务使用的 AI 模型。",
+        ].join("\n"),
+        buttons: ["取消", "仅允许本次"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+        signal,
+      });
+      return response === 1;
+    }),
     connect: (origin, token, events) =>
       startUserDeviceClient({
         serverUrl: origin,
@@ -2006,6 +2130,7 @@ async function startDesktop() {
     pcBackendUrl: process.env.SYDNEY_PC_BACKEND_URL,
     saved: currentSetup,
     forceSetup: process.env.RAKAZO_FORCE_SETUP === "1",
+    managedLocalAvailable: managedLocalAvailable(),
   });
   directWebOverrideUrl = target.kind === "app" && target.source === "env" ? target.url : null;
   pcBackendOverrideUrl =
@@ -2151,7 +2276,155 @@ async function startDesktop() {
     const state = origin === null ? null : userDevices?.state(origin);
     return state ? { ...state, name: await deviceName() } : null;
   };
+  ipcMain.handle("desktop.settings.serverOrigin", (event) => remoteDeviceOrigin(event));
+  ipcMain.handle(
+    "desktop.settings.readLegacyDraft",
+    async (event, key: unknown, space: unknown) => {
+      const context = activeStandalone;
+      const target = context?.window;
+      if (
+        !context ||
+        !target ||
+        event.sender !== target.webContents ||
+        !fromAppFrame(permissionTarget(), event) ||
+        typeof key !== "string" ||
+        typeof space !== "string" ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(space)
+      )
+        return null;
+      const thread = /^(bot|group):([A-Za-z0-9_-]{1,128})$/.exec(key);
+      if (!thread) return null;
+      try {
+        const signal = AbortSignal.timeout(5000);
+        const response = await context.fetchBackend("/api/auth/get-session", {
+          credentials: "include",
+          signal,
+        });
+        const sessionData = (await response.json()) as { user?: { id?: unknown } } | null;
+        const owner = sessionData?.user?.id;
+        if (!response.ok || typeof owner !== "string" || !owner) return null;
+        const access = await context.fetchBackend("/rpc/threads/head", {
+          method: "POST",
+          credentials: "include",
+          signal,
+          headers: { "Content-Type": "application/json", "x-rakazo-space-id": space },
+          body: JSON.stringify({
+            json: { [thread[1] === "bot" ? "botId" : "groupId"]: thread[2] },
+          }),
+        });
+        if (!access.ok || activeStandalone !== context) return null;
+        const head = (await access.json()) as { json?: { threadId?: unknown } } | null;
+        if (typeof head?.json?.threadId !== "string" || !head.json.threadId) return null;
+        const partition = sessionPartitionKey(context.remoteOrigin);
+        if (partition === null) return null;
+        const script = `(async () => {
+        if (localStorage.getItem("rakazo.signedInUser") !== ${JSON.stringify(owner)} ||
+            localStorage.getItem("rakazo:space-id") !== ${JSON.stringify(space)}) return null;
+        const draft = localStorage.getItem(${JSON.stringify(`rakazo.composerDraft.${key}`)});
+        const bindings = localStorage.getItem(${JSON.stringify(`rakazo.composerBindings.${key}`)});
+        let backgroundId = null;
+        if ((await indexedDB.databases()).some((entry) => entry.name === "sydney-chat-appearance")) {
+          backgroundId = await new Promise((resolve, reject) => {
+            const open = indexedDB.open("sydney-chat-appearance", 1);
+            open.onupgradeneeded = () => open.transaction.abort();
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const database = open.result;
+              const transaction = database.transaction("settings");
+              const read = transaction.objectStore("settings").get("appearance");
+              transaction.oncomplete = () => {
+                database.close();
+                const id = read.result?.chatBackgrounds?.[${JSON.stringify(JSON.stringify([owner, thread[1], thread[2]]))}];
+                resolve(typeof id === "string" && id.length > 0 && id.length <= 100 ? id : null);
+              };
+              transaction.onabort = () => { database.close(); reject(transaction.error); };
+            };
+          }).catch(() => null);
+        }
+        const text = draft && draft.length <= 262144 ? draft : "";
+        if (!text && !backgroundId) return null;
+        return { owner: ${JSON.stringify(owner)}, draft: text, backgroundId,
+          bindings: bindings?.length <= 262144 ? bindings : null };
+      })()`;
+        const prefersDefault = existsSync(legacyDefaultSessionFlag(partition));
+        const source = prefersDefault ? session.defaultSession : session.fromPartition(partition);
+        const data = await readLegacyStorage(source, context.remoteOrigin, script);
+        if (activeStandalone !== context || !fromAppFrame(permissionTarget(), event)) return null;
+        if (data || prefersDefault || !defaultSessionProfileExists()) return data;
+        const fallback = await readLegacyStorage(
+          session.defaultSession,
+          context.remoteOrigin,
+          script,
+        );
+        return activeStandalone === context && fromAppFrame(permissionTarget(), event)
+          ? fallback
+          : null;
+      } catch {
+        return null;
+      }
+    },
+  );
+  ipcMain.handle("desktop.settings.migrateLegacyAvatars", async (event, userId: unknown) => {
+    const context = activeStandalone;
+    const target = context?.window;
+    if (
+      !context ||
+      !target ||
+      !fromAppFrame(permissionTarget(), event) ||
+      event.sender !== target.webContents ||
+      typeof userId !== "string" ||
+      userId.length === 0 ||
+      userId.length > 256
+    )
+      return false;
+    try {
+      const response = await context.fetchBackend("/api/auth/get-session", {
+        credentials: "include",
+        signal: AbortSignal.timeout(5000),
+      });
+      const body = (await response.json()) as { user?: { id?: unknown } } | null;
+      if (!response.ok || body?.user?.id !== userId) return false;
+      if (activeStandalone !== context || !fromAppFrame(permissionTarget(), event)) return false;
+      const partition = sessionPartitionKey(context.remoteOrigin);
+      if (partition === null) return false;
+      const prefersDefault = existsSync(legacyDefaultSessionFlag(partition));
+      const source = prefersDefault ? session.defaultSession : session.fromPartition(partition);
+      const migrate = async (legacy: Session) => {
+        const avatars = await migrateLegacyAvatars(
+          legacy,
+          context.remoteOrigin,
+          target,
+          context.uiOrigin,
+          userId,
+        ).catch(() => false);
+        const appearance =
+          activeStandalone === context &&
+          (await migrateLegacyAppearance(
+            legacy,
+            context.remoteOrigin,
+            target,
+            context.uiOrigin,
+            userId,
+          ).catch(() => false));
+        return avatars || appearance;
+      };
+      const imported = await migrate(source);
+      if (!prefersDefault && defaultSessionProfileExists() && activeStandalone === context) {
+        return (await migrate(session.defaultSession)) || imported;
+      }
+      return imported;
+    } catch {
+      return false;
+    }
+  });
   ipcMain.handle("desktop.device.state", (event) => deviceState(remoteDeviceOrigin(event)));
+  ipcMain.handle("desktop.projectDirectory.choose", async (event, input) => {
+    const origin = remoteDeviceOrigin(event);
+    if (!origin) throw new Error("Project selection is unavailable");
+    const parsed = ProjectDirectoryInput.parse(input);
+    await userDevices?.pairForDirectory(origin);
+    return projectDirectories.choose(parsed, () => remoteDeviceOrigin(event) === origin);
+  });
   ipcMain.handle("desktop.device.setAllowed", async (event, allowed: unknown) => {
     const origin = remoteDeviceOrigin(event);
     if (origin === null || typeof allowed !== "boolean") return null;
@@ -2233,6 +2506,7 @@ async function startDesktop() {
     if (!fromSetupWindow(event)) return null;
     return {
       defaultLocalUrl: localStack.webUrl(),
+      managedLocalAvailable: managedLocalAvailable(),
       cloudUrl: RAKAZO_CLOUD_URL,
       saved: currentSetup,
       error: setupError ?? undefined,
@@ -2271,6 +2545,9 @@ async function startDesktop() {
       // Only open the exact origin selected and authenticated by the managed stack.
       let openSetup = setup;
       if (setup.mode === "new") {
+        if (!managedLocalAvailable()) {
+          return { ok: false, error: t("Enter a server address.") };
+        }
         const managedUrl = managedLocalOpenUrl(setup.serverUrl, localStack.webUrl());
         if (managedUrl === null || !(await localStack.matchesDesiredStack())) {
           return {
@@ -2379,10 +2656,10 @@ async function startDesktop() {
     await shell.openExternal(DOCKER_INSTALL_LINKS[link]);
   });
   ipcMain.handle("desktop.setup.stack.state", (event) =>
-    fromSetupWindow(event) ? localStack.state() : null,
+    managedLocalAvailable() && fromSetupWindow(event) ? localStack.state() : null,
   );
   ipcMain.handle("desktop.setup.stack.start", (event) => {
-    if (!fromSetupWindow(event)) return null;
+    if (!managedLocalAvailable() || !fromSetupWindow(event)) return null;
     // Respond right away; the setup window polls `stack.state` until a terminal phase.
     void localStack.start();
     return localStack.state();

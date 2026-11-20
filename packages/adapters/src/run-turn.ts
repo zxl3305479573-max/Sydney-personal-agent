@@ -137,6 +137,9 @@ export async function consumeRunEvents(
       if (!ctx.state.lease.valid) return true;
       if (await runLeaseLost(ctx)) return true;
 
+      if (run.projectWorkspaceId && (event.type === "takeover" || event.type === "subagent")) {
+        throw new Error("Project text conversations cannot start a computer or helper.");
+      }
       if (
         isStrategicInitiativeRun(run) &&
         (event.type === "takeover" || event.type === "subagent")
@@ -684,6 +687,12 @@ async function publishSubagent(ctx: RunContext, event: RuntimeEvent<"subagent">)
 /** The turn ended: apply a scripted runtime's files and memory, then finalize the reply. */
 export async function completeRun(ctx: RunContext) {
   const { deps, run, runId, bot, thread, context } = ctx;
+  if (
+    run.projectWorkspaceId &&
+    ctx.script?.some((turn) => turn.files?.length || turn.memory?.length)
+  ) {
+    throw new Error("Project text conversations cannot apply scripted files or memory.");
+  }
   const { reply } = ctx.state;
   recordExplicitNoResponse(reply, reply.assistantTurnText);
   ctx.computer.lazy.throwIfFailed();

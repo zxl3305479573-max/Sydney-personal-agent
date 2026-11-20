@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatAppearance } from "../lib/chat-appearance";
 import {
-  cancelChatAppearancePreview,
   CHAT_BUBBLE_PRESETS,
+  cancelChatAppearancePreview,
   chatBubbleTextShadow,
   DEFAULT_SURFACE_OPACITY,
   DEFAULT_TEXT_COLOR_PICKER_VALUE,
@@ -245,7 +245,10 @@ export function ChatAppearanceSettings() {
                   onChange={(event) =>
                     change({
                       ...draft,
-                      bubble: { ...adjustableBubble, opacity: 1 - Number(event.target.value) / 100 },
+                      bubble: {
+                        ...adjustableBubble,
+                        opacity: 1 - Number(event.target.value) / 100,
+                      },
                     })
                   }
                 />
@@ -320,6 +323,7 @@ export function ChatAppearanceSettings() {
                 <label>
                   背景透明度{" "}
                   <input
+                    aria-label="背景透明度"
                     type="range"
                     min="0"
                     max="100"

@@ -1,5 +1,268 @@
 # 运维手册
 
+## 个人生产首版发布顺序（2026-11-20）
+
+现有生产是唯一部署环境，项目隔离测试使用生产主机上的隔离临时数据库和合成数据。沿 [退役 Web 运维](#删除退役-web2026-11-20) 核对当前 Compose、直连镜像和 API 画面桥，发布前保留配置、实际运行镜像、驱动文件和新鲜数据库备份。
+
+1. 先确认持久 Compose 与覆盖层清理、生产候选构建和回退边界，按真实文件顺序检查有效配置。保留直连 API、认证回调、健康检查和原生画面。
+2. 核对真实迁移账本，按 [项目迁移清单](#项目迁移依赖与保持关闭的部分) 生成筛选目录。在隔离临时库验证备份恢复。Worker 会主动扫描待执行 Run 和 Graphile 队列，因此用同一 PostgreSQL 版本、已核对的迁移及等效运行角色，在只有合成数据的隔离临时库执行 `packages/db/src/project-workspace.postgres.test.ts`、`packages/db/src/project-directory.postgres.test.ts` 与 `packages/adapters/src/tenant-jobs.postgres.test.ts`。用不同的 `DATABASE_URL`、`DATABASE_MIGRATION_URL` 和 `VERIFY_DATABASE=1`，核对运行角色受 RLS 约束且可进入系统上下文。另用同批真实 Worker 处理合成任务，取得实际模型回复并核对范围。真实 Linux 用 `python3 -B infra/native-linux/test_driver.py` 验证驱动，再经实际私有通道复核。
+3. 通过预检后按批次应用所需迁移、驱动和 API／Worker 候选。安装 `Sydney-partner` Windows 候选及与实际底座兼容的 iPhone `Sydney` OTA 或签名 IPA。核对两端实际版本、登录数据和旧 Web 404，按 [首版必测表](ACCEPTANCE.md#个人生产首版测评) 逐项登记。
+4. 项目入口启用条件和回退边界见迁移一节。保留回退安装包、可重新发布的 iPhone 更新或签名包、匹配的 API／Worker 镜像与驱动文件。版本回退与数据库备份恢复分别记录，并核对留存的数据与直连服务。
+
+Windows 首版安装候选尚未打包。iPhone 已装 Sydney `1.0.12` 构建 `4`，可下载应用版本 `1.0.13` 的兼容 OTA，实际手机 `updateId` 待核对。生产持久配置清理、项目迁移、驱动更新、双端项目候选、首版真实验收与回退仍待执行。[当前证据](VALIDATION.md#个人生产首版复核2026-11-20)
+
+## Windows 项目终端候选（2026-11-20）
+
+需要匹配的 Worker、设备消息网关和 Windows 安装包。打开项目会话后由账号本人请求 `ver` 或 `chcp`，先核对会话卡上的电脑和命令，再在 Windows 原生对话框核对服务器、项目及任务。副作用范围限于本次诊断，输出为版本号或代码页。服务端取消、设备断开或原生拒绝会终止请求。固定诊断复用配对密钥和现有审批存储，随项目入口回退，无专用迁移或单独配置文件。安装版和生产 Worker 实际运行待验。[验证](VALIDATION.md#windows-项目终端授权2026-11-20)
+
+## 云电脑项目目录候选（2026-11-20）
+
+云端目录路径相对选中专属电脑的 Bot 工作区，目录须事先存在。Windows 或 iPhone 的项目详情选择本人在线的原生专属云电脑、路径和只读／允许新建 Markdown，撤销移除绑定并保留真实文件。运行中需要项目会话的一次性审批。正在运行别的任务、维护或人工控制的电脑拒绝分派。
+
+候选迁移 `20261120160000_project_cloud_directories` 建立绑定表和项目 RLS。发布需在完成现有迁移账本核对后匹配 API、Worker、双端候选和新版私有原生驱动。上线前在真实 Linux 复核文件操作、断线和控制权，再核对双端下载。回退先关闭项目写入入口，再恢复兼容的 API／Worker／驱动与客户端版本，保留绑定和业务数据。上述候选发布和回退均待实测。[验证](VALIDATION.md#云电脑项目目录执行2026-11-20)
+
+## 删除退役 Web（2026-11-20）
+
+用户允许退役后直接删除，旧 Web 恢复／再次切流演练已取消。删除范围和客户端保留边界见 [ADR-0025](../docs/adr/0025-retired-web-removal.md)；当前验收见 [退役清单](ACCEPTANCE.md#停用-web-与恢复演练pa-023)。原有恢复命令仅为历史记录，不能继续作为本轮必执行步骤。
+
+已执行：通过现有 `sydney-cloud-admin` SSH 连接检查 `rakazo-prod` 项目，逐一复核 `web`、`native-screen-web-loopback` 的 Compose 项目／服务标签及 `exited` 状态。北京时间 15:55:14 删除 `rakazo-prod-web-18`、`rakazo-prod-native-screen-web-loopback-1`，没有 `--force`、`--volumes` 或全项目删除。再次按标签查询两服务均无容器。API、Worker、PostgreSQL 仍 healthy，现用 API 画面桥、宿主桥、驱动代理与 Caddy 持续运行；IP `/health`、`/ready` 为 200，IP 和原域名 `/app` 为 404。
+
+源码生产配置已删除 Web 服务及旧归档卷声明，Caddy 只依赖 API，认证／屏幕上游默认 API，浏览器应用路径显式 404，`/health` 与 `/ready` 保留。生产 updater 固定跳过 Web。客户端专用覆盖与原生 Linux 示例不再重新声明已删服务；开发预览和既有本地镜像拓扑不在此次生产删除范围。`apps/web` 是 Windows 包内界面的实际构建来源，继续保留；共用镜像、旧资源卷、数据库、工作区和备份未删除。
+
+本次没有将整套源码配置部署到生产，没有重启、重载或重建活动服务。生产 `/srv/rakazo/infra/compose/docker-compose.prod.yml` 与 `/etc/rakazo/compose/production.overlay.yml` 中仍有由停用 profile 限制的历史定义；不再启用 `legacy-web`。后续发布新版源码配置前，先从持久 overlay 移除 `services.web` 与 `services.native-screen-web-loopback` 两项，防止覆盖层生成缺少 image／build 的残留服务；同时清理旧网关上游覆盖，按真实 `-f` 文件顺序执行 `config --quiet` 和 `config --services`，确认无旧服务，再沿既有 API／Worker 发布流程处理。不直接覆盖生产 overlay 中其他原生驱动、代理或数据设置。
+
+删除容器不需要恢复网页；客户端必需链路的升级回退仍使用经核对的 API／Worker／客户端版本和数据备份。原网页恢复材料未清除，但不再为验证材料主动恢复旧入口。本次未执行设备重新登录、真实 OAuth、iPhone 画面或升级验收。
+
+首版收尾候选使用 Compose `server` 构建目标，按 `SYDNEY_PREPARE_WUYING_ASSETS` 准备 API 无影 SDK，生产默认启用校验与准备。Sydney 发布工作流构建 `server`；开发 Web 和 Rakazo 上游预构建自托管镜像用 `self-host`。现有生产 API 已有 SDK。部署前用 `node scripts/wuying-web-sdk.mjs --check --target=api` 核对候选内文件，实际生产镜像构建与发布仍待验。
+
+新版更新器默认更新 `api`／`worker`，过滤退役 `web` 与 `native-screen-web-loopback`。`SYDNEY_WEB_SERVICE_ENABLED=false` 暂传给仍可能运行的旧版 updater；新版忽略该变量。原生环境手动更换 API 时，依既有发布路径同步重建 `native-screen-api-loopback`。启用新版 updater 时，原生覆盖示例已把 API 画面桥加入 `RAKAZO_UPDATE_SERVICES`，并保留环境中追加的服务。使用已有生产覆盖时合并这一项，核对 `RAKAZO_COMPOSE_OVERLAY_FILE` 指向实际覆盖文件。先在获授权的 Linux 环境确认更新和回退后画面桥附着到当前 API，随后核对 SDK、回调、画面与 `/health`、`/ready`、`/app`。常规部署脚本拒绝现有或候选 Compose 启用退役服务，回退使用已验证的直连配置与先前镜像。该脚本会运行迁移服务，项目迁移范围尚待核准时继续使用按账本筛选的发布路径。
+
+原生 Linux 覆盖示例令 `native-screen-api-loopback` 共享 API 网络命名空间。现行 `infra/compose/test-ip-proxy-routes.sh` 接收三个参数，依次为已有 Caddy 镜像 ID、Base64 编码的 `Caddyfile.ip.example`、同一文件的 SHA-256。在获授权的 Linux 环境使用无网络临时容器、自签证书及一个合成 API 上游，覆盖默认路由、认证回跳、画面 WebSocket、旧入口 404 和日志脱敏。脚本语法与模板转换已验证，隔离运行及更新器 HTTP 回退的 Linux 结果待登记。[退役验证](VALIDATION.md#退役配置与-ip-代理候选2026-11-20)
+
+Windows `Sydney-partner` 安装候选保留 `resources/web`，移除 `resources/stack`。现有 `mode: "existing"` 沿用保存的连接；旧 `mode: "new"` 打开选服页面，选择预设生产地址或另填后台，连接和界面成功后才保存新的地址。保留旧用户目录及其中的数据文件。首版 Windows 在自动更新关闭时，通过受控安装包覆盖升级，保留 profile 并核对登录、版本及数据，回退使用已验证的同一应用安装包。实际覆盖升级与回退仍待验。
+
+Windows 手动构建的 `build-metadata.json` 记录提交、运行号及安装器文件名、字节数和签名状态。验收包与回退包按对应提交和运行号登记。安装器与云端打包门禁待实际构建验证。
+
+## 手机导航与 GitHub 候选（2026-11-20）
+
+本轮已完成手机导航／路由源码、受控离线验证和 GitHub 后台发布，客户端尚未交付。手机主入口候选为底栏「应用／项目／GitHub」；应用页和旧 `integration-setup` 已从设置弹层移到主栈，设置中的应用／GitHub 链接仍保留并先关闭弹层。聊天／电脑／项目详情、应用连接与添加、GitHub 仓库详情不显示底栏。无新增客户端存储键、依赖或原生配置，不需要为本轮代码迁移用户手机数据。
+
+发布与回退材料在服务器受限目录 `/srv/rakazo-releases/pa024-github-mobile-20261120/`（0700），包含 Dockerfile、补丁及清单、`preflight.json`、账本摘要、`filtered-migrations/`、原配置 `production.before.yml`、备份 `database-before.dump`、部署脚本及 `deployment-result.json`／`postverify.json`。正式 API／Worker 已共同运行 `sydney-pa024-github:20261120`，镜像摘要 `sha256:8b8bcb260be90f79da1e689a35230d75730c778170bdd283233692b85d7e8149`；它基于原 PA-023 API 镜像，仅补入 GitHub 与本轮必要数据库修正，没有部署本地项目目录／会话等未完成功能。
+
+发布前 210 项已应用迁移与候选源码逐项匹配摘要，筛选目录只新增 `20261118150000_github_connections`。迁移尚未应用时将系统策略对齐既有 `app_rls_bypass()` 密钥验证，上下文诊断增加 `GithubConnection`；不可重新引入裸 `app.rls_bypass=on`。16:03:46—16:04:08（北京时间）先保存并验证自定义格式备份（2,519,456 字节），再通过迁移服务的 owner 凭据、只读挂载的筛选目录和 `RAKAZO_MIGRATIONS_PATH=/release-migrations` 直接运行 Prisma deploy；临时迁移容器以 root 读取受限挂载，不改变正式进程用户。实际只新增 GitHub 一项，账本变为 211、无未结束项；运行角色默认表权限和两条 RLS 均核验通过，没有重置角色或密钥。
+
+服务器候选类型检查受 1536 MiB 限制终止后，已取回该镜像源码，核对锁文件与本机现有依赖完全一致，在隔离候选目录完成完整 API／Worker TypeScript；没有安装依赖或构建整个本地工作区。构建、GitHub 单测和真实 PostgreSQL 隔离也通过后，复核无 queued／running Run 或有效电脑租约，再原子更新 `/etc/rakazo/compose/production.overlay.yml` 中 api／worker／migrate 三个镜像引用，合并配置其余字段完全相同。使用 `up -d --no-deps --no-build --pull never --force-recreate --wait` 仅更新 API、Worker 和共享 API 网络命名空间的既有 `native-screen-api-loopback`；桥需随 API 重建重新附着，未修改其镜像／配置。未重启原生显示、桌面、VNC、noVNC 或驱动，项目开关未设置、项目表仍不存在，Web 根入口继续 404。
+
+发布后 API／Worker 健康，真实匿名 GitHub 搜索、仓库详情／README 读取、公网健康／就绪 200 和未登录 GitHub RPC 401 通过。真实 PostgreSQL 隔离复测全部回滚，合成用户数 0；运行中的 API Prisma 在虚构账号上下文读取新表成功且可见 0 行，测试临时凭据文件已删除。真实 PAT、私人贡献／仓库及客户端运行不由这些结果替代。
+
+必要时回退服务而保留 GitHub 表和连接数据。先核对原镜像标签仍对应备份前摘要（API `62df407f…`，Worker `31167f65…`，完整值见 `preflight.json`），确认原覆盖备份有效且期间无后续配置修改，再恢复 `production.before.yml` 并对同三项服务执行以下操作。本轮未实际演练回退，不删表、不回灌旧库，也不重复运行迁移部署脚本。
+
+```sh
+install -m 0600 /srv/rakazo-releases/pa024-github-mobile-20261120/production.before.yml /etc/rakazo/compose/production.overlay.yml
+docker compose --project-name rakazo-prod --env-file /srv/rakazo/.env -f /srv/rakazo/infra/compose/docker-compose.prod.yml -f /etc/rakazo/compose/production.overlay.yml up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 120 api worker native-screen-api-loopback
+```
+
+旧侧载记录对应的 Run `44298985618` 源 IPA 内 `Expo.plist` 启用 OTA，启动策略 `ALWAYS`、通道 `sideload`、runtime `sydney-ios-ip-1`。后续 USB 已连通，安装代理按 Sydney 名称及设备侧载记录确认 `1.0.12` 构建 `1`。安装标识经签名调整，记录源包摘要匹配该 Run；实际运行中的 runtime／updateId 待验。更新请求初次为 204，后续以相同通道和 runtime 两次复查均为 HTTP 404，服务明确报告 `sideload` 通道不存在。当前进程没有 Expo 发布令牌，本机 Expo 状态无登录会话，也没有 EAS CLI。仓库远程工作流需 `EXPO_TOKEN`，只检出远程引用的源码。需要在获授权的 Expo 项目建立更新通道、发布候选，再按 [专项测评](MOBILE_NAV_GITHUB_EVALUATION.md) 核对下载重启、真实 PAT 和真机运行。
+
+手机发布源码候选保存在本机忽略目录 `.tmp/mobile-ota-candidate`，基于 `0ca3357a5` 的可重放补丁为 `.tmp/mobile-ota-candidate-20261120.patch`（160,679 字节，SHA-256 `807fffcfa7d0a6968a014d7e1fdd7ab48079230fe60226e9ab8e58ff0216a6db`）。只含 `apps/mobile` 文件，已验证可应用在干净基线上。候选 Expo 公开配置与旧源 IPA 匹配；离线 iOS 产物在 `.tmp/mobile-ota-ios-export`，具有 Hermes bundle、资源、`assetmap.json` 与 `metadata.json`。远程工作流应在承载这份候选及可用 Expo 发布认证的受授权环境执行。尚无 OTA 发布 updateId。验证细节见 [候选验证](VALIDATION.md#手机固定导航github-与模型交付2026-11-20)。
+
+签名侧载备选为 `.tmp/Sydney-1.0.12-2-unsigned.ipa`，26,002,217 字节，SHA-256 `1c443d7ae38d844b99e848572ce8635185e3a21dbe8a71abd26bdc857a477c6c`。构建号 `2` 用来区分手机上已有的构建 `1`。在沿用现有 iPASide Apple 账号和安装标识的前提下，个人签名后覆盖安装。保留构建 `1` 的源包和侧载记录，勿先卸载旧应用。安装后先用 USB 查构建号，再验证冷启动、新对话模型、三栏与 GitHub。尚未签名、覆盖安装或验证回退。OTA 通道仍需独立发布。
+
+用户随后确认构建 `2` 安装并连接 GitHub。刷新反馈修复的未签名构建 `3` 位于 `D:/33054/sydney-ipa-output/Sydney-1.0.12-3-unsigned.ipa`，SHA-256 `7e545757e485a062e94c5f40dcda4fae2e8a6b02c815f054af49fd7c7b11e207`。使用构建 `2` 的签名账号与安装标识覆盖安装，然后核对 GitHub 仍已连接、筛选及翻页无自动下拉动画、主动下拉能刷新。构建 `3` 待签名和真机验证，未发布 OTA。
+
+未签名构建 `4` 位于 `D:/33054/sydney-ipa-output/Sydney-1.0.12-4-unsigned.ipa`，SHA-256 `35305d0e9d3f8315fd68cfd285e4ac4a1749eb330f369f93ac82b73b549965b9`。沿用现有 iPASide 签名账号与安装标识覆盖安装。构建 `4` 包含构建 `3` 的刷新修复及四项新增手机体验。安装后按 [手机测评](MOBILE_NAV_GITHUB_EVALUATION.md#真机体验追加目标) 验证 GitHub 重进及主动下拉、相册换头像及冷启动回显、双方气泡和半屏模型切换。侧载签名、真机操作和 OTA 发布均待执行。
+
+当前 iOS `sideload` 更新为 `1.0.13`，由集成分支提交 `40328e108` 经 GitHub Actions `44750564292` 发布。Runtime 为 `sydney-ios-ip-1`，清单标识为 `01a1f94b-6b80-7974-88ca-88494c9f622a`。目标手机已装 `1.0.12 (4)`，可打开「设置 → 检查更新」下载并重启。重启后在「设置 → 版本更新」查看 `1.0.13` 及说明，在「设置 → 账号」核对安装包和 `sideload 01a1f94b`。设备运行标识仍待确认。[验证](VALIDATION.md#手机-1013-版本与更新说明2026-11-20)。
+
+发布前在 `apps/mobile/sydney-release.json` 维护用户可见版本号、发布日期和简中、繁中、英文说明。应用通过清单中的 `extra.expoClient.extra.sydneyMobileRelease` 展示实际下载版本。首次从旧版升级到带说明的版本时，沿用旧版的重启提示，重启后可在设置回看本次说明。
+
+后续侧载候选使用 `updates.checkAutomatically: "NEVER"`，生成的 `Expo.plist` 应含 `EXUpdatesCheckOnLaunch = NEVER`。已安装构建 `4` 的 IPA 实测为 `ALWAYS`，需使用新版 IPA 覆盖更新原生配置。新版候选启动时检查清单，每条 OTA 首次发现时提示，稍后可从「设置 → 检查更新」打开。点「更新」后下载，再点「安装并重启」立即应用。下载后选择「暂不」，Expo 会在下次冷启动时应用已缓存版本。通过「设置 → 关于」核对实际运行的 Sydney 版本。新版包尚未生成或发布。[验证](VALIDATION.md#手机启动更新提示与关于2026-11-20)。
+
+GitHub 连接状态快照位于客户端系统缓存 `github-status-v1`，按已核验的服务器、账号与空间读取，凭据仍由既有服务端保管。退出或切换账号后，新会话只能读取其已核验范围。头像通过现有 `/api/auth/update-user` 保存至本人资料；旧后台省略 `me.image` 时，通过 `/api/auth/get-session` 读取当前用户的头像。省略字段兼容已在替身测试验证，无头像数据库迁移。
+
+## GitHub 与项目工作区发布边界（2026-11-20）
+
+构建 `4` 交付时复核生产 API 与 Worker 均健康，迁移账本 211 项已完成、0 项未结束，`project_workspaces` 表不存在，项目创建与会话开关均未设置。项目隔离测试和发布仍需项目生产维护授权，随后按本节准备筛选迁移、匹配服务候选和实际 Worker 验收。
+
+项目任务取消候选新增 `projectWorkspaces/cancelRun`，与项目会话共用 `SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT`。发布需使用包含此过程的 API 及对应客户端，沿用现有 Run、Task、Attempt、租约和事件记录。取消后的设备侧停止继续按实际回执和文件核对验收。回退保留已经提交的任务终态和事件，不用旧版本重放已取消任务。见 [本批验证](VALIDATION.md#项目任务取消2026-11-20)。
+
+Windows 文件候选在目录绑定迁移后增加 `20261120140000_project_directory_intent`，将既有绑定默认设为 `read-only`。原生确认后才能建立允许新建的绑定，已有绑定不能就地升级，应先撤销再重新选择。目录完整路径和已选目录身份留在本机，进程重启须重新选目录。生产设备连接使用 HTTPS，由 WSS 承载项目文件消息。Worker 必须按持久 Run 的范围及最新绑定固定设备，确认文件结果与完成帧后再交付；新建遇到断线或响应未知时先检查目标文件，勿自动重发。候选回退保留授权元数据和实际文件，原 Windows 进程退出后其目录授权即失效。Worker 入口、生产迁移和设备验收仍待完成。[本批验证](VALIDATION.md#windows-项目目录文件执行2026-11-20)
+
+关联 PA-022、PA-024，阶段状态仅维护在 [总计划](PLAN.md#追加目标github-上线与项目工作区可用闭环pa-022pa-024)。当前只有现有生产环境，本机继续做编辑和离线验证，不要求另建测试环境。本节保留发布边界；GitHub 独立候选、备份、单表迁移和 API／Worker 已按上一节实际完成。项目迁移、客户端本轮安装与回退演练仍未执行。
+
+### GitHub 的独立迁移范围
+
+本次候选只需新增 [GitHub 连接表迁移](../packages/db/prisma/migrations/20261118150000_github_connections/migration.sql)。它依赖既有 `user` 表及数据库租户设置，新增连接表、用户唯一索引、级联外键和两条 RLS 策略；不依赖项目工作区迁移。生产此前只读复核确认表不存在，实际执行前仍需重新核对 `_prisma_migrations`、表／策略状态及可用备份。
+
+`pnpm --filter @rakazo/db migrate` 与默认发布中的全量迁移会处理其他待执行迁移。本轮已在服务器逐项核对已应用迁移源码后，通过 `RAKAZO_MIGRATIONS_PATH` 指向包含“生产已应用迁移 + 唯一新增 GitHub 迁移”的筛选目录，再由 Prisma 维护迁移账本。发布结果和候选材料路径见上一节。
+
+发布前已在上一节所列服务器受限目录保存数据库备份、迁移账本及原 API／Worker 版本，备份可读。`SecretStore` 配置及密钥沿用现有值，数据库地址、真实 PAT、密文及个人资料不进入仓库或终端回显。运行角色的必要权限和 RLS 通过真实 PostgreSQL 验证。
+
+API 与 Worker 使用同一份经验证的契约／适配层候选，`GITHUB_PROVIDER` 默认 `github`，也可显式设为 `github`；使用 `emulator` 的结果不得计为公网验收。Windows 需重新打包内置界面，手机需构建兼容的 IPA／OTA 后实际安装验证。手机候选入口为底栏「GitHub」及「设置 → GitHub」的原生页面，桌面仍使用包内 `/app/github` 路由；不恢复公网 Web。Windows 应用名保持 `Sydney-partner`，iPhone 应用名保持 `Sydney`。
+
+如候选失败，先停止本轮新入口／恢复原 API、Worker 及客户端候选，保留新增表和用户已创建的连接数据，不直接删表或回灌旧库。回退数据库会影响发布后产生的记录，必须另行核对数据保留范围；解绑和 PAT 撤销由正常账号流程执行。本轮未演练以上回退。
+
+### 本机项目目录候选
+
+本批仅完成 PA-022 本机目录的源码与离线验证，未执行生产维护，P2 整体仍未完成。Windows 安装名保持 `Sydney-partner`，iPhone 仍为 `Sydney`；需要分别重建包内界面和移动候选，不能认为已安装版本包含本批入口。
+
+服务端增加 [目录绑定迁移](../packages/db/prisma/migrations/20261120120000_project_directory_bindings/migration.sql)，依赖既有设备表、配对会话及下表项目迁移链，含 `project_directory_bindings`、设备所有者唯一键／复合外键、项目所有者复合外键、项目范围 RLS 和应用角色授权。此迁移没有解除项目资源禁写，不与 GitHub 单表上线混跑；发布前仍需筛选迁移、备份与当前生产账本核对。不能直接执行全量 migrate，也不能只打开实验开关代替迁移和真实运行角色验证。新增 PostgreSQL 定向文件尚未在服务器运行。
+
+目录能力复用关闭中的 `SYDNEY_PROJECT_CREATE_EXPERIMENT`，还要求 API 设备网关可用；不新增默认开启的变量。服务端入口为 `POST /api/devices/project-directory/scope`、`POST /api/devices/project-directory/bind` 和项目专属 `directoryCapability`／`directory`／`unbindDirectory` RPC。原生请求同时核对登录会话与设备 bearer 的账号及配对会话，选择前后均校验项目归属；页面不能提供路径、设备 bearer 或可信 userId。旧本机配对缺少身份时，明确选择目录会撤销旧 token 并重新配对，不改变整机许可。API／契约／数据库候选、设备协议和新桌面主进程必须配套发布；老桌面无法确认该协议时显示不可用，不能退回整机授权或假定已授权。
+
+新增本机数据位于桌面实际 `userData` 下的 `workspace-grants/`，继续使用已有私有文件存储约定。完整规范路径仅写主进程私有记录，服务端只保存目录名、设备标识及不透明 grant。grant 只在创建它的桌面进程有效；重启后需先移除旧服务器绑定，再通过 OS 选择器重新选择。不得手改 JSON 或复制其他账号／设备的记录来恢复授权。本轮未在已安装客户端生成或检查这些新授权记录，具体本机权限仍待设备验收。
+
+撤销先按当前项目和预期 grant 删除服务器绑定，防止误撤并发的新绑定，再向固定设备发送受限撤销请求。返回 `confirmed` 才表示本机已确认；离线、旧端或响应丢失返回 `pending`，页面明确表示本机撤销未确认，原 grant 随原桌面进程结束失效。没有新增后台撤销队列，不声称离线设备已删除本机记录；服务器无绑定时不得用于后续文件执行。操作不会删除真实目录或文件，审计只记录作用域标识和结果，不记录路径、目录名或凭据。有目录绑定的项目不能作为空项目删除。
+
+双端详情定期或显式读取固定绑定设备的状态，区分设备离线、配对／grant 失效、目录不存在／不可确认与授权在线。目录检查只涉及已选路径的规范化和存在性；当前不开放项目文件或终端工具，不改变 P1 文字限制。真实云电脑目录绑定未包含在本批。
+
+### Windows 项目文件与 Markdown 下载候选
+
+候选 API、Worker、Windows 主进程与包内界面、iPhone 需配套。目录与会话开关仍按项目发布门槛处理。审批由 `projectWorkspaces/answerApproval` 核对当前项目会话和卡片，只接收一次允许或拒绝。在设置为从不询问审批的 Space，文件操作会直接拒绝。Worker 通过既有设备网关向当前绑定的 Windows 发送读文件或新建 Markdown 请求，执行中按秒检查持久授权和 Run 租约。撤权、取消、掉线或旧端不返回可信结束帧时，先检查目标路径，再提出新的创建请求。
+
+电脑确认创建后，产物副本进入既有产物存储。`projectWorkspaces/getArtifact` 仅从产生该文件的项目会话下载。Windows 使用包内下载，iPhone 使用系统分享菜单。解绑保留设备源文件和已发布的会话副本。副本保存失败独立显示，原文件仍应核对。回退服务版本与项目开关，保留新增归属、已产生的副本和设备文件。服务、迁移及设备验证状态见 [分派验证](VALIDATION.md#windows-项目审批与-worker-分派2026-11-20) 和 [下载验证](VALIDATION.md#项目-markdown-产物下载2026-11-20)。
+
+候选回退先关闭目录入口并恢复已验证的服务／客户端版本，保留新表和授权元数据，不直接删表、删目录或回灌旧库；退出本批桌面进程使本机 grant 失效。重新开放前仍需新选择与真实状态核对。以上部署、回退及 Windows／iPhone 操作尚未实测；按 [目录测评](ACCEPTANCE.md#本机项目目录授权pa-022) 逐项登记。
+
+### 项目文字执行候选的权限范围
+
+2026-11-20 已增加 Worker 文字范围候选：持久 Run 带项目标识时，只提供文字提问／回复、项目范围历史和当前 Bot 的文本身份编辑，不继承账号插件、整机／本机终端、共享技能／记忆／待办／看板或外部作业权限。即使创建上节的本机目录绑定候选，文字限制仍适用，不能以电脑在线、可见项目或路径文本作为文件执行授权。项目文字任务不获取电脑租约、不因电脑切换等待，也不主动探测设备／环境；首页原有能力保留。脚本运行器不开放项目会话，原生 MCP 直通、接管／助手事件及脚本文件／记忆产物不能绕过工具分派。
+
+P1 文字执行器候选沿用现有权限记录与数据目录，开放迁移见下节。服务发布需包含同一套执行器、工具选择、分派和运行时事件处理；目录授权与后续文件操作保留独立权限边界。8 项定时唤醒测试已按生产 Worker 的租户上下文修正并通过，真实运行角色 RLS、项目 A／B／首页、Worker 续行和设备验收仍待执行。生产项目迁移未应用，两个开关保持关闭。见 [定向复测](VALIDATION.md#个人生产首版退役收尾2026-11-20)。
+
+### 项目迁移依赖与保持关闭的部分
+
+项目草案依次涉及以下迁移，不能只创建元数据表或设置开关就宣称聊天可用：
+
+| 迁移名 | 作用与当前门禁 |
+| --- | --- |
+| `20261119120000_project_workspace_metadata` | 工作区元数据、所有者外键、RLS 和应用角色授权 |
+| `20261119130000_project_resource_scope_columns` | Bot、群、Thread、Task、Run 归属列与外键；五个 `*_project_scope_disabled` CHECK 仍禁止非空项目归属 |
+| `20261119140000_project_conversation_row_security` | 首页／项目范围限制性 RLS、群成员及事件归属检查 |
+| `20261119150000_project_conversation_consistency` | 父子范围一致性、对象身份与目标不可换绑 |
+| `20261119160000_project_external_operation_scope` | 云代理／购买的持久项目归属；这两类操作继续禁写项目数据 |
+| `20261119170000_project_account_deletion_gate` | 账号删除声明列，配合元数据创建／删除生命周期 |
+| `20261119180000_project_artifact_scope` | 产物归属与 RLS；项目产物仍禁写 |
+| `20261119190000_project_memory_scope` | 记忆与修订按 Bot／项目限定范围 |
+| `20261120120000_project_directory_bindings` | 本机目录授权元数据、项目与设备所有者约束及 RLS；不存完整路径 |
+| `20261120130000_project_text_conversations` | 事务删除 Bot／群聊／Thread／Task／Run 的五个项目禁写 CHECK，保留归属外键、RLS 和一致性触发器；产物、云代理及购买禁写继续生效 |
+| `20261120140000_project_directory_intent` | 事务增加两种受限目录授权意图，原有绑定和旧版写入默认只读 |
+| `20261120150000_project_artifact_downloads` | 解除产物项目禁写，保留 RLS 和所有者外键，新增来源 Run、项目版本族和归属变更约束 |
+| `20261120160000_project_cloud_directories` | 云目录绑定、专属电脑所有者外键和项目 RLS；与 Windows 绑定互斥 |
+
+源码生产 Compose 默认将 `SYDNEY_PROJECT_CREATE_EXPERIMENT` 和 `SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT` 设为 `false`，两者均需显式配置。生产此前核对两开关未开启，本批只新增迁移和源码默认值，线上未变更。核验使用按生产账本筛选的迁移及匹配 API／Worker，在获授权的隔离临时数据库中以 `VERIFY_DATABASE=1` 和不同的运行／迁移账号执行 `project-workspace.postgres.test.ts`、`tenant-jobs.postgres.test.ts`。数据库恢复验证、项目 A／B／首页、真实 Worker 执行和样本设备验收通过后才开放；不能用全量迁移替代账本筛选。
+
+新数据已经写入时，回退先停止项目入口和新增任务，核对在途 Run、备份并保留项目数据。两个开关置 `false`，回退至已验证且识别项目归属的匹配 API／Worker，保留 RLS、外键、触发器及目标数据。已有项目行时重新添加原项目禁写 CHECK 会拒绝现有数据，旧服务也需要验证对持久项目 Run 的处理；不得用删项目或覆盖数据库作为版本回退。实际回退步骤及停启顺序待生产候选确定后实测。
+
+Windows 与原生云电脑目录已接入尚未上线的候选。项目详情分别通过 `projectWorkspaces/directory` 和 `projectWorkspaces/cloudDirectory` 查询真实绑定及可用性。移除绑定保留真实目录。Windows 路径来自本机选择对话框，云端路径相对绑定专属电脑的工作区。
+
+## 云电脑全覆盖样式部署（2026-11-20）
+
+用户明确要求部署全覆盖修复。本次只发布 `infra/native-linux/novnc-full-coverage.css` 到 `sydney-cloud-admin` 的 `/usr/share/novnc/app/styles/sydney-full-coverage.css`（0644），并在原生 `vnc.html`、`vnc_lite.html` 的 `</head>` 前增加以下引用：
+
+```html
+<link rel="stylesheet" href="app/styles/sydney-full-coverage.css?v=20261120">
+```
+
+北京时间 14:26:57 完成。原文件及存在性清单 `baseline.json`、发布结果 `result.json` 位于 `/srv/rakazo-releases/pa023-coverage-20261120T062657Z`（目录 0700，JSON 0600）。本轮使用受限发布脚本先备份、生成同目录临时文件，再原子替换；若回环 HTTP 校验失败，脚本恢复备份。实际页面和 CSS 均通过回环请求验证，Windows 原登录客户端实测三种窗口尺寸全覆盖和真实帧通过。无需构建客户端或重启画面／后台服务，已打开的画面需关闭电脑窗口再打开，以重新加载静态页。详见 [验证记录](VALIDATION.md#pa-023-云电脑画面全覆盖修复2026-11-20)。
+
+这项样式将完整画面非等比填满可用区域，不改变远程桌面 1024×768 分辨率；只读设置不变。镜像用 `infra/sandboxes/computer/embed.html` 是另一条尚未发布的交付链，不能通过构建该镜像替代当前原生静态页维护。noVNC 包更新可能替换原生 HTML，升级后核对样式文件、引用以及客户端四边；仅原子替换 CSS 可更新后续样式，HTML 已存在本引用时不要重复添加。
+
+需要回退时，先核对页面没有之后的其他更新，再执行以下限定原文件的恢复；此回退未演练。恢复后重新打开电脑画面，原等比留黑行为会恢复，不删除桌面用户数据。
+
+```sh
+release=/srv/rakazo-releases/pa023-coverage-20261120T062657Z
+install -m 0644 "$release/vnc.html" /usr/share/novnc/vnc.html
+install -m 0644 "$release/vnc_lite.html" /usr/share/novnc/vnc_lite.html
+rm -f /usr/share/novnc/app/styles/sydney-full-coverage.css
+```
+
+## PA-023 云电脑画面恢复（2026-11-20）
+
+本轮在既有生产 `sydney-cloud-admin` 恢复专属 `sydney-desktop` 账号的 `:10` 显示。随后按用户追加授权短停 Worker 并校准团队连接，Windows 专属／团队电脑实际画面和自动重连均通过；手机源码发布及 iPhone 实测仍未完成，见 [验证记录](VALIDATION.md#pa-023-云电脑画面恢复2026-11-20)。首次显示恢复未改数据库；后续仅校准团队连接单行，API、网关与驱动未重启或改配置，Web 未恢复。
+
+### 当前部署与路径
+
+- 针对现有 Xorg／xorgxrdp 的源码为 [显示单元](../infra/native-linux/xrdp/sydney-display.service)、[桌面单元](../infra/native-linux/xrdp/sydney-desktop.service) 和 [VNC 依赖覆盖](../infra/native-linux/xrdp/screen-display.conf)。不能把仓库其他使用 Xvfb `:99` 的草案直接覆盖到本机。
+- 已安装 `/etc/systemd/system/sydney-display.service`、`/etc/systemd/system/sydney-desktop.service` 和 `/etc/systemd/system/sydney-screen-vnc.service.d/20-display-session.conf`。既有 VNC／websockify 主单元及 `10-view-only.conf` 未改；VNC 保持服务端 `-viewonly`。
+- 使用已有 `/home/sydney-desktop/.Xauthority`，未生成或导出 cookie。Xorg 日志为 `/home/sydney-desktop/.local/state/sydney/Xorg.10.log`；专属运行目录 `/run/sydney-desktop` 由 systemd 创建，模式 0700。桌面代理继续可选读取既有 `/etc/sydney/desktop-proxy.env`。
+- 新单元仅以专属账号运行，沿用共享 `/tmp` 的现有 X socket；`ProtectSystem=strict` 下需允许 `/tmp` 写入以创建 X 锁文件，显示单元另允许已有 `/run/xrdp/sockdir`。未新增外部监听；5900／6080 仍限回环，Xorg 禁止 TCP。
+- 候选及本次原始备份在 `/srv/rakazo-releases/pa023-screen-20261120/`。`rollback/baseline.json` 记录变更前没有 display／desktop 单元，VNC 已启用但反复失败、websockify 已启用但 inactive。不要覆盖这份原始备份。
+
+以下命令反映本次已成功执行的部署操作。仅适用于本机现有账号、Xauthority、Xorg 配置和原始备份；在之后发生其他配置变更时先核对差异。
+
+```sh
+release=/srv/rakazo-releases/pa023-screen-20261120
+install -m 0644 "$release/sydney-display.service" /etc/systemd/system/sydney-display.service
+install -m 0644 "$release/sydney-desktop.service" /etc/systemd/system/sydney-desktop.service
+install -d /etc/systemd/system/sydney-screen-vnc.service.d
+install -m 0644 "$release/screen-display.conf" /etc/systemd/system/sydney-screen-vnc.service.d/20-display-session.conf
+systemctl daemon-reload
+systemd-analyze verify /etc/systemd/system/sydney-display.service /etc/systemd/system/sydney-desktop.service /etc/systemd/system/sydney-screen-vnc.service
+systemctl start sydney-screen-websockify.service
+systemctl enable sydney-display.service sydney-desktop.service
+systemctl is-active sydney-display sydney-desktop sydney-screen-vnc sydney-screen-websockify
+systemctl is-enabled sydney-display sydney-desktop sydney-screen-vnc sydney-screen-websockify
+```
+
+目前四个服务均 active／enabled。启用只证明启动登记存在，服务器重启后的真实桌面恢复尚未演练。VNC 的累计重启计数含修复前失败历史，不能把累计值当作恢复后新失败次数。
+
+### 停止与配置回退（待执行）
+
+先确认本次桌面维护时段，避免中断正在使用桌面的客户端。以下只退回本次三份配置，不修改驱动、Xauthority、工作区、用户数据、VNC 主单元或其原 `10-view-only.conf`；尚未实际执行。
+
+```sh
+systemctl stop sydney-screen-websockify.service sydney-screen-vnc.service sydney-desktop.service sydney-display.service
+systemctl disable sydney-desktop.service sydney-display.service
+rm -f /etc/systemd/system/sydney-screen-vnc.service.d/20-display-session.conf
+rm -f /etc/systemd/system/sydney-desktop.service /etc/systemd/system/sydney-display.service
+systemctl daemon-reload
+systemctl is-enabled sydney-screen-vnc.service sydney-screen-websockify.service
+```
+
+原 VNC／websockify 单元保持原启用状态。需要恢复被后续操作改动的原文件时，先逐一比较 `rollback/` 的备份。原始基线没有工作中的 `:10` 显示，因此配置回退不代表恢复可用画面；本次未执行主机重启、服务回退或 Web／网关流量恢复演练。
+
+### 团队连接校准维护（已执行）
+
+2026-11-20 用户明确允许此次短停维护。北京时间 12:27:50—12:28:05（含恢复健康等待）执行完毕。实际 Worker 为 `rakazo-prod-worker-16`，API 为 `rakazo-prod-api-21`；容器名称属于此次部署，后续执行前应重新识别，不直接套用旧编号。
+
+1. 核对原 Worker 正常运行、无其他生产 Worker，专属／团队电脑均无运行中任务、有效执行租约或电脑更新；团队有一条 `waiting_input`，其接管已过期。驱动无直接子进程，inspect 的 unknown 仍按未知处理。
+2. `docker stop --timeout=-1 rakazo-prod-worker-16` 优雅等待结束，退出码 0。没有使用强杀、取消任务或暂停驱动；API 继续接收正常请求。
+3. 以 API 的既有应用运行环境访问数据库，设置配置限定的 space／user 租户上下文。将电脑、Bot、Run 状态及租约元数据保存至 `/srv/rakazo-releases/pa023-screen-20261120/team-reference-maintenance/20261120T042750Z-before.json`；同目录 `20261120T042750Z-result.json` 为维护结果。目录 0700、文件 0600，不复制到仓库；备份包含实际身份和引用，应按生产敏感数据管理。
+4. 短事务内对 `computers`、`bots`、`runs`、`computer_execution_leases`、`computer_updates` 取 `SHARE ROW EXCLUSIVE` 锁，锁等待 3 秒、单语句 12 秒超时。锁短暂阻止这些表的并发写入；不能只依赖停止 Worker 或锁电脑单行，因为 API 仍可操作租约。读取快照与已保存备份逐项比较并再次检查任务、租约及维护状态。
+5. 来源仅取同一 socket 上已通过 status 的现有专属引用，再以团队原 homeKey 验证当前代次。团队旧引用被拒、候选通过后，按原 id／providerRef／screenGeneration／updatedAt 作条件更新；仅替换 providerRef、screenGeneration 加 1 和更新 updatedAt。提交前核对其余记录全部保持并复核驱动 status。没有改电脑 state、账号、Run 或控制租约。
+6. 在恢复分支执行 `docker start rakazo-prod-worker-16`，等待原容器 healthy；本次正常恢复，驱动 PID 未变、API healthy。通过正常已登录客户端打开团队电脑，screenUrl 从 500 恢复 200，真实帧与自动重连通过。
+
+校准后既有 `expireStaleComputerControl`／过期清理链路能够成功撤销旧接管，最终只读复核显示过期的 controlLeaseId、controlLeaseExpiresAt、controlBotId 已清空；controlHolder 仍为 none，controlFence 未变。该变化发生于正常接口／后台过期处理，维护事务未主动清空接管。原团队 Run 状态全部保留，待回答任务仍为一条，不需要重答或重新创建。
+
+原生驱动启动时生成新的 generation，因此本次没有重启驱动。以后若驱动重启再次失配，先复核其当前代次和在途工作，不能只改 state、借用其他账号、跳过 status 校验或盲目执行不受支持的 recover／destroy 来掩盖问题。
+
+### 团队引用回退（未演练）
+
+备份用于核对和受控恢复本次被修改的连接字段。若确需引用回退，先优雅停止实际 Worker、核对当前任务和租约，沿用上述短事务和快照／条件更新边界；从受限备份读取原 providerRef，仅在与当前驱动的关系及回退结果明确后执行。screenGeneration 应继续递增以失效已发出的画面票据，不能递减来重新启用旧票据，也不能把已过期的接管字段或整份电脑记录覆盖回去。原引用在维护前已被现有驱动拒绝，直接退回将恢复故障，不是恢复可用画面的常规步骤。本次没有执行引用回退或备份恢复。
+
+### 手机端后续
+
+手机端新增画面地址失败提示与重试，续签失败保留已有画面，成功读取后清除提示。这些仅在源码和离线测试中完成，已安装的 Sydney 不会自动获得未发布代码。团队连接的共同后台接口现已恢复；仍需发布可追溯的 IPA／OTA，并在 iPhone 分别实测预览、完整窗口、断线重连与前后台切换；不要将 Windows 通过视为手机已通过。
+
+## 移动端多模式 UI（离线代码阶段，未发布）
+
+- 客户端已选模式保存在 Expo `SecureStore` 键 `sydney.mobile.uiMode.v1`。明暗偏好和聊天外观仍用原各自存储，本次不覆盖原用户偏好或删除背景图片。
+- 运行时只激活当前平台支持的模式。未知/注销/不支持的平台选择显示为 `classic`；扩展模式屏幕或根渲染异常时自动恢复到 `classic`。恢复注册后仍可再次选择已保存的模式。
+- iPhone App 名称为 `Sydney`；源码中的 iOS「设置 → 界面模式」已支持经典／午夜预览、应用、取消及恢复经典。离开页面会取消未确认预览；默认经典，午夜使用深色外观和实体表面，保留原聊天背景与气泡设置。内置模式随客户端代码注册，无需服务端配置、数据库迁移或新增依赖。
+- 本轮未构建/发布 IPA／OTA，也未完成该版本 iPhone 安装验收。已只读确认手机现有 Sydney 为 `1.0.12`（构建 `1`）；需要将本轮代码纳入兼容的客户端候选，再按测评清单进行签名安装、冷启动与升级验证。
+- 若设备 SecureStore 写入失败，既有内核仅保留当前进程的模式选择，重开可能恢复上次写入成功的模式；本轮测试只证明正常存储下的持久化和主题恢复。手机设置「界面模式 → 恢复经典模式」为正常存储条件下的手动恢复入口，不需要清除原聊天外观数据。
+
+### 已有 iPhone 查询工具（2026-11-20 实测）
+
+本机已有 iPASide 内置 Python／pymobiledevice3，不应因默认 Python 或 `PATH` 缺少设备命令而重新安装依赖。在仓库根目录通过 PowerShell 执行以下只读镜像探针，实测连接成功并返回 iOS `27.0.1`、`personalized_image_found: false`。探针使用 `autopair=False`，不会请求自动配对或挂载开发者镜像：
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\iPASide\engine\python\python.exe" -I -B .\scripts\iphone_image_readonly_probe.py
+```
+
+同一设备库的 InstallationProxy 查询已确认已安装 `Sydney 1.0.12`（构建 `1`）。侧载记录源包与既有云候选的摘要关联见 [设备与候选复核](VALIDATION.md#pa-023-环境与候选准备复核2026-11-20)。本轮没有启动 iPASide GUI、签名、续签、安装应用、挂载镜像或修改手机配置；现有安装可用于后续非升级验收，升级候选另行准备。
+
 ## GitHub 模块运维与部署（PA-024，2026-11-18）
 
 1. **数据库迁移**：
@@ -8,14 +271,13 @@
      ```bash
      pnpm --filter @rakazo/db migrate
      ```
-   - 迁移脚本位置：`packages/db/prisma/migrations/20261118150000_github_connections/migration.sql`，内置了 PostgreSQL 行级安全策略（RLS），确保租户数据物理级隔离。
+   - 迁移脚本位于 `packages/db/prisma/migrations/20261118150000_github_connections/migration.sql`。真实环境验收需核对 `github_connections_tenant`、`github_connections_system` 策略及应用运行角色下的行级隔离。
 2. **环境变量与 Provider 配置**：
-   - `GITHUB_PROVIDER`：控制 GitHub 提供者类型，可选值为 `client`（默认）与 `emulator`；
-   - 生产环境默认使用 `client`（原生直连 `https://api.github.com`）；在无公网或离线测试环境可设为 `GITHUB_PROVIDER=emulator` 启用内置仿真数据。
+   - `GITHUB_PROVIDER` 默认为 `github`，通过 `https://api.github.com` 直连。离线测试可用 `emulator`，`none` 用于禁用 Provider。
 3. **凭据安全与 SecretStore**：
    - 用户的 GitHub PAT 在进入 API 后直接通过 `SecretStore` 加密，数据库仅存储密文句柄 `secret_handle`，明文 Token 严禁进入日志、审计事件或返回前端；
    - 用户断开连接时，系统会自动在数据库将状态置为 `disconnected` 并同步物理删除 `SecretStore` 中的密文；
-   - 建议在前端或文档中引导用户创建只读权限的 Personal Access Token（经典 Token 需 `read:user` 和 `repo` 只读，无需任何写入或管理员权限）。
+   - 联调优先使用限定到指定测试仓库、仅授予所需只读权限的 Fine-grained PAT。经典 PAT 的 `repo` 范围含写权限。
 4. **网络与缓存机制**：
    - 服务端出站需允许访问 `api.github.com:443`；
    - GraphQL 贡献热力图数据在服务端内存中保持 5 分钟租户隔离缓存，防止重复请求耗尽 GraphQL 5000 points/hr 配额；
@@ -59,11 +321,10 @@ iframe 导航没有令牌，接入受保护代理会拒绝首次加载。该实�
 正式窗口。
 
 `SYDNEY_SIGN_IN_UPSTREAM` 控制三份 Caddy 模板的精确
-`/sign-in` 上游，默认 `web:5173`；生产 Compose 透传该值。
-未来只有在每个 API 实例已启用并验证
-`SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API`、双端迁移完成且旧入口
-兼容方案验收后，才评估将其改为 `api:3100`。错误顺序会导致
-旧链接 404，切换也会取代所有网页登录。隔离网关脚本第五个
+`/sign-in` 上游，当前源码默认 `api:3100`；生产 Compose 透传该值，
+并默认启用 `SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API`。这一精确路由
+保留客户端旧验证链接的返回处理，不提供网页登录界面。
+源码默认变更未在本批整体部署，双端返回链路仍需实测。隔离网关脚本第五个
 参数可选择 `unset`、`web` 或 `api`，默认 `unset` 以检查
 未设置时的回退；需在授权服务器分别运行并检查日志及恢复。
 隔离脚本把默认 Web 地址替换为回环替身，不代表验证生产 DNS。
@@ -238,7 +499,7 @@ API 页继续支持已发链接；回滚至不含该页的版本前，应先停�
 | `SYDNEY_PREPARE_WUYING_ASSETS` | 镜像构建参数，默认 `false`；`true` 才在 Compose/Railway Dockerfile 中下载并校验固定 SDK。源码 Compose 的四个应用构建入口及 Docker overlay 使用同值；预构建镜像不会因改此变量自动补资源。 |
 | `SYDNEY_WUYING_ASSETS_ON_API` | API 运行开关，默认关闭；只有显式 `true` 才注册资源路由。 |
 | `SYDNEY_WUYING_ASSETS_DIR` | 开启 API 路由时必填绝对路径；当前源码镜像候选为 `/app/packages/core/wuying-assets`，宿主运行需换成实际绝对目录，不能直接套用容器路径。 |
-| `SYDNEY_WUYING_SCREEN_UPSTREAM` | 三种 Caddy 候选模板的独立上游，默认 `web:5173`；API 部署和验收后才能评估改为 `api:3100`。与 `SYDNEY_SCREEN_PROXY_UPSTREAM` 分开。 |
+| `SYDNEY_WUYING_SCREEN_UPSTREAM` | 三种 Caddy 模板的独立上游，2026-11-20 源码默认改为 `api:3100`，与 `SYDNEY_SCREEN_PROXY_UPSTREAM` 分开。实际生产仍以生效配置为准，无影需要 API 镜像包含固定 SDK。 |
 
 SDK 固定为 `2.13.22-asp3.18.14`，两份原始厂商文件的 SHA-256 沿用
 准备脚本已有清单。仓库维护 screen.html、screen.js、storage.js；厂商
@@ -283,7 +544,7 @@ node scripts/wuying-web-sdk.mjs --check --target=api
 新增五个无影路径检查；脚本尚未在服务器运行，不验证真实 SDK、
 Compose 注入、默认值或云电脑登录。
 
-2026-11-13 IP 画面网关隔离演练：`test-ip-proxy-routes.sh` 的前三个
+2026-11-13 IP 画面网关隔离演练（历史接口，现行用法见 [退役运维](#删除退役-web2026-11-20)）：`test-ip-proxy-routes.sh` 的前三个
 参数不变，第四参数可选 `web` 或 `api`，省略为 `web`；要比较两条
 路径需分别执行。脚本使用隔离网络、合成画面票据及合成上游，检查
 HTTP、WebSocket 和日志脱敏。脚本尚未在服务器运行；它显式注入本地
@@ -2146,6 +2407,8 @@ PR #4 在提交 `1eae0e09bf7d7049de0813f6c4ada9e35dfeb6c8` 的网页两分片、
 
 ## 2026-11-07 生产 Compose 本地 overlay（代码已实现，未部署）
 
+以下旧 Web 画面桥及其更新名单为 2026-11-07 的草案。当前 API 画面桥配置见 [退役运维](#删除退役-web2026-11-20)。
+
 native-linux 草案位于 `infra/native-linux/production.overlay.example.yml`，不是已安装的生产配置。它以
 `996:986` 运行代理，将真实驱动 socket 的目录只读挂载给代理；API/Worker 只读挂载代理目录并通过
 附加组 `986` 连接。宿主机屏幕桥使用 Unix socket 连接 host 网络的 `127.0.0.1:6080`，web 网络命名空间内
@@ -2916,3 +3179,136 @@ Docker、固定镜像及隔离条件。演练使用占位角色和合成会话�
 - 该目录不属于仓库工作区，不会进入版本控制；如需长期保留，请自行复制到其他位置。
 - 产物内默认后台地址为构建变量注入的 `https://124.221.182.39`，不包含旧域名默认入口。
 - 未验证：签名、安装、真机登录与功能验收均由用户侧完成，本机无法代做。
+## 网页退役 Batch 3 客户端兼容
+
+`SYDNEY_INTEGRATION_API_CALLBACK` 支持 `true` 和 `false`，默认关闭。原生密码重置入口优先使用 `AUTH_PUBLIC_LINK_ORIGIN`，未设置时使用 `BETTER_AUTH_URL` 对应的有效认证源。
+
+`RAKAZO_MIN_CLIENT_BUILD` 支持独立的 `desktop=<构建时间戳>` 门槛。已带 `desktop` 标识的安装包收到 HTTP 426 时会提示更新安装包。启用生产门槛前需验收实际安装包的版本标识与提示。
+
+独立桌面端的 MCP OAuth 自动回填要求 `SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN` 与桌面所配置的服务器来源一致，并能访问该来源的 `/api/mcp/oauth/callback`。真实服务商联调待验证。
+
+独立桌面端的 Slack 自动回填要求 Slack 登记的安装回调与桌面服务器来源一致。网关直接将两条客户端关联路径交给 API。`/integrations/callback` 的 `SYDNEY_INTEGRATION_CALLBACK_UPSTREAM` 源码默认已改为 `api:3100`，保留客户端必要返回链路，不再回到旧网页服务；真实 Slack 联调仍待验证。
+
+发布脚本按有效 Compose 声明的服务滚动更新。当前源码生产 Compose 已移除 `web`，生产 updater 配置固定跳过 Web；发布前须同步清理服务器持久 overlay 的旧定义，不能只替换基础文件。
+
+客户端专用覆盖 `infra/compose/docker-compose.client-only.yml` 保留 API 能力、更新器与网关配置，不再声明 `web`。`infra/native-linux/client-only.overlay.example.yml` 仅声明 API 回环画面桥；已有生产 overlay 的旧 Web 桥定义须在发布前独立移除。使用 Docker supervisor 的环境配置 `SANDBOX_SCREEN_PEER_SERVICE=api`，并验证运行中的隔离网络只接入同项目 API。需要无影时，API 镜像必须已包含固定 SDK。
+
+旧 Web 及专用桥容器已于 2026-11-20 按授权删除。后续验收保留客户端登录、回调、只读画面、更新及客户端／后台版本回退；不再恢复旧 Web。不得仅凭 profile 改动宣称容器已删除，实际结果见本文件顶部的退役记录。
+
+后台或客户端版本回退前记录部署版本、镜像 ID、Compose 文件顺序、持久 `.env` 的覆盖配置和现用 API 画面桥。自动失败回退使用进程启动时读取的 Compose 文件清单，因此升级及回退都须核对有效配置；使用保留的 API／Worker／客户端候选及数据备份，不以重启旧 Web 为回退条件。
+
+### PA-023 切换与恢复顺序
+
+> 以下为 2026-11-19 历史切换记录；其中恢复旧 Web 的步骤已按 2026-11-20 用户要求取消。当前清理与发布前条件见 [退役删除运维](#删除退役-web2026-11-20)。
+
+2026-11-19 用户确认没有独立测试环境，授权直接在现有生产切换。实际承载为 `sydney-cloud-admin` 的 `/srv/rakazo`，Compose 项目 `rakazo-prod`；`sydney-backend-admin` 不是这套应用的承载主机。先保留原配置和镜像，构建仅包含 PA-023 及其必要依赖的候选再切换。逐项结果见 [验证记录](VALIDATION.md#pa-023-切换前验收预检)。以下通用恢复步骤保留，尚未执行的双端验收和恢复演练不能视为通过。
+
+Windows 安装测试从对应的候选源码开始。在获授权且依赖已就绪的 Windows 构建环境，沿用现有工作流构建 Web 和桌面，再使用桌面包配置的 NSIS 目标生成安装器。以下为标准构建命令；本轮实际沿用已有 Web 构建、重新构建桌面，并使用本地 Electron 和现有 7-Zip 完成未签名 NSIS 打包及安装，具体产物见验证记录。
+
+```powershell
+pnpm --filter @rakazo/web build
+pnpm --filter @rakazo/desktop build
+pnpm --filter @rakazo/desktop exec electron-builder --win --x64 --publish never
+```
+
+桌面安装名为 `Sydney-partner`。候选 `desktop-windows-build.yml` 在 Windows runner 生成 `apps/desktop/out/Sydney-partner-Setup-<version>.exe` 与展开目录，先通过展开包的现有连接、旧 profile 和更新关闭测试，再分别上传 `sydney-windows-installer-<commit>` 和 `sydney-windows-unpacked-<commit>`。安装器附 `build-metadata.json`，核对提交、运行号、大小及签名状态。应用标识 `dev.rakazo.desktop` 和协议沿用现值。新工作流尚未执行，覆盖安装、生产直连和版本回退待实际操作。
+
+本机 Windows 安装位置为 `%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe`，卸载项显示 `Sydney-partner 0.4.0`。另一个项目的 `D:\33054\Sydney\Sydney.exe` 和卸载项保持原样。新打包版 Windows 用户数据改用 `%USERPROFILE%\.sydney-partner`，会话目录为其下的 `session`；测试时显式指定的 profile 优先。本机 Roaming 和 LocalAppData 目录中同目录原子重命名均实际返回 `EXDEV`，首次安装曾因此无法保存服务配置；用户主目录下已验证同目录原子重命名成功，调整后的安装包实际结果以验证记录为准。不删除原 AppData profile 或旧项目数据。真实旧数据迁移需另验。
+
+本轮用已有编译产物生成的未签名测试安装器位于 `apps/desktop/out/pa-023-validation/Sydney-Setup-0.4.0.exe`。它未安装或发布，正式验收须确认其产物与测试环境版本匹配。
+
+1. **保留基线。** 记录目标 Compose 项目名、原 `-f` 文件顺序和启用的 profiles、运行镜像 ID、持久启动配置与原画面桥。用原配置运行 `docker compose … config --services` 和 `docker compose … ps -a`，确认 Web 可恢复。先从客户端验证测试账号登录和目标画面，保留初始结果用于回滚比对。
+2. **核对候选。** 用目标环境的 Compose 文件顺序解析客户端专用组合，确认 `web` 不在默认服务清单中、Caddy 的画面及回调上游指向 API。`deploy-main.sh` 只从 `RAKAZO_COMPOSE_OVERLAY_FILE` 加载一份受控覆盖。若需要组合现有拓扑与客户端专用覆盖，须在目标环境验证部署脚本和启用时的 updater 实际读取等效配置。启用无影时核对候选 API 镜像包含 SDK。原生 Linux 的回环画面桥须使用 `service:api`，Docker 沙箱使用指向 API 的屏幕对端配置。
+3. **切换并验收。** 按候选配置协调 API、网关、画面桥及启用的更新器，确认 API 健康且所需回调和画面路由经 API 可达。按原项目配置显式停用仍在运行的 `web`，原生 Linux 同时处理旧 Web 回环画面桥。用 `ps -a` 核对实际服务状态，从外部验证浏览器入口已关闭，再执行 [双端停用 Web 用例](ACCEPTANCE.md#停用-web-与恢复演练pa-023)。
+4. **恢复并复验。** 本次切换引入的必测链路故障应恢复原配置；切换前已有故障单独记录。恢复原 Compose 覆盖、环境和画面桥设置，先启动原 Web 和所需画面桥，健康后恢复网关上游及启用的更新器。复查旧入口、登录、画面和原服务清单。实际恢复与仅保留回退材料分别记录，不将未执行的恢复演练标记通过。
+
+#### 2026-11-19 生产配置与回退入口
+
+本次实际生效文件为 `/srv/rakazo/infra/compose/docker-compose.prod.yml`、`/etc/rakazo/compose/production.overlay.yml` 和 `/etc/rakazo/Caddyfile.prod`。原 `.env` 已指向这份覆盖，无须串接第二份持久覆盖。生产 API 和迁移容器使用 `sydney-pa023-api:20261119`，原生产基线 `1993995e572fd4235c7684c533db23eb6cf0554e` 的源文件及依赖保留，仅回补 PA-023 所需部分。源码清单、候选配置、执行脚本、构建和测评摘要保留在 `/srv/rakazo-releases/pa023-direct-20261119/`。
+
+原配置、环境、部署脚本和数据库备份在上述目录的 `rollback/`，目录权限 `0700`、备份文件 `0600`。实际执行前已验证备份可被 `pg_restore --list` 读取，但未执行恢复。以下针对本次部署的回退命令尚未演练；用于发生本次切换引入的故障时恢复旧入口，不用于修复原先缺失的主机桌面会话。
+
+##### PA-023 后续维护演练与再切换方案
+
+> 历史方案：2026-11-20 用户允许直接删除退役 Web，本节旧 Web 恢复及再次切流步骤取消，不再执行或作为验收条件。最新操作见 [退役删除记录](#删除退役-web2026-11-20)；API／Worker／客户端的发布回退继续保留。
+
+2026-11-19 继续验收时生产已处于直连态。用户本条要求生产切换前确认，以下改变服务或网关的步骤均未执行，须在确认的维护窗口操作。当前没有独立测试环境，不将生产预检称为测试环境演练。整体验收仍要求 [必测用例](ACCEPTANCE.md#停用-web-与恢复演练pa-023) 通过及真实恢复成功。
+
+实际预检已确认：原覆盖能解析出 Web 和旧桥；原 API、Web、桥的镜像仍在服务器本地；当前 `.env` 与 `rollback/deploy.env` 内容一致，覆盖路径均为 `/etc/rakazo/compose/production.overlay.yml`。通过当前 Caddy 容器校验原配置成功，适配后的原配置包含 `web:5173` 和 `api:3100`，直连候选仅包含 `api:3100`。这些结果不证明服务已恢复。
+
+执行前先准备已登录的 Windows 验收账号和安装签名候选的 iPhone，配置真实 Slack／MCP 授权条件，并恢复专属桌面的原 `:10` 会话，使画面有可比较的基线。确认升级候选和旧版本的组合。维护期间记录各阶段开始时间、版本、旧入口、登录及画面结果。不要重跑发布目录中的首次 `switch.sh`：它包含首次迁移和保存旧部署脚本的逻辑，重复运行会覆盖原回退脚本；本次使用下面的独立步骤。
+
+1. **在 `sydney-cloud-admin` 准备命令上下文并预检。** 以下变量对应本次实际部署。`compose ps -q` 解析真实容器，不假设 API 的数字后缀。`test -S` 和画面服务检查在当前故障状态下会失败，先处理授权桌面，再安排完整演练。当前配置如与上述复核结果发生变化，应先更新本次方案。
+
+```bash
+set -Eeuo pipefail
+release=/srv/rakazo-releases/pa023-direct-20261119
+base=/srv/rakazo/infra/compose/docker-compose.prod.yml
+overlay=/etc/rakazo/compose/production.overlay.yml
+gateway=/etc/rakazo/Caddyfile.prod
+compose() {
+  docker compose --env-file /srv/rakazo/.env -p rakazo-prod \
+    -f "$base" -f "$overlay" "$@"
+}
+gateway_container="$(compose ps -q caddy)"
+test -n "$gateway_container"
+test -s "$release/rollback/database.dump"
+docker exec -i "$gateway_container" caddy validate --config - --adapter caddyfile \
+  < "$release/rollback/Caddyfile.prod"
+docker exec -i "$gateway_container" caddy validate --config - --adapter caddyfile \
+  < "$release/Caddyfile.client-only"
+test -S /tmp/.X11-unix/X10
+systemctl is-active sydney-screen-vnc.service sydney-screen-websockify.service
+curl --fail --max-time 15 -o /dev/null http://127.0.0.1:6080/vnc.html
+```
+
+2. **恢复原 Compose、Web 和旧桥，健康后恢复网关。** 先停依附于 API 网络命名空间的新桥，防止 API 更换后残留旧命名空间。原服务通过健康等待后重建依附于 Web 的桥；再次检查 API 就绪，再 reload 网关。原文件采用重定向写回，以保留单文件 bind mount 的 inode。当前 `.env` 未改变，不需要覆盖账号或密钥配置。
+
+```bash
+compose stop native-screen-api-loopback
+cat "$release/rollback/production.overlay.yml" > "$overlay"
+compose up -d --no-deps --wait --wait-timeout 120 api web
+compose up -d --no-deps --force-recreate native-screen-web-loopback
+api_container="$(compose ps -q api)"
+test -n "$api_container"
+docker exec "$api_container" node -e 'fetch("http://127.0.0.1:3100/ready").then(async response => { if (!response.ok || (await response.json()).degraded) process.exit(1); }).catch(() => process.exit(1))'
+cat "$release/rollback/Caddyfile.prod" > "$gateway"
+docker exec "$gateway_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+cat "$release/rollback/deploy-main.sh" > /srv/rakazo/infra/compose/deploy-main.sh
+curl --fail --max-time 15 https://124.221.182.39/health
+curl --fail --max-time 15 -o /dev/null -w 'legacy app=%{http_code}\n' https://124.221.182.39/app
+curl --fail --max-time 15 -o /dev/null -w 'legacy domain app=%{http_code}\n' https://pc.zxlup.xin/app
+compose ps -a
+```
+
+恢复验收需实际看到原 Web 健康、旧桥运行、网关包含 Web 上游，外部旧入口正常，并完成旧入口登录与原画面加载、只读及重连。HTTP 可达只记录为入口检查。任一步失败时先读取真实配置和服务状态，记录中断点，完成对应恢复后再继续，不盲目重跑整个首次发布脚本。
+
+3. **在用户确认的范围内切回直连。** 完成恢复证据后，才执行本段；若确认仅覆盖恢复演练，则先停在旧 Web 状态，等待再切换确认。本段沿用已应用的两项兼容迁移，不再次迁移，不覆盖 `rollback/` 中的原材料。新 API 健康后重建 API 回环桥，网关改到 API 后再停旧 Web 与旧桥。
+
+```bash
+cat "$release/production.client-only.yml" > "$overlay"
+compose up -d --no-deps --wait --wait-timeout 120 api
+compose up -d --no-deps --force-recreate native-screen-api-loopback
+api_container="$(compose ps -q api)"
+test -n "$api_container"
+docker exec "$api_container" node -e 'fetch("http://127.0.0.1:3100/ready").then(async response => { if (!response.ok || (await response.json()).degraded) process.exit(1); }).catch(() => process.exit(1))'
+cat "$release/Caddyfile.client-only" > "$gateway"
+docker exec "$gateway_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+curl --fail --max-time 15 https://124.221.182.39/health
+curl --fail --max-time 15 https://124.221.182.39/ready
+test "$(curl --max-time 15 -s -o /dev/null -w '%{http_code}' https://124.221.182.39/app)" = 404
+test "$(curl --max-time 15 -s -o /dev/null -w '%{http_code}' https://pc.zxlup.xin/app)" = 404
+compose --profile legacy-web stop web native-screen-web-loopback
+cat "$release/deploy-main.sh" > /srv/rakazo/infra/compose/deploy-main.sh
+compose ps -a
+```
+
+再切换后重做双端真实登录、Slack／MCP 完成与取消、目标环境启用的画面加载与重连、更新及升级后数据恢复。失败项必须修复复验，或在维护窗口恢复原服务；不将服务切回直连记为全体验收通过。生产目前没有运行 updater，本段不启动它。
+
+Web 与旧画面桥容器已停止但保留。两项新增 Slack 返回字段兼容旧版本，不在应用回退时删除或回灌数据库；全库恢复只作为另行授权的灾难恢复操作。生产目前未运行 updater；生效覆盖中已设置跳过 Web，部署脚本已改为从启用的 Compose 服务清单选择服务并通过语法检查。
+
+生产原生画面链路为 API 网络内 `127.0.0.1:16080` → `/var/lib/rakazo-native/run/screen.sock` → 主机 `127.0.0.1:6080`。最后一段当前不可用：`sydney-screen-vnc.service` 等待 `/tmp/.X11-unix/X10`，该会话不存在，依赖它的 `sydney-screen-websockify.service` 未运行。恢复授权的 `sydney-desktop` 原有 `:10` 会话后再启动并验证上述两项服务；不要改用现存其他用户或其他用途的 X 显示。本次没有改动这些 systemd 服务。
+
+移动端启动遇到空字符串服务器配置时使用构建默认地址，并执行已保存会话来源校验。暂时无法读取安全存储时，可从错误页重试。真机恢复待验收。
+
+桌面安装包迁移验收应保留旧应用 profile，用原账号打开有草稿和专属背景的会话，核对图片、工作区归属及已有编辑。目标已保存外观时，迁移在图片库容量内补入缺失图片。合并后仍缺少对应图片时，跳过该会话的背景映射。验收时同时检查清除背景后重新打开会话、切换账号和中断后重试。真实安装包和旧 profile 尚待验证。

@@ -9,7 +9,9 @@ describe("project workspace creation gate", () => {
     const routes = projectWorkspaceRoutes({
       deps: { env: { projectWorkspaceCreateExperiment: enabled } },
       authed: { projectWorkspaces: {
-        capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+        directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+        cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
+        capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
       } },
     } as unknown as RouterContext);
     const capabilities = routes.projectWorkspaces.capabilities as unknown as () => Promise<unknown>;
@@ -23,6 +25,8 @@ describe("project workspace creation gate", () => {
       deps: { prisma: { $queryRaw: query } },
       authed: {
         projectWorkspaces: {
+          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
           capabilities: { handler },
           conversationCapabilities: { handler },
           groupCreationCapability: { handler },
@@ -35,6 +39,9 @@ describe("project workspace creation gate", () => {
           createGroup: { handler },
           threadSnapshot: { handler },
           sendText: { handler },
+          cancelRun: { handler },
+          answerApproval: { handler },
+          getArtifact: { handler },
           subscribe: { handler },
           consentStatus: { handler },
           consentAllow: { handler },
@@ -70,7 +77,9 @@ describe("project workspace creation gate", () => {
       },
       authed: {
         projectWorkspaces: {
-          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
+          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
         },
       },
     } as unknown as RouterContext);
@@ -93,7 +102,9 @@ describe("project workspace roster", () => {
       deps: { prisma: { $queryRaw: query } },
       authed: {
         projectWorkspaces: {
-          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
+          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
         },
       },
     } as unknown as RouterContext);
@@ -122,8 +133,10 @@ describe("project conversation creation experiment", () => {
       repos: { createBot },
       groupRepos: { createGroup },
       authed: { projectWorkspaces: {
+        directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+        cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
         capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler },
-        create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+        create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
       } },
     } as unknown as RouterContext);
     return { routes, query, createBot, createGroup };

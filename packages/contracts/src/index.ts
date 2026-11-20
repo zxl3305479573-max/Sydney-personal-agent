@@ -38,6 +38,7 @@ export * from "./personality.js";
 export * from "./personality-catalog.js";
 export * from "./personality-catalog-labels.js";
 export * from "./project-workspace.js";
+export * from "./project-directory.js";
 export * from "./reactions.js";
 export * from "./routine-watch.js";
 export * from "./rpc.js";

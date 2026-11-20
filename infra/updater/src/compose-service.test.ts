@@ -4,6 +4,7 @@ import path from "node:path";
 import { RECREATED_SERVICES } from "@rakazo/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { resolveUpdaterConfig } from "./updater-logic.js";
 
 interface ComposeService {
   image?: string;
@@ -25,6 +26,11 @@ const compose = parse(readFileSync(composeFile, "utf8"), { merge: true }) as {
   networks: Record<string, unknown>;
 };
 const updater = compose.services.updater as ComposeService;
+const productionUpdateServices = resolveUpdaterConfig({
+  RAKAZO_DEPLOY_DIR: "/srv/rakazo",
+  RAKAZO_UPDATER_TOKEN: "fake-review-updater-token-000000000000",
+  SYDNEY_WEB_SERVICE_ENABLED: updater.environment?.SYDNEY_WEB_SERVICE_ENABLED,
+}).updateServices;
 
 describe("the production computer provider", () => {
   it.each(["api", "worker"])("lets .env select the %s provider with an E2B default", (name) => {
@@ -40,6 +46,15 @@ describe("the production computer provider", () => {
  */
 /** The Compose interpolation this file is expected to carry, as Compose spells it. */
 const interpolated = (name: string, fallback = "") => `\${${name}:-${fallback}}`;
+
+describe("production project feature gates", () => {
+  it.each([
+    "SYDNEY_PROJECT_CREATE_EXPERIMENT",
+    "SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT",
+  ])("requires explicitly enabling %s", (key) => {
+    expect(compose.services.api?.environment?.[key]).toBe(interpolated(key, "false"));
+  });
+});
 
 describe("worker error reporting configuration", () => {
   it.each([
@@ -102,14 +117,16 @@ describe("the updater compose service", () => {
 
   it("is not one of the services an update recreates", () => {
     expect(RECREATED_SERVICES).not.toContain("updater");
-    for (const service of RECREATED_SERVICES) {
+    expect(updater.environment?.SYDNEY_WEB_SERVICE_ENABLED).toBe("false");
+    expect(productionUpdateServices).not.toContain("web");
+    for (const service of productionUpdateServices) {
       expect(Object.keys(compose.services)).toContain(service);
     }
   });
 
   it("pins its own image tag separately from the application image", () => {
     expect(updater.image).toContain("RAKAZO_UPDATER_IMAGE_TAG");
-    for (const service of RECREATED_SERVICES) {
+    for (const service of productionUpdateServices) {
       expect(compose.services[service]?.image).toContain("RAKAZO_IMAGE_TAG");
     }
   });

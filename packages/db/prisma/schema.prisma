@@ -147,7 +147,9 @@ model UserDevice {
   /// Who revoked it: "owner", "device" or "session" (its sign-in ended). Null when unknown.
   revokedBy   String?
   connections UserDeviceConnection[]
+  projectDirectories ProjectDirectoryBinding[]
 
+  @@unique([id, userId])
   @@index([userId, revokedAt])
   @@map("user_devices")
 }
@@ -510,10 +512,45 @@ model ProjectWorkspace {
   tasks      Task[]
   runs       Run[]
   artifacts  Artifact[]
+  directoryBinding ProjectDirectoryBinding?
+  cloudDirectoryBinding ProjectCloudDirectoryBinding?
 
   @@unique([id, spaceId, userId])
   @@index([spaceId, userId, createdAt, id])
   @@map("project_workspaces")
+}
+
+model ProjectDirectoryBinding {
+  projectId String @id
+  spaceId String
+  userId String
+  deviceId String
+  grantId String @unique
+  directoryName String
+  intent String @default("read-only")
+  createdAt DateTime @default(now())
+  project ProjectWorkspace @relation(fields: [projectId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_directory_bindings_project_fkey")
+  device UserDevice @relation(fields: [deviceId, userId], references: [id, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_directory_bindings_device_fkey")
+
+  @@unique([projectId, spaceId, userId])
+  @@index([spaceId, userId])
+  @@map("project_directory_bindings")
+}
+
+model ProjectCloudDirectoryBinding {
+  projectId String @id
+  spaceId String
+  userId String
+  computerId String
+  grantId String @unique
+  providerRef String
+  folder Json
+  intent String
+  project ProjectWorkspace @relation(fields: [projectId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_cloud_directory_project_fkey")
+  computer Computer @relation(fields: [computerId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_cloud_directory_computer_fkey")
+
+  @@unique([projectId, spaceId, userId], map: "project_cloud_directory_project_owner_key")
+  @@map("project_cloud_directory_bindings")
 }
 
 model Invitation {
@@ -1533,7 +1570,9 @@ model Computer {
   executionLeases         ComputerExecutionLease[]
   maintenanceId           String?
   updates                 ComputerUpdate[]
+  projectCloudDirectories ProjectCloudDirectoryBinding[]
 
+  @@unique([id, spaceId, userId], map: "computers_project_owner_key")
   @@index([spaceId, scope])
   @@map("computers")
 }

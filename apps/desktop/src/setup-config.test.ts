@@ -259,6 +259,18 @@ describe("startup target", () => {
     expect(resolveStartupTarget({ saved, forceSetup: true })).toEqual({ kind: "setup" });
   });
 
+  it("asks for a direct server if the saved managed stack is unavailable", () => {
+    const managed = { mode: "new", serverUrl: DEFAULT_LOCAL_WEB_URL } as const;
+    expect(resolveStartupTarget({ saved: managed, managedLocalAvailable: false })).toEqual({
+      kind: "setup",
+    });
+    expect(resolveStartupTarget({ saved, managedLocalAvailable: false })).toEqual({
+      kind: "app",
+      url: saved.serverUrl,
+      source: "saved",
+    });
+  });
+
   it("re-runs setup when the saved address is unusable", () => {
     expect(resolveStartupTarget({ saved: { mode: "new", serverUrl: "nope://x" } })).toEqual({
       kind: "setup",

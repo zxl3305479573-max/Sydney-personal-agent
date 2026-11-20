@@ -218,6 +218,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     "SYDNEY_NATIVE_PASSWORD_RESET_ON_API",
     "SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API",
     "SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API",
+    "SYDNEY_INTEGRATION_API_CALLBACK",
   ]) {
     const value = source[key];
     if (value && !["true", "false"].includes(value))

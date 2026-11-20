@@ -92,7 +92,9 @@ import { isAllowedScreenNavigation } from "../lib/screen-navigation";
 import { currentSessionGeneration } from "../lib/session";
 import { useSideInsets } from "../lib/side-insets";
 import { stacksAtTextScale } from "../lib/text-scale";
+import { UiModeScreenHost } from "../lib/ui-mode-slots";
 import { computerBootErrorDetail, errorText } from "../lib/user-error";
+import type { ComputerUiModeController } from "../ui-modes/controllers";
 
 let nativeInputNeedsReview = false;
 let nativeInputBlockedLease: string | null = null;
@@ -111,6 +113,7 @@ export default function Computer() {
   const [computer, setComputer] = useState<ComputerStatus | null>(null);
   const [screenUrl, setScreenUrl] = useState<string | null>(null);
   const [screenError, setScreenError] = useState<string | null>(null);
+  const [screenReadError, setScreenReadError] = useState<string | null>(null);
   const [screenOriginError, setScreenOriginError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [readyBotId, setReadyBotId] = useState<string | null>(null);
@@ -311,6 +314,7 @@ export default function Computer() {
           if (status.state === "running") setBootFailed(false);
         },
         onScreen: setScreenUrl,
+        onScreenError: (err) => setScreenReadError(err == null ? null : errorText(err)),
         onReady: () => setReadyBotId(botId ?? null),
         onInitialError: (err) => setError(errorText(err)),
       }),
@@ -325,6 +329,7 @@ export default function Computer() {
     setComputer(null);
     setScreenUrl(null);
     setScreenError(null);
+    setScreenReadError(null);
     setScreenOriginError(false);
     setError(null);
     setReadyBotId(null);
@@ -451,6 +456,7 @@ export default function Computer() {
       setComputer(null);
       setScreenUrl(null);
       setScreenError(null);
+      setScreenReadError(null);
       setScreenOriginError(false);
       setError(null);
       setBootingCount(0);
@@ -638,6 +644,7 @@ export default function Computer() {
   ) : null;
   const placeholder =
     screenError ??
+    screenReadError ??
     (unreachableScreen
       ? t("Could not load the desktop. This device cannot reach the screen URL.")
       : previewPlaceholder(computer?.state, booting, name, computer?.mode));
@@ -645,6 +652,7 @@ export default function Computer() {
   const bootPending = booting || computer?.state === "booting";
   const canRetry = !bootPending && (bootFailed || computer?.state === "error");
   const screenRetry =
+    Boolean(screenReadError) ||
     unreachableScreen ||
     (computer?.state === "running" && screenOriginError && Boolean(screenError));
   const retryScreenAction = screenRetry ? (
@@ -657,7 +665,35 @@ export default function Computer() {
     />
   ) : null;
 
-  return (
+  const controller: ComputerUiModeController = {
+    botId,
+    name,
+    computer,
+    screen: {
+      previewUrl: embeddedScreenUrl,
+      workspaceUrl: loadedScreenUrl,
+      visible: screenVisible,
+      placeholder,
+      error: screenError ?? screenReadError,
+      native: Boolean(nativeComputer),
+    },
+    keyboardBar,
+    booting,
+    switching,
+    releasing,
+    hasControl,
+    open: computerOpen,
+    error,
+    screenError: screenError ?? screenReadError,
+    nativeInputError,
+    nativeGeometry,
+    openComputer,
+    closeComputer,
+    releaseComputer,
+    setComputerMode,
+    reloadScreen,
+  };
+  const classicContent = (
     // The full window's Modal is a child of this scroll view. A tap there, on Close or on the
     // native keyboard bar, must never just dismiss the computer keyboard; only the bar closes it.
     <ScrollView
@@ -681,6 +717,11 @@ export default function Computer() {
       ) : error || canRetry ? (
         <Text style={{ color: tokens.mutedForeground, marginBottom: 12 }}>
           {error ?? t("Something went wrong while it was starting. Try again in a moment.")}
+        </Text>
+      ) : null}
+      {screenReadError ? (
+        <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>
+          {screenReadError}
         </Text>
       ) : null}
       {retryScreenAction}
@@ -910,11 +951,12 @@ export default function Computer() {
                 />
               </View>
             </SafeAreaView>
-            {error ? (
+            {error || screenReadError ? (
               <Text accessibilityRole="alert" style={{ color: tokens.destructive, padding: 10 }}>
-                {error}
+                {error ?? screenReadError}
               </Text>
             ) : null}
+            {screenReadError && loadedScreenUrl ? retryScreenAction : null}
             <View style={{ flex: 1, backgroundColor: tokens.card }}>
               {foreground && loadedScreenUrl ? (
                 <ScreenWebView
@@ -1060,6 +1102,13 @@ export default function Computer() {
         </SafeAreaProvider>
       </Modal>
     </ScrollView>
+  );
+  return (
+    <UiModeScreenHost
+      slot="computer"
+      controller={controller}
+      renderClassic={() => classicContent}
+    />
   );
 }
 

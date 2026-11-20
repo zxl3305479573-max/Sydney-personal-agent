@@ -92,6 +92,7 @@ import {
 } from "../lib/session";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { useSplitView } from "../lib/split-view";
+import { UiModeScreenHost } from "../lib/ui-mode-slots";
 import { useArchivedCount } from "../lib/use-archived-count";
 import { useCollapsedSections } from "../lib/use-collapsed-sections";
 import { useHomeHeader } from "../lib/use-home-header";
@@ -100,6 +101,7 @@ import { useInboxDay } from "../lib/use-inbox-day";
 import { usePublishSearchInbox } from "../lib/use-publish-search-inbox";
 import type { LoadFailureKind } from "../lib/user-error";
 import { errorText, loadFailureKind } from "../lib/user-error";
+import type { InboxUiModeController } from "../ui-modes/controllers";
 
 /** A row counts as on screen as soon as any of it shows. */
 const AVATAR_VIEWABILITY = { itemVisiblePercentThreshold: 1 };
@@ -878,7 +880,26 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const showLoadFailure = Boolean(loadFailure) && inboxHasNoChats(listData);
   const inlineError = error ?? (showLoadFailure ? null : (loadFailure?.message ?? null));
 
-  return (
+  const controller: InboxUiModeController = {
+    items: listData,
+    me,
+    embedded,
+    sharing: Boolean(onShareSelect),
+    loading: inboxLoading,
+    refreshing,
+    error: inlineError,
+    loadFailure,
+    spaceBusy,
+    spaceRecoveryId,
+    refresh: async () => {
+      await Promise.all([refreshBots(), loadActivity()]);
+    },
+    openBot,
+    openGroup,
+    create: runCreateAction,
+    selectSpace: chooseInboxSpace,
+  };
+  const classicContent = (
     <View style={styles.screen}>
       {nativeHeader || onShareSelect ? null : (
         <InboxHeader
@@ -1017,5 +1038,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         />
       ) : null}
     </View>
+  );
+  return (
+    <UiModeScreenHost slot="inbox" controller={controller} renderClassic={() => classicContent} />
   );
 }

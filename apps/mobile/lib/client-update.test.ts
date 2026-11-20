@@ -4,13 +4,19 @@ import sydneyRelease from "../sydney-release.json";
 const updates = vi.hoisted(() => ({
   isEnabled: true,
   createdAt: new Date("2026-10-22T09:30:15Z") as Date | null,
-  checkForUpdateAsync: vi.fn(async () => ({ isAvailable: false })),
+  checkForUpdateAsync: vi.fn(
+    async (): Promise<{ isAvailable: boolean; manifest?: unknown }> => ({ isAvailable: false }),
+  ),
   fetchUpdateAsync: vi.fn(
     async (): Promise<{ isNew: boolean; manifest?: unknown }> => ({
       isNew: true,
     }),
   ),
   reloadAsync: vi.fn(async () => {}),
+}));
+const storage = vi.hoisted(() => ({
+  getItemAsync: vi.fn(async (): Promise<string | null> => null),
+  setItemAsync: vi.fn(async () => undefined),
 }));
 const appConfig = vi.hoisted(() => ({ expoConfig: { extra: { sydneySideload: false } } }));
 const rn = vi.hoisted(() => {
@@ -31,10 +37,15 @@ const rn = vi.hoisted(() => {
 });
 
 vi.mock("expo-updates", () => updates);
+vi.mock("expo-secure-store", () => storage);
 vi.mock("expo-constants", () => ({ default: appConfig }));
 vi.mock("react-native", () => rn);
 vi.mock("./api", () => ({ configureClientBuild: vi.fn() }));
-vi.mock("./i18n", () => ({ t: (message: string) => message }));
+vi.mock("./i18n", () => ({
+  getActiveUiLocale: () => "en",
+  t: (message: string, values?: { version: string }) =>
+    values ? message.replace("{version}", values.version) : message,
+}));
 
 import { IOS_APP_STORE_URL } from "@rakazo/contracts";
 import {
@@ -43,6 +54,8 @@ import {
   FOREGROUND_UPDATE_CHECK_MS,
   mobileClientBuild,
   noteClientUpdateRequired,
+  promptForAvailableUpdate,
+  promptForStartupUpdate,
   watchForegroundUpdates,
 } from "./client-update";
 
@@ -60,6 +73,19 @@ function pressUpdate() {
   buttons[0]?.onPress();
 }
 
+function pressOptionalUpdate(text: string) {
+  const buttons = rn.Alert.alert.mock.calls.at(-1)?.[2] as Array<{
+    text: string;
+    onPress: () => void;
+  }>;
+  buttons.find((button) => button.text === text)?.onPress();
+}
+
+const updateManifest = {
+  id: "new-update",
+  extra: { expoClient: { extra: { sydneyMobileRelease: sydneyRelease } } },
+};
+
 describe("mobile client build", () => {
   it("names the running bundle by when its update was created", () => {
     expect(mobileClientBuild()).toBe("20261022093015");
@@ -76,36 +102,100 @@ describe("mobile client build", () => {
 });
 
 describe("manual update checks", () => {
-  it("distinguishes disabled, current and downloaded updates", async () => {
+  it("distinguishes disabled, current and available updates without downloading", async () => {
     updates.isEnabled = false;
     expect(await checkForManualUpdate()).toEqual({ status: "disabled" });
     updates.isEnabled = true;
     updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false });
     expect(await checkForManualUpdate()).toEqual({ status: "current" });
     updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
-    expect(await checkForManualUpdate()).toEqual({ status: "downloaded", release: null });
-    expect(updates.fetchUpdateAsync).toHaveBeenCalledOnce();
+    expect(await checkForManualUpdate()).toEqual({
+      status: "available",
+      update: { id: undefined, release: null },
+    });
+    expect(updates.fetchUpdateAsync).not.toHaveBeenCalled();
     expect(updates.reloadAsync).not.toHaveBeenCalled();
   });
 
-  it("uses release notes from the downloaded manifest", async () => {
-    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
-    updates.fetchUpdateAsync.mockResolvedValueOnce({
-      isNew: true,
-      manifest: { extra: { expoClient: { extra: { sydneyMobileRelease: sydneyRelease } } } },
+  it("uses release notes from the available manifest before downloading", async () => {
+    updates.checkForUpdateAsync.mockResolvedValueOnce({
+      isAvailable: true,
+      manifest: updateManifest,
     });
-    expect(await checkForManualUpdate()).toEqual({ status: "downloaded", release: sydneyRelease });
-  });
-
-  it("reports a failed download without offering a restart", async () => {
-    updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true });
-    updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false });
-    await expect(checkForManualUpdate()).rejects.toThrow("Could not check for updates");
+    expect(await checkForManualUpdate()).toEqual({
+      status: "available",
+      update: { id: updateManifest.id, release: sydneyRelease },
+    });
+    expect(updates.fetchUpdateAsync).not.toHaveBeenCalled();
   });
 
   it("reports network errors to the caller", async () => {
     updates.checkForUpdateAsync.mockRejectedValueOnce(new Error("offline"));
     await expect(checkForManualUpdate()).rejects.toThrow("offline");
+  });
+});
+
+describe("optional update prompts", () => {
+  const candidate = { id: updateManifest.id, release: sydneyRelease };
+
+  it("shows the update once, and keeps download and restart as separate confirmations", async () => {
+    updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: true, manifest: updateManifest });
+    await promptForStartupUpdate(candidate, false);
+    expect(rn.Alert.alert).toHaveBeenCalledWith(
+      `Version ${sydneyRelease.version} available`,
+      expect.stringContaining(sydneyRelease.notes.en.join("\n• ")),
+      expect.any(Array),
+      { cancelable: false },
+    );
+    expect(storage.setItemAsync).toHaveBeenCalledWith("sydney-last-noticed-update", candidate.id);
+    pressOptionalUpdate("Not Now");
+    await promptForStartupUpdate(candidate, false);
+    expect(rn.Alert.alert).toHaveBeenCalledOnce();
+    expect(updates.fetchUpdateAsync).not.toHaveBeenCalled();
+
+    promptForAvailableUpdate(candidate);
+    pressOptionalUpdate("Update");
+    await flush();
+    expect(updates.fetchUpdateAsync).toHaveBeenCalledOnce();
+    expect(rn.Alert.alert.mock.calls.at(-1)?.[0]).toBe(
+      `Version ${sydneyRelease.version} downloaded`,
+    );
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+    pressOptionalUpdate("Install and restart");
+    await flush();
+    expect(updates.reloadAsync).toHaveBeenCalledOnce();
+  });
+
+  it("remembers a previously shown update across launches", async () => {
+    const previouslyShown = "previously-shown";
+    storage.getItemAsync.mockResolvedValueOnce(previouslyShown);
+    await promptForStartupUpdate({ ...candidate, id: previouslyShown }, false);
+    expect(rn.Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("only offers restart after a successful download", async () => {
+    updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false });
+    promptForAvailableUpdate(candidate);
+    pressOptionalUpdate("Update");
+    await flush();
+    expect(rn.Alert.alert).toHaveBeenLastCalledWith(
+      "Could not download the update. Try again later.",
+    );
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+  });
+
+  it("offers to restart a cached update after confirmation without downloading again", async () => {
+    promptForAvailableUpdate(candidate, true);
+    expect(rn.Alert.alert.mock.calls.at(-1)?.[0]).toBe(
+      `Version ${sydneyRelease.version} available`,
+    );
+    pressOptionalUpdate("Update");
+    expect(rn.Alert.alert.mock.calls.at(-1)?.[0]).toBe(
+      `Version ${sydneyRelease.version} downloaded`,
+    );
+    expect(updates.fetchUpdateAsync).not.toHaveBeenCalled();
+    pressOptionalUpdate("Not Now");
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -159,28 +249,28 @@ describe("update required", () => {
 });
 
 describe("foreground update checks", () => {
-  it("downloads an update when the app returns from the background, at most every 15 minutes", async () => {
+  it("checks at startup and on eligible foreground returns without downloading", async () => {
     let now = 0;
+    updates.checkForUpdateAsync.mockResolvedValue({ isAvailable: true });
     const stop = watchForegroundUpdates(() => now);
+    await flush();
     const emit = (state: string) => {
       for (const listener of [...rn.listeners]) listener(state);
     };
-    updates.checkForUpdateAsync.mockResolvedValue({ isAvailable: true });
     now = FOREGROUND_UPDATE_CHECK_MS;
     emit("inactive");
     emit("active");
-    expect(updates.checkForUpdateAsync).not.toHaveBeenCalled();
+    expect(updates.checkForUpdateAsync).toHaveBeenCalledOnce();
     emit("background");
     emit("active");
     await flush();
-    expect(updates.checkForUpdateAsync).toHaveBeenCalledOnce();
-    expect(updates.fetchUpdateAsync).toHaveBeenCalledOnce();
-    // Downloaded for the next launch; nothing reloads under the user.
+    expect(updates.checkForUpdateAsync).toHaveBeenCalledTimes(2);
+    expect(updates.fetchUpdateAsync).not.toHaveBeenCalled();
     expect(updates.reloadAsync).not.toHaveBeenCalled();
     now += FOREGROUND_UPDATE_CHECK_MS - 1;
     emit("background");
     emit("active");
-    expect(updates.checkForUpdateAsync).toHaveBeenCalledOnce();
+    expect(updates.checkForUpdateAsync).toHaveBeenCalledTimes(2);
     stop();
     expect(rn.listeners).toHaveLength(0);
   });

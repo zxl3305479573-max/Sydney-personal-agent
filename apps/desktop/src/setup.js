@@ -83,6 +83,7 @@
 
   let defaultLocalUrl = "";
   let cloudUrl = "";
+  let managedLocalAvailable = false;
   /** Bumped on user edits, mode switches, and new async runs; a run left behind is stale. */
   let requestGeneration = 0;
   /** Generation of the check in flight; an edit or mode switch retires it and releases its lock. */
@@ -114,7 +115,9 @@
 
   /** A save in flight cannot be cancelled, so the choice it commits must not change under it. */
   function lockChoice(locked) {
-    for (const input of form.querySelectorAll('input[name="mode"]')) input.disabled = locked;
+    for (const input of form.querySelectorAll('input[name="mode"]')) {
+      input.disabled = locked || (input.value === "new" && !managedLocalAvailable);
+    }
     serverUrl.disabled = locked;
     serverHeaders.disabled = locked;
   }
@@ -410,9 +413,9 @@
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const mode = selectedMode();
-    if (mode === "new") void runStack();
-    // Cloud is an existing server at a fixed address.
-    else if (mode === "cloud") void save("existing", cloudUrl);
+    if (mode === "new") {
+      if (managedLocalAvailable) void runStack();
+    } else if (mode === "cloud") void save("existing", cloudUrl);
     else {
       const headers = readHeaders();
       if (headers === null) setStatus(t("Invalid custom headers"), "error");
@@ -440,7 +443,6 @@
       return;
     }
 
-    watchStack();
     // Continue needs the Cloud address and any saved choice before it can submit.
     setBusy(true);
     try {
@@ -448,7 +450,12 @@
       if (state === null) throw new Error("Setup is not active");
       defaultLocalUrl = state.defaultLocalUrl;
       cloudUrl = state.cloudUrl;
-      if (state.saved !== null) {
+      managedLocalAvailable = state.managedLocalAvailable;
+      const managedChoice = document.getElementById("mode-new");
+      managedChoice.disabled = !managedLocalAvailable;
+      managedChoice.closest("label").hidden = !managedLocalAvailable;
+      if (managedLocalAvailable) watchStack();
+      if (state.saved !== null && (state.saved.mode !== "new" || managedLocalAvailable)) {
         const savedCloud = state.saved.mode === "existing" && state.saved.serverUrl === cloudUrl;
         const mode = savedCloud ? "cloud" : state.saved.mode;
         const modeInput = document.querySelector(`input[name="mode"][value="${mode}"]`);
@@ -463,9 +470,9 @@
       }
       // A relaunch with the stack down starts it before this window opens; show that
       // attempt instead of the saved mode, and follow it while it is still running.
-      const stack = await bridge.stack.state();
+      const stack = managedLocalAvailable ? await bridge.stack.state() : null;
       const attached = stack !== null && stack.phase !== "idle";
-      if (attached) document.getElementById("mode-new").checked = true;
+      if (attached) managedChoice.checked = true;
       syncPanels();
       setBusy(false);
       if (state.error) setStatus(state.error, "error");

@@ -5,6 +5,13 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
+const deployBash = process.env.RAKAZO_TEST_BASH ?? "/bin/bash";
+const bashPath = (file: string) =>
+  process.platform === "win32"
+    ? file
+        .replaceAll("\\", "/")
+        .replace(/^([a-z]):/i, (_, drive: string) => `/${drive.toLowerCase()}`)
+    : file;
 const COMPOSE = "docker compose --env-file .env -f infra/compose/docker-compose.prod.yml";
 const APP_IMAGE = "ghcr.example.test/rakazo/app:local";
 // Each rolled service gains a new container, which must pass its health check before the old
@@ -16,9 +23,11 @@ const startBeside = (service: string) => [
   `docker inspect --format {{.State.Status}}{{if .State.Health}} {{.State.Health.Status}}{{end}} ${service}-new`,
 ];
 const rolloutSteps = (revision: string) => [
+  `${COMPOSE} config --services`,
   // The image the running API uses, restored if the deploy fails.
   `${COMPOSE} ps --quiet api`,
   "docker inspect --format {{.Image}} api-old",
+  `${COMPOSE} config --services`,
   `${COMPOSE} config --quiet`,
   `${COMPOSE} config`,
   `${COMPOSE} build --build-arg GIT_SHA=${revision}`,
@@ -28,12 +37,10 @@ const rolloutSteps = (revision: string) => [
   // Only this container gets the database owner login; the old API keeps serving meanwhile.
   `${COMPOSE} config --services`,
   `${COMPOSE} run --rm -T migrate`,
-  ...["api", "web"].flatMap((service) => [
-    `${COMPOSE} ps --all --quiet ${service}`,
-    ...startBeside(service),
-    `docker stop --time 30 ${service}-old`,
-    `docker rm ${service}-old`,
-  ]),
+  `${COMPOSE} ps --all --quiet api`,
+  ...startBeside("api"),
+  "docker stop --time 30 api-old",
+  "docker rm api-old",
   // The old worker is told to finish its jobs instead of being stopped.
   `${COMPOSE} ps --all --quiet worker`,
   `${WORKERS} worker-old`,
@@ -42,7 +49,6 @@ const rolloutSteps = (revision: string) => [
   ...startBeside("worker"),
   "docker update --restart no worker-old",
   "docker kill --signal SIGTERM worker-old",
-  `${COMPOSE} config --services`,
   `${COMPOSE} up -d --remove-orphans api migrate`,
 ];
 // After a healthy deploy, the deploy waits for the old worker to finish and removes it.
@@ -135,6 +141,7 @@ if [[ "$*" == *" run --rm --no-deps -T --entrypoint sh postgres "* && -n "\${POS
 fi
 if [[ "$*" == *" config --services" ]]; then
   echo api
+  [[ "$revision" != "\${RETIRED_WEB_REVISION:-}" ]] || echo "\${RETIRED_WEB_SERVICE:-web}"
   [[ "$revision" == "\${NO_MIGRATE_REVISION:-}" ]] || echo migrate
 fi
 if [[ "$*" == *" run --rm -T migrate" && ( -n "\${FAIL_MIGRATE:-}" || "$revision" == "\${NO_MIGRATE_REVISION:-}" ) ]]; then exit 1; fi
@@ -146,7 +153,7 @@ if [[ "$1" == tag && -n "\${FAIL_TAG:-}" ]]; then exit 1; fi
 containers="$COMMAND_LOG.containers"
 if [[ ! -e "$containers" ]]; then
   : >"$containers"
-  [[ -n "\${FRESH:-}" ]] || printf '%s unless-stopped running\n' api-old web-old worker-old >"$containers"
+  [[ -n "\${FRESH:-}" ]] || printf '%s unless-stopped running\n' api-old worker-old >"$containers"
   [[ -z "\${EXTRA_WORKER:-}" ]] || echo "worker-older no \${EXTRA_WORKER}" >>"$containers"
 fi
 service="\${*: -1}"
@@ -193,10 +200,10 @@ echo "/dev/fake 104857600 0 \${FREE_KB:-52428800} 0% /"
   );
   write(path.join(bin, "flock"), `#!/bin/bash\n[[ -z "\${LOCK_HELD:-}" ]]\n`, 0o755);
   const env = {
-    PATH: [bin, "/usr/bin", "/bin"].join(path.delimiter),
-    HOME: root,
-    COMMAND_LOG: log,
-    RAKAZO_DEPLOY_DIR: checkout,
+    RAKAZO_TEST_BIN: bashPath(bin),
+    HOME: bashPath(root),
+    COMMAND_LOG: bashPath(log),
+    RAKAZO_DEPLOY_DIR: bashPath(checkout),
     RAKAZO_DEPLOY_HEALTH_INTERVAL: "0",
   };
   return {
@@ -204,12 +211,25 @@ echo "/dev/fake 104857600 0 \${FREE_KB:-52428800} 0% /"
     checkout,
     first,
     run(overrides: Record<string, string> = {}) {
-      const result = spawnSync("/bin/bash", [path.join(repoRoot, "infra/compose/deploy-main.sh")], {
-        cwd: root,
-        env: { ...env, ...overrides },
-        encoding: "utf8",
-        timeout: 20_000,
-      });
+      const result = spawnSync(
+        deployBash,
+        [
+          "-c",
+          `export PATH="$RAKAZO_TEST_BIN:/usr/bin:/bin\${RAKAZO_TEST_GIT_PATH}"; exec /bin/bash "$1"`,
+          "deploy-test",
+          bashPath(path.join(repoRoot, "infra/compose/deploy-main.sh")),
+        ],
+        {
+          cwd: root,
+          env: {
+            ...env,
+            RAKAZO_TEST_GIT_PATH: process.platform === "win32" ? ":/mingw64/bin" : "",
+            ...overrides,
+          },
+          encoding: "utf8",
+          timeout: process.platform === "win32" ? 60_000 : 20_000,
+        },
+      );
       expect(result.error).toBeUndefined();
       return result;
     },
@@ -236,12 +256,13 @@ describe("production deploy script", () => {
     expect(deploy.commands()).toEqual([]);
   });
 
-  it("only checks health when production is already current", () => {
+  it("checks the direct configuration and health when production is already current", () => {
     const deploy = fixture();
     write(path.join(deploy.checkout, ".last-deployed-revision"), `${deploy.first}\n`);
     const result = deploy.run();
     expect(result.status).toBe(0);
     expect(deploy.commands().filter((line) => !/^(df|docker info) /.test(line))).toEqual([
+      `${COMPOSE} config --services @ first`,
       "curl https://app.example.test/health",
     ]);
   });
@@ -463,7 +484,6 @@ describe("production deploy script", () => {
     expect(deploy.run({ FRESH: "1" }).status).toBe(0);
     const commands = rollout(deploy.commands());
     expect(commands).toContain(`${COMPOSE} up -d --wait api`);
-    expect(commands).toContain(`${COMPOSE} up -d --wait web`);
     expect(commands.some((line) => line.includes("--scale"))).toBe(false);
   });
 
@@ -530,6 +550,31 @@ describe("production deploy script", () => {
     expect(commands.slice(removed)).toContain(`${COMPOSE} up -d --wait worker`);
   });
 
+  it("reconciles a client-only deployment without starting or replacing web", () => {
+    const deploy = fixture();
+    commit(deploy.upstream, "client-only");
+    const result = deploy.run();
+    expect(result.status, result.stderr).toBe(0);
+    const commands = rollout(deploy.commands());
+    expect(commands).toContain(`${COMPOSE} up -d --remove-orphans api migrate`);
+    expect(commands.some((line) => line.includes("--scale web") || line.endsWith(" web"))).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    { revision: "first", service: "web" },
+    { revision: "next", service: "native-screen-web-loopback" },
+  ])("refuses $service in the $revision revision before rollout", ({ revision, service }) => {
+    const deploy = fixture();
+    commit(deploy.upstream, "next");
+    const result = deploy.run({ RETIRED_WEB_REVISION: revision, RETIRED_WEB_SERVICE: service });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain("Production Compose enables a retired Web service");
+    expect(deploy.head()).toBe(deploy.first);
+    expect(rollout(deploy.commands()).some((line) => / (build|up|run) /.test(line))).toBe(false);
+  });
+
   it("keeps the old container serving when the new one fails its health check", () => {
     const deploy = fixture();
     commit(deploy.upstream, "unhealthy");
@@ -546,7 +591,7 @@ describe("production deploy script", () => {
     const deploy = fixture();
     commit(deploy.upstream, "next");
     expect(deploy.run({ CONTAINER_HEALTH: "running" }).status).toBe(0);
-    expect(rollout(deploy.commands())).toContain("docker stop --time 30 web-old");
+    expect(rollout(deploy.commands())).toContain("docker stop --time 30 api-old");
   });
 
   it("removes a replacement that exits before it is ready", () => {

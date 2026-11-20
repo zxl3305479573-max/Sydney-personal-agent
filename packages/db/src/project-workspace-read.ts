@@ -139,8 +139,10 @@ export async function removeEmptyProjectWorkspace(
           AND NOT EXISTS (SELECT 1 FROM "tasks" t WHERE t."projectWorkspaceId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "runs" r WHERE r."projectWorkspaceId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "artifacts" a WHERE a."projectWorkspaceId" = w."id")
+          AND NOT EXISTS (SELECT 1 FROM "project_cloud_directory_bindings" b WHERE b."projectId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "cloud_agents" c WHERE c."projectWorkspaceId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "purchases" p WHERE p."projectWorkspaceId" = w."id")
+          AND NOT EXISTS (SELECT 1 FROM "project_directory_bindings" d WHERE d."projectId" = w."id")
         RETURNING w."id"
       `);
       return rows.length === 1;

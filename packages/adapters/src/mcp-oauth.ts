@@ -365,6 +365,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
   private served?: OAuthTokens;
   /** The refresh token storage held when this provider last read or wrote it. */
   private storedRefreshToken: string | null;
+  private readonly stagedRegistration: boolean;
 
   constructor(
     readonly serverId: string,
@@ -373,6 +374,14 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     private readonly options: ProviderOptions = {},
   ) {
     this.storedRefreshToken = material.oauth?.tokens?.refresh_token ?? null;
+    this.stagedRegistration = Boolean(
+      options.onAuthorization &&
+        options.redirectUri &&
+        material.oauth?.clientInformation &&
+        material.oauth.redirectUri !== options.redirectUri &&
+        !material.oauthClient,
+    );
+    if (this.stagedRegistration) material.oauth = {};
     if (options.redirectUri) {
       this.material.oauth = { ...(this.material.oauth ?? {}), redirectUri: options.redirectUri };
     }
@@ -591,6 +600,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
 
   /** `issued` marks a write carrying tokens the server just issued, which replace any stored grant. */
   private async persist(issued = false): Promise<void> {
+    if (this.stagedRegistration && !issued) return;
     const snapshot = structuredClone(this.material);
     const held = this.material.oauth?.tokens;
     const storedRefreshToken = issued ? undefined : this.storedRefreshToken;

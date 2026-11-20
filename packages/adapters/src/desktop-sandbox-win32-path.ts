@@ -28,12 +28,17 @@ const FILE_NON_DIRECTORY_FILE = 0x00000040;
 const FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
 const FILE_OPEN_REPARSE_POINT = 0x00200000;
 const OBJ_CASE_INSENSITIVE = 0x00000040;
+const OBJ_DONT_REPARSE = 0x00001000;
 const GENERIC_READ = 0x80000000;
 const GENERIC_WRITE = 0x40000000;
 const SYNCHRONIZE = 0x00100000;
 const FILE_SHARE_ALL = 0x00000007;
+const FILE_SHARE_READ = 0x00000001;
+const FILE_SHARE_WRITE = 0x00000002;
 const FILE_ATTRIBUTE_NORMAL = 0x00000080;
 const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+const FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
+const FILE_ATTRIBUTE_TAG_INFO = 9;
 /** NTSTATUS 0xC0000035 as signed int32 */
 const STATUS_OBJECT_NAME_COLLISION = -1073741771;
 /** NTSTATUS 0xC0000034 as signed int32 */
@@ -52,6 +57,7 @@ type NtFns = {
   openOsFhandle: KoffiFunction;
   CloseHandle: KoffiFunction;
   GetFinalPathNameByHandleW: KoffiFunction;
+  GetFileInformationByHandleEx: KoffiFunction;
   objectAttributesSize: number;
 };
 
@@ -108,6 +114,9 @@ function nt(): NtFns {
     GetFinalPathNameByHandleW: kernel32.func(
       "uint32_t __stdcall GetFinalPathNameByHandleW(void *hFile, void *lpszFilePath, uint32_t cchFilePath, uint32_t dwFlags)",
     ),
+    GetFileInformationByHandleEx: kernel32.func(
+      "int __stdcall GetFileInformationByHandleEx(void *hFile, int classId, void *info, uint32_t size)",
+    ),
     objectAttributesSize: koffi.sizeof(OBJECT_ATTRIBUTES),
   };
   return cached;
@@ -151,6 +160,7 @@ function ntCreateRelative(
   createDisposition: number,
   createOptions: number,
   fileAttributes: number,
+  project?: { directory: boolean; write: boolean },
 ): { fd: number; status: number } {
   assertLeafName(name);
   const api = nt();
@@ -165,7 +175,7 @@ function ntCreateRelative(
     Length: api.objectAttributesSize,
     RootDirectory: root,
     ObjectName: uni,
-    Attributes: OBJ_CASE_INSENSITIVE,
+    Attributes: OBJ_CASE_INSENSITIVE | (project ? OBJ_DONT_REPARSE : 0),
     SecurityDescriptor: null,
     SecurityQualityOfService: null,
   };
@@ -173,12 +183,14 @@ function ntCreateRelative(
   const handleOut: Array<unknown> = [null];
   const status = api.NtCreateFile(
     handleOut,
-    GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+    GENERIC_READ | (project === undefined || project.write ? GENERIC_WRITE : 0) | SYNCHRONIZE,
     objectAttributes,
     ioStatus,
     null,
     fileAttributes,
-    FILE_SHARE_ALL,
+    project === undefined
+      ? FILE_SHARE_ALL
+      : FILE_SHARE_READ | (project.directory ? FILE_SHARE_WRITE : 0),
     createDisposition,
     createOptions,
     null,
@@ -280,4 +292,49 @@ export function openChildDirectoryViaDirectoryFdWin32(parentFd: number, name: st
   );
   if (status !== 0) escapeWorkspace();
   return fileHandleFromFd(fd);
+}
+
+export function assertPlainWindowsHandle(fd: number) {
+  const api = nt();
+  const handle = api.getOsFhandle(fd) as number | bigint;
+  const info = Buffer.alloc(8);
+  if (
+    handle === -1 || handle === -1n ||
+    !api.GetFileInformationByHandleEx(handle, FILE_ATTRIBUTE_TAG_INFO, info, info.length) ||
+    (info.readUInt32LE(0) & FILE_ATTRIBUTE_REPARSE_POINT) !== 0
+  ) {
+    escapeWorkspace();
+  }
+}
+
+export function openProjectChildWin32(
+  parentFd: number,
+  name: string,
+  kind: "directory" | "read" | "create",
+) {
+  const directory = kind === "directory";
+  const write = kind === "create";
+  const { fd, status } = ntCreateRelative(
+    parentFd,
+    name,
+    write ? FILE_CREATE : FILE_OPEN,
+    (directory ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE) |
+      FILE_SYNCHRONOUS_IO_NONALERT |
+      FILE_OPEN_REPARSE_POINT,
+    directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+    { directory, write },
+  );
+  if (status === STATUS_OBJECT_NAME_COLLISION && write) {
+    const error = new Error("Output already exists") as NodeJS.ErrnoException;
+    error.code = "EEXIST";
+    throw error;
+  }
+  if (status !== 0) escapeWorkspace();
+  try {
+    assertPlainWindowsHandle(fd);
+    return fileHandleFromFd(fd);
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
 }

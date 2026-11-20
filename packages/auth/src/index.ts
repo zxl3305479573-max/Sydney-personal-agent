@@ -78,6 +78,7 @@ export interface AuthEnv {
   oidc?: OidcConfig;
   secret: string;
   baseURL: string;
+  apiUrl?: string;
   webOrigin: string;
   publicLinkOrigin?: string;
   nativeEmailVerificationOnApi?: boolean;
@@ -916,9 +917,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Assemble Better Auth trustedOrigins, adding localhost↔127.0.0.1 twins for loopback. */
-export function buildTrustedOrigins(env: Pick<AuthEnv, "webOrigin" | "baseURL" | "extraOrigins">) {
-  const configured = [env.webOrigin, env.baseURL, ...(env.extraOrigins ?? [])];
-  const twins = [env.webOrigin, env.baseURL].flatMap(loopbackTwinOrigins);
+export function buildTrustedOrigins(
+  env: Pick<AuthEnv, "webOrigin" | "baseURL" | "apiUrl" | "extraOrigins">,
+) {
+  const origins = [env.webOrigin, env.baseURL, ...(env.apiUrl ? [env.apiUrl] : [])];
+  const configured = [...origins, ...(env.extraOrigins ?? [])];
+  const twins = origins.flatMap(loopbackTwinOrigins);
   return [...new Set([...configured, ...twins])];
 }
 

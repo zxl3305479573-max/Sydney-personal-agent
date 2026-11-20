@@ -43,9 +43,10 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      target: server
       args:
         GIT_SHA: ${GIT_SHA:-}
-        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-true}
     restart: unless-stopped
     command: ["pnpm", "--filter", "@rakazo/sandbox-supervisor", "start"]
     init: true
@@ -75,6 +76,7 @@ services:
       SANDBOX_MAX_COMPUTERS_PER_SPACE: ${SANDBOX_MAX_COMPUTERS_PER_SPACE:-0}
       SANDBOX_SUPERVISOR_TOKEN: ${SANDBOX_SUPERVISOR_TOKEN:?Set SANDBOX_SUPERVISOR_TOKEN in .env}
       SANDBOX_SCREEN_NETWORK: isolated
+      SANDBOX_SCREEN_PEER_SERVICE: ${SANDBOX_SCREEN_PEER_SERVICE:-web}
       SANDBOX_COMPUTER_EGRESS: ${SANDBOX_COMPUTER_EGRESS:-auto}
       SANDBOX_COMPUTER_DNS: ${SANDBOX_COMPUTER_DNS:-}
       SANDBOX_COMPUTER_MOUNTS: ${SANDBOX_COMPUTER_MOUNTS:-}

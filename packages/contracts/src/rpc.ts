@@ -183,6 +183,13 @@ import {
   ProjectWorkspaceRosterSchema,
   ProjectWorkspaceSchema,
 } from "./project-workspace.js";
+import {
+  ProjectDirectorySnapshotSchema,
+  BindProjectCloudDirectoryInput,
+  ProjectCloudDirectoryStatusSchema,
+  UnbindProjectDirectoryInput,
+  UnbindProjectDirectoryResultSchema,
+} from "./project-directory.js";
 import { MessageReactionSchema } from "./reactions.js";
 import { RoutineWatchSchema } from "./routine-watch.js";
 import {
@@ -536,6 +543,12 @@ export const appContract = {
     ),
   },
   projectWorkspaces: {
+    directoryCapability: oc.output(z.object({ localDevice: z.boolean() }).strict()),
+    directory: oc.input(ProjectWorkspaceIdInput).output(ProjectDirectorySnapshotSchema),
+    unbindDirectory: oc.input(UnbindProjectDirectoryInput).output(UnbindProjectDirectoryResultSchema),
+    cloudDirectory: oc.input(ProjectWorkspaceIdInput).output(ProjectCloudDirectoryStatusSchema),
+    bindCloudDirectory: oc.input(BindProjectCloudDirectoryInput).output(z.object({ ok: z.literal(true) })),
+    unbindCloudDirectory: oc.input(UnbindProjectDirectoryInput).output(z.object({ ok: z.literal(true) })),
     capabilities: oc.output(z.object({ create: z.boolean(), removeEmpty: z.boolean() }).strict()),
     conversationCapabilities: oc.output(z.object({ createBot: z.boolean() }).strict()),
     groupCreationCapability: oc.output(z.object({ createGroup: z.boolean() }).strict()),
@@ -589,6 +602,33 @@ export const appContract = {
           .strict(),
       )
       .output(threadSendOutput),
+    cancelRun: oc
+      .input(
+        threadTarget
+          .safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id, runId: Id })
+          .strict(),
+      )
+      .output(z.object({ ok: z.literal(true) })),
+    answerApproval: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            runId: Id,
+            messageId: Id,
+            effectId: Id,
+            decision: z.enum(["allow", "deny"]),
+          })
+          .strict(),
+      )
+      .output(z.object({ ok: z.literal(true) })),
+    getArtifact: oc
+      .input(
+        threadTarget
+          .safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id, artifactId: Id })
+          .strict(),
+      )
+      .output(ArtifactWithContentSchema),
     subscribe: oc
       .input(
         threadTarget

@@ -42,6 +42,9 @@ const picker = vi.hoisted(() => ({
 }));
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./ui-mode-slots", () => ({
+  UiModeScreenHost: ({ renderClassic }: { renderClassic: () => ReactNode }) => renderClassic(),
+}));
 vi.mock("react-native", () => {
   function MockView(props: {
     children?: ReactNode;
@@ -465,6 +468,34 @@ describe("computer screen", () => {
     expect(
       screens.onShouldStartLoadWithRequest?.({ url: "https://old.example.test/redirect" }),
     ).toBe(false);
+  });
+
+  it("shows a screen address failure and retries without booting the computer again", async () => {
+    let unavailable = true;
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") {
+        if (unavailable)
+          throw Object.assign(new Error("Screen connection needs recovery"), { status: 409 });
+        return { url: "https://screen.example.test/embed" };
+      }
+      return {};
+    });
+    const view = await render();
+    const bootsBeforeRetry = calls("computer/boot").length;
+    expect(view.textContent).toContain("Screen connection needs recovery");
+    expect(view.querySelector("iframe")).toBeNull();
+    const retry = Array.from(view.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry screen",
+    );
+    expect(retry).toBeDefined();
+    unavailable = false;
+    await act(async () => retry?.click());
+    await settle();
+    expect(view.textContent).not.toContain("Screen connection needs recovery");
+    expect(view.querySelector("iframe")).not.toBeNull();
+    expect(calls("computer/boot")).toHaveLength(bootsBeforeRetry);
+    expect(calls("computer/recover")).toHaveLength(0);
   });
 
   it.each([

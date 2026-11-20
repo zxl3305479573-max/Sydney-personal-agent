@@ -3,6 +3,7 @@ import type { Actor, MessageBlock } from "@rakazo/contracts";
 import { callClientNonce } from "@rakazo/core";
 import type * as MessageQuoteModule from "@rakazo/core/message-quote";
 import type { PrismaClient } from "@rakazo/db";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { ThreadTarget } from "./thread-target.js";
 import {
@@ -3721,6 +3722,77 @@ describe("sendThreadMessage", () => {
 });
 
 describe("stopThreadRuns", () => {
+  it.each(["active", "finished", "foreign"] as const)(
+    "cancels only the selected project Run (%s)",
+    async (scenario) => {
+      const actor = { spaceId: "space-a", userId: "user-a" } as Actor;
+      const scope = { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-a" };
+      const run = { id: "run-a", botId: "bot-a", taskId: "task-a", ...scope };
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const tx = {
+        $queryRaw: vi.fn(),
+        run: {
+          findFirst: vi.fn().mockResolvedValue(scenario === "foreign" ? null : run),
+          updateManyAndReturn: vi.fn().mockResolvedValue(scenario === "active" ? [{ id: run.id }] : []),
+          findMany: vi.fn().mockResolvedValue([run]),
+          findUnique: vi.fn().mockResolvedValue({ status: "cancelled" }),
+        },
+        task: { updateMany: vi.fn() },
+        attempt: { updateMany: vi.fn() },
+        message: { findMany: vi.fn().mockResolvedValue([]) },
+        secret: { deleteMany: vi.fn() },
+        steeringMessage: { deleteMany: vi.fn() },
+        externalEffect: { deleteMany: vi.fn() },
+        computerExecutionLease: { findMany: vi.fn().mockResolvedValue([]) },
+        computer: { findMany: vi.fn().mockResolvedValue([]) },
+        thread: { update: vi.fn().mockResolvedValue({ nextEventSeq: 4 }) },
+        event: {
+          create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+          deleteMany: vi.fn(),
+        },
+      };
+      const prisma = {
+        $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
+        computer: { updateMany: vi.fn() },
+        computerExecutionLease: { updateMany: vi.fn() },
+      } as unknown as PrismaClient;
+      const target = { kind: "bot", botId: "bot-a", threadId: "thread-a" } as ThreadTarget;
+      const outcome = runAsTenant(scope, () => stopThreadRuns({
+        prisma, sandbox: {} as SandboxProvider, events: { notify } as never,
+      }, actor, target, "run-a"));
+      if (scenario === "foreign") {
+        await expect(outcome).rejects.toMatchObject({ code: "NOT_FOUND" });
+        expect(tx.run.updateManyAndReturn).not.toHaveBeenCalled();
+      } else {
+        await outcome;
+        expect(tx.run.updateManyAndReturn).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+          where: { id: { in: ["run-a"] }, status: { in: expect.arrayContaining(["queued", "running"]) } },
+          data: expect.objectContaining({ status: "cancelled", leaseOwner: null, leaseExpiresAt: null }),
+        }));
+      }
+      expect(tx.run.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: "run-a", threadId: "thread-a", ...scope },
+      }));
+      if (scenario !== "active") {
+        expect(tx.task.updateMany).not.toHaveBeenCalled();
+        expect(tx.steeringMessage.deleteMany).not.toHaveBeenCalled();
+        expect(tx.event.create).not.toHaveBeenCalled();
+        expect(notify).not.toHaveBeenCalled();
+        return;
+      }
+      expect(tx.task.updateMany).toHaveBeenCalledExactlyOnceWith({
+        where: { id: { in: ["task-a"] } }, data: { status: "cancelled" },
+      });
+      expect(tx.steeringMessage.deleteMany).toHaveBeenCalledExactlyOnceWith({
+        where: { runId: "run-a", message: { threadId: "thread-a" } },
+      });
+      expect(tx.event.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        data: expect.objectContaining({ runId: "run-a", threadId: "thread-a", type: "run.cancelled" }),
+      }));
+      expect(notify).toHaveBeenCalledExactlyOnceWith("thread-a", 3);
+    },
+  );
+
   it("snapshots every lease when group members share a team computer", async () => {
     const releaseScreen = vi.fn().mockResolvedValue(undefined);
     const execute = vi.fn(async function* () {

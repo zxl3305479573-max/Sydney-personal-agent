@@ -149,6 +149,7 @@ describe("mobile app config", () => {
       updates: {
         url: "https://u.expo.dev/12345678-1234-4234-8234-123456789abc",
         requestHeaders: { "expo-channel-name": "sideload" },
+        checkAutomatically: "NEVER",
       },
     });
   });

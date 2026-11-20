@@ -22,8 +22,7 @@ export function ConversationBackgroundSettings({ chatKey }: { chatKey: string })
       if (file && saved.backgrounds.length >= 100) throw new Error("最多添加 100 张背景图片");
       const id = file ? crypto.randomUUID() : backgroundId;
       const chatBackgrounds = { ...saved.chatBackgrounds };
-      if (id) chatBackgrounds[chatKey] = id;
-      else delete chatBackgrounds[chatKey];
+      chatBackgrounds[chatKey] = id || null;
       await saveChatAppearance({
         ...saved,
         chatBackgrounds,

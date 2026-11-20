@@ -1,4 +1,3 @@
-import { tokensForAppearance } from "@rakazo/ui-tokens";
 import { useMemo, useSyncExternalStore } from "react";
 import type { ColorValue } from "react-native";
 import { Platform, PlatformColor } from "react-native";
@@ -10,10 +9,15 @@ import {
   subscribeAppearance,
 } from "./appearance";
 import { translucentColor } from "./color";
+import { getActiveUiMode, getUiModeRevision } from "./ui-mode";
 
 function systemColor(iosName: string, fallback: string): ColorValue {
   // PlatformColor follows the OS scheme, not an explicit app Light/Dark choice.
-  if (Platform.OS === "ios" && getCachedAppearancePreference() === "system") {
+  if (
+    Platform.OS === "ios" &&
+    getCachedAppearancePreference() === "system" &&
+    getActiveUiMode().systemColorPolicy === "platform"
+  ) {
     return PlatformColor(iosName);
   }
   return fallback;
@@ -69,7 +73,7 @@ export const native = {
 } as const;
 
 function appearanceSnapshot(): string {
-  return `${getCachedAppearancePreference()}:${resolveMobileAppearance()}`;
+  return `${getCachedAppearancePreference()}:${resolveMobileAppearance()}:${getUiModeRevision()}`;
 }
 
 export function useResolvedAppearance(): ResolvedAppearance {
@@ -83,10 +87,13 @@ export function useResolvedAppearance(): ResolvedAppearance {
 export function useThemedStyles<T>(factory: () => T): T {
   const resolved = useResolvedAppearance();
   const preference = getCachedAppearancePreference();
-  return useMemo(factory, [resolved, preference]);
+  const modeRevision = getUiModeRevision();
+  return useMemo(factory, [resolved, preference, modeRevision]);
 }
 
 /** Subscribe custom surfaces to the same appearance as native navigation. */
 export function useMobileTokens() {
-  return tokensForAppearance(useResolvedAppearance());
+  const resolved = useResolvedAppearance();
+  const modeRevision = getUiModeRevision();
+  return useMemo(() => mobileTokens(), [resolved, modeRevision]);
 }

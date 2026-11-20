@@ -8,6 +8,16 @@ const base = {
 };
 
 describe("loadEnv", () => {
+  it("validates the integration API callback opt-in", () => {
+    expect(loadEnv(base).integrationApiCallbackEnabled).toBe(false);
+    expect(
+      loadEnv({ ...base, SYDNEY_INTEGRATION_API_CALLBACK: "true" }).integrationApiCallbackEnabled,
+    ).toBe(true);
+    expect(() => loadEnv({ ...base, SYDNEY_INTEGRATION_API_CALLBACK: "yes" })).toThrow(
+      "SYDNEY_INTEGRATION_API_CALLBACK must be true or false",
+    );
+  });
+
   it("requires an explicit opt-in and secure origins for API email verification returns", () => {
     expect(loadEnv(base).nativeEmailVerificationOnApi).toBe(false);
     const enabled = { ...base, SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API: "true" };

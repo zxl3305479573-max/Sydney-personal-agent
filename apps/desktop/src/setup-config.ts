@@ -134,6 +134,7 @@ export function resolveStartupTarget(input: {
   pcBackendUrl?: string;
   saved?: DesktopSetup | null;
   forceSetup?: boolean;
+  managedLocalAvailable?: boolean;
 }): StartupTarget {
   if (input.forceSetup === true) return { kind: "setup" };
 
@@ -149,7 +150,8 @@ export function resolveStartupTarget(input: {
 
   if (input.saved != null) {
     const saved = parseSetupInput(input.saved);
-    if (saved !== null) return { kind: "app", url: saved.serverUrl, source: "saved" };
+    if (saved !== null && (saved.mode === "existing" || input.managedLocalAvailable !== false))
+      return { kind: "app", url: saved.serverUrl, source: "saved" };
   }
   return { kind: "setup" };
 }

@@ -20,6 +20,7 @@ import type { PrismaClient } from "@rakazo/db";
 import { recordSecurityEvent, runAsSystem } from "@rakazo/db";
 import type { Hono } from "hono";
 import { readBoundedBody } from "./http-body.js";
+import { mountProjectDirectoryRoutes } from "./project-directories.js";
 
 const FORWARD_BODY_MAX_BYTES = 13 * 1024 * 1024;
 
@@ -30,6 +31,7 @@ export interface UserDeviceRouteDeps {
   forwardSecret: string;
   session: (request: Request) => Promise<{ userId: string; sessionId: string } | null>;
   trustedOrigin: (origin: string) => boolean;
+  projectDirectoriesEnabled?: boolean;
 }
 
 type DeviceStore = { prisma: PrismaClient; devices: UserDevices };
@@ -91,6 +93,7 @@ export function mountUserDeviceRoutes(app: Hono, deps: UserDeviceRouteDeps) {
     await next();
     c.header("cache-control", "no-store");
   });
+  mountProjectDirectoryRoutes(app, deps);
 
   app.post(USER_DEVICE_PAIR_PATH, async (c) => {
     // The desktop main process sends no Origin. A JSON content type forces a CORS preflight,

@@ -556,6 +556,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     oidc: env.oidc,
     secret: env.authSecret,
     baseURL: env.authUrl,
+    apiUrl: env.apiUrl,
     webOrigin: env.webOrigin,
     publicLinkOrigin: env.authPublicLinkOrigin,
     nativeEmailVerificationOnApi: env.nativeEmailVerificationOnApi,
@@ -783,6 +784,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       : undefined;
 
   const routerDeps: RouterDeps = {
+    userDevices,
     speechSummary:
       env.voiceSummaryMinChars === undefined
         ? undefined
@@ -934,7 +936,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         env.passwordAuth !== false && email
           ? new URL(
               env.nativePasswordResetOnApi ? NATIVE_PASSWORD_RESET_PATH : "/reset-password",
-              env.authPublicLinkOrigin ?? env.webOrigin,
+              env.authPublicLinkOrigin ??
+                (env.nativePasswordResetOnApi ? env.authUrl : env.webOrigin),
             ).href
           : null,
       emailCode: auth.emailCodeSignIn,
@@ -1025,6 +1028,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         return found ? { userId: found.user.id, sessionId: found.session.id } : null;
       },
       trustedOrigin: (origin) => isTrustedOrigin(origin, env),
+      projectDirectoriesEnabled: env.projectWorkspaceCreateExperiment,
     });
   }
   if (messagingInstallations) {

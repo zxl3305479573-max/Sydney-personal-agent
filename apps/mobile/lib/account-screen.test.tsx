@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { Alert } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import About from "../app/(settings)/about";
 import Account from "../app/(settings)/account";
 import SettingsHome from "../app/(settings)/settings-home";
 import sydneyRelease from "../sydney-release.json";
@@ -17,7 +18,7 @@ import {
   requestAccountDeletionCode,
 } from "./api";
 import { replaceWithSignIn } from "./auth-routing";
-import { checkForManualUpdate, restartForUpdate } from "./client-update";
+import { checkForManualUpdate, promptForAvailableUpdate } from "./client-update";
 import { promptAccountDeletion } from "./delete-account-prompt";
 import { queryClient } from "./query";
 import { registerSettingsSheet } from "./settings-sheet";
@@ -46,6 +47,9 @@ const { element, account } = vi.hoisted(() => ({
     push: vi.fn(),
     fetchAvatar: vi.fn(),
     release: null as typeof sydneyRelease | null,
+    availableUpdate: undefined as
+      | { updateId: string; manifest: { extra: { expoClient: { extra: object } } } }
+      | undefined,
     pickAvatar: vi.fn(),
     updateAvatar: vi.fn(),
     params: {} as { section?: string; focus?: string },
@@ -68,8 +72,9 @@ vi.mock("./query", async () => {
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: account.pickAvatar }));
 vi.mock("./client-update", () => ({
-  checkForManualUpdate: vi.fn(async () => ({ status: "downloaded", release: null })),
-  restartForUpdate: vi.fn(async () => undefined),
+  checkForManualUpdate: vi.fn(async () => ({ status: "current" })),
+  promptForAvailableUpdate: vi.fn(),
+  useClientUpdateState: () => ({ update: account.availableUpdate, downloaded: false }),
 }));
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
@@ -168,6 +173,7 @@ vi.mock("../components/settings-group", () => ({
   SettingsLabel: element("span"),
   SettingsRow: ({
     title,
+    detail,
     value,
     accessibilityRole,
     chevron,
@@ -176,6 +182,7 @@ vi.mock("../components/settings-group", () => ({
     onPress,
   }: {
     title: string;
+    detail?: string;
     value?: string;
     accessibilityRole?: string;
     chevron?: string;
@@ -189,6 +196,7 @@ vi.mock("../components/settings-group", () => ({
         type="button"
         role={accessibilityRole}
         data-chevron={chevron}
+        data-detail={detail}
         data-value={value}
         data-row=""
         disabled={disabled}
@@ -321,6 +329,7 @@ let container: HTMLDivElement | undefined;
 beforeEach(() => {
   vi.clearAllMocks();
   account.release = null;
+  account.availableUpdate = undefined;
   account.fetchAvatar.mockResolvedValue(null);
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
   queryClient.clear();
@@ -385,10 +394,15 @@ it("reads the saved avatar on a fresh load when the server omits it from me", as
   expect(account.fetchAvatar).toHaveBeenCalledWith("user-1");
 });
 
-it("offers to restart after downloading a manual update", async () => {
+it("shows a discovered version in Settings and asks for consent after checking", async () => {
+  const update = { id: "available-release", release: sydneyRelease };
+  account.availableUpdate = {
+    updateId: update.id,
+    manifest: { extra: { expoClient: { extra: { sydneyMobileRelease: sydneyRelease } } } },
+  };
   vi.mocked(checkForManualUpdate).mockResolvedValueOnce({
-    status: "downloaded",
-    release: sydneyRelease,
+    status: "available",
+    update,
   });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = document.createElement("div");
@@ -398,20 +412,13 @@ it("offers to restart after downloading a manual update", async () => {
   const button = [...container.querySelectorAll("button")].find(
     (node) => node.textContent === "Check for updates",
   );
+  expect(button?.getAttribute("data-detail")).toBe(`Version ${sydneyRelease.version} available`);
   await act(async () => button?.click());
   expect(checkForManualUpdate).toHaveBeenCalledOnce();
-  expect(Alert.alert).toHaveBeenLastCalledWith(
-    `Version ${sydneyRelease.version} downloaded`,
-    expect.stringContaining(`• ${sydneyRelease.notes.en[0]}`),
-    expect.any(Array),
-  );
-  const buttons = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
-  expect(restartForUpdate).not.toHaveBeenCalled();
-  await act(async () => buttons?.find((item) => item.text === "Restart")?.onPress?.());
-  expect(restartForUpdate).toHaveBeenCalledOnce();
+  expect(promptForAvailableUpdate).toHaveBeenCalledWith(update);
 });
 
-it("shows the running version and its release notes in Settings", async () => {
+it("opens About with the running version and keeps release notes in Settings", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   account.release = sydneyRelease;
   container = document.createElement("div");
@@ -419,13 +426,17 @@ it("shows the running version and its release notes in Settings", async () => {
   await act(async () => root?.render(<SettingsHome />));
   const row = (title: string) =>
     [...container!.querySelectorAll("button")].find((element) => element.textContent === title);
-  expect(row("Current version")?.getAttribute("data-value")).toBe(sydneyRelease.version);
+  expect(row("About")?.getAttribute("data-value")).toBe(sydneyRelease.version);
+  await act(async () => row("About")?.click());
+  expect(account.push).toHaveBeenCalledWith("/about");
   await act(async () => row("Release notes")?.click());
   expect(Alert.alert).toHaveBeenLastCalledWith(
     `Version ${sydneyRelease.version}`,
     expect.stringContaining(sydneyRelease.releasedOn),
     [{ text: "Close" }],
   );
+  await act(async () => root?.render(<About />));
+  expect(row("Current version")?.getAttribute("data-value")).toBe(sydneyRelease.version);
 });
 
 it.each([

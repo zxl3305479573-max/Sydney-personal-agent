@@ -4,11 +4,18 @@ import {
   FLEET_WRITE_TOOL_NAMES,
   GITHUB_TOOL_NAMES,
 } from "@rakazo/contracts";
+import type { ProjectDirectoryIntent } from "@rakazo/contracts";
 import { isBackgroundRunTrigger, isOwnerStartedRun } from "@rakazo/core";
 import { builtinAgentTools } from "./builtin-tools.js";
 import { selectCloudAgentTools } from "./cloud-agent-tools-select.js";
 import { selectMemoryTools } from "./memory-tools.js";
 import { filterImageReturningComputerTools } from "./model-vision.js";
+import {
+  filterProjectTextTools,
+  isProjectDeviceTool,
+  PROJECT_WINDOWS_TERMINAL,
+  projectFileToolAllowed,
+} from "./run-project-policy.js";
 import { USER_COMPUTER_SCREEN_TOOLS } from "./run-tools-user-computer.js";
 import { filterBuiltinToolsForRun, filterBuiltinToolsForThread } from "./schedule-tools.js";
 
@@ -58,6 +65,9 @@ export const FLEET_WRITE_TOOL_NAMES_SET: ReadonlySet<string> = new Set(FLEET_WRI
 const CREATED_RUN_TOOL_NAMES = new Set(["ask_user", "update_bot"]);
 
 export function selectBuiltinToolsForRun(options: {
+  projectWorkspaceId?: string | null;
+  projectDirectoryIntent?: ProjectDirectoryIntent;
+  projectWindowsTerminal?: boolean;
   ticketBoardEnabled?: boolean;
   phoneCallsEnabled?: boolean;
   historyRetrievalEnabled?: boolean;
@@ -158,7 +168,17 @@ export function selectBuiltinToolsForRun(options: {
           !tool.name.startsWith("scratchpad_") &&
           !tool.name.startsWith("ticket_"))),
   );
-  return selected.map((tool) => {
+  const scoped = options.projectWorkspaceId
+    ? [
+        ...filterProjectTextTools(selected),
+        ...selected.filter(
+          (tool) => ownerStartedRun && !options.messagingChannelRun &&
+            (projectFileToolAllowed(tool.name, options.projectDirectoryIntent) ||
+              (tool.name === PROJECT_WINDOWS_TERMINAL && options.projectWindowsTerminal)),
+        ),
+      ]
+    : selected.filter((tool) => !isProjectDeviceTool(tool.name));
+  return scoped.map((tool) => {
     if (options.computerKind !== "native-linux" || tool.name !== "computer_act") return tool;
     const schema = structuredClone(tool.inputSchema) as {
       properties: { actions: { items: { oneOf: Record<string, unknown>[] } } };

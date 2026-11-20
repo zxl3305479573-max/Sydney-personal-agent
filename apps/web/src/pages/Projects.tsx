@@ -15,6 +15,7 @@ import { createSpaceRpc, selectedSpaceId } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
 import { WindowChrome } from "./WindowChrome";
 import { ProjectGroupCreation } from "./ProjectGroupCreation";
+import { ProjectDirectory } from "./ProjectDirectory";
 import { CreateBotDialog, type CreateBotDialogInput } from "./shell/create-bot-dialog";
 
 export function ProjectsPage() {
@@ -136,7 +137,7 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <p id="project-creation-status" className="mb-5 text-sm text-muted-foreground" role="status">
           {canCreate
-            ? text("项目内对话暂未开放。", "Project conversations are not available yet.")
+            ? text("选择项目后可查看独立成员与会话。", "Choose a project to view its members and conversations.")
             : text("项目创建和项目内对话暂未开放。", "Project creation and project conversations are not available yet.")}
         </p>
         {showCreate && canCreate ? (
@@ -194,7 +195,7 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
             ) : detail.data ? (
               <>
                 <h2 className="break-words text-xl font-semibold" dir="auto">{detail.data.name}</h2>
-                <p className="mt-2 text-sm text-muted-foreground">{text("尚未连接项目目录", "Project folder is not connected")}</p>
+                <ProjectDirectory key={JSON.stringify([spaceId, detail.data.id])} projectId={detail.data.id} spaceId={spaceId} />
                 <ProjectRoster key={detail.data.id} workspaceId={detail.data.id} />
                 <div className="mt-5 flex flex-wrap gap-3">
                   <ProjectBotCreation key={detail.data.id} workspaceId={detail.data.id} spaceId={spaceId} />
@@ -205,7 +206,7 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
                   </Button> : null}
                 </div>
                 <p className="mt-5 text-sm text-muted-foreground">
-                  {text("项目会话尚未开放，这里不会展示首页对话。", "Project conversations are not available yet. Home conversations are not shown here.")}
+                  {text("点击项目 Bot 或群聊进入独立文字会话；入口由服务器能力控制。", "Choose a project bot or group for its text conversation when enabled by the server.")}
                 </p>
               </>
             ) : null}
@@ -288,6 +289,8 @@ function ProjectRoster({ workspaceId }: { workspaceId: string }) {
   const { i18n } = useLingui();
   const text = (chinese: string, english: string) => i18n.locale.startsWith("zh") ? chinese : english;
   const queries = useSpaceQueries();
+  const capability = useQuery(queries.projectWorkspaces.conversationCapabilities.queryOptions());
+  const canChat = !capability.error && capability.data?.createBot === true;
   const [botCursors, setBotCursors] = useState<string[]>([]);
   const [groupCursors, setGroupCursors] = useState<string[]>([]);
   const roster = useQuery(queries.projectWorkspaces.roster.queryOptions({
@@ -302,15 +305,20 @@ function ProjectRoster({ workspaceId }: { workspaceId: string }) {
   );
   if (!roster.data) return null;
   const sections = [
-    { title: text("小伙伴", "Bots"), items: roster.data.bots, cursors: botCursors, setCursors: setBotCursors, next: roster.data.nextBotId },
-    { title: text("群聊", "Group chats"), items: roster.data.groups, cursors: groupCursors, setCursors: setGroupCursors, next: roster.data.nextGroupId },
+    { kind: "botId", title: text("小伙伴", "Bots"), items: roster.data.bots, cursors: botCursors, setCursors: setBotCursors, next: roster.data.nextBotId },
+    { kind: "groupId", title: text("群聊", "Group chats"), items: roster.data.groups, cursors: groupCursors, setCursors: setGroupCursors, next: roster.data.nextGroupId },
   ];
   return (
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
       {sections.map((section) => (
         <section key={section.title}>
           <h3 className="font-semibold">{section.title}</h3>
-          <ul>{section.items.map((item) => <li key={item.id} className="break-words">{item.name}</li>)}</ul>
+          <ul>{section.items.map((item) => <li key={item.id} className="break-words">
+            {canChat ? <Link className="block rounded-lg px-2 py-2 hover:bg-muted"
+              to={`/app/projects/${encodeURIComponent(workspaceId)}/chat?${section.kind}=${encodeURIComponent(item.id)}`}>
+              {item.name}
+            </Link> : <span className="block px-2 py-2">{item.name}</span>}
+          </li>)}</ul>
           <div className="flex flex-wrap gap-2">
             {section.cursors.length ? <Button type="button" variant="secondary" disabled={roster.isFetching}
               onClick={() => section.setCursors((old) => old.slice(0, -1))}>{text("上一页", "Previous")}</Button> : null}

@@ -11,7 +11,7 @@ import type { ActionApprovalRule } from "@rakazo/core";
 import { inboundRoutineBlock } from "@rakazo/core";
 import { approvalEffectKey, toolEffectIdempotencyKey } from "@rakazo/core/node/approval-effect-key";
 import type { PrismaClient } from "@rakazo/db";
-import { createPendingSteeringRun, sendUserMessage } from "@rakazo/db";
+import { createPendingSteeringRun, runAsSystem, runAsTenant, sendUserMessage } from "@rakazo/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DENIED_ACTION_ERROR, isApprovalPausedResult } from "./approval-effect.js";
 import { MAX_SHARED_MEMORY_CHARS } from "./builtin-tools.js";
@@ -657,8 +657,9 @@ function fixture({
         role: "user",
         blocks: [{ kind: "text", text: promptText }],
       };
+      const homeScope = { spaceId: run.spaceId, userId: run.userId, projectWorkspaceId: null };
       const tx = {
-        $queryRaw: vi.fn(async () => []),
+        $queryRaw: vi.fn(async () => [homeScope]),
         thread: { update: vi.fn(async () => ({ nextMessageSeq: 2, nextEventSeq: 2 })) },
         message: {
           create: vi.fn(async () => inboundMessage),
@@ -692,18 +693,20 @@ function fixture({
       const inboundPrisma = {
         $transaction: async (action: (client: typeof tx) => unknown) => action(tx),
       } as unknown as PrismaClient;
-      await sendUserMessage(inboundPrisma, {
-        spaceId: run.spaceId,
-        threadId: run.threadId,
-        botId: run.botId,
-        userId: run.userId,
-        trigger: "webhook",
-        prompt: promptText,
-        blocks: inboundMessage.blocks as never,
-      });
+      await runAsSystem("test inbound webhook delivery", () =>
+        sendUserMessage(inboundPrisma, {
+          spaceId: run.spaceId,
+          threadId: run.threadId,
+          botId: run.botId,
+          userId: run.userId,
+          trigger: "webhook",
+          prompt: promptText,
+          blocks: inboundMessage.blocks as never,
+        }),
+      );
       if (busyTrigger) {
         expect(pending[0]).toMatchObject({ runId: null, originTrigger: "webhook" });
-        await createPendingSteeringRun(tx as never, run);
+        await runAsTenant(homeScope, () => createPendingSteeringRun(tx as never, run));
       }
       expect(run.trigger).toBe("webhook");
       expect(run.sourceMessageId).toBe(inboundMessage.id);

@@ -2,12 +2,13 @@ import type { AppearancePreference, ResolvedAppearance } from "@rakazo/ui-tokens
 import {
   normalizeAppearancePreference,
   resolveAppearance,
-  tokensForAppearance,
   UI_APPEARANCE_STORAGE_KEY,
 } from "@rakazo/ui-tokens";
 import * as SecureStore from "expo-secure-store";
 import type { ColorSchemeName } from "react-native";
-import { Appearance } from "react-native";
+import { Appearance, Platform } from "react-native";
+import { getActiveUiMode, subscribeUiMode } from "./ui-mode";
+import { resolveUiModeTheme } from "./ui-mode-registry";
 
 export type { AppearancePreference, ResolvedAppearance };
 
@@ -50,6 +51,8 @@ export function resolveMobileAppearance(
   preference: AppearancePreference = getCachedAppearancePreference(),
   scheme?: ColorSchemeName | null,
 ): ResolvedAppearance {
+  const lock = getActiveUiMode().colorSchemeLock;
+  if (lock !== "none") return lock;
   return resolveAppearance(preference, systemAppearance(scheme));
 }
 
@@ -57,7 +60,11 @@ export function mobileTokens(
   preference: AppearancePreference = getCachedAppearancePreference(),
   scheme?: ColorSchemeName | null,
 ) {
-  return tokensForAppearance(resolveMobileAppearance(preference, scheme));
+  const mode = getActiveUiMode();
+  return resolveUiModeTheme(mode.id, {
+    platform: Platform.OS,
+    userAppearance: resolveMobileAppearance(preference, scheme),
+  }).tokens;
 }
 
 export function subscribeAppearance(listener: () => void): () => void {
@@ -90,8 +97,16 @@ async function persistAppearancePreference(
 // Native surfaces (alerts, action sheets, the keyboard, iOS platform colors) follow the
 // window's scheme, so an explicit app choice overrides it and System hands it back to the OS.
 function applyNativeColorScheme(preference: AppearancePreference) {
-  Appearance.setColorScheme(preference === "system" ? "unspecified" : preference);
+  const lock = getActiveUiMode().colorSchemeLock;
+  Appearance.setColorScheme(
+    lock !== "none" ? lock : preference === "system" ? "unspecified" : preference,
+  );
 }
+
+subscribeUiMode(() => {
+  applyNativeColorScheme(getCachedAppearancePreference());
+  notify();
+});
 
 Appearance.addChangeListener(() => {
   if (getCachedAppearancePreference() === "system") notify();

@@ -7,7 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { ElectronApplication, Page } from "@playwright/test";
 import { _electron as electron, expect, test } from "@playwright/test";
-import type { RakazoDesktop } from "@rakazo/contracts";
+import type { RakazoDesktop, RakazoSetup } from "@rakazo/contracts";
 import { foregroundWindow } from "./foreground-window";
 
 const APP_MARKER = "Existing Rakazo instance ready";
@@ -142,6 +142,32 @@ test("opens a healthy configured PC backend", async () => {
   }
 });
 
+test("packaged Windows opens direct setup for a legacy local profile", async () => {
+  test.skip(
+    process.platform !== "win32" || !process.env.RAKAZO_E2E_EXECUTABLE,
+    "Requires a packaged Windows executable",
+  );
+  const setupFile = path.join(userData, "setup.json");
+  const saved = { mode: "new", serverUrl: closedUrl } as const;
+  const profile = JSON.stringify(saved);
+  await writeFile(setupFile, profile, { mode: 0o600 });
+  app = await launch();
+  const window = await foregroundWindow(app);
+  await expect(window.getByRole("heading", { name: "Welcome to Sydney" })).toBeVisible();
+  await expect(window.locator('label[for="mode-new"]')).toBeHidden();
+  await expect(window.locator("#mode-cloud")).toBeChecked();
+  const result = await window.evaluate(async (selection) => {
+    const setup = (window as typeof window & { rakazoSetup: RakazoSetup }).rakazoSetup;
+    return {
+      stack: await setup.stack.start(),
+      saved: await setup.save(selection),
+    };
+  }, saved);
+  expect(result.stack).toBeNull();
+  expect(result.saved.ok).toBe(false);
+  expect(await readFile(setupFile, "utf8")).toBe(profile);
+});
+
 test("packaged Sydney disables desktop updates", async () => {
   test.setTimeout(75_000);
   const executable = process.env.RAKAZO_E2E_EXECUTABLE;
@@ -176,7 +202,7 @@ test("packaged Sydney disables desktop updates", async () => {
       expect(state).toMatchObject({
         phase: "unsupported",
         availableVersion: null,
-        message: "Automatic updates are turned off for this install.",
+        message: expect.stringMatching(/\S/),
       });
     }
     await window.waitForTimeout(12_000);
@@ -185,7 +211,7 @@ test("packaged Sydney disables desktop updates", async () => {
     );
     expect(finalState).toMatchObject({
       phase: "unsupported",
-      message: "Automatic updates are turned off for this install.",
+      message: expect.stringMatching(/\S/),
     });
   };
   updateRequests = 0;

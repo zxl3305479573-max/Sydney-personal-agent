@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CreateBotModal } from "../../components/create-bot-modal";
+import { ProjectDirectory } from "../../components/project-directory";
 import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
 import { NativeActionButton } from "../../components/native-action-button";
@@ -237,6 +238,24 @@ function ProjectContents({
 
   const unavailable = scopeChanged || !workspaceId;
   const switchLabel = text("切换项目", "Switch project");
+  const openConversation = (kind: "bot" | "group", id: string) => {
+    if (
+      !workspaceId ||
+      scopeChanged ||
+      !focused.current ||
+      scopeKey !== projectScopeKey() ||
+      isSpaceSelectionPending()
+    )
+      return;
+    router.push({
+      pathname: "/projects/[workspaceId]/chat",
+      params: {
+        workspaceId,
+        scope: scopeKey,
+        ...(kind === "bot" ? { botId: id } : { groupId: id }),
+      },
+    });
+  };
 
   return (
     <>
@@ -396,11 +415,13 @@ function ProjectContents({
                     }}
                   />
                   <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
-                    {text("尚未连接项目目录", "Project folder is not connected")}
+                    {text("独立项目工作区", "Independent project workspace")}
                   </Text>
                 </View>
               </View>
             </GlassSurface>
+
+            <ProjectDirectory key={JSON.stringify([scopeKey, project.id])} projectId={project.id} scopeKey={scopeKey} enabled={!scopeChanged} />
 
             {!roster ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 8 }}>
@@ -421,6 +442,7 @@ function ProjectContents({
                   next={roster.nextBotId}
                   actionEnabled={canCreateBot}
                   onAction={() => setCreatingBot(true)}
+                  onOpen={canCreateBot ? (id) => openConversation("bot", id) : undefined}
                   onPrevious={() =>
                     setBotCursors((old) => (old.at(-1) === afterBotId ? old.slice(0, -1) : old))
                   }
@@ -438,6 +460,7 @@ function ProjectContents({
                   next={roster.nextGroupId}
                   actionEnabled={canCreateGroup}
                   onAction={() => setCreatingGroup(true)}
+                  onOpen={canCreateGroup ? (id) => openConversation("group", id) : undefined}
                   onPrevious={() =>
                     setGroupCursors((old) => (old.at(-1) === afterGroupId ? old.slice(0, -1) : old))
                   }
@@ -448,8 +471,8 @@ function ProjectContents({
                 <Text style={{ color: tokens.mutedForeground, fontSize: 13, textAlign: "center" }}>
                   {canCreateBot || canCreateGroup
                     ? text(
-                        "已开启项目成员创建；项目内独立会话入口待后续打通。",
-                        "Project member creation is enabled; dedicated project conversation threads will connect next.",
+                        "点击项目 Bot 或群聊进入独立文字会话。",
+                        "Choose a project bot or group to open its text conversation.",
                       )
                     : text("项目会话暂未开放。", "Project conversations are not available yet.")}
                 </Text>
@@ -536,6 +559,7 @@ function ProjectConversationSection({
   onNext,
   actionEnabled = false,
   onAction,
+  onOpen,
 }: {
   title: string;
   emptyLabel: string;
@@ -548,6 +572,7 @@ function ProjectConversationSection({
   onNext: (cursor: string) => void;
   actionEnabled?: boolean;
   onAction?: () => void;
+  onOpen?: (id: string) => void;
 }) {
   const tokens = useMobileTokens();
   const { locale } = useI18n();
@@ -608,8 +633,12 @@ function ProjectConversationSection({
           </Text>
         ) : (
           items.map((item, index) => (
-            <View
+            <Pressable
               key={item.id}
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
+              disabled={!onOpen}
+              onPress={() => onOpen?.(item.id)}
               style={{
                 minHeight: 54,
                 paddingHorizontal: 16,
@@ -644,7 +673,7 @@ function ProjectConversationSection({
               >
                 {item.name}
               </Text>
-            </View>
+            </Pressable>
           ))
         )}
       </GlassSurface>

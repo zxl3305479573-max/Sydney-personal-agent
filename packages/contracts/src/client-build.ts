@@ -12,7 +12,7 @@ export const SERVER_BUILD_HEADER = "x-rakazo-build";
 export const CLIENT_UPDATE_REQUIRED = "CLIENT_UPDATE_REQUIRED";
 export const CLIENT_UPDATE_REQUIRED_STATUS = 426;
 
-export const CLIENT_KINDS = ["web", "mobile"] as const;
+export const CLIENT_KINDS = ["web", "mobile", "desktop"] as const;
 export type ClientKind = (typeof CLIENT_KINDS)[number];
 export type MinimumClientBuilds = Partial<Record<ClientKind, string>>;
 

@@ -63,6 +63,8 @@ import { useThreadSync } from "../../lib/thread-sync";
 import { useThreadTranscript } from "../../lib/thread-transcript";
 import { useAutoSpeakReply, useSpeakMessages, useThreadVoiceCall } from "../../lib/thread-voice";
 import { liveEndRunError } from "../../lib/thread-window";
+import { UiModeScreenHost } from "../../lib/ui-mode-slots";
+import type { ThreadUiModeController } from "../../ui-modes/controllers";
 import { FailedSendBubble } from "../failed-send-bubble";
 import type { MarkdownArtifactPreviewTarget } from "../markdown-artifact-preview";
 import { MarkdownArtifactPreview } from "../markdown-artifact-preview";
@@ -638,7 +640,25 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     />
   );
 
-  return (
+  const controller: ThreadUiModeController = {
+    botId,
+    groupId,
+    userId,
+    displayName,
+    readOnly,
+    snapshot: snap,
+    messages: visibleMessages,
+    error,
+    showingSaved,
+    working,
+    composer,
+    attachments,
+    paging,
+    showLatest,
+    openBot,
+    openComputer,
+  };
+  const classicContent = (
     <View style={{ flex: 1 }}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
@@ -798,5 +818,12 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
         </KeyboardAvoidingView>
       </ImageBackground>
     </View>
+  );
+  return (
+    <UiModeScreenHost
+      slot={inGroup ? "groupThread" : "thread"}
+      controller={controller}
+      renderClassic={() => classicContent}
+    />
   );
 }
