@@ -101,6 +101,13 @@ function rerenderComposer(overrides: Partial<ComponentProps<typeof Composer>>) {
   act(() => root?.render(<Composer {...composerProps} />));
 }
 
+it("keeps a short placeholder and names the destination for assistive technology", () => {
+  const activeName = "A conversation name that is longer than the composer";
+  const textarea = renderComposer(async () => true, { activeName });
+  expect(textarea.placeholder).toBe("Message…");
+  expect(textarea.getAttribute("aria-label")).toBe(`Message ${activeName}`);
+});
+
 it("shows a readable run error with raw details, while preserving send errors", () => {
   const runError = '429: {"message":"Too many requests","metadata":{"provider":"OpenRouter"}}';
   renderComposer(async () => true, { runError, runErrorId: "failed-run" });

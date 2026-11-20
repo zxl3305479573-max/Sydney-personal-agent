@@ -809,7 +809,7 @@ export const Composer = memo(function Composer({
         data-expanded={expanded}
         data-mobile-chat={mobile ? "true" : undefined}
         data-mobile-group={mobile && inGroup ? "true" : undefined}
-        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] content-end items-center rounded-[26px] border border-border bg-background pe-2.5 ps-3 transition-colors focus-within:border-input ${
+        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] content-end items-center rounded-[26px] border border-border bg-background pe-2.5 ps-3 transition-colors has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ring ${
           expanded ? "gap-x-2 gap-y-2 pb-[9px] pt-3" : "gap-x-3.5 py-[9px]"
         }`}
       >
@@ -970,13 +970,7 @@ export const Composer = memo(function Composer({
                 }
               }}
               disabled={disabled}
-              placeholder={
-                showComposerPlaceholder
-                  ? activeName
-                    ? t`Message ${activeName}`
-                    : t`Message…`
-                  : undefined
-              }
+              placeholder={showComposerPlaceholder ? t`Message…` : undefined}
               aria-label={activeName ? t`Message ${activeName}` : t`Message`}
               role="combobox"
               aria-autocomplete="list"
@@ -1017,7 +1011,7 @@ export const Composer = memo(function Composer({
                 aria-label={t`Send`}
                 disabled={sending || !canSend || disabled}
                 onClick={() => void send()}
-                className="size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
+                className="size-8 shrink-0 rounded-full transition-transform motion-safe:active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
               >
                 <ArrowUp size={16} strokeWidth={2.2} />
               </Button>
@@ -1042,7 +1036,7 @@ export const Composer = memo(function Composer({
                 aria-label={t`Send`}
                 disabled={sending || !canSend || disabled}
                 onClick={() => void send()}
-                className="size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
+                className="size-8 shrink-0 rounded-full transition-transform motion-safe:active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
               >
                 <ArrowUp size={16} strokeWidth={2.2} />
               </Button>
