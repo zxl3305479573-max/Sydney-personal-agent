@@ -6,6 +6,7 @@ import { redirectSystemPath } from "../app/+native-intent";
 import {
   closeSettingsSheet,
   isSettingsLink,
+  openFromSettingsSheet,
   registerSettingsSheet,
   settingsSheetCloser,
 } from "./settings-sheet";
@@ -60,6 +61,14 @@ describe("settings sheet", () => {
 });
 
 describe("settings links", () => {
+  it("opens GitHub on the root stack after closing the settings sheet", () => {
+    const actions: string[] = [];
+    const unregister = registerSettingsSheet(() => actions.push("close"));
+    expect(isSettingsLink("/github")).toBe(false);
+    openFromSettingsSheet({ push: (href) => actions.push(`push:${String(href)}`) }, "/github");
+    expect(actions).toEqual(["close", "push:/github"]);
+    unregister();
+  });
   it.each([true, false])("opens the share target for cold/warm arrivals (%s)", (initial) => {
     expect(redirectSystemPath({ path: "rakazo://expo-sharing", initial })).toBe("/share");
   });
@@ -78,7 +87,8 @@ describe("settings links", () => {
     expect(isSettingsLink("rakazo:///model-connection")).toBe(false);
     expect(isSettingsLink("rakazo://voice")).toBe(true);
     expect(isSettingsLink("rakazo:///account?focus=usage")).toBe(true);
-    expect(isSettingsLink("rakazo://integrations/")).toBe(true);
+    expect(isSettingsLink("rakazo://integrations/")).toBe(false);
+    expect(isSettingsLink("rakazo://integration-setup")).toBe(false);
     expect(isSettingsLink("/change-password")).toBe(true);
     expect(isSettingsLink("rakazo:///thread?botId=bot-1")).toBe(false);
     expect(isSettingsLink("rakazo://group-thread?groupId=group-1")).toBe(false);
@@ -109,6 +119,14 @@ describe("settings links", () => {
       "rakazo:///artifacts",
     );
     expect(close).toHaveBeenCalledTimes(3);
+    expect(redirectSystemPath({ path: "rakazo://integrations?app=example", initial: false })).toBe(
+      "rakazo://integrations?app=example",
+    );
+    expect(close).toHaveBeenCalledTimes(4);
+    expect(redirectSystemPath({ path: "rakazo://integration-setup", initial: true })).toBe(
+      "rakazo://integration-setup",
+    );
+    expect(close).toHaveBeenCalledTimes(5);
     unregister();
   });
 });

@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AccountAvatar } from "../../components/account-avatar";
 import { useAccountDeletion } from "../../components/account-deletion";
 import { AppMark } from "../../components/app-mark";
 import { ApprovalModeRow, ApprovalRulesRow } from "../../components/approval-settings-rows";
@@ -30,16 +31,21 @@ import {
   SettingsSwitch,
   useStackedSettings,
 } from "../../components/settings-group";
+import { useAccountAvatar } from "../../lib/account-avatar";
 import { createAccountNameEditor } from "../../lib/account-name-editor";
 import type { MobileMe } from "../../lib/api";
 import {
+  captureApiRequestContext,
+  captureServerSessionScope,
   currentApiBase,
   fetchAccountSecurity,
+  isServerSessionScopeCurrent,
   loadSessionToken,
   passwordResetCapabilities,
   rpc,
   selectedSpaceId,
   signOut,
+  updateAccountAvatar,
   updateAccountName,
 } from "../../lib/api";
 import { formatUpdateLabel, getAppVersionInfo } from "../../lib/app-version";
@@ -51,6 +57,7 @@ import {
 import { useApprovalSettings } from "../../lib/approval-settings";
 import { archivedChatCounts, loadArchivedChats } from "../../lib/archived-chats";
 import { replaceWithSignIn } from "../../lib/auth-routing";
+import { pickBotAvatar as pickAccountAvatar } from "../../lib/create-bot-avatar";
 import { dateLocaleForUi, useI18n } from "../../lib/i18n";
 import type { LiveNotificationSettings } from "../../lib/live-notifications";
 import {
@@ -110,12 +117,39 @@ export default function Account() {
   const showUsage = section === "usage" || focus === "usage";
   const meQuery = accountRpcQuery("me");
   const { data: me } = useQuery(meQuery, queryClient);
+  const { image: avatar, queryKey: avatarQueryKey } = useAccountAvatar(me, showAccount);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [namePending, setNamePending] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [avatarPending, setAvatarPending] = useState(false);
+  const avatarSaving = useRef(false);
   const currentName = account.label === me?.email ? "" : displayName(me?.name, "");
+
+  async function editAvatar() {
+    if (avatarSaving.current) return;
+    avatarSaving.current = true;
+    setAvatarPending(true);
+    try {
+      const scope = captureServerSessionScope();
+      const requestContext = await captureApiRequestContext();
+      const image = await pickAccountAvatar();
+      if (!image || !isServerSessionScopeCurrent(scope)) return;
+      await updateAccountAvatar(image, requestContext);
+      await queryClient.cancelQueries({ queryKey: avatarQueryKey, exact: true });
+      if (!isServerSessionScopeCurrent(scope)) return;
+      queryClient.setQueryData(avatarQueryKey, image);
+      queryClient.setQueryData<MobileMe>(meQuery.queryKey, (current) =>
+        current ? { ...current, image } : current,
+      );
+    } catch (cause) {
+      Alert.alert(t("Could not save changes"), errorText(cause, t("Try again.")));
+    } finally {
+      avatarSaving.current = false;
+      setAvatarPending(false);
+    }
+  }
 
   const nameSaving = useRef(false);
   const nameSaveVersion = useRef(0);
@@ -418,6 +452,15 @@ export default function Account() {
         {showAccount ? (
           <>
             <SettingsGroup label={t("Account")}>
+              <SettingsRow
+                accessibilityRole="button"
+                title={t("Edit avatar")}
+                chevron="right"
+                disabled={!me || avatarPending}
+                dimmed={avatarPending}
+                leading={<AccountAvatar image={avatar} initial={account.initial} />}
+                onPress={() => void editAvatar()}
+              />
               <SettingsRow
                 accessibilityRole="button"
                 accessibilityLabel={t("Edit name")}

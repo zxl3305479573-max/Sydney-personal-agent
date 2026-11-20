@@ -93,12 +93,10 @@ vi.mock("./api", () => ({
       return {};
     }
     if (procedure === "models/connect") return { id: "credential-new" };
-    if (procedure === "models/forRole") return [];
-    if (procedure === "models/list")
+    if (procedure === "models/forRole" || procedure === "models/list")
       return [
         { provider: "openai-compatible", id: "model-fixture", label: "Fixture" },
         { provider: "anthropic", providerName: "Anthropic", id: "claude-fixture", label: "Claude" },
-        // Deployment-funded models still leave room for a personal key.
         {
           provider: "openrouter",
           providerName: "OpenRouter",
@@ -288,6 +286,7 @@ beforeEach(async () => {
   rpcCalls.length = 0;
   delete params.spaceId;
   back.mockClear();
+  push.mockClear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -356,37 +355,48 @@ async function remount(render: () => Promise<void>) {
   await render();
 }
 
-async function notConnectedChoices() {
+async function renderModelSettings() {
   await remount(async () => {
     await act(async () => root.render(createElement(Models)));
   });
+}
+
+async function openFallbackPicker() {
   const add = [...container.querySelectorAll("button")].find((button) =>
     button.textContent?.includes("Add fallback"),
   );
   expect(add).toBeDefined();
   await act(async () => add!.click());
   const route = push.mock.calls.at(-1)?.[0] as { params: { requestId: string } };
-  return modelPickerRequest(route.params.requestId)!.connectChoices ?? [];
+  expect(route).toMatchObject({ pathname: "/model-picker" });
+  return modelPickerRequest(route.params.requestId)!;
 }
 
-it("offers deployment-funded providers and Ollama Cloud once among providers to connect", async () => {
-  expect((await notConnectedChoices()).map((choice) => choice.label)).toEqual([
-    "Anthropic",
-    "OpenRouter",
-    "Ollama Cloud",
+it("offers connected and deployment-funded fallback models", async () => {
+  await renderModelSettings();
+  const picker = await openFallbackPicker();
+  expect(picker.choices.map((choice) => choice.modelId)).toEqual([
+    "funded-fixture",
+    "model-fixture",
   ]);
+  expect(picker.connectChoices).toEqual([]);
 });
 
-it("does not offer Ollama Cloud again once it is the saved connection", async () => {
-  saved.baseUrl = "https://ollama.com/";
-  try {
-    expect((await notConnectedChoices()).map((choice) => choice.label)).toEqual([
-      "Anthropic",
-      "OpenRouter",
-    ]);
-  } finally {
-    saved.baseUrl = savedEndpoint;
-  }
+it("opens a blank OpenAI-compatible connection from account settings", async () => {
+  await renderModelSettings();
+  const add = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "Add provider",
+  );
+  expect(add).toBeDefined();
+  await act(async () => add!.click());
+  const route = push.mock.calls.at(-1)?.[0] as { params: { requestId: string } };
+  expect(route).toMatchObject({ pathname: "/model-connection" });
+  expect(modelConnectionRequest(route.params.requestId)).toEqual({
+    provider: "openai-compatible",
+    credentialId: null,
+    makeDefault: false,
+    target: { scope: "account" },
+  });
 });
 
 it("opens the Ollama preset through the compatible form with a visible key field", async () => {
@@ -427,23 +437,34 @@ describe("a Space's model override", () => {
 
   it("edits that Space's lists in that Space and leaves connections to the account", async () => {
     params.spaceId = "space-other";
-    await notConnectedChoices();
+    await renderModelSettings();
+    const picker = await openFallbackPicker();
     expect(rpcCalls).toContainEqual([
       "models/role",
       { role: "main", expectedUserId: "user-fixture", scope: "space" },
       { requestContext: otherSpace },
     ]);
     expect(container.textContent).not.toContain("Add provider");
-    const picker = modelPickerRequest(
-      (push.mock.calls.at(-1)![0] as { params: { requestId: string } }).params.requestId,
-    )!;
-    const connect = picker.continueTo?.(picker.connectChoices![0]!) as unknown as {
-      params: { requestId: string };
-    };
-    expect(modelConnectionRequest(connect.params.requestId)?.target).toEqual({
-      scope: "space",
-      spaceId: "space-other",
-    });
+    expect(picker.connectChoices).toEqual([]);
+    const fallback = picker.choices.find((choice) => choice.modelId === "model-fixture");
+    expect(fallback).toBeDefined();
+    await act(async () => picker.onSelect(fallback!));
+    expect(rpcCalls).toContainEqual([
+      "models/setRole",
+      {
+        role: "main",
+        expectedUserId: "user-fixture",
+        scope: "space",
+        backups: [
+          {
+            provider: "openai-compatible",
+            modelId: "model-fixture",
+            credentialId: "credential-fixture",
+          },
+        ],
+      },
+      { requestContext: otherSpace },
+    ]);
   });
 
   it("connects through that Space so a new main model lands in its override", async () => {

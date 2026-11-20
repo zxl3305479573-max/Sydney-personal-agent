@@ -121,7 +121,6 @@ export default function SettingsLayout() {
       />
       <Stack.Screen name="messaging" options={glassHeaderOptions(t("Messaging"))} />
       <Stack.Screen name="team-conversation" />
-      <Stack.Screen name="integrations" options={glassHeaderOptions(t("Integrations"))} />
       <Stack.Screen name="skills" options={glassHeaderOptions(t("Skills"))} />
       {/* Titled by the screen once the skill loads. */}
       <Stack.Screen name="skill" options={glassHeaderOptions("")} />
@@ -131,10 +130,6 @@ export default function SettingsLayout() {
         options={({ route }) =>
           glassHeaderOptions((route.params as { name?: string } | undefined)?.name ?? "")
         }
-      />
-      <Stack.Screen
-        name="integration-setup"
-        options={glassHeaderOptions(t("Server integrations"))}
       />
     </Stack>
   );

@@ -5,7 +5,7 @@ import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxRosterHeading } from "../components/inbox-header";
 import { ProjectFolderCard } from "../components/project-folder-card";
 
 const header = vi.hoisted(() => ({
@@ -163,27 +163,6 @@ it.each(["android", "ios"])("creates from the %s menu", (platform) => {
   renderHeader(platform);
   for (const item of container.querySelectorAll("li")) act(() => item.click());
   expect(runCreateAction.mock.calls).toEqual([["bot"], ["group"], ["space"]]);
-});
-
-it("renders Connect apps and Projects side by side without wrapping or a duplicate bottom search", () => {
-  act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
-  const bar = container.firstElementChild as HTMLElement;
-  expect(bar.getAttribute("data-flex-direction")).toBe("row");
-  expect(bar.getAttribute("data-flex-wrap")).toBeNull();
-  expect(bar.children).toHaveLength(2);
-  expect(Array.from(bar.children, (child) => child.getAttribute("data-flex"))).toEqual(["1", "1"]);
-  expect(container.querySelector('[aria-label="Search"]')).toBeNull();
-
-  act(() => container.querySelector<HTMLElement>('[aria-label="Connect apps"]')?.click());
-  act(() => container.querySelector<HTMLElement>('[aria-label="Projects"]')?.click());
-  expect(header.push.mock.calls).toEqual([["/integrations"], ["/projects"]]);
-});
-
-it("localizes the side-by-side bottom Projects action in Chinese", () => {
-  header.locale = "zh-CN";
-  act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
-  act(() => container.querySelector<HTMLElement>('[aria-label="项目"]')?.click());
-  expect(header.push.mock.calls).toEqual([["/projects"]]);
 });
 
 it("renders ProjectFolderCard as a single non-overlapping surface", () => {

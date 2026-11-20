@@ -46,6 +46,7 @@ import { native, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
 import { mcpServerReady, sourceHref } from "../../lib/plugin-marketplace";
+import { closeSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
 import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
@@ -281,11 +282,13 @@ export default function PluginScreen() {
     ? managedConnected
       ? {
           label: t("Added"),
-          onPress: () =>
+          onPress: () => {
+            closeSettingsSheet();
             router.navigate({
               pathname: "/integrations",
               params: { app: catalogItemKey(managedApp!) },
-            }),
+            });
+          },
           destructive: false,
         }
       : {

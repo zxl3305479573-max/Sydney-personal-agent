@@ -285,7 +285,7 @@ async function performLoadApiBase(
     throw new Error("Could not load server settings");
   }
   const hasSavedEndpoint = stored !== null && stored !== "";
-  if (hasSavedEndpoint) {
+  if (stored !== null && stored !== "") {
     const parsed = normalizeApiBase(stored);
     if (!parsed.ok) throw new Error("Could not load server settings");
     apiBase = parsed.url;
@@ -973,7 +973,34 @@ export async function updateAccountName(name: string): Promise<void> {
   if (!nextName || nextName.length > 80 || !displayName(nextName, "")) {
     throw new Error(t("Could not update name"));
   }
-  const context = await captureApiRequestContext();
+  await updateAccountProfile({ name: nextName }, t("Could not update name"));
+}
+
+export async function updateAccountAvatar(image: string, context: ApiRequestContext): Promise<void> {
+  await updateAccountProfile({ image }, t("Could not save changes"), context);
+}
+
+export async function fetchAccountAvatar(userId: string): Promise<string | null> {
+  const scope = captureServerSessionScope();
+  const context = await captureApiRequestContext(null);
+  const { response, body } = await fetchMobileJson<{
+    user?: { id?: string; image?: unknown };
+  } | null>(
+    `${context.apiBase}/api/auth/get-session?disableCookieCache=true`,
+    { redirect: "error", headers: { origin: "rakazo://", ...context.headers } },
+    null,
+  );
+  if (!response.ok || body?.user?.id !== userId || !isServerSessionScopeCurrent(scope))
+    throw new Error(t("Could not continue"));
+  return typeof body.user.image === "string" ? body.user.image : null;
+}
+
+async function updateAccountProfile(
+  fields: { name: string } | { image: string },
+  message: string,
+  context?: ApiRequestContext,
+): Promise<void> {
+  context ??= await captureApiRequestContext();
   assertEndpointCurrent(context.apiBase, context.endpointGeneration!);
   if (context.sessionGeneration !== currentSessionGeneration())
     throw new Error(t("Something went wrong. Try again."));
@@ -986,13 +1013,13 @@ export async function updateAccountName(name: string): Promise<void> {
         origin: "rakazo://",
         ...context.headers,
       },
-      body: JSON.stringify({ name: nextName }),
+      body: JSON.stringify(fields),
     },
     {},
   );
   if (!response.ok)
     throw new Error(
-      authResponseErrorText(response.status, body, invalidJson, t("Could not update name")),
+      authResponseErrorText(response.status, body, invalidJson, message),
     );
 }
 
@@ -1609,6 +1636,7 @@ export type MobileMe = Pick<
   | "userId"
   | "name"
   | "email"
+  | "image"
   | "spaceId"
   | "defaultProvider"
   | "defaultModel"

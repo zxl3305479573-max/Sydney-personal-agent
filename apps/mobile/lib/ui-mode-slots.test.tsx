@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { darkTokens } from "@rakazo/ui-tokens";
 import type { CSSProperties, ReactNode } from "react";
 import { act, Component, useMemo, useState } from "react";
@@ -146,7 +147,7 @@ class RootTestBoundary extends Component<
 
 function buildCustomTheme(
   overrides: Partial<UiModeDefinition> & { id: string },
-  tokenOverrides?: Partial<typeof darkTokens>,
+  tokenOverrides?: Partial<ColorTokens>,
 ): ResolvedUiModeTheme {
   const geometry = overrides.geometry ?? {
     cardRadius: 4,

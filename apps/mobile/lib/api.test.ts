@@ -22,7 +22,9 @@ import {
   changePassword,
   currentApiBase,
   currentSpaceSelectionGeneration,
+  defaultApiBase,
   deleteAccount,
+  fetchAccountAvatar,
   fetchAccountSecurity,
   IDLE_TIMEOUT_MS,
   isServerReachable,
@@ -88,20 +90,26 @@ afterEach(() => {
 });
 
 describe("mobile API authentication", () => {
-  it.each(["unavailable", "invalid", "empty"])(
+  it.each(["unavailable", "invalid"])(
     "rejects server initialization when saved settings are %s",
     async (failure) => {
       const previous = currentApiBase();
       vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
         if (key !== "rakazo.api_base") return null;
         if (failure === "unavailable") throw new Error("storage locked");
-        if (failure === "empty") return "";
         return "https://example.com/unexpected-path";
       });
       await expect(loadApiBase()).rejects.toThrow("Could not load server settings");
       expect(currentApiBase()).toBe(previous);
     },
   );
+
+  it.each([null, ""])("uses the default server when saved settings are %s", async (saved) => {
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) =>
+      key === "rakazo.api_base" ? saved : null,
+    );
+    await expect(loadApiBase()).resolves.toBe(defaultApiBase());
+  });
 
   it("notifies selection start synchronously and settlement after storage", async () => {
     let finish: (() => void) | undefined;
@@ -916,6 +924,19 @@ describe("mobile API authentication", () => {
       headers: expect.objectContaining({ origin: "rakazo://" }),
       body: JSON.stringify({ name: "Alex Rivera" }),
     });
+  });
+
+  it("reads only the expected signed-in user's avatar from the session endpoint", async () => {
+    const image = "data:image/jpeg;base64,cGhvdG8=";
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({ user: { id: "user-a", image } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchAccountAvatar("user-a")).resolves.toBe(image);
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/auth/get-session?disableCookieCache=true");
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
+    await expect(fetchAccountAvatar("user-b")).rejects.toThrow("Could not continue");
   });
 
   it.each(["", "   ", "💬", "__AbCdEfGh__", "x".repeat(81)])(

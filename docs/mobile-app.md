@@ -27,6 +27,20 @@ the sign-in screen and enter its address. For a server on your local network, fo
 The first time you send something, the app asks permission to share it with the AI services your
 server uses. Review or withdraw it later in **AI data sharing** in Settings.
 
+### Sydney iPhone sideload builds
+
+Home has a fixed bottom bar for **Apps**, **Projects**, and **GitHub**. GitHub keeps the last
+connection status for the current server, account, and space while it refreshes. Pull down to
+refresh the screen manually.
+
+Use **Settings → Account → Edit avatar** to choose a photo. Your messages and Bot replies
+appear in translucent bubbles. Tap the model name in a Bot conversation to switch models or
+restore the space default. Open **Models** in Settings to manage model connections.
+
+For Sydney `1.0.12` builds `2` and `4`, the iOS update channel is `sideload` and the runtime
+is `sydney-ios-ip-1`. Use **Settings → Check for updates** to download a published update, then
+restart to apply it. The version row in account settings shows the currently running update.
+
 ## What stays on web and desktop
 
 - Creating or editing [routines](./routines.md). On mobile you can pause, delete and review them, or

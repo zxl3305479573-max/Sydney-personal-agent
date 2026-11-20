@@ -9,6 +9,7 @@ export type GlassSurfaceProps = Pick<
   | "accessibilityRole"
   | "accessibilityLiveRegion"
   | "accessibilityViewIsModal"
+  | "pointerEvents"
 > & {
   shape?: "capsule" | "circle" | "roundedRectangle";
   /** Corner radius for `roundedRectangle`. */

@@ -43,6 +43,9 @@ const { element, account } = vi.hoisted(() => ({
       unknown
     >,
     push: vi.fn(),
+    fetchAvatar: vi.fn(),
+    pickAvatar: vi.fn(),
+    updateAvatar: vi.fn(),
     params: {} as { section?: string; focus?: string },
     approvals: { mode: "ask", enabled: false, skipApprovals: false, checkerAvailable: true },
     rules: [] as { id: string }[],
@@ -61,6 +64,7 @@ vi.mock("./query", async () => {
 });
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: account.pickAvatar }));
 vi.mock("./client-update", () => ({
   checkForManualUpdate: vi.fn(async () => "downloaded"),
   restartForUpdate: vi.fn(async () => undefined),
@@ -72,6 +76,7 @@ vi.mock("react-native", () => ({
   ActivityIndicator: () => null,
   Alert: { alert: vi.fn() },
   AppState: { addEventListener: () => ({ remove: () => undefined }) },
+  Image: ({ source }: { source: { uri: string } }) => <img src={source.uri} alt="" />,
   KeyboardAvoidingView: element("div"),
   Modal: ({ children, visible = true }: { children?: ReactNode; visible?: boolean }) =>
     visible ? createElement("section", null, children) : null,
@@ -165,6 +170,7 @@ vi.mock("../components/settings-group", () => ({
     accessibilityRole,
     chevron,
     disabled,
+    leading,
     onPress,
   }: {
     title: string;
@@ -172,27 +178,32 @@ vi.mock("../components/settings-group", () => ({
     accessibilityRole?: string;
     chevron?: string;
     disabled?: boolean;
+    leading?: ReactNode;
     onPress?: () => void;
-  }) =>
-    createElement(
-      "button",
-      {
-        type: "button",
-        role: accessibilityRole,
-        "data-chevron": chevron,
-        "data-value": value,
-        "data-row": "",
-        disabled,
-        onClick: onPress,
-      },
-      title,
-    ),
+  }) => (
+    <>
+      {leading}
+      <button
+        type="button"
+        role={accessibilityRole}
+        data-chevron={chevron}
+        data-value={value}
+        data-row=""
+        disabled={disabled}
+        onClick={onPress}
+      >
+        {title}
+      </button>
+    </>
+  ),
   SettingsSwitch: ({ title, label }: { title?: string; label?: string }) =>
     createElement("button", { type: "button" }, title ?? label),
   useStackedSettings: () => false,
 }));
 vi.mock("./api", () => ({
+  captureApiRequestContext: async () => ({ apiBase: "https://server.example" }),
   currentApiBase: () => "http://127.0.0.1:3100",
+  fetchAccountAvatar: account.fetchAvatar,
   captureServerSessionScope: () => ({
     apiBase: "https://server.example",
     endpointGeneration: 1,
@@ -215,6 +226,7 @@ vi.mock("./api", () => ({
   ),
   selectedSpaceId: () => "space-1",
   signOut: vi.fn(),
+  updateAccountAvatar: account.updateAvatar,
   updateAccountName: vi.fn(),
 }));
 vi.mock("./app-version", () => ({
@@ -249,6 +261,7 @@ vi.mock("./live-notifications", () => ({
 const { styles } = vi.hoisted(() => ({ styles: new Proxy({}, { get: () => ({}) }) }));
 vi.mock("./native", () => ({
   native: new Proxy({}, { get: () => "#000" }),
+  useMobileTokens: () => ({ muted: "#ddd", foreground: "#000" }),
   useResolvedAppearance: () => "light",
   useThemedStyles: () => styles,
 }));
@@ -301,6 +314,7 @@ let container: HTMLDivElement | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  account.fetchAvatar.mockResolvedValue(null);
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
   queryClient.clear();
   queryClient.setQueryData(["me"], account.me);
@@ -339,6 +353,29 @@ it("opens separate settings sections from the grouped home", async () => {
     ["/integrations"],
     ["/devices"],
   ]);
+});
+
+it("saves a selected own account avatar and leaves it in place on cancel", async () => {
+  const image = "data:image/jpeg;base64,cGhvdG8=";
+  account.pickAvatar.mockResolvedValueOnce(image).mockResolvedValueOnce(null);
+  account.updateAvatar.mockResolvedValueOnce(undefined);
+  const view = await renderAccount();
+  await view.press("Edit avatar");
+  expect(account.updateAvatar).toHaveBeenCalledWith(image, { apiBase: "https://server.example" });
+  expect(queryClient.getQueryData(["me"])).toMatchObject({ image });
+  await view.press("Edit avatar");
+  expect(account.updateAvatar).toHaveBeenCalledOnce();
+  expect(queryClient.getQueryData(["me"])).toMatchObject({ image });
+});
+
+it("reads the saved avatar on a fresh load when the server omits it from me", async () => {
+  const image = "data:image/jpeg;base64,cGhvdG8=";
+  account.fetchAvatar.mockResolvedValueOnce(image);
+  await renderAccount();
+  await vi.waitFor(() => {
+    expect(container?.querySelector("img")?.getAttribute("src")).toBe(image);
+  });
+  expect(account.fetchAvatar).toHaveBeenCalledWith("user-1");
 });
 
 it("offers to restart after downloading a manual update", async () => {

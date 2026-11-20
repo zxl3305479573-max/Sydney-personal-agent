@@ -159,16 +159,19 @@ export function mobileBubbleSurfaceStyle(
   fallback: { backgroundColor: string },
 ) {
   const bubble = current.bubble;
-  if (!bubble) {
-    return { backgroundColor: fallback.backgroundColor, borderRadius: 20 };
-  }
-  const color = role === "user" ? bubble.userBackground : bubble.botBackground;
+  const color = bubble
+    ? role === "user"
+      ? bubble.userBackground
+      : bubble.botBackground
+    : fallback.backgroundColor;
+  const borderRadius = bubble?.radius ?? 20;
+  if (!validColor(color)) return { backgroundColor: color, borderRadius };
   const red = Number.parseInt(color.slice(1, 3), 16);
   const green = Number.parseInt(color.slice(3, 5), 16);
   const blue = Number.parseInt(color.slice(5, 7), 16);
   return {
-    backgroundColor: `rgba(${red}, ${green}, ${blue}, ${bubble.opacity})`,
-    borderRadius: bubble.radius,
+    backgroundColor: `rgba(${red}, ${green}, ${blue}, ${Math.min(bubble?.opacity ?? 0.64, 0.78)})`,
+    borderRadius,
   };
 }
 

@@ -50,6 +50,7 @@ import { replaceWithSignIn } from "../lib/auth-routing";
 import { AvatarScreenFocus } from "../lib/avatar-life";
 import { installClientUpdates, watchForegroundUpdates } from "../lib/client-update";
 import "../lib/companion-activity";
+import { MainBottomNavigation } from "../components/main-bottom-navigation";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
@@ -57,6 +58,11 @@ import {
   configureForegroundNotifications,
   resumeLiveNotifications,
 } from "../lib/live-notifications";
+import {
+  MainNavigationProvider,
+  showsMainNavigation,
+  useMainNavigationHidden,
+} from "../lib/main-navigation";
 import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useNotificationResponses } from "../lib/open-notification";
@@ -130,7 +136,11 @@ function SplitFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (home) setInboxHidden(false);
   }, [home]);
-  const projectRoute = pathname === "/projects" || pathname.startsWith("/projects/");
+  const projectRoute =
+    pathname === "/projects" ||
+    pathname.startsWith("/projects/") ||
+    pathname === "/integrations" ||
+    pathname === "/github";
   const showsInbox =
     split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
   // Dragging resizes the list natively; the width is kept when the finger lifts.
@@ -276,6 +286,8 @@ function LayoutContent() {
   useNotificationResponses(ready);
   const pathname = usePathname();
   useCompanionThreadWatch(ready);
+  const navigationHidden = useMainNavigationHidden();
+  const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
   const screen = analyticsScreen(pathname);
   useEffect(() => setMobileMonitoringScreen(screen), [screen]);
   useEffect(() => {
@@ -378,7 +390,7 @@ function LayoutContent() {
             <ThemeProvider value={navigationTheme}>
               <StatusBar style={resolved === "light" ? "dark" : "light"} />
               <View style={{ flex: 1 }}>
-                <BottomSafeAreaClaimedContext.Provider value={voicePlaying}>
+                <BottomSafeAreaClaimedContext.Provider value={voicePlaying || showMainNavigation}>
                   <SplitFrame>
                     <Stack
                       screenLayout={({ navigation, options, children }) => (
@@ -467,6 +479,11 @@ function LayoutContent() {
                       />
                       <Stack.Screen name="artifacts" options={glassHeaderOptions(t("Artifacts"))} />
                       <Stack.Screen name="artifact" options={{ title: t("Artifact") }} />
+                      <Stack.Screen name="github" options={glassHeaderOptions("GitHub")} />
+                      <Stack.Screen
+                        name="integrations"
+                        options={glassHeaderOptions(locale.startsWith("zh") ? "应用" : "Apps")}
+                      />
                       <Stack.Screen
                         name="projects"
                         options={glassHeaderOptions(locale.startsWith("zh") ? "项目" : "Projects")}
@@ -493,7 +510,15 @@ function LayoutContent() {
                         options={glassHeaderOptions(t("Chat settings"))}
                       />
                       <Stack.Screen name="bot-model" options={glassHeaderOptions(t("Model"))} />
-                      <Stack.Screen name="thread-model" options={glassHeaderOptions(t("Model"))} />
+                      <Stack.Screen
+                        name="thread-model"
+                        options={{
+                          ...glassHeaderOptions(t("Model")),
+                          presentation: "formSheet",
+                          sheetAllowedDetents: [0.55, 1],
+                          sheetGrabberVisible: true,
+                        }}
+                      />
                       <Stack.Screen
                         name="thread"
                         options={({ route }) => ({
@@ -518,7 +543,10 @@ function LayoutContent() {
                     </Stack>
                   </SplitFrame>
                 </BottomSafeAreaClaimedContext.Provider>
-                <VoicePlayerBar style={{ marginTop: 8, marginBottom: insets.bottom + 8 }} />
+                <VoicePlayerBar
+                  style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
+                />
+                {showMainNavigation ? <MainBottomNavigation /> : null}
               </View>
               <ComputerUpdateProgress />
               <MessageMenuHost />
@@ -537,7 +565,9 @@ function LayoutContent() {
 export default function Layout() {
   return (
     <AppErrorBoundary>
-      <LayoutContent />
+      <MainNavigationProvider>
+        <LayoutContent />
+      </MainNavigationProvider>
     </AppErrorBoundary>
   );
 }

@@ -724,6 +724,7 @@ export function ThreadComposer({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Model")}
+                accessibilityValue={modelLabel ? { text: modelLabel } : undefined}
                 onPress={onModelPress}
                 style={{ minHeight: 44, justifyContent: "center", flexShrink: 1 }}
               >

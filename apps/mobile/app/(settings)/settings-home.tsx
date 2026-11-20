@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AccountAvatar } from "../../components/account-avatar";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
+import { useAccountAvatar } from "../../lib/account-avatar";
 import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
@@ -18,6 +20,7 @@ export default function SettingsHome() {
   const router = useRouter();
   const insets = useSideInsets();
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
+  const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const account = accountDisplay(me ?? {}, t("Your account"));
   const chinese = locale.startsWith("zh");
@@ -95,19 +98,8 @@ export default function SettingsHome() {
             detail={me?.email && account.label !== me.email ? me.email : undefined}
             chevron="right"
             leading={
-              <View
-                accessibilityElementsHidden
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  backgroundColor: native.fill,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 12,
-                }}
-              >
-                <Text style={{ color: native.label, fontSize: 18 }}>{account.initial ?? "?"}</Text>
+              <View style={{ marginRight: 12 }}>
+                <AccountAvatar image={avatar} initial={account.initial} />
               </View>
             }
             onPress={() => accountSection("account")}
@@ -123,7 +115,10 @@ export default function SettingsHome() {
           {link(t("Computers"), "/devices")}
         </SettingsGroup>
 
-        <SettingsGroup>{link(t("Connect apps"), "/integrations")}</SettingsGroup>
+        <SettingsGroup>
+          {link(t("Connect apps"), "/integrations", true)}
+          {link("GitHub", "/github", true)}
+        </SettingsGroup>
 
         <SettingsGroup label={chinese ? (traditional ? "小夥伴" : "小伙伴") : t("Bots")}>
           <SettingsRow

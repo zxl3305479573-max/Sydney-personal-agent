@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
+import { MainNavigationHeader } from "../components/main-navigation-header";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { ProjectFolderCard } from "../components/project-folder-card";
@@ -25,7 +26,7 @@ import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
-import { useSideInsets } from "../lib/side-insets";
+import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
 export default function Projects() {
@@ -41,6 +42,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
   const sideInsets = useSideInsets();
+  const bottomClaimed = useBottomSafeAreaClaimed();
   const [page, setPage] = useState<RpcOutput<"projectWorkspaces/list"> | null>(null);
   const [cursors, setCursors] = useState<ProjectWorkspaceCursor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,6 +173,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
 
   return (
     <>
+      <MainNavigationHeader />
       <Stack.Screen
         options={{
           ...glassHeaderOptions(text("项目", "Projects")),
@@ -213,7 +216,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
         contentContainerStyle={{
           padding: 20,
-          paddingBottom: Math.max(insets.bottom, 28),
+          paddingBottom: bottomClaimed ? 28 : Math.max(insets.bottom, 28),
           gap: 14,
         }}
         keyboardShouldPersistTaps="handled"

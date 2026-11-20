@@ -28,7 +28,7 @@ import { CreateBotModal } from "../components/create-bot-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
-import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
@@ -83,12 +83,14 @@ import { findOrganizeTarget } from "../lib/organize-target";
 import { offerPasskeyOnce } from "../lib/passkey";
 import { ACTIVITY_POLL_INTERVAL_MS, INBOX_POLL_INTERVAL_MS } from "../lib/poll-cadence";
 import { registerPushToken } from "../lib/push";
+import { queryClient, rpcQuery } from "../lib/query";
 import { loadSavedInbox, saveInbox } from "../lib/saved-chats";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
   subscribeSessionGeneration,
 } from "../lib/session";
+import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { useSplitView } from "../lib/split-view";
 import { useArchivedCount } from "../lib/use-archived-count";
 import { useCollapsedSections } from "../lib/use-collapsed-sections";
@@ -269,6 +271,9 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
       setGroups((current) => retainInboxValue(current, navigation.current.groups));
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
+      if (nextMe.spaceId === selectedSpaceId()) {
+        queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
+      }
       // Emails follow the app's language, so the account keeps the one this app runs in. Once
       // per account and launch: polls must not undo a language picked on another device since.
       // A server that predates it leaves `locale` out.
@@ -538,6 +543,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         organizeTarget.chat)
     : null;
   const insets = useSafeAreaInsets();
+  const bottomClaimed = useBottomSafeAreaClaimed();
   // An unfolded or tablet window keeps the inbox in a centred column.
   const windowWidth = useWindowDimensions().width;
   const { inboxWidth } = useSplitView();
@@ -576,9 +582,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     keys: jumpKeys,
     listRef,
     // The Liquid Glass header floats over the list; the older header sits above it.
-    // Outside share-picking, `InboxQuickActions` sits below `listArea` and owns the bottom inset.
     topInset: nativeHeader ? headerHeight : 0,
-    bottomInset: onShareSelect ? insets.bottom : 0,
+    bottomInset: onShareSelect || !bottomClaimed ? insets.bottom : 0,
   });
   const router = useRouter();
   const pathname = usePathname();
@@ -980,7 +985,6 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           </View>
         </CompactRowsContext.Provider>
       </SelectedChatContext.Provider>
-      {!onShareSelect ? <InboxQuickActions columnInsets={columnInsets} /> : null}
       {createBotOpen ? (
         <CreateBotModal
           onClose={() => setCreateBotOpen(false)}

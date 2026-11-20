@@ -44,29 +44,31 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ConnectorIcon } from "../../components/connector-icon";
-import { GlassSurface } from "../../components/glass-surface";
-import { McpOAuthReturn } from "../../components/mcp-oauth-return";
-import { MenuPicker } from "../../components/menu-picker";
-import { NativeActionButton } from "../../components/native-action-button";
-import { NativeSymbol } from "../../components/native-symbol";
-import { PluginIcon } from "../../components/plugin-icon";
-import { Chevron } from "../../components/row-accessories";
-import { rpc } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
-import { useI18n } from "../../lib/i18n";
-import type { IntegrationsCacheScope, IntegrationsSnapshot } from "../../lib/integrations-cache";
+import { ConnectorIcon } from "../components/connector-icon";
+import { GlassSurface } from "../components/glass-surface";
+import { MainNavigationHeader } from "../components/main-navigation-header";
+import { McpOAuthReturn } from "../components/mcp-oauth-return";
+import { MenuPicker } from "../components/menu-picker";
+import { NativeActionButton } from "../components/native-action-button";
+import { NativeSymbol } from "../components/native-symbol";
+import { PluginIcon } from "../components/plugin-icon";
+import { Chevron } from "../components/row-accessories";
+import { rpc } from "../lib/api";
+import { mobileTokens } from "../lib/appearance";
+import { useI18n } from "../lib/i18n";
+import type { IntegrationsCacheScope, IntegrationsSnapshot } from "../lib/integrations-cache";
 import {
   integrationsCacheScope,
   isIntegrationsScopeCurrent,
   persistedIntegrationsCacheScope,
   readIntegrationsCache,
   writeIntegrationsCache,
-} from "../../lib/integrations-cache";
-import { loadLastBotId } from "../../lib/last-bot";
-import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
-import { iosAtLeast } from "../../lib/native-controls";
-import type { PluginParams } from "../../lib/plugin-marketplace";
+} from "../lib/integrations-cache";
+import { loadLastBotId } from "../lib/last-bot";
+import { useHideMainNavigation } from "../lib/main-navigation";
+import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
+import { iosAtLeast } from "../lib/native-controls";
+import type { PluginParams } from "../lib/plugin-marketplace";
 import {
   browsablePlugins,
   filterPlugins,
@@ -77,11 +79,11 @@ import {
   pluginCategories,
   pluginParams,
   pluginSite,
-} from "../../lib/plugin-marketplace";
-import { queryClient, rpcQuery } from "../../lib/query";
-import { useSideInsets } from "../../lib/side-insets";
-import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
-import { errorText } from "../../lib/user-error";
+} from "../lib/plugin-marketplace";
+import { queryClient, rpcQuery } from "../lib/query";
+import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
+import { useMcpOAuthReturn } from "../lib/use-mcp-oauth-return";
+import { errorText } from "../lib/user-error";
 
 type SourceAuth = "none" | "bearer" | "header" | "oauth";
 type SourceKind = "treg" | "executor" | "mcp" | "api" | "graphql";
@@ -92,6 +94,7 @@ const SECTION_SIZE = 4;
 const PLUGIN_PAGE_SIZE = 20;
 
 export default function Integrations() {
+  const bottomClaimed = useBottomSafeAreaClaimed();
   const sideInsets = useSideInsets();
   const router = useRouter();
   // A merged brand's plugin page sends people back here to manage the app's accounts.
@@ -144,6 +147,7 @@ export default function Integrations() {
   const [catalogReady, setCatalogReady] = useState(false);
   const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
   const [detailKey, setDetailKey] = useState<{ connectorId: string; slug: string } | null>(null);
+  useHideMainNavigation(Boolean(detailKey || adding));
   const [tools, setTools] = useState<ConnectionTool[]>([]);
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(true);
@@ -1440,7 +1444,8 @@ export default function Integrations() {
   }
 
   return (
-    <SafeAreaView edges={["bottom"]} style={styles.screen}>
+    <SafeAreaView edges={bottomClaimed ? [] : ["bottom"]} style={styles.screen}>
+      <MainNavigationHeader onBack={adding ? closeAdding : detailKey ? closeDetail : undefined} />
       <ScrollView
         style={sideInsets}
         contentContainerStyle={styles.content}
