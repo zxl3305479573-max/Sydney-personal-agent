@@ -1,5 +1,10 @@
 # 运维手册
 
+## 双端首页与聊天本地验收候选（2026-11-20）
+
+- Windows 未签名展开包位于 Windows worktree 的 `apps/desktop/out/home-chat-candidate/win-unpacked`。本地包使用已有 Electron，并将现有 `koffi.node` 放入 `resources/koffi/win32_x64`。通过 `.tmp/ui-home-chat-integration/.tmp/start-windows-ui-candidate.ps1` 启动，关闭自动更新，资料目录为同目录的 `windows-ui-profile`。包内渲染和登录入口已验证。用测试账号登录后执行首页和聊天 [测评](ACCEPTANCE.md#双端首页与聊天界面测评2026-11-20)。关闭候选即可返回现有安装版。
+- iPhone 未签名构建 6 位于 `.tmp/ui-home-chat-integration/.tmp/Sydney-1.0.12-6-UI-unsigned.ipa`，SHA-256 `2f873b4e772c25f9b2b6ead3e56df4d81858508bf105ba89176e97dfb0f6bc1d`。沿用设备上 Sydney 的签名和应用标识，覆盖安装前保留构建 5 源包。签名安装后先核对构建 6 及运行中的内嵌版本，再验收首页、底栏和聊天。
+
 ## 个人生产首版发布顺序（2026-11-20）
 
 现有生产是唯一部署环境，项目隔离测试使用生产主机上的隔离临时数据库和合成数据。沿 [退役 Web 运维](#删除退役-web2026-11-20) 核对当前 Compose、直连镜像和 API 画面桥，发布前保留配置、实际运行镜像、驱动文件和新鲜数据库备份。
