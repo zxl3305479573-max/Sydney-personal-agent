@@ -84,6 +84,7 @@ export function useRightPanelRestore({
   editingRoutineId,
   restoreRoutine,
   leaveRoutine,
+  refreshRestoredComputer,
 }: {
   rightPanel: RightPanel;
   userId: string | undefined;
@@ -97,6 +98,7 @@ export function useRightPanelRestore({
   editingRoutineId: string | undefined;
   restoreRoutine: (routine: Routine | null) => void;
   leaveRoutine: () => void;
+  refreshRestoredComputer: (botId: string) => void;
 }) {
   const {
     panel,
@@ -114,6 +116,7 @@ export function useRightPanelRestore({
       ? rightPanelStorageKey(userId, spaceId, inGroup ? "group" : "bot", panelTarget)
       : null;
   panelStorageKeyRef.current = panelStorageKey;
+  const pendingComputerRefresh = useRef<string | null>(null);
 
   useEffect(() => {
     if (panel !== "routine") {
@@ -153,9 +156,24 @@ export function useRightPanelRestore({
       restoreRoutine(routine ?? null);
     }
     pendingPanelRestore.current = null;
+    pendingComputerRefresh.current = next === "computer" ? panelStorageKey : null;
     setPanelState(next);
     setRestoredPanelKey(panelStorageKey);
   }, [panelStorageKey, activeId, routinesBotId, routines, searchParams]);
+
+  useEffect(() => {
+    if (
+      panel !== "computer" ||
+      !activeId ||
+      !panelStorageKey ||
+      restoredPanelKey !== panelStorageKey ||
+      pendingComputerRefresh.current !== panelStorageKey
+    ) {
+      return;
+    }
+    pendingComputerRefresh.current = null;
+    refreshRestoredComputer(activeId);
+  }, [panel, activeId, restoredPanelKey, panelStorageKey, refreshRestoredComputer]);
 
   useEffect(() => {
     // Do not gate writes on ?routine= staying in the URL — a stuck/failed routine

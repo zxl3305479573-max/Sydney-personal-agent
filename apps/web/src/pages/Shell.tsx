@@ -702,6 +702,7 @@ function SpaceShell() {
     editingRoutineId: editingRoutine?.id,
     restoreRoutine,
     leaveRoutine,
+    refreshRestoredComputer: (id) => void refreshThread(id).catch(() => undefined),
   });
   const rosterDrop = useRosterDrop({
     rpc,

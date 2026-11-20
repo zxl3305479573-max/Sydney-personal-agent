@@ -27,6 +27,8 @@ vi.mock("./api", () => ({
   rpc: runtime.rpc,
 }));
 vi.mock("./project-scope", () => ({ projectScopeKey: () => runtime.scope }));
+vi.mock("./i18n", () => ({ t: (message: string) => message }));
+vi.mock("./session", () => ({ currentSessionGeneration: () => 0 }));
 vi.mock("./integrations-cache", () => ({
   persistedIntegrationsCacheScope: async () => ({ userId: "user-a" }),
   integrationsCacheScope: async () => ({ userId: "user-a" }),
@@ -35,6 +37,7 @@ vi.mock("./integrations-cache", () => ({
 }));
 vi.mock("./user-error", () => ({ errorText: (error: Error) => error.message }));
 
+import { queryClient } from "./query";
 import { useGithub } from "./use-github";
 
 const repo = {
@@ -44,7 +47,12 @@ const repo = {
   fullName: "example/agent",
   isPrivate: false,
 } as GithubRepoSummary;
-const connected = { status: "connected", login: "example", highRiskScopes: [] };
+const connected = {
+  status: "connected",
+  githubUserId: "github-user-a",
+  login: "example",
+  highRiskScopes: [],
+};
 const repoPage = { items: [repo], page: 1, hasNextPage: false };
 const overview = { profile: { login: "example" } };
 
@@ -89,6 +97,7 @@ describe("mobile GitHub requests", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    queryClient.clear();
     vi.unstubAllGlobals();
   });
 
@@ -179,6 +188,55 @@ describe("mobile GitHub requests", () => {
     );
   });
 
+  it("shows the last default profile on re-entry while refreshing without a pull indicator", async () => {
+    const waitingStatus = deferred<typeof connected>();
+    const waitingProfile = deferred<typeof overview>();
+    const refreshed = { profile: { login: "example", name: "Updated profile" } };
+    runtime.rpc.mockResolvedValueOnce(connected).mockResolvedValueOnce(overview);
+    await render();
+    expect(state.overview).toEqual(overview);
+    await act(async () => root.render(null));
+    runtime.rpc
+      .mockReturnValueOnce(waitingStatus.promise)
+      .mockReturnValueOnce(waitingProfile.promise);
+    await render();
+    expect(state.status).toEqual(connected);
+    expect(state.overview).toEqual(overview);
+    expect(state.refreshing).toBe(false);
+    await act(async () => waitingStatus.resolve(connected));
+    expect(state.overview).toEqual(overview);
+    await act(async () => waitingProfile.resolve(refreshed));
+    expect(state.overview).toEqual(refreshed);
+  });
+
+  it("does not show the cached home in another space", async () => {
+    runtime.rpc.mockResolvedValueOnce(connected).mockResolvedValueOnce(overview);
+    await render();
+    expect(state.overview).toEqual(overview);
+    const waiting = deferred<{ status: "disconnected" }>();
+    runtime.rpc.mockReturnValueOnce(waiting.promise);
+    runtime.scope = "server-user-space-b";
+    await render();
+    expect(state.status).toBeNull();
+    expect(state.overview).toBeNull();
+    await act(async () => waiting.resolve({ status: "disconnected" }));
+  });
+
+  it("clears the cached profile as soon as the server reports a different GitHub connection", async () => {
+    runtime.rpc.mockResolvedValueOnce(connected).mockResolvedValueOnce(overview);
+    await render();
+    expect(state.overview).toEqual(overview);
+    await act(async () => root.render(null));
+    const other = { ...connected, githubUserId: "github-user-b", login: "other" };
+    const waiting = deferred<typeof overview>();
+    runtime.rpc.mockResolvedValueOnce(other).mockReturnValueOnce(waiting.promise);
+    await render();
+    expect(state.status).toEqual(other);
+    expect(state.overview).toBeNull();
+    await act(async () => waiting.resolve({ profile: { login: "other" } }));
+    expect(state.overview?.profile.login).toBe("other");
+  });
+
   it("cancels the read and ignores its late result after the route loses focus", async () => {
     const waiting = deferred<typeof connected>();
     runtime.rpc.mockReturnValueOnce(waiting.promise);
@@ -227,6 +285,7 @@ describe("mobile GitHub requests", () => {
     valid = false;
     await act(async () => state.refresh());
     expect(state.status?.status).toBe("invalid");
+    expect(state.overview).toBeNull();
     expect(state.repositories).toBeNull();
   });
 

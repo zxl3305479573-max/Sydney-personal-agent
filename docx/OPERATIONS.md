@@ -48,6 +48,10 @@ Windows `Sydney-partner` 安装候选保留 `resources/web`，移除 `resources/
 
 Windows 手动构建的 `build-metadata.json` 记录提交、运行号及安装器文件名、字节数和签名状态。验收包与回退包按对应提交和运行号登记。安装器与云端打包门禁待实际构建验证。
 
+提交 `633f5d019` 的 Windows Run `44753883136` 在包内界面 Vite 配置加载阶段失败，没有生成安装器。配置入口的本机修复已通过仅加载检查和相关回归，尚未提交或推送。重跑须选择包含修复的候选；不把原 Run 当作安装或回退材料。
+
+同提交的 iOS Run `44753557596` 已成功，未签名 IPA 位于 `.tmp/release-candidates/44753557596/Sydney-unsigned.ipa`。原生版本为 `1.0.12 (1)`，通道 `sideload`、runtime `sydney-ios-ip-1`，启动自动检查为 `NEVER`。当前手机此前确认安装 `1.0.12 (4)`，覆盖前先核对个人签名后的标识、最终构建号和可回退包，保留数据。结构检查已完成，摘要比对、签名、安装和设备运行未执行；实际加载的嵌入包或 OTA 标识应另行登记。[安装候选](VALIDATION.md#首版-ios-安装候选2026-11-20)
+
 ## 手机导航与 GitHub 候选（2026-11-20）
 
 本轮已完成手机导航／路由源码、受控离线验证和 GitHub 后台发布，客户端尚未交付。手机主入口候选为底栏「应用／项目／GitHub」；应用页和旧 `integration-setup` 已从设置弹层移到主栈，设置中的应用／GitHub 链接仍保留并先关闭弹层。聊天／电脑／项目详情、应用连接与添加、GitHub 仓库详情不显示底栏。无新增客户端存储键、依赖或原生配置，不需要为本轮代码迁移用户手机数据。
@@ -81,7 +85,9 @@ docker compose --project-name rakazo-prod --env-file /srv/rakazo/.env -f /srv/ra
 
 发布前在 `apps/mobile/sydney-release.json` 维护用户可见版本号、发布日期和简中、繁中、英文说明。应用通过清单中的 `extra.expoClient.extra.sydneyMobileRelease` 展示实际下载版本。首次从旧版升级到带说明的版本时，沿用旧版的重启提示，重启后可在设置回看本次说明。
 
-后续侧载候选使用 `updates.checkAutomatically: "NEVER"`，生成的 `Expo.plist` 应含 `EXUpdatesCheckOnLaunch = NEVER`。已安装构建 `4` 的 IPA 实测为 `ALWAYS`，需使用新版 IPA 覆盖更新原生配置。新版候选启动时检查清单，每条 OTA 首次发现时提示，稍后可从「设置 → 检查更新」打开。点「更新」后下载，再点「安装并重启」立即应用。下载后选择「暂不」，Expo 会在下次冷启动时应用已缓存版本。通过「设置 → 关于」核对实际运行的 Sydney 版本。新版包尚未生成或发布。[验证](VALIDATION.md#手机启动更新提示与关于2026-11-20)。
+`1.0.14` 候选的离线导出已验证。获授权后将对应手机版本配置推送到发布分支，按实际发布日复核日期，并用 `mobile-ios-update.yml` 手动发布到 `sideload`，确认参数 `runtime_version` 为 `sydney-ios-ip-1`。发布后用构建 `5` 的内嵌标识读取清单，核对发布时间晚于内嵌版本，检查 `1.0.14` 和三种语言说明，校验启动包及资源哈希。[候选验证](VALIDATION.md#手机-1014-ota-候选2026-11-20)。
+
+未签名构建 `5` 位于 `D:/33054/sydney-ipa-output/Sydney-1.0.12-5-unsigned.ipa`。沿用构建 `4` 的 iPASide 签名账号及安装标识覆盖，首次打开到「设置 → 关于」核对应用 `1.0.13`，在账号页核对安装包 `1.0.12 (5)`。实际 `Expo.plist` 中 `EXUpdatesCheckOnLaunch = NEVER`。内嵌应用启动时由 JavaScript 检查清单，每条 OTA 首次发现时提示，稍后可从「设置 → 检查更新」打开。点「更新」后下载，再点「安装并重启」立即应用。下载后选择「暂不」，Expo 会在下次冷启动时应用已缓存版本。当前线上 OTA 仍为此前发布的 `1.0.13`。待覆盖安装和发布下一条兼容 OTA，再验证弹窗和下载流程。[验证](VALIDATION.md#手机启动更新提示与关于2026-11-20)。
 
 GitHub 连接状态快照位于客户端系统缓存 `github-status-v1`，按已核验的服务器、账号与空间读取，凭据仍由既有服务端保管。退出或切换账号后，新会话只能读取其已核验范围。头像通过现有 `/api/auth/update-user` 保存至本人资料；旧后台省略 `me.image` 时，通过 `/api/auth/get-session` 读取当前用户的头像。省略字段兼容已在替身测试验证，无头像数据库迁移。
 
@@ -3216,7 +3222,7 @@ pnpm --filter @rakazo/desktop build
 pnpm --filter @rakazo/desktop exec electron-builder --win --x64 --publish never
 ```
 
-桌面安装名为 `Sydney-partner`。候选 `desktop-windows-build.yml` 在 Windows runner 生成 `apps/desktop/out/Sydney-partner-Setup-<version>.exe` 与展开目录，先通过展开包的现有连接、旧 profile 和更新关闭测试，再分别上传 `sydney-windows-installer-<commit>` 和 `sydney-windows-unpacked-<commit>`。安装器附 `build-metadata.json`，核对提交、运行号、大小及签名状态。应用标识 `dev.rakazo.desktop` 和协议沿用现值。新工作流尚未执行，覆盖安装、生产直连和版本回退待实际操作。
+桌面安装名为 `Sydney-partner`。候选 `desktop-windows-build.yml` 在 Windows runner 生成 `apps/desktop/out/Sydney-partner-Setup-<version>.exe` 与展开目录，先通过展开包的现有连接、旧 profile 和更新关闭测试，再分别上传 `sydney-windows-installer-<commit>` 和 `sydney-windows-unpacked-<commit>`。安装器附 `build-metadata.json`，核对提交、运行号、大小及签名状态。应用标识 `dev.rakazo.desktop` 和协议沿用现值。Run `44753883136` 的配置加载失败及本机修复见 [当前运维](#删除退役-web2026-11-20)，新安装器、覆盖安装、生产直连和版本回退待验。
 
 本机 Windows 安装位置为 `%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe`，卸载项显示 `Sydney-partner 0.4.0`。另一个项目的 `D:\33054\Sydney\Sydney.exe` 和卸载项保持原样。新打包版 Windows 用户数据改用 `%USERPROFILE%\.sydney-partner`，会话目录为其下的 `session`；测试时显式指定的 profile 优先。本机 Roaming 和 LocalAppData 目录中同目录原子重命名均实际返回 `EXDEV`，首次安装曾因此无法保存服务配置；用户主目录下已验证同目录原子重命名成功，调整后的安装包实际结果以验证记录为准。不删除原 AppData profile 或旧项目数据。真实旧数据迁移需另验。
 

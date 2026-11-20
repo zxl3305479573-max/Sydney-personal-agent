@@ -11,13 +11,13 @@ import {
   parseContentSecuritySources,
   parseCrispWebsiteId,
 } from "@rakazo/contracts/content-security-policy";
-import { createNovncProxy } from "@rakazo/core/node/novnc-proxy";
 import { novncRequestPath } from "@rakazo/core/node/screen-proxy";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import type { PreviewServer, ViteDevServer } from "vite";
 import { defineConfig, loadEnv } from "vite";
+import { createNovncProxy } from "../../packages/core/src/node/novnc-proxy.ts";
 import { resolveScreenProxySecret } from "../../packages/core/src/secrets-guard.ts";
 import { createServiceLogger } from "../../packages/logging/src/env.ts";
 import { apiProxy } from "./src/api-proxy.js";

@@ -10,7 +10,7 @@ import type {
 } from "@rakazo/contracts";
 import { GithubConnectInputSchema } from "@rakazo/contracts";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "./api";
 import {
   integrationsCacheScope,
@@ -19,6 +19,7 @@ import {
   writeGithubConnectionCache,
 } from "./integrations-cache";
 import { projectScopeKey } from "./project-scope";
+import { queryClient } from "./query";
 import { errorText } from "./user-error";
 
 export type GithubSection = "profile" | "repositories" | "explore";
@@ -31,10 +32,20 @@ export type GithubExploreFilters = Pick<
   "sort" | "language" | "minStars" | "pushedWithinDays" | "topic"
 >;
 
+type GithubHomeSnapshot = {
+  status: GithubConnectionStatus;
+  overview: GithubProfileOverview | null;
+};
+
 export function useGithub(scopeKey: string) {
+  const homeKey = useMemo(() => ["github-home", scopeKey], [scopeKey]);
   const [section, setSection] = useState<GithubSection>("profile");
-  const [status, setStatus] = useState<GithubConnectionStatus | null>(null);
-  const [overview, setOverview] = useState<GithubProfileOverview | null>(null);
+  const [status, setStatus] = useState<GithubConnectionStatus | null>(
+    () => queryClient.getQueryData<GithubHomeSnapshot>(homeKey)?.status ?? null,
+  );
+  const [overview, setOverview] = useState<GithubProfileOverview | null>(
+    () => queryClient.getQueryData<GithubHomeSnapshot>(homeKey)?.overview ?? null,
+  );
   const [repositories, setRepositories] = useState<GithubRepoPage | null>(null);
   const [search, setSearch] = useState<GithubSearchReposOutput | null>(null);
   const [detail, setDetail] = useState<GithubRepoDetail | null>(null);
@@ -60,8 +71,8 @@ export function useGithub(scopeKey: string) {
   const request = useRef(0);
   const mutation = useRef(false);
   const pullRequested = useRef(false);
-  const live = () =>
-    focused.current && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
+  const inScope = () => scopeKey === projectScopeKey() && !isSpaceSelectionPending();
+  const live = () => focused.current && inScope();
 
   useFocusEffect(
     useCallback(() => {
@@ -96,6 +107,16 @@ export function useGithub(scopeKey: string) {
           };
           const connection = await rpc("github/status", {}, options);
           if (!current()) return;
+          const previous = queryClient.getQueryData<GithubHomeSnapshot>(homeKey);
+          const clearPersonalData =
+            connection.status !== "connected" ||
+            (previous?.status.status === "connected" &&
+              (previous.status.githubUserId !== connection.githubUserId ||
+                previous.status.connectedAt !== connection.connectedAt));
+          queryClient.setQueryData<GithubHomeSnapshot>(homeKey, {
+            status: connection,
+            overview: clearPersonalData ? null : (previous?.overview ?? null),
+          });
           setStatus(connection);
           if (cachedScope) {
             writeGithubConnectionCache(cachedScope, connection);
@@ -106,7 +127,7 @@ export function useGithub(scopeKey: string) {
               })
               .catch(() => undefined);
           }
-          if (connection.status !== "connected") {
+          if (clearPersonalData) {
             setOverview(null);
             setRepositories(null);
             if (selectedRepo?.isPrivate) {
@@ -131,7 +152,14 @@ export function useGithub(scopeKey: string) {
             if (current()) setSearch(result);
           } else if (connection.status === "connected" && section === "profile") {
             const result = await rpc("github/profileOverview", { year }, options);
-            if (current()) setOverview(result);
+            if (!current()) return;
+            if (year === undefined) {
+              queryClient.setQueryData<GithubHomeSnapshot>(homeKey, {
+                status: connection,
+                overview: result,
+              });
+            }
+            setOverview(result);
           } else if (connection.status === "connected") {
             const result = await rpc(
               "github/listMyRepos",
@@ -160,6 +188,7 @@ export function useGithub(scopeKey: string) {
         controller.abort();
       };
     }, [
+      homeKey,
       scopeKey,
       section,
       selectedRepo,
@@ -190,18 +219,20 @@ export function useGithub(scopeKey: string) {
       const connection = input
         ? await rpc("github/connect", input, options)
         : await rpc("github/disconnect", undefined, options);
-      if (!live()) return;
-      setStatus(connection);
+      if (!inScope()) return;
+      queryClient.setQueryData<GithubHomeSnapshot>(homeKey, { status: connection, overview: null });
+      if (live()) {
+        setStatus(connection);
+        setOverview(null);
+        setRepositories(null);
+        setSearch(null);
+        setDetail(null);
+        setSelectedRepo(null);
+        setPage(1);
+      }
       const cachedScope = await persistedIntegrationsCacheScope();
-      if (!live()) return;
-      if (cachedScope) writeGithubConnectionCache(cachedScope, connection);
-      setOverview(null);
-      setRepositories(null);
-      setSearch(null);
-      setDetail(null);
-      setSelectedRepo(null);
-      setPage(1);
-      setRevision((value) => value + 1);
+      if (cachedScope && inScope()) writeGithubConnectionCache(cachedScope, connection);
+      if (live()) setRevision((value) => value + 1);
     } catch (cause) {
       if (live() && issued === request.current) setError(errorText(cause));
     } finally {
