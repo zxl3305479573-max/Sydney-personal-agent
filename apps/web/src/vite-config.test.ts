@@ -68,17 +68,20 @@ async function useStandInApi() {
 }
 
 describe("vite.config", () => {
-  it("loads and forwards only the device socket's upgrades", async () => {
-    const loaded = await loadConfigFromFile({ command: "serve", mode: "production" }, configFile);
-    const config = loaded?.config as UserConfig;
-    for (const proxy of [config.server?.proxy, config.preview?.proxy]) {
-      const upgrades = Object.entries(proxy ?? {})
-        .filter(([, options]) => (options as ProxyOptions).ws)
-        .map(([context]) => context);
-      expect(upgrades).toEqual([DEVICE_SOCKET]);
-      expect(proxy).toHaveProperty("/api");
-    }
-  });
+  it.each(["serve", "build"] as const)(
+    "loads %s and forwards only the device socket's upgrades",
+    async (command) => {
+      const loaded = await loadConfigFromFile({ command, mode: "production" }, configFile);
+      const config = loaded?.config as UserConfig;
+      for (const proxy of [config.server?.proxy, config.preview?.proxy]) {
+        const upgrades = Object.entries(proxy ?? {})
+          .filter(([, options]) => (options as ProxyOptions).ws)
+          .map(([context]) => context);
+        expect(upgrades).toEqual([DEVICE_SOCKET]);
+        expect(proxy).toHaveProperty("/api");
+      }
+    },
+  );
 
   it("lets the device socket through for the hosts the preview server serves", async () => {
     await useStandInApi();

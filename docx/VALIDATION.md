@@ -2,15 +2,25 @@
 
 ## 个人生产首版复核（2026-11-20）
 
+提交 `633f5d019c4295147c2338b6604d0e374d787f76` 的 Windows 非发布构建 `44753883136` 已结束，结论为失败。依赖安装和 Prisma 生成完成，包内界面构建在加载 `vite.config.ts` 时因 `novnc-proxy.ts` 相对导入的 `novnc-html.js` 不存在而中止，尚未进入桌面打包或安装验收。本机 Node `24.15.0` 仅加载配置即复现同一错误。改为从配置入口直接导入现有代理源码，让 Vite 处理其相对 TypeScript 依赖后，同一加载命令通过。配置加载与屏幕代理相关 3 文件 65 项通过，两处变更 Biome 检查通过。修复尚未提交或推送，Windows 云端打包待重跑。同提交 iOS Run `44753557596` 随后成功，产物及未验范围见 [安装候选](#首版-ios-安装候选2026-11-20)。
+
 | 检查 | 实际结果 |
 | --- | --- |
 | 生产退役和直连 | 默认 Compose 排除 `web` 与 `native-screen-web-loopback`，启用全部 profiles 时仍解析出两项旧定义。两服务当前无容器，API、Worker、PostgreSQL 为 healthy，现用 `native-screen-api-loopback` 运行。生产 IP 的 `/health`、`/ready`、`/api/auth/capabilities` 返回 200，`/app` 返回 404。仅只读检查 |
 | Windows 安装 | `%LOCALAPPDATA%\Programs\rakazo\Sydney-partner.exe` 版本为 `0.4.0.0`，存在包内 `resources/web/index.html` 和旧 `resources/stack`，当时无 `Sydney-partner` 进程。新版安装与运行待验 |
-| Windows 安装候选工作流 | 手动工作流已改用 Node 24 同时生成 NSIS 和展开目录，保留构建产物的既有直连门禁。发布工作流、安装设置和渲染代理回归共 186 项通过、2 项跳过，YAML 解析和测试文件 Biome 检查通过。尚未推送或触发 Windows 构建，未生成本轮 NSIS |
+| Windows 安装候选工作流 | 手动工作流已改用 Node 24 同时生成 NSIS 和展开目录，保留构建产物的既有直连门禁。发布工作流、安装设置和渲染代理回归共 186 项通过、2 项跳过。已触发 Run `44753883136`，在 Vite 配置加载时失败。本机修复通过配置加载、65 项定向测试、Web TypeScript 及两文件 Biome 检查，尚未生成本轮 NSIS |
 | iPhone 安装及发布 | USB InstallationProxy 确认 iOS `27.0.1` 上已装 Sydney `1.0.12` 构建 `4`。GitHub Actions `44750564292` 发布应用版本 `1.0.13`，已下载校验 `sideload` 更新 `01a1f94b-6b80-7974-88ca-88494c9f622a` 的启动包及 55 项资源。设备生效标识及功能仍待验，详见 [OTA 记录](#手机-1013-版本与更新说明2026-11-20) |
 | 首页兼容 | 修正旧首页发送、队列续行及入站夹具的数据库上下文与首页归属结果。`events.test.ts` 与 `executor-readonly-approval.test.ts` 复测合计 398 项通过，覆盖此前失败的 20 项。数据库与适配层 TypeScript、两文件 Biome lint 及差异检查通过 |
 
 仍需生产持久配置清理、真实项目 PostgreSQL／Worker、匹配的 Windows 与 iPhone 项目候选、双端功能及版本回退。已安装的构建 `4` 和本次发布的 OTA 覆盖手机基础体验。
+
+## 首版 iOS 安装候选（2026-11-20）
+
+Run `44753557596` 在北京时间 22:51:29 成功，提交为 `633f5d019c4295147c2338b6604d0e374d787f76`。下载 Artifact `14639661066`（`sydney-ios-unsigned-44753557596-1`，ZIP 25,835,984 字节），IPA 保存到本机忽略目录 `.tmp/release-candidates/44753557596/Sydney-unsigned.ipa`，26,065,269 字节。
+
+ZIP／IPA 结构及 plist 检查通过。显示名 Sydney，原始标识 `xin.zxlup.sydney`，原生版本 `1.0.12`、构建 `1`。OTA 启用，通道 `sideload`、runtime `sydney-ios-ip-1`，启动自动检查为 `NEVER`。9 个 Sydney 资源目录均在启动包中有对应路径，最长内部路径 122 字符，无扩展插件或嵌入式签名描述文件。启动包包含生产 IP、项目发送、云目录、取消任务和午夜模式标识。
+
+本轮未重新计算或比对摘要，结构检查不能替代摘要验证。IPA 尚未个人签名、安装或运行，不据包内字符串判定业务可用。原生构建 `1` 不能区分此候选和早期源包，覆盖安装前须核对最终签名标识、构建及旧数据保留；本次不改动已安装构建 `4`。项目后台迁移、真实 Worker 和双端验收仍待执行。
 
 ## 退役配置与 IP 代理候选（2026-11-20）
 
@@ -214,6 +224,18 @@ Expo 公开配置保留原生版本 `1.0.12`、通道 `sideload`、runtime `sydn
 Node 24 下合跑更新流程、版本号、Expo 配置、账号设置和设置导航共 5 个 Vitest 文件，89 项通过。覆盖启动和回前台检查只读清单、每条更新仅自动提示一次、取消不下载、设置可再打开、下载失败不提供重启、下载和重启各自确认、已缓存版本及「关于」显示当前运行版本。移动端 `tsc --noEmit` 和 11 个相关文件的 Biome 检查通过。
 
 从现有构建 `4` 的 IPA 读取到 `EXUpdatesCheckOnLaunch = ALWAYS`。使用 Expo 公开配置与本机已安装的 iOS 配置插件离线生成新版 plist 字段，验证 `EXUpdatesEnabled = true`、`EXUpdatesCheckOnLaunch = NEVER`、通道 `sideload` 与 runtime `sydney-ios-ip-1`。尚未生成新版 IPA、推送 OTA 或在手机上验证弹窗及重启。
+
+恢复目标后以已推送的 `633f5d019` 合跑导航、应用、GitHub、项目会话、模型、账号和更新相关 12 个文件，251 项通过，移动端 TypeScript 通过。生产 API 健康检查返回 HTTP 200。按构建 `4` 复查已发布 `1.0.13` 清单、启动包和 55 项资源，哈希一致。Windows 枚举到 iPhone，但 USB 应用安装代理所需的设备列表为空，本次未取得运行中的更新标识或应用界面证据。
+
+集成分支提交 `633f5d019` 的 iOS 工作流 `44753557596` 已成功。核对下载归档的 GitHub SHA-256 和归档内原始 IPA 的 SHA-256 后，将未签名包的 `CFBundleVersion` 调整为 `5`。除 `Info.plist` 外各 ZIP 条目的 CRC 一致，完整性校验通过。新包为 `D:/33054/sydney-ipa-output/Sydney-1.0.12-5-unsigned.ipa`，26,062,610 字节，SHA-256 `b17be95126e3bfb1a90e04b40c8d5c7d3e8daa07f1856741c484f7cbfc41ab54`。实际 IPA 的 `EXUpdatesCheckOnLaunch` 为 `NEVER`，原生标识、Expo URL、`sideload` 和 `sydney-ios-ip-1` 与构建 `4` 一致。内嵌应用显示版本为 `1.0.13`，更新标识 `9d454355-48d2-4dcd-939f-b71daf107d31`，52 个资源路径存在，最长 ZIP 路径 122 字符，Hermes 版本与构建 `4` 匹配。包交付后再次只读查询，USB 设备列表仍为空。签名、覆盖安装、下一条 OTA 及手机端实际运行待验。
+
+使用构建 `5` 的嵌入标识查询 Expo 返回 HTTP 200，清单 ID 仍为 `01a1f94b-6b80-7974-88ca-88494c9f622a`。其发布时间早于构建 `5` 的内嵌清单。手机安装这份 IPA 后可用内嵌版本验收导航、GitHub 和模型，更新弹窗验收需要更新的清单。Windows 当前识别到的 iPhone 记录属于蓝牙设备类。
+
+## 手机 1.0.14 OTA 候选（2026-11-20）
+
+以 `633f5d019` 的手机源码准备 `1.0.14` 和简中、繁中、英文更新说明。Expo 配置、客户端更新、账号、版本和设置布局共 5 个文件 89 项通过，发布配置的 Biome 检查通过。按构建 `5` 的 Expo 项目配置执行单 worker iOS 导出，输出至 `.tmp/sydney-1.0.14-ios-ota`。构建类型为 iOS，55 项清单资源均存在且非空。启动包含更新提示和重启动作，Hermes `98` 与构建 `5` 一致，SHA-256 为 `1204f82b0406a27ddea9f18fff38a711cd9952d90982ac02e1a2a1d1bde18655`。Expo 公开配置中的应用版本、三种语言说明、侧载标识、通道 `sideload` 及 runtime `sydney-ios-ip-1` 均匹配预期。
+
+本轮设备查询返回 USB 设备数 `0`，Windows 识别到的是蓝牙设备。`1.0.14` 当前为离线候选，待提交与发布授权、构建 `5` 安装确认和真机验收。
 
 ## 本机项目目录授权绑定（2026-11-20）
 
