@@ -1,18 +1,18 @@
 {
-  "version": "1.0.15",
+  "version": "1.0.16",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "离开 GitHub 后再进入，立即显示本次登录中已加载的个人资料和贡献图。",
-      "重新进入时在后台刷新，只有手动下拉才显示刷新动画。"
+      "首页会话和底部导航的选中、未读和点按状态更清楚，旁白可读出当前项。",
+      "调整聊天输入提示和发送按钮，输入、发送中与不可发送状态更容易辨认。"
     ],
     "zh-TW": [
-      "離開 GitHub 後再進入，立即顯示本次登入中已載入的個人資料和貢獻圖。",
-      "重新進入時在背景重新整理，只有手動下拉才顯示重新整理動畫。"
+      "首頁對話和底部導覽的選取、未讀和點按狀態更清楚，旁白可讀出目前項目。",
+      "調整聊天輸入提示和傳送按鈕，輸入、傳送中與無法傳送的狀態更容易辨識。"
     ],
     "en": [
-      "Reopen GitHub to see the profile and contribution graph already loaded in your current session.",
-      "GitHub refreshes in the background. The pull-to-refresh indicator appears only when you pull down."
+      "Home conversations and bottom navigation show clearer selection, unread, and press states. VoiceOver announces the selected item.",
+      "The chat composer makes the input hint and send button states easier to distinguish."
     ]
   }
 }

@@ -6,7 +6,7 @@
 
 范围为 iPhone 首页、固定底栏与聊天，以及 Windows 包内工作台导航与聊天。沿用现有主题、接口、组件与平台交互。以 `633f5d019` 为共同基线，先用 Stop That Shit 核查测评和钩子，再用 Impeccable 初改，随后用 Jakub Krehel 的界面技能精修。交付两个独立候选、前后证据与本地集成提交。iPhone 的纯 JS／TS 改动使用匹配 runtime 的 OTA 验收；只有原生改动或 runtime 不兼容才用签名 IPA。
 
-状态为双端精修和离线候选已完成，等待手机收到匹配 runtime 的候选 OTA 并完成应用内主路径验收，以及 Windows 候选登录后的主路径验收。2026-11-21 确认无需 USB 连接：构建 6 启用 `sideload` OTA，runtime 为 `sydney-ios-ip-1`。OTA 源须先基于已发布 `1.0.14` 的提交 `1960b1745`，保留 release 元信息；原 UI 分支中的 `sydney-release.json` 还是 `1.0.13`，不可直接发布。现有发布工作流要求获准的 `main` 或集成远程分支，且该通道会面向所有兼容安装；未获本轮发布授权，因此尚未发布或要求用户下载。Windows 候选仍在登录页。组件级 Windows 对照和定向离线回归通过；手机扩大回归的 9 项失败及 1 个未加载套件均在共同基线复现。Guard 已确认本会话存在实际工具调用事件，宿主显式 `change` 模式待触发。通过验收后按手机、Windows 顺序合入本地集成分支，再做联合回归。见 [验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)。
+2026-11-21 用户授权先合并、部署并发版。两路 UI 已按手机、Windows 顺序合入当前 Sydney 客户端发布基线 `b81889095`。交付 iPhone `1.0.16` OTA 与 Windows `0.4.1` NSIS 安装器，发布入口沿用 `cursor/integrate-remote-branches-7334`。依赖现有 GitHub Actions、iOS `sideload` 通道与 `sydney-ios-ip-1` runtime。发布验收核对合并源码回归、OTA 线上清单和资源，以及 Windows 云构建门禁、安装器和启动版本。手机更新后按测评检查导航、键盘、大字和旁白，Windows 登录后验会话及发送恢复。Guard 的宿主显式 `change` 证据仍待补。见 [验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)。
 
 ### 个人生产首版交付（2026-11-20）
 

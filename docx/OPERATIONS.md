@@ -1,5 +1,11 @@
 # 运维手册
 
+## 双端 UI 发布（2026-11-21）
+
+沿用 `cursor/integrate-remote-branches-7334` 的现有客户端工作流。`mobile-ios-update.yml` 以 `sydney-ios-ip-1` 发布 iPhone `1.0.16` 到 `sideload`。兼容手机打开「设置 → 检查更新」，下载并重启后在「关于」核对版本，无需连接 USB。上一版为 `b96d347bd` 发布的 `1.0.15`，恢复时使用同一通道的既有 Expo 发布流程。
+
+`desktop-windows-build.yml` 生成未签名 `Sydney-partner-Setup-0.4.1.exe`，通过现有六项打包门禁后供覆盖安装。保留现有用户 profile 和已验证的 `0.4.0` 安装器用于回退。实际发版与安装结果见 [验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)。
+
 ## 双端首页与聊天本地验收候选（2026-11-20）
 
 - Windows 未签名展开包位于 Windows worktree 的 `apps/desktop/out/home-chat-candidate/win-unpacked`。本地包使用已有 Electron，并将现有 `koffi.node` 放入 `resources/koffi/win32_x64`。通过 `.tmp/ui-home-chat-integration/.tmp/start-windows-ui-candidate.ps1` 启动，关闭自动更新，资料目录为同目录的 `windows-ui-profile`。包内渲染和登录入口已验证。用测试账号登录后执行首页和聊天 [测评](ACCEPTANCE.md#双端首页与聊天界面测评2026-11-20)。关闭候选即可返回现有安装版。
