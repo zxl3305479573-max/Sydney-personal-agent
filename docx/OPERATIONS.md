@@ -3,7 +3,7 @@
 ## 双端首页与聊天本地验收候选（2026-11-20）
 
 - Windows 未签名展开包位于 Windows worktree 的 `apps/desktop/out/home-chat-candidate/win-unpacked`。本地包使用已有 Electron，并将现有 `koffi.node` 放入 `resources/koffi/win32_x64`。通过 `.tmp/ui-home-chat-integration/.tmp/start-windows-ui-candidate.ps1` 启动，关闭自动更新，资料目录为同目录的 `windows-ui-profile`。包内渲染和登录入口已验证。用测试账号登录后执行首页和聊天 [测评](ACCEPTANCE.md#双端首页与聊天界面测评2026-11-20)。关闭候选即可返回现有安装版。
-- iPhone 未签名构建 6 位于 `.tmp/ui-home-chat-integration/.tmp/Sydney-1.0.12-6-UI-unsigned.ipa`，SHA-256 `2f873b4e772c25f9b2b6ead3e56df4d81858508bf105ba89176e97dfb0f6bc1d`。沿用设备上 Sydney 的签名和应用标识，覆盖安装前保留构建 5 源包。签名安装后先核对构建 6 及运行中的内嵌版本，再验收首页、底栏和聊天。
+- iPhone 首页、底栏及聊天改动仅涉及 JS／TS，可优先通过现有 iOS `sideload` OTA 验收，无需 USB 连接或签名安装 IPA。未签名构建 6 位于 `.tmp/ui-home-chat-integration/.tmp/Sydney-1.0.12-6-UI-unsigned.ipa`，SHA-256 `2f873b4e772c25f9b2b6ead3e56df4d81858508bf105ba89176e97dfb0f6bc1d`；包内 `Expo.plist` 确认 OTA 已启用、runtime 为 `sydney-ios-ip-1`、channel 为 `sideload`。通过 [现有 OTA 工作流](../.github/workflows/mobile-ios-update.yml) 发布后，打开 iPhone 上 Sydney 按应用内检查更新提示下载并重启，核对运行版本／updateId 后执行 [测评](ACCEPTANCE.md#双端首页与聊天界面测评2026-11-20)。该 `sideload` channel 面向所有匹配 runtime 的安装，不是单机预览；本轮未获发布授权，未向该通道发布候选。只有出现原生改动或已装 runtime 不匹配时才使用构建 6 IPA 作为签名覆盖备选。
 
 ## 个人生产首版发布顺序（2026-11-20）
 
