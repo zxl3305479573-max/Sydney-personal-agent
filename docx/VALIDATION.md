@@ -14,7 +14,7 @@
 | 续作复验 | 使用现有 Node `24.22.3`，手机底栏、首页会话和聊天输入 4 文件共 117 项通过；Windows 工作台输入与会话列表 2 文件共 102 项通过，桌面单测 723 项通过、11 项跳过。手机、Windows 渲染层和 Electron 主进程及 DOM TypeScript 检查通过，双端 9 个变更文件的 Biome 检查通过 |
 | 手机扩大回归 | `apps/mobile/lib` 共 3,415 项通过、9 项失败，另有 1 个套件因 `ExpoSecureStore` 加载失败未运行。用同一 Node、Vitest `4.1.11` 及依赖在共同基线 `633f5d019` 复跑 7 个失败文件，复现同样失败。涉及词表、图片消息样式、Android 通知、提及读屏测试、SecureStore 模拟、设置路由及切换服务器后的错误文本。复跑结束已恢复手机候选分支 |
 
-2026-11-21 按用户指示改用 OTA 作为手机验收路径，不要求 USB 连接。检查构建 6 的未签名 IPA，确认 `xin.zxlup.sydney`、版本 `1.0.12`、构建 `6`、OTA 启用、runtime `sydney-ios-ip-1`、channel `sideload`。候选仅改 JS／TS，与现有 runtime 兼容；构建 6 IPA 是原生不兼容时的备选，不作为本轮必需安装包。现有 `mobile-ios-update.yml` 将更新发布到所有匹配 runtime 的共享 `sideload` channel；当前本地无 Expo token／EAS CLI，工作流也只允许 `main` 与指定集成远程分支，且本轮未授权发布，故未创建生产 OTA。实际手机仍需在发布获准后检查并安装更新、重启，核对运行 updateId 和主路径。Windows 候选窗口仍显示「登录」入口，待验收账号登录。两端验收通过后合并并复验。
+2026-11-21 按用户指示改用 OTA 作为手机验收路径，不要求 USB 连接。检查构建 6 的未签名 IPA，确认 `xin.zxlup.sydney`、版本 `1.0.12`、构建 `6`、OTA 启用、runtime `sydney-ios-ip-1`、channel `sideload`。候选仅改 JS／TS，与现有 runtime 兼容；构建 6 IPA 是原生不兼容时的备选，不作为本轮必需安装包。发现 iPhone 优化分支基于 `633f5d019`，`apps/mobile/sydney-release.json` 为 `1.0.13`；已发布的 `1.0.14` OTA 源提交 `1960b1745` 更新该文件。因此 OTA 候选必须以 `1960b1745` 为基础叠加 UI 提交，不能直接发布旧分支。现有 `mobile-ios-update.yml` 将更新发布到所有匹配 runtime 的共享 `sideload` channel；当前本地无 Expo token／EAS CLI，工作流也只允许 `main` 与指定集成远程分支，且本轮未授权发布，故未创建生产 OTA。实际手机仍需在发布获准后检查并安装更新、重启，核对运行 updateId 和主路径。Windows 候选窗口仍显示「登录」入口，待验收账号登录。两端验收通过后合并并复验。
 
 ## 个人生产首版复核（2026-11-20）
 

@@ -1,6 +1,6 @@
 # 开发过程记录
 
-2026-11-21（PA-018／PA-020／PA-021 手机 OTA 验收路径）：按用户纠正取消 USB 连机前置。只读核验构建 6 的 `Expo.plist` 为 `xin.zxlup.sydney`、`1.0.12 (6)`、OTA 启用、runtime `sydney-ios-ip-1`、channel `sideload`；手机界面改动为 JS／TS，可兼容 OTA。现有工作流将更新发到所有匹配 runtime 的共享生产通道；未获发布授权，且本机无 Expo token／EAS CLI，未发布。同步运维、计划、验收及验证文档。Windows 登录后实机验收及 OTA 更新后手机主路径仍待完成。[验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)
+2026-11-21（PA-018／PA-020／PA-021 手机 OTA 验收路径）：按用户纠正取消 USB 连机前置。只读核验构建 6 的 `Expo.plist` 为 `xin.zxlup.sydney`、`1.0.12 (6)`、OTA 启用、runtime `sydney-ios-ip-1`、channel `sideload`；手机界面改动为 JS／TS，可兼容 OTA。又发现优化分支的 `sydney-release.json` 为 `1.0.13`，已发布 `1.0.14` 的源码提交 `1960b1745` 更新了该文件；发布候选须以 `1960b1745` 为基础叠加 UI 提交。现有工作流将更新发到所有匹配 runtime 的共享生产通道；未获发布授权，且本机无 Expo token／EAS CLI，未发布。同步运维、计划及验证文档。Windows 登录后实机验收及 OTA 更新后手机主路径仍待完成。[验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)
 
 2026-11-20（PA-018／PA-020／PA-021 双端首页与聊天复验）：用 Node `24.22.3` 重跑双端直接相关回归、桌面单测、两端类型检查和变更文件 Biome 检查，结果分别为手机 117 项、Windows 渲染层 102 项及 Electron 723 项通过；另 11 项跳过。手机扩大回归的 9 项失败及 1 个加载失败，在共同基线用同一 Vitest 入口复现。当前 USB 查询未发现 iPhone，Windows 候选仍停留在登录页；保留两个独立候选，设备通过前不合并。[验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)
 
