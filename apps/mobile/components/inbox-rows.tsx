@@ -75,6 +75,7 @@ export function ConversationRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={chatId ? { selected } : undefined}
       accessibilityHint={accessibilityHint}
       // Screen readers access swipe actions through the row.
       accessibilityActions={rowActions.length > 0 ? rowActions : undefined}
@@ -106,7 +107,11 @@ export function ConversationRow({
         <View style={styles.rowTop}>
           <View style={styles.titleRow}>
             <Text
-              style={[styles.name, roster && { fontSize: 18, fontWeight: "500" }]}
+              style={[
+                styles.name,
+                roster && { fontSize: 18, fontWeight: "500" },
+                unread && styles.unreadName,
+              ]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -114,7 +119,11 @@ export function ConversationRow({
             </Text>
           </View>
           <View style={styles.rowMeta}>
-            {!roster && time ? <Text style={styles.time}>{time}</Text> : null}
+            {!roster && time ? (
+              <Text numberOfLines={1} style={styles.time}>
+                {time}
+              </Text>
+            ) : null}
             {!roster && unread ? (
               <View accessibilityElementsHidden style={styles.unreadDot} />
             ) : null}
@@ -232,7 +241,7 @@ export const PinnedTiles = memo(function PinnedTiles({
           <Pressable
             key={`${chat.kind}-${id}`}
             accessibilityRole="button"
-            accessibilityLabel={name}
+            accessibilityLabel={unread ? `${name}, ${t("unread")}` : name}
             accessibilityState={{ selected: selectedId === id }}
             accessibilityActions={actions.map((action) => ({
               name: action,

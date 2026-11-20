@@ -64,14 +64,22 @@ export function MainBottomNavigation() {
               minHeight: 56,
               flexDirection: "column",
               paddingVertical: 7,
+              paddingHorizontal: 4,
               gap: 4,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.65 : 1,
+              backgroundColor: pressed ? tokens.accent : selected ? tokens.muted : undefined,
             })}
           >
             <NativeSymbol ios={item.ios} android={item.android} size={22} color={color} />
-            <Text numberOfLines={1} style={{ color, fontSize: 11, fontWeight: "500" }}>
+            <Text
+              style={{
+                color,
+                fontSize: 11,
+                fontWeight: selected ? "700" : "500",
+                textAlign: "center",
+              }}
+            >
               {item.label}
             </Text>
           </Pressable>

@@ -155,6 +155,8 @@ export function createHomeStyles() {
       gap: 6,
     },
     rowMeta: {
+      flexShrink: 1,
+      maxWidth: "40%",
       flexDirection: "row",
       alignItems: "center",
       gap: 7,
@@ -167,8 +169,12 @@ export function createHomeStyles() {
       writingDirection: "auto",
     },
     time: {
-      color: native.tertiaryLabel,
+      flexShrink: 1,
+      color: native.secondaryLabel,
       ...typeScale.caption,
+    },
+    unreadName: {
+      fontWeight: "700",
     },
     preview: {
       color: native.secondaryLabel,
