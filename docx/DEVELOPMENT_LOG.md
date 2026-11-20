@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-21（双端 UI 发布交付）：发布提交 `ecd12301c` 的 iPhone OTA 和 Windows 安装包均构建成功。iPhone 已核对线上 `1.0.16` 资源；Windows 已覆盖安装 `0.4.1`，原 profile 完整，实际工作台及输入焦点通过。本次发布客户端产物，生产 API 和数据库沿用现有版本。[发布证据](VALIDATION.md#双端首页与聊天界面2026-11-20)。
+
 2026-11-21（PA-018／PA-020／PA-021 双端 UI 发布）：按用户要求以当前发布线合入 iPhone 和 Windows 候选。为 iPhone 添加 `1.0.16` 三语说明，为 Sydney-partner 准备 `0.4.1` 安装包。合并后复验和发布结果见 [验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)。
 
 2026-11-21（PA-018／PA-020／PA-021 手机 OTA 验收路径）：按用户纠正取消 USB 连机前置。只读核验构建 6 的 `Expo.plist` 为 `xin.zxlup.sydney`、`1.0.12 (6)`、OTA 启用、runtime `sydney-ios-ip-1`、channel `sideload`；手机界面改动为 JS／TS，可兼容 OTA。又发现优化分支的 `sydney-release.json` 为 `1.0.13`，已发布 `1.0.14` 的源码提交 `1960b1745` 更新了该文件；发布候选须以 `1960b1745` 为基础叠加 UI 提交。现有工作流将更新发到所有匹配 runtime 的共享生产通道；未获发布授权，且本机无 Expo token／EAS CLI，未发布。同步运维、计划及验证文档。Windows 登录后实机验收及 OTA 更新后手机主路径仍待完成。[验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)

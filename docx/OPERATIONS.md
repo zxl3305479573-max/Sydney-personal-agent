@@ -6,6 +6,8 @@
 
 `desktop-windows-build.yml` 生成未签名 `Sydney-partner-Setup-0.4.1.exe`，通过现有六项打包门禁后供覆盖安装。保留现有用户 profile 和已验证的 `0.4.0` 安装器用于回退。实际发版与安装结果见 [验证记录](VALIDATION.md#双端首页与聊天界面2026-11-20)。
 
+iPhone OTA Run `44776686746` 已上线，可在应用内更新。Windows Run `44776693220` 的安装器已保存到本机 `.tmp/release-candidates/44776693220/`，并已覆盖安装。该目录下的 `before-install/` 保存安装前 profile 副本及上一个 `0.4.0` 安装器。需要回退时使用保留的安装器覆盖并核对连接和运行版本，旧 profile 副本仅供恢复。实际回退待演练。
+
 ## 双端首页与聊天本地验收候选（2026-11-20）
 
 - Windows 未签名展开包位于 Windows worktree 的 `apps/desktop/out/home-chat-candidate/win-unpacked`。本地包使用已有 Electron，并将现有 `koffi.node` 放入 `resources/koffi/win32_x64`。通过 `.tmp/ui-home-chat-integration/.tmp/start-windows-ui-candidate.ps1` 启动，关闭自动更新，资料目录为同目录的 `windows-ui-profile`。包内渲染和登录入口已验证。用测试账号登录后执行首页和聊天 [测评](ACCEPTANCE.md#双端首页与聊天界面测评2026-11-20)。关闭候选即可返回现有安装版。
