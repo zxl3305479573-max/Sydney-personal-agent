@@ -1,21 +1,21 @@
 {
-  "version": "1.0.20",
+  "version": "1.0.21",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "修复项目 Bot 及群聊成员丢失已选图片头像的问题，原来保存的头像无需重新选择。",
-      "项目聊天使用普通聊天的头像标题、回复卡片与输入栏布局。",
-      "项目 Bot 聊天可在输入栏切换模型，并通过加号打开本项目的 Bot 设置。"
+      "修复 iPhone 项目聊天因取消信号不兼容而中断头像与名称同步的问题，标题和回复同步显示已选头像。",
+      "项目 Bot 和群聊支持置顶、复制、清空、归档、恢复与删除；项目页可查看已归档聊天。",
+      "复用普通 Bot 的资料、设置、通知、语音、指令历史与导出；删除时可选择保留或删除记忆。"
     ],
     "zh-TW": [
-      "修復專案 Bot 及群聊成員遺失已選圖片頭像的問題，原本儲存的頭像無須重新選擇。",
-      "專案聊天使用一般聊天的頭像標題、回覆卡片與輸入列版面。",
-      "專案 Bot 聊天可在輸入列切換模型，並透過加號開啟本專案的 Bot 設定。"
+      "修復 iPhone 專案聊天因取消訊號不相容而中斷頭像與名稱同步的問題，標題和回覆同步顯示已選頭像。",
+      "專案 Bot 和群聊支援置頂、複製、清空、封存、還原與刪除；專案頁可查看已封存聊天。",
+      "重用一般 Bot 的資料、設定、通知、語音、指令歷史與匯出；刪除時可選擇保留或刪除記憶。"
     ],
     "en": [
-      "Fix selected picture avatars missing from project bots and group members. Previously saved avatars do not need to be selected again.",
-      "Project chats use the regular avatar title, reply cards, and composer layout.",
-      "Switch a project bot's model from the composer and open its project settings with the plus button."
+      "Fix iPhone cancellation signal compatibility interrupting project avatar and name sync. Headers and replies display the selected avatar.",
+      "Pin, duplicate, clear, archive, restore, and delete project bots and groups. Browse archived chats from the project page.",
+      "Reuse regular Bot profiles, settings, notifications, voice, instruction history, and export. Choose whether to retain memories when deleting a Bot."
     ]
   }
 }

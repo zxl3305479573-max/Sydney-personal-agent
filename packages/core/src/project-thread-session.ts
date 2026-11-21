@@ -20,10 +20,14 @@ export async function loadProjectBotIdentity(
   signal: AbortSignal,
 ) {
   let afterBotId: string | undefined;
+  const checkAborted = () => {
+    if (signal.aborted)
+      throw signal.reason ?? Object.assign(new Error("Request canceled"), { name: "AbortError" });
+  };
   do {
-    signal.throwIfAborted();
+    checkAborted();
     const page = await loadPage(afterBotId);
-    signal.throwIfAborted();
+    checkAborted();
     const bot = page.bots.find((entry) => entry.id === botId);
     if (bot) return { ...bot, botId: bot.id };
     afterBotId = page.nextBotId ?? undefined;

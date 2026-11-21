@@ -11,6 +11,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, I18nManager, Platform, ScrollView, Text, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotAvatar } from "../../../components/bot-avatar";
+import { BotActionsModal } from "../../../components/bot-actions-modal";
 import { ChatTitleContent } from "../../../components/chat-title-content";
 import { glassHeaderOptions } from "../../../components/glass-title";
 import { NativeActionButton } from "../../../components/native-action-button";
@@ -31,6 +32,8 @@ import {
 } from "../../../lib/thread-edges";
 import { threadKeyboardAvoidance } from "../../../lib/thread-keyboard-offset";
 import { useProjectChatDetails } from "../../../lib/use-project-chat-details";
+import { useProjectChatActions } from "../../../lib/use-project-chat-actions";
+import { useProjectReplyVoice } from "../../../lib/use-project-reply-voice";
 import type { ProjectChatTarget } from "../../../lib/use-project-thread";
 import { useProjectThread } from "../../../lib/use-project-thread";
 
@@ -86,13 +89,30 @@ function ProjectChat({
   const botId = "botId" in target ? target.botId : undefined;
   const groupId = "groupId" in target ? target.groupId : undefined;
   const details = useProjectChatDetails(projectId, botId, groupId, scope, enabled);
+  useProjectReplyVoice(details.bot, chat.snapshot, scope, enabled && Boolean(botId));
   const { projectName, botIdentity, groupIdentity, canEditBot } = details;
   const [dockHeight, setDockHeight] = useState(170);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const columnPadding = threadColumnPadding(
     { left: sideInsets.paddingLeft, right: sideInsets.paddingRight },
     I18nManager.isRTL,
   );
   const displayName = botIdentity?.name ?? groupIdentity?.name ?? (botId ? t("Bot") : t("Group"));
+  const identity = botIdentity ?? groupIdentity;
+  const archived = Boolean(identity?.archivedAt);
+  const actionMenu = useProjectChatActions({
+    projectId, scope, enabled: enabled && details.canManage,
+    target: { kind: botId ? "bot" : "group", id: botId ?? groupId!, name: displayName,
+      pinned: identity?.pinned, notifyOnFinish: botIdentity?.notifyOnFinish, archivedAt: identity?.archivedAt },
+    onChanged: (action) => {
+      if (action === "archive" || action === "remove")
+        router.dismissTo({ pathname: "/projects/[workspaceId]", params: { workspaceId: projectId, scope } });
+      else {
+        void details.refresh();
+        if (action === "clear" || action === "restore") chat.retry();
+      }
+    },
+  });
 
   const openBotSettings = () => {
     if (!enabled || !botId || scope !== projectScopeKey()) return;
@@ -101,7 +121,7 @@ function ProjectChat({
   const missing = chat.consent?.recipients.filter((recipient) => !recipient.allowed) ?? [];
   const errorStyle = { color: tokens.destructive, fontSize: 14 };
   const mutedStyle = { color: tokens.mutedForeground, fontSize: 13 };
-  const disabled = !enabled || !chat.snapshot || chat.sending || chat.consenting;
+  const disabled = !enabled || archived || !chat.snapshot || chat.sending || chat.consenting;
   const send = async () => {
     if (disabled || missing.length) return;
     const submitted = composerRef.current?.snapshot().promptText ?? "";
@@ -135,10 +155,10 @@ function ProjectChat({
                   groupId ? (groupIdentity?.members ?? chat.snapshot?.members ?? []) : undefined
                 }
                 accessibilityLabel={canEditBot ? t("Settings") : displayName}
-                onPress={enabled && botId && canEditBot ? openBotSettings : undefined}
+                onPress={enabled && botId && canEditBot ? details.canManage ? actionMenu.openProfile : openBotSettings : undefined}
               />
             ),
-            ...(enabled && botId && canEditBot
+            ...(enabled && (details.canManage || (botId && canEditBot))
               ? threadHeaderRight({
                   inGroup: false,
                   readOnly: false,
@@ -146,8 +166,8 @@ function ProjectChat({
                   t,
                   color: tokens.foreground,
                   onGroupSettings: openBotSettings,
-                  onBotActions: openBotSettings,
-                  menuActions: [{ text: t("Settings"), onPress: openBotSettings }],
+                  onBotActions: () => details.canManage ? setActionsOpen(true) : openBotSettings(),
+                  menuActions: details.canManage ? actionMenu.actions : [{ text: t("Settings"), onPress: openBotSettings }],
                 })
               : {}),
           }}
@@ -163,6 +183,7 @@ function ProjectChat({
             gap: 14,
           }}
         >
+          {archived ? <NativeActionButton label={t("Restore")} onPress={() => actionMenu.actions.find((action) => action.text === t("Restore"))?.onPress()} /> : null}
           {!enabled ? (
             <Text accessibilityRole="alert" style={errorStyle}>
               {text(
@@ -414,6 +435,7 @@ function ProjectChat({
             onSlashAction={() => {}}
           />
         </ThreadComposerDock>
+        {actionsOpen ? <BotActionsModal actions={actionMenu.actions} onClose={() => setActionsOpen(false)} /> : null}
       </View>
     </KeyboardAvoidingView>
   );

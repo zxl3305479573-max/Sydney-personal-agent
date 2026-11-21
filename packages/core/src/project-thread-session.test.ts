@@ -8,6 +8,25 @@ import {
 } from "./project-thread-session.js";
 
 describe("project Bot identity", () => {
+  it("loads identity with React Native signals that have no throwIfAborted method", async () => {
+    const signal = { aborted: false } as AbortSignal;
+    const bot = { id: "bot-native", name: "Native", color: "#123456", avatarSet: "rakazo" };
+    const load = vi.fn().mockResolvedValue({ bots: [bot], nextBotId: null });
+    await expect(loadProjectBotIdentity(bot.id, load, signal)).resolves.toEqual({
+      ...bot,
+      botId: bot.id,
+    });
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an already aborted React Native signal before issuing a roster request", async () => {
+    const load = vi.fn();
+    await expect(
+      loadProjectBotIdentity("bot-native", load, { aborted: true } as AbortSignal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it("loads the target beyond the first roster page and keeps its avatar metadata", async () => {
     const bot = { id: "bot-b", name: "Beta", color: "#123456", avatarSet: "rakazo" };
     const load = vi

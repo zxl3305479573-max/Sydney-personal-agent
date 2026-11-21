@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../../components/bot-avatar";
+import { BotActionsModal } from "../../components/bot-actions-modal";
 import { CreateBotModal } from "../../components/create-bot-modal";
 import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
@@ -34,6 +35,8 @@ import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native
 import { iosAtLeast } from "../../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ProjectActionTarget } from "../../lib/use-project-chat-actions";
+import { useProjectChatActions } from "../../lib/use-project-chat-actions";
 
 const PROJECT_SYNC_INTERVAL_MS = 15_000;
 
@@ -69,7 +72,15 @@ function ProjectContents({
   const sideInsets = useSideInsets();
   const router = useRouter();
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
-  const [roster, setRoster] = useState<RpcOutput<"projectWorkspaces/roster"> | null>(null);
+  type Roster = RpcOutput<"projectWorkspaces/roster">;
+  const [roster, setRoster] = useState<(Omit<Roster, "bots" | "groups"> & {
+    bots: (Roster["bots"][number] & Partial<ProjectActionTarget>)[];
+    groups: (Roster["groups"][number] & Partial<ProjectActionTarget>)[];
+  }) | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [menuTarget, setMenuTarget] = useState<ProjectActionTarget>();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [canRemove, setCanRemove] = useState(false);
@@ -89,6 +100,20 @@ function ProjectContents({
   const [groupCursors, setGroupCursors] = useState<string[]>([]);
   const afterBotId = botCursors.at(-1);
   const afterGroupId = groupCursors.at(-1);
+  const actionMenu = useProjectChatActions({
+    projectId: workspaceId ?? "", scope: scopeKey, target: menuTarget,
+    enabled: Boolean(workspaceId) && !scopeChanged && canManage,
+    onChanged: () => {
+      setMenuOpen(false);
+      setAttempt((old) => old + 1);
+    },
+  });
+  const showActions = (kind: "bot" | "group", id: string) => {
+    const target = kind === "bot" ? roster?.bots.find((bot) => bot.id === id) : roster?.groups.find((group) => group.id === id);
+    if (!target || !canManage) return;
+    setMenuTarget({ ...target, kind });
+    setMenuOpen(true);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -120,15 +145,6 @@ function ProjectContents({
             .catch(() => {
               if (current()) setCanRemove(false);
             });
-          void rpc("projectWorkspaces/conversationCapabilities", undefined, options)
-            .then((capabilities) => {
-              if (!current()) return;
-              setCanCreateBot(capabilities.createBot === true);
-              setCanChangeBotSettings(capabilities.botSettings === true);
-            })
-            .catch(() => {
-              if (current()) setCanCreateBot(false);
-            });
           void rpc("projectWorkspaces/groupCreationCapability", undefined, options)
             .then((capabilities) => {
               if (current()) setCanCreateGroup(capabilities.createGroup === true);
@@ -136,10 +152,18 @@ function ProjectContents({
             .catch(() => {
               if (current()) setCanCreateGroup(false);
             });
-          const [result, projectRoster] = await Promise.all([
+          const [result, capabilities] = await Promise.all([
             rpc("projectWorkspaces/get", { id: workspaceId }, options),
-            rpc("projectWorkspaces/roster", { id: workspaceId, afterBotId, afterGroupId }, options),
+            rpc("projectWorkspaces/conversationCapabilities", undefined, options).catch(() => null),
           ]);
+          if (!current()) return;
+          const manage = capabilities?.chatManagement === true;
+          setCanCreateBot(capabilities?.createBot === true);
+          setCanChangeBotSettings(capabilities?.botSettings === true);
+          setCanManage(manage);
+          const projectRoster = manage
+            ? { ...(await rpc("projectWorkspaces/conversations", { projectId: workspaceId, archived: showArchived }, options)), nextBotId: null, nextGroupId: null }
+            : await rpc("projectWorkspaces/roster", { id: workspaceId, afterBotId, afterGroupId }, options);
           if (current()) {
             setProject(result);
             setRoster(projectRoster);
@@ -166,7 +190,7 @@ function ProjectContents({
         clearInterval(timer);
         foreground.remove();
       };
-    }, [workspaceId, scopeKey, scopeChanged, attempt, afterBotId, afterGroupId]),
+    }, [workspaceId, scopeKey, scopeChanged, attempt, afterBotId, afterGroupId, showArchived]),
   );
 
   async function createProjectBot(identity: InboxBotIdentity) {
@@ -458,6 +482,11 @@ function ProjectContents({
               enabled={!scopeChanged}
             />
 
+            {canManage ? <NativeActionButton
+              label={text(showArchived ? "返回聊天列表" : "已归档的聊天", showArchived ? "Back to chats" : "Archived chats")}
+              prominence="secondary" fill={false}
+              onPress={() => { setMenuOpen(false); setMenuTarget(undefined); setRoster(null); setBotCursors([]); setGroupCursors([]); setShowArchived((old) => !old); }}
+            /> : null}
             {!roster ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 8 }}>
                 <ActivityIndicator color={tokens.mutedForeground} />
@@ -469,14 +498,14 @@ function ProjectContents({
               <>
                 <ProjectConversationSection
                   title={text("小伙伴", "Bots")}
-                  emptyLabel={text("暂无项目 Bot", "No project bots yet")}
+                  emptyLabel={showArchived ? text("暂无已归档的 Bot", "No archived bots") : text("暂无项目 Bot", "No project bots yet")}
                   action={text("新建 Bot", "New bot")}
                   kind="bot"
                   items={roster.bots}
-                  onSettings={canChangeBotSettings ? openBotSettings : undefined}
+                  onSettings={canManage ? (id) => showActions("bot", id) : canChangeBotSettings ? openBotSettings : undefined}
                   hasPrevious={botCursors.length > 0}
                   next={roster.nextBotId}
-                  actionEnabled={canCreateBot}
+                  actionEnabled={canCreateBot && !showArchived}
                   onAction={() => setCreatingBot(true)}
                   onOpen={canCreateBot ? (id) => openConversation("bot", id) : undefined}
                   onPrevious={() =>
@@ -488,13 +517,14 @@ function ProjectContents({
                 />
                 <ProjectConversationSection
                   title={text("群聊", "Group chats")}
-                  emptyLabel={text("暂无项目群聊", "No project group chats yet")}
+                  emptyLabel={showArchived ? text("暂无已归档的群聊", "No archived group chats") : text("暂无项目群聊", "No project group chats yet")}
                   action={text("新建群聊", "New group chat")}
                   kind="group"
                   items={roster.groups}
                   hasPrevious={groupCursors.length > 0}
                   next={roster.nextGroupId}
-                  actionEnabled={canCreateGroup}
+                  actionEnabled={canCreateGroup && !showArchived}
+                  onSettings={canManage ? (id) => showActions("group", id) : undefined}
                   onAction={() => setCreatingGroup(true)}
                   onOpen={canCreateGroup ? (id) => openConversation("group", id) : undefined}
                   onPrevious={() =>
@@ -536,6 +566,7 @@ function ProjectContents({
           </>
         )}
       </ScrollView>
+      {menuOpen ? <BotActionsModal actions={actionMenu.actions} onClose={() => setMenuOpen(false)} /> : null}
       {creatingBot ? (
         <CreateBotModal
           onClose={() => setCreatingBot(false)}
@@ -718,7 +749,7 @@ function ProjectConversationSection({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    locale.startsWith("zh") ? `设置 ${item.name}` : `Settings for ${item.name}`
+                    locale.startsWith("zh") ? `聊天操作 ${item.name}` : `Chat actions for ${item.name}`
                   }
                   onPress={() => onSettings(item.id)}
                   style={({ pressed }) => ({
@@ -731,8 +762,8 @@ function ProjectConversationSection({
                   })}
                 >
                   <NativeSymbol
-                    ios="gearshape"
-                    android="settings"
+                    ios="ellipsis"
+                    android="ellipsis-horizontal"
                     size={18}
                     color={tokens.mutedForeground}
                   />

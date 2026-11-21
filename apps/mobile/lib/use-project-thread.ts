@@ -108,7 +108,7 @@ export function useProjectThread(
             { ...(await requestOptions(signal)), timeoutMs: ARTIFACT_DOWNLOAD_TIMEOUT_MS },
           );
           const { shareDownloadedArtifact } = await import("./artifact-open");
-          signal.throwIfAborted();
+          if (signal.aborted) throw signal.reason ?? new Error("Request canceled");
           if (!current()) throw new Error("Project scope changed");
           await shareDownloadedArtifact(artifact);
         },

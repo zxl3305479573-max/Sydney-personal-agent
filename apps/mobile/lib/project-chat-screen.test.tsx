@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { act, useEffect, useImperativeHandle, useState } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
+import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtime = vi.hoisted(() => ({
@@ -17,6 +18,10 @@ const runtime = vi.hoisted(() => ({
   hook: vi.fn(),
   rpc: vi.fn(),
   push: vi.fn(),
+  dismiss: vi.fn(),
+  alert: vi.fn(),
+  speak: vi.fn(),
+  stopSpeaking: vi.fn(),
   t: (key: string, values?: Record<string, string>) =>
     key.replace(/\{(\w+)\}/g, (match, name: string) => values?.[name] ?? match),
 }));
@@ -39,7 +44,7 @@ vi.mock("expo-router", () => ({
     ),
   },
   useLocalSearchParams: () => runtime.params,
-  useRouter: () => ({ push: runtime.push }),
+  useRouter: () => ({ push: runtime.push, dismissTo: runtime.dismiss }),
   useFocusEffect: (callback: () => (() => void) | undefined) => useEffect(callback, [callback]),
 }));
 vi.mock("expo-router/react-navigation", () => ({ useHeaderHeight: () => 90 }));
@@ -47,6 +52,11 @@ vi.mock("react-native-keyboard-controller", () => ({
   KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("react-native", () => ({
+  Alert: { alert: runtime.alert },
+  Modal: ({ children }: { children: ReactNode }) => <div data-menu-modal>{children}</div>,
+  Pressable: ({ children, onPress, accessibilityLabel }: { children: ReactNode; onPress?: () => void; accessibilityLabel?: string }) => (
+    <button type="button" onClick={onPress} aria-label={accessibilityLabel}>{children}</button>
+  ),
   Platform: { OS: "ios" },
   I18nManager: { isRTL: false },
   AppState: { currentState: "active", addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
@@ -234,7 +244,9 @@ vi.mock("expo-secure-store", () => ({ getItemAsync: async () => null }));
 vi.mock("./native", () => ({
   useMobileTokens: () => ({ chatUser: "#112233", muted: "#445566" }),
 }));
-vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: runtime.t }) }));
+vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: runtime.t }), t: runtime.t }));
+vi.mock("./search-inbox", () => ({ removeFromSearchInbox: vi.fn() }));
+vi.mock("./voice", () => ({ speakWithDeviceVoice: runtime.speak, stopSpeaking: runtime.stopSpeaking }));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({ paddingLeft: 0, paddingRight: 0 }) }));
 vi.mock("./project-scope", () => ({
   projectScopeKey: () => runtime.scope,
@@ -265,6 +277,19 @@ describe("mobile project chat screen", () => {
         .find((button) => button.textContent === "发送")!
         .click();
     });
+  const press = (label: string) => act(async () => {
+    const button = Array.from(container.querySelectorAll("button")).find((entry) => entry.textContent === label);
+    expect(button, label).toBeDefined();
+    button!.click();
+  });
+  const enableManagement = () => {
+    const fallback = runtime.rpc.getMockImplementation()!;
+    runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === "projectWorkspaces/conversationCapabilities") return { botSettings: true, chatManagement: true };
+      if (method === "projectWorkspaces/conversationAction") return { ok: true };
+      return fallback(method, ...args);
+    });
+  };
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     runtime.scope = "account-a";
@@ -274,10 +299,10 @@ describe("mobile project chat screen", () => {
       if (method === "projectWorkspaces/roster")
         return {
           bots: [{ id: "bot-a", name: "Alpha", color: "#123456", avatarSet: "rakazo" }],
-          groups: [{ id: "group-a", name: "群聊名称", members: [] }],
-          nextBotId: null,
-          nextGroupId: null,
+          groups: [], nextBotId: null, nextGroupId: null,
         };
+      if (method === "projectWorkspaces/conversations")
+        return { bots: [], groups: [{ id: "group-a", name: "群聊名称", members: [], archivedAt: null }] };
       if (method === "projectWorkspaces/getBot")
         return {
           id: "bot-a",
@@ -285,6 +310,9 @@ describe("mobile project chat screen", () => {
           color: "#123456",
           modelProvider: "openai",
           modelId: "model-a",
+          pinned: false,
+          notifyOnFinish: true,
+          archivedAt: null,
         };
       if (method === "projectWorkspaces/updateBot")
         return { id: "bot-a", name: "Alpha", modelProvider: null, modelId: null };
@@ -293,6 +321,10 @@ describe("mobile project chat screen", () => {
       return { botSettings: true };
     });
     runtime.push.mockReset();
+    runtime.dismiss.mockReset();
+    runtime.alert.mockReset();
+    runtime.speak.mockReset().mockResolvedValue(true);
+    runtime.stopSpeaking.mockReset();
     chat = {
       snapshot: {
         threadId: "thread-a",
@@ -416,8 +448,7 @@ describe("mobile project chat screen", () => {
     const names = vi.fn().mockReturnValueOnce("项目一").mockReturnValue("项目二");
     runtime.rpc.mockImplementation(async (method: string) => {
       if (method === "projectWorkspaces/get") return { name: names() };
-      if (method === "projectWorkspaces/roster")
-        return { bots: [], groups: [], nextBotId: null, nextGroupId: null };
+      if (method === "projectWorkspaces/conversations") return { bots: [], groups: [] };
       return { botSettings: false };
     });
     vi.useFakeTimers();
@@ -474,16 +505,15 @@ describe("mobile project chat screen", () => {
   });
 
   it("preserves stored picture avatars in the shared header and bot reply after reopening", async () => {
+    const nativeRequire = createRequire(createRequire(import.meta.url).resolve("react-native/package.json"));
+    const { AbortController: NativeAbortController } = nativeRequire("abort-controller");
+    expect(new NativeAbortController().signal.throwIfAborted).toBeUndefined();
+    vi.stubGlobal("AbortController", NativeAbortController);
     const image = "data:image/png;base64,aW1hZ2U=";
     const fallback = runtime.rpc.getMockImplementation()!;
     runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
       if (method === "projectWorkspaces/roster")
-        return {
-          bots: [{ id: "bot-a", name: "Alpha", color: image, avatarSet: "rakazo" }],
-          groups: [],
-          nextBotId: null,
-          nextGroupId: null,
-        };
+        return { bots: [{ id: "bot-a", name: "Alpha", color: image, avatarSet: "rakazo" }], groups: [], nextBotId: null, nextGroupId: null };
       return fallback(method, ...args);
     });
     await render();
@@ -499,13 +529,87 @@ describe("mobile project chat screen", () => {
     );
   });
 
+  it("archives the current Bot from the ordinary actions menu and returns to its project", async () => {
+    enableManagement();
+    await render();
+    await press("Settings");
+    for (const label of ["Chat settings", "Pin", "Silence notifications", "Mark as unread", "Duplicate", "Clear conversation", "Archive", "Delete…"])
+      expect(container.textContent).toContain(label);
+    await press("Archive");
+    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
+      projectId: "project-a", botId: "bot-a", action: "archive", deleteMemories: false,
+    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    expect(runtime.dismiss).toHaveBeenCalledWith({ pathname: "/projects/[workspaceId]", params: { workspaceId: "project-a", scope: "account-a" } });
+  });
+
+  it.each([false, true])("deletes only after the selected memories confirmation (%s)", async (deleteMemories) => {
+    enableManagement();
+    await render();
+    await press("Settings");
+    await press("Delete…");
+    expect(runtime.rpc.mock.calls.some(([method]) => method === "projectWorkspaces/conversationAction")).toBe(false);
+    const choices = runtime.alert.mock.calls.at(-1)![2];
+    await act(async () => choices[deleteMemories ? 2 : 1].onPress());
+    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
+      projectId: "project-a", botId: "bot-a", action: "remove", deleteMemories,
+    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    expect(runtime.rpc.mock.calls.some(([method]) => method === "bots/remove")).toBe(false);
+  });
+
+  it("rejects a delayed delete confirmation after switching accounts", async () => {
+    enableManagement();
+    await render();
+    await press("Settings");
+    await press("Delete…");
+    const choices = runtime.alert.mock.calls.at(-1)![2];
+    runtime.scope = "account-b";
+    await render();
+    await act(async () => choices[2].onPress());
+    expect(runtime.rpc.mock.calls.some(([method]) => method === "projectWorkspaces/conversationAction")).toBe(false);
+  });
+
+  it("restores an archived Bot while keeping its composer disabled until refresh", async () => {
+    enableManagement();
+    const fallback = runtime.rpc.getMockImplementation()!;
+    let archived = true;
+    runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === "projectWorkspaces/roster") return { bots: [], nextBotId: null };
+      if (method === "projectWorkspaces/getBot") return { id: "bot-a", name: "Alpha", color: "#123456", archivedAt: archived ? "2026-11-21T00:00:00.000Z" : null };
+      if (method === "projectWorkspaces/conversationAction") { archived = false; return { ok: true }; }
+      return fallback(method, ...args);
+    });
+    await render();
+    expect(container.querySelector("input")?.disabled).toBe(true);
+    await press("Restore");
+    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
+      projectId: "project-a", botId: "bot-a", action: "restore", deleteMemories: false,
+    }, expect.any(Object));
+    expect(chat.retry).toHaveBeenCalled();
+    expect(container.querySelector("input")?.disabled).toBe(false);
+  });
+
+  it("opens project group settings and deletes groups without touching ordinary chats", async () => {
+    enableManagement();
+    runtime.params = { workspaceId: "project-a", groupId: "group-a", scope: "account-a" };
+    await render();
+    await press("Settings");
+    await press("Group settings");
+    expect(runtime.push).toHaveBeenCalledWith({ pathname: "/group-settings", params: { projectId: "project-a", groupId: "group-a", scope: "account-a" } });
+    await press("Settings");
+    await press("Delete…");
+    await act(async () => runtime.alert.mock.calls.at(-1)![2][1].onPress());
+    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
+      projectId: "project-a", groupId: "group-a", action: "remove", deleteMemories: false,
+    }, expect.any(Object));
+  });
+
   it("loads and saves the model through the project scope while retaining the draft", async () => {
     await render();
     await fill("keep this draft");
     expect(container.querySelector("[data-model-label]")?.textContent).toBe("model-a");
     expect(runtime.rpc).toHaveBeenCalledWith(
       "projectWorkspaces/getBot",
-      { projectId: "project-a", botId: "bot-a" },
+      { projectId: "project-a", botId: "bot-a", includeArchived: true },
       expect.any(Object),
     );
     await act(async () =>
@@ -531,6 +635,30 @@ describe("mobile project chat screen", () => {
       pathname: "/bot-settings",
       params: { projectId: "project-a", botId: "bot-a", scope: "account-a" },
     });
+  });
+
+  it("uses the selected on-device voice for a new finished project reply and skips old history", async () => {
+    const fallback = runtime.rpc.getMockImplementation()!;
+    runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
+      const result = await fallback(method, ...args);
+      return method === "projectWorkspaces/getBot" ? { ...result, autoSpeak: true } : result;
+    });
+    chat.snapshot = { ...(chat.snapshot as object), botId: "bot-a" };
+    await render();
+    expect(runtime.speak).not.toHaveBeenCalled();
+    const next = { id: "new-reply", role: "bot", blocks: [{ kind: "text", text: "New answer" }] };
+    chat.snapshot = { botId: "bot-a", threadId: "thread-a", messages: [next], run: { status: "running" } };
+    await render();
+    expect(runtime.speak).not.toHaveBeenCalled();
+    chat.snapshot = { ...(chat.snapshot as object), run: { status: "completed" } };
+    await render();
+    await act(async () => { await vi.dynamicImportSettled(); });
+    expect(runtime.speak).toHaveBeenCalledExactlyOnceWith("New answer", "bot-a", "new-reply", expect.any(Symbol));
+    await render();
+    expect(runtime.speak).toHaveBeenCalledTimes(1);
+    await act(async () => root.render(null));
+    await act(async () => { await vi.dynamicImportSettled(); });
+    expect(runtime.stopSpeaking).toHaveBeenCalledWith(expect.any(Symbol));
   });
 
   it("refreshes identity even when reading the project title fails", async () => {

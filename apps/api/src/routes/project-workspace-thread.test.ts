@@ -45,7 +45,7 @@ function fixture(enabled: boolean, rows: unknown[]) {
       capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler },
       list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler },
       createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
-      getBot: { handler }, updateBot: { handler },
+      getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
     } },
   } as unknown as RouterContext);
   return {

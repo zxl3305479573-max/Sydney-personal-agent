@@ -1,6 +1,6 @@
 import { useNavigation, useRoute, useRouter } from "expo-router";
 import { useLayoutEffect, useState } from "react";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { Alert } from "react-native";
 import type { MobileBot } from "../../lib/api";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
@@ -18,7 +18,7 @@ import { trailingHeaderOptions } from "../sheet-header";
 import { threadHeaderRight } from "../thread-header-right";
 import type { createThreadHeaderStyles } from "../thread-header-styles";
 
-type BotAction = { text: string; destructive?: boolean; onPress: () => void };
+export { BotActionsModal } from "../bot-actions-modal";
 
 /**
  * The chat's navigation header: its title, the bot's actions menu (or group settings), the
@@ -228,59 +228,4 @@ export function useThreadHeader({
   }
 
   return { botActions, botActionsOpen, closeBotActions: () => setBotActionsOpen(false) };
-}
-
-/** The bot's actions as a dialog, where the header has no native menu. */
-export function BotActionsModal({
-  actions,
-  onClose,
-}: {
-  actions: readonly BotAction[];
-  onClose: () => void;
-}) {
-  const tokens = mobileTokens();
-  const { t } = useI18n();
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          padding: 24,
-          backgroundColor: tokens.overlay,
-        }}
-      >
-        <Pressable
-          accessibilityLabel={t("Cancel")}
-          onPress={onClose}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        />
-        <View
-          accessibilityViewIsModal
-          style={{ backgroundColor: tokens.popover, borderRadius: 24, paddingVertical: 12 }}
-        >
-          {actions.map((action) => (
-            <Pressable
-              key={action.text}
-              accessibilityRole="button"
-              onPress={() => {
-                onClose();
-                action.onPress();
-              }}
-              style={{ minHeight: 56, justifyContent: "center", paddingHorizontal: 24 }}
-            >
-              <Text
-                style={{
-                  color: action.destructive ? tokens.destructive : tokens.popoverForeground,
-                  fontSize: 16,
-                }}
-              >
-                {action.text}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-    </Modal>
-  );
 }

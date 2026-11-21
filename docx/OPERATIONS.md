@@ -1,5 +1,11 @@
 # 运维手册
 
+## 项目聊天管理与 iPhone 1.0.21（2026-11-21）
+
+在生产固定镜像中编译 API 单入口，交付目录 `/srv/rakazo-releases/project-chat-20261121-1021`。覆盖八个源码及两个编译产物，替换 `1.0.20` 的旧挂载并保持只读。保留生产模型同意范围。只重建 API 与其画面回环桥，校验挂载和产物摘要、健康状态和迁移账本。数据库结构、Worker、文件绑定和原生底座沿用运行版本。变更前的 overlay 备份 `production.before.yml` 用于恢复 `1.0.20` 的 API；恢复后按原 Compose 项目及 env 重建上述两服务。人工回退演练待执行。
+
+手机沿用 `sideload`／`sydney-ios-ip-1`。发布后用「设置 → 检查更新」重启 App，并在「关于」核对 `1.0.21`。验证既有聊天和临时 Bot 的步骤见 [iPhone 验收](ACCEPTANCE.md#iphone-项目-bot-验收pa-021pa-022)。
+
 ## 项目头像后台补丁与 iPhone 1.0.20（2026-11-21）
 
 本次需同时交付后台名单头像与项目 Bot 设置接口，以及 iOS `sideload`／`sydney-ios-ip-1` 的 `1.0.20`。后台沿用生产固定镜像 `sha256:c96d99f5225c070881df3db541cda13a11060a02b6b8e33f7168e10d70ddd2e9` 与原有依赖、Prisma 结构和设备开关，不执行迁移、不更换 Worker。最小源码为 `project-workspace-read.ts`、contracts 的 `domain.ts`／`rpc.ts`／`project-workspace.ts`，以及 API 的 `routes/bots.ts`／`routes/project-workspaces.ts`。后者仅补 get／update／能力，保留生产 `uses: ["model"]`；不夹带其他候选的记忆同意或 router 变动。

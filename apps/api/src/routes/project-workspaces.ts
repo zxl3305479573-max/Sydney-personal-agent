@@ -20,12 +20,14 @@ import type { RouterContext } from "./context.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
 import { projectDirectoryRoutes } from "./project-directories.js";
 import { projectCloudDirectoryRoutes } from "./project-cloud-directories.js";
+import { projectChatManagementRoutes } from "./project-chat-management.js";
 
 export function projectWorkspaceRoutes(routerContext: RouterContext) {
   const { deps, authed, repos, groupRepos } = routerContext;
   const send = createThreadSender(routerContext);
   return {
     projectWorkspaces: {
+      ...projectChatManagementRoutes(routerContext),
       ...projectDirectoryRoutes(routerContext),
       ...projectCloudDirectoryRoutes(routerContext),
       capabilities: authed.projectWorkspaces.capabilities.handler(async () => ({
@@ -35,6 +37,7 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       conversationCapabilities: authed.projectWorkspaces.conversationCapabilities.handler(async () => ({
         createBot: deps.env?.projectConversationCreateExperiment === true,
         botSettings: deps.env?.projectConversationCreateExperiment === true,
+        chatManagement: deps.env?.projectConversationCreateExperiment === true,
       })),
       groupCreationCapability: authed.projectWorkspaces.groupCreationCapability.handler(async () => ({
         createGroup: deps.env?.projectConversationCreateExperiment === true,
@@ -95,7 +98,10 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const bot = (await repos.listBots(context.actor)).find(({ id }) => id === input.botId);
+          const bot = (await repos.listBots(context.actor)).find(({ id }) => id === input.botId)
+            ?? (input.includeArchived
+              ? (await repos.listBots(context.actor, { archived: true })).find(({ id }) => id === input.botId)
+              : undefined);
           if (!bot) throw new IsolationError();
           return bot;
         });

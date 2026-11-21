@@ -11,7 +11,7 @@ describe("project workspace creation gate", () => {
       authed: { projectWorkspaces: {
         directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
         cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-        getBot: { handler }, updateBot: { handler },
+        getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
         capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
       } },
     } as unknown as RouterContext);
@@ -39,6 +39,7 @@ describe("project workspace creation gate", () => {
           createBot: { handler },
           getBot: { handler },
           updateBot: { handler },
+          conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
           createGroup: { handler },
           threadSnapshot: { handler },
           sendText: { handler },
@@ -82,7 +83,7 @@ describe("project workspace creation gate", () => {
         projectWorkspaces: {
           directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
           cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-          getBot: { handler }, updateBot: { handler },
+          getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
           capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
         },
       },
@@ -108,7 +109,7 @@ describe("project workspace roster", () => {
         projectWorkspaces: {
           directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
           cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-          getBot: { handler }, updateBot: { handler },
+          getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
           capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
         },
       },
@@ -140,7 +141,7 @@ describe("project conversation creation experiment", () => {
       authed: { projectWorkspaces: {
         directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
         cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-        getBot: { handler }, updateBot: { handler },
+        getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
         capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler },
         create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
       } },
@@ -152,7 +153,7 @@ describe("project conversation creation experiment", () => {
     const { routes } = routesFor(enabled, []);
     const call = routes.projectWorkspaces.conversationCapabilities as unknown as () => Promise<unknown>;
     const groupCall = routes.projectWorkspaces.groupCreationCapability as unknown as () => Promise<unknown>;
-    await expect(call()).resolves.toEqual({ createBot: enabled, botSettings: enabled });
+    await expect(call()).resolves.toEqual({ createBot: enabled, botSettings: enabled, chatManagement: enabled });
     await expect(groupCall()).resolves.toEqual({ createGroup: enabled });
   });
 

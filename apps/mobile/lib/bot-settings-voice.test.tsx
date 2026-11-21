@@ -78,6 +78,9 @@ vi.mock("./api", () => ({
   selectedSpaceId: () => "space-a",
   rpc: async (procedure: string, input?: unknown, options?: unknown) => {
     if (procedure === "projectWorkspaces/updateBot") return mocks.rpc(procedure, input, options);
+    if (procedure === "projectWorkspaces/botContext") return { work: mocks.work, docs: mocks.docs };
+    if (procedure === "projectWorkspaces/botContextAction")
+      return mocks.rpc(procedure, input, options);
     if (
       [
         "bots/update",
@@ -571,10 +574,10 @@ describe("bot settings device voice menu", () => {
     await render();
     expect(mocks.rpc).toHaveBeenCalledWith(
       "projectWorkspaces/getBot",
-      { projectId: "project-fixture", botId: "bot-fixture" },
+      { projectId: "project-fixture", botId: "bot-fixture", includeArchived: true },
       { skipSpaceAuthRecovery: true },
     );
-    expect(menu()).toBeNull();
+    expect(menu()).not.toBeNull();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );

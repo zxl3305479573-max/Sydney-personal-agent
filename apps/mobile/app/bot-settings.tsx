@@ -231,7 +231,7 @@ function BotSettingsScreen({
     if (!botId) return;
     const load = async () =>
       projectId && scope !== undefined
-        ? rpc("projectWorkspaces/getBot", { projectId, botId }, await projectRequestOptions(scope))
+        ? rpc("projectWorkspaces/getBot", { projectId, botId, includeArchived: true }, await projectRequestOptions(scope))
         : rpc("bots/get", { botId });
     let active = true;
     void load()
@@ -364,7 +364,7 @@ function BotSettingsScreen({
       let current = true;
       void loadDeviceVoiceEnabled()
         .then((enabled) => {
-          if (current) setDeviceVoiceEnabled(enabled);
+          if (current) setDeviceVoiceEnabled(Boolean(projectId) || enabled);
         })
         .catch(() => {
           if (current) setDeviceVoiceEnabled(false);
@@ -372,11 +372,11 @@ function BotSettingsScreen({
       return () => {
         current = false;
       };
-    }, []),
+    }, [projectId]),
   );
 
   useEffect(() => {
-    if (!botId || !deviceVoiceEnabled || projectId) return;
+    if (!botId || !deviceVoiceEnabled) return;
     let current = true;
     void Promise.all([deviceVoices(), voiceForBot(botId)])
       .then(([available, assigned]) => {
@@ -493,7 +493,7 @@ function BotSettingsScreen({
           ? ((thinkingLevel || null) as ThinkingLevel | null)
           : null;
       }
-      if (!projectId && autoSpeak !== bot.autoSpeak) input.autoSpeak = autoSpeak;
+      if (autoSpeak !== bot.autoSpeak) input.autoSpeak = autoSpeak;
       if (!projectId && computerMode !== bot.computerMode) {
         await rpc(
           "bots/setComputer",
@@ -657,7 +657,7 @@ function BotSettingsScreen({
             </View>
           </SettingsGroup>
         </View>
-        {botId && !projectId ? <BotContextCards key={botId} botId={botId} /> : null}
+        {botId ? <BotContextCards key={botId} botId={botId} projectId={projectId} scope={scope} /> : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("Advanced")}
@@ -719,12 +719,12 @@ function BotSettingsScreen({
               </Text>
             ) : null}
 
-            {!projectId ? (
-              <>
+                {!projectId ? (
                 <SettingsGroup label={t("Computer")}>
                   <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
                 </SettingsGroup>
-                <SettingsGroup label={t("Voice")}>
+                ) : null}
+                <SettingsGroup label={t(projectId ? "Device voice" : "Voice")}>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
                       {t("Read replies aloud")}
@@ -750,7 +750,7 @@ function BotSettingsScreen({
                     )
                   ) : null}
                 </SettingsGroup>
-                <SettingsGroup label={t("Permissions")}>
+                {!projectId ? <SettingsGroup label={t("Permissions")}>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
                       {t("Daily check-ins on unfinished work")}
@@ -793,9 +793,7 @@ function BotSettingsScreen({
                       value={fleetManagement}
                     />
                   </View>
-                </SettingsGroup>
-              </>
-            ) : null}
+                </SettingsGroup> : null}
             <View>
               <View
                 style={{
@@ -807,7 +805,7 @@ function BotSettingsScreen({
                 }}
               >
                 <SettingsSectionHeading>{t("Instructions")}</SettingsSectionHeading>
-                {!projectId && bot?.instructionHistory?.length && instructions === bot.instructions ? (
+                {bot?.instructionHistory?.length && instructions === bot.instructions ? (
                   <View style={{ width: 44 }}>
                     <MenuPickerMenu
                       label={t("Instruction history")}
@@ -827,11 +825,14 @@ function BotSettingsScreen({
                             {
                               text: t("Restore"),
                               onPress: () => {
-                                void rpc("bots/restoreInstructions", {
+                                const restore = {
                                   botId: bot.id,
                                   versionId,
                                   expectedInstructions: bot.instructions,
-                                })
+                                };
+                                void (projectId && scope !== undefined
+                                  ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/restoreBotInstructions", { projectId, ...restore }, options))
+                                  : rpc("bots/restoreInstructions", restore))
                                   .then((updated) => {
                                     setBot(updated);
                                     setInstructions(updated.instructions ?? "");
@@ -882,7 +883,6 @@ function BotSettingsScreen({
                 inset={0}
               />
             </SettingsGroup>
-            {!projectId ? (
               <GlassSurface
                 shape="roundedRectangle"
                 cornerRadius={12}
@@ -894,7 +894,9 @@ function BotSettingsScreen({
                   accessibilityLabel={t("Export")}
                   style={styles.row}
                   onPress={() => {
-                    void rpc("export/bot", { botId })
+                    void (projectId && scope !== undefined
+                      ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/exportBot", { projectId, botId }, options))
+                      : rpc("export/bot", { botId }))
                       .then((manifest) => Share.share({ message: JSON.stringify(manifest, null, 2) }))
                       .catch((err) => setError(errorText(err)));
                   }}
@@ -921,7 +923,9 @@ function BotSettingsScreen({
                         text: t("Clear conversation"),
                         style: "destructive",
                         onPress: () => {
-                          void rpc("threads/clear", { botId })
+                          void (projectId && scope !== undefined
+                            ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/conversationAction", { projectId, botId, action: "clear", deleteMemories: false }, options))
+                            : rpc("threads/clear", { botId }))
                             .then(() => router.back())
                             .catch((err) => setError(errorText(err)));
                         },
@@ -934,7 +938,6 @@ function BotSettingsScreen({
                   </Text>
                 </Pressable>
               </GlassSurface>
-            ) : null}
           </View>
         ) : null}
         {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}
