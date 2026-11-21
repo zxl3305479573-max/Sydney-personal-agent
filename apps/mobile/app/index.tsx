@@ -92,6 +92,7 @@ import {
 } from "../lib/session";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { useSplitView } from "../lib/split-view";
+import { threadSessionCache } from "../lib/thread-session-cache";
 import { UiModeScreenHost } from "../lib/ui-mode-slots";
 import { useArchivedCount } from "../lib/use-archived-count";
 import { useCollapsedSections } from "../lib/use-collapsed-sections";
@@ -192,6 +193,10 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const [spaceBusy, setSpaceBusy] = useState(false);
   const [spaceRecoveryId, setSpaceRecoveryId] = useState<string | null>(null);
   const userId = me?.userId;
+  const threadRevision = useSyncExternalStore(
+    threadSessionCache.subscribe,
+    threadSessionCache.getRevision,
+  );
   const { collapsed, toggleCollapsed, loaded: collapsedLoaded } = useCollapsedSections(userId);
   // Collapsed sections load before the inbox first renders, so they don't fold on launch.
   const ready = sessionLoaded && collapsedLoaded;
@@ -234,6 +239,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     const requestId = ++inboxRequestId.current;
     const apiBase = currentApiBase();
     const generation = currentSessionGeneration();
+    const requestThreadRevision = threadSessionCache.getRequestRevision();
     setError(null);
     setInboxLoading(true);
     try {
@@ -273,6 +279,21 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
       setGroups((current) => retainInboxValue(current, navigation.current.groups));
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
+      for (const space of navigation.spaces) {
+        threadSessionCache.reconcileRoster(
+          { apiBase, sessionGeneration: generation, userId: nextMe.userId, spaceId: space.id },
+          requestThreadRevision,
+        );
+      }
+      threadSessionCache.reconcileRoster(
+        {
+          apiBase,
+          sessionGeneration: generation,
+          userId: nextMe.userId,
+          spaceId: navigation.current.id,
+        },
+        requestThreadRevision,
+      );
       if (nextMe.spaceId === selectedSpaceId()) {
         queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
       }
@@ -468,7 +489,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           })),
     [spaces, archiving, pinOverrides, generation],
   );
-  const inboxSpaces = useMemo(
+  const rosterSpaces = useMemo<InboxSpace[]>(
     () =>
       shownSpaces.length > 0
         ? shownSpaces.map((space) =>
@@ -491,6 +512,27 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           : [],
     [shownSpaces, me, visible, visibleGroups, botSections, t, locale],
   );
+  const inboxSpaces = useMemo(
+    () =>
+      rosterSpaces.map((space) => ({
+        ...space,
+        bots: space.bots.map((bot) => {
+          if (!userId) return bot;
+          const status = threadSessionCache.botStatus(
+            {
+              apiBase: currentApiBase(),
+              sessionGeneration: generation,
+              userId,
+              spaceId: space.id,
+            },
+            bot.id,
+            bot.status,
+          );
+          return status === bot.status ? bot : { ...bot, status };
+        }),
+      })),
+    [rosterSpaces, userId, generation, threadRevision],
+  );
   usePublishSearchInbox(inboxSpaces, me !== null);
   const listData = useMemo((): InboxItem[] => {
     // Only bot threads support importing shares; use the same rows for every target.
@@ -501,12 +543,17 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           .map((space) => ({ ...space, groups: [] })),
         collapsed,
       );
-    const otherSpaces = shownSpaces.filter((space) => space.id !== me?.spaceId);
+    const pinnedSpaces = [
+      ...inboxSpaces.filter((space) => space.id === me?.spaceId),
+      ...inboxSpaces.filter((space) => space.id !== me?.spaceId),
+    ];
     const pinned: PinnedChat[] = [
-      ...[...visible, ...otherSpaces.flatMap((space) => space.bots)]
+      ...pinnedSpaces
+        .flatMap((space) => space.bots)
         .filter((bot) => bot.pinned)
         .map((bot) => ({ kind: "bot" as const, bot })),
-      ...[...visibleGroups, ...otherSpaces.flatMap((space) => space.groups)]
+      ...pinnedSpaces
+        .flatMap((space) => space.groups)
         .filter((group) => group.pinned)
         .map((group) => ({ kind: "group" as const, group })),
     ];
@@ -517,16 +564,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     }));
     const items: InboxItem[] = spaceInboxItems(sidebarSpaces, collapsed, me?.spaceId);
     return pinned.length > 0 ? [{ type: "pinned", chats: pinned }, ...items] : items;
-  }, [
-    inboxSpaces,
-    collapsed,
-    me?.spaceId,
-    shownSpaces,
-    visible,
-    visibleGroups,
-    locale,
-    onShareSelect,
-  ]);
+  }, [inboxSpaces, collapsed, me?.spaceId, locale, onShareSelect]);
   const badgeCount = me ? unreadChatCount(inboxSpaces) : null;
   useEffect(() => {
     if (badgeCount === null || badgeLoad === null) return;

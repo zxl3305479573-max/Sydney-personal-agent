@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
 import {
   captureApiRequestContext,
+  currentApiBase,
   isSpaceSelectionPending,
   rpc,
   selectedSpaceId,
@@ -178,7 +179,17 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     : botId
       ? { botId }
       : undefined;
-  const history = useThreadSnapshot();
+  const history = useThreadSnapshot({
+    scope: {
+      apiBase: currentApiBase(),
+      sessionGeneration: currentSessionGeneration(),
+      userId,
+      spaceId: selectedSpaceId() ?? "",
+    },
+    botId,
+    groupId,
+    messageId,
+  });
   const { snap, composingBots, showingSaved } = history;
   const [agentSkills, setAgentSkills] = useState<AgentSkillCatalogEntry[]>([]);
   const modelSaving = useRef(false);
@@ -658,13 +669,13 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   });
 
   const workingBots =
-    !inGroup && currentBot && isRunWorking(currentBotStatus) && !hasLiveProgress
+    !inGroup && titleBot && isRunWorking(currentBotStatus) && !hasLiveProgress
       ? [
           {
-            id: currentBot.id,
-            name: currentBot.name,
-            color: currentBot.color,
-            avatarSet: currentBot.avatarSet,
+            id: titleBot.id,
+            name: titleBot.name,
+            color: titleBot.color,
+            avatarSet: titleBot.avatarSet,
             status: currentBotStatus,
           },
         ]

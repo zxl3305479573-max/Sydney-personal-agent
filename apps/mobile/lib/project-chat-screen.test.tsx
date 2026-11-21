@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
+
+import { createRequire } from "node:module";
 import type { ComponentProps, ReactNode } from "react";
 import { act, useEffect, useImperativeHandle, useState } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
-import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { queryClient } from "./query-client";
 
 const runtime = vi.hoisted(() => ({
   scope: "account-a",
@@ -54,8 +56,18 @@ vi.mock("react-native-keyboard-controller", () => ({
 vi.mock("react-native", () => ({
   Alert: { alert: runtime.alert },
   Modal: ({ children }: { children: ReactNode }) => <div data-menu-modal>{children}</div>,
-  Pressable: ({ children, onPress, accessibilityLabel }: { children: ReactNode; onPress?: () => void; accessibilityLabel?: string }) => (
-    <button type="button" onClick={onPress} aria-label={accessibilityLabel}>{children}</button>
+  Pressable: ({
+    children,
+    onPress,
+    accessibilityLabel,
+  }: {
+    children: ReactNode;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+  }) => (
+    <button type="button" onClick={onPress} aria-label={accessibilityLabel}>
+      {children}
+    </button>
   ),
   Platform: { OS: "ios" },
   I18nManager: { isRTL: false },
@@ -246,7 +258,10 @@ vi.mock("./native", () => ({
 }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: runtime.t }), t: runtime.t }));
 vi.mock("./search-inbox", () => ({ removeFromSearchInbox: vi.fn() }));
-vi.mock("./voice", () => ({ speakWithDeviceVoice: runtime.speak, stopSpeaking: runtime.stopSpeaking }));
+vi.mock("./voice", () => ({
+  speakWithDeviceVoice: runtime.speak,
+  stopSpeaking: runtime.stopSpeaking,
+}));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({ paddingLeft: 0, paddingRight: 0 }) }));
 vi.mock("./project-scope", () => ({
   projectScopeKey: () => runtime.scope,
@@ -277,15 +292,19 @@ describe("mobile project chat screen", () => {
         .find((button) => button.textContent === "发送")!
         .click();
     });
-  const press = (label: string) => act(async () => {
-    const button = Array.from(container.querySelectorAll("button")).find((entry) => entry.textContent === label);
-    expect(button, label).toBeDefined();
-    button!.click();
-  });
+  const press = (label: string) =>
+    act(async () => {
+      const button = Array.from(container.querySelectorAll("button")).find(
+        (entry) => entry.textContent === label,
+      );
+      expect(button, label).toBeDefined();
+      button!.click();
+    });
   const enableManagement = () => {
     const fallback = runtime.rpc.getMockImplementation()!;
     runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
-      if (method === "projectWorkspaces/conversationCapabilities") return { botSettings: true, chatManagement: true };
+      if (method === "projectWorkspaces/conversationCapabilities")
+        return { botSettings: true, chatManagement: true };
       if (method === "projectWorkspaces/conversationAction") return { ok: true };
       return fallback(method, ...args);
     });
@@ -299,10 +318,15 @@ describe("mobile project chat screen", () => {
       if (method === "projectWorkspaces/roster")
         return {
           bots: [{ id: "bot-a", name: "Alpha", color: "#123456", avatarSet: "rakazo" }],
-          groups: [], nextBotId: null, nextGroupId: null,
+          groups: [],
+          nextBotId: null,
+          nextGroupId: null,
         };
       if (method === "projectWorkspaces/conversations")
-        return { bots: [], groups: [{ id: "group-a", name: "群聊名称", members: [], archivedAt: null }] };
+        return {
+          bots: [],
+          groups: [{ id: "group-a", name: "群聊名称", members: [], archivedAt: null }],
+        };
       if (method === "projectWorkspaces/getBot")
         return {
           id: "bot-a",
@@ -361,6 +385,7 @@ describe("mobile project chat screen", () => {
   });
   afterEach(async () => {
     await act(async () => root.unmount());
+    queryClient.clear();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -504,8 +529,20 @@ describe("mobile project chat screen", () => {
     expect(avatar?.getAttribute("data-activity")).toBe("idle");
   });
 
+  it("restores the chat identity and project title before the next details request returns", async () => {
+    await render();
+    expect(container.querySelector("header")?.textContent).toContain("Alpha");
+    await act(async () => root.render(null));
+    runtime.rpc.mockImplementation(() => new Promise(() => {}));
+    await render();
+    expect(container.querySelector("header")?.textContent).toContain("Alpha");
+    expect(container.querySelector("header")?.getAttribute("data-project-name")).toBe("设计工作区");
+  });
+
   it("preserves stored picture avatars in the shared header and bot reply after reopening", async () => {
-    const nativeRequire = createRequire(createRequire(import.meta.url).resolve("react-native/package.json"));
+    const nativeRequire = createRequire(
+      createRequire(import.meta.url).resolve("react-native/package.json"),
+    );
     const { AbortController: NativeAbortController } = nativeRequire("abort-controller");
     expect(new NativeAbortController().signal.throwIfAborted).toBeUndefined();
     vi.stubGlobal("AbortController", NativeAbortController);
@@ -513,7 +550,12 @@ describe("mobile project chat screen", () => {
     const fallback = runtime.rpc.getMockImplementation()!;
     runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
       if (method === "projectWorkspaces/roster")
-        return { bots: [{ id: "bot-a", name: "Alpha", color: image, avatarSet: "rakazo" }], groups: [], nextBotId: null, nextGroupId: null };
+        return {
+          bots: [{ id: "bot-a", name: "Alpha", color: image, avatarSet: "rakazo" }],
+          groups: [],
+          nextBotId: null,
+          nextGroupId: null,
+        };
       return fallback(method, ...args);
     });
     await render();
@@ -533,28 +575,61 @@ describe("mobile project chat screen", () => {
     enableManagement();
     await render();
     await press("Settings");
-    for (const label of ["Chat settings", "Pin", "Silence notifications", "Mark as unread", "Duplicate", "Clear conversation", "Archive", "Delete…"])
+    for (const label of [
+      "Chat settings",
+      "Pin",
+      "Silence notifications",
+      "Mark as unread",
+      "Duplicate",
+      "Clear conversation",
+      "Archive",
+      "Delete…",
+    ])
       expect(container.textContent).toContain(label);
     await press("Archive");
-    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
-      projectId: "project-a", botId: "bot-a", action: "archive", deleteMemories: false,
-    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
-    expect(runtime.dismiss).toHaveBeenCalledWith({ pathname: "/projects/[workspaceId]", params: { workspaceId: "project-a", scope: "account-a" } });
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/conversationAction",
+      {
+        projectId: "project-a",
+        botId: "bot-a",
+        action: "archive",
+        deleteMemories: false,
+      },
+      expect.objectContaining({ skipSpaceAuthRecovery: true }),
+    );
+    expect(runtime.dismiss).toHaveBeenCalledWith({
+      pathname: "/projects/[workspaceId]",
+      params: { workspaceId: "project-a", scope: "account-a" },
+    });
   });
 
-  it.each([false, true])("deletes only after the selected memories confirmation (%s)", async (deleteMemories) => {
-    enableManagement();
-    await render();
-    await press("Settings");
-    await press("Delete…");
-    expect(runtime.rpc.mock.calls.some(([method]) => method === "projectWorkspaces/conversationAction")).toBe(false);
-    const choices = runtime.alert.mock.calls.at(-1)![2];
-    await act(async () => choices[deleteMemories ? 2 : 1].onPress());
-    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
-      projectId: "project-a", botId: "bot-a", action: "remove", deleteMemories,
-    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
-    expect(runtime.rpc.mock.calls.some(([method]) => method === "bots/remove")).toBe(false);
-  });
+  it.each([false, true])(
+    "deletes only after the selected memories confirmation (%s)",
+    async (deleteMemories) => {
+      enableManagement();
+      await render();
+      await press("Settings");
+      await press("Delete…");
+      expect(
+        runtime.rpc.mock.calls.some(
+          ([method]) => method === "projectWorkspaces/conversationAction",
+        ),
+      ).toBe(false);
+      const choices = runtime.alert.mock.calls.at(-1)![2];
+      await act(async () => choices[deleteMemories ? 2 : 1].onPress());
+      expect(runtime.rpc).toHaveBeenCalledWith(
+        "projectWorkspaces/conversationAction",
+        {
+          projectId: "project-a",
+          botId: "bot-a",
+          action: "remove",
+          deleteMemories,
+        },
+        expect.objectContaining({ skipSpaceAuthRecovery: true }),
+      );
+      expect(runtime.rpc.mock.calls.some(([method]) => method === "bots/remove")).toBe(false);
+    },
+  );
 
   it("rejects a delayed delete confirmation after switching accounts", async () => {
     enableManagement();
@@ -565,7 +640,9 @@ describe("mobile project chat screen", () => {
     runtime.scope = "account-b";
     await render();
     await act(async () => choices[2].onPress());
-    expect(runtime.rpc.mock.calls.some(([method]) => method === "projectWorkspaces/conversationAction")).toBe(false);
+    expect(
+      runtime.rpc.mock.calls.some(([method]) => method === "projectWorkspaces/conversationAction"),
+    ).toBe(false);
   });
 
   it("restores an archived Bot while keeping its composer disabled until refresh", async () => {
@@ -574,16 +651,32 @@ describe("mobile project chat screen", () => {
     let archived = true;
     runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
       if (method === "projectWorkspaces/roster") return { bots: [], nextBotId: null };
-      if (method === "projectWorkspaces/getBot") return { id: "bot-a", name: "Alpha", color: "#123456", archivedAt: archived ? "2026-11-21T00:00:00.000Z" : null };
-      if (method === "projectWorkspaces/conversationAction") { archived = false; return { ok: true }; }
+      if (method === "projectWorkspaces/getBot")
+        return {
+          id: "bot-a",
+          name: "Alpha",
+          color: "#123456",
+          archivedAt: archived ? "2026-11-21T00:00:00.000Z" : null,
+        };
+      if (method === "projectWorkspaces/conversationAction") {
+        archived = false;
+        return { ok: true };
+      }
       return fallback(method, ...args);
     });
     await render();
     expect(container.querySelector("input")?.disabled).toBe(true);
     await press("Restore");
-    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
-      projectId: "project-a", botId: "bot-a", action: "restore", deleteMemories: false,
-    }, expect.any(Object));
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/conversationAction",
+      {
+        projectId: "project-a",
+        botId: "bot-a",
+        action: "restore",
+        deleteMemories: false,
+      },
+      expect.any(Object),
+    );
     expect(chat.retry).toHaveBeenCalled();
     expect(container.querySelector("input")?.disabled).toBe(false);
   });
@@ -594,13 +687,23 @@ describe("mobile project chat screen", () => {
     await render();
     await press("Settings");
     await press("Group settings");
-    expect(runtime.push).toHaveBeenCalledWith({ pathname: "/group-settings", params: { projectId: "project-a", groupId: "group-a", scope: "account-a" } });
+    expect(runtime.push).toHaveBeenCalledWith({
+      pathname: "/group-settings",
+      params: { projectId: "project-a", groupId: "group-a", scope: "account-a" },
+    });
     await press("Settings");
     await press("Delete…");
     await act(async () => runtime.alert.mock.calls.at(-1)![2][1].onPress());
-    expect(runtime.rpc).toHaveBeenCalledWith("projectWorkspaces/conversationAction", {
-      projectId: "project-a", groupId: "group-a", action: "remove", deleteMemories: false,
-    }, expect.any(Object));
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/conversationAction",
+      {
+        projectId: "project-a",
+        groupId: "group-a",
+        action: "remove",
+        deleteMemories: false,
+      },
+      expect.any(Object),
+    );
   });
 
   it("loads and saves the model through the project scope while retaining the draft", async () => {
@@ -647,17 +750,31 @@ describe("mobile project chat screen", () => {
     await render();
     expect(runtime.speak).not.toHaveBeenCalled();
     const next = { id: "new-reply", role: "bot", blocks: [{ kind: "text", text: "New answer" }] };
-    chat.snapshot = { botId: "bot-a", threadId: "thread-a", messages: [next], run: { status: "running" } };
+    chat.snapshot = {
+      botId: "bot-a",
+      threadId: "thread-a",
+      messages: [next],
+      run: { status: "running" },
+    };
     await render();
     expect(runtime.speak).not.toHaveBeenCalled();
     chat.snapshot = { ...(chat.snapshot as object), run: { status: "completed" } };
     await render();
-    await act(async () => { await vi.dynamicImportSettled(); });
-    expect(runtime.speak).toHaveBeenCalledExactlyOnceWith("New answer", "bot-a", "new-reply", expect.any(Symbol));
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    expect(runtime.speak).toHaveBeenCalledExactlyOnceWith(
+      "New answer",
+      "bot-a",
+      "new-reply",
+      expect.any(Symbol),
+    );
     await render();
     expect(runtime.speak).toHaveBeenCalledTimes(1);
     await act(async () => root.render(null));
-    await act(async () => { await vi.dynamicImportSettled(); });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
     expect(runtime.stopSpeaking).toHaveBeenCalledWith(expect.any(Symbol));
   });
 

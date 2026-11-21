@@ -9,6 +9,7 @@ import type {
   GithubSearchReposOutput,
 } from "@rakazo/contracts";
 import { GithubConnectInputSchema } from "@rakazo/contracts";
+import { isRetryableError } from "@rakazo/core";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "./api";
@@ -18,6 +19,7 @@ import {
   readGithubConnectionCache,
   writeGithubConnectionCache,
 } from "./integrations-cache";
+import { clearPageState, usePageState } from "./page-state";
 import { projectScopeKey } from "./project-scope";
 import { queryClient } from "./query";
 import { errorText } from "./user-error";
@@ -39,29 +41,72 @@ type GithubHomeSnapshot = {
 
 export function useGithub(scopeKey: string) {
   const homeKey = useMemo(() => ["github-home", scopeKey], [scopeKey]);
-  const [section, setSection] = useState<GithubSection>("profile");
+  const [section, setSection] = usePageState<GithubSection>(
+    scopeKey,
+    ["github-view", "section"],
+    "profile",
+  );
   const [status, setStatus] = useState<GithubConnectionStatus | null>(
     () => queryClient.getQueryData<GithubHomeSnapshot>(homeKey)?.status ?? null,
   );
-  const [overview, setOverview] = useState<GithubProfileOverview | null>(
-    () => queryClient.getQueryData<GithubHomeSnapshot>(homeKey)?.overview ?? null,
+  const [selectedRepo, setSelectedRepo] = usePageState<GithubRepoSummary | null>(
+    scopeKey,
+    ["github-view", "selectedRepo"],
+    null,
   );
-  const [repositories, setRepositories] = useState<GithubRepoPage | null>(null);
-  const [search, setSearch] = useState<GithubSearchReposOutput | null>(null);
-  const [detail, setDetail] = useState<GithubRepoDetail | null>(null);
-  const [selectedRepo, setSelectedRepo] = useState<GithubRepoSummary | null>(null);
-  const [year, setYear] = useState<number | undefined>();
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [hidePrivate, setHidePrivateValue] = useState(false);
-  const [repositoryFilters, setRepositoryFilters] = useState<GithubRepositoryFilters>({
-    affiliation: "all",
-    visibility: "all",
-    sort: "pushed",
-  });
-  const [exploreFilters, setExploreFilters] = useState<GithubExploreFilters>({
-    sort: "best-match",
-  });
+  const [year, setYear] = usePageState<number | undefined>(
+    scopeKey,
+    ["github-view", "year"],
+    undefined,
+  );
+  const [query, setQuery] = usePageState(scopeKey, ["github-view", "query"], "");
+  const [page, setPage] = usePageState(scopeKey, ["github-view", "page"], 1);
+  const [hidePrivate, setHidePrivateValue] = usePageState(
+    scopeKey,
+    ["github-view", "hidePrivate"],
+    false,
+  );
+  const [repositoryFilters, setRepositoryFilters] = usePageState<GithubRepositoryFilters>(
+    scopeKey,
+    ["github-view", "repositoryFilters"],
+    {
+      affiliation: "all",
+      visibility: "all",
+      sort: "pushed",
+    },
+  );
+  const [exploreFilters, setExploreFilters] = usePageState<GithubExploreFilters>(
+    scopeKey,
+    ["github-view", "exploreFilters"],
+    {
+      sort: "best-match",
+    },
+  );
+  const [overview, setOverview] = usePageState<GithubProfileOverview | null>(
+    scopeKey,
+    ["github-content", "profile", year],
+    year === undefined
+      ? (queryClient.getQueryData<GithubHomeSnapshot>(homeKey)?.overview ?? null)
+      : null,
+    true,
+  );
+  const [repositories, setRepositories] = usePageState<GithubRepoPage | null>(
+    scopeKey,
+    ["github-content", "repositories", query, page, hidePrivate, repositoryFilters],
+    null,
+    true,
+  );
+  const [search, setSearch] = usePageState<GithubSearchReposOutput | null>(
+    scopeKey,
+    ["github-content", "explore", query, page, hidePrivate, exploreFilters],
+    null,
+    true,
+  );
+  const [detail, setDetail] = usePageState<GithubRepoDetail | null>(
+    scopeKey,
+    ["github-content", "detail", selectedRepo?.ownerLogin, selectedRepo?.name],
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -108,6 +153,13 @@ export function useGithub(scopeKey: string) {
           const connection = await rpc("github/status", {}, options);
           if (!current()) return;
           const previous = queryClient.getQueryData<GithubHomeSnapshot>(homeKey);
+          const changedConnection =
+            previous &&
+            (previous.status.status !== connection.status ||
+              (previous.status.status === "connected" &&
+                connection.status === "connected" &&
+                (previous.status.githubUserId !== connection.githubUserId ||
+                  previous.status.connectedAt !== connection.connectedAt)));
           const clearPersonalData =
             connection.status !== "connected" ||
             (previous?.status.status === "connected" &&
@@ -118,6 +170,14 @@ export function useGithub(scopeKey: string) {
             overview: clearPersonalData ? null : (previous?.overview ?? null),
           });
           setStatus(connection);
+          if (changedConnection) {
+            clearPageState(scopeKey, ["github-content"]);
+            setOverview(null);
+            setRepositories(null);
+            setSearch(null);
+            setDetail(null);
+            setSelectedRepo(null);
+          }
           if (cachedScope) {
             writeGithubConnectionCache(cachedScope, connection);
           } else {
@@ -136,6 +196,7 @@ export function useGithub(scopeKey: string) {
               return;
             }
           }
+          if (changedConnection && selectedRepo) return;
           if (selectedRepo) {
             const result = await rpc(
               "github/repoDetail",
@@ -175,7 +236,10 @@ export function useGithub(scopeKey: string) {
             if (current()) setRepositories(result);
           }
         } catch (cause) {
-          if (current()) setError(errorText(cause));
+          if (current()) {
+            if (selectedRepo && !isRetryableError(cause)) setDetail(null);
+            setError(errorText(cause));
+          }
         } finally {
           if (current()) {
             setLoading(false);
@@ -221,7 +285,9 @@ export function useGithub(scopeKey: string) {
         : await rpc("github/disconnect", undefined, options);
       if (!inScope()) return;
       queryClient.setQueryData<GithubHomeSnapshot>(homeKey, { status: connection, overview: null });
-      if (live()) {
+      clearPageState(scopeKey, ["github-content"]);
+      clearPageState(scopeKey, ["github-view", "selectedRepo"]);
+      if (inScope()) {
         setStatus(connection);
         setOverview(null);
         setRepositories(null);
@@ -250,11 +316,9 @@ export function useGithub(scopeKey: string) {
     setQuery("");
     setPage(1);
     setSelectedRepo(null);
-    setDetail(null);
   }
 
   function selectRepo(repo: GithubRepoSummary | null) {
-    setDetail(null);
     setSelectedRepo(repo);
   }
 
@@ -280,6 +344,7 @@ export function useGithub(scopeKey: string) {
     year,
     selectYear: setYear,
     page,
+    query,
     selectPage: setPage,
     setQuery: (value: string) => {
       setQuery(value.trim());

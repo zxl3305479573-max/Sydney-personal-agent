@@ -1,8 +1,8 @@
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
-import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -80,6 +80,8 @@ describe("user device client", () => {
     workspaceGrant?: UserDeviceClientOptions["workspaceGrant"],
     projectFile?: UserDeviceClientOptions["projectFile"],
     projectWindowsTerminal?: UserDeviceClientOptions["projectWindowsTerminal"],
+    projectWindowsCommand?: UserDeviceClientOptions["projectWindowsCommand"],
+    projectWindowsCommandStatus?: UserDeviceClientOptions["projectWindowsCommandStatus"],
   ) {
     client = startUserDeviceClient({
       serverUrl,
@@ -90,6 +92,8 @@ describe("user device client", () => {
       workspaceGrant,
       projectFile,
       projectWindowsTerminal,
+      projectWindowsCommand,
+      projectWindowsCommandStatus,
       retryMs: { min: 20, max: 40 },
     });
   }
@@ -115,8 +119,12 @@ describe("user device client", () => {
     const ws = await connection();
     const received = frames(ws);
     const request = {
-      method: "projectWindowsTerminal", projectId: "project-a", projectName: "Project A",
-      spaceId: "space-a", runId: "run-a", command: "ver",
+      method: "projectWindowsTerminal",
+      projectId: "project-a",
+      projectName: "Project A",
+      spaceId: "space-a",
+      runId: "run-a",
+      command: "ver",
     };
     ws.send(JSON.stringify({ type: "request", id: "terminal", request }));
     await until(() => received.some((frame) => frame.id === "terminal" && "done" in frame.frame));
@@ -127,56 +135,197 @@ describe("user device client", () => {
     expect(authorize).not.toHaveBeenCalled();
   });
 
-  it.skipIf(process.platform !== "win32")("moves bounded text through the device socket using real Windows handles", async () => {
-    const projectRoot = await captureWindowsProjectRoot(root);
+  it("reports sandbox availability and routes approved commands through the project-only channel", async () => {
     const authorize = vi.fn(async () => false);
-    await writeFile(path.join(root, "input.txt"), "样本");
-    start(authorize, undefined, (request, signal) => executeWindowsProjectFile(projectRoot, request.file, signal));
+    const command = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommand"]>>(
+      async () => ({ status: "completed", stdout: "ok", stderr: "", code: 0 }),
+    );
+    const status = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommandStatus"]>>(
+      async () => ({ available: true }),
+    );
+    start(authorize, undefined, undefined, undefined, command, status);
+    const ws = await connection();
+    const received = frames(ws);
+    const base = {
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+      runId: "run-a",
+    };
+    const availability = { ...base, method: "projectWindowsCommandStatus" };
+    ws.send(JSON.stringify({ type: "request", id: "guest-status", request: availability }));
+    await until(() =>
+      received.some((frame) => frame.id === "guest-status" && "done" in frame.frame),
+    );
+    expect(received.find((frame) => frame.id === "guest-status")?.frame).toEqual({
+      value: { available: true },
+    });
+    expect(status).toHaveBeenCalledWith(availability, expect.any(AbortSignal));
+    const request = {
+      ...base,
+      method: "projectWindowsCommand",
+      projectName: "Project A",
+      command: {
+        argv: ["/usr/bin/python3", "-c", "print('ok')"],
+        inputFiles: ["main.py"],
+        timeoutMs: 2000,
+      },
+    };
+    ws.send(JSON.stringify({ type: "request", id: "command", request }));
+    await until(() => received.some((frame) => frame.id === "command" && "done" in frame.frame));
+    expect(received.find((frame) => frame.id === "command")?.frame).toEqual({
+      value: { status: "completed", stdout: "ok", stderr: "", code: 0 },
+    });
+    expect(command).toHaveBeenCalledWith(request, expect.any(AbortSignal));
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("cancels a project command when the run is revoked before the result arrives", async () => {
+    const authorize = vi.fn(async () => false);
+    let operationSignal: AbortSignal | undefined;
+    let finish!: () => void;
+    const command = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommand"]>>(
+      async (_request, signal) => {
+        operationSignal = signal;
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        return { status: "completed", stdout: "late", stderr: "", code: 0 };
+      },
+    );
+    start(authorize, undefined, undefined, undefined, command);
     const ws = await connection();
     const received = frames(ws);
     const request = {
-      method: "projectFile", spaceId: "space-a", projectId: "project-a",
+      method: "projectWindowsCommand",
+      spaceId: "space-a",
+      projectId: "project-a",
+      projectName: "Project A",
       grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
-    };
-    ws.send(JSON.stringify({ type: "request", id: "read", request: {
-      ...request, file: { operation: "read", path: "input.txt" },
-    } }));
-    await until(() => received.some((frame) => frame.id === "read" && "done" in frame.frame));
-    expect(received.find((frame) => frame.id === "read")?.frame).toEqual({
-      value: {
-        operation: "read", text: "样本",
-        sha256: createHash("sha256").update("样本", "utf8").digest("hex"),
+      runId: "run-a",
+      command: {
+        argv: ["/usr/bin/python3", "-c", "print('late')"],
+        inputFiles: [],
+        timeoutMs: 2000,
       },
-    });
-    const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
-    ws.send(JSON.stringify({ type: "request", id: "update", request: {
-      ...request,
-      file: { operation: "update", path: "input.txt", expectedSha256: sampleHash, text: "已修改" },
-    } }));
-    await until(() => received.some((frame) => frame.id === "update" && "done" in frame.frame));
-    const updatedHash = createHash("sha256").update("已修改", "utf8").digest("hex");
-    expect(received.find((frame) => frame.id === "update")?.frame).toEqual({
-      value: { operation: "update", bytes: Buffer.byteLength("已修改", "utf8"), sha256: updatedHash },
-    });
-    ws.send(JSON.stringify({ type: "request", id: "conflict", request: {
-      ...request,
-      file: { operation: "update", path: "input.txt", expectedSha256: sampleHash, text: "不应覆盖" },
-    } }));
-    await until(() => received.some((frame) => frame.id === "conflict" && "done" in frame.frame));
-    expect(received.find((frame) => frame.id === "conflict")?.frame).toEqual({
-      value: { operation: "conflict", sha256: updatedHash },
-    });
-    expect(await readFile(path.join(root, "input.txt"), "utf8")).toBe("已修改");
-    ws.send(JSON.stringify({ type: "request", id: "create", request: {
-      ...request, file: { operation: "create", path: "result.md", text: "结果" },
-    } }));
-    await until(() => received.some((frame) => frame.id === "create" && "done" in frame.frame));
-    expect(received.find((frame) => frame.id === "create")?.frame).toEqual({
-      value: { operation: "create", bytes: 6 },
-    });
-    expect(await readFile(path.join(root, "result.md"), "utf8")).toBe("结果");
+    };
+    ws.send(JSON.stringify({ type: "request", id: "long-command", request }));
+    await until(() => Boolean(operationSignal));
+    ws.send(JSON.stringify({ type: "cancel", id: "long-command" }));
+    await until(() => operationSignal?.aborted === true);
+    finish();
+    const barrier = {
+      method: "workspaceGrant",
+      operation: "status",
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: request.grantId,
+    };
+    ws.send(JSON.stringify({ type: "request", id: "barrier", request: barrier }));
+    await until(() => received.some((frame) => frame.id === "barrier" && "done" in frame.frame));
+    expect(received.some((frame) => frame.id === "long-command")).toBe(false);
+    expect(command).toHaveBeenCalledExactlyOnceWith(request, expect.any(AbortSignal));
     expect(authorize).not.toHaveBeenCalled();
   });
+
+  it.skipIf(process.platform !== "win32")(
+    "moves bounded text through the device socket using real Windows handles",
+    async () => {
+      const projectRoot = await captureWindowsProjectRoot(root);
+      const authorize = vi.fn(async () => false);
+      await writeFile(path.join(root, "input.txt"), "样本");
+      start(authorize, undefined, (request, signal) =>
+        executeWindowsProjectFile(projectRoot, request.file, signal),
+      );
+      const ws = await connection();
+      const received = frames(ws);
+      const request = {
+        method: "projectFile",
+        spaceId: "space-a",
+        projectId: "project-a",
+        grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+      };
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "read",
+          request: {
+            ...request,
+            file: { operation: "read", path: "input.txt" },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "read" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "read")?.frame).toEqual({
+        value: {
+          operation: "read",
+          text: "样本",
+          sha256: createHash("sha256").update("样本", "utf8").digest("hex"),
+        },
+      });
+      const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "update",
+          request: {
+            ...request,
+            file: {
+              operation: "update",
+              path: "input.txt",
+              expectedSha256: sampleHash,
+              text: "已修改",
+            },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "update" && "done" in frame.frame));
+      const updatedHash = createHash("sha256").update("已修改", "utf8").digest("hex");
+      expect(received.find((frame) => frame.id === "update")?.frame).toEqual({
+        value: {
+          operation: "update",
+          bytes: Buffer.byteLength("已修改", "utf8"),
+          sha256: updatedHash,
+        },
+      });
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "conflict",
+          request: {
+            ...request,
+            file: {
+              operation: "update",
+              path: "input.txt",
+              expectedSha256: sampleHash,
+              text: "不应覆盖",
+            },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "conflict" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "conflict")?.frame).toEqual({
+        value: { operation: "conflict", sha256: updatedHash },
+      });
+      expect(await readFile(path.join(root, "input.txt"), "utf8")).toBe("已修改");
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "create",
+          request: {
+            ...request,
+            file: { operation: "create", path: "result.md", text: "结果" },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "create" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "create")?.frame).toEqual({
+        value: { operation: "create", bytes: 6 },
+      });
+      expect(await readFile(path.join(root, "result.md"), "utf8")).toBe("结果");
+      expect(authorize).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["cancel", "disconnect"] as const)(
     "aborts a project file transfer on %s without sending the result or requesting shell consent",
@@ -184,16 +333,22 @@ describe("user device client", () => {
       const authorize = vi.fn(async () => false);
       let operationSignal: AbortSignal | undefined;
       let finish!: () => void;
-      const file = vi.fn<NonNullable<UserDeviceClientOptions["projectFile"]>>(async (_request, signal) => {
-        operationSignal = signal;
-        await new Promise<void>((resolve) => { finish = resolve; });
-        return { operation: "read", text: "private sample", sha256: "a".repeat(64) };
-      });
+      const file = vi.fn<NonNullable<UserDeviceClientOptions["projectFile"]>>(
+        async (_request, signal) => {
+          operationSignal = signal;
+          await new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+          return { operation: "read", text: "private sample", sha256: "a".repeat(64) };
+        },
+      );
       start(authorize, undefined, file);
       const ws = await connection();
       const received = frames(ws);
       const request = {
-        method: "projectFile", spaceId: "space-a", projectId: "project-a",
+        method: "projectFile",
+        spaceId: "space-a",
+        projectId: "project-a",
         grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
         file: { operation: "read", path: "notes/input.md" },
       };
@@ -204,8 +359,16 @@ describe("user device client", () => {
       await until(() => operationSignal?.aborted === true);
       finish();
       if (mode === "cancel") {
-        ws.send(JSON.stringify({ type: "request", id: "barrier", request: { ...request, method: "workspaceGrant", file: undefined, operation: "status" } }));
-        await until(() => received.some((frame) => frame.id === "barrier" && "done" in frame.frame));
+        ws.send(
+          JSON.stringify({
+            type: "request",
+            id: "barrier",
+            request: { ...request, method: "workspaceGrant", file: undefined, operation: "status" },
+          }),
+        );
+        await until(() =>
+          received.some((frame) => frame.id === "barrier" && "done" in frame.frame),
+        );
       } else {
         await connection(1);
       }
@@ -221,7 +384,13 @@ describe("user device client", () => {
     start(authorize, workspaceGrant);
     const ws = await connection();
     const received = frames(ws);
-    const request = { method: "workspaceGrant", operation: "status", spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
+    const request = {
+      method: "workspaceGrant",
+      operation: "status",
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+    };
     ws.send(JSON.stringify({ type: "request", id: "grant-status", request }));
     await until(() => received.some((frame) => "done" in frame.frame));
     expect(workspaceGrant).toHaveBeenCalledWith(request);
@@ -234,7 +403,19 @@ describe("user device client", () => {
     start(authorize);
     const ws = await connection();
     const received = frames(ws);
-    ws.send(JSON.stringify({ type: "request", id: "grant-status", request: { method: "workspaceGrant", operation: "status", spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" } }));
+    ws.send(
+      JSON.stringify({
+        type: "request",
+        id: "grant-status",
+        request: {
+          method: "workspaceGrant",
+          operation: "status",
+          spaceId: "space-a",
+          projectId: "project-a",
+          grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+        },
+      }),
+    );
     await until(() => received.some((frame) => "done" in frame.frame));
     expect(received[0]?.frame).toEqual({ value: { state: "unavailable" } });
     expect(authorize).not.toHaveBeenCalled();
@@ -242,11 +423,28 @@ describe("user device client", () => {
 
   it("drops a grant result after the server cancels the request", async () => {
     let finish!: (result: { state: "authorized" }) => void;
-    const workspaceGrant = vi.fn(() => new Promise<{ state: "authorized" }>((resolve) => { finish = resolve; }));
+    const workspaceGrant = vi.fn(
+      () =>
+        new Promise<{ state: "authorized" }>((resolve) => {
+          finish = resolve;
+        }),
+    );
     start(async () => false, workspaceGrant);
     const ws = await connection();
     const received = frames(ws);
-    ws.send(JSON.stringify({ type: "request", id: "grant-status", request: { method: "workspaceGrant", operation: "status", spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" } }));
+    ws.send(
+      JSON.stringify({
+        type: "request",
+        id: "grant-status",
+        request: {
+          method: "workspaceGrant",
+          operation: "status",
+          spaceId: "space-a",
+          projectId: "project-a",
+          grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+        },
+      }),
+    );
     await until(() => workspaceGrant.mock.calls.length === 1);
     ws.send(JSON.stringify({ type: "cancel", id: "grant-status" }));
     const pinged = once(ws, "pong");

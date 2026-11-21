@@ -1,12 +1,22 @@
+import type {
+  ProjectFileRequest,
+  ProjectFileResult,
+  ProjectWindowsCommandRequest,
+  ProjectWindowsCommandResult,
+  ProjectWindowsCommandStatusRequest,
+  ProjectWindowsCommandStatusResult,
+  ProjectWindowsTerminalRequest,
+  ProjectWindowsTerminalResult,
+  WorkspaceGrantRequest,
+  WorkspaceGrantResult,
+} from "@rakazo/contracts";
 import {
   ProjectFileResultSchema,
+  ProjectWindowsCommandResultSchema,
+  ProjectWindowsCommandStatusResultSchema,
   ProjectWindowsTerminalResultSchema,
   USER_DEVICE_CONNECT_PATH,
   WorkspaceGrantResultSchema,
-} from "@rakazo/contracts";
-import type {
-  ProjectFileRequest, ProjectFileResult, ProjectWindowsTerminalRequest, ProjectWindowsTerminalResult,
-  WorkspaceGrantRequest, WorkspaceGrantResult,
 } from "@rakazo/contracts";
 import { isLoopbackHost } from "@rakazo/contracts/network-host";
 import WebSocket from "ws";
@@ -43,8 +53,17 @@ export interface UserDeviceClientOptions {
   workspaceGrant?: (request: WorkspaceGrantRequest) => Promise<WorkspaceGrantResult>;
   projectFile?: (request: ProjectFileRequest, signal: AbortSignal) => Promise<ProjectFileResult>;
   projectWindowsTerminal?: (
-    request: ProjectWindowsTerminalRequest, signal: AbortSignal,
+    request: ProjectWindowsTerminalRequest,
+    signal: AbortSignal,
   ) => Promise<ProjectWindowsTerminalResult>;
+  projectWindowsCommand?: (
+    request: ProjectWindowsCommandRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandResult>;
+  projectWindowsCommandStatus?: (
+    request: ProjectWindowsCommandStatusRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandStatusResult>;
   retryMs?: { min: number; max: number };
 }
 
@@ -164,8 +183,9 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       authorizing.clear();
       for (const [id, controller] of projectCalls) {
         controller.abort();
-        void send(id, { error: "Project operation stopped or its result is unconfirmed" })
-          .catch(() => undefined);
+        void send(id, { error: "Project operation stopped or its result is unconfirmed" }).catch(
+          () => undefined,
+        );
       }
       projectCalls.clear();
     };
@@ -236,7 +256,8 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
         }
         return;
       }
-      if (calls.has(message.id) || authorizing.has(message.id) || projectCalls.has(message.id)) return;
+      if (calls.has(message.id) || authorizing.has(message.id) || projectCalls.has(message.id))
+        return;
       void handle(message.id, message.request);
     });
 
@@ -258,32 +279,57 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       });
     }
 
-    async function handle(id: string, request: import("./user-device-protocol.js").UserDeviceRequest) {
-      if (request.method === "projectFile" || request.method === "projectWindowsTerminal") {
+    async function handle(
+      id: string,
+      request: import("./user-device-protocol.js").UserDeviceRequest,
+    ) {
+      if (
+        request.method === "projectFile" ||
+        request.method === "projectWindowsTerminal" ||
+        request.method === "projectWindowsCommand" ||
+        request.method === "projectWindowsCommandStatus"
+      ) {
         if (url.protocol !== "wss:" && !isLoopbackHost(url.hostname)) {
-          await send(id, { error: "Project operations require a secure device connection" }).catch(() => undefined);
+          await send(id, { error: "Project operations require a secure device connection" }).catch(
+            () => undefined,
+          );
           return;
         }
         const operation = new AbortController();
         projectCalls.set(id, operation);
         const current = () => socket === ws && !operation.signal.aborted;
         try {
-          const result = request.method === "projectFile"
-            ? ProjectFileResultSchema.parse(await options.projectFile?.(request, operation.signal))
-            : ProjectWindowsTerminalResultSchema.parse(
-                await options.projectWindowsTerminal?.(request, operation.signal),
-              );
+          const result =
+            request.method === "projectFile"
+              ? ProjectFileResultSchema.parse(
+                  await options.projectFile?.(request, operation.signal),
+                )
+              : request.method === "projectWindowsTerminal"
+                ? ProjectWindowsTerminalResultSchema.parse(
+                    await options.projectWindowsTerminal?.(request, operation.signal),
+                  )
+                : request.method === "projectWindowsCommand"
+                  ? ProjectWindowsCommandResultSchema.parse(
+                      await options.projectWindowsCommand?.(request, operation.signal),
+                    )
+                  : ProjectWindowsCommandStatusResultSchema.parse(
+                      await options.projectWindowsCommandStatus?.(request, operation.signal),
+                    );
           if (!current()) return;
-          if ("operation" in result && request.method === "projectFile" &&
+          if (
+            "operation" in result &&
+            request.method === "projectFile" &&
             result.operation !== request.file.operation &&
-            !(request.file.operation === "update" && result.operation === "conflict"))
+            !(request.file.operation === "update" && result.operation === "conflict")
+          )
             throw new Error("Mismatched project file response");
           await send(id, { value: result });
           if (current()) await send(id, { done: true });
         } catch {
           if (current())
-            await send(id, { error: "Project operation unavailable or its result is unconfirmed" })
-              .catch(() => undefined);
+            await send(id, {
+              error: "Project operation unavailable or its result is unconfirmed",
+            }).catch(() => undefined);
         } finally {
           if (projectCalls.get(id) === operation) projectCalls.delete(id);
         }

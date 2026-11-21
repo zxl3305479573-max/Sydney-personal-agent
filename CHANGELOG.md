@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-22
+
+### Changed
+
+- iPhone `1.0.23` uses flat surfaces across settings, cards, action buttons and chat content, keeping glass only on the Bot name component in the chat header.
+- Windows project directory access carries the current one-time file permissions and device request protocol. The packaged WSL project-command candidate remains unavailable without an explicitly configured dedicated guest and verified isolation; it does not enable production device execution.
+
+### Fixed
+
+- Keep recent mobile Bot and group snapshots available during navigation, including Home run indicators and the first frame when reopening a conversation.
+- Restore mobile project and GitHub page content, filters, pagination and scroll positions while refreshing in the background. Clear stale data when the server rejects access or the GitHub connection changes.
+
+### Self-host upgrade notes
+
+- Windows `0.4.3` uses the existing unsigned Windows installer flow and iPhone `1.0.23` uses the existing `sideload` OTA channel with runtime `sydney-ios-ip-1`. No new mobile native dependency or runtime is required. The API, Worker, database and Linux driver are not deployed by this client release. Project device execution stays disabled in production; isolated Windows project commands remain a candidate pending guest and device validation. See [operations](docx/OPERATIONS.md).
+
 ## [0.4.2] - 2026-11-21
 
 ### Added

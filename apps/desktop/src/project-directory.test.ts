@@ -1,5 +1,9 @@
 import path from "node:path";
-import type { ProjectDirectoryIntent, ProjectFileRequest, ProjectFileResult } from "@rakazo/contracts";
+import type {
+  ProjectDirectoryIntent,
+  ProjectFileRequest,
+  ProjectFileResult,
+} from "@rakazo/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createProjectDirectoryAccess } from "./project-directory.js";
 
@@ -24,10 +28,36 @@ function setup(confirmedIntent?: ProjectDirectoryIntent | null) {
   };
   let trusted = true;
   const intent = confirmedIntent ?? "read-only";
+  let revokedGrant = false;
   const store = {
-    save: vi.fn(async () => ({ id: grantId, intent })),
-    load: vi.fn(async () => ({ id: grantId, directory, intent }) as { id: string; directory: string; intent: ProjectDirectoryIntent } | null),
-    revoke: vi.fn(async () => {}),
+    save: vi.fn(async () => {
+      revokedGrant = false;
+      return { id: grantId, intent };
+    }),
+    load: vi.fn(
+      async (
+        scope: {
+          origin: string;
+          userId: string;
+          deviceId: string;
+          spaceId: string;
+          projectWorkspaceId: string;
+        },
+        id: string,
+      ) =>
+        !revokedGrant &&
+        id === grantId &&
+        scope.origin === "https://server.example" &&
+        scope.userId === "user-a" &&
+        scope.deviceId === "device-a" &&
+        scope.spaceId === "space-a" &&
+        scope.projectWorkspaceId === "project-a"
+          ? { id: grantId, directory, intent }
+          : null,
+    ),
+    revoke: vi.fn(async () => {
+      revokedGrant = true;
+    }),
   };
   const fetch = vi.fn(async (url: string, _init: RequestInit) =>
     Response.json(url.endsWith("/scope") ? remote : { ...binding, intent }),
@@ -36,9 +66,30 @@ function setup(confirmedIntent?: ProjectDirectoryIntent | null) {
   const inspect = vi.fn(async (value: string) => value);
   const files = {
     capture: vi.fn(async () => ({ directory, dev: 1n, ino: 2n })),
-    execute: vi.fn<(...args: Parameters<NonNullable<Parameters<typeof createProjectDirectoryAccess>[0]["files"]>["execute"]>) => Promise<ProjectFileResult>>(async (..._args) =>
-      ({ operation: "create" as const, bytes: 3 })),
+    execute: vi.fn<
+      (
+        ...args: Parameters<
+          NonNullable<Parameters<typeof createProjectDirectoryAccess>[0]["files"]>["execute"]
+        >
+      ) => Promise<ProjectFileResult>
+    >(async (_root, operation) =>
+      operation.operation === "read"
+        ? { operation: "read" as const, text: "print('hello')", sha256: "a".repeat(64) }
+        : { operation: "create" as const, bytes: 3 },
+    ),
     confirm: vi.fn(async () => confirmedIntent ?? null),
+  };
+  const command = {
+    runner: {
+      available: vi.fn(async () => true),
+      execute: vi.fn(async () => ({
+        status: "completed" as const,
+        stdout: "ok",
+        stderr: "",
+        code: 0,
+      })),
+    },
+    confirm: vi.fn(async () => true),
   };
   const access = createProjectDirectoryAccess({
     userDataDir: "unused",
@@ -48,6 +99,7 @@ function setup(confirmedIntent?: ProjectDirectoryIntent | null) {
     store,
     inspect,
     files: confirmedIntent !== undefined ? files : undefined,
+    projectCommand: { ...command, runner: command.runner },
   });
   return {
     access,
@@ -56,6 +108,7 @@ function setup(confirmedIntent?: ProjectDirectoryIntent | null) {
     store,
     inspect,
     files,
+    command,
     trusted: () => trusted,
     changeFrame: () => {
       trusted = false;
@@ -239,11 +292,106 @@ describe("limited directory device requests", () => {
   });
 });
 
+describe("isolated Windows project commands", () => {
+  const commandRequest = {
+    method: "projectWindowsCommand" as const,
+    ...input,
+    grantId,
+    projectName: "Example project",
+    runId: "run-a",
+    command: {
+      argv: ["/usr/bin/python3", "-c", "print('hello')"],
+      inputFiles: ["src/main.py"],
+      timeoutMs: 2000,
+    },
+  };
+  const statusRequest = {
+    method: "projectWindowsCommandStatus" as const,
+    ...input,
+    grantId,
+    runId: "run-a",
+  };
+
+  it("reports availability only for the saved local folder grant", async () => {
+    const state = setup("read-only");
+    await state.access.choose(input, state.trusted);
+    await expect(
+      state.access.projectCommandStatus(
+        "https://server.example",
+        { token: "native-only-token", userId: "user-a", deviceId: "device-a" },
+        statusRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual({ available: true });
+    expect(state.command.runner.available).toHaveBeenCalledOnce();
+  });
+
+  it("confirms each command and sends only selected authorized UTF-8 copies", async () => {
+    const state = setup("read-only");
+    await state.access.choose(input, state.trusted);
+    await expect(
+      state.access.executeProjectCommand(
+        "https://server.example",
+        { token: "native-only-token", userId: "user-a", deviceId: "device-a" },
+        commandRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual({ status: "completed", stdout: "ok", stderr: "", code: 0 });
+    expect(state.command.confirm).toHaveBeenCalledWith(
+      "https://server.example",
+      commandRequest,
+      expect.any(AbortSignal),
+    );
+    expect(state.command.runner.execute).toHaveBeenCalledWith(
+      commandRequest,
+      [{ path: "src/main.py", content: "print('hello')" }],
+      expect.any(AbortSignal),
+    );
+    expect(state.files.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ directory }),
+      { operation: "read", path: "src/main.py" },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("rejects commands without an active local grant or runner", async () => {
+    const state = setup();
+    await expect(
+      state.access.executeProjectCommand(
+        "https://server.example",
+        { token: "native-only-token", userId: "user-a", deviceId: "device-a" },
+        commandRequest,
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("unavailable");
+    expect(state.command.runner.execute).not.toHaveBeenCalled();
+  });
+
+  it("returns unavailable without asking for command consent if WSL isolation is not ready", async () => {
+    const state = setup("read-only");
+    await state.access.choose(input, state.trusted);
+    state.command.runner.available.mockResolvedValue(false);
+    await expect(
+      state.access.executeProjectCommand(
+        "https://server.example",
+        { token: "native-only-token", userId: "user-a", deviceId: "device-a" },
+        commandRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual({ status: "unavailable" });
+    expect(state.command.confirm).not.toHaveBeenCalled();
+    expect(state.files.execute).not.toHaveBeenCalled();
+    expect(state.command.runner.execute).not.toHaveBeenCalled();
+  });
+});
+
 describe("project file device execution", () => {
   const origin = "https://server.example";
   const device = { token: "native-only-token", userId: "user-a", deviceId: "device-a" };
   const request: ProjectFileRequest = {
-    ...input, method: "projectFile", grantId,
+    ...input,
+    method: "projectFile",
+    grantId,
     file: { operation: "create", path: "result.md", text: "new" },
   };
   const signal = new AbortController().signal;
@@ -251,7 +399,9 @@ describe("project file device execution", () => {
   it("requires a fresh native choice for creating files", async () => {
     const state = setup("read-only");
     await state.access.choose(input, state.trusted);
-    await expect(state.access.execute(origin, device, request, signal)).rejects.toThrow("not authorized");
+    await expect(state.access.execute(origin, device, request, signal)).rejects.toThrow(
+      "not authorized",
+    );
     expect(state.files.execute).not.toHaveBeenCalled();
   });
 
@@ -263,19 +413,36 @@ describe("project file device execution", () => {
 
   it("creates only under the matching confirmed grant and passes a revocable signal", async () => {
     const state = setup("read-write");
-    await expect(state.access.choose(input, state.trusted)).resolves.toMatchObject({ intent: "read-write" });
-    await expect(state.access.execute(origin, device, { ...request, projectId: "other" }, signal)).rejects.toThrow();
-    state.files.execute.mockImplementationOnce(async (_root, _operation, operationSignal) =>
-      new Promise((_, reject) => operationSignal.addEventListener("abort", () => reject(operationSignal.reason), { once: true })),
+    await expect(state.access.choose(input, state.trusted)).resolves.toMatchObject({
+      intent: "read-write",
+    });
+    await expect(
+      state.access.execute(origin, device, { ...request, projectId: "other" }, signal),
+    ).rejects.toThrow();
+    state.files.execute.mockImplementationOnce(
+      async (_root, _operation, operationSignal) =>
+        new Promise((_, reject) =>
+          operationSignal.addEventListener("abort", () => reject(operationSignal.reason), {
+            once: true,
+          }),
+        ),
     );
     const pending = state.access.execute(origin, device, request, signal);
     const rejected = expect(pending).rejects.toThrow("revoked");
     await vi.waitFor(() => expect(state.files.execute).toHaveBeenCalledOnce());
     const { method: _method, file: _file, ...scope } = request;
-    await state.access.request(origin, device, { ...scope, method: "workspaceGrant", operation: "revoke" });
+    await state.access.request(origin, device, {
+      ...scope,
+      method: "workspaceGrant",
+      operation: "revoke",
+    });
     await rejected;
     await expect(state.access.execute(origin, device, request, signal)).rejects.toThrow();
-    expect(state.files.execute).toHaveBeenCalledWith({ directory, dev: 1n, ino: 2n }, request.file, expect.any(AbortSignal));
+    expect(state.files.execute).toHaveBeenCalledWith(
+      { directory, dev: 1n, ino: 2n },
+      request.file,
+      expect.any(AbortSignal),
+    );
   });
 
   it("requires read-write approval before updating an existing project file", async () => {
@@ -292,7 +459,9 @@ describe("project file device execution", () => {
         text: "replacement",
       },
     };
-    await expect(state.access.execute(origin, device, update, signal)).rejects.toThrow("not authorized");
+    await expect(state.access.execute(origin, device, update, signal)).rejects.toThrow(
+      "not authorized",
+    );
     expect(state.files.execute).not.toHaveBeenCalled();
   });
 
@@ -305,11 +474,18 @@ describe("project file device execution", () => {
       truncated: false,
     });
     const { method: _method, file: _file, ...scope } = request;
-    await expect(state.access.execute(origin, device, {
-      ...scope,
-      method: "projectFile",
-      file: { operation: "list", path: "src" },
-    }, signal)).resolves.toMatchObject({ operation: "list", entries: [{ path: "src/index.ts" }] });
+    await expect(
+      state.access.execute(
+        origin,
+        device,
+        {
+          ...scope,
+          method: "projectFile",
+          file: { operation: "list", path: "src" },
+        },
+        signal,
+      ),
+    ).resolves.toMatchObject({ operation: "list", entries: [{ path: "src/index.ts" }] });
     expect(state.files.execute).toHaveBeenCalledWith(
       { directory, dev: 1n, ino: 2n },
       { operation: "list", path: "src" },

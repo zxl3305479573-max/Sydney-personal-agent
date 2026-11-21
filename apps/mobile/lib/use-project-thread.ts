@@ -11,6 +11,7 @@ import {
   subscribeProjectThread,
 } from "./api";
 import { ARTIFACT_DOWNLOAD_TIMEOUT_MS } from "./artifacts";
+import { usePageState } from "./page-state";
 import { projectScopeKey } from "./project-scope";
 
 export type ProjectChatTarget = { botId: string } | { groupId: string };
@@ -38,7 +39,18 @@ export function useProjectThread(
   scopeKey: string,
   enabled: boolean,
 ) {
-  const [state, setState] = useState(initialState);
+  const [cachedSnapshot, setCachedSnapshot] = usePageState<MobileSnapshot | null>(
+    scopeKey,
+    ["project", projectId, "thread", target],
+    null,
+  );
+  const snapshotRef = useRef(cachedSnapshot);
+  snapshotRef.current = cachedSnapshot;
+  const [state, setState] = useState(() => ({
+    ...initialState,
+    snapshot: enabled ? cachedSnapshot : null,
+    loading: !cachedSnapshot,
+  }));
   const sessionRef = useRef<Session | null>(null);
   const pendingSend = useRef<ProjectThreadPendingSend["current"]>(null);
   const botId = "botId" in target ? target.botId : undefined;
@@ -56,6 +68,7 @@ export function useProjectThread(
         return { requestContext, signal, skipSpaceAuthRecovery: true };
       };
       const session = createProjectThreadSession<MobileSnapshot>({
+        initialSnapshot: snapshotRef.current,
         pendingSend,
         current,
         load: async (signal) =>
@@ -101,10 +114,15 @@ export function useProjectThread(
         cancelRun: async (runId, signal) =>
           rpc("projectWorkspaces/cancelRun", { ...input, runId }, await requestOptions(signal)),
         answerApproval: async (answer, signal) =>
-          rpc("projectWorkspaces/answerApproval", { ...input, ...answer }, await requestOptions(signal)),
+          rpc(
+            "projectWorkspaces/answerApproval",
+            { ...input, ...answer },
+            await requestOptions(signal),
+          ),
         downloadArtifact: async (artifactId, signal) => {
           const artifact = await rpc(
-            "projectWorkspaces/getArtifact", { ...input, artifactId },
+            "projectWorkspaces/getArtifact",
+            { ...input, artifactId },
             { ...(await requestOptions(signal)), timeoutMs: ARTIFACT_DOWNLOAD_TIMEOUT_MS },
           );
           const { shareDownloadedArtifact } = await import("./artifact-open");
@@ -115,7 +133,11 @@ export function useProjectThread(
       });
       sessionRef.current = session;
       setState(session.getSnapshot());
-      const unsubscribe = session.subscribe(() => setState(session.getSnapshot()));
+      const unsubscribe = session.subscribe(() => {
+        const next = session.getSnapshot();
+        setCachedSnapshot(next.snapshot);
+        setState(next);
+      });
       void session.start();
       return () => {
         active = false;

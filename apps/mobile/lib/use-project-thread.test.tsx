@@ -29,6 +29,7 @@ vi.mock("./api", () => ({
   }),
 }));
 
+import { queryClient } from "./query-client";
 import type { ProjectChatTarget } from "./use-project-thread";
 import { useProjectThread } from "./use-project-thread";
 
@@ -74,6 +75,7 @@ describe("mobile project chat transport", () => {
   });
   afterEach(async () => {
     await act(async () => root.unmount());
+    queryClient.clear();
     vi.unstubAllGlobals();
   });
 
@@ -116,16 +118,72 @@ describe("mobile project chat transport", () => {
       ),
     ).toBe(true);
   });
+  it("keeps the last live snapshot through blur and unmount while the next read is pending", async () => {
+    await render();
+    const receive = runtime.subscribe.mock.calls[0]![3];
+    await act(async () =>
+      receive({ threadId: "thread-a", seq: 12, type: "run.started", payload: {} }),
+    );
+    await act(async () => root.render(null));
+    let finish!: (value: unknown) => void;
+    runtime.rpc.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render();
+    expect(chat.snapshot?.cursor).toBe(12);
+    expect(chat.loading).toBe(false);
+    expect(chat.consent).toBeNull();
+    await act(async () => finish({ ...snapshot, cursor: 13 }));
+    expect(chat.snapshot?.cursor).toBe(13);
+  });
+
+  it("drops cached messages after the server denies the reopened conversation", async () => {
+    await render();
+    await act(async () => root.render(null));
+    runtime.rpc.mockRejectedValueOnce(Object.assign(new Error("Removed"), { status: 404 }));
+    await render();
+    expect(chat.snapshot).toBeNull();
+    expect(chat.readError).toBeTruthy();
+    await act(async () => root.render(null));
+    let finish!: (value: unknown) => void;
+    runtime.rpc.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render();
+    expect(chat.snapshot).toBeNull();
+    await act(async () => finish(snapshot));
+  });
+
+  it("replaces a cached thread when the first authoritative read points to a new conversation", async () => {
+    await render();
+    await act(async () => root.render(null));
+    runtime.rpc.mockResolvedValueOnce({ ...snapshot, threadId: "thread-new", cursor: 0 });
+    await render();
+    expect(chat.snapshot?.threadId).toBe("thread-new");
+    expect(chat.readError).toBeNull();
+  });
 
   it("sends cancellation with the pinned group and account context", async () => {
     target = { groupId: "group-a" };
     runtime.rpc.mockResolvedValueOnce({ ...snapshot, run: { id: "run-b", status: "queued" } });
     await render();
-    await act(async () => { await chat.cancelRun("run-b"); });
+    await act(async () => {
+      await chat.cancelRun("run-b");
+    });
     expect(runtime.rpc).toHaveBeenCalledWith(
       "projectWorkspaces/cancelRun",
       { projectId: "project-a", groupId: "group-a", botId: undefined, runId: "run-b" },
-      expect.objectContaining({ requestContext: context, skipSpaceAuthRecovery: true, signal: expect.any(AbortSignal) }),
+      expect.objectContaining({
+        requestContext: context,
+        skipSpaceAuthRecovery: true,
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 

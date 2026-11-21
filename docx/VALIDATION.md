@@ -1,5 +1,78 @@
 # 验证记录
 
+## App 0.4.3／1.0.23 全量提交与发布（2026-11-22）
+
+用户明确授权提交推送所有修改并发版 App。基线为原集成分支 `4897eaf85`，与远端同步；当前修改含手机 Bot／项目／GitHub 状态缓存、统一平面材质、Windows 目录及默认关闭的 WSL 项目命令候选、共享设备协议与文档。使用 release 技能参考版本和发行说明规则，沿用 Sydney 专用 Windows 工作流与 iOS OTA，不触发上游多平台标签或后台镜像部署。
+
+发布前离线验证：首批 26 文件 369 项 Vitest 通过；补充 contracts 项目目录、core 项目会话、设备 Gateway／Emulator 与桌面设备入口 5 文件 88 项通过，合计 31 文件 457 项。7 项 WSL runner 参数单元测试通过；手机、desktop、contracts、core、adapters 五项 TypeScript 通过。76 个变更源码／测试／JSON 文件 lint 通过，首页已有的无用 Fragment 信息提示保留；全批差异检查通过。云端任务／产物记录随后同步。
+
+本机没有 `gh` 可执行程序，复用现有 Git Credential Manager 的凭据在内存中调用 GitHub REST API，未输出或保存令牌。只触发既有客户端云工作流，不安装依赖、不启动本机服务或全仓构建。手机 `mobile-ui-sheets` 的原生动画导入失败是前批已记录的测试限制，本批未把该用例计为通过。真实 iPhone 视觉／手势和 WSL guest 验收保持待验。
+
+## 手机界面玻璃效果统一收敛（2026-11-22）
+
+关联 PA-020／PA-021。共用表面默认使用平面样式，只有聊天标题显式保留玻璃；主题 `solid-fallback` 与旧系统仍回退。设置、主模块卡片、聊天内容与输入附件、普通标题和按钮均移除玻璃材质；原生导航项隐藏共享玻璃底。源码检索确认 `apps/mobile` 产品代码只剩共用表面内受 `chatTitle` 条件保护的 `glassEffect`，唯一显式启用处是 `chat-title-content.tsx`。
+
+- 定向回归第一批：`pnpm exec vitest run --maxWorkers=1` 后列出 `glass-surface.test.tsx`、`glass-title.test.tsx`、`native-action-button.test.tsx`、`chat-header-title.test.tsx`、`chat-route-header.test.tsx`、`settings-group.test.tsx`、`thread-header.test.ts`、`thread-edges.test.tsx`、`integrations-screen.test.tsx`、`project-chat-screen.test.tsx`、`thread-card-width.test.tsx`（均在 `apps/mobile/lib/`）：11 文件 165 项通过。
+- 第二批：`pnpm exec vitest run --maxWorkers=1 apps/mobile/lib/ui-mode-registry.test.ts`：1 文件 9 项通过，合计 12 文件 174 项。覆盖默认无玻璃、标题例外、主题回退、按钮明暗／禁用／选中状态、设置分组、导航返回与侧栏、连接交互、项目聊天与消息宽度。
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 通过。测试 TEMP／TMP 仅当前进程指向既有忽略目录 `.tmp/bot-state-verification`。
+- 本批 29 个源码／测试文件 Biome 通过；`new-group.tsx` lint 通过，全文件格式检查报告非本次修改行的既有排版差异，该文件仅修改原生导航项背景和 Next 的显示变体。未整体重排该文件。本批源码／文档差异检查通过。
+- 11 月 21 日验证被用户中断，未把被中断命令计作通过。继续后的首轮中，返回按钮用例仍断言原系统返回按钮可见，实际已改为无玻璃原生项；更新断言并验证回调后通过。标题测试中一处可空项类型错误已修正，最终类型通过。
+- 额外尝试的 `mobile-ui-sheets.test.tsx` 在导入 `react-native-reanimated/lib/module/ReanimatedModule` 时被 Node 拒绝目录式 ESM 导入，未执行断言；未改动画依赖或把它计入通过数量。
+- 未启动本机服务、安装依赖、全仓构建、发布 OTA 或进行真机截图对比。真实 iPhone 的设置／主模块／聊天整体观感、大字体、主题切换、返回与侧滑返回及菜单仍待验；离线 DOM 与原生替身回归不能替代真实渲染验收。
+
+## 应用对接登录按钮（2026-11-21）
+
+关联 PA-021。应用目录、已安装连接与插件详情的登录／添加／连接操作复用 `variant="text"`，双平台文字按钮及 iOS 等待状态保留 44pt 最小高度。授权流程与连接状态逻辑未调整。
+
+- `pnpm exec vitest run --maxWorkers=1 apps/mobile/lib/integrations-screen.test.tsx apps/mobile/lib/native-action-button.test.tsx apps/mobile/lib/native-controls.test.ts`：3 文件 57 项通过，覆盖现有应用连接交互与按钮禁用／主题／原生变体。
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：通过。TEMP／TMP 仅本进程指向既有忽略目录 `.tmp/bot-state-verification`。
+- 首次 Biome 命令因 pnpm Windows 启动器无法处理路径中的括号而未运行；改用现有 Biome 的 Node 入口后，发现目录页既有 import 排版与本次条件表达式需要整理，已局部调整。最终 4 个源码文件 Biome 检查及本批源码／文档差异检查通过。
+- 本机没有可用的已运行手机画面或该页面截图基准，未进行真实渲染对比、iPhone 视觉与大字体验收；未启动服务、安装依赖、全仓构建或发布 OTA。连接行为回归通过不等同于视觉验收。
+
+## 项目与 GitHub 页面状态保留（2026-11-21）
+
+关联 PA-021／PA-022。本批范围是手机项目列表与分页、项目详情／归档成员、本机／云目录状态、项目文字聊天快照／身份，以及 GitHub 年份、仓库与探索筛选／分页／详情／搜索输入和浏览滚动位置。本次登录的页面数据保存在共享 QueryClient，后台请求校正，服务器明确拒绝时清除对应结果。
+
+- 首轮项目 Hook／页面测试中 4 个文件在导入阶段失败：缓存模块通过请求层引入 Expo 原生依赖。拆出无原生依赖的同一 QueryClient 实例后，6 个文件 89 项通过；没有给产品代码添加原生模块替身。
+- 新增整页回归首轮 4 项因测试遗漏 RefreshControl 替身失败，补齐后连同前批 Bot 缓存，10 个文件 124 项通过。最后增加线程重建与明确拒绝后的缓存清除回归，最终执行 `pnpm exec vitest run --maxWorkers=1 apps/mobile/lib/project-pages-state.test.tsx apps/mobile/lib/use-github.test.tsx apps/mobile/lib/use-project-thread.test.tsx apps/mobile/lib/use-project-directory.test.tsx apps/mobile/lib/project-chat-screen.test.tsx apps/mobile/lib/github-screen.test.tsx apps/mobile/lib/query.test.ts packages/core/src/project-thread-session.test.ts apps/mobile/lib/thread-session-cache.test.tsx apps/mobile/lib/saved-chats.test.ts`：10 个文件 128 项全部通过。
+- 最终 `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`、`pnpm exec tsc --noEmit -p packages/core/tsconfig.json` 均通过；本批 18 个源码／测试文件 Biome 检查退出码为 `0`，本批差异检查通过。
+- 使用命令级 TEMP／TMP 指向仓库忽略目录 `.tmp/bot-state-verification`，避开 C 盘临时空间不足；未修改系统配置或删除用户文件。
+- 未执行客户端构建、安装、真实 iPhone 页面／滚动交互、系统杀进程／重启、服务器或数据库验证；未提交推送或发布 OTA。
+
+## iPhone 对话运行状态缓存补修（2026-11-21）
+
+关联 PA-018／PA-021。移动端增加登录会话内最近快照，首页普通列表与置顶 Bot 订阅执行状态；重新进入对话先显示已有快照，再由服务端读取校正。本地缓存保留 `run`／`activeRuns`，同步首页磁盘状态。完成、取消与清空收口，最新名单可校正关闭期间结束的任务；较旧名单不覆盖其请求期间的新状态。
+
+- `pnpm exec vitest run --root . apps/mobile/lib/saved-chats.test.ts`：1 个测试文件、14 项通过，覆盖运行中状态保留、首页 Bot 状态同步、完成后恢复 idle、身份源文本保留和敏感问答缓存约束。
+- `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json`：移动端 TypeScript 检查通过。
+- 最终执行 `pnpm exec vitest run --maxWorkers=1 apps/mobile/lib/thread-session-cache.test.tsx apps/mobile/lib/saved-chats.test.ts apps/mobile/lib/thread-foreground.test.ts apps/mobile/lib/thread-paging.test.tsx apps/mobile/lib/thread-snapshot.test.ts`：前 4 个文件 33 项通过，最后的线程快照测试因临时目录所在 C 盘空间不足（`ENOSPC`）在导入阶段失败。仅将补验命令的 TEMP／TMP 指向仓库忽略目录 `.tmp/bot-state-verification`，重跑 `pnpm exec vitest run --maxWorkers=1 apps/mobile/lib/thread-snapshot.test.ts`，3 项通过；合计 5 个文件 36 项通过。未清理用户文件或更改系统临时目录配置。
+- 扩展执行 `apps/mobile/lib/inbox-render.test.tsx` 在导入阶段失败：缺少 `ExpoSecureStore` 的原生模块替身，断言未运行。未修改该测试或声称其通过。
+- 7 个受影响源码／测试文件的 Biome 检查退出码为 `0`，首页既有单子节点 Fragment 信息提示保留；仅修改注释的 `apps/mobile/lib/api.ts` 单独 lint 通过。8 文件全量检查另报告 `api.ts` 两处未改代码的格式差异，HEAD 原文检查同样失败，未顺带修改。
+- 未执行本机服务、数据库、客户端构建、安装包验证、真实 iPhone 交互或断线恢复。
+
+## Windows 项目命令离线续接（2026-11-21）
+
+修复工具选择阶段依赖 Windows 设备在线的问题。现在模型是否获得命令工具由本次 Run 固定的 Windows 目录和所有者范围决定；设备离线不会阻止创建项目审批。批准后请求未送达而设备离线时，原 Run 与批准状态进入既有 `run.queued` 续接路径。桌面端仍需在本机确认前通过 guest 状态检查，并在实际 WSL 启动时由 runner 再次检查；guest 不可用时不运行命令。已派发后失联继续按未知结果处理，不自动重试。
+
+- `pnpm --config.engine-strict=false exec vitest run packages/adapters/src/run-project-policy.test.ts packages/adapters/src/run-tools-project-windows-command.test.ts apps/desktop/src/project-directory.test.ts apps/desktop/src/project-windows-command.test.ts`：4 个测试文件、73 项通过。覆盖不要求工具选择时设备在线、固定设备命令请求、离线续接分支、guest 不可用时不弹本机确认，以及桌面 runner 路径和取消后结束卡住的 WSL 客户端。
+- `python -B infra/windows-wsl/project-command-runner.test.py`：7 项通过，覆盖请求路径及输入校验；没有执行 WSL guest。
+- Adapters／Desktop TypeScript 检查及 5 个改动文件的 Biome 检查通过。Node `22.22.0` 低于仓库最低 `22.22.2`，使用命令级 `engine-strict=false`；未安装／切换依赖。
+- 本机仍没有专属 WSL guest，只有 Docker Desktop 内部发行版；未做真实设备离线重连、客体隔离负向验证、打包安装或双端实测。生产设备开关保持关闭。
+
+## Windows 隔离项目命令候选（2026-11-21）
+
+关联 PA-022／PRJ-02／P02-09。工作范围是 Windows 项目命令协议、设备固定路由、模型工具能力探测、逐次双重审批、授权项目文件快照暂存、WSL runner 调用及结果／取消路径；运行时默认关闭。
+
+- `python infra/windows-wsl/project-command-runner.test.py`：7 项通过，覆盖相对路径拒绝、重叠／重复文件、UTF-8 输入、单文件大小、超时及输入绑定。测试只运行请求校验，不执行 Bubblewrap 或实际命令。
+- `pnpm --config.engine-strict=false exec vitest run packages/adapters/src/run-project-policy.test.ts packages/adapters/src/run-tools-project-windows-command.test.ts packages/adapters/src/user-device-client.test.ts apps/desktop/src/project-directory.test.ts apps/desktop/src/project-windows-command.test.ts`：5 个测试文件、94 项通过，覆盖能力关闭、固定设备、工具审批、设备通道、授权目录文件副本、guest 不可用／用户拒绝、取消信号及桌面调用器模拟。
+- `pnpm --config.engine-strict=false --filter @rakazo/contracts check`、`... @rakazo/adapters check`、`... @rakazo/desktop check`：三项类型检查通过，桌面含主进程及 jsdom 配置。`biome check --write` 对 19 个受影响 TypeScript 文件完成格式整理。
+- 默认执行 pnpm 时因本机 Node `22.22.0` 低于仓库要求而拒绝；以上检查仅以命令级 `engine-strict=false` 使用已安装依赖，没有切换 Node 或安装依赖。
+- 客户端只接受格式受限的 `SYDNEY_PROJECT_WSL_DISTRIBUTION`，打包 Windows runner 并使用 argv 调用 WSL；当前没有可用专属发行版，只有 Docker Desktop 内部 WSL。未配置发行版变量，未执行隔离探针、测试命令、宿主路径／网络／interop 负向实测或进程残留检查。
+- 未构建／安装 Windows 新版本，未配置或安装 WSL guest，未更改生产 API／Worker 或 `SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED`。手机—Windows 项目消息／Run 完整同步、项目命令在真实 guest 运行及双端安装版验收均未完成。
+- 当时的候选限制：工具能力探测需要绑定设备在线，因此工具选择前离线无法创建命令等待。该限制已由本节之后新增的“Windows 项目命令离线续接”更新；后续实现不以在线或历史 guest 状态作为安全证明，执行前仍必须通过实时检查。
+
+测评项与目标 guest 验收步骤见 [手机与 Windows 项目同步测评](design/PROJECT_DEVICE_SYNC_EVALUATION.md)，隔离边界记录见 [ADR-0027](../docs/adr/0027-windows-project-command-isolation.md)。本次只证明离线候选接线与模拟／契约回归，不证明 Windows 任意项目命令已可用或安全验收完成。
+
 ## Sydney App 0.4.2／1.0.22 整合与发布（2026-11-21）
 
 关联 PA-019／PA-021／PA-022／REL-01。原工作区基线 `2e4daa0a9`，冻结 505 个相关变更路径，在远端最新 `8e008d76a` 上三方整合。25 个冲突文件保留已上线项目聊天与原生取消兼容行为，主题管理接线另行合入。初轮类型和 lint 发现自动合并重复项、旧发布源断言及表单关联问题，已定点修复；没有关闭类型或 lint 规则。

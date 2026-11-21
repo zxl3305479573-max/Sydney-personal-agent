@@ -1,7 +1,7 @@
 {
   "name": "@rakazo/desktop",
   "productName": "Sydney-partner",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "author": {
     "name": "Sydney"
   },
@@ -117,6 +117,12 @@
     },
     "win": {
       "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "../../infra/windows-wsl/project-command-runner.py",
+          "to": "project-command-runner.py"
+        }
+      ],
       "target": [
         "nsis"
       ],

@@ -8,6 +8,7 @@ import { rpc } from "./api";
 import { chatModelDisplayName, chatModelPickerChoices, chatModelSelectionKey } from "./chat-model";
 import { chatModelMenuActions } from "./chat-model-menu";
 import { useI18n } from "./i18n";
+import { usePageState } from "./page-state";
 import { projectRequestOptions, projectScopeKey } from "./project-scope";
 import { errorText } from "./user-error";
 
@@ -28,15 +29,40 @@ export function useProjectChatDetails(
   enabled: boolean,
 ) {
   const { t } = useI18n();
-  const [projectName, setProjectName] = useState<string>();
-  const [botIdentity, setBotIdentity] = useState<ProjectBotIdentity>();
-  const [groupIdentity, setGroupIdentity] = useState<ProjectGroup>();
-  const [bot, setBot] = useState<ProjectBot>();
-  const [canEditBot, setCanEditBot] = useState(false);
-  const [canManage, setCanManage] = useState(false);
-  const [me, setMe] = useState<MobileMe | null>(null);
-  const [catalog, setCatalog] = useState<MobileModel[]>([]);
-  const [credentials, setCredentials] = useState<MobileModelCredential[]>([]);
+  const detailsKey = ["project", projectId, "identity", botId, groupId];
+  const [projectName, setProjectName] = usePageState<string | undefined>(
+    scope,
+    ["project", projectId, "name"],
+    undefined,
+  );
+  const [botIdentity, setBotIdentity] = usePageState<ProjectBotIdentity | undefined>(
+    scope,
+    [...detailsKey, "botIdentity"],
+    undefined,
+  );
+  const [groupIdentity, setGroupIdentity] = usePageState<ProjectGroup | undefined>(
+    scope,
+    [...detailsKey, "groupIdentity"],
+    undefined,
+  );
+  const [bot, setBot] = usePageState<ProjectBot | undefined>(
+    scope,
+    [...detailsKey, "bot"],
+    undefined,
+  );
+  const [canEditBot, setCanEditBot] = usePageState(scope, [...detailsKey, "canEditBot"], false);
+  const [canManage, setCanManage] = usePageState(scope, [...detailsKey, "canManage"], false);
+  const [me, setMe] = usePageState<MobileMe | null>(scope, ["project-models", "me"], null);
+  const [catalog, setCatalog] = usePageState<MobileModel[]>(
+    scope,
+    ["project-models", "catalog"],
+    [],
+  );
+  const [credentials, setCredentials] = usePageState<MobileModelCredential[]>(
+    scope,
+    ["project-models", "credentials"],
+    [],
+  );
   const [modelError, setModelError] = useState<string | null>(null);
   const [identityError, setIdentityError] = useState(false);
   const saving = useRef(false);
@@ -47,8 +73,6 @@ export function useProjectChatDetails(
     useCallback(() => {
       if (!enabled) return;
       active.current = true;
-      setCanEditBot(false);
-      setCanManage(false);
       const controller = new AbortController();
       const current = () => !controller.signal.aborted && scope === projectScopeKey();
       let reading = false;
@@ -71,20 +95,33 @@ export function useProjectChatDetails(
                 const [identity, settings] = await Promise.all([
                   loadProjectBotIdentity(
                     botId,
-                    (afterBotId) => rpc("projectWorkspaces/roster", { id: projectId, afterBotId }, request),
+                    (afterBotId) =>
+                      rpc("projectWorkspaces/roster", { id: projectId, afterBotId }, request),
                     controller.signal,
                   ),
-                  rpc("projectWorkspaces/getBot", { projectId, botId, includeArchived: true }, request),
+                  rpc(
+                    "projectWorkspaces/getBot",
+                    { projectId, botId, includeArchived: true },
+                    request,
+                  ),
                 ]);
                 if (current()) {
                   setBotIdentity({ ...settings, ...identity, botId: settings.id });
                   setBot(settings);
                 }
               } else if (groupId) {
-                const page = await rpc("projectWorkspaces/conversations", { projectId, archived: false }, request);
+                const page = await rpc(
+                  "projectWorkspaces/conversations",
+                  { projectId, archived: false },
+                  request,
+                );
                 let group = page.groups.find((entry) => entry.id === groupId);
                 if (!group) {
-                  const archived = await rpc("projectWorkspaces/conversations", { projectId, archived: true }, request);
+                  const archived = await rpc(
+                    "projectWorkspaces/conversations",
+                    { projectId, archived: true },
+                    request,
+                  );
                   group = archived.groups.find((entry) => entry.id === groupId);
                 }
                 if (current()) setGroupIdentity(group);
@@ -105,29 +142,29 @@ export function useProjectChatDetails(
             if (state === "active") void refresh();
           });
           void rpc("projectWorkspaces/conversationCapabilities", undefined, request)
-              .then(async (capabilities) => {
-                if (!current()) return;
-                setCanEditBot(capabilities.botSettings === true);
-                setCanManage(capabilities.chatManagement === true);
-                if (!botId || !capabilities.botSettings) return;
-                const [profile, models, connected] = await Promise.all([
-                  rpc("me", undefined, request),
-                  rpc("models/list", undefined, request),
-                  rpc("models/credentials", undefined, request),
-                ]);
-                if (!current()) return;
-                setMe(profile);
-                setCatalog(models);
-                setCredentials(connected);
-                setModelError(null);
-              })
-              .catch(() => {
-                if (current()) {
-                  setCanEditBot(false);
-                  setCanManage(false);
-                  setModelError(t("Could not load model settings"));
-                }
-              });
+            .then(async (capabilities) => {
+              if (!current()) return;
+              setCanEditBot(capabilities.botSettings === true);
+              setCanManage(capabilities.chatManagement === true);
+              if (!botId || !capabilities.botSettings) return;
+              const [profile, models, connected] = await Promise.all([
+                rpc("me", undefined, request),
+                rpc("models/list", undefined, request),
+                rpc("models/credentials", undefined, request),
+              ]);
+              if (!current()) return;
+              setMe(profile);
+              setCatalog(models);
+              setCredentials(connected);
+              setModelError(null);
+            })
+            .catch(() => {
+              if (current()) {
+                setCanEditBot(false);
+                setCanManage(false);
+                setModelError(t("Could not load model settings"));
+              }
+            });
         })
         .catch(() => {
           if (current()) setIdentityError(true);

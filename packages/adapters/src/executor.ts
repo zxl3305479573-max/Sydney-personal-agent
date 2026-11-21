@@ -190,10 +190,12 @@ import {
 } from "./run-model.js";
 import { createReplyState } from "./run-progress.js";
 import {
-  PROJECT_CLOUD_COMMAND_INSTRUCTION,
   PROJECT_CLOUD_COMMAND,
+  PROJECT_CLOUD_COMMAND_INSTRUCTION,
   PROJECT_FILE_INSTRUCTION,
   PROJECT_TEXT_ONLY_INSTRUCTION,
+  PROJECT_WINDOWS_COMMAND,
+  PROJECT_WINDOWS_COMMAND_INSTRUCTION,
   PROJECT_WINDOWS_TERMINAL,
   PROJECT_WINDOWS_TERMINAL_INSTRUCTION,
 } from "./run-project-policy.js";
@@ -1338,19 +1340,32 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             deps.userDevices &&
             !disabledBuiltinTools.has(PROJECT_WINDOWS_TERMINAL),
         );
+        const projectWindowsCommand = Boolean(
+          directoryPin?.kind === "windows" &&
+            projectId &&
+            userComputerOwnerId &&
+            deps.userDevices &&
+            ownerStartedRun &&
+            !nonOwnerChatRun &&
+            !disabledBuiltinTools.has(PROJECT_WINDOWS_COMMAND),
+        );
         let projectCloudCommand = false;
         if (
-          directoryPin?.kind === "cloud" && projectId &&
-          deps.sandbox.executeProjectCommand && deps.sandbox.projectCommandAvailable &&
-          ownerStartedRun && !nonOwnerChatRun &&
+          directoryPin?.kind === "cloud" &&
+          projectId &&
+          deps.sandbox.executeProjectCommand &&
+          deps.sandbox.projectCommandAvailable &&
+          ownerStartedRun &&
+          !nonOwnerChatRun &&
           !disabledBuiltinTools.has(PROJECT_CLOUD_COMMAND)
         ) {
-          const cloudBinding = await getProjectCloudDirectory(
-            deps.prisma,
-            run,
-            projectId,
-            { id: runId, threadId: run.threadId, taskId: run.taskId, workerId, fence },
-          );
+          const cloudBinding = await getProjectCloudDirectory(deps.prisma, run, projectId, {
+            id: runId,
+            threadId: run.threadId,
+            taskId: run.taskId,
+            workerId,
+            fence,
+          });
           if (cloudBinding?.available) {
             const computer = {
               id: cloudBinding.computerId,
@@ -1358,13 +1373,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               botId: cloudBinding.homeKey,
               providerRef: cloudBinding.providerRef,
             };
-            projectCloudCommand = await deps.sandbox.projectCommandAvailable(
-              computer,
-              { ...context, botId: cloudBinding.homeKey, signal: AbortSignal.any([
-                context.signal,
-                AbortSignal.timeout(2_000),
-              ]) },
-            ).catch(() => false);
+            projectCloudCommand = await deps.sandbox
+              .projectCommandAvailable(computer, {
+                ...context,
+                botId: cloudBinding.homeKey,
+                signal: AbortSignal.any([context.signal, AbortSignal.timeout(2_000)]),
+              })
+              .catch(() => false);
           }
         }
         let userComputer: UserComputerState;
@@ -1390,6 +1405,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             projectWorkspaceId: run.projectWorkspaceId,
             projectDirectoryIntent,
             projectWindowsTerminal,
+            projectWindowsCommand,
             projectCloudCommand,
             ticketBoardEnabled: deps.ticketBoardEnabled,
             phoneCallsEnabled: deps.phoneCallsEnabled,
@@ -1525,6 +1541,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 ? PROJECT_FILE_INSTRUCTION
                 : PROJECT_TEXT_ONLY_INSTRUCTION,
               ...(projectWindowsTerminal ? [PROJECT_WINDOWS_TERMINAL_INSTRUCTION] : []),
+              ...(projectWindowsCommand ? [PROJECT_WINDOWS_COMMAND_INSTRUCTION] : []),
               ...(projectCloudCommand ? [PROJECT_CLOUD_COMMAND_INSTRUCTION] : []),
             ].join("\n\n")
           : [

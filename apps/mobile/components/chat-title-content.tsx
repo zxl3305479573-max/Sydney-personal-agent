@@ -35,7 +35,7 @@ export function ChatTitleContent({
       disabled={!onPress}
       onPress={onPress}
     >
-      <GlassSurface style={styles.titleCapsule} fallbackStyle={styles.titleCapsuleFill}>
+      <GlassSurface chatTitle style={styles.titleCapsule} fallbackStyle={styles.titleCapsuleFill}>
         {!showAvatar ? null : members ? (
           <GroupSeats members={members} size={CHAT_TITLE_AVATAR_SIZE} />
         ) : (

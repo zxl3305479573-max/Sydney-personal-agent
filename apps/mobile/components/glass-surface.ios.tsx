@@ -6,8 +6,8 @@ import { iosAtLeast } from "../lib/native-controls";
 import { getActiveUiMode } from "../lib/ui-mode";
 import type { GlassSurfaceProps } from "./glass-surface";
 
-/** Liquid Glass behind React Native children on iOS 26; `fallbackStyle` elsewhere. */
 export function GlassSurface({
+  chatTitle = false,
   shape = "capsule",
   cornerRadius,
   tint,
@@ -20,7 +20,7 @@ export function GlassSurface({
   const policy = getActiveUiMode().glassPolicy;
   const radius = cornerRadius ?? policy.defaultCornerRadius ?? 22;
   const resolvedTint = tint ?? (policy.mode === "tinted-liquid" ? policy.defaultTint : undefined);
-  if (!iosAtLeast(26) || policy.mode === "solid-fallback")
+  if (!chatTitle || !iosAtLeast(26) || policy.mode === "solid-fallback")
     return (
       <View {...viewProps} style={[style, fallbackStyle]}>
         {children}

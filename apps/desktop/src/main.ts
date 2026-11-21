@@ -15,7 +15,7 @@ import type {
   DesktopSetup,
   RakazoDesktopDevice,
 } from "@rakazo/contracts";
-import { parseServerHeaders, ProjectDirectoryInput } from "@rakazo/contracts";
+import { ProjectDirectoryInput, parseServerHeaders } from "@rakazo/contracts";
 import type { Session } from "electron";
 import {
   app,
@@ -46,7 +46,6 @@ import {
 } from "./auto-update.js";
 import { createBadgeHandler } from "./badge.js";
 import { openBrowserAuth } from "./browser-auth.js";
-import { createProjectWindowsTerminal } from "./project-windows-terminal.js";
 import { DOCKER_INSTALL_LINKS, isDesktopSetupLink, runDocker } from "./docker-cli.js";
 import { prepareHostComputer } from "./host-computer.js";
 import {
@@ -90,6 +89,9 @@ import {
 } from "./monitoring.js";
 import { oauthCallbackFrom } from "./oauth-callback.js";
 import { associatedPasskeyRpIds } from "./passkeys.js";
+import { createProjectDirectoryAccess } from "./project-directory.js";
+import { createProjectWindowsCommandRunner } from "./project-windows-command.js";
+import { createProjectWindowsTerminal } from "./project-windows-terminal.js";
 import {
   bundledRendererCandidates,
   bundledRendererHeaders,
@@ -133,7 +135,6 @@ import { finishAfterStartup } from "./startup-handoff.js";
 import { createSystemSpeech } from "./system-speech.js";
 import type { UserDeviceAccess } from "./user-device.js";
 import { createUserDeviceAccess, deviceName } from "./user-device.js";
-import { createProjectDirectoryAccess } from "./project-directory.js";
 import { oauthPopupSessionPreferences, shouldOpenInAppPopup } from "./window-open.js";
 import {
   browserWindowOptions,
@@ -1997,10 +1998,13 @@ async function startDesktop() {
   const deviceFetch = (url: string, init: RequestInit) => {
     if (activeStandalone !== null && safeOrigin(url) === activeStandalone.remoteOrigin)
       return activeStandalone.fetchBackend(url, init);
-    return (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(url, {
-      ...init,
-      bypassCustomProtocolHandlers: true,
-    });
+    return (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.session : net).fetch(
+      url,
+      {
+        ...init,
+        bypassCustomProtocolHandlers: true,
+      },
+    );
   };
   const projectDirectories = createProjectDirectoryAccess({
     userDataDir,
@@ -2019,32 +2023,71 @@ async function startDesktop() {
         buttonLabel: "绑定此目录",
         properties: ["openDirectory", "dontAddToRecent"],
       });
-      return result.canceled ? null : result.filePaths[0] ?? null;
+      return result.canceled ? null : (result.filePaths[0] ?? null);
     },
-    files: process.platform === "win32" ? {
-      capture: captureWindowsProjectRoot,
-      execute: executeWindowsProjectFile,
-      confirm: async (scope, directory, origin) => {
-        const window = mainWindow;
-        if (!window || window.isDestroyed()) return null;
-        const { response } = await dialog.showMessageBox(window, {
-          type: "question",
-          title: "Sydney 项目目录授权",
-          message: `允许项目「${scope.projectName}」访问此目录？`,
-          detail: [
-            directory,
-            `服务器 ${origin}`,
-            "允许读取的文本可能发送给此服务器和任务所选的 AI 模型。完整目录路径留在本机。",
-            "若允许新建，项目还可以在此目录内创建新的 Markdown 文件。已有文件会保留。",
-          ].join("\n\n"),
-          buttons: ["取消", "只读", "读取并允许新建"],
-          defaultId: 1,
-          cancelId: 0,
-          noLink: true,
-        });
-        return response === 1 ? "read-only" : response === 2 ? "read-write" : null;
-      },
-    } : undefined,
+    files:
+      process.platform === "win32"
+        ? {
+            capture: captureWindowsProjectRoot,
+            execute: executeWindowsProjectFile,
+            confirm: async (scope, directory, origin) => {
+              const window = mainWindow;
+              if (!window || window.isDestroyed()) return null;
+              const { response } = await dialog.showMessageBox(window, {
+                type: "question",
+                title: "Sydney 项目目录授权",
+                message: `允许项目「${scope.projectName}」访问此目录？`,
+                detail: [
+                  directory,
+                  `服务器 ${origin}`,
+                  "允许读取的文本可能发送给此服务器和任务所选的 AI 模型。完整目录路径留在本机。",
+                  "若允许新建，项目还可以在此目录内创建新的 Markdown 文件。已有文件会保留。",
+                ].join("\n\n"),
+                buttons: ["取消", "只读", "读取并允许新建"],
+                defaultId: 1,
+                cancelId: 0,
+                noLink: true,
+              });
+              return response === 1 ? "read-only" : response === 2 ? "read-write" : null;
+            },
+          }
+        : undefined,
+    projectCommand:
+      process.platform === "win32"
+        ? {
+            runner: createProjectWindowsCommandRunner({
+              runnerPath: app.isPackaged
+                ? path.join(process.resourcesPath, "project-command-runner.py")
+                : path.resolve(
+                    app.getAppPath(),
+                    "../../infra/windows-wsl/project-command-runner.py",
+                  ),
+            }),
+            confirm: async (origin, request, signal) => {
+              const window = mainWindow;
+              if (!window || window.isDestroyed()) return false;
+              const { response } = await dialog.showMessageBox(window, {
+                type: "warning",
+                title: "Sydney 隔离项目命令授权",
+                message: "允许在受限的 WSL 项目运行环境中执行此命令？",
+                detail: [
+                  `项目：${request.projectName}`,
+                  `服务器：${origin}`,
+                  `任务：${request.runId}`,
+                  `命令：${JSON.stringify(request.command.argv)}`,
+                  `输入文件：${request.command.inputFiles.length ? request.command.inputFiles.join(", ") : "无"}`,
+                  "命令只接收上述文件的 UTF-8 副本，在无网络和无 Windows 文件挂载的临时环境中运行；所有文件修改会在结束时丢弃。输出将返回给此项目对话。",
+                ].join("\n\n"),
+                buttons: ["取消", "仅允许本次"],
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true,
+                signal,
+              });
+              return response === 1;
+            },
+          }
+        : undefined,
   });
   userDevices = createUserDeviceAccess({
     userDataDir,
@@ -2057,7 +2100,8 @@ async function startDesktop() {
     confirm: (host) => confirmRemoteComputerAccess(host),
     // The app window's session carries the sign-in for that server; the token never reaches it.
     fetch: deviceFetch,
-    workspaceGrant: (origin, device, request) => projectDirectories.request(origin, device, request),
+    workspaceGrant: (origin, device, request) =>
+      projectDirectories.request(origin, device, request),
     projectFile: (origin, device, request, signal) =>
       projectDirectories.execute(origin, device, request, signal),
     projectWindowsTerminal: createProjectWindowsTerminal(async (origin, request, signal) => {
@@ -2083,6 +2127,10 @@ async function startDesktop() {
       });
       return response === 1;
     }),
+    projectWindowsCommand: (origin, device, request, signal) =>
+      projectDirectories.executeProjectCommand(origin, device, request, signal),
+    projectWindowsCommandStatus: (origin, device, request, signal) =>
+      projectDirectories.projectCommandStatus(origin, device, request, signal),
     connect: (origin, token, events) =>
       startUserDeviceClient({
         serverUrl: origin,

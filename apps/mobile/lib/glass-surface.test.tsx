@@ -72,7 +72,7 @@ vi.mock("./ui-mode", () => ({
 }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => device.supportsGlass }));
 
-it("keeps glass behind interactive content on iOS 26", () => {
+it("keeps ordinary surfaces flat and interactive on iOS 26", () => {
   device.supportsGlass = true;
   const markup = renderToStaticMarkup(
     <GlassSurface
@@ -94,17 +94,13 @@ it("keeps glass behind interactive content on iOS 26", () => {
   ).toBe("Connection");
   expect(element.querySelector('[role="alert"]')?.getAttribute("aria-live")).toBe("assertive");
   expect(element.querySelector('[role="alert"]')?.getAttribute("data-modal")).toBe("true");
-  expect(
-    element.querySelector(
-      '[data-glass-host="none"][data-ignore-safe-area="all"] [data-radius="12"]',
-    ),
-  ).not.toBeNull();
+  expect(element.querySelector("[data-glass-host]")).toBeNull();
 });
 
 it("retains children and test identity when native glass is unavailable", () => {
   device.supportsGlass = false;
   const markup = renderToStaticMarkup(
-    <GlassSurface testID="card" fallbackStyle={{ backgroundColor: "white" }}>
+    <GlassSurface chatTitle testID="card" fallbackStyle={{ backgroundColor: "white" }}>
       <button type="button">Open</button>
     </GlassSurface>,
   );
@@ -118,7 +114,7 @@ it("uses tinted mode defaults while honoring explicit tint and radius", () => {
   device.policy = { mode: "tinted-liquid", defaultTint: "#123456", defaultCornerRadius: 18 };
   device.glassEffect.mockClear();
   renderToStaticMarkup(
-    <GlassSurface shape="roundedRectangle">
+    <GlassSurface chatTitle shape="roundedRectangle">
       <span>default tint</span>
     </GlassSurface>,
   );
@@ -129,7 +125,7 @@ it("uses tinted mode defaults while honoring explicit tint and radius", () => {
   });
 
   renderToStaticMarkup(
-    <GlassSurface shape="roundedRectangle" tint="#abcdef" cornerRadius={9}>
+    <GlassSurface chatTitle shape="roundedRectangle" tint="#abcdef" cornerRadius={9}>
       <span>custom tint</span>
     </GlassSurface>,
   );
@@ -145,7 +141,7 @@ it("uses the solid fallback policy even when native glass is available", () => {
   device.policy = { mode: "solid-fallback", defaultCornerRadius: 18 };
   device.glassEffect.mockClear();
   const markup = renderToStaticMarkup(
-    <GlassSurface testID="solid" fallbackStyle={{ backgroundColor: "black" }}>
+    <GlassSurface chatTitle testID="solid" fallbackStyle={{ backgroundColor: "black" }}>
       <button type="button">Open</button>
     </GlassSurface>,
   );
@@ -154,4 +150,20 @@ it("uses the solid fallback policy even when native glass is available", () => {
   expect(element.querySelector("[data-glass-host]")).toBeNull();
   expect(device.glassEffect).not.toHaveBeenCalled();
   device.policy = { mode: "liquid", defaultCornerRadius: 22 };
+});
+
+it("reserves native glass for the chat title and keeps it behind the content", () => {
+  device.supportsGlass = true;
+  device.policy = { mode: "liquid", defaultCornerRadius: 22 };
+  const markup = renderToStaticMarkup(
+    <GlassSurface chatTitle>
+      <button type="button">Bot profile</button>
+    </GlassSurface>,
+  );
+  const element = new DOMParser().parseFromString(markup, "text/html");
+  expect(
+    element.querySelector('[data-glass-host="none"][data-ignore-safe-area="all"]'),
+  ).not.toBeNull();
+  expect(element.querySelector('[data-shape="capsule"]')).not.toBeNull();
+  expect(element.querySelector("button")?.textContent).toBe("Bot profile");
 });

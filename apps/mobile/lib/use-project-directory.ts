@@ -1,13 +1,30 @@
 import type { ProjectDirectorySnapshot } from "@rakazo/contracts";
+import { isRetryableError } from "@rakazo/core";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "./api";
+import { usePageState } from "./page-state";
 import { projectScopeKey } from "./project-scope";
 
 export function useProjectDirectory(projectId: string, scopeKey: string, enabled: boolean) {
-  const [snapshot, setSnapshot] = useState<ProjectDirectorySnapshot | null>(null);
-  const [available, setAvailable] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = usePageState<ProjectDirectorySnapshot | null>(
+    scopeKey,
+    ["project", projectId, "directory"],
+    null,
+  );
+  const [available, setAvailable] = usePageState(
+    scopeKey,
+    ["project", projectId, "directoryAvailable"],
+    false,
+  );
+  const [loaded, setLoaded] = usePageState(
+    scopeKey,
+    ["project", projectId, "directoryLoaded"],
+    false,
+  );
+  const [loading, setLoading] = useState(!loaded);
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   const [failed, setFailed] = useState(false);
   const [working, setWorking] = useState(false);
   const [revocation, setRevocation] = useState<"confirmed" | "pending" | null>(null);
@@ -30,7 +47,7 @@ export function useProjectDirectory(projectId: string, scopeKey: string, enabled
         seen === generation.current &&
         projectScopeKey() === scopeKey &&
         !isSpaceSelectionPending();
-      setLoading(true);
+      setLoading(!loadedRef.current);
       setFailed(false);
       void (async () => {
         try {
@@ -46,12 +63,23 @@ export function useProjectDirectory(projectId: string, scopeKey: string, enabled
           setAvailable(capability.localDevice);
           if (!capability.localDevice) {
             setSnapshot(null);
+            setLoaded(true);
             return;
           }
           const result = await rpc("projectWorkspaces/directory", { id: projectId }, options);
-          if (active()) setSnapshot(result);
-        } catch {
-          if (active()) setFailed(true);
+          if (active()) {
+            setSnapshot(result);
+            setLoaded(true);
+          }
+        } catch (cause) {
+          if (active()) {
+            if (!isRetryableError(cause)) {
+              setSnapshot(null);
+              setAvailable(false);
+              setLoaded(false);
+            }
+            setFailed(true);
+          }
         } finally {
           if (active()) setLoading(false);
         }

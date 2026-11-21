@@ -1,5 +1,6 @@
 import type { ProjectWorkspace, RpcOutput } from "@rakazo/contracts";
 import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
+import { isRetryableError } from "@rakazo/core";
 import type { Href } from "expo-router";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
@@ -15,8 +16,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar } from "../../components/bot-avatar";
 import { BotActionsModal } from "../../components/bot-actions-modal";
+import { BotAvatar } from "../../components/bot-avatar";
 import { CreateBotModal } from "../../components/create-bot-modal";
 import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
@@ -33,6 +34,7 @@ import { inboxBotInput } from "../../lib/create-inbox-bot";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
+import { clearPageState, usePageScroll, usePageState } from "../../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
 import { useSideInsets } from "../../lib/side-insets";
 import type { ProjectActionTarget } from "../../lib/use-project-chat-actions";
@@ -71,23 +73,74 @@ function ProjectContents({
   const insets = useSafeAreaInsets();
   const sideInsets = useSideInsets();
   const router = useRouter();
-  const [project, setProject] = useState<ProjectWorkspace | null>(null);
+  const [project, setProject] = usePageState<ProjectWorkspace | null>(
+    scopeKey,
+    ["project", workspaceId, "info"],
+    null,
+  );
+  const [showArchived, setShowArchived] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "archived"],
+    false,
+  );
+  const [botCursors, setBotCursors] = usePageState<string[]>(
+    scopeKey,
+    ["project", workspaceId, "botCursors"],
+    [],
+  );
+  const [groupCursors, setGroupCursors] = usePageState<string[]>(
+    scopeKey,
+    ["project", workspaceId, "groupCursors"],
+    [],
+  );
+  const afterBotId = botCursors.at(-1);
+  const afterGroupId = groupCursors.at(-1);
+  const scroll = usePageScroll(scopeKey, [
+    "project",
+    workspaceId,
+    "contents",
+    showArchived,
+    afterBotId,
+    afterGroupId,
+  ]);
   type Roster = RpcOutput<"projectWorkspaces/roster">;
-  const [roster, setRoster] = useState<(Omit<Roster, "bots" | "groups"> & {
-    bots: (Roster["bots"][number] & Partial<ProjectActionTarget>)[];
-    groups: (Roster["groups"][number] & Partial<ProjectActionTarget>)[];
-  }) | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [canManage, setCanManage] = useState(false);
+  const [roster, setRoster] = usePageState<
+    | (Omit<Roster, "bots" | "groups"> & {
+        bots: (Roster["bots"][number] & Partial<ProjectActionTarget>)[];
+        groups: (Roster["groups"][number] & Partial<ProjectActionTarget>)[];
+      })
+    | null
+  >(scopeKey, ["project", workspaceId, "roster", showArchived, afterBotId, afterGroupId], null);
+  const [canManage, setCanManage] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "canManage"],
+    false,
+  );
   const [menuTarget, setMenuTarget] = useState<ProjectActionTarget>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [canRemove, setCanRemove] = useState(false);
-  const [canCreateBot, setCanCreateBot] = useState(false);
-  const [canChangeBotSettings, setCanChangeBotSettings] = useState(false);
+  const [canRemove, setCanRemove] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "canRemove"],
+    false,
+  );
+  const [canCreateBot, setCanCreateBot] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "canCreateBot"],
+    false,
+  );
+  const [canChangeBotSettings, setCanChangeBotSettings] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "canChangeBotSettings"],
+    false,
+  );
   const [creatingBot, setCreatingBot] = useState(false);
-  const [canCreateGroup, setCanCreateGroup] = useState(false);
+  const [canCreateGroup, setCanCreateGroup] = usePageState(
+    scopeKey,
+    ["project", workspaceId, "canCreateGroup"],
+    false,
+  );
   const [creatingGroup, setCreatingGroup] = useState(false);
   const groupAttempt = useRef<ProjectGroupAttempt | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -96,12 +149,10 @@ function ProjectContents({
   const focused = useRef(false);
   const refreshInProgress = useRef(false);
   const [attempt, setAttempt] = useState(0);
-  const [botCursors, setBotCursors] = useState<string[]>([]);
-  const [groupCursors, setGroupCursors] = useState<string[]>([]);
-  const afterBotId = botCursors.at(-1);
-  const afterGroupId = groupCursors.at(-1);
   const actionMenu = useProjectChatActions({
-    projectId: workspaceId ?? "", scope: scopeKey, target: menuTarget,
+    projectId: workspaceId ?? "",
+    scope: scopeKey,
+    target: menuTarget,
     enabled: Boolean(workspaceId) && !scopeChanged && canManage,
     onChanged: () => {
       setMenuOpen(false);
@@ -109,7 +160,10 @@ function ProjectContents({
     },
   });
   const showActions = (kind: "bot" | "group", id: string) => {
-    const target = kind === "bot" ? roster?.bots.find((bot) => bot.id === id) : roster?.groups.find((group) => group.id === id);
+    const target =
+      kind === "bot"
+        ? roster?.bots.find((bot) => bot.id === id)
+        : roster?.groups.find((group) => group.id === id);
     if (!target || !canManage) return;
     setMenuTarget({ ...target, kind });
     setMenuOpen(true);
@@ -125,10 +179,6 @@ function ProjectContents({
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
       refreshInProgress.current = true;
       setFailed(false);
-      setCanRemove(false);
-      setCanCreateBot(false);
-      setCanChangeBotSettings(false);
-      setCanCreateGroup(false);
       void (async () => {
         try {
           const requestContext = await captureApiRequestContext();
@@ -162,14 +212,33 @@ function ProjectContents({
           setCanChangeBotSettings(capabilities?.botSettings === true);
           setCanManage(manage);
           const projectRoster = manage
-            ? { ...(await rpc("projectWorkspaces/conversations", { projectId: workspaceId, archived: showArchived }, options)), nextBotId: null, nextGroupId: null }
-            : await rpc("projectWorkspaces/roster", { id: workspaceId, afterBotId, afterGroupId }, options);
+            ? {
+                ...(await rpc(
+                  "projectWorkspaces/conversations",
+                  { projectId: workspaceId, archived: showArchived },
+                  options,
+                )),
+                nextBotId: null,
+                nextGroupId: null,
+              }
+            : await rpc(
+                "projectWorkspaces/roster",
+                { id: workspaceId, afterBotId, afterGroupId },
+                options,
+              );
           if (current()) {
             setProject(result);
             setRoster(projectRoster);
           }
-        } catch {
-          if (current()) setFailed(true);
+        } catch (cause) {
+          if (current()) {
+            if (!isRetryableError(cause)) {
+              clearPageState(scopeKey, ["project", workspaceId]);
+              setProject(null);
+              setRoster(null);
+            }
+            setFailed(true);
+          }
         } finally {
           refreshInProgress.current = false;
           if (current()) setRefreshing(false);
@@ -321,6 +390,7 @@ function ProjectContents({
                 unstable_headerRightItems: () => [
                   {
                     type: "button" as const,
+                    hidesSharedBackground: true,
                     label: switchLabel,
                     accessibilityLabel: switchLabel,
                     icon: { type: "sfSymbol" as const, name: "folder" },
@@ -346,6 +416,7 @@ function ProjectContents({
         }}
       />
       <ScrollView
+        {...scroll}
         contentInsetAdjustmentBehavior="automatic"
         style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
         contentContainerStyle={{
@@ -368,6 +439,14 @@ function ProjectContents({
           />
         }
       >
+        {failed && project ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            {text(
+              "项目刷新失败，当前显示上次内容，可下拉重试。",
+              "Could not refresh. Showing the last content; pull to retry.",
+            )}
+          </Text>
+        ) : null}
         {unavailable ? (
           <GlassSurface
             shape="roundedRectangle"
@@ -392,7 +471,7 @@ function ProjectContents({
               onPress={() => router.dismissTo("/projects")}
             />
           </GlassSurface>
-        ) : failed ? (
+        ) : failed && !project ? (
           <GlassSurface
             shape="roundedRectangle"
             cornerRadius={16}
@@ -482,11 +561,23 @@ function ProjectContents({
               enabled={!scopeChanged}
             />
 
-            {canManage ? <NativeActionButton
-              label={text(showArchived ? "返回聊天列表" : "已归档的聊天", showArchived ? "Back to chats" : "Archived chats")}
-              prominence="secondary" fill={false}
-              onPress={() => { setMenuOpen(false); setMenuTarget(undefined); setRoster(null); setBotCursors([]); setGroupCursors([]); setShowArchived((old) => !old); }}
-            /> : null}
+            {canManage ? (
+              <NativeActionButton
+                label={text(
+                  showArchived ? "返回聊天列表" : "已归档的聊天",
+                  showArchived ? "Back to chats" : "Archived chats",
+                )}
+                prominence="secondary"
+                fill={false}
+                onPress={() => {
+                  setMenuOpen(false);
+                  setMenuTarget(undefined);
+                  setBotCursors([]);
+                  setGroupCursors([]);
+                  setShowArchived((old) => !old);
+                }}
+              />
+            ) : null}
             {!roster ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 8 }}>
                 <ActivityIndicator color={tokens.mutedForeground} />
@@ -498,11 +589,21 @@ function ProjectContents({
               <>
                 <ProjectConversationSection
                   title={text("小伙伴", "Bots")}
-                  emptyLabel={showArchived ? text("暂无已归档的 Bot", "No archived bots") : text("暂无项目 Bot", "No project bots yet")}
+                  emptyLabel={
+                    showArchived
+                      ? text("暂无已归档的 Bot", "No archived bots")
+                      : text("暂无项目 Bot", "No project bots yet")
+                  }
                   action={text("新建 Bot", "New bot")}
                   kind="bot"
                   items={roster.bots}
-                  onSettings={canManage ? (id) => showActions("bot", id) : canChangeBotSettings ? openBotSettings : undefined}
+                  onSettings={
+                    canManage
+                      ? (id) => showActions("bot", id)
+                      : canChangeBotSettings
+                        ? openBotSettings
+                        : undefined
+                  }
                   hasPrevious={botCursors.length > 0}
                   next={roster.nextBotId}
                   actionEnabled={canCreateBot && !showArchived}
@@ -517,7 +618,11 @@ function ProjectContents({
                 />
                 <ProjectConversationSection
                   title={text("群聊", "Group chats")}
-                  emptyLabel={showArchived ? text("暂无已归档的群聊", "No archived group chats") : text("暂无项目群聊", "No project group chats yet")}
+                  emptyLabel={
+                    showArchived
+                      ? text("暂无已归档的群聊", "No archived group chats")
+                      : text("暂无项目群聊", "No project group chats yet")
+                  }
                   action={text("新建群聊", "New group chat")}
                   kind="group"
                   items={roster.groups}
@@ -566,7 +671,9 @@ function ProjectContents({
           </>
         )}
       </ScrollView>
-      {menuOpen ? <BotActionsModal actions={actionMenu.actions} onClose={() => setMenuOpen(false)} /> : null}
+      {menuOpen ? (
+        <BotActionsModal actions={actionMenu.actions} onClose={() => setMenuOpen(false)} />
+      ) : null}
       {creatingBot ? (
         <CreateBotModal
           onClose={() => setCreatingBot(false)}
@@ -749,7 +856,9 @@ function ProjectConversationSection({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
-                    locale.startsWith("zh") ? `聊天操作 ${item.name}` : `Chat actions for ${item.name}`
+                    locale.startsWith("zh")
+                      ? `聊天操作 ${item.name}`
+                      : `Chat actions for ${item.name}`
                   }
                   onPress={() => onSettings(item.id)}
                   style={({ pressed }) => ({

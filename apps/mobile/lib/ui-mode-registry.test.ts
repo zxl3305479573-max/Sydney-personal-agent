@@ -68,7 +68,7 @@ describe("ui-mode-registry and classic baseline preset", () => {
   it("exports a valid, frozen classicUiMode baseline matching native Liquid Glass defaults", () => {
     expect(classicUiMode.id).toBe("classic");
     expect(classicUiMode.name).toBe("Classic");
-    expect(classicUiMode.description).toBe("Default native iOS Liquid Glass interface");
+    expect(classicUiMode.description).toBe("Default native interface");
     expect(classicUiMode.version).toBe("1.0.0");
     expect(classicUiMode.order).toBe(0);
     expect(classicUiMode.supportedPlatforms).toEqual(["ios", "android", "web"]);

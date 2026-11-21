@@ -23,6 +23,7 @@ vi.mock("./api", () => ({
   rpc: runtime.rpc,
 }));
 
+import { queryClient } from "./query-client";
 import { useProjectDirectory } from "./use-project-directory";
 
 describe("mobile project directory status", () => {
@@ -65,6 +66,7 @@ describe("mobile project directory status", () => {
   });
   afterEach(async () => {
     await act(async () => root.unmount());
+    queryClient.clear();
     vi.unstubAllGlobals();
   });
 
@@ -81,12 +83,41 @@ describe("mobile project directory status", () => {
       }),
     );
   });
+  it("restores the directory before a new status read finishes on re-entry", async () => {
+    await render();
+    await act(async () => root.render(null));
+    let finish!: (value: unknown) => void;
+    runtime.rpc.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render();
+    expect(state.snapshot).toEqual(snapshot);
+    expect(state.available).toBe(true);
+    expect(state.loading).toBe(false);
+    await act(async () => finish({ localDevice: false }));
+    expect(state.snapshot).toBeNull();
+    await act(async () => root.render(null));
+    await render();
+    expect(state.snapshot).toEqual(snapshot);
+  });
   it("does not query the binding when the server capability is closed", async () => {
     runtime.rpc.mockResolvedValue({ localDevice: false });
     await render();
     expect(state.available).toBe(false);
     expect(state.snapshot).toBeNull();
     expect(runtime.rpc).toHaveBeenCalledOnce();
+  });
+  it("clears the saved binding if the server denies a reopened directory", async () => {
+    await render();
+    await act(async () => root.render(null));
+    runtime.rpc.mockRejectedValueOnce(Object.assign(new Error("Forbidden"), { status: 403 }));
+    await render();
+    expect(state.snapshot).toBeNull();
+    expect(state.available).toBe(false);
+    expect(state.failed).toBe(true);
   });
   it.each(["disabled", "pending", "unfocused"])(
     "does not query a %s project scope",

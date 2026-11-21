@@ -51,19 +51,36 @@ describe("project text tool policy", () => {
 
   it.each([
     ["user", "project-a", "read-only", ["project_list_files", "project_read_file"]],
-    ["user", "project-a", "read-write", ["project_create_file", "project_list_files", "project_read_file", "project_update_file"]],
+    [
+      "user",
+      "project-a",
+      "read-write",
+      ["project_create_file", "project_list_files", "project_read_file", "project_update_file"],
+    ],
     ["routine", "project-a", "read-write", []],
     ["user", null, "read-write", []],
-  ] as const)("restricts file tools for %s in %s with %s", (trigger, projectWorkspaceId, projectDirectoryIntent, names) => {
-    expect(selectBuiltinToolsForRun({
-      ...options, trigger, projectWorkspaceId, projectDirectoryIntent,
-    }).map((tool) => tool.name).filter((name) => name.startsWith("project_")).sort()).toEqual(names);
-  });
+  ] as const)(
+    "restricts file tools for %s in %s with %s",
+    (trigger, projectWorkspaceId, projectDirectoryIntent, names) => {
+      expect(
+        selectBuiltinToolsForRun({
+          ...options,
+          trigger,
+          projectWorkspaceId,
+          projectDirectoryIntent,
+        })
+          .map((tool) => tool.name)
+          .filter((name) => name.startsWith("project_"))
+          .sort(),
+      ).toEqual(names);
+    },
+  );
 
   it("offers independent Windows diagnostics only in owner-started projects", () => {
     const names = (overrides: Partial<Parameters<typeof selectBuiltinToolsForRun>[0]> = {}) =>
-      selectBuiltinToolsForRun({ ...options, projectWindowsTerminal: true, ...overrides })
-        .map((tool) => tool.name);
+      selectBuiltinToolsForRun({ ...options, projectWindowsTerminal: true, ...overrides }).map(
+        (tool) => tool.name,
+      );
     expect(names()).toContain("project_windows_terminal");
     expect(names()).not.toContain("user_computer_shell");
     expect(names({ projectWorkspaceId: null })).not.toContain("project_windows_terminal");
@@ -73,13 +90,29 @@ describe("project text tool policy", () => {
 
   it("offers an isolated cloud command only when the dedicated provider confirms it", () => {
     const names = (overrides: Partial<Parameters<typeof selectBuiltinToolsForRun>[0]> = {}) =>
-      selectBuiltinToolsForRun({ ...options, projectCloudCommand: true, ...overrides })
-        .map((tool) => tool.name);
+      selectBuiltinToolsForRun({ ...options, projectCloudCommand: true, ...overrides }).map(
+        (tool) => tool.name,
+      );
     expect(names()).toContain("project_cloud_command");
     expect(names({ projectWorkspaceId: null })).not.toContain("project_cloud_command");
     expect(names({ trigger: "routine" })).not.toContain("project_cloud_command");
     expect(names({ messagingChannelRun: true })).not.toContain("project_cloud_command");
-    expect(selectBuiltinToolsForRun(options).map((tool) => tool.name)).not.toContain("project_cloud_command");
+    expect(selectBuiltinToolsForRun(options).map((tool) => tool.name)).not.toContain(
+      "project_cloud_command",
+    );
+  });
+
+  it("offers the Windows command for a pinned project run without requiring the device online", () => {
+    const names = (projectWindowsCommand?: boolean) =>
+      selectBuiltinToolsForRun({
+        ...options,
+        projectDirectoryIntent: "read-only",
+        projectWindowsCommand,
+      }).map((tool) => tool.name);
+    expect(names()).not.toContain("project_windows_command");
+    expect(names(true)).toContain("project_windows_command");
+    expect(names(true)).not.toContain("user_computer_shell");
+    expect(names(true)).not.toContain("shell");
   });
 
   it("never exposes a project shell or arbitrary command without an isolated executor", () => {

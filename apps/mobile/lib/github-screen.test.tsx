@@ -138,6 +138,7 @@ vi.mock("./use-github", () => ({ useGithub: runtime.useGithub }));
 
 import GithubScreen from "../app/github";
 import { MainNavigationProvider, useMainNavigationHidden } from "./main-navigation";
+import { queryClient } from "./query-client";
 
 function screenState() {
   return {
@@ -149,6 +150,7 @@ function screenState() {
     selectedRepo: null,
     detail: null,
     year: undefined,
+    query: "",
     page: 1,
     hidePrivate: false,
     loading: false,
@@ -193,6 +195,7 @@ describe("native GitHub screen", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    queryClient.clear();
     vi.unstubAllGlobals();
   });
 
@@ -227,6 +230,28 @@ describe("native GitHub screen", () => {
     await render();
     expect(input.value).toBe("");
     expect(state.connect).not.toHaveBeenCalled();
+  });
+
+  it("restores search inputs after leaving and reopening the browser", async () => {
+    state.section = "explore";
+    await render();
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="搜索仓库"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        input,
+        "agent tools",
+      );
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => root.render(null));
+    await render();
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="搜索仓库"]')?.value).toBe(
+      "agent tools",
+    );
+    expect(
+      container.querySelector<HTMLInputElement>('input[aria-label="GitHub Personal Access Token"]')
+        ?.value,
+    ).toBe("");
   });
 
   it("hides the root navigation for repository detail and restores it on return or blur", async () => {

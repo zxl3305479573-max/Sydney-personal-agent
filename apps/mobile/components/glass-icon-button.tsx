@@ -2,16 +2,10 @@ import type { ComponentProps } from "react";
 import type { ColorValue, StyleProp, ViewStyle } from "react-native";
 import { Platform, Pressable } from "react-native";
 import { useMobileTokens } from "../lib/native";
-import { iosAtLeast } from "../lib/native-controls";
 import { androidRipple, withAlpha } from "../lib/ripple";
 import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 
-/**
- * Round icon button on Liquid Glass (iOS 26); `fallbackStyle` draws it elsewhere. The icon
- * defaults to full contrast on glass and muted on the flat fallback; a selected toggle fills
- * with the primary token.
- */
 export function GlassIconButton({
   testID,
   accessibilityLabel,
@@ -38,9 +32,7 @@ export function GlassIconButton({
   fallbackStyle?: StyleProp<ViewStyle>;
 }) {
   const tokens = useMobileTokens();
-  const iconColor = selected
-    ? tokens.primaryForeground
-    : (color ?? (iosAtLeast(26) ? tokens.foreground : tokens.mutedForeground));
+  const iconColor = selected ? tokens.primaryForeground : (color ?? tokens.mutedForeground);
   return (
     <GlassSurface
       shape="circle"

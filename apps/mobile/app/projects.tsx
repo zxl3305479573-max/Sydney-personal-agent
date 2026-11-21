@@ -1,5 +1,5 @@
 import type { ProjectWorkspaceCursor, RpcOutput } from "@rakazo/contracts";
-import { newClientId } from "@rakazo/core";
+import { isRetryableError, newClientId } from "@rakazo/core";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -26,6 +26,7 @@ import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../lib/a
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { clearPageState, usePageScroll, usePageState } from "../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
@@ -46,23 +47,36 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   const appearance = useResolvedAppearance();
   const sideInsets = useSideInsets();
   const bottomClaimed = useBottomSafeAreaClaimed();
-  const [page, setPage] = useState<RpcOutput<"projectWorkspaces/list"> | null>(null);
-  const [cursors, setCursors] = useState<ProjectWorkspaceCursor[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cursors, setCursors] = usePageState<ProjectWorkspaceCursor[]>(
+    scopeKey,
+    ["projects", "cursors"],
+    [],
+  );
+  const after = cursors.at(-1);
+  const scroll = usePageScroll(scopeKey, ["projects", "list", after]);
+  const [page, setPage] = usePageState<RpcOutput<"projectWorkspaces/list"> | null>(
+    scopeKey,
+    ["projects", "list", after],
+    null,
+  );
+  const [loading, setLoading] = useState(!page);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [createAvailable, setCreateAvailable] = useState(false);
+  const [createAvailable, setCreateAvailable] = usePageState(
+    scopeKey,
+    ["projects", "createAvailable"],
+    false,
+  );
   const [createError, setCreateError] = useState<string | null>(null);
   const createAttempt = useRef<{ name: string; id: string } | null>(null);
   const createInFlight = useRef(false);
   const focused = useRef(false);
   const refreshInProgress = useRef(false);
   const focusGeneration = useRef(0);
-  const after = cursors.at(-1);
 
   const openCreateModal = () => {
     if (!createAvailable || isSpaceSelectionPending()) return;
@@ -135,9 +149,8 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
       const controller = new AbortController();
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
       refreshInProgress.current = true;
-      setLoading((wasLoading) => wasLoading || page === null);
+      setLoading(page === null);
       setError(null);
-      setCreateAvailable(false);
       void (async () => {
         try {
           const requestContext = await captureApiRequestContext();
@@ -157,8 +170,14 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
           const next = await rpc("projectWorkspaces/list", { after }, options);
           if (current()) setPage(next);
         } catch (cause) {
-          if (current())
+          if (current()) {
+            if (!isRetryableError(cause)) {
+              clearPageState(scopeKey, ["projects"]);
+              setPage(null);
+              setCreateAvailable(false);
+            }
             setError(errorText(cause, text("无法加载项目", "Could not load projects")));
+          }
         } finally {
           refreshInProgress.current = false;
           if (current()) {
@@ -199,6 +218,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                   unstable_headerRightItems: () => [
                     {
                       type: "button" as const,
+                      hidesSharedBackground: true,
                       label: newProjectLabel,
                       accessibilityLabel: newProjectLabel,
                       icon: { type: "sfSymbol" as const, name: "plus" },
@@ -228,6 +248,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         }}
       />
       <ScrollView
+        {...scroll}
         contentInsetAdjustmentBehavior="automatic"
         style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
         contentContainerStyle={{
@@ -251,6 +272,11 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
           />
         }
       >
+        {error && page ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            {error}
+          </Text>
+        ) : null}
         {isSpaceSelectionPending() ? (
           <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
             <ActivityIndicator color={tokens.mutedForeground} />
@@ -265,7 +291,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
               {text("正在加载项目…", "Loading projects…")}
             </Text>
           </View>
-        ) : error ? (
+        ) : error && !page ? (
           <GlassSurface
             shape="roundedRectangle"
             cornerRadius={16}

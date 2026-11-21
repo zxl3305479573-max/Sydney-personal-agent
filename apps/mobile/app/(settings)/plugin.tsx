@@ -343,6 +343,7 @@ export default function PluginScreen() {
             unstable_headerRightItems: () => [
               {
                 type: "button" as const,
+                hidesSharedBackground: true,
                 label: action.label,
                 ...(action.destructive
                   ? { tintColor: mobileTokens().destructive }
@@ -473,6 +474,7 @@ export default function PluginScreen() {
                           label={server.oauthStatus === "reconnect" ? t("Reconnect") : t("Sign in")}
                           onPress={() => void signIn(server)}
                           prominence="secondary"
+                          variant="text"
                         />
                       )}
                       {botId ? (

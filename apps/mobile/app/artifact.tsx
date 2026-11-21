@@ -212,12 +212,14 @@ export default function ArtifactDetailScreen() {
                 ? [
                     {
                       type: "button" as const,
+                      hidesSharedBackground: true,
                       label: t("Share"),
                       icon: { type: "sfSymbol" as const, name: "square.and.arrow.up" },
                       onPress: () => void share(),
                     },
                     {
                       type: "button" as const,
+                      hidesSharedBackground: true,
                       label: t("Delete"),
                       icon: { type: "sfSymbol" as const, name: "trash" },
                       tintColor: mobileTokens().destructive,

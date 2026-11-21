@@ -23,6 +23,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { useI18n } from "../lib/i18n";
 import { useHideMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens } from "../lib/native";
+import { usePageScroll, usePageState } from "../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { useSideInsets } from "../lib/side-insets";
 import type { GithubSection } from "../lib/use-github";
@@ -35,15 +36,27 @@ export default function GithubScreen() {
 
 function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   const github = useGithub(scopeKey);
+  const scroll = usePageScroll(scopeKey, [
+    "github-view",
+    "contents",
+    github.section,
+    github.selectedRepo?.id,
+    github.year,
+    github.page,
+    github.query,
+    github.repositoryFilters,
+    github.exploreFilters,
+    github.hidePrivate,
+  ]);
   useHideMainNavigation(github.selectedRepo !== null);
   const tokens = useMobileTokens();
   const sideInsets = useSideInsets();
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const [token, setToken] = useState("");
-  const [query, setQuery] = useState("");
-  const [language, setLanguage] = useState("");
-  const [topic, setTopic] = useState("");
+  const [query, setQuery] = usePageState(scopeKey, ["github-view", "draftQuery"], github.query);
+  const [language, setLanguage] = usePageState(scopeKey, ["github-view", "draftLanguage"], "");
+  const [topic, setTopic] = usePageState(scopeKey, ["github-view", "draftTopic"], "");
   useFocusEffect(useCallback(() => () => setToken(""), []));
   const connected = github.status?.status === "connected";
   const headingStyle = { color: tokens.foreground, ...typeScale.headline };
@@ -130,6 +143,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
         onBack={github.selectedRepo ? () => github.selectRepo(null) : undefined}
       />
       <ScrollView
+        {...scroll}
         style={sideInsets}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"

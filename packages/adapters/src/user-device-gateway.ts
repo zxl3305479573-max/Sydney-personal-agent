@@ -10,10 +10,7 @@ import { getLogger } from "@rakazo/logging";
 import { WebSocketServer } from "ws";
 import { z } from "zod";
 import type { HostComputerFrame } from "./host-computer-protocol.js";
-import {
-  HOST_COMPUTER_MAX_BYTES,
-  hostComputerDeadlineMs,
-} from "./host-computer-protocol.js";
+import { HOST_COMPUTER_MAX_BYTES, hostComputerDeadlineMs } from "./host-computer-protocol.js";
 import type {
   UserDevice,
   UserDeviceGateway,
@@ -23,8 +20,8 @@ import type {
 import {
   USER_DEVICE_REVOKED_HEADER,
   userDeviceClientMessage,
-  userDeviceRevokeReason,
   userDeviceRequest,
+  userDeviceRevokeReason,
 } from "./user-device-protocol.js";
 
 /** Internal API endpoints other processes forward to. Not under /api, so the public proxy never routes them. */
@@ -583,8 +580,13 @@ export class UserDevices implements UserDeviceGateway {
     deviceId?: string,
   ): AsyncIterable<T> {
     if (
-      (request.method === "projectFile" || request.method === "projectWindowsTerminal") && !deviceId
-    ) throw new Error("Project requests require a fixed device");
+      (request.method === "projectFile" ||
+        request.method === "projectWindowsTerminal" ||
+        request.method === "projectWindowsCommand" ||
+        request.method === "projectWindowsCommandStatus") &&
+      !deviceId
+    )
+      throw new Error("Project requests require a fixed device");
     const body = JSON.stringify(request);
     if (Buffer.byteLength(body) > HOST_COMPUTER_MAX_BYTES)
       throw new Error("Request to your computer is too large");
@@ -593,10 +595,17 @@ export class UserDevices implements UserDeviceGateway {
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(
-        request.method === "workspaceGrant" ? 5_000
-          : request.method === "projectFile" ? 15_000
-            : request.method === "projectWindowsTerminal" ? 90_000
-            : hostComputerDeadlineMs(request),
+        request.method === "workspaceGrant"
+          ? 5_000
+          : request.method === "projectFile"
+            ? 15_000
+            : request.method === "projectWindowsTerminal"
+              ? 90_000
+              : request.method === "projectWindowsCommand"
+                ? 90_000
+                : request.method === "projectWindowsCommandStatus"
+                  ? 15_000
+                  : hostComputerDeadlineMs(request),
       ),
     ]);
     const target = { deviceId: route.deviceId, userId, connectionId: route.connectionId };

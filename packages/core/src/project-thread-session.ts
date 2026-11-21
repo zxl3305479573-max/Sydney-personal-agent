@@ -119,13 +119,14 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
   downloadArtifact?: (artifactId: string, signal: AbortSignal) => Promise<void>;
   nonce?: () => string;
   pendingSend?: ProjectThreadPendingSend;
+  initialSnapshot?: Snapshot | null;
 }) {
   const controller = new AbortController();
   const { signal } = controller;
   const listeners = new Set<() => void>();
   let state: ProjectThreadState<Snapshot> = {
-    snapshot: null,
-    loading: true,
+    snapshot: options.initialSnapshot ?? null,
+    loading: !options.initialSnapshot,
     sending: false,
     consenting: false,
     consent: null,
@@ -139,6 +140,7 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
     downloadError: null,
   };
   const pendingSend = options.pendingSend ?? { current: null };
+  let loaded = false;
   let running: Promise<void> | undefined;
   let readController: AbortController | undefined;
   const current = () => !signal.aborted && options.current();
@@ -151,9 +153,14 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
     const next = await options.load(readSignal);
     if (!current() || readSignal.aborted) return;
     const previous = state.snapshot;
-    if (previous && previous.threadId !== next.threadId)
+    if (loaded && previous && previous.threadId !== next.threadId)
       throw Object.assign(new Error("Project conversation changed; reopen it."), { status: 409 });
-    if (!previous || (next.cursor ?? -1) >= (previous.cursor ?? -1))
+    loaded = true;
+    if (
+      !previous ||
+      previous.threadId !== next.threadId ||
+      (next.cursor ?? -1) >= (previous.cursor ?? -1)
+    )
       commit({ snapshot: next, loading: false, readError: null });
     else commit({ loading: false, readError: null });
   };

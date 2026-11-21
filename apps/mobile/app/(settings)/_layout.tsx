@@ -39,6 +39,7 @@ export default function SettingsLayout() {
                 unstable_headerLeftItems: () => [
                   {
                     type: "button" as const,
+                    hidesSharedBackground: true,
                     label: t("Dismiss"),
                     icon: { type: "sfSymbol" as const, name: "xmark" as const },
                     onPress: close,

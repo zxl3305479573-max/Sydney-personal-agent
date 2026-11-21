@@ -30,7 +30,15 @@ export class UserDeviceEmulator implements UserDeviceGateway {
       yield { state: "unavailable" } as T;
       return;
     }
-    if (request.method === "projectFile" || request.method === "projectWindowsTerminal")
+    if (request.method === "projectWindowsCommandStatus") {
+      yield { available: false } as T;
+      return;
+    }
+    if (
+      request.method === "projectFile" ||
+      request.method === "projectWindowsTerminal" ||
+      request.method === "projectWindowsCommand"
+    )
       throw new Error("No emulated project device access");
     this.requests.push({ userId, request });
     if (request.method === "environment") {

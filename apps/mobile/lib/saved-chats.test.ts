@@ -174,8 +174,20 @@ it("round trips only what the inbox shows", () => {
   writeSavedThread(scope, "bot:bot-a", thread(SAVED_CHAT_MESSAGES + 1));
   const saved = readSavedThread(scope, "bot:bot-a")!;
   expect(saved.messages).toHaveLength(SAVED_CHAT_MESSAGES);
-  expect(saved.run).toBeNull();
+  expect(saved.run).toMatchObject({ id: "run-a", status: "running" });
+  expect(saved.activeRuns).toEqual([{ id: "run-a", status: "running" }]);
   expect(saved).not.toHaveProperty("cursor");
+  expect(readSavedInbox(scope)?.bots[0]?.status).toBe("running");
+});
+
+it("keeps the cached inbox idle after a saved run finishes", () => {
+  writeSavedInbox(scope, navigation, me);
+  writeSavedThread(scope, "bot:bot-a", thread(1));
+  const finished = thread(1);
+  finished.run = null;
+  finished.activeRuns = [];
+  writeSavedThread(scope, "bot:bot-a", finished);
+  expect(readSavedInbox(scope)?.bots[0]?.status).toBe("idle");
 });
 
 it.each([{ apiBase: "https://other.example.test" }, { userId: "user-b" }, { spaceId: "space-b" }])(

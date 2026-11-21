@@ -5,7 +5,7 @@ import { CLASSIC_UI_MODE_ID } from "./types";
 export const classicUiMode: UiModeDefinition = Object.freeze({
   id: CLASSIC_UI_MODE_ID,
   name: "Classic",
-  description: "Default native iOS Liquid Glass interface",
+  description: "Default native interface",
   version: "1.0.0",
   order: 0,
   supportedPlatforms: Object.freeze(["ios", "android", "web"] as const),

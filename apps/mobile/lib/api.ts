@@ -1681,7 +1681,7 @@ type MobileRun = Pick<Run, "id"> & Partial<Pick<Run, "botId" | "userId">> & { st
 
 /**
  * A thread as the screen holds it: live events patch it between refreshes, and a saved chat
- * reopens without its cursor, runs, or computer.
+ * reopens with its last known runs, without its replay cursor or computer control.
  */
 export type MobileSnapshot = Omit<
   ThreadSnapshot,

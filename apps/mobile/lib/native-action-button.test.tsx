@@ -166,7 +166,7 @@ describe("iOS action styling", () => {
     const { modifiers } = swiftButton.mock.lastCall![0];
     expect(modifiers).toEqual(
       expect.arrayContaining([
-        { name: "buttonStyle", value: version >= 26 ? "glass" : "plain" },
+        { name: "buttonStyle", value: "plain" },
         { name: "controlSize", value: "regular" },
       ]),
     );
@@ -285,7 +285,7 @@ describe("compact native actions", () => {
       modifiers: expect.arrayContaining([
         { name: "controlSize", value: "small" },
         { name: "labelStyle", value: "iconOnly" },
-        { name: "buttonStyle", value: version >= 26 ? "glassProminent" : "borderedProminent" },
+        { name: "buttonStyle", value: "borderedProminent" },
         { name: "accessibilityAddTraits", value: ["isSelected"] },
         { name: "accessibilityLabel", value: "Keyboard" },
       ]),
@@ -324,7 +324,7 @@ describe("compact native actions", () => {
     );
     expect(swiftButton.mock.lastCall?.[0].modifiers).toEqual(
       expect.arrayContaining([
-        { name: "buttonStyle", value: version >= 26 ? "glass" : "bordered" },
+        { name: "buttonStyle", value: "plain" },
         { name: "accessibilityRemoveTraits", value: ["isSelected"] },
       ]),
     );

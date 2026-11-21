@@ -568,6 +568,12 @@ flowchart LR
 交付：授权工作区内的受限工具执行、进度、取消、日志摘要和文件变更记录。  
 验收：常见越界、网络绕过、进程残留、休眠重连和授权撤销测试通过；达不到隔离要求则不提供本地任意命令。
 
+#### Windows WSL 2 项目命令候选（PA-022／PRJ-02）
+
+按 [ADR-0027](../../docs/adr/0027-windows-project-command-isolation.md) 采用专用 WSL 2 guest 的候选架构。仅在显式指定发行版且桌面端和 guest 的健康探测都通过时，Worker 才把项目命令工具提供给模型。桌面主进程在项目审批后再次向用户显示原生确认，再从已授权目录句柄读取显式列出的 UTF-8 文件副本；guest 用 Bubblewrap 与 libseccomp 在只读根文件系统和临时 tmpfs 中执行 argv 数组。网络、Windows 自动挂载、WSL interop 和目录写回必须由实际 guest 配置及运行时负向验证证明，不靠工作目录路径声称隔离。
+
+状态：项目命令契约、设备通道、桌面调用器、逐次确认、Worker 工具选择和离线模拟测试已接线。专属发行版、Bubblewrap／libseccomp guest 运行时准备及 Windows 安装包端到端测试未完成。`SYDNEY_PROJECT_WSL_DISTRIBUTION` 未配置或任一健康探测失败即不可用。测评项见 [项目设备同步测评](PROJECT_DEVICE_SYNC_EVALUATION.md)；实际测试证据见 [验证记录](../VALIDATION.md#windows-隔离项目命令候选2026-11-21)。
+
 每阶段同步总计划、开发记录、验证记录和受影响运维文档。必要时增加 ADR；项目接口、权限、数据路径或部署方式未确定之前不安装新依赖、不修改生产服务。
 
 ### 7.1 模块交接与集成门禁

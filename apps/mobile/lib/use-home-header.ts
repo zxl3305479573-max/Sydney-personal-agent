@@ -4,7 +4,6 @@ import type { CreateAction } from "./create-chooser";
 import { createMenuItems } from "./create-chooser";
 import { useI18n } from "./i18n";
 
-/** Liquid Glass home header: account on the left; activity and create on the right. */
 export function useHomeHeader({
   nativeHeader,
   ready,
@@ -36,6 +35,7 @@ export function useHomeHeader({
       unstable_headerLeftItems: () => [
         {
           type: "button" as const,
+          hidesSharedBackground: true,
           label: t("Account"),
           icon: { type: "sfSymbol" as const, name: "person.crop.circle" },
           accessibilityLabel: t("Account"),
@@ -45,6 +45,7 @@ export function useHomeHeader({
       unstable_headerRightItems: () => [
         {
           type: "button" as const,
+          hidesSharedBackground: true,
           label: t("Activity"),
           accessibilityLabel: t("Activity"),
           icon: { type: "sfSymbol" as const, name: activityMode ? "bell.fill" : "bell" },
@@ -53,6 +54,7 @@ export function useHomeHeader({
         },
         {
           type: "menu" as const,
+          hidesSharedBackground: true,
           label: t("Create"),
           accessibilityLabel: t("Create"),
           icon: { type: "sfSymbol" as const, name: "plus" },

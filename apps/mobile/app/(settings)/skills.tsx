@@ -86,7 +86,12 @@ export default function SkillsScreen() {
       iosAtLeast(26)
         ? {
             unstable_headerRightItems: () => [
-              { type: "button" as const, label: t("From GitHub"), onPress: toggle },
+              {
+                type: "button" as const,
+                hidesSharedBackground: true,
+                label: t("From GitHub"),
+                onPress: toggle,
+              },
             ],
           }
         : {

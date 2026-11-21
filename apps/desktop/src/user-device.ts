@@ -7,6 +7,10 @@ import type { UserDeviceClientOptions } from "@rakazo/adapters/user-device-clien
 import type {
   ProjectFileRequest,
   ProjectFileResult,
+  ProjectWindowsCommandRequest,
+  ProjectWindowsCommandResult,
+  ProjectWindowsCommandStatusRequest,
+  ProjectWindowsCommandStatusResult,
   ProjectWindowsTerminalRequest,
   ProjectWindowsTerminalResult,
   RakazoDesktopDevice,
@@ -144,11 +148,34 @@ export function createUserDeviceAccess(deps: {
   /** The native consent prompt. Resolves true only when the person clicks Allow. */
   confirm: (host: string) => Promise<boolean>;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
-  workspaceGrant?: (origin: string, device: PairedDevice, request: WorkspaceGrantRequest) => Promise<WorkspaceGrantResult>;
-  projectFile?: (origin: string, device: PairedDevice, request: ProjectFileRequest, signal: AbortSignal) => Promise<ProjectFileResult>;
+  workspaceGrant?: (
+    origin: string,
+    device: PairedDevice,
+    request: WorkspaceGrantRequest,
+  ) => Promise<WorkspaceGrantResult>;
+  projectFile?: (
+    origin: string,
+    device: PairedDevice,
+    request: ProjectFileRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectFileResult>;
   projectWindowsTerminal?: (
-    origin: string, request: ProjectWindowsTerminalRequest, signal: AbortSignal,
+    origin: string,
+    request: ProjectWindowsTerminalRequest,
+    signal: AbortSignal,
   ) => Promise<ProjectWindowsTerminalResult>;
+  projectWindowsCommand?: (
+    origin: string,
+    device: PairedDevice,
+    request: ProjectWindowsCommandRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandResult>;
+  projectWindowsCommandStatus?: (
+    origin: string,
+    device: PairedDevice,
+    request: ProjectWindowsCommandStatusRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandStatusResult>;
   connect: (
     origin: string,
     token: string,
@@ -158,6 +185,8 @@ export function createUserDeviceAccess(deps: {
       workspaceGrant?: UserDeviceClientOptions["workspaceGrant"];
       projectFile?: UserDeviceClientOptions["projectFile"];
       projectWindowsTerminal?: UserDeviceClientOptions["projectWindowsTerminal"];
+      projectWindowsCommand?: UserDeviceClientOptions["projectWindowsCommand"];
+      projectWindowsCommandStatus?: UserDeviceClientOptions["projectWindowsCommandStatus"];
     },
   ) => { close(): void; cancelAll(): void };
 }) {
@@ -209,7 +238,12 @@ export function createUserDeviceAccess(deps: {
       },
       authorize: () => authorize(origin),
       workspaceGrant: (request) => {
-        if (!identity || current !== origin || paired.get(origin) !== identity || !deps.workspaceGrant)
+        if (
+          !identity ||
+          current !== origin ||
+          paired.get(origin) !== identity ||
+          !deps.workspaceGrant
+        )
           return Promise.resolve({ state: "unauthorized" });
         return deps.workspaceGrant(origin, identity, request);
       },
@@ -219,9 +253,34 @@ export function createUserDeviceAccess(deps: {
         return deps.projectFile(origin, identity, request, signal);
       },
       projectWindowsTerminal: async (request, signal) => {
-        if (!identity || current !== origin || paired.get(origin) !== identity || !deps.projectWindowsTerminal)
+        if (
+          !identity ||
+          current !== origin ||
+          paired.get(origin) !== identity ||
+          !deps.projectWindowsTerminal
+        )
           throw new Error("Project device authorization is unavailable");
         return deps.projectWindowsTerminal(origin, request, signal);
+      },
+      projectWindowsCommand: async (request, signal) => {
+        if (
+          !identity ||
+          current !== origin ||
+          paired.get(origin) !== identity ||
+          !deps.projectWindowsCommand
+        )
+          throw new Error("Project device authorization is unavailable");
+        return deps.projectWindowsCommand(origin, identity, request, signal);
+      },
+      projectWindowsCommandStatus: async (request, signal) => {
+        if (
+          !identity ||
+          current !== origin ||
+          paired.get(origin) !== identity ||
+          !deps.projectWindowsCommandStatus
+        )
+          return { available: false };
+        return deps.projectWindowsCommandStatus(origin, identity, request, signal);
       },
     });
     client = active;

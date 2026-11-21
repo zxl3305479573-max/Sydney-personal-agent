@@ -1,9 +1,11 @@
-import { z } from "zod";
 import {
   ProjectFileRequestSchema,
+  ProjectWindowsCommandRequestSchema,
+  ProjectWindowsCommandStatusRequestSchema,
   ProjectWindowsTerminalRequestSchema,
   WorkspaceGrantRequestSchema,
 } from "@rakazo/contracts";
+import { z } from "zod";
 import { hostComputerRequest } from "./host-computer-protocol.js";
 
 export const userDeviceRevokeReason = z.enum(["session-ended"]);
@@ -14,6 +16,8 @@ export const userDeviceRequest = z.union([
   hostComputerRequest,
   WorkspaceGrantRequestSchema,
   ProjectFileRequestSchema,
+  ProjectWindowsCommandRequestSchema,
+  ProjectWindowsCommandStatusRequestSchema,
   ProjectWindowsTerminalRequestSchema,
 ]);
 export type UserDeviceRequest = z.infer<typeof userDeviceRequest>;

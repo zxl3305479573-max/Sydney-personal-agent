@@ -7,10 +7,7 @@ import type {
   PluginMarketplaceEntry,
   RpcOutput,
 } from "@rakazo/contracts";
-import {
-  CONNECTION_LABEL_MAX_LENGTH,
-  MCP_OAUTH_CLIENT_REQUIRED,
-} from "@rakazo/contracts";
+import { CONNECTION_LABEL_MAX_LENGTH, MCP_OAUTH_CLIENT_REQUIRED } from "@rakazo/contracts";
 import type { PluginCategory } from "@rakazo/core";
 import {
   buildFeaturedConnectorTiles,
@@ -602,6 +599,7 @@ export default function Integrations() {
               label={t("Sign in")}
               onPress={() => openPlugin(params)}
               prominence="secondary"
+              variant="text"
             />
           ) : null}
         </Pressable>
@@ -632,6 +630,7 @@ export default function Integrations() {
             busy={pending === `oauth:${server.id}`}
             onPress={() => void authorizeMcp(server.id)}
             prominence="secondary"
+            variant="text"
           />
         ) : null}
       </GlassSurface>
@@ -1055,6 +1054,7 @@ export default function Integrations() {
           label={connecting ? t("Working…") : t("Added")}
           onPress={() => openDetail(item)}
           prominence="secondary"
+          variant="text"
         />
       );
     }
@@ -1066,6 +1066,7 @@ export default function Integrations() {
         label={connecting ? t("Working…") : t("Add")}
         onPress={() => void connect(item)}
         prominence="secondary"
+        variant="text"
       />
     );
   }
@@ -1188,6 +1189,7 @@ export default function Integrations() {
             label={connecting ? t("Working…") : t("Add another")}
             onPress={() => void connect(item)}
             prominence="secondary"
+            variant="text"
           />
         </GlassSurface>
 
@@ -1259,6 +1261,7 @@ export default function Integrations() {
       unstable_headerRightItems: () => [
         {
           type: "menu" as const,
+          hidesSharedBackground: true,
           label: t("Add custom"),
           accessibilityLabel: t("Add custom"),
           icon: { type: "sfSymbol" as const, name: "plus" },

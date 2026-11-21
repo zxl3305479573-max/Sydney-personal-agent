@@ -209,6 +209,96 @@ describe("mobile GitHub requests", () => {
     expect(state.overview).toEqual(refreshed);
   });
 
+  it("restores repository filters, pagination, results and previews across unmounts", async () => {
+    const detail = { repo, readme: { content: "Cached README" } } as GithubRepoDetail;
+    runtime.rpc.mockImplementation(async (method: string) => {
+      if (method === "github/status") return connected;
+      if (method === "github/repoDetail") return detail;
+      return repoPage;
+    });
+    await render();
+    await act(async () => state.selectSection("repositories"));
+    await act(async () => state.filterRepositories({ language: "TypeScript", sort: "stars" }));
+    await act(async () => state.setQuery("agent"));
+    await act(async () => state.selectPage(3));
+    await act(async () => state.selectRepo(repo));
+    await act(async () => root.render(null));
+    const waiting = deferred<typeof connected>();
+    runtime.rpc.mockReturnValueOnce(waiting.promise);
+    await render();
+    expect(state.section).toBe("repositories");
+    expect(state.query).toBe("agent");
+    expect(state.page).toBe(3);
+    expect(state.repositoryFilters).toMatchObject({ language: "TypeScript", sort: "stars" });
+    expect(state.selectedRepo).toEqual(repo);
+    expect(state.detail).toEqual(detail);
+    expect(state.repositories).toEqual(repoPage);
+    await act(async () => waiting.resolve(connected));
+    const waitingList = deferred<typeof repoPage>();
+    runtime.rpc.mockImplementation(async (method: string) =>
+      method === "github/status" ? connected : waitingList.promise,
+    );
+    await act(async () => state.selectRepo(null));
+    expect(state.repositories).toEqual(repoPage);
+    expect(state.detail).toBeNull();
+    await act(async () => waitingList.resolve({ ...repoPage, items: [] }));
+    expect(state.repositories?.items).toEqual([]);
+  });
+
+  it("restores exploration and a selected contribution year while new reads wait", async () => {
+    runtime.rpc.mockImplementation(async (method: string) =>
+      method === "github/status"
+        ? connected
+        : method === "github/profileOverview"
+          ? overview
+          : repoPage,
+    );
+    await render();
+    await act(async () => state.selectYear(2024));
+    await act(async () => root.render(null));
+    const waiting = deferred<typeof connected>();
+    runtime.rpc.mockReturnValueOnce(waiting.promise);
+    await render();
+    expect(state.year).toBe(2024);
+    expect(state.overview).toEqual(overview);
+    await act(async () => waiting.resolve(connected));
+    await act(async () => state.selectSection("explore"));
+    await act(async () => state.filterExplore({ topic: "cli", language: "Rust" }));
+    await act(async () => state.setQuery("tools"));
+    await act(async () => state.selectPage(2));
+    await act(async () => root.render(null));
+    const nextStatus = deferred<typeof connected>();
+    runtime.rpc.mockReturnValueOnce(nextStatus.promise);
+    await render();
+    expect(state.section).toBe("explore");
+    expect(state.search).toEqual(repoPage);
+    expect(state.exploreFilters).toMatchObject({ topic: "cli", language: "Rust" });
+    expect(state.page).toBe(2);
+    await act(async () => nextStatus.resolve(connected));
+  });
+
+  it("does not revive private details from another GitHub connection's cached pages", async () => {
+    const privateRepo = { ...repo, isPrivate: true };
+    let connection = connected;
+    runtime.rpc.mockImplementation(async (method: string) => {
+      if (method === "github/status") return connection;
+      if (method === "github/repoDetail") return { repo: privateRepo };
+      return repoPage;
+    });
+    await render();
+    await act(async () => state.selectRepo(privateRepo));
+    await act(async () => state.selectRepo(null));
+    connection = { ...connected, githubUserId: "other-user" };
+    await act(async () => state.refresh());
+    const waiting = deferred<GithubRepoDetail>();
+    runtime.rpc.mockImplementation(async (method: string) =>
+      method === "github/status" ? connection : waiting.promise,
+    );
+    await act(async () => state.selectRepo(privateRepo));
+    expect(state.detail).toBeNull();
+    await act(async () => waiting.resolve({ repo } as GithubRepoDetail));
+  });
+
   it("does not show the cached home in another space", async () => {
     runtime.rpc.mockResolvedValueOnce(connected).mockResolvedValueOnce(overview);
     await render();
@@ -302,6 +392,23 @@ describe("mobile GitHub requests", () => {
     await act(async () => state.selectRepo({ ...repo, name: "next" }));
     await act(async () => waiting.resolve({ repo } as GithubRepoDetail));
     expect(state.detail?.repo.name).toBe("next");
+  });
+  it("drops a cached README when the server no longer grants access to that repository", async () => {
+    runtime.rpc.mockImplementation(async (method: string) => {
+      if (method === "github/status") return connected;
+      if (method === "github/repoDetail") return { repo, readme: { content: "Private README" } };
+      return overview;
+    });
+    await render();
+    await act(async () => state.selectRepo(repo));
+    await act(async () => root.render(null));
+    runtime.rpc.mockImplementation(async (method: string) => {
+      if (method === "github/status") return connected;
+      throw Object.assign(new Error("Forbidden"), { status: 403 });
+    });
+    await render();
+    expect(state.detail).toBeNull();
+    expect(state.error).toBe("Forbidden");
   });
 
   it("reports read failures and retries without creating or disconnecting an account", async () => {

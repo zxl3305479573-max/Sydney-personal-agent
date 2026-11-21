@@ -20,6 +20,7 @@ import {
   loadVerifiedIntegrationsScope,
   saveVerifiedIntegrationsScope,
 } from "./session";
+import { threadSessionCache, threadSnapshotStatus } from "./thread-session-cache";
 
 export type SavedChatsScope = IntegrationsCacheScope & { namespace: string };
 
@@ -221,7 +222,7 @@ export function saveInbox(
 
 export function savedThreadSnapshot(snapshot: MobileSnapshot): MobileSnapshot {
   snapshot = identitySource(snapshot);
-  const { cursor: _cursor, activeRuns: _activeRuns, computer: _computer, ...rest } = snapshot;
+  const { cursor: _cursor, computer: _computer, ...rest } = snapshot;
   return {
     ...rest,
     messages: snapshot.messages.slice(-SAVED_CHAT_MESSAGES).map((message) => ({
@@ -235,7 +236,6 @@ export function savedThreadSnapshot(snapshot: MobileSnapshot): MobileSnapshot {
       }),
     })),
     olderCursor: null,
-    run: null,
   };
 }
 
@@ -316,10 +316,43 @@ export function writeSavedThread(
       key: scopeKey(scope, target),
       snapshot: savedThreadSnapshot(snapshot),
     });
+    updateSavedInboxBotStatus(scope, snapshot);
   } catch {}
 }
 
+function updateSavedInboxBotStatus(scope: SavedChatsScope, snapshot: MobileSnapshot): void {
+  if (!snapshot.botId) return;
+  const status = threadSnapshotStatus(snapshot);
+  const data = readJson(spaceFile(scope, "inbox"), scopeKey(scope, "inbox"));
+  const inbox = data?.inbox;
+  if (!inbox || typeof inbox !== "object") return;
+  let changed = false;
+  const updateBots = (value: unknown) => {
+    if (!Array.isArray(value)) return;
+    for (const bot of value) {
+      if (!bot || typeof bot !== "object") continue;
+      const row = bot as { id?: unknown; status?: unknown };
+      if (row.id !== snapshot.botId || row.status === status) continue;
+      row.status = status;
+      changed = true;
+    }
+  };
+  const rawInbox = inbox as { bots?: unknown; spaces?: unknown };
+  updateBots(rawInbox.bots);
+  if (Array.isArray(rawInbox.spaces)) {
+    for (const space of rawInbox.spaces) {
+      if (space && typeof space === "object") updateBots((space as { bots?: unknown }).bots);
+    }
+  }
+  if (!changed) return;
+  writeSavedFile(scope, "inbox", {
+    key: scopeKey(scope, "inbox"),
+    inbox,
+  });
+}
+
 export function clearSavedChats(): void {
+  threadSessionCache.clear();
   clearLegacySavedChats();
   try {
     const root = new Directory(Paths.cache, ROOT);

@@ -9,6 +9,7 @@ import {
   isProjectDeviceTool,
   isProjectFileTool,
   PROJECT_CLOUD_COMMAND,
+  PROJECT_WINDOWS_COMMAND,
   PROJECT_WINDOWS_TERMINAL,
   projectTextToolAllowed,
 } from "./run-project-policy.js";
@@ -24,9 +25,16 @@ import { cloudAgentTool, connectorTool, integrationTools } from "./run-tools-int
 import { memoryTools } from "./run-tools-memory.js";
 import { messagingTools } from "./run-tools-messaging.js";
 import { preferenceTools } from "./run-tools-preferences.js";
-import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
 import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
-import { prepareProjectWindowsTerminal, runProjectWindowsTerminal } from "./run-tools-project-terminal.js";
+import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
+import {
+  prepareProjectWindowsTerminal,
+  runProjectWindowsTerminal,
+} from "./run-tools-project-terminal.js";
+import {
+  prepareProjectWindowsCommand,
+  runProjectWindowsCommand,
+} from "./run-tools-project-windows-command.js";
 import { purchaseTools } from "./run-tools-purchases.js";
 import { secretTools } from "./run-tools-secrets.js";
 import { taskTools } from "./run-tools-tasks.js";
@@ -58,6 +66,7 @@ const TOOL_HANDLERS = new Map<string, ToolHandler>([
   ...Object.entries(projectFileHandlers),
   [PROJECT_CLOUD_COMMAND, runProjectCloudCommand],
   [PROJECT_WINDOWS_TERMINAL, runProjectWindowsTerminal],
+  [PROJECT_WINDOWS_COMMAND, runProjectWindowsCommand],
   ...Object.entries(feedbackTools),
   ...[...PAGE_BROWSER_TOOL_NAMES].map((name) => [name, pageBrowserTool] as const),
 ]);
@@ -130,8 +139,7 @@ async function dispatchTool(
   const request = await resolveToolRequest(ctx, name, args, executionId);
   if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if ("error" in request) return request;
-  if (!inRunScope(ctx, request.name, request.args))
-    return projectScopeError(ctx);
+  if (!inRunScope(ctx, request.name, request.args)) return projectScopeError(ctx);
   if (ctx.run.trigger === "managed_task") {
     try {
       const mandate = StoredTaskMandateSchema.parse(ctx.run.taskMandate);
@@ -151,9 +159,11 @@ async function dispatchTool(
     ? await prepareProjectFile(ctx, request)
     : request.name === PROJECT_WINDOWS_TERMINAL
       ? await prepareProjectWindowsTerminal(ctx, request)
-      : request.name === PROJECT_CLOUD_COMMAND
-        ? await prepareProjectCloudCommand(ctx, request)
-        : await prepareToolRequest(ctx, request);
+      : request.name === PROJECT_WINDOWS_COMMAND
+        ? await prepareProjectWindowsCommand(ctx, request)
+        : request.name === PROJECT_CLOUD_COMMAND
+          ? await prepareProjectCloudCommand(ctx, request)
+          : await prepareToolRequest(ctx, request);
   if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if (refused) return refused;
   const gate = await gateToolCall(ctx, request, observer);
@@ -169,23 +179,26 @@ async function dispatchTool(
       });
       if (!resource)
         return { error: "Managed task permission does not allow this tool or resource." };
-      await runAsTenant({
-        userId: ctx.run.userId, spaceId: ctx.run.spaceId,
-        projectWorkspaceId: ctx.run.projectWorkspaceId,
-      }, () =>
-        guardManagedRun(
-          ctx.deps.prisma,
-          { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
-          mandate.taskId,
-          {
-            runId: ctx.runId,
-            workerId: ctx.workerId,
-            fence: ctx.fence,
-            action: { tool: gate.call.name, action: "execute", resource },
-            executionId,
-          },
-          0,
-        ),
+      await runAsTenant(
+        {
+          userId: ctx.run.userId,
+          spaceId: ctx.run.spaceId,
+          projectWorkspaceId: ctx.run.projectWorkspaceId,
+        },
+        () =>
+          guardManagedRun(
+            ctx.deps.prisma,
+            { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
+            mandate.taskId,
+            {
+              runId: ctx.runId,
+              workerId: ctx.workerId,
+              fence: ctx.fence,
+              action: { tool: gate.call.name, action: "execute", resource },
+              executionId,
+            },
+            0,
+          ),
       );
     } catch {
       ctx.context.signal.throwIfAborted();
@@ -209,8 +222,12 @@ async function dispatchTool(
 
 function inRunScope(ctx: RunContext, name: string, args: Record<string, unknown>): boolean {
   if (isProjectDeviceTool(name)) {
-    return Boolean(ctx.run.projectWorkspaceId && ctx.source.ownerStartedRun &&
-      !ctx.source.messagingChannelRun && ctx.tools.builtins.some((tool) => tool.name === name));
+    return Boolean(
+      ctx.run.projectWorkspaceId &&
+        ctx.source.ownerStartedRun &&
+        !ctx.source.messagingChannelRun &&
+        ctx.tools.builtins.some((tool) => tool.name === name),
+    );
   }
   return !ctx.run.projectWorkspaceId || projectTextToolAllowed(name, args);
 }

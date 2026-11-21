@@ -1,5 +1,13 @@
 # Sydney 开发文档入口
 
+手机源码已统一收敛玻璃效果，仅对话顶部 Bot 名称组件保留玻璃；12 文件 174 项定向回归及类型检查通过，未发布，真机视觉与导航手势待验。[范围](PLAN.md#手机界面玻璃效果统一收敛pa-020pa-0212026-11-21) · [验证](VALIDATION.md#手机界面玻璃效果统一收敛2026-11-22) · [主题与更新边界](OPERATIONS.md#手机界面材质候选2026-11-22)
+
+应用对接登录按钮已在手机源码中改为文字操作，57 项定向回归与类型检查通过；未发布，真机视觉待验。[范围](PLAN.md#应用对接登录按钮视觉收敛pa-0212026-11-21) · [验证](VALIDATION.md#应用对接登录按钮2026-11-21)
+
+项目与 GitHub 页面状态保留续修见[计划](PLAN.md#项目与-github-页面状态保留pa-021pa-0222026-11-21)、[定向回归](VALIDATION.md#项目与-github-页面状态保留2026-11-21)和[会话缓存说明](OPERATIONS.md#手机项目与-github-页面缓存2026-11-21)。源码候选未发布，真实 iPhone 待验。
+
+手机 Bot 运行状态保留修复的范围与验收见 [计划](PLAN.md#iphone-对话运行状态缓存补修pa-018pa-0212026-11-21)、[定向验证](VALIDATION.md#iphone-对话运行状态缓存补修2026-11-21) 和 [本地缓存说明](OPERATIONS.md#手机对话运行状态缓存2026-11-21)。
+
 Windows `0.4.2`／iPhone `1.0.22` 已发布。源码 `24687d3c6` 已提交推送，Windows 发行页三项资产与公开摘要、iOS 启动包及 55 项资源已核验；1,103 项定向回归、五项类型检查和增量 lint 通过。本地主题包随 iPhone OTA 分发，双端真机及保留数据回退待验；后台与驱动未部署。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.2) · [本批验证](VALIDATION.md#sydney-app-0421022-整合与发布2026-11-21) · [更新与回退](OPERATIONS.md#sydney-windows-042iphone-1022-发布通道2026-11-21)
 
 欢迎卡片被自由输入跳过后残留“等待输入”的时序修复 `d7db91355` 已提交推送并上线 API／Worker。172 项定向回归、隔离数据库／HTTP 和生产回读通过，3 条遗留欢迎任务已收口、首页均 idle。手机无需新增 OTA，iPhone 实际显示待用户复核。[计划](PLAN.md#bot-欢迎卡片与自由输入等待收口pa-018pa-0212026-11-21) · [验证](VALIDATION.md#欢迎卡片自由输入等待收口2026-11-21)
@@ -10,6 +18,8 @@ Windows `0.4.2`／iPhone `1.0.22` 已发布。源码 `24687d3c6` 已提交推送
 `1.0.21` 已发布，修复 iPhone 项目头像和名称同步，补齐项目 Bot／群聊资料、归档、恢复、清空与删除。后台健康，线上启动包及 55 项资源通过，iPhone 实际交互待验。[验证](VALIDATION.md#项目-bot-同步与聊天管理2026-11-21) · [更新与回退](OPERATIONS.md#项目聊天管理与-iphone-10212026-11-21)
 
 项目头像与聊天反馈补修 `1.0.20` 已上线，源码 `e7d729212` 已提交推送。后台名单补回已选图片，两个既有项目的 4 个图片头像只读核对一致；手机采用普通聊天的头像标题、回复卡片、输入栏及项目模型菜单。304 项回归、相关类型及隔离 API 验证通过，OTA Run `44884608273`、线上版本与全部资源已校验，iPhone 下载重启后的视觉与键盘交互待验。[验证](VALIDATION.md#项目头像与聊天反馈补修2026-11-21) · [更新与回退](OPERATIONS.md#项目头像后台补丁与-iphone-10202026-11-21)
+
+手机与 Windows 项目共享状态及固定执行位置的现状和验收矩阵见 [项目设备同步测评](design/PROJECT_DEVICE_SYNC_EVALUATION.md)。Windows 专属 WSL 命令候选已接通源码，但默认不可用，guest 未实测，项目同步 Goal 继续进行。[计划](PLAN.md#新目标手机与-windows-项目消息及执行位置协同pa-022prj-01prj-02) · [测评](ACCEPTANCE.md#个人生产首版测评)
 
 项目聊天消息与输入栏已补齐普通聊天组件复用，两端沿用新版 Bot 头像组件，单聊通过项目名单分页补齐身份资料。手机工作区全部当前改动已整合为 `1.0.19` 提交推送并发布到 iOS `sideload`，512 项回归、相关类型检查、线上清单与全部资源校验通过；Windows 本批客户端发布及双端实机仍待完成。[手机发布](VALIDATION.md#iphone-1019-手机工作区发布2026-11-21) · [共用组件验证](VALIDATION.md#双端项目聊天共用组件2026-11-21) · [组件接线](design/PROJECT_WORKSPACE_PLAN.md#2026-11-21-项目聊天与普通聊天共用组件)
 
@@ -61,6 +71,7 @@ iPhone 应用名为 `Sydney`。多模式换肤已补齐离线设置入口与午�
 | [手机端五项任务实施方案](design/MOBILE_FIVE_WORKSTREAMS.md) | 现有功能、云电脑、项目入口、桌面联动及更新的分工与验收 | 五项任务范围、依赖或验收变化时 |
 | [iPhone 免费侧载操作指南](design/IOS_SIDELOAD_GUIDE.md) | Windows 与 iPhone 的候选签名安装流程及验证限制 | 签名、安装或续签流程变化时 |
 | [项目与工作区接入方案](design/PROJECT_WORKSPACE_PLAN.md) | 项目入口、云电脑与本地工作区、授权和分阶段验收 | 项目功能规划、实现或验收变化时 |
+| [手机与 Windows 项目同步测评](design/PROJECT_DEVICE_SYNC_EVALUATION.md) | 双端项目／消息同步、固定执行位置、Windows 隔离命令负向验收 | 项目设备同步、执行位置或验收状态变化时 |
 | [GitHub 模块实施方案](design/GITHUB_MODULE_PLAN.md) | 个人主页、提交热力图、远端项目、开源检索与 Agent 只读工具融合 | GitHub 模块范围、实现或验收变化时 |
 | [GitHub 模块实施与交接指引](HANDOVER_GITHUB.md) | 数据库迁移、真实 PAT 联调验收、代码索引与回归测试 | 后续 Agent 接续实施或环境验收时 |
 | [GitHub 模块架构决策](../docs/adr/0023-github-module-integration.md) | 直连 REST/GraphQL 适配层、PAT 加密绑定与读写边界 | GitHub 接入方式或权限边界变化时 |

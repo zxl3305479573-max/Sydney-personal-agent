@@ -143,6 +143,7 @@ export default function NewGroup() {
                 unstable_headerLeftItems: () => [
                   {
                     type: "button" as const,
+                    hidesSharedBackground: true,
                     label: step === "bots" ? t("Close") : t("Back"),
                     icon: {
                       type: "sfSymbol" as const,
@@ -157,9 +158,10 @@ export default function NewGroup() {
                     ? [
                         {
                           type: "button" as const,
+                          hidesSharedBackground: true,
                           label: t("Next"),
                           icon: { type: "sfSymbol" as const, name: "chevron.right" },
-                          variant: "prominent" as const,
+                          variant: "plain" as const,
                           tintColor: tokens.primary,
                           disabled: !valid,
                           onPress: () => setStep("name"),
