@@ -1263,6 +1263,44 @@ export async function retireWaitingQuestionInTransaction(
   return true;
 }
 
+export async function retireSupersededIntroInTransaction(
+  tx: Prisma.TransactionClient,
+  input: { spaceId: string; threadId: string; botId: string; runId: string },
+): Promise<boolean> {
+  const intro = await tx.run.findFirst({
+    where: {
+      id: input.runId,
+      spaceId: input.spaceId,
+      threadId: input.threadId,
+      botId: input.botId,
+      trigger: "created",
+      status: "waiting_input",
+    },
+    select: { userId: true },
+  });
+  if (!intro) return false;
+  const continuation = await tx.run.findFirst({
+    where: {
+      spaceId: input.spaceId,
+      threadId: input.threadId,
+      botId: input.botId,
+      userId: intro.userId,
+      trigger: "follow_up",
+      sourceMessage: { runId: input.runId, role: "user" },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { sourceMessage: { select: { blocks: true } } },
+  });
+  if (!continuation?.sourceMessage) return false;
+  const blocks = MessageBlockSchema.array().safeParse(continuation.sourceMessage.blocks);
+  if (!blocks.success || blocks.data.some((block) => block.kind === "channel_message"))
+    return false;
+  return retireWaitingQuestionInTransaction(tx, {
+    ...input,
+    answer: blocksToAgentHistoryText(blocks.data),
+  });
+}
+
 /** Read-only eligibility shared by image admission and composer free-text answers. */
 export async function eligibleWaitingTextAnswer(
   tx: Prisma.TransactionClient,
@@ -1391,9 +1429,17 @@ export async function pauseRunForInput(
       where: { runId: input.runId, ...transientRunEventsWhere() },
     });
     const continuationRunId = await createPendingSteeringRun(tx, input);
+    let seq = waitingEvent.seq;
+    if (continuationRunId && (await retireSupersededIntroInTransaction(tx, input))) {
+      const thread = await tx.thread.findUniqueOrThrow({
+        where: { id: input.threadId },
+        select: { nextEventSeq: true },
+      });
+      seq = thread.nextEventSeq - 1;
+    }
     return {
       threadId: waitingEvent.threadId,
-      seq: waitingEvent.seq,
+      seq,
       continuationRunId,
       firstResponseRunId: response.firstResponse ? input.runId : undefined,
     };

@@ -1292,6 +1292,129 @@ describe("pauseRunForInput", () => {
       }),
     );
   });
+
+  it.each(["private", "approval", "secret", "webhook", "messaging", "other-user", "ordinary"])(
+    "settles only a creation question superseded by its owner's app continuation (%s)",
+    async (scenario) => {
+      let status = "running";
+      let nextEventSeq = 0;
+      const blocks = [
+        {
+          kind: "ask" as const,
+          text: "What would you like to do first?",
+          status: "pending" as const,
+          ...(scenario === "approval" ? { approvalEffectId: "effect-1" } : {}),
+          ...(scenario === "secret" ? { input: "secret" as const } : {}),
+          actions: [
+            { id: "choice-1", label: "Daily work" },
+            { id: "choice-2", label: "Research" },
+          ],
+        },
+      ];
+      const userBlocks = [{ kind: "text", text: "Check a text file instead" }];
+      const tx = {
+        $queryRaw: homeConversationQuery("workspace-1", [{ id: "thread-1" }]),
+        run: {
+          updateMany: vi.fn(async ({ data }: { data: { status?: string } }) => {
+            if (data.status) status = data.status;
+            return { count: 1 };
+          }),
+          findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+            if (where.trigger === "created")
+              return scenario === "ordinary" ? null : { userId: "user-1" };
+            if (where.trigger === "follow_up")
+              return ["webhook", "messaging", "other-user"].includes(scenario)
+                ? null
+                : { sourceMessage: { blocks: userBlocks } };
+            if (where.id === "run-1") return { taskId: "task-1", userId: "user-1" };
+            return null;
+          }),
+          findUnique: vi.fn(async () => ({ status, userId: "user-1" })),
+          create: vi.fn(async () => ({ id: "continuation-1" })),
+        },
+        task: { create: vi.fn(async () => ({ id: "task-next" })), updateMany: vi.fn() },
+        steeringMessage: {
+          findMany: vi.fn(async () => [
+            {
+              id: "steering-1",
+              userId: "user-1",
+              originTrigger: null,
+              message: { id: "user-message", seq: 0, blocks: userBlocks },
+            },
+          ]),
+          updateMany: vi.fn(),
+        },
+        message: {
+          create: vi.fn(async () => ({ id: "welcome-card" })),
+          findMany: vi.fn(async () => [{ id: "welcome-card", blocks }]),
+          update: vi.fn(),
+        },
+        thread: {
+          update: vi.fn(async ({ data }: { data: { nextEventSeq?: unknown } }) =>
+            data.nextEventSeq ? { nextEventSeq: ++nextEventSeq } : { nextMessageSeq: 2 },
+          ),
+          findUniqueOrThrow: vi.fn(async () => ({ nextEventSeq })),
+        },
+        attempt: { updateMany: vi.fn(async () => ({ count: 1 })) },
+        computerExecutionLease: { updateMany: vi.fn() },
+        externalEffect: { deleteMany: vi.fn() },
+        secret: { deleteMany: vi.fn() },
+        event: {
+          create: vi.fn(async ({ data }: { data: { seq: number; type: string } }) => ({
+            ...event(data.seq),
+            type: data.type,
+          })),
+          deleteMany: vi.fn(),
+          findFirst: vi.fn(async () => null),
+        },
+      };
+      const prisma = {
+        $transaction: async (work: (client: typeof tx) => unknown) =>
+          runAsTenant(homeConversation("workspace-1"), () => work(tx)),
+      } as unknown as PrismaClient;
+      const fanout = new TestFanout();
+      const publish = vi.spyOn(fanout, "publish");
+      await expect(
+        pauseRunForInput(
+          prisma,
+          {
+            spaceId: "workspace-1",
+            threadId: "thread-1",
+            botId: "bot-1",
+            runId: "run-1",
+            attemptId: "attempt-1",
+            leaseOwner: "worker-1",
+            leaseFence: 1,
+            blocks,
+          },
+          fanout,
+        ),
+      ).resolves.toEqual({ continuationRunId: "continuation-1" });
+      expect(status).toBe(scenario === "private" ? "cancelled" : "waiting_input");
+      if (scenario === "private") {
+        expect(tx.message.update).toHaveBeenCalledWith({
+          where: { id: "welcome-card" },
+          data: {
+            blocks: [expect.objectContaining({ status: "answered", answer: userBlocks[0]!.text })],
+          },
+        });
+        expect(tx.event.create.mock.calls.map(([input]) => input.data.type)).toEqual([
+          "thread.message.created",
+          "run.waiting_input",
+          "thread.message.updated",
+          "run.cancelled",
+        ]);
+      } else expect(tx.message.update).not.toHaveBeenCalled();
+      expect(publish).toHaveBeenCalledWith(
+        "thread:thread-1",
+        JSON.stringify({ cursor: nextEventSeq - 1 }),
+      );
+      expect(tx.steeringMessage.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["steering-1"] }, runId: null },
+        data: { runId: "continuation-1", claimedAt: null },
+      });
+    },
+  );
 });
 
 describe("pauseRunForTakeover", () => {
