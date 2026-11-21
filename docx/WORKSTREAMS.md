@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-21（PA-021／PA-024 iPhone 1.0.17）：从 `codex/ui-home-chat-refinement` 提交手机代码，在 `codex/ui-home-chat-integration` 维护发布记录并推送现有集成发布分支。另一工作树的 Windows 精修和主工作区的后端改动继续由原工作树维护。
+
 2026-11-21（PA-018／PA-020／PA-021 双端 UI 发布）：本窗口在 `codex/ui-home-chat-integration` 合入两路 UI，发布写集限于双端界面、版本配置和对应文档。原工作树的未提交文档继续保留；云构建和 OTA 从现有集成远程分支触发。
 
 2026-11-20（PA-018／PA-020／PA-021 双端首页与聊天界面）：本窗口负责两条实现分支和联合验收。手机分支 `codex/ui-mobile-home-chat` 写移动端首页、底栏、聊天组件及对应回归；Windows 分支 `codex/ui-windows-home-chat` 写安装包共用的工作台渲染层及对应回归；`codex/ui-home-chat-integration` 维护共享测评、计划与验证记录。三个 worktree 均以 `633f5d019` 建立。实机通过后合入本地集成分支。

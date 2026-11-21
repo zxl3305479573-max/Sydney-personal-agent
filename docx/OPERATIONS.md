@@ -1,5 +1,9 @@
 # 运维手册
 
+## iPhone 1.0.17 OTA（2026-11-21）
+
+用 `cursor/integrate-remote-branches-7334` 的 `mobile-ios-update.yml` 发布到 `sideload`，输入 runtime `sydney-ios-ip-1`。兼容的 iPhone 在「设置 → 检查更新」下载并重启，再在「关于」核对 `1.0.17`。上一版为 `ecd12301c` 的 `1.0.16`，通过既有 Expo 流程可重新发布该版。实际结果见 [验证记录](VALIDATION.md#iphone-1017-界面更新2026-11-21)。
+
 ## 双端 UI 发布（2026-11-21）
 
 沿用 `cursor/integrate-remote-branches-7334` 的现有客户端工作流。`mobile-ios-update.yml` 以 `sydney-ios-ip-1` 发布 iPhone `1.0.16` 到 `sideload`。兼容手机打开「设置 → 检查更新」，下载并重启后在「关于」核对版本，无需连接 USB。上一版为 `b96d347bd` 发布的 `1.0.15`，恢复时使用同一通道的既有 Expo 发布流程。
