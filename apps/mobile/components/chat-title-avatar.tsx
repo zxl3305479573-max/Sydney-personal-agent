@@ -1,4 +1,3 @@
-import type { SpaceBot } from "@rakazo/contracts";
 import { StyleSheet, View } from "react-native";
 import type { MobileBot } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
@@ -29,7 +28,7 @@ export function ChatTitleAvatar({
   status,
   composing,
 }: {
-  bot: MobileBot | SpaceBot | undefined;
+  bot: (Pick<MobileBot, "id" | "color" | "avatarSet"> & { notifyOnFinish?: boolean }) | undefined;
   status: string | undefined;
   composing: boolean;
 }) {

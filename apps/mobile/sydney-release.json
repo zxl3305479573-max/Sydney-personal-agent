@@ -1,24 +1,21 @@
 {
-  "version": "1.0.19",
+  "version": "1.0.20",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "项目聊天统一使用普通聊天的消息卡片和输入框，保留发送失败的草稿。",
-      "项目 Bot 显示新版头像，打开页面期间自动刷新项目名称、成员与 Bot 资料。",
-      "虚拟鼠标改为黑底白边的桌面箭头，箭头尖端对应实际点击位置。",
-      "保留聊天模型切换、电脑画面与快捷键等已有改进；项目成员设置仍在服务器支持时显示。"
+      "修复项目 Bot 及群聊成员丢失已选图片头像的问题，原来保存的头像无需重新选择。",
+      "项目聊天使用普通聊天的头像标题、回复卡片与输入栏布局。",
+      "项目 Bot 聊天可在输入栏切换模型，并通过加号打开本项目的 Bot 设置。"
     ],
     "zh-TW": [
-      "專案聊天統一使用一般聊天的訊息卡片與輸入框，保留傳送失敗的草稿。",
-      "專案 Bot 顯示新版頭像，開啟頁面期間自動重新整理專案名稱、成員與 Bot 資料。",
-      "虛擬滑鼠改為黑底白邊的桌面箭頭，箭頭尖端對應實際點擊位置。",
-      "保留聊天模型切換、電腦畫面與快速鍵等既有改進；伺服器支援時才顯示專案成員設定。"
+      "修復專案 Bot 及群聊成員遺失已選圖片頭像的問題，原本儲存的頭像無須重新選擇。",
+      "專案聊天使用一般聊天的頭像標題、回覆卡片與輸入列版面。",
+      "專案 Bot 聊天可在輸入列切換模型，並透過加號開啟本專案的 Bot 設定。"
     ],
     "en": [
-      "Project conversations share the regular message cards and composer, and keep drafts when sending fails.",
-      "Project bots use the updated avatars. Project names, members, and bot details refresh while the page is open.",
-      "The virtual mouse uses a black desktop arrow with a white outline. Its tip marks the click position.",
-      "Existing model switching, computer display, and keyboard shortcut improvements remain available. Project member settings appear on supported servers."
+      "Fix selected picture avatars missing from project bots and group members. Previously saved avatars do not need to be selected again.",
+      "Project chats use the regular avatar title, reply cards, and composer layout.",
+      "Switch a project bot's model from the composer and open its project settings with the plus button."
     ]
   }
 }

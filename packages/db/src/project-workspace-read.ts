@@ -30,7 +30,16 @@ export async function listProjectWorkspaceRoster(
   const botCursor = afterBotId ? Prisma.sql`AND b."id" > ${afterBotId}` : Prisma.empty;
   const groupCursor = afterGroupId ? Prisma.sql`AND g."id" > ${afterGroupId}` : Prisma.empty;
   const rows = await runAsTenant({ ...actor, projectWorkspaceId: id }, () =>
-    prisma.$queryRaw<Array<{ kind: "workspace" | "bot" | "group"; id: string; name: string }>>(Prisma.sql`
+    prisma.$queryRaw<
+      Array<{
+        kind: "workspace" | "bot" | "group";
+        id: string;
+        name: string;
+        color: string | null;
+        avatarSet: string | null;
+        members: unknown;
+      }>
+    >(Prisma.sql`
       WITH permitted AS (
         SELECT w."id" FROM "project_workspaces" w
         JOIN "space_members" m ON m."spaceId" = w."spaceId" AND m."userId" = w."userId"
@@ -39,9 +48,11 @@ export async function listProjectWorkspaceRoster(
           AND w."userId" = ${actor.userId} AND w."deletingAt" IS NULL
           AND s."deletingAt" IS NULL
       )
-      (SELECT 'workspace' AS kind, p."id", '' AS "name" FROM permitted p)
+      (SELECT 'workspace' AS kind, p."id", '' AS "name",
+        NULL::text AS "color", NULL::text AS "avatarSet", NULL::jsonb AS "members"
+        FROM permitted p)
       UNION ALL
-      (SELECT 'bot' AS kind, b."id", b."name"
+      (SELECT 'bot' AS kind, b."id", b."name", b."color", b."avatarSet", NULL::jsonb
         FROM "bots" b
         WHERE b."spaceId" = ${actor.spaceId} AND b."userId" = ${actor.userId}
           AND b."projectWorkspaceId" = ${id} AND b."archivedAt" IS NULL
@@ -49,7 +60,16 @@ export async function listProjectWorkspaceRoster(
           ${botCursor}
         ORDER BY b."id" LIMIT 101)
       UNION ALL
-      (SELECT 'group' AS kind, g."id", g."name"
+      (SELECT 'group' AS kind, g."id", g."name", NULL::text, NULL::text,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'botId', b."id", 'name', b."name", 'color', b."color", 'avatarSet', b."avatarSet"
+          ) ORDER BY m."createdAt", m."botId")
+          FROM "chat_group_members" m
+          JOIN "bots" b ON b."id" = m."botId"
+          WHERE m."groupId" = g."id" AND b."spaceId" = g."spaceId" AND b."userId" = g."userId"
+            AND b."projectWorkspaceId" = ${id} AND b."archivedAt" IS NULL
+        ), '[]'::jsonb)
         FROM "chat_groups" g
         WHERE g."spaceId" = ${actor.spaceId} AND g."userId" = ${actor.userId}
           AND g."projectWorkspaceId" = ${id} AND g."archivedAt" IS NULL
@@ -63,8 +83,17 @@ export async function listProjectWorkspaceRoster(
   const bots = rows.filter((row) => row.kind === "bot");
   const groups = rows.filter((row) => row.kind === "group");
   return ProjectWorkspaceRosterSchema.parse({
-    bots: bots.slice(0, 100).map(({ id: itemId, name }) => ({ id: itemId, name })),
-    groups: groups.slice(0, 100).map(({ id: itemId, name }) => ({ id: itemId, name })),
+    bots: bots.slice(0, PAGE_SIZE).map(({ id: itemId, name, color, avatarSet }) => ({
+      id: itemId,
+      name,
+      color: color ?? undefined,
+      avatarSet: avatarSet ?? undefined,
+    })),
+    groups: groups.slice(0, PAGE_SIZE).map(({ id: itemId, name, members }) => ({
+      id: itemId,
+      name,
+      members: members ?? undefined,
+    })),
     nextBotId: bots.length > 100 ? bots[99]!.id : null,
     nextGroupId: groups.length > 100 ? groups[99]!.id : null,
   });
@@ -87,26 +116,29 @@ export async function createProjectWorkspace(
   const now = new Date();
   const row = await runAsTenant({ ...actor, projectWorkspaceId: null }, () =>
     withTransactionRetry(() =>
-      prisma.$transaction(async (tx) => {
-        await lockProjectAccountForCreation(tx, actor.userId);
-        await lockSpaceForContentCreation(tx, actor);
-        const rows = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
+      prisma.$transaction(
+        async (tx) => {
+          await lockProjectAccountForCreation(tx, actor.userId);
+          await lockSpaceForContentCreation(tx, actor);
+          const rows = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
           INSERT INTO "project_workspaces" ("id", "spaceId", "userId", "name", "createdAt", "updatedAt")
           VALUES (${id}, ${actor.spaceId}, ${actor.userId}, ${name}, ${now}, ${now})
           ON CONFLICT ("id") DO NOTHING
           RETURNING "id", "name", "createdAt", "updatedAt"
         `);
-        if (rows[0]) return rows[0];
-        const existing = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
+          if (rows[0]) return rows[0];
+          const existing = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
           SELECT "id", "name", "createdAt", "updatedAt"
           FROM "project_workspaces"
           WHERE "id" = ${id} AND "spaceId" = ${actor.spaceId}
             AND "userId" = ${actor.userId} AND "deletingAt" IS NULL
         `);
-        if (!existing[0] || existing[0].name !== name)
-          throw new Error("Project creation request conflicts with an existing resource");
-        return existing[0];
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }),
+          if (!existing[0] || existing[0].name !== name)
+            throw new Error("Project creation request conflicts with an existing resource");
+          return existing[0];
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      ),
     ),
   );
   return ProjectWorkspaceSchema.parse({
@@ -127,9 +159,11 @@ export async function removeEmptyProjectWorkspace(
   const { id } = DeleteProjectWorkspaceInput.parse(input);
   if (!actor?.spaceId || !actor.userId) throw new Error("Invalid workspace scope");
   return runAsTenant({ ...actor, projectWorkspaceId: id }, () =>
-    withTransactionRetry(() => prisma.$transaction(async (tx) => {
-      await lockSpaceForContentCreation(tx, actor);
-      const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    withTransactionRetry(() =>
+      prisma.$transaction(
+        async (tx) => {
+          await lockSpaceForContentCreation(tx, actor);
+          const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         DELETE FROM "project_workspaces" w
         WHERE w."id" = ${id} AND w."spaceId" = ${actor.spaceId}
           AND w."userId" = ${actor.userId} AND w."deletingAt" IS NULL
@@ -145,8 +179,11 @@ export async function removeEmptyProjectWorkspace(
           AND NOT EXISTS (SELECT 1 FROM "project_directory_bindings" d WHERE d."projectId" = w."id")
         RETURNING w."id"
       `);
-      return rows.length === 1;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted })),
+          return rows.length === 1;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      ),
+    ),
   );
 }
 

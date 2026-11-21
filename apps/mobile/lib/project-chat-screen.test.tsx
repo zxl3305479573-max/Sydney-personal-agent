@@ -17,12 +17,23 @@ const runtime = vi.hoisted(() => ({
   hook: vi.fn(),
   rpc: vi.fn(),
   push: vi.fn(),
+  t: (key: string, values?: Record<string, string>) =>
+    key.replace(/\{(\w+)\}/g, (match, name: string) => values?.[name] ?? match),
 }));
 vi.mock("expo-router", () => ({
   Stack: {
-    Screen: ({ options }: { options: { title: string; headerRight?: () => ReactNode } }) => (
-      <header>
-        {options.title}
+    Screen: ({
+      options,
+    }: {
+      options: {
+        title: string;
+        headerBackTitle?: string;
+        headerTitle?: () => ReactNode;
+        headerRight?: () => ReactNode;
+      };
+    }) => (
+      <header data-project-name={options.headerBackTitle}>
+        {options.headerTitle?.() ?? options.title}
         {options.headerRight?.()}
       </header>
     ),
@@ -31,8 +42,13 @@ vi.mock("expo-router", () => ({
   useRouter: () => ({ push: runtime.push }),
   useFocusEffect: (callback: () => (() => void) | undefined) => useEffect(callback, [callback]),
 }));
+vi.mock("expo-router/react-navigation", () => ({ useHeaderHeight: () => 90 }));
+vi.mock("react-native-keyboard-controller", () => ({
+  KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
+  I18nManager: { isRTL: false },
   AppState: { currentState: "active", addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
   ActivityIndicator: () => null,
   View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -66,6 +82,26 @@ vi.mock("../components/glass-surface", () => ({
 }));
 vi.mock("../components/glass-title", () => ({
   glassHeaderOptions: (title: string) => ({ title }),
+}));
+vi.mock("../components/chat-title-content", () => ({
+  ChatTitleContent: ({
+    name,
+    bot,
+    onPress,
+  }: ComponentProps<typeof import("../components/chat-title-content").ChatTitleContent>) => (
+    <button type="button" data-title-color={bot?.color} onClick={onPress}>
+      {name}
+    </button>
+  ),
+}));
+vi.mock("../components/thread/thread-composer-dock", () => ({
+  ThreadComposerDock: ({
+    children,
+    columnPadding,
+  }: {
+    children: ReactNode;
+    columnPadding: object;
+  }) => <div data-composer-dock={JSON.stringify(columnPadding)}>{children}</div>,
 }));
 vi.mock("../components/bot-avatar", () => ({
   BotAvatar: ({
@@ -108,6 +144,11 @@ vi.mock("../components/thread-composer", () => ({
     textOnly,
     send,
     composerPrompt,
+    modelLabel,
+    modelActions,
+    onModelSelect,
+    attachActions,
+    attachFrom,
   }: ComponentProps<typeof import("../components/thread-composer").ThreadComposer>) => {
     const [draft, setDraft] = useState("");
     useImperativeHandle(ref, () => ({
@@ -123,6 +164,29 @@ vi.mock("../components/thread-composer", () => ({
     }));
     return (
       <div data-shared-composer data-text-only={textOnly}>
+        <span data-model-label>{modelLabel}</span>
+        {modelActions
+          ?.flatMap((action) => action.subactions ?? [action])
+          .map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              data-model-key={action.id}
+              onClick={() => onModelSelect?.(action.id!.slice(6))}
+            >
+              {action.title}
+            </button>
+          ))}
+        {attachActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            data-project-action={action.id}
+            onClick={() => attachFrom(action.id!)}
+          >
+            {action.title}
+          </button>
+        ))}
         <input
           aria-label={composerPrompt}
           disabled={disabled}
@@ -170,8 +234,8 @@ vi.mock("expo-secure-store", () => ({ getItemAsync: async () => null }));
 vi.mock("./native", () => ({
   useMobileTokens: () => ({ chatUser: "#112233", muted: "#445566" }),
 }));
-vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: (key: string) => key }) }));
-vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: runtime.t }) }));
+vi.mock("./side-insets", () => ({ useSideInsets: () => ({ paddingLeft: 0, paddingRight: 0 }) }));
 vi.mock("./project-scope", () => ({
   projectScopeKey: () => runtime.scope,
   subscribeProjectScope: () => () => {},
@@ -210,10 +274,22 @@ describe("mobile project chat screen", () => {
       if (method === "projectWorkspaces/roster")
         return {
           bots: [{ id: "bot-a", name: "Alpha", color: "#123456", avatarSet: "rakazo" }],
-          groups: [],
+          groups: [{ id: "group-a", name: "群聊名称", members: [] }],
           nextBotId: null,
           nextGroupId: null,
         };
+      if (method === "projectWorkspaces/getBot")
+        return {
+          id: "bot-a",
+          name: "Alpha",
+          color: "#123456",
+          modelProvider: "openai",
+          modelId: "model-a",
+        };
+      if (method === "projectWorkspaces/updateBot")
+        return { id: "bot-a", name: "Alpha", modelProvider: null, modelId: null };
+      if (method === "models/list" || method === "models/credentials") return [];
+      if (method === "me") return { defaultProvider: "openai", defaultModel: "default-model" };
       return { botSettings: true };
     });
     runtime.push.mockReset();
@@ -327,7 +403,8 @@ describe("mobile project chat screen", () => {
     runtime.params = { workspaceId: "project-a", groupId: "group-a", scope: "account-a" };
     chat.snapshot = { ...(chat.snapshot as object), groupName: "群聊名称" };
     await render();
-    expect(container.querySelector("header")?.textContent).toBe("设计工作区");
+    expect(container.querySelector("header")?.textContent).toBe("群聊名称");
+    expect(container.querySelector("header")?.getAttribute("data-project-name")).toBe("设计工作区");
     expect(runtime.rpc).toHaveBeenCalledWith(
       "projectWorkspaces/get",
       { id: "project-a" },
@@ -341,22 +418,22 @@ describe("mobile project chat screen", () => {
       if (method === "projectWorkspaces/get") return { name: names() };
       if (method === "projectWorkspaces/roster")
         return { bots: [], groups: [], nextBotId: null, nextGroupId: null };
-      return { botSettings: true };
+      return { botSettings: false };
     });
     vi.useFakeTimers();
     await render();
-    expect(container.querySelector("header")?.textContent).toContain("项目一");
+    expect(container.querySelector("header")?.getAttribute("data-project-name")).toBe("项目一");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
-    expect(container.querySelector("header")?.textContent).toContain("项目二");
+    expect(container.querySelector("header")?.getAttribute("data-project-name")).toBe("项目二");
     expect(names).toHaveBeenCalledTimes(2);
   });
 
   it("opens Bot settings within the current project scope", async () => {
     runtime.params.projectName = "旧标题";
     await render();
-    expect(container.querySelector("header")?.textContent).toBe("设计工作区Settings");
+    expect(container.querySelector("header")?.textContent).toBe("AlphaSettings");
     await act(async () => container.querySelector<HTMLButtonElement>("header button")?.click());
     expect(runtime.push).toHaveBeenCalledWith({
       pathname: "/bot-settings",
@@ -394,6 +471,77 @@ describe("mobile project chat screen", () => {
     expect(avatar?.getAttribute("data-color")).toBe("#123456");
     expect(avatar?.getAttribute("data-avatar-set")).toBe("rakazo");
     expect(avatar?.getAttribute("data-activity")).toBe("idle");
+  });
+
+  it("preserves stored picture avatars in the shared header and bot reply after reopening", async () => {
+    const image = "data:image/png;base64,aW1hZ2U=";
+    const fallback = runtime.rpc.getMockImplementation()!;
+    runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === "projectWorkspaces/roster")
+        return {
+          bots: [{ id: "bot-a", name: "Alpha", color: image, avatarSet: "rakazo" }],
+          groups: [],
+          nextBotId: null,
+          nextGroupId: null,
+        };
+      return fallback(method, ...args);
+    });
+    await render();
+    expect(container.querySelector("[data-title-color]")?.getAttribute("data-title-color")).toBe(
+      image,
+    );
+    expect(container.querySelector("[data-avatar]")?.getAttribute("data-color")).toBe(image);
+    expect(container.querySelector("[data-composer-dock]")).not.toBeNull();
+    await act(async () => root.render(null));
+    await render();
+    expect(container.querySelector("[data-title-color]")?.getAttribute("data-title-color")).toBe(
+      image,
+    );
+  });
+
+  it("loads and saves the model through the project scope while retaining the draft", async () => {
+    await render();
+    await fill("keep this draft");
+    expect(container.querySelector("[data-model-label]")?.textContent).toBe("model-a");
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/getBot",
+      { projectId: "project-a", botId: "bot-a" },
+      expect.any(Object),
+    );
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-model-key="model:"]')!.click(),
+    );
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/updateBot",
+      {
+        projectId: "project-a",
+        bot: { botId: "bot-a", modelProvider: null, modelId: null, thinkingLevel: null },
+      },
+      expect.objectContaining({ skipSpaceAuthRecovery: true }),
+    );
+    expect(container.querySelector("[data-model-label]")?.textContent).toBe("default-model");
+    expect(container.querySelector("input")?.value).toBe("keep this draft");
+    expect(
+      runtime.rpc.mock.calls.some(([method]) => method === "bots/get" || method === "bots/update"),
+    ).toBe(false);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-project-action="settings"]')!.click(),
+    );
+    expect(runtime.push).toHaveBeenCalledWith({
+      pathname: "/bot-settings",
+      params: { projectId: "project-a", botId: "bot-a", scope: "account-a" },
+    });
+  });
+
+  it("refreshes identity even when reading the project title fails", async () => {
+    const fallback = runtime.rpc.getMockImplementation()!;
+    runtime.rpc.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === "projectWorkspaces/get") throw new Error("offline");
+      return fallback(method, ...args);
+    });
+    await render();
+    expect(container.querySelector("header")?.textContent).toBe("AlphaSettings");
+    expect(container.querySelector("[data-avatar]")?.getAttribute("data-color")).toBe("#123456");
   });
 
   it("keeps project approval and file actions on their scoped callbacks", async () => {

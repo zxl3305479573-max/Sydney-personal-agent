@@ -30,6 +30,9 @@ const modelMenu = vi.hoisted(() => ({
   }[],
   onPressAction: (_event: { nativeEvent: { event: string } }) => {},
 }));
+const actionMenu = vi.hoisted(() => ({
+  onPressAction: (_event: { nativeEvent: { event: string } }) => {},
+}));
 const mentionApi = vi.hoisted(() => ({ rpc: vi.fn(), capture: vi.fn(), generation: 1 }));
 vi.mock("./api", () => ({
   rpc: mentionApi.rpc,
@@ -234,6 +237,8 @@ vi.mock("@expo/ui/community/menu", () => ({
     if (title === "Model") {
       modelMenu.actions = actions;
       modelMenu.onPressAction = onPressAction ?? (() => {});
+    } else {
+      actionMenu.onPressAction = onPressAction ?? (() => {});
     }
     return children;
   },
@@ -422,6 +427,20 @@ describe("thread composer isolation", () => {
     act(() => sendButton.click());
     expect(props.send).not.toHaveBeenCalled();
     expect(composer.current?.snapshot().promptText).toBe("private draft");
+  });
+
+  it("keeps scoped settings available in the project text composer", () => {
+    const attachFrom = vi.fn();
+    render({
+      textOnly: true,
+      actionLabel: "More actions",
+      attachActions: [{ id: "settings", title: "Settings" }],
+      attachFrom,
+    });
+    expect(container.querySelector('[aria-label="More actions"]')).not.toBeNull();
+    act(() => actionMenu.onPressAction({ nativeEvent: { event: "settings" } }));
+    expect(attachFrom).toHaveBeenCalledExactlyOnceWith("settings");
+    expect(container.querySelector('[aria-label="Call"]')).toBeNull();
   });
 
   it("opens the model menu without changing the draft and selects in place", () => {

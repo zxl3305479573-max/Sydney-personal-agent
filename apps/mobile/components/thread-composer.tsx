@@ -82,6 +82,7 @@ type ThreadComposerProps = {
   sending: boolean;
   disabled?: boolean;
   textOnly?: boolean;
+  actionLabel?: string;
   attachActions: MenuAction[];
   attachFrom: (source: string) => void;
   send: () => Promise<void>;
@@ -109,6 +110,7 @@ export function ThreadComposer({
   sending,
   disabled = false,
   textOnly = false,
+  actionLabel,
   attachActions,
   attachFrom,
   send,
@@ -704,7 +706,7 @@ export function ThreadComposer({
             </Pressable>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 4 }}>
-            {!textOnly ? (
+            {!textOnly || attachActions.length > 0 ? (
               <MenuView
                 actions={attachActions}
                 colorScheme={colorScheme}
@@ -713,7 +715,7 @@ export function ThreadComposer({
                 <View
                   accessible
                   accessibilityRole="button"
-                  accessibilityLabel={t("Attach file")}
+                  accessibilityLabel={actionLabel ?? t("Attach file")}
                   style={toolButton}
                 >
                   <NativeSymbol ios="plus" android="add" size={21} color={tokens.foreground} />

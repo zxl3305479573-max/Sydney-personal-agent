@@ -1,5 +1,13 @@
 # 运维手册
 
+## 项目头像后台补丁与 iPhone 1.0.20（2026-11-21）
+
+本次需同时交付后台名单头像与项目 Bot 设置接口，以及 iOS `sideload`／`sydney-ios-ip-1` 的 `1.0.20`。后台沿用生产固定镜像 `sha256:c96d99f5225c070881df3db541cda13a11060a02b6b8e33f7168e10d70ddd2e9` 与原有依赖、Prisma 结构和设备开关，不执行迁移、不更换 Worker。最小源码为 `project-workspace-read.ts`、contracts 的 `domain.ts`／`rpc.ts`／`project-workspace.ts`，以及 API 的 `routes/bots.ts`／`routes/project-workspaces.ts`。后者仅补 get／update／能力，保留生产 `uses: ["model"]`；不夹带其他候选的记忆同意或 router 变动。
+
+服务器交付目录 `/srv/rakazo-releases/project-avatar-20261121-1020` 保存源码清单／前后摘要、单入口编译产物和隔离验证结果。因现有 Docker 镜像构建／commit 路径不可用，部署使用八个只读文件挂载：六个源码及 API `dist/index.js`／`.map`。仅调整 `/etc/rakazo/compose/production.overlay.yml` 的 API 挂载，变更前备份到交付目录 `production.before.yml`。部署前检查没有排队／运行任务和有效设备租约，比较 Compose 归一化配置仅增加这些挂载；切换后连同 `native-screen-api-loopback` 重新绑定 API 命名空间，验证 API／Worker 健康、产物摘要和迁移账本不变。实际执行结果另补。
+
+回退使用交付目录的原 overlay 原子恢复，再沿原 Compose 项目及 env 文件重建 API 和 `native-screen-api-loopback`；Worker、数据库和数据卷不回滚。发布期间提供失败自动回退路径，尚未演练人工回退。服务器交付文件后续清理必须先解除挂载，不能直接删除当前版本文件。OTA 的上一版为 `1.0.19`，更新 ID `01a1fced-7d60-74d9-af35-765d13ae922c`；必要时沿已有 Expo 流程重新发布兼容内容。
+
 ## iPhone 1.0.19 OTA（2026-11-21）
 
 `1.0.19` 已由 `mobile-ios-update.yml` Run `44878494306` 发布到 iOS `sideload`，源码 `8d40d7021`，runtime 为 `sydney-ios-ip-1`，更新 ID `01a1fced-7d60-74d9-af35-765d13ae922c`。依赖和原生底座未改，线上清单、启动包及 55 项资源校验通过。兼容的 iPhone 在「设置 → 检查更新」下载并重启，然后在「关于」核对 `1.0.19`；实际手机生效待验。项目成员设置继续取决于服务器的 `botSettings` 能力；本次不部署 API、Windows 包、Linux 驱动，也不启用项目设备工具。
