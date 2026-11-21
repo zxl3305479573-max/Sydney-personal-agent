@@ -4,7 +4,7 @@
 
 在生产固定镜像中编译 API 单入口，交付目录 `/srv/rakazo-releases/project-chat-20261121-1021`。覆盖八个源码及两个编译产物，替换 `1.0.20` 的旧挂载并保持只读。保留生产模型同意范围。只重建 API 与其画面回环桥，校验挂载和产物摘要、健康状态和迁移账本。数据库结构、Worker、文件绑定和原生底座沿用运行版本。变更前的 overlay 备份 `production.before.yml` 用于恢复 `1.0.20` 的 API；恢复后按原 Compose 项目及 env 重建上述两服务。人工回退演练待执行。
 
-手机沿用 `sideload`／`sydney-ios-ip-1`。发布后用「设置 → 检查更新」重启 App，并在「关于」核对 `1.0.21`。验证既有聊天和临时 Bot 的步骤见 [iPhone 验收](ACCEPTANCE.md#iphone-项目-bot-验收pa-021pa-022)。
+后台于北京时间 17:50 切换并通过公开健康检查。手机沿用 `sideload`／`sydney-ios-ip-1`，Run `44891565107` 成功，线上 `1.0.21` 启动包和 55 项资源通过。用「设置 → 检查更新」重启 App，并在「关于」核对 `1.0.21`。上一版 `1.0.20` 更新 ID 为 `01a1fd35-3b12-712b-bafa-11fea72d4b81`，必要时沿用原 Expo 回退流程。验证既有聊天和临时 Bot 的步骤见 [iPhone 验收](ACCEPTANCE.md#iphone-项目-bot-验收pa-021pa-022)。
 
 ## 项目头像后台补丁与 iPhone 1.0.20（2026-11-21）
 
