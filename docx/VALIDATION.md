@@ -10,7 +10,21 @@
 - 手机、桌面主进程、桌面 jsdom、共享 Web 与 API 五项 TypeScript 检查退出码均为 `0`。
 - 227 个受影响源码文件的 Biome lint 通过，未全局格式化；暂存及工作差异的空白检查通过。
 - 补充 12 个文件、543 项回归通过，覆盖服务地址、账号切换、外观、项目列表与会话 Hook、项目 RPC、AI 同意、插件提交、桌面认证及更新。两批共 34 个不同文件、1,103 项通过。
-- 提交推送和远程发布进行中。本节不以离线检查代替构建、分发或双端真机验收。
+- 源码提交 `24687d3c6f41d9504dab20df65c51d0873442cea` 共 474 个文件，已正常快进推送 `cursor/integrate-remote-branches-7334`；未改写远端历史，未推送上游仓库。
+
+### Windows 云构建与公开发行资产
+
+`desktop-windows-build.yml` Run [44899117690](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44899117690) 全部成功，源码 SHA 与上述提交一致。打包后六项实际安装版连接、错误后台处理、旧配置迁移及更新禁用保护测试均由工作流逐一验证通过。安装包工件 ID `14705565789`，ZIP SHA-256 为 `ee9ac892c83cb88a9f717bea192206321e15244c712a50e4b4982949438f1a50`，下载后与 GitHub 工件摘要一致；构建元数据中的 revision、runId 与安装包大小一致。
+
+标签 `sydney-desktop-v0.4.2` 指向同一源码提交，已推送。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.2)（Release ID `453645874`）于 `2026-11-21T11:35:19Z` 公开，GitHub latest 指向本发行版。安装包 `Sydney-partner-Setup-0.4.2.exe` 为 133,969,350 字节，SHA-256 `276c7ec5aeeecb9926c8628f998bdb515ea292ccdef9513865f5141ab0cde813`。构建记录和本机只读签名核对均为 `NotSigned`。安装包、`SHA256SUMS` 与 `build-metadata.json` 三项资产的远端状态、大小、SHA-256 均与本地核验值相同；无认证访问的公开摘要文件下载结果也一致。没有在本机执行安装程序。
+
+### iPhone OTA 与实际更新协议
+
+`mobile-ios-update.yml` Run [44899174271](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44899174271) 成功，源码 SHA 同上。使用已有侧载二进制的 Expo 更新配置请求实际分发地址：HTTP `200`，版本 `1.0.22`、三语说明、runtime `sydney-ios-ip-1` 与候选一致。更新 ID `01a1fddd-fb68-7080-97e2-bf37db62db76`，创建时间 `2026-11-21T11:29:05.896Z`，晚于内嵌基线。Hermes 启动包为 10,657,756 字节，SHA-256 `6312b3ceb0159f029471309334037cd1dc906a59d543d1ac6ef0242ad76efdf1`；启动包及全部 55 项资源摘要逐一校验通过。
+
+### 仍待设备验收与本批边界
+
+双端实际覆盖安装、iPhone 下载重启后的交互、主题 TH-12、大字号／键盘／VoiceOver、前后台及保留数据回退待验。不部署 API／Worker、数据库迁移、Linux 驱动或官网，不开启项目设备能力；Android 通知与 iOS 小组件等原生改动仅入库，不随 OTA 生效。冻结后其他窗口新增的 Windows WSL 命令实现保留在原工作区，未混入本次源码提交或发行包。本节不把发布成功解释为这些项目已验收。
 
 ## iPhone 声明式主题包离线候选（2026-11-21）
 

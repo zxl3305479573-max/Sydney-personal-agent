@@ -1,6 +1,6 @@
 # Sydney 开发文档入口
 
-Windows `0.4.2`／iPhone `1.0.22` 正在按用户授权整合发布，包含本地主题包、双端界面与 Sydney 品牌更新。离线验证与远程发布结果分别记录，不部署后台或驱动。[本批验证](VALIDATION.md#sydney-app-0421022-整合与发布2026-11-21) · [更新与回退](OPERATIONS.md#sydney-windows-042iphone-1022-发布通道2026-11-21)
+Windows `0.4.2`／iPhone `1.0.22` 已发布。源码 `24687d3c6` 已提交推送，Windows 发行页三项资产与公开摘要、iOS 启动包及 55 项资源已核验；1,103 项定向回归、五项类型检查和增量 lint 通过。本地主题包随 iPhone OTA 分发，双端真机及保留数据回退待验；后台与驱动未部署。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.2) · [本批验证](VALIDATION.md#sydney-app-0421022-整合与发布2026-11-21) · [更新与回退](OPERATIONS.md#sydney-windows-042iphone-1022-发布通道2026-11-21)
 
 欢迎卡片被自由输入跳过后残留“等待输入”的时序修复 `d7db91355` 已提交推送并上线 API／Worker。172 项定向回归、隔离数据库／HTTP 和生产回读通过，3 条遗留欢迎任务已收口、首页均 idle。手机无需新增 OTA，iPhone 实际显示待用户复核。[计划](PLAN.md#bot-欢迎卡片与自由输入等待收口pa-018pa-0212026-11-21) · [验证](VALIDATION.md#欢迎卡片自由输入等待收口2026-11-21)
 

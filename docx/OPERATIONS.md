@@ -2,11 +2,13 @@
 
 ## Sydney Windows 0.4.2／iPhone 1.0.22 发布通道（2026-11-21）
 
-本批按用户新授权提交和推送当前 App 相关源码及文档，从集成分支使用既有 `desktop-windows-build.yml` 和 `mobile-ios-update.yml`。Windows 继续采用云端 NSIS x64 无签名构建，安装包须手动安装，自动更新保持关闭；iPhone 沿用已安装二进制 runtime `sydney-ios-ip-1` 的 `sideload` OTA，应用原生版本与签名不变。Android 原生资源、iOS 小组件及其他原生源码虽纳入源码提交，本批 OTA 不会更新这些原生部分，也不提交 App Store 审核。
+本批源码 `24687d3c6` 已按用户新授权提交和推送，从集成分支使用既有 `desktop-windows-build.yml`（Run `44899117690`）和 `mobile-ios-update.yml`（Run `44899174271`），两项均成功。Windows `0.4.2` 已在 [GitHub Release](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.2) 公开，安装包、摘要与构建元数据已核验；iPhone `1.0.22` 的线上清单、启动包及 55 项资源已核验。
+
+Windows 继续采用云端 NSIS x64 无签名构建，安装包须手动安装，自动更新保持关闭；iPhone 沿用已安装二进制 runtime `sydney-ios-ip-1` 的 `sideload` OTA，应用原生版本与签名不变。Android 原生资源、iOS 小组件及其他原生源码虽纳入源码提交，本批 OTA 不会更新这些原生部分，也不提交 App Store 审核。
 
 上游 `v*` 稳定工作流要求 `main` 提交及全部平台签名和产物，不适用于本仓库当前的 Windows 专用分发。本批使用 `sydney-desktop-v0.4.2` 标签标识已核验的 Windows 构建提交，避免触发上游多平台流程与服务端镜像发布。云构建成功后核对 source SHA、工作流运行号、工件归档摘要、安装包大小及 SHA-256，再把安装包、`SHA256SUMS` 和 `build-metadata.json` 上传 GitHub Release 草稿，核对三项资产齐全后公开。
 
-iPhone 在「设置 → 检查更新」下载重启，再在「关于」核对 `1.0.22`；线上清单和所有资源另行核验。主题包存储沿用下节本地目录。回退 Windows 使用既有 `0.4.1` 保留安装包；iPhone 以已发布 `1.0.21` 源码重新发布到同一通道，随后复核新的更新 ID、资源、登录和历史。真实设备覆盖安装、保留数据回退及新主题包与旧客户端的兼容表现待验。
+iPhone 在「设置 → 检查更新」下载重启，再在「关于」核对 `1.0.22`，本批更新 ID 为 `01a1fddd-fb68-7080-97e2-bf37db62db76`。主题包存储沿用下节本地目录。Windows 回退前须取得并核对上一版 `0.4.1` 安装包；iPhone 以已发布 `1.0.21` 源码重新发布到同一通道，随后复核新的更新 ID、资源、登录和历史。真实设备覆盖安装、保留数据回退及新主题包与旧客户端的兼容表现待验。
 
 本批只发布客户端，不部署 API／Worker、数据库迁移、Linux 驱动或官网，不更改生产项目设备开关。后台与驱动候选源码入库不等于上线；构建、发布与真机状态见[本批验证](VALIDATION.md#sydney-app-0421022-整合与发布2026-11-21)。
 
