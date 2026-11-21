@@ -4,7 +4,9 @@
 
 本次需同时交付后台名单头像与项目 Bot 设置接口，以及 iOS `sideload`／`sydney-ios-ip-1` 的 `1.0.20`。后台沿用生产固定镜像 `sha256:c96d99f5225c070881df3db541cda13a11060a02b6b8e33f7168e10d70ddd2e9` 与原有依赖、Prisma 结构和设备开关，不执行迁移、不更换 Worker。最小源码为 `project-workspace-read.ts`、contracts 的 `domain.ts`／`rpc.ts`／`project-workspace.ts`，以及 API 的 `routes/bots.ts`／`routes/project-workspaces.ts`。后者仅补 get／update／能力，保留生产 `uses: ["model"]`；不夹带其他候选的记忆同意或 router 变动。
 
-服务器交付目录 `/srv/rakazo-releases/project-avatar-20261121-1020` 保存源码清单／前后摘要、单入口编译产物和隔离验证结果。因现有 Docker 镜像构建／commit 路径不可用，部署使用八个只读文件挂载：六个源码及 API `dist/index.js`／`.map`。仅调整 `/etc/rakazo/compose/production.overlay.yml` 的 API 挂载，变更前备份到交付目录 `production.before.yml`。部署前检查没有排队／运行任务和有效设备租约，比较 Compose 归一化配置仅增加这些挂载；切换后连同 `native-screen-api-loopback` 重新绑定 API 命名空间，验证 API／Worker 健康、产物摘要和迁移账本不变。实际执行结果另补。
+服务器交付目录 `/srv/rakazo-releases/project-avatar-20261121-1020` 保存 `source/manifest.json` 源码清单／前后摘要、`compiled/` 单入口编译产物、`build-result.json` 隔离验证和 `deployment-result.json` 发布结果。因现有 Docker 镜像构建／commit 路径不可用，部署使用八个只读文件挂载：六个源码及 API `dist/index.js`／`.map`。仅调整 `/etc/rakazo/compose/production.overlay.yml` 的 API 挂载，变更前备份到交付目录 `production.before.yml`。北京时间 16:19 已执行：检查无排队／运行任务及有效设备租约，比较 Compose 归一化配置仅增加这些挂载；切换后连同 `native-screen-api-loopback` 重新绑定 API 命名空间，API／Worker 健康、产物摘要和迁移账本均通过。既有两个项目的图片头像只读回传核对通过。
+
+手机源码 `e7d729212` 已提交推送，Run `44884608273` 于北京时间 16:24 发布 `1.0.20` 到 iOS `sideload`；更新 ID `01a1fd35-3b12-712b-bafa-11fea72d4b81`。线上版本／三语说明、Hermes 启动包及 55 项资源已验证。兼容 iPhone 在「设置 → 检查更新」下载并重启，再在「关于」核对 `1.0.20`；重新打开项目后应显示原来保存的图片，无需删除或重建 Bot。真机实际显示与键盘交互待验。[完整证据](VALIDATION.md#项目头像与聊天反馈补修2026-11-21)
 
 回退使用交付目录的原 overlay 原子恢复，再沿原 Compose 项目及 env 文件重建 API 和 `native-screen-api-loopback`；Worker、数据库和数据卷不回滚。发布期间提供失败自动回退路径，尚未演练人工回退。服务器交付文件后续清理必须先解除挂载，不能直接删除当前版本文件。OTA 的上一版为 `1.0.19`，更新 ID `01a1fced-7d60-74d9-af35-765d13ae922c`；必要时沿已有 Expo 流程重新发布兼容内容。
 
