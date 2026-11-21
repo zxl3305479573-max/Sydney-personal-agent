@@ -772,7 +772,6 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                 onCall={onCall}
                 working={working}
                 sending={composer.sending || attachments.shareImporting}
-                styles={styles}
                 attachActions={attachments.attachActions}
                 attachFrom={attachments.attachFrom}
                 send={composer.send}

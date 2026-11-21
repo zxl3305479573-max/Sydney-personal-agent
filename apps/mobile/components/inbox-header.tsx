@@ -30,7 +30,10 @@ export function InboxRosterHeading({
         justifyContent: "space-between",
       }}
     >
-      <Text style={{ color: native.label, fontSize: 20, fontWeight: "600" }}>
+      <Text
+        accessibilityRole="header"
+        style={{ color: native.secondaryLabel, fontSize: 15, fontWeight: "600" }}
+      >
         {locale.startsWith("zh")
           ? kind === "bot"
             ? locale === "zh-TW"
@@ -51,6 +54,34 @@ export function InboxRosterHeading({
           <NativeSymbol ios="plus" android="add" size={20} />
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+export function InboxIntro({ activityMode }: { activityMode: boolean }) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const styles = useThemedStyles(createHomeStyles);
+  return (
+    <View style={styles.inboxIntro}>
+      <Text accessibilityRole="header" style={styles.inboxTitle}>
+        {t(activityMode ? "Activity" : "Chats")}
+      </Text>
+      <Pressable
+        testID="home-search-button"
+        accessibilityRole="button"
+        accessibilityLabel={t("Search")}
+        onPress={() => router.push("/search")}
+        style={({ pressed }) => [styles.inboxSearch, pressed && styles.rowPressed]}
+      >
+        <NativeSymbol
+          ios="magnifyingglass"
+          android="search"
+          size={17}
+          color={native.secondaryLabel}
+        />
+        <Text style={styles.inboxSearchLabel}>{t("Search")}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -108,13 +139,6 @@ export function InboxHeader({
             color={activityMode ? tokens.primaryForeground : tokens.foreground}
           />
         </HeaderButton>
-        <HeaderButton
-          testID="home-search-button"
-          accessibilityLabel={t("Search")}
-          onPress={() => router.push("/search")}
-        >
-          <NativeSymbol ios="magnifyingglass" android="search" size={17} />
-        </HeaderButton>
         <MenuView
           actions={createMenuActions(t, Platform.OS)}
           {...(Platform.OS === "android" ? { style: { marginBottom: -CREATE_MENU_GAP } } : {})}
@@ -137,7 +161,6 @@ export function InboxHeader({
 }
 
 function HeaderButton({
-  testID,
   children,
   onPress,
   accessibilityLabel,
@@ -147,14 +170,12 @@ function HeaderButton({
   children: ReactNode;
   onPress: () => void;
   accessibilityLabel: string;
-  testID?: string;
   active?: boolean;
   accent?: boolean;
 }) {
   const styles = useThemedStyles(createHomeStyles);
   return (
     <Pressable
-      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected: active }}

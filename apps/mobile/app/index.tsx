@@ -28,7 +28,7 @@ import { CreateBotModal } from "../components/create-bot-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
-import { InboxHeader, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
@@ -946,12 +946,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 }
                 ListHeaderComponent={
                   <>
-                    {!onShareSelect && !showLoadFailure ? (
-                      <InboxRosterHeading
-                        kind="bot"
-                        onCreateGroup={() => runCreateAction("group")}
-                      />
-                    ) : null}
+                    {!onShareSelect ? <InboxIntro activityMode={activityMode} /> : null}
                     {inlineError ? <Text style={styles.error}>{inlineError}</Text> : null}
                     {spaceRecoveryId ? (
                       <Pressable
@@ -983,16 +978,13 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 }
                 ListFooterComponent={
                   <>
-                    {!onShareSelect &&
-                    !showLoadFailure &&
-                    !listData.some((item) => item.type === "group") ? (
-                      <InboxRosterHeading
-                        kind="group"
-                        onCreateGroup={() => runCreateAction("group")}
-                      />
-                    ) : null}
                     <InboxListFooter
-                      createHint={false}
+                      createHint={
+                        !onShareSelect &&
+                        !showLoadFailure &&
+                        !inboxLoading &&
+                        inboxHasNoChats(listData)
+                      }
                       archivedCount={onShareSelect ? 0 : archivedCount}
                     />
                   </>

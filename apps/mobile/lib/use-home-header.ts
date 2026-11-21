@@ -4,7 +4,7 @@ import type { CreateAction } from "./create-chooser";
 import { createMenuItems } from "./create-chooser";
 import { useI18n } from "./i18n";
 
-/** Liquid Glass home header: account on the left; activity, search and create on the right. */
+/** Liquid Glass home header: account on the left; activity and create on the right. */
 export function useHomeHeader({
   nativeHeader,
   ready,
@@ -50,14 +50,6 @@ export function useHomeHeader({
           icon: { type: "sfSymbol" as const, name: activityMode ? "bell.fill" : "bell" },
           selected: activityMode,
           onPress: toggleActivityMode,
-        },
-        {
-          type: "button" as const,
-          label: t("Search"),
-          accessibilityLabel: t("Search"),
-          identifier: "home-search-button",
-          icon: { type: "sfSymbol" as const, name: "magnifyingglass" },
-          onPress: () => router.push("/search"),
         },
         {
           type: "menu" as const,

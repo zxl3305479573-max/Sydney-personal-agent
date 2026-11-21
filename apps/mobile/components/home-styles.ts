@@ -84,6 +84,32 @@ export function createHomeStyles() {
       flexGrow: 1,
       paddingBottom: 32,
     },
+    inboxIntro: {
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 16,
+    },
+    inboxTitle: {
+      color: native.label,
+      fontSize: 32,
+      fontWeight: "700",
+    },
+    inboxSearch: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: native.fillPressed,
+    },
+    inboxSearchLabel: {
+      color: native.secondaryLabel,
+      flexShrink: 1,
+      ...typeScale.secondary,
+    },
     empty: {
       color: native.secondaryLabel,
       fontSize: 16,
@@ -98,10 +124,15 @@ export function createHomeStyles() {
       gap: INBOX_ROW.gap,
     },
     rowSelected: {
-      marginHorizontal: 12,
-      paddingHorizontal: 4,
       borderRadius: 12,
       backgroundColor: native.fillPressed,
+    },
+    rosterRow: {
+      marginHorizontal: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+      minHeight: 64,
+      borderRadius: 12,
     },
     pinnedTiles: {
       flexDirection: "row",
@@ -162,8 +193,7 @@ export function createHomeStyles() {
       gap: 7,
     },
     name: {
-      flexShrink: 0,
-      maxWidth: "100%",
+      flexShrink: 1,
       color: native.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
@@ -172,6 +202,7 @@ export function createHomeStyles() {
       flexShrink: 1,
       color: native.secondaryLabel,
       ...typeScale.caption,
+      fontVariant: ["tabular-nums"],
     },
     unreadName: {
       fontWeight: "700",

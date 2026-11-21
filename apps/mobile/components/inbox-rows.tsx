@@ -90,14 +90,8 @@ export function ConversationRow({
       style={({ pressed }) => [
         styles.row,
         compact ? styles.compactRow : null,
-        selected && !roster ? styles.rowSelected : null,
-        roster && {
-          marginHorizontal: 0,
-          paddingHorizontal: 4,
-          paddingVertical: 8,
-          gap: 16,
-          borderRadius: 16,
-        },
+        roster && styles.rosterRow,
+        selected && styles.rowSelected,
         selected && Platform.OS === "android" && { overflow: "hidden" },
         pressed && Platform.OS !== "android" && styles.rowPressed,
       ]}
@@ -107,11 +101,7 @@ export function ConversationRow({
         <View style={styles.rowTop}>
           <View style={styles.titleRow}>
             <Text
-              style={[
-                styles.name,
-                roster && { fontSize: 18, fontWeight: "500" },
-                unread && styles.unreadName,
-              ]}
+              style={[styles.name, unread && styles.unreadName]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -119,30 +109,20 @@ export function ConversationRow({
             </Text>
           </View>
           <View style={styles.rowMeta}>
-            {!roster && time ? (
+            {time ? (
               <Text numberOfLines={1} style={styles.time}>
                 {time}
               </Text>
             ) : null}
-            {!roster && unread ? (
-              <View accessibilityElementsHidden style={styles.unreadDot} />
-            ) : null}
+            {unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
           </View>
         </View>
         {preview ? (
-          <Text
-            style={[
-              styles.preview,
-              !roster && unread && styles.unreadPreview,
-              roster && { fontSize: 15 },
-            ]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.preview, unread && styles.unreadPreview]} numberOfLines={1}>
             {preview}
           </Text>
         ) : null}
       </View>
-      {roster && unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
     </Pressable>
   );
 }
@@ -365,7 +345,7 @@ export const BotRow = memo(function BotRow({
             color={bot.color || FALLBACK_COLOR}
             avatarSet={bot.avatarSet}
             identity={bot.id}
-            size={56}
+            size={44}
             status={bot.status}
             muted={bot.notifyOnFinish === false}
             motion="lazy"
@@ -444,7 +424,7 @@ export const GroupRow = memo(function GroupRow({
       onLongPress={onLongPress ? () => onLongPress(group) : undefined}
       actions={onAction ? inboxRowActionList(group) : undefined}
       onAction={runAction}
-      avatar={<GroupAvatar members={group.members} size={56} />}
+      avatar={<GroupAvatar members={group.members} size={44} />}
     />
   );
   return onAction ? (

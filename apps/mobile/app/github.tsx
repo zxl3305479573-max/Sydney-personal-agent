@@ -5,6 +5,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -17,6 +18,7 @@ import { MainNavigationHeader } from "../components/main-navigation-header";
 import { MenuPicker } from "../components/menu-picker";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
+import { NativeSymbol } from "../components/native-symbol";
 import { useI18n } from "../lib/i18n";
 import { useHideMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens } from "../lib/native";
@@ -60,28 +62,50 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
     { id: "explore", label: text("开源探索", "Explore") },
   ];
   const repoRows = (repos: GithubRepoSummary[]) =>
-    github.visible(repos).map((repo) => (
-      <GlassSurface
-        key={repo.id}
-        shape="roundedRectangle"
-        cornerRadius={14}
-        style={{ padding: 14, gap: 8 }}
-        fallbackStyle={{ backgroundColor: tokens.card }}
-      >
-        <NativeActionButton
-          label={repo.fullName}
-          prominence="plain"
+    github.visible(repos).map((repo) => {
+      const metadata = [
+        repo.primaryLanguage?.name,
+        `★ ${repo.stargazerCount}`,
+        `${repo.forkCount} ${text("分支", "forks")}`,
+        repo.isPrivate ? text("私有", "Private") : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return (
+        <Pressable
+          key={repo.id}
+          accessibilityRole="button"
+          accessibilityLabel={[repo.fullName, repo.description, metadata]
+            .filter(Boolean)
+            .join(". ")}
+          accessibilityState={{ disabled: github.busy }}
           onPress={() => github.selectRepo(repo)}
           disabled={github.busy}
-        />
-        {repo.description ? <Text style={bodyStyle}>{repo.description}</Text> : null}
-        <Text style={mutedStyle}>
-          {repo.primaryLanguage?.name ?? ""} · ★ {repo.stargazerCount} · {repo.forkCount}{" "}
-          {text("分支", "forks")}
-          {repo.isPrivate ? ` · ${text("私有", "Private")}` : ""}
-        </Text>
-      </GlassSurface>
-    ));
+          style={({ pressed }) => ({ opacity: github.busy ? 0.5 : pressed ? 0.7 : 1 })}
+        >
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={14}
+            style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}
+            fallbackStyle={{ backgroundColor: tokens.card, borderRadius: 14 }}
+          >
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+              <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
+                {repo.fullName}
+              </Text>
+              {repo.description ? <Text style={bodyStyle}>{repo.description}</Text> : null}
+              <Text style={mutedStyle}>{metadata}</Text>
+            </View>
+            <NativeSymbol
+              ios="chevron.right"
+              android="chevron-forward"
+              size={14}
+              color={tokens.mutedForeground}
+            />
+          </GlassSurface>
+        </Pressable>
+      );
+    });
   const result = github.section === "explore" ? github.search : github.repositories;
   const overview = github.overview;
   const detail = github.detail;

@@ -11,10 +11,16 @@ export function MainBottomNavigation() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tokens = useMobileTokens();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
   const items = [
+    {
+      route: "/" as const,
+      label: t("Chats"),
+      ios: "bubble.left.and.bubble.right",
+      android: "chatbubbles-outline" as const,
+    },
     {
       route: "/integrations" as const,
       label: chinese ? (traditional ? "應用" : "应用") : "Apps",
@@ -43,8 +49,8 @@ export function MainBottomNavigation() {
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: tokens.border,
         backgroundColor: tokens.background,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
+        paddingLeft: insets.left + 8,
+        paddingRight: insets.right + 8,
         paddingBottom: insets.bottom,
       }}
     >
@@ -61,17 +67,28 @@ export function MainBottomNavigation() {
             style={({ pressed }) => ({
               flex: 1,
               minWidth: 0,
-              minHeight: 56,
+              minHeight: 54,
               flexDirection: "column",
-              paddingVertical: 7,
+              paddingVertical: 6,
               paddingHorizontal: 4,
               gap: 4,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: pressed ? tokens.accent : selected ? tokens.muted : undefined,
+              backgroundColor: pressed ? tokens.accent : undefined,
             })}
           >
-            <NativeSymbol ios={item.ios} android={item.android} size={22} color={color} />
+            <View
+              style={{
+                width: 46,
+                height: 26,
+                borderRadius: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: selected ? tokens.muted : undefined,
+              }}
+            >
+              <NativeSymbol ios={item.ios} android={item.android} size={20} color={color} />
+            </View>
             <Text
               style={{
                 color,

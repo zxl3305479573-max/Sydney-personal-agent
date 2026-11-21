@@ -135,9 +135,13 @@ vi.mock("react-native", () => {
       accessibilityLabel?: string;
       accessible?: boolean;
       disabled?: boolean;
-      style?: object;
-    }) =>
-      createElement(
+      style?: object | ((state: { pressed: boolean }) => object | object[]);
+    }) => {
+      const resolved = typeof style === "function" ? style({ pressed: false }) : style;
+      const serializedStyle = JSON.stringify(
+        Array.isArray(resolved) ? Object.assign({}, ...resolved) : resolved,
+      );
+      return createElement(
         "button",
         {
           type: "button",
@@ -145,10 +149,11 @@ vi.mock("react-native", () => {
           "aria-label": accessibilityLabel,
           "data-accessible": accessible,
           disabled,
-          "data-style": JSON.stringify(style),
+          "data-style": serializedStyle,
         },
         children,
-      ),
+      );
+    },
     TextInput: ({
       ref,
       children,
@@ -227,7 +232,16 @@ vi.mock("../components/bot-avatar", () => ({
     createElement("span", { "data-avatar": identity, "data-size": size }),
 }));
 vi.mock("./native", () => ({
-  useMobileTokens: () => ({ link: "token-link" }),
+  useMobileTokens: () => ({
+    link: "token-link",
+    primary: "blue",
+    primaryForeground: "white",
+    muted: "gray",
+    mutedForeground: "gray",
+    foreground: "black",
+    card: "white",
+    border: "gray",
+  }),
   useResolvedAppearance: () => "light",
 }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
@@ -250,7 +264,6 @@ const props: Omit<ComponentProps<typeof ThreadComposer>, "ref"> = {
   onCall: false,
   working: false,
   sending: false,
-  styles: { circleButton: {}, composerFill: {} },
   attachActions: [],
   attachFrom: vi.fn(),
   send: vi.fn(async () => {}),
@@ -1214,11 +1227,11 @@ describe("thread composer isolation", () => {
     const field = container.querySelector("input")!;
     const wrapper = field.parentElement!;
     const textRow = wrapper.parentElement!;
-    const capsule = textRow.parentElement!;
-    const outer = capsule.parentElement!;
+    const surface = textRow.parentElement!;
+    const outer = surface.parentElement!;
     const controlsRow = textRow.nextElementSibling!;
     expect(style(outer)).toMatchObject({ flexShrink: 1, minHeight: 0 });
-    expect(style(capsule)).toMatchObject({ flexShrink: 1, minHeight: 0 });
+    expect(style(surface)).toMatchObject({ flexShrink: 1, minHeight: 0 });
     expect(style(textRow)).toMatchObject({ flexShrink: 1, minHeight: 0, alignItems: "stretch" });
     expect(style(wrapper)).toMatchObject({ flexShrink: 1, minHeight: 0, paddingVertical: 11 });
     expect(style(field)).toMatchObject({ flexShrink: 1, minHeight: 22, maxHeight: 110 });
@@ -1227,10 +1240,12 @@ describe("thread composer isolation", () => {
     expect(composer.current!.snapshot().attachmentIds).toEqual(["attachment-1", "attachment-2"]);
   });
 
-  it("matches the iOS glass corner radius to the composer container", () => {
-    const capsule = container.querySelector('[data-glass="roundedRectangle"]') as HTMLElement;
-    expect(Number(capsule.dataset.radius)).toBe(26);
-    expect(JSON.parse(capsule.dataset.style!).borderRadius).toBe(Number(capsule.dataset.radius));
+  it("uses a distinct rounded composer surface", () => {
+    const surface = container.querySelector('[data-style*="borderRadius"]') as HTMLElement;
+    expect(JSON.parse(surface.dataset.style!)).toMatchObject({
+      borderRadius: 18,
+      borderWidth: 1,
+    });
   });
 
   it("aligns the empty placeholder with the inset text viewport", () => {
@@ -1250,7 +1265,8 @@ describe("thread composer isolation", () => {
     for (const label of ["Call", "Send"]) {
       if (label === "Send") type("Hello");
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      expect(style(button)).toMatchObject({ minWidth: 44, minHeight: 44 });
+      expect(style(button)).toMatchObject({ width: 44, height: 44 });
+      if (label === "Call") expect(style(button).backgroundColor).toBe("blue");
       press(label);
     }
     expect(props.startVoiceCall).toHaveBeenCalledOnce();
@@ -1271,14 +1287,14 @@ describe("thread composer isolation", () => {
     ] as const) {
       type(draft);
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      const capsule = button.closest('[data-glass="roundedRectangle"]')!;
       const field = container.querySelector("input")!;
       const textRow = field.parentElement!.parentElement!;
       const controlsRow = button.parentElement!;
-      expect(textRow.parentElement).toBe(capsule);
-      expect(controlsRow.parentElement).toBe(capsule);
+      const surface = textRow.parentElement;
+      expect(surface).not.toBeNull();
+      expect(controlsRow.parentElement).toBe(surface);
       expect(textRow.nextElementSibling).toBe(controlsRow);
-      expect(style(capsule).gap).toBeGreaterThan(0);
+      expect(style(surface!).gap).toBeGreaterThan(0);
       expect(style(field).writingDirection).toBe("auto");
       expect(composer.current!.snapshot().promptText).toBe(draft);
     }

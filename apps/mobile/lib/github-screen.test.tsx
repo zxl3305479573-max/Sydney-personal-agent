@@ -36,6 +36,32 @@ vi.mock("react-native", () => ({
       下拉刷新
     </button>
   ),
+  Pressable: ({
+    children,
+    accessibilityRole,
+    accessibilityLabel,
+    accessibilityState,
+    disabled,
+    onPress,
+  }: {
+    children: ReactNode;
+    accessibilityRole: string;
+    accessibilityLabel: string;
+    accessibilityState: { disabled: boolean };
+    disabled: boolean;
+    onPress: () => void;
+  }) => (
+    <button
+      type="button"
+      role={accessibilityRole}
+      aria-label={accessibilityLabel}
+      aria-disabled={accessibilityState.disabled}
+      disabled={disabled}
+      onClick={onPress}
+    >
+      {children}
+    </button>
+  ),
   Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   View: ({
     children,
@@ -75,6 +101,7 @@ vi.mock("../components/main-navigation-header", () => ({
 }));
 vi.mock("../components/menu-picker", () => ({ MenuPicker: () => null }));
 vi.mock("../components/native-switch", () => ({ NativeSwitch: () => null }));
+vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
 vi.mock("../components/native-action-button", () => ({
   NativeActionButton: ({
     label,
@@ -234,6 +261,61 @@ describe("native GitHub screen", () => {
     await renderBrowser();
     expect(container.querySelector("output")?.textContent).toBe("visible");
   });
+
+  it.each(["profile", "repositories", "explore"])(
+    "uses the entire repository card as the only repository button in %s",
+    async (section) => {
+      const repo = {
+        id: "repo-1",
+        fullName: "example/a-long-repository-name-for-a-mobile-screen",
+        description: "Repository description",
+        primaryLanguage: { name: "TypeScript" },
+        stargazerCount: 42,
+        forkCount: 3,
+        isPrivate: section !== "explore",
+      };
+      const cardState = {
+        ...state,
+        section,
+        status: { status: "connected", login: "example", highRiskScopes: [], rateLimit: null },
+        overview: {
+          profile: { login: "example", publicRepos: 1, followers: 0 },
+          calendar: { availableYears: [], totalContributions: 0, weeks: [] },
+          pinnedRepos: [repo],
+          recentRepos: [],
+        },
+        repositories: { items: [repo] },
+        search: { items: [repo] },
+      };
+      runtime.useGithub.mockReturnValue(cardState);
+      await render();
+      const cards = container.querySelectorAll<HTMLButtonElement>(
+        `button[role="button"][aria-label^="${repo.fullName}"]`,
+      );
+      expect(cards).toHaveLength(1);
+      const card = cards[0]!;
+      expect(card.querySelector("button,[role=button]")).toBeNull();
+      const title = [...card.querySelectorAll("span")].find(
+        (element) => element.textContent === repo.fullName,
+      );
+      expect(title?.closest("button")).toBe(card);
+      expect(card.textContent).toContain(
+        `TypeScript · ★ 42 · 3 分支${repo.isPrivate ? " · 私有" : ""}`,
+      );
+      const description = [...card.querySelectorAll("span")].find(
+        (element) => element.textContent === repo.description,
+      );
+      await act(async () => description?.click());
+      expect(state.selectRepo).toHaveBeenCalledExactlyOnceWith(repo);
+
+      runtime.useGithub.mockReturnValue({ ...cardState, busy: true });
+      await render();
+      expect(card.disabled).toBe(true);
+      expect(card.getAttribute("aria-disabled")).toBe("true");
+      await act(async () => card.click());
+      expect(state.selectRepo).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("shows upstream README and release content as inert selectable text", async () => {
     runtime.useGithub.mockReturnValue({

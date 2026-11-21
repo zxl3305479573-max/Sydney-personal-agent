@@ -5,7 +5,7 @@ import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { InboxHeader, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
 import { ProjectFolderCard } from "../components/project-folder-card";
 
 const header = vi.hoisted(() => ({
@@ -25,12 +25,14 @@ const { labelled } = vi.hoisted(() => {
       ({
         children,
         accessibilityLabel,
+        accessibilityRole,
         disabled,
         onPress,
         style,
       }: {
         children?: ReactNode;
         accessibilityLabel?: string;
+        accessibilityRole?: string;
         disabled?: boolean;
         onPress?: () => void;
         style?: unknown;
@@ -42,6 +44,7 @@ const { labelled } = vi.hoisted(() => {
           tag,
           {
             "aria-label": accessibilityLabel,
+            role: accessibilityRole === "button" ? "button" : undefined,
             disabled,
             onClick: disabled ? undefined : onPress,
             "data-flex-direction": resolved.flexDirection,
@@ -151,12 +154,22 @@ it.each(["android", "ios"])("omits Artifacts from the %s fallback header", (plat
     Array.from(container.querySelectorAll("[aria-label]"), (node) =>
       node.getAttribute("aria-label"),
     ),
-  ).toEqual(["Account", "Activity", "Search", "Create"]);
+  ).toEqual(["Account", "Activity", "Create"]);
   act(() => control("Account").click());
-  act(() => control("Search").click());
   act(() => control("Activity").click());
-  expect(header.push.mock.calls).toEqual([["/settings-home"], ["/search"]]);
+  expect(header.push.mock.calls).toEqual([["/settings-home"]]);
   expect(toggleActivityMode).toHaveBeenCalledOnce();
+});
+
+it("puts search below the Chats heading and opens the existing search route", () => {
+  act(() => root.render(<InboxIntro activityMode={false} />));
+  expect(container.textContent).toBe("ChatsSearch");
+  const search = [...container.querySelectorAll("button")].find(
+    (item) => item.getAttribute("aria-label") === "Search",
+  );
+  expect(search).toBeDefined();
+  act(() => search?.click());
+  expect(header.push).toHaveBeenCalledExactlyOnceWith("/search");
 });
 
 it.each(["android", "ios"])("creates from the %s menu", (platform) => {

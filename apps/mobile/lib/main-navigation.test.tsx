@@ -51,7 +51,7 @@ vi.mock("./native", () => ({
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => <i /> }));
 vi.mock("react-native", () => ({
   StyleSheet: { hairlineWidth: 1 },
-  View: ({ children, style, testID }: { children: ReactNode; style: object; testID: string }) => (
+  View: ({ children, style, testID }: { children: ReactNode; style: object; testID?: string }) => (
     <div style={style} data-testid={testID}>
       {children}
     </div>
@@ -104,22 +104,27 @@ afterEach(() => {
 });
 
 describe("main mobile navigation", () => {
-  it("shows exactly three equal width icon-over-label items without capsules on Home", () => {
+  it("shows four equal width tabs with Chats selected on the home route", () => {
     act(() => root.render(<MainBottomNavigation />));
     const bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
-    expect(bar.children).toHaveLength(3);
+    expect(bar.children).toHaveLength(4);
     expect(bar.style.paddingBottom).toBe("34px");
     expect(bar.style.margin).toBe("");
     const items = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    expect(items.map((item) => item.textContent)).toEqual(["应用", "项目", "GitHub"]);
-    expect(items.every((item) => item.getAttribute("data-selected") === "false")).toBe(true);
+    expect(items.map((item) => item.textContent)).toEqual(["Chats", "应用", "项目", "GitHub"]);
+    expect(items.map((item) => item.getAttribute("data-selected"))).toEqual([
+      "true",
+      "false",
+      "false",
+      "false",
+    ]);
     for (const item of items) {
       expect(item.style.flex).toBe("1 1 0%");
       expect(item.style.borderRadius).toBe("");
-      expect(item.children[0]?.tagName).toBe("I");
+      expect(item.children[0]?.querySelector("i")).not.toBeNull();
       expect(item.children[1]?.tagName).toBe("SPAN");
     }
-    act(() => items[2]!.click());
+    act(() => items[3]!.click());
     expect(state.router.push).toHaveBeenCalledWith("/github");
   });
 
@@ -130,7 +135,7 @@ describe("main mobile navigation", () => {
       act(() => root.render(<MainBottomNavigation />));
       const selected = container.querySelectorAll<HTMLButtonElement>('[data-selected="true"]');
       expect(selected).toHaveLength(1);
-      expect(selected[0]!.style.backgroundColor).toBe("lightgray");
+      expect(selected[0]!.querySelector("div")?.style.backgroundColor).toBe("lightgray");
       expect(selected[0]!.querySelector("span")?.style.color).toBe("blue");
       expect(selected[0]!.querySelector("span")?.style.fontWeight).toBe("700");
       act(() => selected[0]!.click());
@@ -145,6 +150,8 @@ describe("main mobile navigation", () => {
     openMainNavigation(state.router, "/projects", "/github");
     expect(state.router.push.mock.calls).toEqual([["/integrations"]]);
     expect(state.router.replace.mock.calls).toEqual([["/projects"], ["/github"]]);
+    openMainNavigation(state.router, "/github", "/");
+    expect(state.router.dismissTo).toHaveBeenCalledExactlyOnceWith("/");
   });
 
   it.each(["/", "/integrations", "/projects", "/github"])("allows main route %s", (path) => {
