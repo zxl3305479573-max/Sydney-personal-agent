@@ -63,7 +63,7 @@ export function ProjectCloudDirectory({
   const binding = status.binding;
   const selected = status.computers.find(({ id }) => id === (binding?.computerId ?? computerId));
   const readOnly = text("只读", "Read only");
-  const readWrite = text("读取并新建 Markdown", "Read and create Markdown");
+  const readWrite = text("读取、修改文本并新建 Markdown", "Read and update text files, and create Markdown");
   const caption = { color: tokens.mutedForeground, fontSize: 13 };
   async function change() {
     const focused = lifecycle.current;

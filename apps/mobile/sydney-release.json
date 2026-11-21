@@ -1,24 +1,24 @@
 {
-  "version": "1.0.18",
+  "version": "1.0.19",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "项目整张卡片都能点开，长项目名可以换行；Bot 回复显示在头像下方。",
-      "统一设置和连接表单的分组与标签，改善看板、产物和例行任务的加载及重试提示。",
-      "聊天可从输入栏切换模型。改善项目成员与聊天显示，项目成员设置会在服务器支持时出现。",
-      "电脑预览显示打开入口，接管时可切换触控和虚拟鼠标，并使用快捷键。"
+      "项目聊天统一使用普通聊天的消息卡片和输入框，保留发送失败的草稿。",
+      "项目 Bot 显示新版头像，打开页面期间自动刷新项目名称、成员与 Bot 资料。",
+      "虚拟鼠标改为黑底白边的桌面箭头，箭头尖端对应实际点击位置。",
+      "保留聊天模型切换、电脑画面与快捷键等已有改进；项目成员设置仍在服务器支持时显示。"
     ],
     "zh-TW": [
-      "點整張專案卡片即可開啟，長專案名稱可以換行；Bot 回覆顯示在頭像下方。",
-      "統一設定與連線表單的分組和標籤，改善看板、產出與例行任務的載入及重試提示。",
-      "聊天可從輸入列切換模型。改善專案成員與聊天顯示，伺服器支援時會顯示專案成員設定。",
-      "電腦預覽顯示開啟入口，接管時可切換觸控和虛擬滑鼠，並使用快速鍵。"
+      "專案聊天統一使用一般聊天的訊息卡片與輸入框，保留傳送失敗的草稿。",
+      "專案 Bot 顯示新版頭像，開啟頁面期間自動重新整理專案名稱、成員與 Bot 資料。",
+      "虛擬滑鼠改為黑底白邊的桌面箭頭，箭頭尖端對應實際點擊位置。",
+      "保留聊天模型切換、電腦畫面與快速鍵等既有改進；伺服器支援時才顯示專案成員設定。"
     ],
     "en": [
-      "Tap anywhere on a project card to open it. Long project names wrap, and bot replies appear below their avatars.",
-      "Settings and connection forms use consistent groups and labels. Boards, artifacts, and routines show clearer loading and retry states.",
-      "Switch models from the chat composer. Project members and conversations are easier to scan, and member settings appear on supported servers.",
-      "Computer previews show an Open button. Switch between touch and a virtual mouse and use keyboard shortcuts while in control."
+      "Project conversations share the regular message cards and composer, and keep drafts when sending fails.",
+      "Project bots use the updated avatars. Project names, members, and bot details refresh while the page is open.",
+      "The virtual mouse uses a black desktop arrow with a white outline. Its tip marks the click position.",
+      "Existing model switching, computer display, and keyboard shortcut improvements remain available. Project member settings appear on supported servers."
     ]
   }
 }

@@ -80,6 +80,8 @@ type ThreadComposerProps = {
   onCall: boolean;
   working: boolean;
   sending: boolean;
+  disabled?: boolean;
+  textOnly?: boolean;
   attachActions: MenuAction[];
   attachFrom: (source: string) => void;
   send: () => Promise<void>;
@@ -105,6 +107,8 @@ export function ThreadComposer({
   onCall,
   working,
   sending,
+  disabled = false,
+  textOnly = false,
   attachActions,
   attachFrom,
   send,
@@ -206,15 +210,15 @@ export function ThreadComposer({
     },
   }));
   const mentionOptions = useMemo(() => {
-    if (mentionQuery === null || composerMentionTargets.length === 0) return [];
+    if (textOnly || mentionQuery === null || composerMentionTargets.length === 0) return [];
     return filterComposerMentionTargets(composerMentionTargets, mentionQuery.query).slice(
       0,
       MENTION_PICKER_MAX_ROWS,
     );
-  }, [composerMentionTargets, mentionQuery]);
+  }, [composerMentionTargets, mentionQuery, textOnly]);
   const slashQueryNormalized = slashQuery?.trim().toLowerCase() ?? null;
   const slashSkillOptions =
-    slashQuery !== null && mentionQuery === null
+    !textOnly && slashQuery !== null && mentionQuery === null
       ? agentSkills
           .filter((skill) => {
             if (!slashQueryNormalized) return true;
@@ -226,7 +230,7 @@ export function ThreadComposer({
           .slice(0, 8)
       : [];
   const slashActionOptions =
-    slashQuery !== null && mentionQuery === null
+    !textOnly && slashQuery !== null && mentionQuery === null
       ? SLASH_ACTIONS.filter((action) => {
           if (!slashQueryNormalized) return true;
           const label = t(action.label);
@@ -603,6 +607,7 @@ export function ThreadComposer({
               ) : null}
               <TextInput
                 ref={inputRef}
+                editable={!disabled}
                 onChangeText={updateDraft}
                 selection={selection}
                 onSelectionChange={(event) => {
@@ -699,20 +704,22 @@ export function ThreadComposer({
             </Pressable>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 4 }}>
-            <MenuView
-              actions={attachActions}
-              colorScheme={colorScheme}
-              onPressAction={(event) => attachFrom(event.nativeEvent.event)}
-            >
-              <View
-                accessible
-                accessibilityRole="button"
-                accessibilityLabel={t("Attach file")}
-                style={toolButton}
+            {!textOnly ? (
+              <MenuView
+                actions={attachActions}
+                colorScheme={colorScheme}
+                onPressAction={(event) => attachFrom(event.nativeEvent.event)}
               >
-                <NativeSymbol ios="plus" android="add" size={21} color={tokens.foreground} />
-              </View>
-            </MenuView>
+                <View
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Attach file")}
+                  style={toolButton}
+                >
+                  <NativeSymbol ios="plus" android="add" size={21} color={tokens.foreground} />
+                </View>
+              </MenuView>
+            ) : null}
             {modelActions && onModelSelect ? (
               <View style={{ flex: 1, minWidth: 0 }}>
                 <MenuView
@@ -756,7 +763,7 @@ export function ThreadComposer({
             ) : (
               <View style={{ flex: 1 }} />
             )}
-            {!canSend && botId && !onCall ? (
+            {!textOnly && !canSend && botId && !onCall ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Call")}
@@ -778,12 +785,15 @@ export function ThreadComposer({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("Send")}
-                accessibilityState={{ disabled: sending || !canSend, busy: sending }}
-                disabled={sending || !canSend}
+                accessibilityState={{ disabled: disabled || sending || !canSend, busy: sending }}
+                disabled={disabled || sending || !canSend}
                 onPress={() => void send()}
                 style={({ pressed }) => [
                   toolButton,
-                  { backgroundColor: sending || !canSend ? tokens.muted : tokens.primary },
+                  {
+                    backgroundColor:
+                      disabled || sending || !canSend ? tokens.muted : tokens.primary,
+                  },
                   pressed && { opacity: 0.78 },
                 ]}
               >
@@ -791,7 +801,11 @@ export function ThreadComposer({
                   ios="arrow.up"
                   android="arrow-up"
                   size={18}
-                  color={sending || !canSend ? tokens.mutedForeground : tokens.primaryForeground}
+                  color={
+                    disabled || sending || !canSend
+                      ? tokens.mutedForeground
+                      : tokens.primaryForeground
+                  }
                 />
               </Pressable>
             )}

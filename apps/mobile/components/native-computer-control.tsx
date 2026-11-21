@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { GestureResponderEvent, LayoutChangeEvent } from "react-native";
 import { View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { useI18n } from "../lib/i18n";
 import type {
   ComputerPoint,
@@ -80,7 +81,7 @@ type MouseGesture = {
 
 const MOVE_THRESHOLD = 5;
 const MOVE_INTERVAL_MS = 100;
-const CURSOR_SIZE = 14;
+const CURSOR_HOTSPOT = 2;
 const INITIAL_CURSOR = { x: 0.5, y: 0.5 };
 
 function gesturePoint(event: GestureResponderEvent): ComputerPoint {
@@ -210,20 +211,25 @@ export function ComputerVirtualMouse({
       style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }}
     >
       {display ? (
-        <View
+        <Svg
           pointerEvents="none"
+          width={20}
+          height={24}
+          viewBox="0 0 20 24"
           style={{
             position: "absolute",
-            left: display.left + cursor.x * display.width - CURSOR_SIZE / 2,
-            top: display.top + cursor.y * display.height - CURSOR_SIZE / 2,
-            width: CURSOR_SIZE,
-            height: CURSOR_SIZE,
-            borderRadius: CURSOR_SIZE / 2,
-            borderWidth: 2,
-            borderColor: "#fff",
-            backgroundColor: "#171717",
+            left: display.left + cursor.x * display.width - CURSOR_HOTSPOT,
+            top: display.top + cursor.y * display.height - CURSOR_HOTSPOT,
           }}
-        />
+        >
+          <Path
+            d={`M${CURSOR_HOTSPOT} ${CURSOR_HOTSPOT} L17 15 H10.5 L13.5 21.5 L10 23 L7 16.5 L2 20 Z`}
+            fill="#171717"
+            stroke="#fff"
+            strokeWidth={1.5}
+            strokeLinejoin="round"
+          />
+        </Svg>
       ) : null}
     </View>
   );

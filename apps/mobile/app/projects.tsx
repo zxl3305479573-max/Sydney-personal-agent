@@ -4,6 +4,7 @@ import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -28,6 +29,8 @@ import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
+
+const PROJECT_SYNC_INTERVAL_MS = 15_000;
 
 export default function Projects() {
   const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
@@ -57,6 +60,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   const createAttempt = useRef<{ name: string; id: string } | null>(null);
   const createInFlight = useRef(false);
   const focused = useRef(false);
+  const refreshInProgress = useRef(false);
   const focusGeneration = useRef(0);
   const after = cursors.at(-1);
 
@@ -130,6 +134,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
       if (!createInFlight.current) setCreating(false);
       const controller = new AbortController();
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
+      refreshInProgress.current = true;
       setLoading((wasLoading) => wasLoading || page === null);
       setError(null);
       setCreateAvailable(false);
@@ -155,16 +160,27 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
           if (current())
             setError(errorText(cause, text("无法加载项目", "Could not load projects")));
         } finally {
+          refreshInProgress.current = false;
           if (current()) {
             setLoading(false);
             setRefreshing(false);
           }
         }
       })();
+      const timer = setInterval(() => {
+        if (current() && AppState.currentState !== "background" && !refreshInProgress.current)
+          setAttempt((old) => old + 1);
+      }, PROJECT_SYNC_INTERVAL_MS);
+      const foreground = AppState.addEventListener("change", (state) => {
+        if (state !== "background" && current() && !refreshInProgress.current)
+          setAttempt((old) => old + 1);
+      });
       return () => {
         active = false;
         focused.current = false;
         controller.abort();
+        clearInterval(timer);
+        foreground.remove();
       };
     }, [scopeKey, after, attempt, locale]),
   );

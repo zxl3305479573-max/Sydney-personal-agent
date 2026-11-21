@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import type { ReactNode } from "react";
-import { act } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { act, useEffect, useImperativeHandle, useState } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,14 +21,19 @@ const runtime = vi.hoisted(() => ({
 vi.mock("expo-router", () => ({
   Stack: {
     Screen: ({ options }: { options: { title: string; headerRight?: () => ReactNode } }) => (
-      <header>{options.title}{options.headerRight?.()}</header>
+      <header>
+        {options.title}
+        {options.headerRight?.()}
+      </header>
     ),
   },
   useLocalSearchParams: () => runtime.params,
   useRouter: () => ({ push: runtime.push }),
+  useFocusEffect: (callback: () => (() => void) | undefined) => useEffect(callback, [callback]),
 }));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
+  AppState: { currentState: "active", addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
   ActivityIndicator: () => null,
   View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -62,9 +67,82 @@ vi.mock("../components/glass-surface", () => ({
 vi.mock("../components/glass-title", () => ({
   glassHeaderOptions: (title: string) => ({ title }),
 }));
+vi.mock("../components/bot-avatar", () => ({
+  BotAvatar: ({
+    identity,
+    color,
+    avatarSet,
+    activity,
+  }: {
+    identity?: string;
+    color: string;
+    avatarSet?: string;
+    activity?: string;
+  }) => (
+    <span
+      data-avatar={identity}
+      data-color={color}
+      data-avatar-set={avatarSet}
+      data-activity={activity}
+    />
+  ),
+}));
+vi.mock("../components/thread/message-bubble", () => ({
+  MessageTextCard: ({
+    message,
+    speaker,
+  }: {
+    message: { role: string; blocks: { text?: string }[] };
+    speaker?: string;
+  }) => (
+    <div data-message-card={message.role}>
+      <span>{speaker}</span>
+      <span>{message.blocks.map((block) => block.text).join("\n")}</span>
+    </div>
+  ),
+}));
+vi.mock("../components/thread-composer", () => ({
+  ThreadComposer: ({
+    ref,
+    disabled,
+    textOnly,
+    send,
+    composerPrompt,
+  }: ComponentProps<typeof import("../components/thread-composer").ThreadComposer>) => {
+    const [draft, setDraft] = useState("");
+    useImperativeHandle(ref, () => ({
+      snapshot: () => ({
+        promptText: draft,
+        mentions: [],
+        skill: null,
+        replyQuote: null,
+        attachmentIds: [],
+      }),
+      reset: () => setDraft(""),
+      insert: setDraft,
+    }));
+    return (
+      <div data-shared-composer data-text-only={textOnly}>
+        <input
+          aria-label={composerPrompt}
+          disabled={disabled}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <button type="button" disabled={disabled || !draft.trim()} onClick={() => void send()}>
+          发送
+        </button>
+      </div>
+    );
+  },
+}));
 vi.mock("../components/thread-header-right", () => ({
   threadHeaderRight: ({ onBotActions }: { onBotActions: () => void }) => ({
-    headerRight: () => <button type="button" onClick={onBotActions}>Settings</button>,
+    headerRight: () => (
+      <button type="button" onClick={onBotActions}>
+        Settings
+      </button>
+    ),
   }),
 }));
 vi.mock("../components/native-action-button", () => ({
@@ -127,14 +205,29 @@ describe("mobile project chat screen", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     runtime.scope = "account-a";
     runtime.params = { workspaceId: "project-a", botId: "bot-a", scope: "account-a" };
-    runtime.rpc.mockReset().mockImplementation(async (method: string) =>
-      method === "projectWorkspaces/get" ? { name: "设计工作区" } : { botSettings: true },
-    );
+    runtime.rpc.mockReset().mockImplementation(async (method: string) => {
+      if (method === "projectWorkspaces/get") return { name: "设计工作区" };
+      if (method === "projectWorkspaces/roster")
+        return {
+          bots: [{ id: "bot-a", name: "Alpha", color: "#123456", avatarSet: "rakazo" }],
+          groups: [],
+          nextBotId: null,
+          nextGroupId: null,
+        };
+      return { botSettings: true };
+    });
     runtime.push.mockReset();
     chat = {
       snapshot: {
         threadId: "thread-a",
-        messages: [{ id: "message-a", role: "bot", blocks: [{ kind: "text", text: "Sample" }] }],
+        messages: [
+          {
+            id: "message-a",
+            role: "bot",
+            botId: "bot-a",
+            blocks: [{ kind: "text", text: "<script>external()</script>" }],
+          },
+        ],
         olderCursor: null,
         run: null,
       },
@@ -147,6 +240,10 @@ describe("mobile project chat screen", () => {
       send: vi.fn().mockResolvedValue(false),
       cancelRun: vi.fn(),
       cancellingRunId: null,
+      answeringEffectId: null,
+      downloadingArtifactId: null,
+      answerApproval: vi.fn(),
+      downloadArtifact: vi.fn(),
       retry: vi.fn(),
       allow: vi.fn(),
     };
@@ -157,6 +254,7 @@ describe("mobile project chat screen", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("retains unconfirmed text and clears only an acknowledged send", async () => {
@@ -178,7 +276,12 @@ describe("mobile project chat screen", () => {
       threadId: "thread-a",
       groupId: "group-a",
       messages: [
-        { id: "message-b", role: "bot", botId: "bot-b", blocks: [{ kind: "text", text: "Sample" }] },
+        {
+          id: "message-b",
+          role: "bot",
+          botId: "bot-b",
+          blocks: [{ kind: "text", text: "Sample" }],
+        },
       ],
       olderCursor: null,
       members: [
@@ -232,6 +335,24 @@ describe("mobile project chat screen", () => {
     );
   });
 
+  it("refreshes the project title while the chat remains open", async () => {
+    const names = vi.fn().mockReturnValueOnce("项目一").mockReturnValue("项目二");
+    runtime.rpc.mockImplementation(async (method: string) => {
+      if (method === "projectWorkspaces/get") return { name: names() };
+      if (method === "projectWorkspaces/roster")
+        return { bots: [], groups: [], nextBotId: null, nextGroupId: null };
+      return { botSettings: true };
+    });
+    vi.useFakeTimers();
+    await render();
+    expect(container.querySelector("header")?.textContent).toContain("项目一");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(container.querySelector("header")?.textContent).toContain("项目二");
+    expect(names).toHaveBeenCalledTimes(2);
+  });
+
   it("opens Bot settings within the current project scope", async () => {
     runtime.params.projectName = "旧标题";
     await render();
@@ -249,7 +370,7 @@ describe("mobile project chat screen", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
-  it("uses translucent surfaces for both project chat message roles", async () => {
+  it("reuses ordinary message cards and the text-only composer", async () => {
     chat.snapshot = {
       threadId: "thread-a",
       messages: [
@@ -261,10 +382,60 @@ describe("mobile project chat screen", () => {
     };
     await render();
     expect(
-      Array.from(container.querySelectorAll("[data-glass-tint]"), (node) =>
-        node.getAttribute("data-glass-tint"),
+      Array.from(container.querySelectorAll("[data-message-card]"), (node) =>
+        node.getAttribute("data-message-card"),
       ),
-    ).toEqual(["rgba(17, 34, 51, 0.64)", "rgba(68, 85, 102, 0.64)"]);
+    ).toEqual(["user", "bot"]);
+    expect(container.querySelector("[data-shared-composer]")?.getAttribute("data-text-only")).toBe(
+      "true",
+    );
+    const avatar = container.querySelector("[data-avatar]");
+    expect(avatar?.getAttribute("data-avatar")).toBe("bot-a");
+    expect(avatar?.getAttribute("data-color")).toBe("#123456");
+    expect(avatar?.getAttribute("data-avatar-set")).toBe("rakazo");
+    expect(avatar?.getAttribute("data-activity")).toBe("idle");
+  });
+
+  it("keeps project approval and file actions on their scoped callbacks", async () => {
+    chat.snapshot = {
+      threadId: "thread-a",
+      run: { id: "run-a", botId: "bot-a", status: "waiting_input" },
+      olderCursor: null,
+      messages: [
+        {
+          id: "approval-a",
+          role: "bot",
+          botId: "bot-a",
+          runId: "run-a",
+          blocks: [
+            {
+              kind: "ask",
+              text: "Allow file?",
+              detail: "Project file",
+              approvalEffectId: "effect-a",
+              actions: [{ id: "allow" }, { id: "deny" }],
+            },
+          ],
+        },
+        {
+          id: "file-a",
+          role: "bot",
+          botId: "bot-a",
+          blocks: [{ kind: "file", artifactId: "artifact-a", name: "result.md" }],
+        },
+      ],
+    };
+    await render();
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "允许本次")!
+        .click();
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "下载 result.md")!
+        .click();
+    });
+    expect(chat.answerApproval).toHaveBeenCalledExactlyOnceWith("approval-a", "allow");
+    expect(chat.downloadArtifact).toHaveBeenCalledExactlyOnceWith("artifact-a");
   });
 
   it("shows a reconnect action while preserving displayed messages after read failure", async () => {

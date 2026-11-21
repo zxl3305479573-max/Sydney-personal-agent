@@ -174,6 +174,7 @@ vi.mock("react-native", () => {
       selection,
       style,
       scrollEnabled,
+      editable,
     }: {
       ref?: Ref<HTMLInputElement>;
       children?: ReactNode;
@@ -183,6 +184,7 @@ vi.mock("react-native", () => {
       selection?: { start: number; end: number };
       style: object;
       scrollEnabled?: boolean;
+      editable?: boolean;
     }) => {
       input.change = onChangeText;
       input.key = onKeyPress;
@@ -209,6 +211,7 @@ vi.mock("react-native", () => {
           ),
         ),
         readOnly: true,
+        disabled: editable === false,
         "data-style": JSON.stringify(style),
         "data-scroll-enabled": scrollEnabled,
         "data-selection": JSON.stringify(selection),
@@ -395,6 +398,31 @@ describe("thread composer isolation", () => {
   function field() {
     return container.querySelector("input")!;
   }
+
+  it("reuses the composer for project text without attachment, call, mention or slash actions", () => {
+    render({ textOnly: true });
+    expect(container.querySelector('[aria-label="Attach file"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Call"]')).toBeNull();
+    type("/");
+    expect(container.querySelector('[data-testid="slash-picker"]')).toBeNull();
+    type("@");
+    expect(container.querySelector('[data-testid="mention-picker"]')).toBeNull();
+    type("project message");
+    press("Send");
+    expect(props.send).toHaveBeenCalledOnce();
+    expect(composer.current?.snapshot().promptText).toBe("project message");
+  });
+
+  it("disables project text editing and sending when the scoped caller is unavailable", () => {
+    type("private draft");
+    render({ textOnly: true, disabled: true });
+    expect(field().disabled).toBe(true);
+    const sendButton = container.querySelector<HTMLButtonElement>('[aria-label="Send"]')!;
+    expect(sendButton.disabled).toBe(true);
+    act(() => sendButton.click());
+    expect(props.send).not.toHaveBeenCalled();
+    expect(composer.current?.snapshot().promptText).toBe("private draft");
+  });
 
   it("opens the model menu without changing the draft and selects in place", () => {
     const choices = [

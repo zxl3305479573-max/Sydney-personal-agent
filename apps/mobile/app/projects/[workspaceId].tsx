@@ -6,6 +6,7 @@ import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,13 +17,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../../components/bot-avatar";
 import { CreateBotModal } from "../../components/create-bot-modal";
-import { ProjectDirectory } from "../../components/project-directory";
 import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
 import { GroupAvatar } from "../../components/group-avatar";
 import { ConversationRow, FALLBACK_COLOR } from "../../components/inbox-rows";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
+import { ProjectDirectory } from "../../components/project-directory";
 import type { ProjectGroupAttempt } from "../../components/project-group-modal";
 import { ProjectGroupModal } from "../../components/project-group-modal";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../../lib/api";
@@ -33,6 +34,8 @@ import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native
 import { iosAtLeast } from "../../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
 import { useSideInsets } from "../../lib/side-insets";
+
+const PROJECT_SYNC_INTERVAL_MS = 15_000;
 
 export default function ProjectDetail() {
   const { workspaceId, scope } = useLocalSearchParams<{ workspaceId: string; scope?: string }>();
@@ -80,6 +83,7 @@ function ProjectContents({
   const [removeError, setRemoveError] = useState<string | null>(null);
   const removeInFlight = useRef(false);
   const focused = useRef(false);
+  const refreshInProgress = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [botCursors, setBotCursors] = useState<string[]>([]);
   const [groupCursors, setGroupCursors] = useState<string[]>([]);
@@ -94,6 +98,7 @@ function ProjectContents({
       if (!removeInFlight.current) setRemoving(false);
       const controller = new AbortController();
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
+      refreshInProgress.current = true;
       setFailed(false);
       setCanRemove(false);
       setCanCreateBot(false);
@@ -142,13 +147,24 @@ function ProjectContents({
         } catch {
           if (current()) setFailed(true);
         } finally {
+          refreshInProgress.current = false;
           if (current()) setRefreshing(false);
         }
       })();
+      const timer = setInterval(() => {
+        if (current() && AppState.currentState !== "background" && !refreshInProgress.current)
+          setAttempt((old) => old + 1);
+      }, PROJECT_SYNC_INTERVAL_MS);
+      const foreground = AppState.addEventListener("change", (state) => {
+        if (state !== "background" && current() && !refreshInProgress.current)
+          setAttempt((old) => old + 1);
+      });
       return () => {
         active = false;
         focused.current = false;
         controller.abort();
+        clearInterval(timer);
+        foreground.remove();
       };
     }, [workspaceId, scopeKey, scopeChanged, attempt, afterBotId, afterGroupId]),
   );
@@ -435,7 +451,12 @@ function ProjectContents({
               </View>
             </GlassSurface>
 
-            <ProjectDirectory key={JSON.stringify([scopeKey, project.id])} projectId={project.id} scopeKey={scopeKey} enabled={!scopeChanged} />
+            <ProjectDirectory
+              key={JSON.stringify([scopeKey, project.id])}
+              projectId={project.id}
+              scopeKey={scopeKey}
+              enabled={!scopeChanged}
+            />
 
             {!roster ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 8 }}>
@@ -696,7 +717,9 @@ function ProjectConversationSection({
               {onSettings ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={locale.startsWith("zh") ? `设置 ${item.name}` : `Settings for ${item.name}`}
+                  accessibilityLabel={
+                    locale.startsWith("zh") ? `设置 ${item.name}` : `Settings for ${item.name}`
+                  }
                   onPress={() => onSettings(item.id)}
                   style={({ pressed }) => ({
                     width: 44,
@@ -707,7 +730,12 @@ function ProjectConversationSection({
                     backgroundColor: pressed ? native.fill : undefined,
                   })}
                 >
-                  <NativeSymbol ios="gearshape" android="settings" size={18} color={tokens.mutedForeground} />
+                  <NativeSymbol
+                    ios="gearshape"
+                    android="settings"
+                    size={18}
+                    color={tokens.mutedForeground}
+                  />
                 </Pressable>
               ) : null}
             </View>

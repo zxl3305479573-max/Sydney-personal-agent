@@ -1,23 +1,31 @@
 import { AI_DATA_DISCLOSURES, ProjectWorkspaceIdInput } from "@rakazo/contracts";
-import { pendingProjectApproval, projectActiveRuns, projectMemberName } from "@rakazo/core";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  DEFAULT_BOT_AVATAR_COLOR,
+  loadProjectBotIdentity,
+  pendingProjectApproval,
+  projectActiveRuns,
+  projectMemberName,
+} from "@rakazo/core";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GlassSurface } from "../../../components/glass-surface";
+import { BotAvatar } from "../../../components/bot-avatar";
 import { glassHeaderOptions } from "../../../components/glass-title";
 import { NativeActionButton } from "../../../components/native-action-button";
+import { MessageTextCard } from "../../../components/thread/message-bubble";
+import type { ThreadComposerHandle } from "../../../components/thread-composer";
+import { ThreadComposer } from "../../../components/thread-composer";
 import { threadHeaderRight } from "../../../components/thread-header-right";
-import { rpc, selectableMobileMessageText } from "../../../lib/api";
-import { mobileBubbleSurfaceStyle, useMobileChatAppearance } from "../../../lib/chat-appearance";
+import { rpc } from "../../../lib/api";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
 import {
@@ -28,6 +36,8 @@ import {
 import { useSideInsets } from "../../../lib/side-insets";
 import type { ProjectChatTarget } from "../../../lib/use-project-thread";
 import { useProjectThread } from "../../../lib/use-project-thread";
+
+const PROJECT_SYNC_INTERVAL_MS = 15_000;
 
 export default function ProjectChatRoute() {
   const params = useLocalSearchParams<{
@@ -71,40 +81,89 @@ function ProjectChat({
   const chat = useProjectThread(projectId, target, scope, enabled);
   const router = useRouter();
   const tokens = useMobileTokens();
-  const chatAppearance = useMobileChatAppearance();
   const sideInsets = useSideInsets();
   const insets = useSafeAreaInsets();
   const { locale, t } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
-  const [draft, setDraft] = useState("");
+  const composerRef = useRef<ThreadComposerHandle>(null);
   const [projectName, setProjectName] = useState<string>();
+  const [botIdentity, setBotIdentity] =
+    useState<Awaited<ReturnType<typeof loadProjectBotIdentity>>>();
   const [canEditBot, setCanEditBot] = useState(false);
   const botId = "botId" in target ? target.botId : undefined;
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    const current = () => !controller.signal.aborted && scope === projectScopeKey();
-    void projectRequestOptions(scope)
-      .then((options) => {
-        if (!current()) return;
-        const request = { ...options, signal: controller.signal };
-        void rpc("projectWorkspaces/get", { id: projectId }, request)
-          .then((project) => {
-            if (current()) setProjectName(project.name);
-          })
-          .catch(() => undefined);
-        if (botId) {
-          void rpc("projectWorkspaces/conversationCapabilities", undefined, request)
-            .then((capabilities) => {
-              if (current()) setCanEditBot(capabilities.botSettings === true);
-            })
-            .catch(() => undefined);
-        }
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [botId, enabled, projectId, scope]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!enabled) return;
+      const controller = new AbortController();
+      let projectReadInProgress = false;
+      let identityReadInProgress = false;
+      let timer: ReturnType<typeof setInterval> | undefined;
+      let foreground: ReturnType<typeof AppState.addEventListener> | undefined;
+      const current = () => !controller.signal.aborted && scope === projectScopeKey();
+      void projectRequestOptions(scope)
+        .then((options) => {
+          if (!current()) return;
+          const request = { ...options, signal: controller.signal };
+          const refreshProject = () => {
+            if (!current() || projectReadInProgress) return;
+            projectReadInProgress = true;
+            void rpc("projectWorkspaces/get", { id: projectId }, request)
+              .then((project) => {
+                if (current()) setProjectName(project.name);
+              })
+              .catch(() => undefined)
+              .finally(() => {
+                projectReadInProgress = false;
+              });
+          };
+          const refreshIdentity = () => {
+            if (!current() || !botId || identityReadInProgress) return;
+            identityReadInProgress = true;
+            void loadProjectBotIdentity(
+              botId,
+              (afterBotId) =>
+                rpc("projectWorkspaces/roster", { id: projectId, afterBotId }, request),
+              controller.signal,
+            )
+              .then((bot) => {
+                if (current()) setBotIdentity(bot);
+              })
+              .catch(() => undefined)
+              .finally(() => {
+                identityReadInProgress = false;
+              });
+          };
+          refreshProject();
+          refreshIdentity();
+          if (botId) {
+            void rpc("projectWorkspaces/conversationCapabilities", undefined, request)
+              .then((capabilities) => {
+                if (current()) setCanEditBot(capabilities.botSettings === true);
+              })
+              .catch(() => undefined);
+          }
+          timer = setInterval(() => {
+            if (AppState.currentState !== "background") {
+              refreshProject();
+              refreshIdentity();
+            }
+          }, PROJECT_SYNC_INTERVAL_MS);
+          foreground = AppState.addEventListener("change", (state) => {
+            if (state !== "background") {
+              refreshProject();
+              refreshIdentity();
+            }
+          });
+        })
+        .catch(() => undefined);
+      return () => {
+        controller.abort();
+        if (timer) clearInterval(timer);
+        foreground?.remove();
+      };
+    }, [botId, enabled, projectId, scope]),
+  );
 
   const openBotSettings = () => {
     if (!enabled || !botId || scope !== projectScopeKey()) return;
@@ -114,6 +173,13 @@ function ProjectChat({
   const errorStyle = { color: tokens.destructive, fontSize: 14 };
   const mutedStyle = { color: tokens.mutedForeground, fontSize: 13 };
   const disabled = !enabled || !chat.snapshot || chat.sending || chat.consenting;
+  const send = async () => {
+    if (disabled || missing.length) return;
+    const submitted = composerRef.current?.snapshot().promptText ?? "";
+    const sent = await chat.send(submitted);
+    if (sent && composerRef.current?.snapshot().promptText === submitted)
+      composerRef.current.reset();
+  };
 
   return (
     <KeyboardAvoidingView
@@ -171,62 +237,94 @@ function ProjectChat({
         ) : null}
         {enabled
           ? chat.snapshot?.messages.map((message) => {
-            const approval = pendingProjectApproval(chat.snapshot, message);
-            const role = message.role === "user" ? "user" : "bot";
-            const bubble = mobileBubbleSurfaceStyle(chatAppearance, role, {
-              backgroundColor: role === "user" ? tokens.chatUser : tokens.muted,
-            });
-            const foreground =
-              (role === "user"
-                ? chatAppearance.bubble?.userForeground
-                : chatAppearance.bubble?.botForeground) ?? tokens.foreground;
-            return (
-              <GlassSurface
-                key={message.id}
-                shape="roundedRectangle"
-                cornerRadius={bubble.borderRadius}
-                tint={bubble.backgroundColor}
-                style={{ padding: 14, gap: 6 }}
-                fallbackStyle={bubble}
-              >
-                <Text style={mutedStyle}>
-                  {message.role === "user"
-                    ? text("我", "You")
-                    : (projectMemberName(chat.snapshot?.members, message.botId) ?? "Bot")}
-                </Text>
-                {approval ? (
-                  <View style={{ gap: 8 }}>
-                    <Text style={{ color: tokens.foreground, fontWeight: "600" }}>{approval.title}</Text>
-                    <Text selectable style={mutedStyle}>{approval.detail}</Text>
-                    {approval.decisions.map((decision) => (
-                      <NativeActionButton
-                        key={decision}
-                        label={decision === "allow" ? text("允许本次", "Allow once") : text("拒绝", "Deny")}
-                        prominence={decision === "deny" ? "secondary" : "primary"}
-                        disabled={chat.answeringEffectId !== null}
-                        onPress={() => void chat.answerApproval(message.id, decision)}
+              const approval = pendingProjectApproval(chat.snapshot, message);
+              const role = message.role === "user" ? "user" : "bot";
+              const senderId = message.botId ?? botId;
+              const member =
+                chat.snapshot?.members?.find((entry) => entry.botId === senderId) ??
+                (botIdentity?.botId === senderId ? botIdentity : undefined);
+              const senderName =
+                projectMemberName(chat.snapshot?.members, senderId) ?? member?.name ?? "Bot";
+              return (
+                <View
+                  key={message.id}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    justifyContent: role === "user" ? "flex-end" : "flex-start",
+                    gap: 8,
+                  }}
+                >
+                  {role === "bot" ? (
+                    <BotAvatar
+                      color={member?.color ?? DEFAULT_BOT_AVATAR_COLOR}
+                      avatarSet={member?.avatarSet}
+                      identity={senderId}
+                      activity="idle"
+                      size={"groupId" in target ? 20 : 28}
+                    />
+                  ) : null}
+                  <View
+                    style={{
+                      flexShrink: 1,
+                      minWidth: 0,
+                      maxWidth: role === "user" ? "88%" : "100%",
+                      gap: 8,
+                    }}
+                  >
+                    {approval ? (
+                      <View style={{ gap: 8 }}>
+                        <Text style={mutedStyle}>{senderName}</Text>
+                        <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
+                          {approval.title}
+                        </Text>
+                        <Text selectable style={mutedStyle}>
+                          {approval.detail}
+                        </Text>
+                        {approval.decisions.map((decision) => (
+                          <NativeActionButton
+                            key={decision}
+                            label={
+                              decision === "allow"
+                                ? text("允许本次", "Allow once")
+                                : text("拒绝", "Deny")
+                            }
+                            prominence={decision === "deny" ? "secondary" : "primary"}
+                            disabled={chat.answeringEffectId !== null}
+                            onPress={() => void chat.answerApproval(message.id, decision)}
+                          />
+                        ))}
+                      </View>
+                    ) : (
+                      <MessageTextCard
+                        message={{
+                          ...message,
+                          blocks: message.blocks.filter(
+                            (block) => block.kind === "text" || block.kind === "progress",
+                          ),
+                        }}
+                        speaker={role === "bot" ? senderName : undefined}
+                        actionProps={{}}
                       />
-                    ))}
+                    )}
+                    {message.blocks.flatMap((block) =>
+                      block.kind === "file"
+                        ? [
+                            <NativeActionButton
+                              key={block.artifactId}
+                              label={`${text("下载", "Download")} ${block.name}`}
+                              prominence="secondary"
+                              busy={chat.downloadingArtifactId === block.artifactId}
+                              disabled={chat.downloadingArtifactId !== null}
+                              onPress={() => void chat.downloadArtifact(block.artifactId)}
+                            />,
+                          ]
+                        : [],
+                    )}
                   </View>
-                ) : (
-                  <Text selectable style={{ color: foreground, fontSize: 16, lineHeight: 23 }}>
-                  {selectableMobileMessageText(message) ||
-                    text("（非文字消息）", "(Non-text message)")}
-                  </Text>
-                )}
-                {message.blocks.flatMap((block) => block.kind === "file" ? [
-                  <NativeActionButton
-                    key={block.artifactId}
-                    label={`${text("下载", "Download")} ${block.name}`}
-                    prominence="secondary"
-                    busy={chat.downloadingArtifactId === block.artifactId}
-                    disabled={chat.downloadingArtifactId !== null}
-                    onPress={() => void chat.downloadArtifact(block.artifactId)}
-                  />,
-                ] : [])}
-              </GlassSurface>
-            );
-          })
+                </View>
+              );
+            })
           : null}
         {enabled && chat.snapshot?.olderCursor != null ? (
           <Text style={mutedStyle}>
@@ -271,7 +369,10 @@ function ProjectChat({
         ) : null}
         {enabled && chat.answerError ? (
           <Text accessibilityRole="alert" style={errorStyle}>
-            {text("审批结果未确认，请查看任务状态。", "Approval was not confirmed. Check the run status.")}
+            {text(
+              "审批结果未确认，请查看任务状态。",
+              "Approval was not confirmed. Check the run status.",
+            )}
           </Text>
         ) : null}
         {enabled && chat.downloadError ? (
@@ -313,34 +414,24 @@ function ProjectChat({
       <View
         style={[{ padding: 16, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }, sideInsets]}
       >
-        <TextInput
-          accessibilityLabel={text("项目消息", "Project message")}
-          multiline
-          value={draft}
-          onChangeText={setDraft}
-          editable={!disabled}
-          placeholder={text("输入项目消息…", "Message this project…")}
-          placeholderTextColor={tokens.mutedForeground}
-          style={{
-            color: tokens.foreground,
-            borderColor: tokens.border,
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 12,
-            minHeight: 48,
-            maxHeight: 150,
-          }}
-        />
-        <NativeActionButton
-          label={text("发送", "Send")}
-          busy={chat.sending}
-          disabled={disabled || !draft.trim() || missing.length > 0}
-          onPress={() => {
-            const submitted = draft;
-            void chat.send(submitted).then((sent) => {
-              if (sent) setDraft((current) => (current === submitted ? "" : current));
-            });
-          }}
+        <ThreadComposer
+          ref={composerRef}
+          textOnly
+          disabled={disabled || missing.length > 0}
+          agentSkills={[]}
+          composerMentionTargets={[]}
+          composerPrompt={text("输入项目消息…", "Message this project…")}
+          replyQuote={null}
+          attachmentIds={[]}
+          onCall={false}
+          working={false}
+          sending={chat.sending}
+          attachActions={[]}
+          attachFrom={() => {}}
+          send={send}
+          stop={async () => {}}
+          startVoiceCall={async () => {}}
+          onSlashAction={() => {}}
         />
       </View>
     </KeyboardAvoidingView>

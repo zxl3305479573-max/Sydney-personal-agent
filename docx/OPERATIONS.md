@@ -1,5 +1,11 @@
 # 运维手册
 
+## iPhone 1.0.19 OTA（2026-11-21）
+
+本批沿用 `mobile-ios-update.yml`、iOS `sideload` 通道与 `sydney-ios-ip-1` runtime，依赖和原生底座未改。准备从现有集成分支发布 `1.0.19`，工作流和线上结果待补齐。兼容的 iPhone 在「设置 → 检查更新」下载并重启，然后在「关于」核对版本。项目成员设置继续取决于服务器的 `botSettings` 能力；本次不部署 API、Windows 包、Linux 驱动，也不启用项目设备工具。
+
+上一版 `1.0.18` 源码为 `d2a818910`，更新 ID `01a1fc84-bbd8-75bb-8c53-5a8b64e9eaf7`。若需回退，使用现有 Expo 流程重新发布该版兼容内容；本批未执行回退。[验证](VALIDATION.md#iphone-1019-手机工作区发布2026-11-21)
+
 ## iPhone 1.0.18 OTA（2026-11-21）
 
 `1.0.18` 已经由 `mobile-ios-update.yml` Run `44869546104` 发布到 iOS `sideload`。Runtime 为 `sydney-ios-ip-1`，更新 ID 为 `01a1fc84-bbd8-75bb-8c53-5a8b64e9eaf7`。原生底座、依赖、锁文件与 OTA 配置沿用 `1.0.17`。兼容手机从「设置 → 检查更新」下载，重启后在「关于」查看 `1.0.18`。项目小伙伴设置取决于服务器返回的 `botSettings` 能力。

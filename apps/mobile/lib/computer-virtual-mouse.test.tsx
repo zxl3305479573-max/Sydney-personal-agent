@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { SVGProps } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { GestureResponderEvent, ViewProps } from "react-native";
@@ -13,6 +14,10 @@ vi.mock("react-native", () => ({
     if (props.onResponderGrant) surface.props = props;
     return <div>{props.children}</div>;
   },
+}));
+vi.mock("react-native-svg", () => ({
+  default: (props: SVGProps<SVGSVGElement>) => <svg {...props} />,
+  Path: (props: SVGProps<SVGPathElement>) => <path {...props} />,
 }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 
@@ -47,7 +52,8 @@ describe("computer virtual mouse", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     let now = 1_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
-    const root = createRoot(document.createElement("div"));
+    const container = document.createElement("div");
+    const root = createRoot(container);
     const onInput = vi.fn();
     try {
       act(() =>
@@ -60,6 +66,11 @@ describe("computer virtual mouse", () => {
           } as Parameters<NonNullable<ViewProps["onLayout"]>>[0]),
         );
       layout(400, 600);
+      const cursor = container.querySelector("svg");
+      expect(cursor?.querySelector("path")?.getAttribute("d")).toMatch(/^M2 2 L/);
+      expect(cursor?.getAttribute("pointer-events")).toBe("none");
+      expect(cursor?.style.left).toBe("198px");
+      expect(cursor?.style.top).toBe("210.5px");
       act(() => surface.props.onResponderGrant?.(touch(20, 20)));
       act(() => surface.props.onResponderRelease?.(touch(22, 20, 0)));
       expect(onInput).toHaveBeenLastCalledWith({
@@ -75,6 +86,8 @@ describe("computer virtual mouse", () => {
         kind: "pointer",
         payload: { x: 1209, y: 540, type: "move" },
       });
+      expect(cursor?.style.left).toBe("250px");
+      expect(cursor?.style.top).toBe("210.5px");
       expect(onInput).toHaveBeenCalledTimes(2);
 
       act(() => surface.props.onResponderGrant?.(touch(5, 160)));
@@ -95,6 +108,7 @@ describe("computer virtual mouse", () => {
       });
 
       layout(600, 400);
+      expect(container.querySelector("svg")).toBeNull();
       act(() => surface.props.onResponderGrant?.(touch(50, 50)));
       act(() => surface.props.onResponderRelease?.(touch(50, 50, 0)));
       expect(onInput).toHaveBeenCalledTimes(4);

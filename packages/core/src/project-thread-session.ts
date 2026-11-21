@@ -1,4 +1,4 @@
-import type { AiConsentStatus, ProductEvent, ThreadMessage } from "@rakazo/contracts";
+import type { AiConsentStatus, ProductEvent, RpcOutput, ThreadMessage } from "@rakazo/contracts";
 import { abortableDelay } from "./async.js";
 import { newClientId } from "./client-id.js";
 import { isRetryableError, retryDelayMs } from "./retry-policy.js";
@@ -13,6 +13,23 @@ export type ProjectThreadHead = {
   messages?: ApprovalMessage[];
 };
 export type ProjectThreadPendingSend = { current: { text: string; nonce: string } | null };
+
+export async function loadProjectBotIdentity(
+  botId: string,
+  loadPage: (afterBotId?: string) => Promise<RpcOutput<"projectWorkspaces/roster">>,
+  signal: AbortSignal,
+) {
+  let afterBotId: string | undefined;
+  do {
+    signal.throwIfAborted();
+    const page = await loadPage(afterBotId);
+    signal.throwIfAborted();
+    const bot = page.bots.find((entry) => entry.id === botId);
+    if (bot) return { ...bot, botId: bot.id };
+    afterBotId = page.nextBotId ?? undefined;
+  } while (afterBotId);
+  return undefined;
+}
 
 export function projectActiveRuns(snapshot: ProjectThreadHead | null): ProjectRun[] {
   const runs = snapshot?.activeRuns ?? (snapshot?.run ? [snapshot.run] : []);
@@ -43,9 +60,11 @@ export function pendingProjectApproval(
   message: ApprovalMessage,
 ) {
   const runId = message.runId;
-  if (!runId || !projectActiveRuns(snapshot).some(
-    (run) => run.id === runId && run.status === "waiting_input",
-  )) return;
+  if (
+    !runId ||
+    !projectActiveRuns(snapshot).some((run) => run.id === runId && run.status === "waiting_input")
+  )
+    return;
   for (const block of message.blocks) {
     if (block.kind !== "ask" || block.status === "answered" || !block.approvalEffectId) continue;
     const decisions = (block.actions ?? []).flatMap<ProjectApprovalAnswer["decision"]>(({ id }) =>
@@ -53,8 +72,12 @@ export function pendingProjectApproval(
     );
     if (!decisions.length) return;
     return {
-      runId, messageId: message.id, effectId: block.approvalEffectId,
-      title: block.text, detail: block.detail, decisions,
+      runId,
+      messageId: message.id,
+      effectId: block.approvalEffectId,
+      title: block.text,
+      detail: block.detail,
+      decisions,
     };
   }
 }
@@ -211,7 +234,8 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
         !current() ||
         state.cancellingRunId ||
         !projectActiveRuns(state.snapshot).some((run) => run.id === runId)
-      ) return;
+      )
+        return;
       commit({ cancellingRunId: runId, cancelError: null });
       try {
         await options.cancelRun(runId, signal);
@@ -232,8 +256,13 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
     answerApproval: async (messageId: string, decision: ProjectApprovalAnswer["decision"]) => {
       const message = state.snapshot?.messages?.find((item) => item.id === messageId);
       const pending = message && pendingProjectApproval(state.snapshot, message);
-      if (!current() || !options.answerApproval || state.answeringEffectId ||
-        !pending?.decisions.some((allowed) => allowed === decision)) return;
+      if (
+        !current() ||
+        !options.answerApproval ||
+        state.answeringEffectId ||
+        !pending?.decisions.some((allowed) => allowed === decision)
+      )
+        return;
       const { runId, effectId } = pending;
       commit({ answeringEffectId: effectId, answerError: null });
       try {
@@ -253,10 +282,15 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
       }
     },
     downloadArtifact: async (artifactId: string) => {
-      if (!current() || state.downloadingArtifactId || !options.downloadArtifact ||
+      if (
+        !current() ||
+        state.downloadingArtifactId ||
+        !options.downloadArtifact ||
         !state.snapshot?.messages?.some((message) =>
           message.blocks.some((block) => block.kind === "file" && block.artifactId === artifactId),
-        )) return;
+        )
+      )
+        return;
       commit({ downloadingArtifactId: artifactId, downloadError: null });
       try {
         await options.downloadArtifact(artifactId, signal);

@@ -1,7 +1,46 @@
 import type { AiConsentStatus, ProductEvent, ThreadMessage } from "@rakazo/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectThreadPendingSend } from "./project-thread-session.js";
-import { createProjectThreadSession, projectMemberName } from "./project-thread-session.js";
+import {
+  createProjectThreadSession,
+  loadProjectBotIdentity,
+  projectMemberName,
+} from "./project-thread-session.js";
+
+describe("project Bot identity", () => {
+  it("loads the target beyond the first roster page and keeps its avatar metadata", async () => {
+    const bot = { id: "bot-b", name: "Beta", color: "#123456", avatarSet: "rakazo" };
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ bots: [{ id: "bot-a", name: "Alpha" }], nextBotId: "bot-a" })
+      .mockResolvedValueOnce({ bots: [bot], nextBotId: null });
+    await expect(
+      loadProjectBotIdentity("bot-b", load, new AbortController().signal),
+    ).resolves.toEqual({ ...bot, botId: "bot-b" });
+    expect(load.mock.calls).toEqual([[undefined], ["bot-a"]]);
+  });
+
+  it("does not use another Bot's identity when the project roster has no match", async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValue({ bots: [{ id: "bot-a", name: "Alpha" }], nextBotId: null });
+    await expect(
+      loadProjectBotIdentity("missing", load, new AbortController().signal),
+    ).resolves.toBeUndefined();
+  });
+
+  it("discards a roster response after the project request has been aborted", async () => {
+    const controller = new AbortController();
+    const load = vi.fn(async () => {
+      controller.abort();
+      return { bots: [], groups: [], nextBotId: null, nextGroupId: null };
+    });
+    await expect(loadProjectBotIdentity("bot-a", load, controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(load).toHaveBeenCalledOnce();
+  });
+});
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void;
@@ -93,23 +132,36 @@ describe("project conversation session", () => {
     const item = fixture();
     await vi.waitFor(() => expect(item.subscribe).toHaveBeenCalledOnce());
     const read = {
-      id: "message-a", runId: "run-a",
-      blocks: [{
-        kind: "ask", text: "Read a sample?", approvalEffectId: "effect-a",
-        actions: [{ id: "deny", label: "Deny" }],
-      }],
+      id: "message-a",
+      runId: "run-a",
+      blocks: [
+        {
+          kind: "ask",
+          text: "Read a sample?",
+          approvalEffectId: "effect-a",
+          actions: [{ id: "deny", label: "Deny" }],
+        },
+      ],
     };
     item.load.mockResolvedValue({
-      threadId: "thread-a", cursor: 2, run: { id: "run-a", status: "waiting_input" },
+      threadId: "thread-a",
+      cursor: 2,
+      run: { id: "run-a", status: "waiting_input" },
       messages: [read],
     });
     await item.session.refresh();
     await item.session.answerApproval("not-in-view", "deny");
     await item.session.answerApproval("message-a", "allow");
     await item.session.answerApproval("message-a", "deny");
-    expect(item.answerApproval).toHaveBeenCalledExactlyOnceWith({
-      runId: "run-a", messageId: "message-a", effectId: "effect-a", decision: "deny",
-    }, expect.any(AbortSignal));
+    expect(item.answerApproval).toHaveBeenCalledExactlyOnceWith(
+      {
+        runId: "run-a",
+        messageId: "message-a",
+        effectId: "effect-a",
+        decision: "deny",
+      },
+      expect.any(AbortSignal),
+    );
     item.leave();
     await item.started;
   });
@@ -117,7 +169,11 @@ describe("project conversation session", () => {
   it("sends one cancellation for the displayed Run and ignores a stale selection", async () => {
     const item = fixture();
     await vi.waitFor(() => expect(item.subscribe).toHaveBeenCalledOnce());
-    item.load.mockResolvedValue({ threadId: "thread-a", cursor: 2, run: { id: "run-a", status: "running" } });
+    item.load.mockResolvedValue({
+      threadId: "thread-a",
+      cursor: 2,
+      run: { id: "run-a", status: "running" },
+    });
     await item.session.refresh();
     const response = deferred<unknown>();
     item.cancelRun.mockReturnValueOnce(response.promise);
@@ -126,12 +182,17 @@ describe("project conversation session", () => {
     await item.session.cancelRun("run-b");
     expect(item.cancelRun).toHaveBeenCalledExactlyOnceWith("run-a", expect.any(AbortSignal));
     expect(item.session.getSnapshot().cancellingRunId).toBe("run-a");
-    item.load.mockResolvedValue({ threadId: "thread-a", cursor: 3, run: { id: "run-a", status: "cancelled" } });
+    item.load.mockResolvedValue({
+      threadId: "thread-a",
+      cursor: 3,
+      run: { id: "run-a", status: "cancelled" },
+    });
     response.reject(new Error("Response lost"));
     await cancelling;
     expect(item.session.getSnapshot()).toMatchObject({
       snapshot: { run: { id: "run-a", status: "cancelled" } },
-      cancellingRunId: null, cancelError: null,
+      cancellingRunId: null,
+      cancelError: null,
     });
     item.leave();
     await item.started;
@@ -140,7 +201,11 @@ describe("project conversation session", () => {
   it("reports an unconfirmed cancellation and aborts in-flight requests on leaving", async () => {
     const item = fixture();
     await vi.waitFor(() => expect(item.subscribe).toHaveBeenCalledOnce());
-    item.load.mockResolvedValue({ threadId: "thread-a", cursor: 2, run: { id: "run-a", status: "running" } });
+    item.load.mockResolvedValue({
+      threadId: "thread-a",
+      cursor: 2,
+      run: { id: "run-a", status: "running" },
+    });
     await item.session.refresh();
     const error = new Error("Response lost");
     item.cancelRun.mockRejectedValueOnce(error);

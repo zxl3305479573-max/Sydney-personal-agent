@@ -740,7 +740,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
 
 const OPEN_BOT_ACTION = "open-bot:";
 
-function MessageTextCard({
+export function MessageTextCard({
   message,
   speaker,
   speakerColor,

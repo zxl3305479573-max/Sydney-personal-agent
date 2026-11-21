@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-21（PA-021／PA-022／PA-023 iPhone 1.0.19，本窗口）：冻结主工作区手机及必要共享源码 43 个文件，在 `.tmp/ios-1.0.19-release` 以远端 `6b3dd087b` 三方合入。写集限于手机、共享项目会话逻辑和发布文档；后台、Windows、Linux 驱动及其未提交记录由原窗口继续维护。不调用子代理。验证与 OTA 结果待补齐。
+
 2026-11-21（PA-021／PA-022／PA-024 iPhone 1.0.18）：在 `.tmp/ios-1.0.18-release` 整合主工作区及 `codex/ui-home-chat-integration` 的手机端快照。写集为 `apps/mobile`、项目小伙伴设置相关契约、必要 API 路由与测试、共享项目对话逻辑，以及发布文档。原工作树的并行改动继续由各窗口维护。[验证](VALIDATION.md#iphone-1018-ota2026-11-21)
 
 2026-11-21（PA-021／PA-024 iPhone 1.0.17）：从 `codex/ui-home-chat-refinement` 提交手机代码，在 `codex/ui-home-chat-integration` 维护发布记录并推送现有集成发布分支。另一工作树的 Windows 精修和主工作区的后端改动继续由原工作树维护。

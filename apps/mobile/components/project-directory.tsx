@@ -67,7 +67,7 @@ export function ProjectDirectory({
           {state.snapshot.deviceName ?? text("绑定的电脑", "Bound computer")} ·{" "}
           {state.snapshot.binding.directoryName} ·{" "}
           {state.snapshot.binding.intent === "read-write"
-            ? text("允许读取和新建 Markdown", "Read and create Markdown")
+            ? text("可读取、修改文本并新建 Markdown", "Read and update text files, and create Markdown")
             : text("只读", "Read only")}
         </Text>
       ) : null}
@@ -115,8 +115,8 @@ export function ProjectDirectory({
       ) : null}
       <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
         {text(
-          "目录路径留在电脑本机；当前绑定不开放文件或终端工具。",
-          "The folder path stays on the computer. Binding does not enable file or terminal tools.",
+          "目录路径留在执行电脑；文件操作逐项审批，任意命令未开放。",
+          "The path stays on the execution computer. File operations require approval; arbitrary commands are not available.",
         )}
       </Text>
     </View>
