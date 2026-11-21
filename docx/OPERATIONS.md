@@ -4,9 +4,9 @@
 
 候选交付目录 `/srv/rakazo-releases/onboarding-wait-20261121`。运行源码位于共享数据库包，但暂停与后续任务创建由 Worker 执行，因此必须同时替换 API 和 Worker 的 `dist/index.js`、map 及 `packages/db/src/events.ts`；只更新 API 源码不足以修复该时序。沿用各自线上源码、固定镜像和依赖，保留已有八个项目聊天源码挂载、配置和迁移账本，不部署主工作区其他改动。
 
-隔离构建与 schema-only 数据库／HTTP 验证已通过，生产切换待执行。切换前核对 queued／leased／running 为零、无有效电脑执行租约和线上基线未变化，备份当前 overlay 至该交付目录的 `production.before.yml`。只重建 API、Worker 及 API 画面回环桥；只读文件挂载之外的归一化 Compose 配置必须一致。失败时还原备份并重建同一组服务。人工回退演练待执行。
+隔离构建与 schema-only 数据库／HTTP 验证通过后，源码 `d7db91355` 已上线。切换前确认 queued／leased／running 为零、无有效电脑执行租约和线上基线未变化；当前 overlay 已备份至交付目录的 `production.before.yml`。只重建 API、Worker 及 API 画面回环桥，六个允许文件挂载之外的归一化 Compose 配置一致。产物哈希、API／Worker healthy、外部 health／ready 和迁移账本通过。失败时还原备份并重建同一组服务；人工回退演练未执行。
 
-遗留状态维护须调用同一 `retireSupersededIntroInTransaction`：在会话行锁内验证介绍等待、同一用户后续 Run 和原用户消息绑定，再让已有退休逻辑检查全部待回答块。不能按 Bot 名称、时间、卡片文字或首页状态直接批量取消；不能处理审批、凭据、接管或一般用户任务。维护前在服务器受限目录备份精确候选行，不将个人消息／备份提交仓库。初次只读核对找到 3 条候选，实际修复结果待记录。手机沿用 `1.0.21`，本批没有客户端改动，不新增 OTA。
+遗留状态维护调用同一 `retireSupersededIntroInTransaction`：在会话行锁内验证介绍等待、同一用户后续 Run 和原用户消息绑定，再让已有退休逻辑检查全部待回答块。不能按 Bot 名称、时间、卡片文字或首页状态直接批量取消；不能处理审批、凭据、接管或一般用户任务。服务器 `repair-before.json` 以 0600 权限备份精确候选 Run、Task、Attempt 与卡片，不将个人消息／备份提交仓库。结果 requested=3、retired=3、skipped=0，复核剩余候选为零；三个正常首页投影均 idle，旧卡片与活动 Run 已收口，原有另外两条真实等待未变。汇总证据为同目录 `repair-result.json` 和 `repair-verified.json`，通过正常 PostgreSQL fanout 通知最终游标。手机沿用 `1.0.21`，本批没有客户端改动，不新增 OTA。
 
 
 ## 项目聊天管理与 iPhone 1.0.21（2026-11-21）
