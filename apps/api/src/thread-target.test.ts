@@ -1509,7 +1509,39 @@ function groupTarget() {
 }
 
 describe("sendThreadMessage", () => {
-  it("answers a waiting question with a free-text chat message", async () => {
+  it.each([
+    { text: "Paris", latestMessageId: "ask-1", prompt: "Paris", choice: false },
+    {
+      text: "没了",
+      latestMessageId: "ask-1",
+      prompt: expect.stringContaining("请用用户此前提供的信息继续原任务"),
+      choice: true,
+    },
+    {
+      text: "没了！",
+      latestMessageId: "newer-message",
+      prompt: expect.stringContaining("请用用户此前提供的信息继续原任务"),
+      choice: true,
+    },
+  ])("resumes a waiting run after sending $text (latest $latestMessageId)", async ({
+    text,
+    latestMessageId,
+    prompt,
+    choice,
+  }) => {
+    const ask = {
+      kind: "ask",
+      text: "Which city should I use?",
+      status: "pending",
+      ...(choice
+        ? {
+            actions: [
+              { id: "paris", label: "Paris" },
+              { id: "no-more-details", label: "没了" },
+            ],
+          }
+        : {}),
+    };
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "thread-1" }]),
       thread: {
@@ -1523,22 +1555,17 @@ describe("sendThreadMessage", () => {
           threadId: "thread-1",
           seq: 1,
           role: "user",
-          blocks: [{ kind: "text", text: "Paris" }],
+          blocks: [{ kind: "text", text }],
           botId: null,
           replyToMessageId: null,
           runId: null,
           createdAt: new Date("2026-01-01T00:00:00Z"),
         }),
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: "ask-1",
-            blocks: [{ kind: "ask", text: "Which city should I use?", status: "pending" }],
-          },
-        ]),
-        findFirst: vi.fn().mockResolvedValue({
-          id: "ask-1",
-          blocks: [{ kind: "ask", text: "Which city should I use?", status: "pending" }],
-        }),
+        findMany: vi.fn().mockResolvedValue([{ id: "ask-1", blocks: [ask] }]),
+        findFirst: vi.fn(async ({ where }: { where: { id?: string } }) => ({
+          id: where.id ?? latestMessageId,
+          blocks: where.id || latestMessageId === "ask-1" ? [ask] : [{ kind: "text", text: "Update" }],
+        })),
         update: vi.fn(),
       },
       run: {
@@ -1580,7 +1607,7 @@ describe("sendThreadMessage", () => {
         actor,
         target,
         {
-          text: "Paris",
+          text,
           clientNonce: "nonce-ask",
         },
       ),
@@ -1592,14 +1619,18 @@ describe("sendThreadMessage", () => {
     });
     expect(tx.task.updateMany).toHaveBeenCalledWith({
       where: { runs: { some: { id: "run-waiting" } } },
-      data: { prompt: "Paris" },
+      data: { prompt },
     });
     expect(tx.run.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ status: "waiting_input" }),
-        data: { status: "queued" },
+        data: { status: "queued", ...(choice ? { checkpoint: null } : {}) },
       }),
     );
+    expect(tx.message.update).toHaveBeenCalledWith({
+      where: { id: "ask-1" },
+      data: { blocks: [{ ...ask, status: "answered", answer: text }] },
+    });
     expect(tx.steeringMessage.create).not.toHaveBeenCalled();
     expect(tx.task.create).not.toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
@@ -1609,7 +1640,7 @@ describe("sendThreadMessage", () => {
       { name: "message_sent", trigger: "user" },
       { id: "msg-1", at: new Date("2026-01-01T00:00:00Z") },
     );
-    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain("Paris");
+    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain(text);
     expect(tx.event.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         type: "thread.message.created",

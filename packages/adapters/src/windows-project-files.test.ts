@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { link, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -29,13 +30,55 @@ describe.skipIf(process.platform !== "win32")("Windows authorized project files"
 
   it("reads UTF-8 content and creates a new Markdown file without overwriting it", async () => {
     await writeFile(path.join(directory, "notes", "input.txt"), "样本");
+    const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
     await expect(executeWindowsProjectFile(root, { operation: "read", path: "notes/input.txt" }, signal))
-      .resolves.toEqual({ operation: "read", text: "样本" });
+      .resolves.toEqual({ operation: "read", text: "样本", sha256: sampleHash });
     const create = { operation: "create", path: "notes/output.md", text: "结果" } as const;
     await expect(executeWindowsProjectFile(root, create, signal)).resolves.toEqual({ operation: "create", bytes: 6 });
     await expect(executeWindowsProjectFile(root, { ...create, text: "replacement" }, signal))
       .rejects.toThrow("Output already exists");
     expect(await readFile(path.join(directory, "notes", "output.md"), "utf8")).toBe("结果");
+  });
+
+  it("lists names from the authorized folder and skips reparse points", async () => {
+    await writeFile(path.join(directory, "notes", "input.txt"), "样本");
+    await symlink(outside, path.join(directory, "outside-link"), "junction");
+    await expect(executeWindowsProjectFile(root, { operation: "list", path: "" }, signal)).resolves.toEqual({
+      operation: "list",
+      entries: [
+        { path: "notes", kind: "directory" },
+      ],
+      truncated: false,
+    });
+    await expect(executeWindowsProjectFile(root, { operation: "list", path: "notes" }, signal)).resolves.toEqual({
+      operation: "list",
+      entries: [{ path: "notes/input.txt", kind: "file" }],
+      truncated: false,
+    });
+  });
+
+  it("updates only the version that was read and leaves a newer file untouched", async () => {
+    const file = path.join(directory, "notes", "input.txt");
+    await writeFile(file, "original", "utf8");
+    const expectedSha256 = createHash("sha256").update("original").digest("hex");
+    const update = {
+      operation: "update",
+      path: "notes/input.txt",
+      expectedSha256,
+      text: "updated",
+    } as const;
+    await expect(executeWindowsProjectFile(root, update, signal)).resolves.toEqual({
+      operation: "update",
+      bytes: 7,
+      sha256: createHash("sha256").update("updated").digest("hex"),
+    });
+    expect(await readFile(file, "utf8")).toBe("updated");
+    await writeFile(file, "external edit", "utf8");
+    await expect(executeWindowsProjectFile(root, update, signal)).resolves.toEqual({
+      operation: "conflict",
+      sha256: createHash("sha256").update("external edit").digest("hex"),
+    });
+    expect(await readFile(file, "utf8")).toBe("external edit");
   });
 
   it("rejects directory junctions and multiply linked files", async () => {

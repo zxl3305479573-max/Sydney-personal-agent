@@ -1,9 +1,9 @@
 {
   "name": "@rakazo/desktop",
   "productName": "Sydney-partner",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": {
-    "name": "Rakazo"
+    "name": "Sydney"
   },
   "license": "Apache-2.0",
   "type": "module",
@@ -142,8 +142,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "elie222",
-        "repo": "rakazo"
+        "owner": "zxl3305479573-max",
+        "repo": "Sydney-personal-agent"
       }
     ]
   }

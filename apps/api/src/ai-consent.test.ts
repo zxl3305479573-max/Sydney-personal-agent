@@ -1,5 +1,6 @@
 import type { Actor } from "@rakazo/contracts";
 import { AI_DISCLOSURE_VERSION } from "@rakazo/contracts";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./thread-target.js", () => ({
@@ -37,6 +38,20 @@ function setup() {
   return { deps, upsert, actor: { userId: "user", spaceId: "space" } as Actor };
 }
 describe("consent grants", () => {
+  it("omits cloud agents from project model consent", async () => {
+    const { deps, actor } = setup();
+    deps.env.agentRuntime = "pi";
+    deps.cloudAgent = {
+      key: "test",
+      spaceId: actor.spaceId,
+      provider: { describe: () => ({ id: "cursor", capabilities: { offline: false } }) },
+    } as RouterDeps["cloudAgent"];
+    const status = await runAsTenant({ ...actor, projectWorkspaceId: "project-a" }, () =>
+      aiConsentStatus(deps, actor, { botId: "bot", uses: ["model"] }),
+    );
+    expect(status.recipients.map((recipient) => recipient.name)).not.toContain("Cursor");
+  });
+
   it("includes reachable helper models and cloud services for a targeted send", async () => {
     const { deps, actor } = setup();
     deps.env.agentRuntime = "pi";

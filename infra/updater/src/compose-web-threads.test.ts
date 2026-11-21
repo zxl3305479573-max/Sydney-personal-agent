@@ -71,17 +71,21 @@ describe("production Web retirement", () => {
     expect(production.services.caddy?.environment).not.toHaveProperty("SYDNEY_BROWSER_UPSTREAM");
   });
 
-  it("builds the production roles before the optional self-host Web layer", () => {
+  it("keeps the production image independent of the optional self-host Web workspace", () => {
     for (const service of ["api", "worker", "migrate"]) {
       expect(production.services[service]?.build?.target).toBe("server");
       expect(production.services[service]?.build?.args?.SYDNEY_PREPARE_WUYING_ASSETS).toBe(
-        "${SYDNEY_PREPARE_WUYING_ASSETS:-true}",
+        `\${SYDNEY_PREPARE_WUYING_ASSETS:-true}`,
       );
     }
     const dockerfile = readFileSync(path.join(composeDir, "Dockerfile"), "utf8");
     const [backend, selfHost] = dockerfile.split("FROM backend AS self-host");
     expect(backend).toContain("--target=api");
+    expect(backend).not.toContain("apps/web");
+    expect(backend).not.toContain("COPY --chmod=755 . .");
     expect(backend).not.toContain("--filter @rakazo/web build");
+    expect(selfHost).toContain("COPY --chmod=755 . .");
+    expect(selfHost).toContain("pnpm install --prod=false --frozen-lockfile");
     expect(selfHost).toContain("--filter @rakazo/web build");
     expect(dockerfile.trimEnd().endsWith("FROM backend AS server")).toBe(true);
   });

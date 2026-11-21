@@ -3,6 +3,7 @@ import { HeaderBackButton } from "expo-router/react-navigation";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { floatingHeaderOptions, glassHeaderOptions } from "../../components/glass-title";
+import { ScopedThemeScreen } from "../../components/scoped-theme";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
 import { registerSettingsSheet, settingsSheetCloser } from "../../lib/settings-sheet";
@@ -18,6 +19,9 @@ export default function SettingsLayout() {
 
   return (
     <Stack
+      screenLayout={({ children }) => (
+        <ScopedThemeScreen scope="settings">{children}</ScopedThemeScreen>
+      )}
       screenOptions={({ navigation, route }) => ({
         headerStyle: { backgroundColor: tokens.background },
         ...floatingHeaderOptions(),
@@ -97,7 +101,7 @@ export default function SettingsLayout() {
             : "Interface mode",
         )}
       />
-      <Stack.Screen name="signup-survey" options={glassHeaderOptions(t("Welcome to Rakazo"))} />
+      <Stack.Screen name="signup-survey" options={glassHeaderOptions(t("Welcome to Sydney"))} />
       <Stack.Screen name="language" options={glassHeaderOptions(t("Language"))} />
       <Stack.Screen name="model-picker" options={glassHeaderOptions(t("Model"))} />
       <Stack.Screen name="model-connection" options={glassHeaderOptions(t("Model"))} />

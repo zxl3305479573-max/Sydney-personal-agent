@@ -449,7 +449,7 @@ describe("mobile API authentication", () => {
     const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
     vi.stubGlobal(
       "fetch",
-      vi.fn((url: string, init: RequestInit) =>
+      vi.fn((url: string) =>
         String(url).endsWith("/api/auth/delete-user")
           ? fetchMock()
           : Promise.resolve(jsonResponse({ json: null })),
@@ -4297,6 +4297,41 @@ describe("mobile thread event reduction", () => {
       runId: "run-1",
     });
     expect(statuses(completed)).toEqual(["idle", "idle"]);
+  });
+
+  it("updates the matching project run to queued without touching sibling runs", () => {
+    const target = { id: "run-a", botId: "bot-1", status: "running" };
+    const sibling = { id: "run-b", botId: "bot-2", status: "running" };
+    const initial: MobileSnapshot = {
+      ...snapshot(),
+      groupId: "group-1",
+      run: target,
+      activeRuns: [target, sibling],
+      messages: [
+        mobileMessage("progress:run-a", [{ kind: "progress", text: "Working" }]),
+        mobileMessage("keep", [{ kind: "text", text: "Keep me" }]),
+      ].map((message) => ({ ...message, runId: message.id.startsWith("progress:") ? "run-a" : undefined })),
+      members: [
+        { botId: "bot-1", name: "Writer", color: "blue", status: "running" },
+        { botId: "bot-2", name: "Researcher", color: "green", status: "running" },
+      ],
+    };
+
+    const next = applyMobileThreadEvent(initial, {
+      type: "run.queued",
+      seq: 9,
+      runId: target.id,
+      botId: target.botId,
+      payload: { reason: "project_device_offline", trigger: "user" },
+    });
+
+    expect(next?.run).toMatchObject({ id: target.id, status: "queued" });
+    expect(next?.activeRuns).toEqual([
+      { ...target, status: "queued", error: null },
+      sibling,
+    ]);
+    expect(next?.members?.map((member) => member.status)).toEqual(["queued", "running"]);
+    expect(next?.messages.map((message) => message.id)).toEqual(["keep"]);
   });
 
   it("marks a waiting peer that the snapshot omitted", () => {

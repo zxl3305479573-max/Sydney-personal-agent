@@ -16,6 +16,7 @@ import {
   USER_DEVICE_FORWARD_PATH,
   USER_DEVICE_OFFLINE_MESSAGE,
   UserDeviceHub,
+  UserDeviceNotConnectedError,
   UserDevices,
   userDeviceBearer,
   userDeviceForwardBody,
@@ -266,6 +267,9 @@ describe("user device gateway in the holding process", () => {
   it("is offline when no device is connected or the connection went stale", async () => {
     const { hub, devices, connections } = setup();
     const signal = new AbortController().signal;
+    await expect(collect(devices.request("user-1", environment, signal))).rejects.toBeInstanceOf(
+      UserDeviceNotConnectedError,
+    );
     await expect(collect(devices.request("user-1", environment, signal))).rejects.toThrow(
       USER_DEVICE_OFFLINE_MESSAGE,
     );
@@ -468,8 +472,8 @@ describe("user device gateway from another process", () => {
       forwardSecret: secret,
       fetch: (async () => new Response(null, { status: 409 })) as typeof fetch,
     });
-    await expect(collect(moved.request("user-1", environment, signal))).rejects.toThrow(
-      USER_DEVICE_OFFLINE_MESSAGE,
+    await expect(collect(moved.request("user-1", environment, signal))).rejects.toBeInstanceOf(
+      UserDeviceNotConnectedError,
     );
   });
 

@@ -312,6 +312,7 @@ async function main() {
     web: createWebProvider(),
     cloudAgent,
     // Device sockets live in an API process; the worker forwards to whichever one holds it.
+    projectDeviceToolsEnabled: process.env.SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED === "true",
     userDevices:
       process.env.USER_DEVICES_ENABLED === "false"
         ? undefined

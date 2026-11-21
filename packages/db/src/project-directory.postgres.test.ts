@@ -39,6 +39,7 @@ if (process.env.VERIFY_DATABASE && !enabled)
   const alternateProjectId = `directory-other-${suffix}`;
   const grantId = randomUUID();
   const botId = `directory-bot-${suffix}`;
+  const cloudBotId = `cloud-directory-bot-${suffix}`;
   const actor = { userId: first.userId, spaceId };
   const binding = {
     deviceId: first.deviceId,
@@ -127,7 +128,7 @@ if (process.env.VERIFY_DATABASE && !enabled)
       if (seeded)
         await runAsSystem("remove synthetic directory fixtures", () =>
           owner.prisma.$transaction(async (tx) => {
-            await tx.bot.deleteMany({ where: { id: botId, spaceId } });
+            await tx.bot.deleteMany({ where: { id: { in: [botId, cloudBotId] }, spaceId } });
             await tx.$executeRaw`DELETE FROM project_workspaces WHERE id = ANY(${[projectId, alternateProjectId]}::text[]) AND "spaceId" = ${spaceId}`;
             await tx.organization.deleteMany({ where: { id: organizationId } });
             await tx.user.deleteMany({ where: { id: { in: users.map((user) => user.userId) } } });
@@ -167,35 +168,57 @@ if (process.env.VERIFY_DATABASE && !enabled)
   });
 
   it("returns the binding only for the exact running task and its current fence", async () => {
-    const run = await runAsSystem("seed a synthetic leased project run", () =>
-      owner.prisma.$transaction(async (tx) => {
-        const scope = { ...actor, projectWorkspaceId: projectId };
-        await tx.bot.create({ data: { ...scope, id: botId, name: "Directory fixture", color: "blue" } });
-        const thread = await tx.thread.create({ data: { ...scope, botId } });
-        const target = { ...scope, botId, threadId: thread.id };
-        const task = await tx.task.create({ data: { ...target, prompt: "fixture", status: "running" } });
-        return tx.run.create({ data: {
-          ...target, taskId: task.id, status: "running", trigger: "user",
-          leaseOwner: "fixture-worker", leaseFence: 3,
-          leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
-        } });
-      }),
-    );
+    const createRun = await projectRunFixture(projectId, botId);
+    const run = await createRun();
     const expected = {
       ...actor, projectId, runId: run.id, taskId: run.taskId, threadId: run.threadId,
       workerId: "fixture-worker", fence: 3,
     };
-    await expect(getRunningProjectDirectory(app.prisma, expected)).resolves.toEqual(binding);
+    const pin = { kind: "windows", targetId: binding.deviceId, grantId, intent: binding.intent };
+    expect(run.projectDirectoryPin).toEqual(pin);
+    await expect(getRunningProjectDirectory(app.prisma, expected)).resolves.toEqual({
+      ...binding, deviceName: "Fixture computer",
+    });
     for (const changed of [
       { projectId: alternateProjectId }, { fence: 2 }, { workerId: "other-worker" },
       { threadId: "other-thread" }, { taskId: "other-task" }, { userId: second.userId },
     ]) {
       await expect(getRunningProjectDirectory(app.prisma, { ...expected, ...changed })).resolves.toBeNull();
     }
-    await runAsSystem("cancel synthetic running project file task", () =>
-      owner.prisma.run.update({ where: { id: run.id }, data: { status: "cancelled" } }),
-    );
+    const replacement = { ...binding, grantId: randomUUID() };
+    await expect(runAsSystem("try changing a synthetic run pin", () =>
+      owner.prisma.run.update({
+        where: { id: run.id },
+        data: { projectDirectoryPin: { ...pin, grantId: replacement.grantId } },
+      }),
+    )).rejects.toThrow("The project run directory pin cannot be changed");
+    await expect(removeProjectDirectoryBinding(app.prisma, actor, projectId, grantId)).resolves.toBe(true);
+    const unbound = await createRun();
+    expect(unbound.projectDirectoryPin).toBeNull();
+    await expect(
+      bindProjectDirectory(app.prisma, actor, projectId, first.sessionId, replacement),
+    ).resolves.toEqual(replacement);
+    const next = await createRun("follow_up");
+    expect(next.projectDirectoryPin).toEqual({ ...pin, grantId: replacement.grantId });
     await expect(getRunningProjectDirectory(app.prisma, expected)).resolves.toBeNull();
+    await expect(getRunningProjectDirectory(app.prisma, {
+      ...expected, runId: unbound.id, taskId: unbound.taskId,
+    })).resolves.toBeNull();
+    const nextScope = { ...expected, runId: next.id, taskId: next.taskId };
+    await expect(getRunningProjectDirectory(app.prisma, nextScope)).resolves.toEqual({
+      ...replacement, deviceName: "Fixture computer",
+    });
+    await runAsSystem("cancel synthetic running project file task", () =>
+      owner.prisma.run.updateMany({
+        where: { id: { in: [run.id, unbound.id, next.id] } },
+        data: { status: "cancelled" },
+      }),
+    );
+    await expect(getRunningProjectDirectory(app.prisma, nextScope)).resolves.toBeNull();
+    await expect(removeProjectDirectoryBinding(app.prisma, actor, projectId, replacement.grantId))
+      .resolves.toBe(true);
+    await expect(bindProjectDirectory(app.prisma, actor, projectId, first.sessionId, binding))
+      .resolves.toEqual(binding);
   });
 
   it("pins the cloud computer owner and excludes a simultaneous Windows binding", async () => {
@@ -221,11 +244,31 @@ if (process.env.VERIFY_DATABASE && !enabled)
       const saved = await getProjectCloudDirectory(app.prisma, actor, alternateProjectId);
       expect(saved).toMatchObject({ ...input, available: true });
       grantId = saved?.grantId;
+      expect(grantId).toBeTruthy();
+      const createRun = await projectRunFixture(alternateProjectId, cloudBotId);
+      const run = await createRun();
+      const runScope = {
+        id: run.id, threadId: run.threadId, taskId: run.taskId, workerId: "fixture-worker", fence: 3,
+      };
+      expect(run.projectDirectoryPin).toEqual({
+        kind: "cloud", targetId: computer.id, grantId, intent: input.intent,
+      });
+      await expect(getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope))
+        .resolves.toMatchObject({ grantId, available: true });
       await expect(getProjectCloudDirectory(app.prisma, { spaceId, userId: second.userId }, alternateProjectId))
         .resolves.toBeNull();
       await expect(bindProjectDirectory(app.prisma, actor, alternateProjectId, first.sessionId, {
         ...binding, grantId: randomUUID(),
       })).resolves.toBeNull();
+      await expect(unbindProjectCloudDirectory(app.prisma, actor, alternateProjectId, grantId!))
+        .resolves.toBe(true);
+      await expect(bindProjectCloudDirectory(app.prisma, actor, alternateProjectId, input))
+        .resolves.toBe(true);
+      const replacement = await getProjectCloudDirectory(app.prisma, actor, alternateProjectId);
+      expect(replacement?.grantId).not.toBe(grantId);
+      grantId = replacement?.grantId;
+      await expect(getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope))
+        .resolves.toBeNull();
       await runAsSystem("replace the synthetic native cloud generation", () =>
         owner.prisma.computer.update({
           where: { id: computer.id }, data: { providerRef: "native:replacement01234" },
@@ -284,4 +327,25 @@ if (process.env.VERIFY_DATABASE && !enabled)
     ).resolves.toBe(true);
     await expect(getProjectDirectoryBinding(app.prisma, actor, projectId)).resolves.toBeNull();
   });
+
+  async function projectRunFixture(projectWorkspaceId: string, id: string) {
+    const scope = { ...actor, projectWorkspaceId };
+    const thread = await runAsSystem("seed a synthetic project conversation", () =>
+      owner.prisma.$transaction(async (tx) => {
+        await tx.bot.create({ data: { ...scope, id, name: "Directory fixture", color: "blue" } });
+        return tx.thread.create({ data: { ...scope, botId: id } });
+      }),
+    );
+    const target = { ...scope, botId: id, threadId: thread.id };
+    return (trigger = "user") => runAsTenant(scope, () =>
+      app.prisma.$transaction(async (tx) => {
+        const task = await tx.task.create({ data: { ...target, prompt: "fixture", status: "running" } });
+        return tx.run.create({ data: {
+          ...target, taskId: task.id, status: "running", trigger,
+          leaseOwner: "fixture-worker", leaseFence: 3,
+          leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
+        } });
+      }),
+    );
+  }
 });

@@ -4,8 +4,8 @@ Run Rakazo on a public server with automatic HTTPS, hardened hosts and zero-down
 
 ## Public single-VM deployment
 
-`infra/compose/docker-compose.prod.yml` runs the hosted product with Postgres, the API, worker, web app,
-and automatic HTTPS through Caddy. It uses E2B for bot computers, so the VM never exposes a Docker
+`infra/compose/docker-compose.prod.yml` runs Postgres, the API, worker, and automatic HTTPS through
+Caddy. Sydney's installed clients connect to the API through Caddy. It defaults to E2B for bot computers, so the VM never exposes a Docker
 supervisor or browser containers — `infra/compose/docker-compose.prod.docker.yml` is the opt-in
 overlay that runs local Docker computers on the same stack (see below). The root-equivalent updater
 sidecar is an explicit opt-in profile.
@@ -75,8 +75,9 @@ curl --fail https://app.example.com/health
 ```
 
 **Build, do not pull, for a first deployment.** `RAKAZO_IMAGE_TAG` ships as `local`, a tag no
-registry serves, so the commands above build `api`, `worker`, and `web` from the checkout you just
-cloned. The opt-in command under [Updater sidecar](./self-host-upgrading.md#updater-sidecar) builds `updater` when needed.
+registry serves, so the commands above build the `server` image used by `migrate`, `api`, and
+`worker` from the checkout you just cloned. The opt-in command under
+[Updater sidecar](./self-host-upgrading.md#updater-sidecar) builds `updater` when needed.
 
 The public `/health` only reports liveness. Runtime, sandbox, and revision details stay on the API
 port at `/internal/health`, which the edge does not route:
@@ -96,9 +97,7 @@ Once a release has been published you can switch this host to prebuilt images by
 See [Published images and tags](./self-host-upgrading.md#published-images-and-tags) for the tag contract.
 
 The root `.env` is excluded from both Git and the Docker build context. The database, application data,
-and Caddy certificates live in named Docker volumes. The `webassets` volume keeps the hashed web assets
-of recent builds (up to 20, each for a week after it is replaced), so open tabs keep loading after an
-update; it needs no setup and can be deleted at any time.
+and Caddy certificates live in named Docker volumes. The Windows installer carries its own UI assets.
 
 The production Compose file pins Postgres and Caddy to multi-architecture manifest digests, and the
 published application/updater builds pin their base-image digests. Refresh those pins deliberately
@@ -113,8 +112,8 @@ Compose service name). It reads that header (`CLIENT_IP_HEADER`, default `x-forw
 to left past trusted hops. Anyone else is the TCP peer, so a client cannot choose its own address.
 Unset, `TRUSTED_PROXIES` in a container is `local-networks`: loopback and every network the API
 has an interface on. Outside a container it is loopback only, since the host's networks can hold
-direct clients. `none` trusts no proxy. In Compose those networks are the stack's own, which hold the web container and the network
-gateway a reverse proxy on the Docker host connects from, so a host proxy that sets
+direct clients. `none` trusts no proxy. In Compose those networks are the stack's own and include the
+network gateway a reverse proxy on the Docker host connects from, so a host proxy that sets
 `X-Forwarded-For` (Caddy does; nginx needs `proxy_set_header X-Forwarded-For
 $proxy_add_x_forwarded_for`) is believed without configuration. Bot computers are never on those
 networks, so they cannot choose an address. Production Compose sets `caddy` instead. For any
@@ -151,7 +150,7 @@ checkout tracks, so a fork pulls what its own CI published. If the pull fails or
 the host instead; set `RAKAZO_DEPLOY_IMAGE=` (empty) to always build. This repository's images are public, so the
 host needs no registry login; for a private fork package, `docker login ghcr.io` as root with a
 token that can only read packages. The deploy
-starts each new API, web and worker container beside the running one and stops the old one only
+starts each new API and worker container beside the running one and retires the old one only
 once the new one is healthy, so a deploy does not take the site offline or pause chat, then waits for
 `https://$RAKAZO_HOST/health` and rolls back on failure by restoring the image the previous
 containers ran. The old worker is not stopped: it finishes the jobs it is running, for up to 45
@@ -217,7 +216,7 @@ docker compose --env-file .env \
   up -d --build --wait --wait-timeout 300 --pull never
 ```
 
-In this topology `api`, `worker`, `web`, `supervisor`, and `computer` always build
+In this topology `migrate`, `api`, `worker`, `supervisor`, and `computer` build
 from the checkout — `pull --ignore-buildable` only covers dependencies that have no
 `build` section. To deploy published app images instead of building, use the base
 file without the overlay. If `docker compose up --help` lacks `--wait-timeout`
@@ -230,7 +229,15 @@ and makes `SANDBOX_PROVIDER=docker` the default. It needs a dedicated `SANDBOX_S
 in `.env`; `RAKAZO_COMPUTER_*` and the `SANDBOX_*` limits apply as documented in `.env.example`.
 Like the updater, the supervisor is root-equivalent on the host: it publishes no port, joins only
 the internal `app` network, and Caddy has no route to it. Bot computers are sibling containers on
-per-bot networks that only the supervisor and the `web` screen proxy join.
+per-bot networks. The API proxies authorized screen requests through the supervisor.
+
+The production overlay defaults `SANDBOX_SCREEN_PEER_SERVICE` to `api`, matching the
+base file's enabled API screen proxy. When a bot screen opens, the supervisor joins
+itself and the API container from the same Compose project to that bot's isolated
+network. Remove an old `.env` override of `SANDBOX_SCREEN_PEER_SERVICE=web` or change
+it to `api` before deploying this topology; the retired production stack has no
+`web` service. The generic images and development stacks keep their existing screen
+peer defaults.
 
 When the `updater` profile is enabled too, give the sidecar the same file list and recreate set so
 updates do not leave the supervisor on the previous app image:
@@ -258,7 +265,7 @@ Node.js version supported by the root `package.json`, Postgres 16 or newer and a
 backups. Homes stay on that volume unless they are kept in
 [object storage](./self-host-storage.md#bot-homes-in-object-storage); other `DATA_DIR` files still need it shared.
 
-Use the same HTTPS origin for the web app, `/api`, and `/rpc`. Preserve the authenticated screen
-proxy routes. Choose a [computer provider](./self-host-sandbox-providers.md#choosing-a-provider) appropriate to the
+Serve `/api` and `/rpc` from the configured HTTPS origin. Preserve the authenticated screen proxy
+and native callback routes. Choose a [computer provider](./self-host-sandbox-providers.md#choosing-a-provider) appropriate to the
 service's trust boundary. `SIGNUPS_ENABLED` and `SIGNUP_ALLOWLIST` apply from the environment on every API start.
 The optional marketing site in `apps/www` can be hosted separately.

@@ -2103,6 +2103,46 @@ export function applyMobileThreadEvent(
       activeRuns,
     };
   }
+  if (event.type === "run.queued") {
+    const cursor = event.seq ?? prev.cursor;
+    if (isBackgroundRunTrigger(event.payload?.trigger as string | undefined)) {
+      return cursor === prev.cursor ? prev : { ...prev, cursor };
+    }
+    const members = updateMemberStatus(prev.members, event.botId, "queued");
+    if (!event.runId) {
+      return cursor === prev.cursor && members === prev.members
+        ? prev
+        : { ...prev, cursor, members };
+    }
+    const previousRun =
+      prev.activeRuns?.find((candidate) => candidate.id === event.runId) ??
+      (prev.run?.id === event.runId ? prev.run : undefined);
+    const run = {
+      ...previousRun,
+      id: event.runId,
+      status: "queued",
+      ...(event.botId ? { botId: event.botId } : {}),
+      error: null,
+    };
+    let replaced = false;
+    const activeRuns = (prev.activeRuns ?? (prev.run ? [prev.run] : [])).flatMap((candidate) => {
+      if (candidate.id === run.id) {
+        if (replaced) return [];
+        replaced = true;
+        return [run];
+      }
+      return isActive(candidate.status as RunStatus) ? [candidate] : [];
+    });
+    if (!replaced) activeRuns.push(run);
+    return {
+      ...prev,
+      cursor,
+      messages: prev.messages.filter((message) => message.id !== progressMessageId(event)),
+      members,
+      run: prev.groupId && prev.run?.status === "failed" && prev.run.id !== run.id ? prev.run : run,
+      activeRuns,
+    };
+  }
   if (event.type === "run.waiting_input" || event.type === "computer.takeover.requested") {
     const status = event.type === "run.waiting_input" ? "waiting_input" : "waiting_takeover";
     const progressId = progressMessageId(event);

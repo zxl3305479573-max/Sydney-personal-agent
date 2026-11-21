@@ -249,7 +249,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   let authContext: Promise<{ secretConfig: TokenKey }> | undefined;
   const tokenKey = async () => (await authContext!).secretConfig;
   const auth = betterAuth({
-    appName: "Rakazo",
+    appName: "Sydney",
     logger: env.logger,
     secret: env.secret,
     baseURL: env.baseURL,
@@ -444,7 +444,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         ? [
             passkey({
               rpID: relyingParty.rpID,
-              rpName: "Rakazo",
+              rpName: "Sydney",
               origin: relyingParty.origins,
             }) as BetterAuthPlugin,
           ]

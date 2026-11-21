@@ -939,8 +939,6 @@ export const PLUGIN_SUBMISSIONS_PATH = "/api/v1/plugin-submissions";
 export const INTEGRATION_CLAIMS_PATH = "/api/v1/integration-claims";
 /** Opened from the email that proves a claimant reads mail at the app's domain. */
 export const INTEGRATION_CLAIM_CONFIRM_PATH = "/api/v1/integration-claims/confirm";
-export const SUBMIT_PLUGIN_URL = "https://rakazo.com/plugins/submit/";
-export const integrationPageUrl = (slug: string) => `https://rakazo.com/integrations/${slug}/`;
 
 /** People type a bare domain like `acme.com`, so a URL without a scheme gets `https://`. */
 const HttpsUrlSchema = z
@@ -969,7 +967,7 @@ export type PluginSubmissionInput = z.infer<typeof PluginSubmissionInputSchema>;
 
 /** An app's owner claiming its integration page so it links to their site. */
 export const IntegrationClaimInputSchema = z.object({
-  /** The page's URL slug, as in `integrationPageUrl`. */
+  /** The integration's page slug. */
   claim: z
     .string()
     .max(100)

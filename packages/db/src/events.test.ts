@@ -2361,24 +2361,29 @@ describe("answerWaitingRunWithTextInTransaction", () => {
     },
   );
 
-  it("leaves approval and secret cards on the dedicated answer path", async () => {
+  it.each([
+    {
+      answer: "allow",
+      block: {
+        approvalEffectId: "effect-1",
+        actions: [{ id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }],
+      },
+    },
+    {
+      answer: "没了",
+      block: {
+        approvalEffectId: "effect-1",
+        actions: [{ id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }],
+      },
+    },
+    { answer: "没了", block: { input: "secret" } },
+  ])("leaves protected cards pending after sending $answer", async ({ answer, block }) => {
     const tx = {
       message: {
         findMany: vi.fn().mockResolvedValue([
           {
             id: "message-1",
-            blocks: [
-              {
-                kind: "ask",
-                approvalEffectId: "effect-1",
-                text: "Review before writing",
-                status: "pending",
-                actions: [
-                  { id: "allow", label: "Allow once" },
-                  { id: "deny", label: "Deny" },
-                ],
-              },
-            ],
+            blocks: [{ kind: "ask", text: "Input required", status: "pending", ...block }],
           },
         ]),
       },
@@ -2392,7 +2397,8 @@ describe("answerWaitingRunWithTextInTransaction", () => {
         threadId: "thread-1",
         runId: "run-1",
         answeredByUserId: "user-1",
-        answer: "allow",
+        answer,
+        allowEarlierQuestion: true,
       }),
     ).resolves.toBeNull();
     expect(tx.run.updateMany).not.toHaveBeenCalled();

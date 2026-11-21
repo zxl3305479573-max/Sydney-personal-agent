@@ -125,7 +125,11 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
-          aiConsentStatus(deps, context.actor, { botId: input.botId, groupId: input.groupId, uses: ["model", "memory"] }),
+          aiConsentStatus(deps, context.actor, {
+            botId: input.botId,
+            groupId: input.groupId,
+            uses: ["model"],
+          }),
         );
       }),
       consentAllow: authed.projectWorkspaces.consentAllow.handler(async ({ context, input }) => {
@@ -133,7 +137,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
           allowAiConsent(deps, context.actor, input, {
-            botId: input.botId, groupId: input.groupId, uses: ["model", "memory"],
+            botId: input.botId,
+            groupId: input.groupId,
+            uses: ["model"],
           }),
         );
       }),
@@ -142,7 +148,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
           const status = await aiConsentStatus(deps, context.actor, {
-            botId: input.botId, groupId: input.groupId, uses: ["model", "memory"],
+            botId: input.botId,
+            groupId: input.groupId,
+            uses: ["model"],
           });
           if (status.recipients.some((recipient) => !recipient.allowed))
             throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });

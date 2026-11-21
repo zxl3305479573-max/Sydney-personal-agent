@@ -12,7 +12,9 @@ import {
 import type { RouterContext } from "./context.js";
 
 export function projectCloudDirectoryRoutes({ deps, authed }: RouterContext) {
-  const available = () => deps.env?.projectWorkspaceCreateExperiment === true &&
+  const available = () =>
+    deps.env?.projectWorkspaceCreateExperiment === true &&
+    deps.env?.projectDeviceToolsEnabled === true &&
     typeof deps.sandbox?.identifyProjectFolder === "function" &&
     typeof deps.sandbox?.executeProjectFile === "function";
   const authorize = async (actor: Actor, projectId: string) => {

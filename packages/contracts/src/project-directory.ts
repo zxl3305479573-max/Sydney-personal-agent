@@ -57,6 +57,13 @@ export const ProjectDirectoryBindingSchema = ProjectDirectoryGrantSchema.extend(
 }).strict();
 export type ProjectDirectoryBinding = z.infer<typeof ProjectDirectoryBindingSchema>;
 
+export const ProjectRunDirectoryPinSchema = z.object({
+  kind: z.enum(["windows", "cloud"]),
+  targetId: ScopedId,
+  grantId: ProjectDirectoryGrantSchema.shape.grantId,
+  intent: ProjectDirectoryIntentSchema,
+}).strict();
+
 export const WorkspaceGrantRequestSchema = z
   .object({
     method: z.literal("workspaceGrant"),
@@ -123,11 +130,21 @@ const ProjectFileText = z
   .max(PROJECT_FILE_MAX_BYTES)
   .refine((value) => new TextEncoder().encode(value).byteLength <= PROJECT_FILE_MAX_BYTES);
 
+const ProjectDirectoryPath = z.string().max(1024).refine(
+  (value) => value === "" || ProjectFilePath.safeParse(value).success,
+);
 export const ProjectFileOperationSchema = z.discriminatedUnion("operation", [
+  z.object({ operation: z.literal("list"), path: ProjectDirectoryPath.default("") }).strict(),
   z.object({ operation: z.literal("read"), path: ProjectFilePath }).strict(),
   z.object({
     operation: z.literal("create"),
     path: ProjectFilePath.refine((value) => value.toLowerCase().endsWith(".md")),
+    text: ProjectFileText,
+  }).strict(),
+  z.object({
+    operation: z.literal("update"),
+    path: ProjectFilePath,
+    expectedSha256: z.string().regex(/^[a-f0-9]{64}$/u),
     text: ProjectFileText,
   }).strict(),
 ]);
@@ -141,13 +158,48 @@ export const ProjectFileRequestSchema = ProjectDirectoryInput.extend({
 export type ProjectFileRequest = z.infer<typeof ProjectFileRequestSchema>;
 
 export const ProjectFileResultSchema = z.discriminatedUnion("operation", [
-  z.object({ operation: z.literal("read"), text: ProjectFileText }).strict(),
+  z.object({
+    operation: z.literal("list"),
+    entries: z.array(z.object({ path: ProjectFilePath, kind: z.enum(["directory", "file"]) }).strict()).max(500),
+    truncated: z.boolean(),
+  }).strict(),
+  z.object({
+    operation: z.literal("read"),
+    text: ProjectFileText,
+    sha256: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  }).strict(),
   z.object({
     operation: z.literal("create"),
     bytes: z.number().int().min(0).max(PROJECT_FILE_MAX_BYTES),
   }).strict(),
+  z.object({ operation: z.literal("update"), bytes: z.number().int().min(0).max(PROJECT_FILE_MAX_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict(),
+  z.object({ operation: z.literal("conflict"), sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict(),
 ]);
 export type ProjectFileResult = z.infer<typeof ProjectFileResultSchema>;
+
+export const ProjectCloudCommandSchema = z.object({
+  argv: z.array(
+    z.string().max(1024).refine(
+      (arg) => !arg.includes("\0") && new TextEncoder().encode(arg).byteLength <= 1024,
+    ),
+  ).min(1).max(32).refine(
+    (argv) => argv[0] !== "" && argv.reduce((total, arg) => total + new TextEncoder().encode(arg).byteLength, 0) <= 4096,
+  ),
+  inputFiles: z.array(ProjectFilePath).max(16).refine(
+    (paths) => new Set(paths).size === paths.length,
+  ),
+  timeoutMs: z.number().int().min(1).max(7000),
+}).strict();
+export type ProjectCloudCommand = z.infer<typeof ProjectCloudCommandSchema>;
+
+export const ProjectCloudCommandResultSchema = z.object({
+  stdout: z.string().refine((value) => new TextEncoder().encode(value).byteLength <= PROJECT_FILE_MAX_BYTES),
+  stderr: z.string().refine((value) => new TextEncoder().encode(value).byteLength <= PROJECT_FILE_MAX_BYTES),
+  code: z.number().int().min(-64).max(255),
+}).strict().refine(
+  (result) => new TextEncoder().encode(result.stdout).byteLength + new TextEncoder().encode(result.stderr).byteLength <= PROJECT_FILE_MAX_BYTES,
+);
+export type ProjectCloudCommandResult = z.infer<typeof ProjectCloudCommandResultSchema>;
 
 export const PROJECT_WINDOWS_DIAGNOSTICS = ["ver", "chcp"] as const;
 export const ProjectWindowsDiagnosticSchema = z.enum(PROJECT_WINDOWS_DIAGNOSTICS);
@@ -165,6 +217,50 @@ export const ProjectWindowsTerminalResultSchema = z.discriminatedUnion("status",
   z.object({ status: z.literal("completed"), stdout: z.string().min(1).max(4096) }).strict(),
 ]);
 export type ProjectWindowsTerminalResult = z.infer<typeof ProjectWindowsTerminalResultSchema>;
+
+export const ProjectWindowsCommandSchema = z.object({
+  argv: z.array(
+    z.string().max(1024).refine(
+      (arg) => !arg.includes("\0") && new TextEncoder().encode(arg).byteLength <= 1024,
+    ),
+  ).min(1).max(32).refine(
+    (argv) => argv[0] !== "" && argv.reduce((total, arg) => total + new TextEncoder().encode(arg).byteLength, 0) <= 4096,
+  ),
+  inputFiles: z.array(ProjectFilePath).max(16).refine(
+    (paths) => new Set(paths).size === paths.length,
+  ).refine((paths) => paths.every((path, index) =>
+    !paths.some((other, otherIndex) => otherIndex !== index && other.startsWith(`${path}/`)),
+  )),
+  timeoutMs: z.number().int().min(1).max(7000),
+}).strict();
+export type ProjectWindowsCommand = z.infer<typeof ProjectWindowsCommandSchema>;
+
+export const ProjectWindowsCommandRequestSchema = ProjectDirectoryInput.extend({
+  method: z.literal("projectWindowsCommand"),
+  grantId: z.string().uuid(),
+  projectName: z.string().min(1).max(200),
+  runId: ScopedId,
+  command: ProjectWindowsCommandSchema,
+}).strict();
+export type ProjectWindowsCommandRequest = z.infer<typeof ProjectWindowsCommandRequestSchema>;
+
+export const ProjectWindowsCommandStatusRequestSchema = ProjectDirectoryInput.extend({
+  method: z.literal("projectWindowsCommandStatus"),
+  grantId: z.string().uuid(),
+  runId: ScopedId,
+}).strict();
+export type ProjectWindowsCommandStatusRequest = z.infer<typeof ProjectWindowsCommandStatusRequestSchema>;
+export const ProjectWindowsCommandStatusResultSchema = z.object({ available: z.boolean() }).strict();
+export type ProjectWindowsCommandStatusResult = z.infer<typeof ProjectWindowsCommandStatusResultSchema>;
+
+export const ProjectWindowsCommandResultSchema = z.object({
+  stdout: z.string().refine((value) => new TextEncoder().encode(value).byteLength <= PROJECT_FILE_MAX_BYTES),
+  stderr: z.string().refine((value) => new TextEncoder().encode(value).byteLength <= PROJECT_FILE_MAX_BYTES),
+  code: z.number().int().min(-64).max(255),
+}).strict().refine(
+  (result) => new TextEncoder().encode(result.stdout).byteLength + new TextEncoder().encode(result.stderr).byteLength <= PROJECT_FILE_MAX_BYTES,
+);
+export type ProjectWindowsCommandResult = z.infer<typeof ProjectWindowsCommandResultSchema>;
 
 export const ProjectDirectorySnapshotSchema = z
   .object({

@@ -70,7 +70,7 @@
 }
 
 .sydney-avatar-library-option .sydney-bot-avatar,
-.sydney-avatar-library-option .rakazo-bot-avatar {
+.sydney-avatar-library-option .sydney-bot-avatar-image {
   width: 44px !important;
   height: 44px !important;
 }
@@ -479,8 +479,7 @@
     padding: 10px 0 18px;
   }
 
-  .sydney-create-bot-preview .sydney-bot-avatar,
-  .sydney-create-bot-preview .rakazo-logo-avatar {
+  .sydney-create-bot-preview .sydney-bot-avatar {
     width: 128px !important;
     height: 128px !important;
     padding: 22px;
@@ -542,7 +541,7 @@
   }
 
   .sydney-create-bot .sydney-avatar-library-option .sydney-bot-avatar,
-  .sydney-create-bot .sydney-avatar-library-option .rakazo-bot-avatar {
+  .sydney-create-bot .sydney-avatar-library-option .sydney-bot-avatar-image {
     width: 58px !important;
     height: 58px !important;
   }
@@ -610,8 +609,7 @@
     color: var(--foreground);
   }
 
-  [data-theme="dark"] .sydney-create-bot-preview .sydney-bot-avatar,
-  [data-theme="dark"] .sydney-create-bot-preview .rakazo-logo-avatar {
+  [data-theme="dark"] .sydney-create-bot-preview .sydney-bot-avatar {
     background: var(--card);
     box-shadow: 0 12px 22px rgb(0 0 0 / 25%);
   }

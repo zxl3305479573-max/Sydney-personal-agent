@@ -1036,6 +1036,7 @@ model Run {
   userId               String
   projectWorkspaceId   String?
   projectWorkspace     ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "runs_project_workspace_owner_fkey")
+  projectDirectoryPin  Json?
   status               String
     taskMandate          Json?
   trigger              String

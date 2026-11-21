@@ -8,6 +8,7 @@ import type { RunContext } from "./run-context.js";
 import {
   isProjectDeviceTool,
   isProjectFileTool,
+  PROJECT_CLOUD_COMMAND,
   PROJECT_WINDOWS_TERMINAL,
   projectTextToolAllowed,
 } from "./run-project-policy.js";
@@ -24,6 +25,7 @@ import { memoryTools } from "./run-tools-memory.js";
 import { messagingTools } from "./run-tools-messaging.js";
 import { preferenceTools } from "./run-tools-preferences.js";
 import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
+import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
 import { prepareProjectWindowsTerminal, runProjectWindowsTerminal } from "./run-tools-project-terminal.js";
 import { purchaseTools } from "./run-tools-purchases.js";
 import { secretTools } from "./run-tools-secrets.js";
@@ -54,6 +56,7 @@ const TOOL_HANDLERS = new Map<string, ToolHandler>([
   ...Object.entries(purchaseTools),
   ...Object.entries(preferenceTools),
   ...Object.entries(projectFileHandlers),
+  [PROJECT_CLOUD_COMMAND, runProjectCloudCommand],
   [PROJECT_WINDOWS_TERMINAL, runProjectWindowsTerminal],
   ...Object.entries(feedbackTools),
   ...[...PAGE_BROWSER_TOOL_NAMES].map((name) => [name, pageBrowserTool] as const),
@@ -148,7 +151,9 @@ async function dispatchTool(
     ? await prepareProjectFile(ctx, request)
     : request.name === PROJECT_WINDOWS_TERMINAL
       ? await prepareProjectWindowsTerminal(ctx, request)
-      : await prepareToolRequest(ctx, request);
+      : request.name === PROJECT_CLOUD_COMMAND
+        ? await prepareProjectCloudCommand(ctx, request)
+        : await prepareToolRequest(ctx, request);
   if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if (refused) return refused;
   const gate = await gateToolCall(ctx, request, observer);

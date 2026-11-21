@@ -6,6 +6,10 @@ import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
 import { useSideInsets } from "../../lib/side-insets";
+import { effectiveThemeAssignments } from "../../lib/theme-manager";
+import type { ThemeScope, ThemeTarget } from "../../lib/theme-pack";
+import { THEME_SCOPES } from "../../lib/theme-pack";
+import { themeManager } from "../../lib/theme-state";
 import {
   beginUiModePreview,
   cancelUiModePreview,
@@ -23,9 +27,15 @@ export default function UiModeScreen() {
   const insets = useSideInsets();
   const [busy, setBusy] = useState(false);
   useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
+  const themeSnapshot = useSyncExternalStore(
+    themeManager.subscribe,
+    themeManager.getSnapshot,
+    themeManager.getSnapshot,
+  );
   const snapshot = getUiModeSnapshot();
   const canRestoreClassic = snapshot.savedModeId !== "classic" || snapshot.previewModeId !== null;
   const modes = listAvailableUiModes(Platform.OS);
+  const themeAssignments = effectiveThemeAssignments(themeSnapshot);
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
   const labels = chinese
@@ -68,6 +78,7 @@ export default function UiModeScreen() {
     useCallback(() => {
       return () => {
         cancelUiModePreview();
+        themeManager.cancelPreview();
       };
     }, []),
   );
@@ -81,6 +92,53 @@ export default function UiModeScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function importTheme() {
+    try {
+      const { pickThemePack } = await import("../../lib/theme-library");
+      const pack = await pickThemePack();
+      if (pack)
+        if (themeSnapshot.packs.some((item) => item.id === pack.id)) {
+          Alert.alert(
+            chinese ? "替换主题包？" : "Replace theme pack?",
+            chinese
+              ? `已安装 ${pack.name}。替换后会更新现有主题文件。`
+              : `${pack.name} is already installed. Replacing it updates the existing theme file.`,
+            [
+              { text: chinese ? "取消" : "Cancel", style: "cancel" },
+              {
+                text: chinese ? "替换" : "Replace",
+                onPress: () =>
+                  void themeManager
+                    .install(pack, true)
+                    .catch((error) =>
+                      Alert.alert(error instanceof Error ? error.message : labels.error),
+                    ),
+              },
+            ],
+          );
+        } else {
+          await themeManager.install(pack);
+        }
+    } catch (error) {
+      Alert.alert(error instanceof Error ? error.message : labels.error);
+    }
+  }
+
+  function themeTargetLabel(target: ThemeTarget) {
+    if (target === "all") return chinese ? "全部界面" : "All screens";
+    const labelsByScope: Partial<Record<ThemeScope, string>> = {
+      inbox: chinese ? "首页" : "Home",
+      thread: chinese ? "单聊" : "Thread",
+      groupThread: chinese ? "群聊" : "Group chat",
+      projects: chinese ? "项目" : "Projects",
+      projectThread: chinese ? "项目会话" : "Project chat",
+      github: "GitHub",
+      computer: chinese ? "电脑" : "Computer",
+      settings: chinese ? "设置" : "Settings",
+    };
+    return labelsByScope[target] ?? target;
   }
 
   return (
@@ -161,6 +219,97 @@ export default function UiModeScreen() {
           onPress={() => void save(resetUiModeToClassic)}
         />
       ) : null}
+      <SettingsGroup
+        label={chinese ? "主题包" : "Theme packs"}
+        footer={
+          themeSnapshot.warning ??
+          (chinese
+            ? "主题包只读取声明式颜色、布局和本地图片。"
+            : "Theme packs use declarative colors, layouts and local images only.")
+        }
+      >
+        <NativeActionButton
+          label={chinese ? "导入主题包" : "Import theme pack"}
+          onPress={() => void importTheme()}
+        />
+        {themeSnapshot.packs
+          .filter((pack) => pack.id !== "classic" && pack.id !== "midnight")
+          .map((pack) => (
+            <View key={pack.id} style={{ gap: 8, paddingVertical: 8 }}>
+              <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
+                {pack.name} · {pack.version}
+              </Text>
+              <Text style={{ color: tokens.mutedForeground }}>
+                {pack.author} ·{" "}
+                {pack.coverage === "all"
+                  ? themeTargetLabel("all")
+                  : pack.coverage.map(themeTargetLabel).join("、")}
+              </Text>
+              <View style={{ gap: 8 }}>
+                {(["all", ...THEME_SCOPES] as ThemeTarget[])
+                  .filter((target) =>
+                    target === "all"
+                      ? pack.coverage === "all"
+                      : pack.coverage === "all" || pack.coverage.includes(target),
+                  )
+                  .map((target) => {
+                    const active =
+                      target === "all"
+                        ? themeAssignments.globalPackId === pack.id
+                        : themeAssignments.pages[target] === pack.id;
+                    return (
+                      <NativeActionButton
+                        key={`${pack.id}-${target}`}
+                        label={`${active ? (chinese ? "已应用" : "Applied") : chinese ? "应用" : "Apply"} · ${themeTargetLabel(target)}`}
+                        prominence={active ? "primary" : "secondary"}
+                        onPress={() => {
+                          try {
+                            themeManager.preview(target, pack.id);
+                          } catch (error) {
+                            Alert.alert(error instanceof Error ? error.message : labels.error);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                <NativeActionButton
+                  label={chinese ? "卸载" : "Uninstall"}
+                  prominence="secondary"
+                  onPress={() =>
+                    void themeManager
+                      .uninstall(pack.id)
+                      .catch((error) =>
+                        Alert.alert(error instanceof Error ? error.message : labels.error),
+                      )
+                  }
+                />
+              </View>
+            </View>
+          ))}
+      </SettingsGroup>
+      {themeSnapshot.preview?.packId && themeSnapshot.preview.packId !== "classic" ? (
+        <View style={{ gap: 12 }}>
+          <Text accessibilityLiveRegion="polite" style={{ color: tokens.mutedForeground }}>
+            {chinese
+              ? `预览：${themeSnapshot.preview.packId} · ${themeTargetLabel(themeSnapshot.preview.target)}`
+              : `Preview: ${themeSnapshot.preview.packId} · ${themeTargetLabel(themeSnapshot.preview.target)}`}
+          </Text>
+          <NativeActionButton
+            label={chinese ? "应用主题预览" : "Apply theme preview"}
+            onPress={() => void themeManager.commitPreview()}
+          />
+          <NativeActionButton
+            label={chinese ? "取消主题预览" : "Cancel theme preview"}
+            prominence="secondary"
+            onPress={() => themeManager.cancelPreview()}
+          />
+        </View>
+      ) : null}
+      <NativeActionButton
+        label={chinese ? "恢复所有主题默认" : "Restore all theme defaults"}
+        prominence="secondary"
+        onPress={() => void themeManager.reset()}
+      />
     </ScrollView>
   );
 }

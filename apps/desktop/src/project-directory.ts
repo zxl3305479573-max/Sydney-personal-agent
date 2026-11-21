@@ -230,7 +230,7 @@ export function createProjectDirectoryAccess(deps: {
         const grant = await store.load(scope, request.grantId);
         linked.throwIfAborted();
         if (!grant || grant.directory !== root.directory ||
-          (request.file.operation === "create" && grant.intent !== "read-write")) {
+          (request.file.operation !== "read" && request.file.operation !== "list" && grant.intent !== "read-write")) {
           throw new Error("The project folder has not authorized this operation");
         }
         const result = await files.execute(root, request.file, linked);

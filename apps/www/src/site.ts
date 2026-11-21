@@ -1,27 +1,7 @@
-export const SITE_NAME = "Rakazo";
-export const SITE_URL = "https://rakazo.com";
-export const SITE_DESCRIPTION =
-  "Rakazo is an open source Grok Bot alternative for persistent AI teammates that do real work. Your keys, your model, your machine.";
-
-export const APP_URL = "https://pc.zxlup.xin";
-export const PLUGIN_SUBMISSIONS_URL = `${APP_URL}/api/v1/plugin-submissions`;
-export const INTEGRATION_CLAIMS_URL = `${APP_URL}/api/v1/integration-claims`;
-export const CATALOG_URL =
-  "https://rakazo-public.fsn1.your-objectstorage.com/integrations/catalog.json";
-export const GITHUB_URL = "https://github.com/elie222/rakazo";
-export const IOS_APP_URL = "https://apps.apple.com/app/rakazo/id6801531099";
-export const ANDROID_APK_URL = "https://github.com/elie222/rakazo/releases/download/android/rakazo.apk";
-export const GITHUB_API_REPO = "https://api.github.com/repos/elie222/rakazo";
-export const DOCS_URL = "https://github.com/elie222/rakazo/blob/main/docs/self-host.md";
-export const SELF_HOST_SECRETS_URL =
-  "https://github.com/elie222/rakazo/blob/main/docs/self-host-secrets.md";
-export const SELF_HOST_RESTRICTED_URL =
-  "https://github.com/elie222/rakazo/blob/main/docs/self-host-restricted-network.md";
-export const SETUP_PROMPT_URL = "https://github.com/elie222/rakazo/blob/main/SETUP_PROMPT.md";
-export const SELF_HOST_GUIDE_PATH = "/self-hosted-ai-agent/";
-export const PLUGIN_SUBMIT_PATH = "/plugins/submit/";
-export const OPENCLAW_ALTERNATIVE_PATH = "/openclaw-alternative/";
-export const CHANGELOG_URL = "https://github.com/elie222/rakazo/releases";
-export const LATEST_RELEASE_URL = `${CHANGELOG_URL}/latest`;
-export const INBOX_ZERO_URL =
-  "https://www.getinboxzero.com/?utm_source=rakazo&utm_medium=website&utm_campaign=footer";
+export const SITE_NAME = "Sydney Personal Agent";
+export const SITE_DESCRIPTION = "A personal AI assistant for chat, projects, and cloud computers.";
+export const GITHUB_URL = "https://github.com/zxl3305479573-max/Sydney-personal-agent";
+export const GITHUB_API_REPO = "https://api.github.com/repos/zxl3305479573-max/Sydney-personal-agent";
+export const DOCS_URL = `${GITHUB_URL}/blob/main/docx/README.md`;
+export const IOS_SETUP_URL = `${GITHUB_URL}/blob/main/docx/design/IOS_SIDELOAD_GUIDE.md`;
+export const RELEASES_URL = `${GITHUB_URL}/releases`;

@@ -63,6 +63,7 @@ export const Composer = memo(function Composer({
   inGroup = false,
   running,
   disabled,
+  textOnly = false,
   pendingAttachments,
   attachmentNotice,
   sendError,
@@ -98,6 +99,7 @@ export const Composer = memo(function Composer({
   inGroup?: boolean;
   running: boolean;
   disabled?: boolean;
+  textOnly?: boolean;
   pendingAttachments: PendingAttachment[];
   attachmentNotice: string | null;
   sendError: string | null;
@@ -237,7 +239,7 @@ export const Composer = memo(function Composer({
   const onCall = useCallSession() !== null;
   const talk = useHoldToTalk({
     transcribe: dictationTranscribe,
-    disabled: disabled || onCall || !phoneCallsEnabled,
+    disabled: textOnly || disabled || onCall || !phoneCallsEnabled,
     onText: (text) => {
       // A refused send keeps the words: they land in the field to edit or retry.
       void onSend(text, [], newClientId())
@@ -470,7 +472,7 @@ export const Composer = memo(function Composer({
     : undefined;
 
   const slashSkillOptions = useMemo(() => {
-    if (slashQuery === null) return [];
+    if (textOnly || slashQuery === null) return [];
     const query = slashQuery.trim().toLowerCase();
     const skills = agentSkills ?? [];
     return skills
@@ -482,13 +484,13 @@ export const Composer = memo(function Composer({
         );
       })
       .slice(0, 8);
-  }, [agentSkills, slashQuery]);
+  }, [agentSkills, slashQuery, textOnly]);
 
   const slashActionOptions = useMemo(() => {
-    if (slashQuery === null) return [];
+    if (textOnly || slashQuery === null) return [];
     const query = slashQuery.trim().toLowerCase();
     return SLASH_ACTIONS.filter((action) => !query || action.label.toLowerCase().includes(query));
-  }, [slashQuery]);
+  }, [slashQuery, textOnly]);
 
   const showSlashPicker =
     slashQuery !== null &&
@@ -641,10 +643,10 @@ export const Composer = memo(function Composer({
     <fieldset
       aria-label={t`Message composer`}
       data-dragging={draggingFiles ? "files" : undefined}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragEnter={textOnly ? (event) => event.preventDefault() : handleDragEnter}
+      onDragOver={textOnly ? (event) => event.preventDefault() : handleDragOver}
+      onDragLeave={textOnly ? undefined : handleDragLeave}
+      onDrop={textOnly ? (event) => event.preventDefault() : handleDrop}
       className={`relative z-30 m-0 min-w-0 border-0 px-3 pb-4 pt-0 md:px-[max(1.5rem,calc((100%_-_60rem)/2))] md:pb-6 [&>*]:pointer-events-auto ${fileDragActive ? "pointer-events-auto" : "pointer-events-none"} ${
         draggingFiles ? "rounded-[14px] ring-2 ring-inset ring-ring" : ""
       }`}
@@ -813,29 +815,33 @@ export const Composer = memo(function Composer({
           expanded ? "gap-x-2 gap-y-2 pb-[9px] pt-3" : "gap-x-3.5 py-[9px]"
         }`}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ATTACHMENT_ACCEPT}
-          className="hidden"
-          onChange={(event) => pickAttachments(event.target.files)}
-        />
+        {!textOnly ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ATTACHMENT_ACCEPT}
+            className="hidden"
+            onChange={(event) => pickAttachments(event.target.files)}
+          />
+        ) : null}
         <div
           className={`col-start-1 flex shrink-0 items-center gap-1 ${expanded ? "row-start-2" : ""}`}
           data-composer-attachments=""
         >
-          <Button
-            ref={attachButtonRef}
-            variant="ghost"
-            size="icon"
-            aria-label={t`Attach file`}
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-            className="size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <Plus size={16} strokeWidth={2} />
-          </Button>
+          {!textOnly ? (
+            <Button
+              ref={attachButtonRef}
+              variant="ghost"
+              size="icon"
+              aria-label={t`Attach file`}
+              disabled={disabled}
+              onClick={() => fileInputRef.current?.click()}
+              className="size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Plus size={16} strokeWidth={2} />
+            </Button>
+          ) : null}
           {showMentionButton ? (
             <Button
               type="button"
@@ -905,7 +911,7 @@ export const Composer = memo(function Composer({
                   )?.query ?? null,
                 );
               }}
-              onPaste={handlePaste}
+              onPaste={textOnly ? undefined : handlePaste}
               onKeyDown={(event) => {
                 rememberSelection(event.currentTarget);
                 if (event.key === "Backspace" && draft.length === 0 && selectedSkill !== null) {
@@ -1003,7 +1009,7 @@ export const Composer = memo(function Composer({
             <HoldToTalkControls talk={talk} />
           ) : running ? (
             <>
-              {phoneCallsEnabled && draft.trim().length === 0 ? (
+              {!textOnly && phoneCallsEnabled && draft.trim().length === 0 ? (
                 <HoldToTalkControls talk={talk} disabled={disabled || onCall} />
               ) : null}
               <Button
@@ -1028,7 +1034,7 @@ export const Composer = memo(function Composer({
             </>
           ) : (
             <>
-              {phoneCallsEnabled && draft.trim().length === 0 ? (
+              {!textOnly && phoneCallsEnabled && draft.trim().length === 0 ? (
                 <HoldToTalkControls talk={talk} disabled={disabled || onCall} />
               ) : null}
               <Button

@@ -241,6 +241,10 @@ function resumeChoiceLabel(
   }
 }
 
+function hasNoMoreDetails(answer: string): boolean {
+  return /^没了[。.!！]*$/u.test(answer.trim());
+}
+
 /**
  * A conversational run's request and earlier answers stay in thread history, so its resumed
  * attempt gets just the answer. A background run's prompt never reaches the thread, so it keeps
@@ -251,8 +255,11 @@ function resumePrompt(
   question: string,
   answer: string,
 ): string {
-  if (isConversationalRun(run.trigger)) return answer;
-  return [run.task?.prompt.trim(), `${question.trim()}\nAnswer: ${answer}`]
+  const resumedAnswer = hasNoMoreDetails(answer)
+    ? `${answer.trim()}\n用户已确认没有更多补充。请用用户此前提供的信息继续原任务。其余可选细节按合理默认值处理。`
+    : answer;
+  if (isConversationalRun(run.trigger)) return resumedAnswer;
+  return [run.task?.prompt.trim(), `${question.trim()}\nAnswer: ${resumedAnswer}`]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -881,7 +888,10 @@ async function commitAnswerRunInput(
     return null;
   const secretAsk = isSecretAskBlock(pendingAsk);
   const choiceAsk = !approvalAsk && !secretAsk && Boolean(pendingAsk.actions?.length);
-  const selectedChoice = choiceAsk ? resolveAskChoice(input.answer, pendingAsk.actions) : undefined;
+  const selectedChoice =
+    choiceAsk && !hasNoMoreDetails(input.answer)
+      ? resolveAskChoice(input.answer, pendingAsk.actions)
+      : undefined;
   const dismissed = Boolean(input.dismiss);
   // Only the run's user can turn down a secret request; every other card needs an answer.
   if (dismissed && (!secretAsk || run.userId !== input.answeredByUserId || input.answer))
@@ -1311,6 +1321,7 @@ export async function eligibleWaitingTextAnswer(
     answeredByUserId: string;
     answer: string;
     beforeMessageSeq?: number;
+    allowEarlierQuestion?: boolean;
     /** Explicit reaction target; composer replies must pass the latest-message check. */
     messageId?: string;
   },
@@ -1319,10 +1330,10 @@ export async function eligibleWaitingTextAnswer(
   if (!answer) return null;
   const found = await findPendingAsk(tx, input);
   if (!found) return null;
-  if (isApprovalAskBlock(found.pendingAsk) || isSecretAskBlock(found.pendingAsk)) return null;
+  if (found.pendingAsk.approvalEffectId || isSecretAskBlock(found.pendingAsk)) return null;
   if (input.messageId !== undefined) {
     if (input.messageId !== found.messageId) return null;
-  } else {
+  } else if (!(input.allowEarlierQuestion && hasNoMoreDetails(answer))) {
     // Reactions are projected beneath their target, not new transcript messages.
     let beforeSeq = input.beforeMessageSeq;
     while (true) {

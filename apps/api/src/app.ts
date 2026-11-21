@@ -712,6 +712,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     web: createWebProvider(),
     cloudAgent,
     userDevices: userDevicesOverride ?? userDevices,
+    projectDeviceToolsEnabled: env.projectDeviceToolsEnabled,
     paymentWallet,
     github: githubProvider,
     shutdownSignal: shutdown.signal,
@@ -844,6 +845,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     env: {
       projectWorkspaceCreateExperiment: env.projectWorkspaceCreateExperiment,
       projectConversationCreateExperiment: env.projectConversationCreateExperiment,
+      projectDeviceToolsEnabled: env.projectDeviceToolsEnabled,
       phoneCallsEnabled: env.phoneCallsEnabled,
       phoneCallRingSeconds: env.phoneCallRingSeconds,
       ticketBoardEnabled,
@@ -1028,7 +1030,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         return found ? { userId: found.user.id, sessionId: found.session.id } : null;
       },
       trustedOrigin: (origin) => isTrustedOrigin(origin, env),
-      projectDirectoriesEnabled: env.projectWorkspaceCreateExperiment,
+      projectDirectoriesEnabled:
+        env.projectWorkspaceCreateExperiment && env.projectDeviceToolsEnabled,
     });
   }
   if (messagingInstallations) {

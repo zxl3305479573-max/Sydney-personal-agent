@@ -22,6 +22,7 @@ export function ProjectCloudDirectory({
     ...queries.projectWorkspaces.cloudDirectory.queryOptions({ input: { id: projectId } }),
     retry: false,
     refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
   const [computerId, setComputerId] = useState("");
   const [path, setPath] = useState("");
@@ -58,7 +59,7 @@ export function ProjectCloudDirectory({
     }
   }
   const readOnly = text("只读", "Read only");
-  const readWrite = text("读取并新建 Markdown", "Read and create Markdown");
+  const readWrite = text("读取、修改文本并新建 Markdown", "Read and update text files, and create Markdown");
   const selected = status.data.computers.find(({ id }) => id === (binding?.computerId ?? computerId));
   return (
     <section className="mt-4 space-y-3 rounded-xl border p-4">

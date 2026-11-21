@@ -10,7 +10,7 @@
 
 `apps/web` 同时是 Windows 安装包的 React／Vite 界面来源，桌面 `extraResources` 从 `../web/dist` 打包到 `resources/web`。该源码与包内界面继续保留，认证、Slack／MCP 回调、原生无影／noVNC 资源及画面桥不随旧网页服务删除。开发预览与既有本地镜像拓扑仍可复用同一界面，不计为生产网页重新上线。
 
-Sydney 的默认镜像目标为 `server`，编译 API／Worker 并按生产配置准备 API 无影资源。开发 Web 与 Rakazo 上游预构建自托管镜像使用 `self-host` 目标。生产更新名单默认 API／Worker，忽略旧 Web 及其专用桥，现用 API 桥可随生产覆盖显式更新。生产部署以当前版和回退版均为直连拓扑为前提。
+Sydney 的默认镜像目标为 `server`，仅复制及安装后台工作区所需内容，编译 API／Worker 并按生产配置准备 API 无影资源。保留可选本机电脑 supervisor 及其镜像构建上下文。Rakazo 上游预构建自托管镜像使用 `self-host` 目标，载入完整工作区再构建 Web。生产更新名单默认 API／Worker，忽略旧 Web 及其专用桥，现用 API 桥可随生产覆盖显式更新。生产部署以当前版和回退版均为直连拓扑为前提。
 
 原生 Linux 覆盖示例使用共享 API 网络命名空间的 `native-screen-api-loopback`，并将它加入可选 updater 的更新及回退名单。IP 代理隔离演练使用合成 API 上游检查当前默认路由，沿用域名和 IP 的认证回跳、画面及日志脱敏验证，并检查旧入口 404。
 

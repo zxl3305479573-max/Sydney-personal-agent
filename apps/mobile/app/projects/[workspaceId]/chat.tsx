@@ -22,7 +22,10 @@ import { ThreadComposer } from "../../../components/thread-composer";
 import { threadHeaderRight } from "../../../components/thread-header-right";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
-import { projectScopeKey, subscribeProjectScope } from "../../../lib/project-scope";
+import {
+  projectScopeKey,
+  subscribeProjectScope,
+} from "../../../lib/project-scope";
 import { useSideInsets } from "../../../lib/side-insets";
 import {
   threadColumnPadding,

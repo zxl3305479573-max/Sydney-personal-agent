@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes } from "react";
 import { act } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
@@ -11,19 +11,29 @@ const runtime = vi.hoisted(() => ({
   space: "space-a",
   capability: vi.fn(),
   directory: vi.fn(),
+  cloudDirectory: vi.fn(),
   choose: vi.fn(),
   remove: vi.fn(),
+  bindCloud: vi.fn(),
+  unbindCloud: vi.fn(),
 }));
 vi.mock("@lingui/react/macro", () => ({ useLingui: () => ({ i18n: { locale: "zh-CN" } }) }));
 vi.mock("@rakazo/ui-web", () => ({
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock("../lib/desktop", () => ({
   desktopBridge: () => ({ projectDirectory: { choose: runtime.choose } }),
 }));
 vi.mock("../lib/rpc", () => ({
   selectedSpaceId: () => runtime.space,
-  createSpaceRpc: () => ({ projectWorkspaces: { unbindDirectory: runtime.remove } }),
+  createSpaceRpc: () => ({
+    projectWorkspaces: {
+      unbindDirectory: runtime.remove,
+      bindCloudDirectory: runtime.bindCloud,
+      unbindCloudDirectory: runtime.unbindCloud,
+    },
+  }),
 }));
 vi.mock("../lib/query", () => ({
   useSpaceQueries: () => ({
@@ -38,6 +48,12 @@ vi.mock("../lib/query", () => ({
         queryOptions: ({ input }: { input: { id: string } }) => ({
           queryKey: [runtime.space, "directory", input.id],
           queryFn: () => runtime.directory(input),
+        }),
+      },
+      cloudDirectory: {
+        queryOptions: ({ input }: { input: { id: string } }) => ({
+          queryKey: [runtime.space, "cloud-directory", input.id],
+          queryFn: () => runtime.cloudDirectory(input),
         }),
       },
     },
@@ -80,8 +96,16 @@ describe("desktop project folder controls", () => {
     runtime.space = "space-a";
     runtime.capability.mockReset().mockResolvedValue({ localDevice: true });
     runtime.directory.mockReset().mockResolvedValue(empty);
+    runtime.cloudDirectory.mockReset().mockResolvedValue({
+      available: false,
+      binding: null,
+      computers: [],
+      status: "unavailable",
+    });
     runtime.choose.mockReset().mockResolvedValue(binding);
     runtime.remove.mockReset().mockResolvedValue({ removed: true, localRevocation: "confirmed" });
+    runtime.bindCloud.mockReset().mockResolvedValue({ bound: true });
+    runtime.unbindCloud.mockReset().mockResolvedValue({ removed: true });
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     container = document.createElement("div");
     root = createRoot(container);
@@ -130,5 +154,56 @@ describe("desktop project folder controls", () => {
     runtime.space = "space-b";
     await click("选择本机目录");
     expect(runtime.choose).not.toHaveBeenCalled();
+  });
+
+  it("binds an available cloud computer with the selected folder scope", async () => {
+    runtime.capability.mockResolvedValue({ localDevice: false });
+    runtime.cloudDirectory.mockResolvedValue({
+      available: true,
+      binding: null,
+      computers: [{ id: "cloud-a", name: "Sydney cloud" }],
+      status: "online",
+    });
+    await render();
+    expect(container.textContent).toContain("Sydney cloud");
+
+    const computer = Array.from(container.querySelectorAll("select")).find((select) =>
+      Array.from(select.options).some((option) => option.value === "cloud-a"),
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(
+        computer,
+        "cloud-a",
+      );
+      computer.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const path = container.querySelector<HTMLInputElement>("input[required]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+        path,
+        "reports",
+      );
+      path.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(computer.value).toBe("cloud-a");
+    expect(path.value).toBe("reports");
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+      false,
+    );
+    await act(async () => {
+      container
+        .querySelector("form")
+        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(runtime.bindCloud).toHaveBeenCalledWith(
+      {
+        projectId: "project-a",
+        computerId: "cloud-a",
+        path: "reports",
+        intent: "read-only",
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 });

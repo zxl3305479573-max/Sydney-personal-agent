@@ -72,6 +72,14 @@ describe("toolRequiresApproval", () => {
     expect(toolRequiresExplicitApproval("archive_bot")).toBe(false);
   });
 
+  it.each(["project_list_files", "project_read_file", "project_create_file", "project_update_file"])(
+    "requires explicit approval for %s",
+    (name) => {
+      expect(toolRequiresApproval(name, false)).toBe(true);
+      expect(toolRequiresExplicitApproval(name)).toBe(true);
+    },
+  );
+
   it("does not gate read-only or local work", () => {
     for (const name of [
       "list_files",

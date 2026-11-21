@@ -47,6 +47,14 @@ export class UserDeviceOfflineError extends Error {
   }
 }
 
+/** No request was sent because the fixed device had no live connection. */
+export class UserDeviceNotConnectedError extends UserDeviceOfflineError {
+  constructor() {
+    super();
+    this.name = "UserDeviceNotConnectedError";
+  }
+}
+
 export function createUserDeviceToken(): string {
   return randomBytes(32).toString("hex");
 }
@@ -333,7 +341,7 @@ export class UserDeviceHub {
     signal: AbortSignal,
   ): AsyncIterable<unknown> {
     const entry = this.live.get(route.deviceId);
-    if (!entry || !this.holds(route)) throw new UserDeviceOfflineError();
+    if (!entry || !this.holds(route)) throw new UserDeviceNotConnectedError();
     signal.throwIfAborted();
     const id = randomUUID();
     const queue = new FrameQueue();
@@ -581,7 +589,7 @@ export class UserDevices implements UserDeviceGateway {
     if (Buffer.byteLength(body) > HOST_COMPUTER_MAX_BYTES)
       throw new Error("Request to your computer is too large");
     const route = await this.route(userId, deviceId);
-    if (!route) throw new UserDeviceOfflineError();
+    if (!route) throw new UserDeviceNotConnectedError();
     const deadline = AbortSignal.any([
       signal,
       AbortSignal.timeout(
@@ -665,6 +673,7 @@ export class UserDevices implements UserDeviceGateway {
     }
     if (!response.ok || !response.body) {
       await response.body?.cancel();
+      if (response.status === 409) throw new UserDeviceNotConnectedError();
       throw new UserDeviceOfflineError();
     }
     yield* ndjson(response.body, signal);

@@ -197,6 +197,7 @@ export function shouldForwardPeerThreadEvent(event: {
     event.type === "run.completed" ||
     event.type === "run.failed" ||
     event.type === "run.cancelled" ||
+    event.type === "run.queued" ||
     event.type === "run.waiting_input" ||
     event.type === "computer.takeover.requested"
   ) {
@@ -232,8 +233,9 @@ export function shouldForwardPeerThreadEvent(event: {
  */
 export function shouldForwardBackgroundThreadEvent(event: {
   type: string;
-  payload: { blocks?: unknown };
+  payload: { blocks?: unknown; reason?: unknown };
 }): boolean {
+  if (event.type === "run.queued") return event.payload.reason === "project_device_offline";
   if (
     event.type === "run.completed" ||
     event.type === "run.failed" ||

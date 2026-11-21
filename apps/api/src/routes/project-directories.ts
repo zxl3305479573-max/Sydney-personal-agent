@@ -46,7 +46,9 @@ async function queryGrant(
 
 export function projectDirectoryRoutes({ deps, authed }: RouterContext) {
   const enabled = () =>
-    deps.env?.projectWorkspaceCreateExperiment === true && Boolean(deps.userDevices);
+    deps.env?.projectWorkspaceCreateExperiment === true &&
+    deps.env?.projectDeviceToolsEnabled === true &&
+    Boolean(deps.userDevices);
   const authorize = async (actor: Actor, projectId: string) => {
     if (!enabled())
       throw new ORPCError("SERVICE_UNAVAILABLE", {

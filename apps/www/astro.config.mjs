@@ -1,17 +1,13 @@
-import react from "@astrojs/react";
-import { satteri } from "@astrojs/markdown-satteri";
 import sitemap from "@astrojs/sitemap";
-import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
-import { isIndexedPath } from "./src/blog/indexability.ts";
-import { docsCallouts } from "./src/docs-callouts.ts";
 import { LOCALE_HREFLANG, LOCALES } from "./src/i18n/locales.ts";
 import { resolveWwwPort } from "./www-port.mjs";
 
 const wwwPort = resolveWwwPort();
+const site = process.env.SYDNEY_SITE_URL?.trim() || undefined;
 
 export default defineConfig({
-  site: "https://rakazo.com",
+  site,
   output: "static",
   i18n: {
     defaultLocale: "en",
@@ -20,22 +16,9 @@ export default defineConfig({
       prefixDefaultLocale: false,
     },
   },
-  integrations: [
-    react(),
-    sitemap({
-      filter: (page) => isIndexedPath(new URL(page).pathname),
-      i18n: {
-        defaultLocale: "en",
-        locales: LOCALE_HREFLANG,
-      },
-    }),
-  ],
-  markdown: {
-    processor: satteri({ hastPlugins: [docsCallouts] }),
-  },
-  vite: {
-    plugins: [tailwindcss()],
-  },
+  integrations: site
+    ? [sitemap({ i18n: { defaultLocale: "en", locales: LOCALE_HREFLANG } })]
+    : [],
   server: {
     host: "127.0.0.1",
     port: wwwPort,

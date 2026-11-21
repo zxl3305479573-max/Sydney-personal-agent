@@ -16,7 +16,8 @@ import { errorText } from "../lib/user-error";
 import { WindowChrome } from "./WindowChrome";
 import { ProjectGroupCreation } from "./ProjectGroupCreation";
 import { ProjectDirectory } from "./ProjectDirectory";
-import { CreateBotDialog, type CreateBotDialogInput } from "./shell/create-bot-dialog";
+import type { CreateBotDialogInput } from "./shell/create-bot-dialog";
+import { CreateBotDialog } from "./shell/create-bot-dialog";
 
 export function ProjectsPage() {
   const userId = useQueryUserId();
@@ -48,7 +49,11 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [cursors, setCursors] = useState<ProjectWorkspaceCursor[]>([]);
   const after = cursors.at(-1);
-  const list = useQuery(queries.projectWorkspaces.list.queryOptions({ input: { after } }));
+  const list = useQuery({
+    ...queries.projectWorkspaces.list.queryOptions({ input: { after } }),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
   const capabilities = useQuery(queries.projectWorkspaces.capabilities.queryOptions());
   const canCreate = !capabilities.error && capabilities.data?.create === true;
   const canRemove = !capabilities.error && capabilities.data?.removeEmpty === true;
@@ -115,6 +120,8 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
   const detail = useQuery({
     ...queries.projectWorkspaces.get.queryOptions({ input: { id: workspaceId ?? "" } }),
     enabled: Boolean(workspaceId),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
   return (
     <main className="flex h-full min-h-0 flex-col" data-project-browser>
@@ -143,9 +150,9 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
         {showCreate && canCreate ? (
           <form className="mb-5 flex flex-wrap items-end gap-3"
             onSubmit={(event) => { event.preventDefault(); void createProject(); }}>
-            <label className="flex min-w-48 flex-col gap-2">
+            <label htmlFor="project-name" className="flex min-w-48 flex-col gap-2">
               {text("项目名称", "Project name")}
-              <Input value={name} onChange={(event) => setName(event.target.value)}
+              <Input id="project-name" value={name} onChange={(event) => setName(event.target.value)}
                 maxLength={80} disabled={creating} />
             </label>
             <Button type="submit" disabled={creating || !name.trim()}>
@@ -293,9 +300,13 @@ function ProjectRoster({ workspaceId }: { workspaceId: string }) {
   const canChat = !capability.error && capability.data?.createBot === true;
   const [botCursors, setBotCursors] = useState<string[]>([]);
   const [groupCursors, setGroupCursors] = useState<string[]>([]);
-  const roster = useQuery(queries.projectWorkspaces.roster.queryOptions({
-    input: { id: workspaceId, afterBotId: botCursors.at(-1), afterGroupId: groupCursors.at(-1) },
-  }));
+  const roster = useQuery({
+    ...queries.projectWorkspaces.roster.queryOptions({
+      input: { id: workspaceId, afterBotId: botCursors.at(-1), afterGroupId: groupCursors.at(-1) },
+    }),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
   if (roster.isPending) return <p className="mt-4" role="status">{text("正在加载项目成员…", "Loading project members…")}</p>;
   if (roster.error) return (
     <div className="mt-4" role="alert">

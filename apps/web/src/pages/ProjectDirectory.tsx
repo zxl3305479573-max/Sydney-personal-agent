@@ -24,6 +24,7 @@ export function ProjectDirectory({
     ...queries.projectWorkspaces.directory.queryOptions({ input: { id: projectId } }),
     enabled: available,
     refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
   const active = useRef(false);
   const running = useRef(false);
@@ -126,7 +127,7 @@ export function ProjectDirectory({
           {directory.data.deviceName ?? text("绑定的电脑", "Bound computer")} ·{" "}
           {directory.data.binding.directoryName} ·{" "}
           {directory.data.binding.intent === "read-write"
-            ? text("允许读取和新建 Markdown", "Read and create Markdown")
+            ? text("可读取、修改文本并新建 Markdown", "Read and update text files, and create Markdown")
             : text("只读", "Read only")}
         </p>
       ) : null}
@@ -169,8 +170,8 @@ export function ProjectDirectory({
       ) : null}
       <p className="text-xs text-muted-foreground">
         {text(
-          "完整路径仅保存在本机；当前绑定不开放文件或终端工具。撤销不删除目录。",
-          "The full path stays on this computer. Binding does not enable file or terminal tools. Revoking does not delete the folder.",
+          "完整路径仅保存在本机；文件操作逐项审批，任意命令未开放。撤销不删除目录。",
+          "The full path stays on this computer. File operations require approval; arbitrary commands are not available. Revoking does not delete the folder.",
         )}
       </p>
       {notice ? (

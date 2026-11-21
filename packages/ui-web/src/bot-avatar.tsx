@@ -114,17 +114,17 @@ export const BotAvatar = memo(function BotAvatar({
   if (parsed.isImage && parsed.imageUrl) {
     return (
       <div
-        className={cn("rakazo-bot-avatar relative shrink-0 select-none", className)}
+        className={cn("sydney-bot-avatar-image relative shrink-0 select-none", className)}
         data-working={isWorking}
         data-activity={renderedActivity}
         style={{ width: size, height: size }}
       >
-        <div className="rakazo-bot-avatar-picture relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-transparent">
+        <div className="sydney-bot-avatar-image-picture relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-transparent">
           <img src={parsed.imageUrl} alt="" className="h-full w-full object-cover" />
         </div>
         {isWorking ? (
           <svg
-            className="rakazo-bot-avatar-ring rakazo-bot-avatar-ring-working absolute pointer-events-none"
+            className="sydney-bot-avatar-image-ring sydney-bot-avatar-image-ring-working absolute pointer-events-none"
             style={{
               inset: -4,
               width: size + 8,

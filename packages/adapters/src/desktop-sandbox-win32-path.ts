@@ -52,6 +52,7 @@ function escapeWorkspace(): never {
 
 type NtFns = {
   NtCreateFile: KoffiFunction;
+  NtQueryDirectoryFile: KoffiFunction;
   RtlInitUnicodeString: KoffiFunction;
   getOsFhandle: KoffiFunction;
   openOsFhandle: KoffiFunction;
@@ -104,6 +105,9 @@ function nt(): NtFns {
   cached = {
     NtCreateFile: ntdll.func(
       "int32_t __stdcall NtCreateFile(_Out_ void **FileHandle, uint32_t DesiredAccess, OBJECT_ATTRIBUTES *ObjectAttributes, IO_STATUS_BLOCK *IoStatusBlock, void *AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, void *EaBuffer, uint32_t EaLength)",
+    ),
+    NtQueryDirectoryFile: ntdll.func(
+      "int32_t __stdcall NtQueryDirectoryFile(void *FileHandle, void *Event, void *ApcRoutine, void *ApcContext, IO_STATUS_BLOCK *IoStatusBlock, void *FileInformation, uint32_t Length, int32_t FileInformationClass, uint8_t ReturnSingleEntry, void *FileName, uint8_t RestartScan)",
     ),
     RtlInitUnicodeString: ntdll.func(
       "void __stdcall RtlInitUnicodeString(_Out_ UNICODE_STRING *DestinationString, void *SourceString)",
@@ -307,24 +311,73 @@ export function assertPlainWindowsHandle(fd: number) {
   }
 }
 
+export function listProjectDirectoryWin32(fd: number, maxEntries: number) {
+  const api = nt();
+  const handle = api.getOsFhandle(fd) as number | bigint;
+  const buffer = Buffer.alloc(1024 * 1024);
+  const ioStatus = { Status: 0, Information: 0 };
+  const status = api.NtQueryDirectoryFile(
+    handle,
+    null,
+    null,
+    null,
+    ioStatus,
+    buffer,
+    buffer.length,
+    1,
+    0,
+    null,
+    1,
+  ) as number;
+  const noMoreFiles = -2147483642;
+  const bufferOverflow = -2147483643;
+  if (status === noMoreFiles) return { entries: [], truncated: false };
+  if (status !== 0 && status !== bufferOverflow) throw new Error("Project folder could not be listed");
+  const entries: { name: string; kind: "directory" | "file" }[] = [];
+  let truncated = status === bufferOverflow;
+  let offset = 0;
+  while (offset + 64 <= buffer.length) {
+    const nextOffset = buffer.readUInt32LE(offset);
+    const nameBytes = buffer.readUInt32LE(offset + 60);
+    const attributes = buffer.readUInt32LE(offset + 56);
+    if (nameBytes === 0) break;
+    if (nameBytes % 2 !== 0 || nameBytes > buffer.length - offset - 64)
+      throw new Error("Invalid project folder listing");
+    const name = buffer.toString("utf16le", offset + 64, offset + 64 + nameBytes);
+    const reparse = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) !== 0;
+    if (name !== "." && name !== ".." && !reparse && name.length > 0) {
+      if (entries.length === maxEntries) {
+        truncated = true;
+        break;
+      }
+      entries.push({ name, kind: attributes & FILE_ATTRIBUTE_DIRECTORY ? "directory" : "file" });
+    }
+    if (nextOffset === 0) break;
+    if (nextOffset < 64 || nextOffset > buffer.length - offset)
+      throw new Error("Invalid project folder listing");
+    offset += nextOffset;
+  }
+  return { entries, truncated };
+}
+
 export function openProjectChildWin32(
   parentFd: number,
   name: string,
-  kind: "directory" | "read" | "create",
+  kind: "directory" | "read" | "create" | "update",
 ) {
   const directory = kind === "directory";
-  const write = kind === "create";
+  const write = kind === "create" || kind === "update";
   const { fd, status } = ntCreateRelative(
     parentFd,
     name,
-    write ? FILE_CREATE : FILE_OPEN,
+    kind === "create" ? FILE_CREATE : FILE_OPEN,
     (directory ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE) |
       FILE_SYNCHRONOUS_IO_NONALERT |
       FILE_OPEN_REPARSE_POINT,
     directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
     { directory, write },
   );
-  if (status === STATUS_OBJECT_NAME_COLLISION && write) {
+  if (status === STATUS_OBJECT_NAME_COLLISION && kind === "create") {
     const error = new Error("Output already exists") as NodeJS.ErrnoException;
     error.code = "EEXIST";
     throw error;

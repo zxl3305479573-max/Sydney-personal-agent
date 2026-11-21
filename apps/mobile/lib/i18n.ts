@@ -44,7 +44,7 @@ export function dateLocaleForUi(locale: UiLocale = activeLocale): string {
 
 export function t(message: string, values?: Record<string, string | number>): string {
   const catalog = catalogs[activeLocale];
-  const template = (catalog?.[message] ?? message).replaceAll("Rakazo", "Sydney");
+  const template = (catalog?.[message] ?? message).replaceAll("Sydney", "Sydney");
   return translate({ [message]: template }, message, values);
 }
 

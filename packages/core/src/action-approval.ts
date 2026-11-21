@@ -31,8 +31,10 @@ const APPROVAL_EXEMPT_TOOLS = new Set([
 ]);
 
 const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
+  "project_list_files",
   "project_read_file",
   "project_create_file",
+  "project_update_file",
   "project_windows_terminal",
   "generate_image",
   "generate_video",
@@ -53,8 +55,10 @@ const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
   "feedback",
 ]);
 const EXPLICIT_APPROVAL_BUILTIN_TOOLS = new Set([
+  "project_list_files",
   "project_read_file",
   "project_create_file",
+  "project_update_file",
   "project_windows_terminal",
   "respond_agent_connection",
   "create_space",

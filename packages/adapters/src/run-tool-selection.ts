@@ -14,6 +14,7 @@ import {
   filterProjectTextTools,
   isProjectDeviceTool,
   PROJECT_WINDOWS_TERMINAL,
+  PROJECT_CLOUD_COMMAND,
   projectFileToolAllowed,
 } from "./run-project-policy.js";
 import { USER_COMPUTER_SCREEN_TOOLS } from "./run-tools-user-computer.js";
@@ -68,6 +69,7 @@ export function selectBuiltinToolsForRun(options: {
   projectWorkspaceId?: string | null;
   projectDirectoryIntent?: ProjectDirectoryIntent;
   projectWindowsTerminal?: boolean;
+  projectCloudCommand?: boolean;
   ticketBoardEnabled?: boolean;
   phoneCallsEnabled?: boolean;
   historyRetrievalEnabled?: boolean;
@@ -174,7 +176,8 @@ export function selectBuiltinToolsForRun(options: {
         ...selected.filter(
           (tool) => ownerStartedRun && !options.messagingChannelRun &&
             (projectFileToolAllowed(tool.name, options.projectDirectoryIntent) ||
-              (tool.name === PROJECT_WINDOWS_TERMINAL && options.projectWindowsTerminal)),
+              (tool.name === PROJECT_WINDOWS_TERMINAL && options.projectWindowsTerminal) ||
+              (tool.name === PROJECT_CLOUD_COMMAND && options.projectCloudCommand)),
         ),
       ]
     : selected.filter((tool) => !isProjectDeviceTool(tool.name));

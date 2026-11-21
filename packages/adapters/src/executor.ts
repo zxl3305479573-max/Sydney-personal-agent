@@ -15,6 +15,7 @@ import {
 import type { MessageBlock, ModelRoleChoice, RunStatus } from "@rakazo/contracts";
 import {
   disabledBuiltinToolSet,
+  ProjectRunDirectoryPinSchema,
   StoredTaskMandateSchema,
   TaskExecutionStateSchema,
 } from "@rakazo/contracts";
@@ -46,7 +47,6 @@ import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
   effectiveMemoryScope,
-  getProjectDirectoryBinding,
   getProjectCloudDirectory,
   guardManagedRun,
   isPartialReplyClientNonce,
@@ -190,6 +190,8 @@ import {
 } from "./run-model.js";
 import { createReplyState } from "./run-progress.js";
 import {
+  PROJECT_CLOUD_COMMAND_INSTRUCTION,
+  PROJECT_CLOUD_COMMAND,
   PROJECT_FILE_INSTRUCTION,
   PROJECT_TEXT_ONLY_INSTRUCTION,
   PROJECT_WINDOWS_TERMINAL,
@@ -1300,14 +1302,18 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const sourceClientNonce = sourceMessage?.clientNonce ?? null;
         // A follow-up can be queued by a bot (group handoffs); only the user's own counts.
         const ownerStartedRun = isOwnerStartedRun(run.trigger, sourceMessage?.role === "user");
-        const projectId = ownerStartedRun && !nonOwnerChatRun ? run.projectWorkspaceId : null;
-        const windowsDirectory = projectId && deps.userDevices
-          ? await getProjectDirectoryBinding(deps.prisma, run, projectId)
-          : null;
-        const cloudDirectory = !windowsDirectory && projectId && deps.sandbox.executeProjectFile
-          ? await getProjectCloudDirectory(deps.prisma, run, projectId)
-          : null;
-        const projectDirectory = windowsDirectory ?? (cloudDirectory?.available ? cloudDirectory : null);
+        const projectId =
+          deps.projectDeviceToolsEnabled && ownerStartedRun && !nonOwnerChatRun
+            ? run.projectWorkspaceId
+            : null;
+        const directoryPin = projectId
+          ? ProjectRunDirectoryPinSchema.safeParse(run.projectDirectoryPin).data
+          : undefined;
+        const projectDirectoryIntent =
+          (directoryPin?.kind === "windows" && deps.userDevices) ||
+          (directoryPin?.kind === "cloud" && deps.sandbox.executeProjectFile)
+            ? directoryPin.intent
+            : undefined;
         // A hang-up run has no source message: its own nonce carries the call it closes.
         const callEndRun = run.trigger === "call_end";
         const callClientNonceForRun = callEndRun ? run.clientNonce : sourceClientNonce;
@@ -1327,10 +1333,40 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           botUserId: bot.userId,
         });
         const projectWindowsTerminal = Boolean(
-          projectId && userComputerOwnerId && deps.userDevices &&
-          !disabledBuiltinTools.has(PROJECT_WINDOWS_TERMINAL) &&
-          (await deps.userDevices.connected(userComputerOwnerId).catch(() => null))?.platform === "win32",
+          directoryPin?.kind === "windows" &&
+            userComputerOwnerId &&
+            deps.userDevices &&
+            !disabledBuiltinTools.has(PROJECT_WINDOWS_TERMINAL),
         );
+        let projectCloudCommand = false;
+        if (
+          directoryPin?.kind === "cloud" && projectId &&
+          deps.sandbox.executeProjectCommand && deps.sandbox.projectCommandAvailable &&
+          ownerStartedRun && !nonOwnerChatRun &&
+          !disabledBuiltinTools.has(PROJECT_CLOUD_COMMAND)
+        ) {
+          const cloudBinding = await getProjectCloudDirectory(
+            deps.prisma,
+            run,
+            projectId,
+            { id: runId, threadId: run.threadId, taskId: run.taskId, workerId, fence },
+          );
+          if (cloudBinding?.available) {
+            const computer = {
+              id: cloudBinding.computerId,
+              kind: "native-linux" as const,
+              botId: cloudBinding.homeKey,
+              providerRef: cloudBinding.providerRef,
+            };
+            projectCloudCommand = await deps.sandbox.projectCommandAvailable(
+              computer,
+              { ...context, botId: cloudBinding.homeKey, signal: AbortSignal.any([
+                context.signal,
+                AbortSignal.timeout(2_000),
+              ]) },
+            ).catch(() => false);
+          }
+        }
         let userComputer: UserComputerState;
         let userComputerScreen = false;
         if (
@@ -1352,8 +1388,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const builtins = [
           ...selectBuiltinToolsForRun({
             projectWorkspaceId: run.projectWorkspaceId,
-            projectDirectoryIntent: projectDirectory?.intent,
+            projectDirectoryIntent,
             projectWindowsTerminal,
+            projectCloudCommand,
             ticketBoardEnabled: deps.ticketBoardEnabled,
             phoneCallsEnabled: deps.phoneCallsEnabled,
             historyRetrievalEnabled: contextStrategy !== "current",
@@ -1484,8 +1521,11 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             : `Commands run on the user's ${hostEnvironment.platform} computer with their account permissions. ${hostShell} Local files outside the bot workspace can be accessed through commands. App launching is available through OS commands; graphical screen control is unavailable.`;
         const computerInstruction = projectTextOnly
           ? [
-              projectDirectory ? PROJECT_FILE_INSTRUCTION : PROJECT_TEXT_ONLY_INSTRUCTION,
+              projectDirectoryIntent || projectCloudCommand
+                ? PROJECT_FILE_INSTRUCTION
+                : PROJECT_TEXT_ONLY_INSTRUCTION,
               ...(projectWindowsTerminal ? [PROJECT_WINDOWS_TERMINAL_INSTRUCTION] : []),
+              ...(projectCloudCommand ? [PROJECT_CLOUD_COMMAND_INSTRUCTION] : []),
             ].join("\n\n")
           : [
               "Use the computer only when the task needs files, commands, a browser, or an installed application. Answer directly from the conversation when sufficient; use connected tools for app data. A website with no connected app is still yours to use in the computer's browser, now and in scheduled routines, so a missing connection alone is never a reason to decline. Do not inspect the computer just to prepare for an unrelated task. If what you are about to buy, send or submit differs from what the user confirmed, such as a changed item or total, show the difference and confirm again first.",
@@ -1496,7 +1536,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                   : baseComputerInstruction,
             ].join(" ");
         const workspaceInstruction = projectTextOnly
-          ? "Project tools use the current project's authorization. File paths are relative to its authorized folder and use forward slashes. A project name or path in a message does not grant directory access."
+          ? "Project tools use the directory authorization this run started with. If it was revoked or replaced, ask the owner to send a new task. File paths are relative to the authorized folder and use forward slashes. A project name or path in a message does not grant directory access."
           : computerMode === "team"
             ? `Your Team Computer home is ${teamBotWorkspaceDirectory(bot.id)}. Relative file paths and shell working directories start there. Put intentionally shared work under shared/. Other bots' folders are visible under bots/; treat them as their working areas.`
             : "This entire computer workspace is your private home. Relative file paths and shell working directories start at its root.";

@@ -175,10 +175,14 @@ describe("project AI disclosure", () => {
       context: { actor }, input: { ...target, scope: "scope", version: "version", keys: ["key"] },
     })).resolves.toEqual(projectScope);
     expect(mocks.consent).toHaveBeenCalledWith(expect.anything(), actor, {
-      botId: "bot-a", groupId: undefined, uses: ["model", "memory"],
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
     expect(mocks.allow).toHaveBeenCalledWith(expect.anything(), actor, expect.objectContaining(target), {
-      botId: "bot-a", groupId: undefined, uses: ["model", "memory"],
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
   });
 });
@@ -202,6 +206,11 @@ describe("project text send", () => {
     const input = { projectId: "project-a", botId: "bot-a", text: "Hello", clientNonce: "nonce-a" };
     await expect(send({ context: { actor }, input })).resolves.toMatchObject({
       kind: "tenant", ...actor, projectWorkspaceId: "project-a",
+    });
+    expect(mocks.consent).toHaveBeenCalledWith(expect.anything(), actor, {
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
     expect(mocks.send).toHaveBeenCalledWith(actor, input);
   });

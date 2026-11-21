@@ -1,7 +1,7 @@
 {
-  "name": "Rakazo",
-  "short_name": "Rakazo",
-  "description": "An open source Grok Bot alternative for persistent AI teammates that do real work.",
+  "name": "Sydney Personal Agent",
+  "short_name": "Sydney",
+  "description": "A personal AI assistant for chat, projects, and cloud computers.",
   "start_url": "/",
   "display": "browser",
   "background_color": "#FDFDFD",

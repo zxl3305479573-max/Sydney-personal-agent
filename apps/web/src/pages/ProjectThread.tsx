@@ -5,17 +5,22 @@ import type { ProjectThreadState } from "@rakazo/core";
 import {
   anySignal,
   createProjectThreadSession,
+  DEFAULT_BOT_AVATAR_COLOR,
   IDLE_TIMEOUT_MS,
+  loadProjectBotIdentity,
   pendingProjectApproval,
   projectActiveRuns,
+  projectMemberName,
 } from "@rakazo/core";
-import { Button, Textarea } from "@rakazo/ui-web";
+import { BotAvatar, Button } from "@rakazo/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { decodeArtifactBase64, downloadArtifactBytes } from "../lib/artifact-open";
 import { useQueryUserId } from "../lib/query";
 import { createSpaceRpc, selectedSpaceId } from "../lib/rpc";
 import { reduceThreadSnapshot } from "../lib/thread-events";
+import { Composer } from "./shell/composer";
+import { MessageText, MessageTextBubble } from "./shell/message-text-bubble";
 import { WindowChrome } from "./WindowChrome";
 
 type Session = ReturnType<typeof createProjectThreadSession<ThreadSnapshot>>;
@@ -72,13 +77,33 @@ function ProjectThread({
   const text = (chinese: string, english: string) =>
     i18n.locale.startsWith("zh") ? chinese : english;
   const [state, setState] = useState(initialState);
-  const [draft, setDraft] = useState("");
+  const [projectName, setProjectName] = useState<string>();
+  const [botIdentity, setBotIdentity] =
+    useState<Awaited<ReturnType<typeof loadProjectBotIdentity>>>();
+  const userId = useQueryUserId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let active = true;
     const rpc = createSpaceRpc(spaceId);
+    const identityController = new AbortController();
+    if (botId) {
+      void loadProjectBotIdentity(
+        botId,
+        (afterBotId) =>
+          rpc.projectWorkspaces.roster(
+            { id: projectId, afterBotId },
+            { signal: identityController.signal },
+          ),
+        identityController.signal,
+      )
+        .then((bot) => {
+          if (active && selectedSpaceId() === spaceId) setBotIdentity(bot);
+        })
+        .catch(() => undefined);
+    }
     const input = { projectId, botId, groupId };
     const session = createProjectThreadSession<ThreadSnapshot>({
       current: () => active && selectedSpaceId() === spaceId,
@@ -128,10 +153,17 @@ function ProjectThread({
       answerApproval: (answer, signal) =>
         rpc.projectWorkspaces.answerApproval({ ...input, ...answer }, { signal }),
       downloadArtifact: async (artifactId, signal) => {
-        const artifact = await rpc.projectWorkspaces.getArtifact({ ...input, artifactId }, { signal });
+        const artifact = await rpc.projectWorkspaces.getArtifact(
+          { ...input, artifactId },
+          { signal },
+        );
         signal.throwIfAborted();
         if (!active || selectedSpaceId() !== spaceId) throw new Error("Project scope changed");
-        downloadArtifactBytes(artifact.name, artifact.mimeType, decodeArtifactBase64(artifact.contentBase64));
+        downloadArtifactBytes(
+          artifact.name,
+          artifact.mimeType,
+          decodeArtifactBase64(artifact.contentBase64),
+        );
       },
     });
     sessionRef.current = session;
@@ -140,11 +172,39 @@ function ProjectThread({
     void session.start();
     return () => {
       active = false;
+      identityController.abort();
       unsubscribe();
       session.stop();
       if (sessionRef.current === session) sessionRef.current = null;
     };
   }, [projectId, botId, groupId, spaceId, enabled]);
+  useEffect(() => {
+    if (!enabled || !spaceId) return;
+    let active = true;
+    let reading = false;
+    const rpc = createSpaceRpc(spaceId).projectWorkspaces;
+    const refresh = () => {
+      if (!active || document.visibilityState === "hidden" || reading) return;
+      reading = true;
+      void rpc
+        .get({ id: projectId })
+        .then((project) => {
+          if (active) setProjectName(project.name);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          reading = false;
+        });
+    };
+    refresh();
+    const timer = setInterval(refresh, 15_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [enabled, projectId, spaceId]);
   useEffect(() => {
     if (state.snapshot?.cursor !== undefined)
       endRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -162,7 +222,8 @@ function ProjectThread({
           {text("返回项目", "Back to project")}
         </Link>
         <h1 className="text-lg font-semibold">
-          {state.snapshot?.groupName ?? text("项目会话", "Project chat")}
+          {projectName ?? text("项目", "Project")}
+          {state.snapshot?.groupName ? ` · ${state.snapshot.groupName}` : ""}
         </h1>
       </header>
       <section
@@ -195,54 +256,91 @@ function ProjectThread({
         ) : null}
         {enabled
           ? state.snapshot?.messages.map((message) => {
-            const approval = pendingProjectApproval(state.snapshot, message);
-            return (
-              <article key={message.id} className="sydney-list-surface rounded-2xl border p-4">
-                <p className="mb-2 text-sm text-muted-foreground">
-                  {message.role === "user"
-                    ? text("我", "You")
-                    : message.botId
-                      ? (state.snapshot?.members?.find((member) => member.botId === message.botId)
-                          ?.name ?? "Bot")
-                      : "Bot"}
-                </p>
-                {approval ? (
-                  <div className="space-y-2">
-                    <p className="font-medium">{approval.title}</p>
-                    <p className="whitespace-pre-wrap break-words">{approval.detail}</p>
-                    <div className="flex gap-2">
-                      {approval.decisions.map((decision) => (
-                        <Button
-                          key={decision}
-                          variant={decision === "deny" ? "secondary" : "default"}
-                          disabled={state.answeringEffectId !== null}
-                          onClick={() => void sessionRef.current?.answerApproval(message.id, decision)}
+              const approval = pendingProjectApproval(state.snapshot, message);
+              const role = message.role === "user" ? "user" : "bot";
+              const senderId = message.botId ?? botId;
+              const member =
+                state.snapshot?.members?.find((entry) => entry.botId === senderId) ??
+                (botIdentity?.botId === senderId ? botIdentity : undefined);
+              const senderName =
+                projectMemberName(state.snapshot?.members, senderId) ?? member?.name ?? "Bot";
+              return (
+                <article
+                  key={message.id}
+                  className={`flex items-start gap-2 ${role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {role === "bot" ? (
+                    <BotAvatar
+                      color={member?.color ?? DEFAULT_BOT_AVATAR_COLOR}
+                      avatarSet={member?.avatarSet}
+                      identity={senderId}
+                      activity="idle"
+                      size={groupId ? 20 : 28}
+                    />
+                  ) : null}
+                  <div className="min-w-0 max-w-full space-y-2">
+                    {role === "bot" ? (
+                      <p className="text-sm text-muted-foreground">{senderName}</p>
+                    ) : null}
+                    {approval ? (
+                      <div className="space-y-2">
+                        <p className="font-medium">{approval.title}</p>
+                        <p className="whitespace-pre-wrap break-words">{approval.detail}</p>
+                        <div className="flex gap-2">
+                          {approval.decisions.map((decision) => (
+                            <Button
+                              key={decision}
+                              variant={decision === "deny" ? "secondary" : "default"}
+                              disabled={state.answeringEffectId !== null}
+                              onClick={() =>
+                                void sessionRef.current?.answerApproval(message.id, decision)
+                              }
+                            >
+                              {decision === "allow"
+                                ? text("允许本次", "Allow once")
+                                : text("拒绝", "Deny")}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : message.blocks.some(
+                        (block) => block.kind === "text" || block.kind === "progress",
+                      ) ? (
+                      <MessageTextBubble messageRole={role}>
+                        <MessageText
+                          messageRole={role}
+                          streaming={message.id.startsWith("progress:")}
                         >
-                          {decision === "allow" ? text("允许本次", "Allow once") : text("拒绝", "Deny")}
-                        </Button>
-                      ))}
-                    </div>
+                          {message.blocks
+                            .flatMap((block) =>
+                              block.kind === "text" || block.kind === "progress"
+                                ? [block.text]
+                                : [],
+                            )
+                            .join("\n")}
+                        </MessageText>
+                      </MessageTextBubble>
+                    ) : null}
+                    {message.blocks.flatMap((block) =>
+                      block.kind === "file"
+                        ? [
+                            <Button
+                              key={block.artifactId}
+                              variant="secondary"
+                              disabled={state.downloadingArtifactId !== null}
+                              onClick={() =>
+                                void sessionRef.current?.downloadArtifact(block.artifactId)
+                              }
+                            >
+                              {text("下载", "Download")} {block.name}
+                            </Button>,
+                          ]
+                        : [],
+                    )}
                   </div>
-                ) : message.blocks.some((block) => block.kind === "text") ? (
-                  <p className="whitespace-pre-wrap break-words" dir="auto">
-                    {message.blocks
-                    .flatMap((block) => (block.kind === "text" ? [block.text] : []))
-                    .join("\n")}
-                  </p>
-                ) : null}
-                {message.blocks.flatMap((block) => block.kind === "file" ? [
-                  <Button
-                    key={block.artifactId}
-                    variant="secondary"
-                    disabled={state.downloadingArtifactId !== null}
-                    onClick={() => void sessionRef.current?.downloadArtifact(block.artifactId)}
-                  >
-                    {text("下载", "Download")} {block.name}
-                  </Button>,
-                ] : [])}
-              </article>
-            );
-          })
+                </article>
+              );
+            })
           : null}
         {enabled && state.snapshot?.olderCursor != null ? (
           <p className="text-sm text-muted-foreground">
@@ -260,9 +358,9 @@ function ProjectThread({
         ) : null}
         {enabled
           ? projectActiveRuns(state.snapshot).map((run) => {
-              const member = state.snapshot?.members?.find((entry) => entry.botId === run.botId);
-              const buttonLabel = member
-                ? text(`取消 ${member.name} 的任务`, `Cancel ${member.name}'s run`)
+              const memberName = projectMemberName(state.snapshot?.members, run.botId);
+              const buttonLabel = memberName
+                ? text(`取消 ${memberName} 的任务`, `Cancel ${memberName}'s run`)
                 : text("取消任务", "Cancel run");
               return (
                 <Button
@@ -271,7 +369,9 @@ function ProjectThread({
                   disabled={state.cancellingRunId !== null}
                   onClick={() => void sessionRef.current?.cancelRun(run.id)}
                 >
-                  {state.cancellingRunId === run.id ? text("正在取消…", "Cancelling…") : buttonLabel}
+                  {state.cancellingRunId === run.id
+                    ? text("正在取消…", "Cancelling…")
+                    : buttonLabel}
                 </Button>
               );
             })
@@ -285,7 +385,12 @@ function ProjectThread({
           </p>
         ) : null}
         {enabled && state.answerError ? (
-          <p role="alert">{text("审批结果未确认，请查看任务状态。", "Approval was not confirmed. Check the run status.")}</p>
+          <p role="alert">
+            {text(
+              "审批结果未确认，请查看任务状态。",
+              "Approval was not confirmed. Check the run status.",
+            )}
+          </p>
         ) : null}
         {enabled && state.downloadError ? (
           <p role="alert">{text("无法下载项目文件。", "Could not download the project file.")}</p>
@@ -322,27 +427,30 @@ function ProjectThread({
         ) : null}
         <div ref={endRef} />
       </section>
-      <form
-        className="flex shrink-0 items-end gap-3 border-t p-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const submitted = draft;
-          void sessionRef.current?.send(submitted).then((sent) => {
-            if (sent) setDraft((current) => (current === submitted ? "" : current));
-          });
-        }}
-      >
-        <Textarea
-          aria-label={text("项目消息", "Project message")}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={disabled}
-          className="max-h-40 min-h-12"
-        />
-        <Button type="submit" disabled={disabled || !draft.trim() || missing.length > 0}>
-          {state.sending ? text("正在发送…", "Sending…") : text("发送", "Send")}
-        </Button>
-      </form>
+      <Composer
+        textOnly
+        artifactTarget={groupId ? { groupId } : { botId: botId ?? "" }}
+        activeName={text("项目", "Project")}
+        running={false}
+        disabled={disabled || missing.length > 0}
+        pendingAttachments={[]}
+        attachmentNotice={null}
+        sendError={null}
+        runError={null}
+        runErrorId={null}
+        onOpenModels={() => {}}
+        onOpenConnections={() => {}}
+        onRunErrorPresented={() => {}}
+        onDismissError={() => {}}
+        sending={state.sending}
+        fileInputRef={fileInputRef}
+        onAttachmentPick={() => false}
+        onRemoveAttachment={() => {}}
+        onSend={async (value) => (await sessionRef.current?.send(value)) ?? false}
+        onStop={async () => {}}
+        draftKey={JSON.stringify(["project", userId, spaceId, projectId, botId, groupId])}
+        enterToSend
+      />
     </main>
   );
 }

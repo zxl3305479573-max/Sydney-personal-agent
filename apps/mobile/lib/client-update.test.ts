@@ -47,7 +47,7 @@ vi.mock("./i18n", () => ({
     values ? message.replace("{version}", values.version) : message,
 }));
 
-import { IOS_APP_STORE_URL } from "@rakazo/contracts";
+import { IOS_INSTALL_GUIDE_URL } from "@rakazo/contracts";
 import {
   checkForManualUpdate,
   clientBuildHeaders,
@@ -214,12 +214,12 @@ describe("update required", () => {
     expect(rn.Linking.openURL).not.toHaveBeenCalled();
   });
 
-  it("opens the store when no over-the-air update can fix it, and asks again next time", async () => {
+  it("opens Sydney's installation guide when there is no over-the-air update", async () => {
     noteClientUpdateRequired();
     pressUpdate();
     await flush();
     expect(updates.reloadAsync).not.toHaveBeenCalled();
-    expect(rn.Linking.openURL).toHaveBeenCalledWith(IOS_APP_STORE_URL);
+    expect(rn.Linking.openURL).toHaveBeenCalledWith(IOS_INSTALL_GUIDE_URL);
     noteClientUpdateRequired();
     expect(rn.Alert.alert).toHaveBeenCalledTimes(2);
     pressUpdate();

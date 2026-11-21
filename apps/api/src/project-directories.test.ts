@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mountProjectDirectoryRoutes } from "./project-directories.js";
 import type { RouterContext } from "./routes/context.js";
+import { projectCloudDirectoryRoutes } from "./routes/project-cloud-directories.js";
 import { projectDirectoryRoutes } from "./routes/project-directories.js";
 import type { UserDeviceRouteDeps } from "./user-devices.js";
 
@@ -229,7 +230,7 @@ describe("shared directory status and revocation", () => {
     });
     const handler = (callback: unknown) => callback;
     const deps = {
-      env: { projectWorkspaceCreateExperiment: true },
+      env: { projectWorkspaceCreateExperiment: true, projectDeviceToolsEnabled: true },
       prisma: {},
       userDevices: { list, request, releaseSignedOut },
     };
@@ -250,6 +251,15 @@ describe("shared directory status and revocation", () => {
       });
     return { call, deps, list, request, releaseSignedOut };
   }
+
+  it("keeps local directory access closed when only project chat is enabled", async () => {
+    const state = setup();
+    state.deps.env.projectDeviceToolsEnabled = false;
+    await expect(state.call("directoryCapability")).resolves.toEqual({ localDevice: false });
+    await expect(state.call("directory")).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+    expect(db.project).not.toHaveBeenCalled();
+    expect(state.request).not.toHaveBeenCalled();
+  });
 
   it("fixes status queries to the bound device and opaque grant", async () => {
     const state = setup();
@@ -350,4 +360,30 @@ describe("shared directory status and revocation", () => {
     expect(db.remove).not.toHaveBeenCalled();
     expect(state.request).not.toHaveBeenCalled();
   });
+});
+
+it("keeps cloud directory access closed when only project chat is enabled", async () => {
+  const identifyProjectFolder = vi.fn();
+  const handler = (callback: unknown) => callback;
+  const routes = projectCloudDirectoryRoutes({
+    deps: {
+      env: { projectWorkspaceCreateExperiment: true, projectConversationCreateExperiment: true },
+      sandbox: { identifyProjectFolder, executeProjectFile: vi.fn() },
+    },
+    authed: {
+      projectWorkspaces: {
+        cloudDirectory: { handler },
+        bindCloudDirectory: { handler },
+        unbindCloudDirectory: { handler },
+      },
+    },
+  } as unknown as RouterContext);
+  const request = { context: { actor }, input: { id: input.projectId } };
+  const cloudDirectory = routes.cloudDirectory as unknown as (args: unknown) => Promise<unknown>;
+  const bind = routes.bindCloudDirectory as unknown as (args: unknown) => Promise<unknown>;
+
+  await expect(cloudDirectory(request)).resolves.toMatchObject({ available: false, binding: null });
+  await expect(bind(request)).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+  expect(db.project).not.toHaveBeenCalled();
+  expect(identifyProjectFolder).not.toHaveBeenCalled();
 });

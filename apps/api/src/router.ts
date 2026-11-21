@@ -125,6 +125,7 @@ export interface RouterDeps {
   env: {
     projectWorkspaceCreateExperiment?: boolean;
     projectConversationCreateExperiment?: boolean;
+    projectDeviceToolsEnabled?: boolean;
     ticketBoardEnabled?: boolean;
     navLinks?: NavLink[];
     adminEmails?: string[];

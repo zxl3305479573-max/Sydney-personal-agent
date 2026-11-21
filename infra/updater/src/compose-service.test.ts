@@ -37,6 +37,20 @@ describe("the production computer provider", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: this is the literal Compose expression
     expect(compose.services[name]?.environment?.SANDBOX_PROVIDER).toBe("${SANDBOX_PROVIDER:-e2b}");
   });
+
+  it("defaults isolated Docker screen networking to the production API proxy", () => {
+    const overlay = parse(
+      readFileSync(path.join(composeDir, "docker-compose.prod.docker.yml"), "utf8"),
+      { merge: true },
+    ) as { services: Record<string, ComposeService> };
+    expect(overlay.services.supervisor?.environment?.SANDBOX_SCREEN_NETWORK).toBe("isolated");
+    expect(overlay.services.supervisor?.environment?.SANDBOX_SCREEN_PEER_SERVICE).toBe(
+      `\${SANDBOX_SCREEN_PEER_SERVICE:-api}`,
+    );
+    expect(compose.services.api?.environment?.SYDNEY_SCREEN_PROXY_ON_API).toBe(
+      `\${SYDNEY_SCREEN_PROXY_ON_API:-true}`,
+    );
+  });
 });
 
 /**
@@ -53,6 +67,11 @@ describe("production project feature gates", () => {
     "SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT",
   ])("requires explicitly enabling %s", (key) => {
     expect(compose.services.api?.environment?.[key]).toBe(interpolated(key, "false"));
+  });
+
+  it.each(["api", "worker"])("keeps project device tools disabled by default in %s", (service) => {
+    const key = "SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED";
+    expect(compose.services[service]?.environment?.[key]).toBe(interpolated(key, "false"));
   });
 });
 

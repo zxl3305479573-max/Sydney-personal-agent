@@ -29,6 +29,7 @@ class NativeDriverPolicyTests(unittest.TestCase):
         self.driver.control_fences = {}
         self.driver.revoked_controls = {}
         self.driver.processes = {}
+        self.driver.project_commands = False
 
     def control_request(self, lease="human", fence=1, expiry=2000, action=None):
         return {
@@ -154,6 +155,7 @@ class NativeDriverPolicyTests(unittest.TestCase):
             folder = home / "project"
             folder.mkdir(parents=True)
             (folder / "sample.txt").write_text("样本", encoding="utf-8")
+            (folder / "nested").mkdir()
             outside = home / "outside.txt"
             outside.write_text("outside", encoding="utf-8")
             (folder / "link.txt").symlink_to(outside)
@@ -168,7 +170,22 @@ class NativeDriverPolicyTests(unittest.TestCase):
                 }
                 self.assertEqual(self.driver.dispatch(request, source), {
                     "operation": "read", "text": "样本",
+                    "sha256": MODULE.hashlib.sha256("样本".encode("utf-8")).hexdigest(),
                 })
+                request["file"] = {"operation": "list"}
+                self.assertEqual(self.driver.dispatch(request, source), {
+                    "operation": "list",
+                    "entries": [
+                        {"path": "nested", "kind": "directory"},
+                        {"path": "sample.txt", "kind": "file"},
+                    ],
+                    "truncated": False,
+                })
+                request["file"] = {"operation": "list", "path": "nested"}
+                self.assertEqual(self.driver.dispatch(request, source), {
+                    "operation": "list", "entries": [], "truncated": False,
+                })
+                request["file"] = {"operation": "read", "path": "sample.txt"}
                 for rejected in ("../outside.txt", "link.txt", "hard.txt"):
                     request["file"]["path"] = rejected
                     with self.subTest(path=rejected), self.assertRaises((MODULE.Refused, OSError)):
@@ -178,6 +195,22 @@ class NativeDriverPolicyTests(unittest.TestCase):
                 with self.assertRaises(FileExistsError):
                     self.driver.dispatch(request, source)
                 self.assertEqual((folder / "result.md").read_text(encoding="utf-8"), "样本")
+                original_hash = MODULE.hashlib.sha256("样本".encode("utf-8")).hexdigest()
+                request["file"] = {
+                    "operation": "update", "path": "sample.txt",
+                    "expectedSha256": original_hash, "text": "新版本",
+                }
+                updated = self.driver.dispatch(request, source)
+                self.assertEqual(updated, {
+                    "operation": "update", "bytes": len("新版本".encode("utf-8")),
+                    "sha256": MODULE.hashlib.sha256("新版本".encode("utf-8")).hexdigest(),
+                })
+                request["file"]["text"] = "must not overwrite"
+                self.assertEqual(self.driver.dispatch(request, source), {
+                    "operation": "conflict",
+                    "sha256": MODULE.hashlib.sha256("新版本".encode("utf-8")).hexdigest(),
+                })
+                self.assertEqual((folder / "sample.txt").read_text(encoding="utf-8"), "新版本")
                 folder.rename(home / "previous")
                 folder.mkdir()
                 with self.assertRaises(MODULE.Refused):
@@ -209,6 +242,93 @@ class NativeDriverPolicyTests(unittest.TestCase):
                     self.driver.dispatch({
                         "method": method, "botId": "bot", "generation": "generation", "run": run,
                     }, None)
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_project_command_has_no_fallback_and_rejects_invalid_requests_before_launch(self, _clock):
+        request = {
+            "method": "project_command", "botId": "bot", "generation": "generation",
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "folder": {"path": "project", "device": "12", "inode": "34"},
+            "command": {"argv": ["cat", "sample.txt"], "inputFiles": ["sample.txt"], "timeoutMs": 2000},
+        }
+        with patch.object(MODULE.subprocess, "Popen") as spawn:
+            with self.assertRaisesRegex(MODULE.Refused, "isolation is unavailable"):
+                self.driver.dispatch(request, None)
+            self.driver.project_commands = True
+            for command in (
+                {**request["command"], "inputFiles": ["../outside.txt"]},
+                {**request["command"], "inputFiles": ["sample.txt", "sample.txt"]},
+                {**request["command"], "argv": ["cat", "\0"]},
+                {**request["command"], "timeoutMs": 8000},
+                {**request["command"], "env": {"DISPLAY": ":99"}},
+            ):
+                with self.subTest(command=command), self.assertRaises(MODULE.Refused):
+                    self.driver.dispatch({**request, "command": command}, None)
+            with self.assertRaisesRegex(MODULE.Refused, "expired run lease"):
+                self.driver.dispatch({**request, "run": {**request["run"], "expiresAt": 1000}}, None)
+            spawn.assert_not_called()
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux") and MODULE.os.environ.get("SYDNEY_TEST_PROJECT_COMMAND_ISOLATION") == "1",
+        "requires an isolated guest with the project command runtime",
+    )
+    def test_project_command_isolates_input_host_paths_network_and_processes(self):
+        with tempfile.TemporaryDirectory() as root, ExitStack() as resources:
+            client, server = socket.socketpair()
+            resources.enter_context(client)
+            resources.enter_context(server)
+            self.driver.root = root
+            self.driver.project_commands = True
+            home = pathlib.Path(root) / "bot"
+            project = home / "project"
+            project.mkdir(parents=True)
+            sample = project / "sample.txt"
+            sample.write_text("original", encoding="utf-8")
+            outside = home / "outside.txt"
+            outside.write_text("private", encoding="utf-8")
+            script = """
+import errno
+import os
+import pathlib
+import socket
+import sys
+import time
+
+assert not os.path.exists(sys.argv[1])
+assert not os.path.exists("/proc/1")
+assert not os.path.exists("/tmp/.X11-unix")
+assert not os.environ.get("DISPLAY")
+assert not os.environ.get("XAUTHORITY")
+assert not os.environ.get("HTTP_PROXY")
+for family in (socket.AF_INET, socket.AF_UNIX):
+    try:
+        socket.socket(family)
+    except OSError as error:
+        assert error.errno == errno.EPERM
+    else:
+        raise AssertionError(f"Unexpected socket access: {family}")
+sample = pathlib.Path("sample.txt")
+assert sample.read_text() == "original"
+sample.write_text("temporary")
+if os.fork() == 0:
+    os.setsid()
+    time.sleep(60)
+print(sample.read_text())
+"""
+            request = {
+                "method": "project_command", "botId": "bot", "generation": "generation",
+                "run": {"id": "run", "fence": 1, "expiresAt": int(time.time() * 1000) + 8000},
+                "folder": self.driver.project_folder("bot", "project"),
+                "command": {
+                    "argv": ["python3", "-I", "-c", script, str(outside)],
+                    "inputFiles": ["sample.txt"],
+                    "timeoutMs": 3000,
+                },
+            }
+            result = self.driver.dispatch(request, server)
+            self.assertEqual(result, {"code": 0, "stdout": "temporary\n", "stderr": ""})
+            self.assertEqual(sample.read_text(encoding="utf-8"), "original")
+            self.assertEqual(outside.read_text(encoding="utf-8"), "private")
 
     @patch.object(MODULE.time, "time", return_value=1.0)
     def test_file_operations_reject_stale_fences(self, _clock):

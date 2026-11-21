@@ -34,6 +34,7 @@ import { MermaidDiagram } from "../components/mermaid-diagram";
 import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
+import { ScopedThemeRoute } from "../components/scoped-theme";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -49,6 +50,9 @@ import { loadAppearancePreference } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { AvatarScreenFocus } from "../lib/avatar-life";
 import { installClientUpdates, useStartupUpdatePrompt } from "../lib/client-update";
+import { loadInstalledThemes } from "../lib/theme-library";
+import { themeScopeForRoute } from "../lib/theme-pack";
+import { themeManager } from "../lib/theme-state";
 import { loadUiMode } from "../lib/ui-mode";
 import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
@@ -124,6 +128,9 @@ const FULL_WINDOW_ROUTES = new Set(["/sign-in", "/server", "/image", "/computer"
 /** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
 function SplitFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  useEffect(() => {
+    themeManager.setActiveScope(themeScopeForRoute(pathname));
+  }, [pathname]);
   const router = useRouter();
   const params = useGlobalSearchParams();
   const routeKey = JSON.stringify([pathname, params]);
@@ -359,7 +366,7 @@ function LayoutContent() {
     void waitForMobileStartup(trackMobileStartup("server", loadApiBase()), [
       trackMobileStartup(
         "appearance",
-        Promise.all([loadAppearancePreference(), loadUiMode()]),
+        Promise.all([loadAppearancePreference(), loadUiMode(), loadInstalledThemes()]),
       ).finally(() => {
         if (active) setAppearanceReady(true);
       }),
@@ -403,14 +410,21 @@ function LayoutContent() {
                     <Stack
                       screenLayout={({ navigation, options, children }) => (
                         <AvatarScreenFocus navigation={navigation}>
-                          {/* Sheets and modals cover the window, so the chat list is not beside them. */}
-                          {options.presentation && options.presentation !== "card" ? (
-                            <InboxBesideContext.Provider value={false}>
-                              {children}
-                            </InboxBesideContext.Provider>
-                          ) : (
-                            children
-                          )}
+                          <ScopedThemeRoute
+                            routeName={
+                              navigation.getState().routes[navigation.getState().index ?? 0]
+                                ?.name ?? "other"
+                            }
+                          >
+                            {/* Sheets and modals cover the window, so the chat list is not beside them. */}
+                            {options.presentation && options.presentation !== "card" ? (
+                              <InboxBesideContext.Provider value={false}>
+                                {children}
+                              </InboxBesideContext.Provider>
+                            ) : (
+                              children
+                            )}
+                          </ScopedThemeRoute>
                         </AvatarScreenFocus>
                       )}
                       screenOptions={{

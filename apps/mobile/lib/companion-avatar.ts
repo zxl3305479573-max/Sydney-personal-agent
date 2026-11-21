@@ -1,13 +1,5 @@
 import { BOT_AVATAR_VALUE_MAX_LENGTH, isBotAvatarValue, parseBotAvatarValue } from "@rakazo/contracts";
-import {
-  avatarIdentitySeed,
-  contrastRatio,
-  LOGO_BODY_PATH,
-  logoAvatarPaint,
-  logoAvatarTraits,
-  organicAvatarPath,
-  usesLogoAvatar,
-} from "@rakazo/core";
+import { avatarIdentitySeed, organicAvatarPath } from "@rakazo/core";
 import { mobileBotAvatarPresentation } from "./bot-avatar";
 
 const MAX_PATH_LENGTH = 2200;
@@ -31,17 +23,7 @@ export function companionAvatar(input: {
     const eye = normalizeColor(shape.eyeColor);
     return points && color && eye ? `s|${color}|${eye}|${points}` : null;
   }
-  if (usesLogoAvatar({ color: input.color, avatarSet: input.avatarSet ?? undefined })) {
-    const traits = logoAvatarTraits(input.botId, input.color);
-    const paint = logoAvatarPaint(traits.color, traits.originalOrange);
-    const color = normalizeColor(paint.base);
-    const eye = contrastRatio(traits.color, "#101014") >= 3.5 ? "101014" : "FFFFFF";
-    const points = sampledShape(LOGO_BODY_PATH, 0, 100, 9);
-    return points && color ? `l|${color}|${eye}|${points}` : null;
-  }
-  if (
-    parsed.kind !== "color"
-  ) return null;
+  if (parsed.kind !== "color") return null;
 
   const color = normalizeColor(parsed.color);
   if (!color) return null;
@@ -78,7 +60,7 @@ function normalizeColor(value: string): string | null {
   return /^[0-9a-f]{6}$/i.test(expanded) ? expanded.toUpperCase() : null;
 }
 
-function sampledShape(path: string, min = -15, extent = 259, offsetY = 0): string | null {
+function sampledShape(path: string): string | null {
   const tokens = path.match(/[MLCQHZ]|-?\d+(?:\.\d+)?/g);
   if (!tokens || tokens.join("") !== path.replace(/[\s,]+/g, "") || tokens[0] !== "M") return null;
   const segmentCount = tokens.filter((token) =>
@@ -113,8 +95,8 @@ function sampledShape(path: string, min = -15, extent = 259, offsetY = 0): strin
     current = end;
   }
   if (tokens[cursor] !== "Z" || cursor !== tokens.length - 1) return null;
-  const encoded = points.flatMap((point) => point.map((coordinate, axis) =>
-    Math.max(0, Math.min(255, Math.round((coordinate + (axis === 1 ? offsetY : 0) - min) * 255 / extent)))
+  const encoded = points.flatMap((point) => point.map((coordinate) =>
+    Math.max(0, Math.min(255, Math.round((coordinate + 15) * 255 / 259)))
       .toString(16).padStart(2, "0"),
   )).join("");
   return encoded.length <= MAX_PATH_LENGTH ? encoded : null;

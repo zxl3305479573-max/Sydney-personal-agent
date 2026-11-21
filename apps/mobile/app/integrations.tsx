@@ -10,7 +10,6 @@ import type {
 import {
   CONNECTION_LABEL_MAX_LENGTH,
   MCP_OAUTH_CLIENT_REQUIRED,
-  SUBMIT_PLUGIN_URL,
 } from "@rakazo/contracts";
 import type { PluginCategory } from "@rakazo/core";
 import {
@@ -1629,16 +1628,6 @@ export default function Integrations() {
                 ) : null}
 
                 {renderPlugins()}
-                {pluginsState !== "loading" ? (
-                  <NativeActionButton
-                    fill={false}
-                    label={t("Submit a plugin")}
-                    onPress={() => void Linking.openURL(SUBMIT_PLUGIN_URL)}
-                    prominence="quiet"
-                    size="compact"
-                    variant="text"
-                  />
-                ) : null}
               </>
             )}
           </>

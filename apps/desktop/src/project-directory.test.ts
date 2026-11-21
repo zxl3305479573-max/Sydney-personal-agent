@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ProjectDirectoryIntent, ProjectFileRequest } from "@rakazo/contracts";
+import type { ProjectDirectoryIntent, ProjectFileRequest, ProjectFileResult } from "@rakazo/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createProjectDirectoryAccess } from "./project-directory.js";
 
@@ -36,7 +36,7 @@ function setup(confirmedIntent?: ProjectDirectoryIntent | null) {
   const inspect = vi.fn(async (value: string) => value);
   const files = {
     capture: vi.fn(async () => ({ directory, dev: 1n, ino: 2n })),
-    execute: vi.fn(async (..._args: Parameters<NonNullable<Parameters<typeof createProjectDirectoryAccess>[0]["files"]>["execute"]>) =>
+    execute: vi.fn<(...args: Parameters<NonNullable<Parameters<typeof createProjectDirectoryAccess>[0]["files"]>["execute"]>) => Promise<ProjectFileResult>>(async (..._args) =>
       ({ operation: "create" as const, bytes: 3 })),
     confirm: vi.fn(async () => confirmedIntent ?? null),
   };
@@ -276,5 +276,44 @@ describe("project file device execution", () => {
     await rejected;
     await expect(state.access.execute(origin, device, request, signal)).rejects.toThrow();
     expect(state.files.execute).toHaveBeenCalledWith({ directory, dev: 1n, ino: 2n }, request.file, expect.any(AbortSignal));
+  });
+
+  it("requires read-write approval before updating an existing project file", async () => {
+    const state = setup("read-only");
+    await state.access.choose(input, state.trusted);
+    const update: ProjectFileRequest = {
+      ...input,
+      method: "projectFile",
+      grantId,
+      file: {
+        operation: "update",
+        path: "src/app.ts",
+        expectedSha256: "a".repeat(64),
+        text: "replacement",
+      },
+    };
+    await expect(state.access.execute(origin, device, update, signal)).rejects.toThrow("not authorized");
+    expect(state.files.execute).not.toHaveBeenCalled();
+  });
+
+  it("allows a read-only grant to list names without opening file contents", async () => {
+    const state = setup("read-only");
+    await state.access.choose(input, state.trusted);
+    state.files.execute.mockResolvedValue({
+      operation: "list",
+      entries: [{ path: "src/index.ts", kind: "file" }],
+      truncated: false,
+    });
+    const { method: _method, file: _file, ...scope } = request;
+    await expect(state.access.execute(origin, device, {
+      ...scope,
+      method: "projectFile",
+      file: { operation: "list", path: "src" },
+    }, signal)).resolves.toMatchObject({ operation: "list", entries: [{ path: "src/index.ts" }] });
+    expect(state.files.execute).toHaveBeenCalledWith(
+      { directory, dev: 1n, ino: 2n },
+      { operation: "list", path: "src" },
+      expect.any(AbortSignal),
+    );
   });
 });

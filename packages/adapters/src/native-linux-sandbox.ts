@@ -18,9 +18,21 @@ import type {
   ScreenSession,
   SnapshotRef,
 } from "@rakazo/adapter-kit";
-import type { ProjectCloudFolder, ProjectFileOperation, ProjectFileResult } from "@rakazo/contracts";
-import { ProjectCloudFolderSchema, ProjectFileOperationSchema, ProjectFileResultSchema } from "@rakazo/contracts";
-import { computerHomeKey } from "@rakazo/db";
+import type {
+  ProjectCloudCommand,
+  ProjectCloudCommandResult,
+  ProjectCloudFolder,
+  ProjectFileOperation,
+  ProjectFileResult,
+} from "@rakazo/contracts";
+import {
+  ProjectCloudCommandResultSchema,
+  ProjectCloudCommandSchema,
+  ProjectCloudFolderSchema,
+  ProjectFileOperationSchema,
+  ProjectFileResultSchema,
+} from "@rakazo/contracts";
+import { computerHomeKey, legacyTeamHomeKey } from "@rakazo/db";
 
 type Transport = (
   method: string,
@@ -31,6 +43,16 @@ type Transport = (
 ) => Promise<unknown>;
 
 type DriverResponse = { ok: true; value: unknown } | { ok: false; error: string };
+
+export class NativeProjectFileDispatchError extends Error {
+  constructor(
+    readonly reason: "offline" | "generation_changed",
+    options?: ErrorOptions,
+  ) {
+    super(`native_project_file_${reason}`, options);
+    this.name = "NativeProjectFileDispatchError";
+  }
+}
 
 function socketTransport(socketPath: string) {
   return (
@@ -47,6 +69,7 @@ function socketTransport(socketPath: string) {
         return;
       }
       const socket = net.createConnection(socketPath);
+      let connected = false;
       const chunks: Buffer[] = [];
       const cleanup = () => {
         clearTimeout(timer);
@@ -65,7 +88,16 @@ function socketTransport(socketPath: string) {
       signal?.addEventListener("abort", onAbort, { once: true });
       socket.once("error", (error) => {
         cleanup();
-        reject(error);
+        const code = (error as NodeJS.ErrnoException).code;
+        if (
+          (method === "project_file" || method === "project_command") &&
+          !connected &&
+          (code === "ENOENT" || code === "ECONNREFUSED")
+        ) {
+          reject(new NativeProjectFileDispatchError("offline", { cause: error }));
+        } else {
+          reject(error);
+        }
       });
       socket.once("close", () => {
         cleanup();
@@ -80,13 +112,22 @@ function socketTransport(socketPath: string) {
         socket.end();
         try {
           const response = JSON.parse(data.slice(0, lineEnd)) as DriverResponse;
-          if (!response.ok) reject(new Error(response.error));
-          else resolve(response.value);
+          if (response.ok) {
+            resolve(response.value);
+          } else if (
+            (method === "project_file" || method === "project_command") &&
+            response.error === "native_driver_generation_changed"
+          ) {
+            reject(new NativeProjectFileDispatchError("generation_changed"));
+          } else {
+            reject(new Error(response.error));
+          }
         } catch (error) {
           reject(error);
         }
       });
       socket.once("connect", () => {
+        connected = true;
         const request = {
           ...(typeof params === "object" && params !== null ? params : { value: params }),
           method,
@@ -283,9 +324,42 @@ export class NativeLinuxSandbox implements SandboxProvider {
     const result = ProjectFileResultSchema.parse(
       await this.transport("project_file", { folder: checkedFolder, file: checkedFile }, guarded, computer),
     );
-    if (result.operation !== checkedFile.operation)
+    if (
+      result.operation !== checkedFile.operation &&
+      !(checkedFile.operation === "update" && result.operation === "conflict")
+    )
       throw new Error("native_project_file_result_mismatch");
     return result;
+  }
+
+  async executeProjectCommand(
+    computer: ComputerRef,
+    folder: ProjectCloudFolder,
+    command: ProjectCloudCommand,
+    context: AdapterContext,
+  ): Promise<ProjectCloudCommandResult> {
+    const teamHome = computerHomeKey({ mode: "team", spaceId: context.spaceId, userId: context.userId });
+    if (
+      computer.botId !== context.botId ||
+      computer.botId === teamHome ||
+      computer.botId === legacyTeamHomeKey(context.spaceId)
+    ) throw new Error("native_project_command_requires_dedicated_computer");
+    const checkedFolder = ProjectCloudFolderSchema.parse(folder);
+    const checkedCommand = ProjectCloudCommandSchema.parse(command);
+    const guarded = await this.guard(context, computer);
+    return ProjectCloudCommandResultSchema.parse(
+      await this.transport(
+        "project_command", { folder: checkedFolder, command: checkedCommand }, guarded, computer,
+      ),
+    );
+  }
+
+  async projectCommandAvailable(computer: ComputerRef, context: AdapterContext): Promise<boolean> {
+    if (computer.botId !== context.botId) return false;
+    const guarded = await this.guard(context, computer);
+    const result = await this.transport("project_command_status", {}, guarded, computer) as unknown;
+    if (typeof result !== "object" || result === null || !("available" in result)) return false;
+    return (result as { available?: unknown }).available === true;
   }
 
   async *execute(

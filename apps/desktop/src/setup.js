@@ -5,10 +5,7 @@
 
   /** Core's `translate`, which this plain page cannot import: English-keyed, `{name}` placeholders. */
   function t(message, values) {
-    const template = (Object.hasOwn(messages, message) ? messages[message] : message).replace(
-      /Rakazo/g,
-      "Sydney",
-    );
+    const template = Object.hasOwn(messages, message) ? messages[message] : message;
     if (!values) return template;
     return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) =>
       Object.hasOwn(values, key) ? String(values[key]) : match,
@@ -57,10 +54,10 @@
   const PHASE_LABELS = {
     "checking-docker": t("Getting ready…"),
     preparing: t("Getting ready…"),
-    pulling: t("Downloading Rakazo…"),
-    starting: t("Starting Rakazo…"),
+    pulling: t("Downloading Sydney…"),
+    starting: t("Starting Sydney…"),
     "waiting-healthy": t("Almost ready…"),
-    ready: t("Rakazo is ready."),
+    ready: t("Sydney is ready."),
   };
   const TERMINAL_PHASES = new Set([
     "idle",
@@ -345,7 +342,7 @@
       if (generation !== requestGeneration) return result;
       if (result.ok) {
         serverUrl.value = result.url;
-        setStatus(t("Rakazo answered at {url}.", { url: result.url }), "ok");
+        setStatus(t("Sydney answered at {url}.", { url: result.url }), "ok");
       } else {
         setStatus(result.error ?? t("Could not reach that address."), "error");
       }
@@ -485,7 +482,7 @@
         continueButton.focus();
       }
     } catch {
-      setStatus(t("Setup could not start. Quit Rakazo and try again."), "error");
+      setStatus(t("Setup could not start. Quit Sydney and try again."), "error");
       setBusy(true);
     }
   }

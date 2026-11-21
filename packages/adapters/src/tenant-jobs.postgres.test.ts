@@ -108,6 +108,15 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
         },
       });
     }
+    await o.member.create({
+      data: {
+        id: `tenant-jobs-organization-member-${suffix}`,
+        organizationId,
+        userId: a.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
     await o.spaceMember.create({
       data: {
         id: `tenant-jobs-membership-${suffix}`,

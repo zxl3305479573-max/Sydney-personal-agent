@@ -59,6 +59,9 @@ export async function getProjectCloudDirectory(
       AND r."userId" = b."userId" AND r."spaceId" = b."spaceId" AND r."status" = 'running'
       AND r."leaseOwner" = ${run.workerId} AND r."leaseFence" = ${run.fence}
       AND r."leaseExpiresAt" > CURRENT_TIMESTAMP
+      AND r."projectDirectoryPin" = jsonb_build_object(
+        'kind', 'cloud', 'targetId', b."computerId", 'grantId', b."grantId", 'intent', b."intent"
+      )
   ) AND c."controlHolder" = 'none' AND c."maintenanceId" IS NULL
     AND c."executionRunId" IS NULL AND NOT EXISTS (
       SELECT 1 FROM "computer_execution_leases" l

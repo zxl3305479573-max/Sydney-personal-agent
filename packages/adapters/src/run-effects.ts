@@ -111,8 +111,16 @@ export function buildApprovalContinuation(
           : `${effect.kind}: ${formatRequest(args)}`;
       }
       if (isProjectFileTool(effect.kind) && effect.request && typeof effect.request === "object") {
-        const { path, text } = effect.request as { path?: unknown; text?: unknown };
-        const args = { path, ...(typeof text === "string" ? { text } : {}) };
+        const { path, text, expectedSha256 } = effect.request as {
+          path?: unknown;
+          text?: unknown;
+          expectedSha256?: unknown;
+        };
+        const args = {
+          path,
+          ...(typeof text === "string" ? { text } : {}),
+          ...(typeof expectedSha256 === "string" ? { expectedSha256 } : {}),
+        };
         return exposed && !exposed.has(effect.kind) && exposed.has(USE_TOOL)
           ? `${USE_TOOL}: ${formatRequest({ name: effect.kind, arguments: args })}`
           : `${effect.kind}: ${formatRequest(args)}`;

@@ -43,10 +43,10 @@ export async function getRunningProjectDirectory(
     workerId: string;
     fence: number;
   },
-): Promise<ProjectDirectoryBinding | null> {
+): Promise<(ProjectDirectoryBinding & { deviceName: string }) | null> {
   const rows = await runAsTenant(scopeFor(scope, scope.projectId), () =>
-    prisma.$queryRaw<ProjectDirectoryBinding[]>(Prisma.sql`
-      SELECT b."deviceId", b."grantId", b."directoryName", b."intent"
+    prisma.$queryRaw<Array<ProjectDirectoryBinding & { deviceName: string }>>(Prisma.sql`
+      SELECT b."deviceId", b."grantId", b."directoryName", b."intent", d."name" AS "deviceName"
       FROM "runs" r
       JOIN "project_directory_bindings" b ON
         (b."projectId", b."spaceId", b."userId") = (r."projectWorkspaceId", r."spaceId", r."userId")
@@ -60,11 +60,16 @@ export async function getRunningProjectDirectory(
         AND r."userId" = ${scope.userId} AND r."status" = 'running'
         AND r."leaseOwner" = ${scope.workerId} AND r."leaseFence" = ${scope.fence}
         AND r."leaseExpiresAt" > CURRENT_TIMESTAMP
+        AND r."projectDirectoryPin" = jsonb_build_object(
+          'kind', 'windows', 'targetId', b."deviceId", 'grantId', b."grantId", 'intent', b."intent"
+        )
         AND s."deletingAt" IS NULL AND w."deletingAt" IS NULL
         AND d."revokedAt" IS NULL AND d."platform" = 'win32' AND ss."expiresAt" > CURRENT_TIMESTAMP
     `),
   );
-  return rows[0] ? ProjectDirectoryBindingSchema.parse(rows[0]) : null;
+  if (!rows[0]) return null;
+  const { deviceName, ...binding } = rows[0];
+  return { ...ProjectDirectoryBindingSchema.parse(binding), deviceName };
 }
 
 export async function bindProjectDirectory(

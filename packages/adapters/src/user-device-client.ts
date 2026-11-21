@@ -275,7 +275,9 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
               );
           if (!current()) return;
           if ("operation" in result && request.method === "projectFile" &&
-            result.operation !== request.file.operation) throw new Error("Mismatched project file response");
+            result.operation !== request.file.operation &&
+            !(request.file.operation === "update" && result.operation === "conflict"))
+            throw new Error("Mismatched project file response");
           await send(id, { value: result });
           if (current()) await send(id, { done: true });
         } catch {

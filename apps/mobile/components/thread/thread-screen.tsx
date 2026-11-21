@@ -46,6 +46,7 @@ import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
 import { useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
+import { useScopedTheme } from "../../lib/scoped-theme-context";
 import { useInboxBot } from "../../lib/search-inbox";
 import { currentSessionGeneration } from "../../lib/session";
 import { useSplitView } from "../../lib/split-view";
@@ -104,6 +105,8 @@ function isActiveStatus(status: string | undefined): boolean {
  */
 export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string }) {
   const tokens = mobileTokens();
+  const scopedTheme = useScopedTheme();
+  const cardLayout = scopedTheme?.layout === "cards";
   const chatAppearance = useMobileChatAppearance();
   const styles = useThemedStyles(createThreadHeaderStyles);
   const { t, locale } = useI18n();
@@ -735,7 +738,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     openComputer,
   };
   const classicContent = (
-    <View style={{ flex: 1 }}>
+    <View style={[{ flex: 1 }, cardLayout ? { paddingHorizontal: 8, paddingTop: 8 } : null]}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
         resizeMode={chatAppearance.backgroundFit}
@@ -764,6 +767,14 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           style={{
             flex: 1,
             backgroundColor: tokens.background,
+            ...(cardLayout
+              ? {
+                  borderRadius: scopedTheme.geometry.cardRadius,
+                  overflow: "hidden" as const,
+                  borderWidth: scopedTheme.geometry.borderWidth,
+                  borderColor: tokens.border,
+                }
+              : null),
           }}
         >
           {/* The keyboard's padding shrinks this, so the floating composer rides above it. */}

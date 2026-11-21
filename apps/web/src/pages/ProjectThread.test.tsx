@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import type { ButtonHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
-import { act } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
+import { act, useState } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
@@ -10,22 +10,73 @@ const runtime = vi.hoisted(() => ({
   user: "user-a",
   space: "space-a",
   navigate: (_path: string) => {},
+  getProject: vi.fn(),
   threadSnapshot: vi.fn(),
   subscribe: vi.fn(),
   consentStatus: vi.fn(),
   consentAllow: vi.fn(),
   sendText: vi.fn(),
   cancelRun: vi.fn(),
+  roster: vi.fn(),
 }));
 vi.mock("@lingui/react/macro", () => ({ useLingui: () => ({ i18n: { locale: "zh-CN" } }) }));
 vi.mock("@rakazo/ui-web", () => ({
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
-  Textarea: (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
+  BotAvatar: ({
+    identity,
+    color,
+    avatarSet,
+    activity,
+  }: {
+    identity?: string;
+    color: string;
+    avatarSet?: string;
+    activity?: string;
+  }) => (
+    <span
+      data-avatar={identity}
+      data-color={color}
+      data-avatar-set={avatarSet}
+      data-activity={activity}
+    />
+  ),
+}));
+vi.mock("./shell/composer", () => ({
+  Composer: ({
+    onSend,
+    disabled,
+    textOnly,
+  }: ComponentProps<typeof import("./shell/composer").Composer>) => {
+    const [draft, setDraft] = useState("");
+    return (
+      <form
+        data-shared-composer
+        data-text-only={textOnly}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (disabled) return;
+          const submitted = draft;
+          void onSend(submitted, [], "composer-nonce").then((sent) => {
+            if (sent) setDraft((current) => (current === submitted ? "" : current));
+          });
+        }}
+      >
+        <textarea
+          disabled={disabled}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <button type="submit" disabled={disabled}>
+          发送
+        </button>
+      </form>
+    );
+  },
 }));
 vi.mock("../lib/query", () => ({ useQueryUserId: () => runtime.user }));
 vi.mock("../lib/rpc", () => ({
   selectedSpaceId: () => runtime.space,
-  createSpaceRpc: () => ({ projectWorkspaces: runtime }),
+  createSpaceRpc: () => ({ projectWorkspaces: { ...runtime, get: runtime.getProject } }),
 }));
 vi.mock("./WindowChrome", () => ({ WindowChrome: () => null }));
 
@@ -44,7 +95,7 @@ describe("desktop project text chat", () => {
         id: "message-a",
         role: "assistant",
         botId: "bot-a",
-        blocks: [{ kind: "text", text: "<script>external()</script>" }],
+        blocks: [{ kind: "text", text: "External **reply**\n\n<script>external()</script>" }],
       },
     ],
     olderCursor: null,
@@ -85,6 +136,7 @@ describe("desktop project text chat", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     runtime.user = "user-a";
     runtime.space = "space-a";
+    runtime.getProject.mockReset().mockResolvedValue({ name: "Project Alpha" });
     runtime.threadSnapshot.mockReset().mockResolvedValue(snapshot);
     runtime.subscribe.mockReset().mockImplementation(async (_input, { signal }) =>
       (async function* () {
@@ -98,6 +150,12 @@ describe("desktop project text chat", () => {
     runtime.consentAllow.mockReset().mockResolvedValue(approved);
     runtime.sendText.mockReset().mockResolvedValue({ ok: true });
     runtime.cancelRun.mockReset().mockResolvedValue({ ok: true });
+    runtime.roster.mockReset().mockResolvedValue({
+      bots: [{ id: "bot-a", name: "Alpha", color: "#123456", avatarSet: "rakazo" }],
+      groups: [],
+      nextBotId: null,
+      nextGroupId: null,
+    });
     container = document.createElement("div");
     root = createRoot(container);
   });
@@ -116,8 +174,10 @@ describe("desktop project text chat", () => {
       expect.objectContaining({ projectId: "project-a", cursor: 1 }),
       expect.anything(),
     );
-    expect(container.textContent).toContain("<script>external()</script>");
+    expect(container.textContent).toContain("External reply");
+    expect(container.querySelector("strong")?.textContent).toBe("reply");
     expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).toContain("Project Alpha");
     expect(container.querySelector("a")?.getAttribute("href")).toBe("/app/projects/project-a");
   });
 
@@ -135,30 +195,73 @@ describe("desktop project text chat", () => {
     expect(calls[0]?.[0].clientNonce).toBe(calls[1]?.[0].clientNonce);
   });
 
-  it("cancels only the chosen group member's active run", async () => {
+  it("uses the shared text-only composer and resolves single-chat avatars from the project roster", async () => {
+    await render();
+    expect(container.querySelector("[data-shared-composer]")?.getAttribute("data-text-only")).toBe(
+      "true",
+    );
+    const avatar = container.querySelector("[data-avatar]");
+    expect(avatar?.getAttribute("data-avatar")).toBe("bot-a");
+    expect(avatar?.getAttribute("data-avatar-set")).toBe("rakazo");
+    expect(avatar?.getAttribute("data-color")).toBe("#123456");
+    expect(avatar?.getAttribute("data-activity")).toBe("idle");
+    expect(runtime.roster).toHaveBeenCalledExactlyOnceWith(
+      { id: "project-a", afterBotId: undefined },
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  it("keeps sent Markdown literal and aligns user messages with the ordinary user bubble", async () => {
+    runtime.threadSnapshot.mockResolvedValueOnce({
+      ...snapshot,
+      messages: [
+        {
+          id: "user-a",
+          role: "user",
+          blocks: [{ kind: "text", text: "**literal** <script>external()</script>" }],
+        },
+      ],
+    });
+    await render();
+    const bubble = container.querySelector('[data-testid="message-user-bubble"]');
+    expect(bubble?.textContent).toBe("**literal** <script>external()</script>");
+    expect(bubble?.querySelector("strong, script")).toBeNull();
+    expect(container.querySelector("[data-avatar]")).toBeNull();
+  });
+
+  it("distinguishes same-name group members and cancels only the chosen run", async () => {
     const firstRun = { id: "run-a", botId: "bot-a", status: "running" };
     const secondRun = { id: "run-b", botId: "bot-b", status: "queued" };
     const group = {
       ...snapshot,
       groupId: "group-a",
-      members: [{ botId: "bot-a", name: "Alpha" }, { botId: "bot-b", name: "Beta" }],
+      members: [
+        { botId: "bot-a", name: "Alpha" },
+        { botId: "bot-b", name: "Alpha" },
+      ],
       run: firstRun,
-      activeRuns: [firstRun, secondRun],
+      activeRuns: [secondRun, firstRun],
     };
     runtime.threadSnapshot.mockResolvedValueOnce(group).mockResolvedValueOnce({
-      ...group, cursor: 2, activeRuns: [firstRun],
+      ...group,
+      cursor: 2,
+      run: secondRun,
+      activeRuns: [secondRun],
     });
     await render("/app/projects/project-a/chat?groupId=group-a");
+    expect(
+      Array.from(container.querySelectorAll("p"), (paragraph) => paragraph.textContent),
+    ).toContain("Alpha (1)");
     const stop = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "取消 Beta 的任务",
+      (button) => button.textContent === "取消 Alpha (1) 的任务",
     )!;
     await act(async () => stop.click());
     expect(runtime.cancelRun).toHaveBeenCalledExactlyOnceWith(
-      { projectId: "project-a", groupId: "group-a", botId: undefined, runId: "run-b" },
+      { projectId: "project-a", groupId: "group-a", botId: undefined, runId: "run-a" },
       { signal: expect.any(AbortSignal) },
     );
-    expect(container.textContent).toContain("取消 Alpha 的任务");
-    expect(container.textContent).not.toContain("取消 Beta 的任务");
+    expect(container.textContent).toContain("取消 Alpha (2) 的任务");
+    expect(container.textContent).not.toContain("取消 Alpha (1) 的任务");
   });
 
   it("asks for consent before sending and requires another send after allowing", async () => {

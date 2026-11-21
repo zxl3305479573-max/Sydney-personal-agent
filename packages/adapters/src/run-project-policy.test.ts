@@ -50,8 +50,8 @@ describe("project text tool policy", () => {
   });
 
   it.each([
-    ["user", "project-a", "read-only", ["project_read_file"]],
-    ["user", "project-a", "read-write", ["project_create_file", "project_read_file"]],
+    ["user", "project-a", "read-only", ["project_list_files", "project_read_file"]],
+    ["user", "project-a", "read-write", ["project_create_file", "project_list_files", "project_read_file", "project_update_file"]],
     ["routine", "project-a", "read-write", []],
     ["user", null, "read-write", []],
   ] as const)("restricts file tools for %s in %s with %s", (trigger, projectWorkspaceId, projectDirectoryIntent, names) => {
@@ -69,6 +69,36 @@ describe("project text tool policy", () => {
     expect(names({ projectWorkspaceId: null })).not.toContain("project_windows_terminal");
     expect(names({ trigger: "routine" })).not.toContain("project_windows_terminal");
     expect(names({ messagingChannelRun: true })).not.toContain("project_windows_terminal");
+  });
+
+  it("offers an isolated cloud command only when the dedicated provider confirms it", () => {
+    const names = (overrides: Partial<Parameters<typeof selectBuiltinToolsForRun>[0]> = {}) =>
+      selectBuiltinToolsForRun({ ...options, projectCloudCommand: true, ...overrides })
+        .map((tool) => tool.name);
+    expect(names()).toContain("project_cloud_command");
+    expect(names({ projectWorkspaceId: null })).not.toContain("project_cloud_command");
+    expect(names({ trigger: "routine" })).not.toContain("project_cloud_command");
+    expect(names({ messagingChannelRun: true })).not.toContain("project_cloud_command");
+    expect(selectBuiltinToolsForRun(options).map((tool) => tool.name)).not.toContain("project_cloud_command");
+  });
+
+  it("never exposes a project shell or arbitrary command without an isolated executor", () => {
+    const tools = selectBuiltinToolsForRun({
+      ...options,
+      projectDirectoryIntent: "read-write",
+      projectWindowsTerminal: true,
+    });
+    const names = tools.map((tool) => tool.name);
+    expect(names.filter((name) => name.startsWith("project_"))).toEqual([
+      "project_list_files",
+      "project_read_file",
+      "project_create_file",
+      "project_update_file",
+      "project_windows_terminal",
+    ]);
+    expect(names).not.toContain("shell");
+    expect(names).not.toContain("user_computer_shell");
+    expect(names).not.toContain("computer_act");
   });
 
   it.each([null, undefined])("retains homepage tools for scope %s", (projectWorkspaceId) => {

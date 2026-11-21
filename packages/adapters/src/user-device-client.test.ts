@@ -2,6 +2,7 @@ import { once } from "node:events";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -142,8 +143,30 @@ describe("user device client", () => {
     } }));
     await until(() => received.some((frame) => frame.id === "read" && "done" in frame.frame));
     expect(received.find((frame) => frame.id === "read")?.frame).toEqual({
-      value: { operation: "read", text: "样本" },
+      value: {
+        operation: "read", text: "样本",
+        sha256: createHash("sha256").update("样本", "utf8").digest("hex"),
+      },
     });
+    const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
+    ws.send(JSON.stringify({ type: "request", id: "update", request: {
+      ...request,
+      file: { operation: "update", path: "input.txt", expectedSha256: sampleHash, text: "已修改" },
+    } }));
+    await until(() => received.some((frame) => frame.id === "update" && "done" in frame.frame));
+    const updatedHash = createHash("sha256").update("已修改", "utf8").digest("hex");
+    expect(received.find((frame) => frame.id === "update")?.frame).toEqual({
+      value: { operation: "update", bytes: Buffer.byteLength("已修改", "utf8"), sha256: updatedHash },
+    });
+    ws.send(JSON.stringify({ type: "request", id: "conflict", request: {
+      ...request,
+      file: { operation: "update", path: "input.txt", expectedSha256: sampleHash, text: "不应覆盖" },
+    } }));
+    await until(() => received.some((frame) => frame.id === "conflict" && "done" in frame.frame));
+    expect(received.find((frame) => frame.id === "conflict")?.frame).toEqual({
+      value: { operation: "conflict", sha256: updatedHash },
+    });
+    expect(await readFile(path.join(root, "input.txt"), "utf8")).toBe("已修改");
     ws.send(JSON.stringify({ type: "request", id: "create", request: {
       ...request, file: { operation: "create", path: "result.md", text: "结果" },
     } }));
@@ -164,7 +187,7 @@ describe("user device client", () => {
       const file = vi.fn<NonNullable<UserDeviceClientOptions["projectFile"]>>(async (_request, signal) => {
         operationSignal = signal;
         await new Promise<void>((resolve) => { finish = resolve; });
-        return { operation: "read", text: "private sample" };
+        return { operation: "read", text: "private sample", sha256: "a".repeat(64) };
       });
       start(authorize, undefined, file);
       const ws = await connection();

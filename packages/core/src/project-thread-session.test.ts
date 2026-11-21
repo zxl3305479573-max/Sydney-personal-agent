@@ -96,12 +96,27 @@ function fixture(pendingSend?: ProjectThreadPendingSend) {
     cursor: number;
     text: string;
     run?: { id: string; status: string };
+    activeRuns?: { id: string; status: string }[];
     messages?: Pick<ThreadMessage, "id" | "runId" | "blocks">[];
   }>({
     current: () => current,
     load,
     subscribe,
-    reduce: (snapshot, next) => ({ ...snapshot, text: `event-${next.seq}` }),
+    reduce: (snapshot, next) => ({
+      ...snapshot,
+      text: `event-${next.seq}`,
+      ...(next.type === "run.queued" && next.runId
+        ? {
+            run:
+              snapshot.run?.id === next.runId
+                ? { ...snapshot.run, status: "queued" }
+                : snapshot.run,
+            activeRuns: snapshot.activeRuns?.map((run) =>
+              run.id === next.runId ? { ...run, status: "queued" } : run,
+            ),
+          }
+        : {}),
+    }),
     consentStatus,
     consentAllow,
     send,
@@ -132,6 +147,28 @@ function fixture(pendingSend?: ProjectThreadPendingSend) {
 }
 
 afterEach(() => vi.useRealTimers());
+
+it("moves only the device-waiting project run back to queued", async () => {
+  const test = fixture();
+  const run = { id: "run-a", status: "running" };
+  const sibling = { id: "run-b", status: "running" };
+  test.load.mockResolvedValue({ threadId: "thread-a", cursor: 2, run, activeRuns: [run, sibling] });
+  await vi.waitFor(() => expect(test.subscribe).toHaveBeenCalledOnce());
+  await test.session.refresh();
+  test.receive({
+    ...event(3),
+    type: "run.queued",
+    runId: run.id,
+    payload: { reason: "project_device_offline", trigger: "user" },
+  });
+  expect(test.session.getSnapshot().snapshot).toMatchObject({
+    cursor: 3,
+    run: { ...run, status: "queued" },
+    activeRuns: [{ ...run, status: "queued" }, sibling],
+  });
+  test.leave();
+  await test.started;
+});
 
 describe("project conversation session", () => {
   it("qualifies same-name members in roster order and preserves other names", () => {

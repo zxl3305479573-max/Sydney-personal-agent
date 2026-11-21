@@ -83,7 +83,7 @@ jobs:
       # Runs after product e2e so shared apps/web/test-results is not wiped by the product run.
       - name: Capture marketing homepage screenshots
         if: matrix.shard == 1 && always() && (steps.playwright_tests.outcome == 'success' || steps.playwright_tests.outcome == 'failure')
-        run: pnpm --filter @rakazo/www e2e
+        run: pnpm --filter @sydney/www e2e
       - name: Upload shard results
         if: always()
         uses: actions/upload-artifact@v4

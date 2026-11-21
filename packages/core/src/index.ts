@@ -47,8 +47,6 @@ export * from "./instruction-diff.js";
 export * from "./list-search.js";
 export * from "./logo-avatar-activity.js";
 export * from "./logo-avatar-activity-store.js";
-export * from "./logo-avatar-art.js";
-export * from "./logo-avatar-motion.js";
 export * from "./logo-avatar-traits.js";
 export * from "./loop-guard-message.js";
 export * from "./markdown-plain.js";

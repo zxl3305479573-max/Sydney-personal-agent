@@ -866,7 +866,10 @@ export async function sendThreadMessage(
           clientNonce: input.clientNonce,
         });
         const answered: typeof activeRuns = [];
-        for (const run of activeRuns.filter((run) => run.status === "waiting_input")) {
+        const waitingRuns = activeRuns.filter((run) => run.status === "waiting_input");
+        const allowEarlierQuestion =
+          waitingRuns.length === 1 && !input.replyToMessageId && !attachmentBlocks.length;
+        for (const run of waitingRuns) {
           if (
             await answerWaitingRunWithTextInTransaction(tx, {
               spaceId: actor.spaceId,
@@ -875,6 +878,7 @@ export async function sendThreadMessage(
               answeredByUserId: actor.userId,
               answer: input.text ?? "",
               beforeMessageSeq: message.seq,
+              allowEarlierQuestion,
             })
           )
             answered.push({ ...run, status: "queued" });
@@ -1078,6 +1082,10 @@ export async function sendThreadMessage(
       });
       const activeByBotId = new Map<string, (typeof activeRuns)[number]>();
       const answeredByBotId = new Map<string, Array<(typeof activeRuns)[number]>>();
+      const allowEarlierQuestion =
+        activeRuns.filter((run) => run.status === "waiting_input").length === 1 &&
+        !input.replyToMessageId &&
+        !attachmentBlocks.length;
       for (const run of activeRuns) {
         if (run.status === "waiting_input") {
           const answered = await answerWaitingRunWithTextInTransaction(tx, {
@@ -1087,6 +1095,7 @@ export async function sendThreadMessage(
             answeredByUserId: actor.userId,
             answer: input.text ?? "",
             beforeMessageSeq: message.seq,
+            allowEarlierQuestion,
           });
           if (answered) {
             const queuedForBot = answeredByBotId.get(run.botId) ?? [];

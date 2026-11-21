@@ -194,6 +194,18 @@ describe("loadEnv", () => {
       }).projectWorkspaceCreateExperiment,
     ).toBe(false);
   });
+  it("keeps project device tools off when only project chat is enabled", () => {
+    const chatEnv = {
+      ...base,
+      SYDNEY_PROJECT_CREATE_EXPERIMENT: "true",
+      SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: "true",
+    };
+    expect(loadEnv(chatEnv).projectDeviceToolsEnabled).toBe(false);
+    expect(
+      loadEnv({ ...chatEnv, SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED: "true" })
+        .projectDeviceToolsEnabled,
+    ).toBe(true);
+  });
   it("enables screen companion only when explicitly requested in test or development", () => {
     expect(loadEnv(base).companionScreenExperimental).toBe(false);
     expect(

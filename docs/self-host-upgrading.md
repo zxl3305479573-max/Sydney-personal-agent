@@ -8,9 +8,9 @@ for you.
 A Compose deployment on a published release tag upgrades by moving that tag:
 
 ```bash
-docker compose --env-file .env -f infra/compose/docker-compose.prod.yml pull api worker web
+docker compose --env-file .env -f infra/compose/docker-compose.prod.yml pull migrate api worker
 docker compose --env-file .env -f infra/compose/docker-compose.prod.yml \
-  up -d --wait --pull never api worker web
+  up -d --wait --pull never api worker
 ```
 
 A deployment on the default `local` tag has no registry to pull from, so it upgrades by rebuilding
@@ -19,11 +19,11 @@ the checkout instead:
 ```bash
 git pull
 GIT_SHA=$(git rev-parse HEAD) docker compose --env-file .env -f infra/compose/docker-compose.prod.yml \
-  up -d --wait --pull never --build api worker web
+  up -d --wait --pull never --build api worker
 ```
 
-`up --wait` does not report success until the new API is healthy and the worker and web containers
-are running. Compose stops the old worker before it starts the new one, and the stop waits for the
+`up --wait` waits for the API and worker health checks. Compose stops the old worker before it
+starts the new one, and the stop waits for the
 jobs it is running to finish, for up to 45 minutes, instead of cutting them off; new jobs start once
 the new worker is up. The API starts only after the `migrate` container finishes, so a migration failure keeps the new API
 from starting. A failed CLI recreate does not auto-roll back; recover with the previous
@@ -34,6 +34,12 @@ it. Move it deliberately by setting `RAKAZO_UPDATER_IMAGE_TAG` to the full `sha-
 running `docker compose … pull updater && docker compose … up -d --wait --pull never updater`.
 Sidecar `/apply` and `/rollback` recover a failed recreate by redeploying the previously cached
 image when possible; if that also fails, they report a possible mixed-version runtime.
+
+For a deployment with an overlay, use the same Compose files and ordering as the running stack.
+Check that `migrate`, `api`, and `worker` resolve to the intended image with both the upgrade and
+rollback tags. A fixed `image:` in an overlay takes precedence over the base file and will keep
+using the old image when `RAKAZO_IMAGE_TAG` moves. Include any screen bridge that shares the API
+container's network namespace in the recreate. See [Sydney production release steps](../docx/OPERATIONS.md#个人生产首版发布顺序2026-11-20) for the release path that applies only the selected migrations.
 
 Source checkouts (not Compose) still upgrade the old way: pull, rebuild with
 `GIT_SHA=$(git rev-parse HEAD)`, run `pnpm db:migrate`, then restart API and worker.
@@ -141,10 +147,10 @@ compatibility. A fork's CI therefore fills the fork's own namespace. For this re
 | `ghcr.io/elie222/rakazo/computer` | Linux desktop used as each bot computer |
 | `ghcr.io/elie222/rakazo/updater` | the updater sidecar, plus the Docker CLI |
 
-`infra/compose/docker-compose.images.yml` is the no-checkout path for those app and computer tags
-plus Postgres. The supervisor runs from the app image on the internal network only (not a separate
-published supervisor image, and no host port). Production Compose (`docker-compose.prod.yml`) can
-also pull the same app tags once `RAKAZO_IMAGE_TAG` is set to a published value.
+`infra/compose/docker-compose.images.yml` is the no-checkout path for the upstream app and computer
+tags plus Postgres. The supervisor runs from the app image on the internal network. Sydney's
+published app image uses the `server` build target for production Compose. The upstream
+`ghcr.io/elie222/rakazo/app` image uses the `self-host` target, which also packages the Web app.
 
 If you deploy from your own fork, set `RAKAZO_IMAGE` and `RAKAZO_UPDATER_IMAGE` to your namespace —
 your CI cannot publish into someone else's.

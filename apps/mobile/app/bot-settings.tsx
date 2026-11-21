@@ -376,7 +376,7 @@ function BotSettingsScreen({
   );
 
   useEffect(() => {
-    if (!botId || !deviceVoiceEnabled) return;
+    if (!botId || !deviceVoiceEnabled || projectId) return;
     let current = true;
     void Promise.all([deviceVoices(), voiceForBot(botId)])
       .then(([available, assigned]) => {
@@ -805,7 +805,7 @@ function BotSettingsScreen({
                 }}
               >
                 <SettingsSectionHeading>{t("Instructions")}</SettingsSectionHeading>
-                {bot?.instructionHistory?.length && instructions === bot.instructions ? (
+                {!projectId && bot?.instructionHistory?.length && instructions === bot.instructions ? (
                   <View style={{ width: 44 }}>
                     <MenuPickerMenu
                       label={t("Instruction history")}
@@ -990,19 +990,6 @@ function BotSettingsScreen({
                 </Text>
               </Pressable>
             ) : null}
-            <MenuPicker
-              label={t("Icon set")}
-              choices={[
-                { key: "organic", label: t("Original") },
-                { key: "rakazo", label: t("Rakazo") },
-              ]}
-              value={avatarSet}
-              onChange={(next) => {
-                setAvatarSet(resolveBotAvatarSet(next));
-                setColor((current) => avatarColor(current));
-              }}
-              plain
-            />
             <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
               {t("Color")}
             </Text>
@@ -1045,7 +1032,7 @@ function BotSettingsScreen({
                     accessibilityRole="radio"
                     accessibilityLabel={t("Default")}
                     accessibilityState={{
-                      checked: avatarSet === "organic" && avatarShape(color) === null,
+                      checked: avatarShape(color) === null,
                     }}
                     onPress={() => {
                       setAvatarSet("organic");
@@ -1056,9 +1043,7 @@ function BotSettingsScreen({
                       borderRadius: 14,
                       borderWidth: 2,
                       borderColor:
-                        avatarSet === "organic" && avatarShape(color) === null
-                          ? tokens.foreground
-                          : "transparent",
+                        avatarShape(color) === null ? tokens.foreground : "transparent",
                     }}
                   >
                     <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />

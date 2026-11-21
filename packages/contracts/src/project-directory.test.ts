@@ -3,6 +3,8 @@ import {
   BindProjectDirectoryInput,
   PROJECT_FILE_MAX_BYTES,
   ProjectDirectoryInput,
+  ProjectCloudCommandResultSchema,
+  ProjectCloudCommandSchema,
   ProjectFileRequestSchema,
   WorkspaceGrantRequestSchema,
 } from "./project-directory.js";
@@ -54,5 +56,66 @@ describe("project directory contracts", () => {
     ]) {
       expect(ProjectFileRequestSchema.safeParse({ ...request, file }).success).toBe(false);
     }
+  });
+
+  it("limits project listings to relative folders and bounded names-only results", () => {
+    const request = { ...input, grantId, method: "projectFile" };
+    expect(ProjectFileRequestSchema.safeParse({
+      ...request,
+      file: { operation: "list" },
+    }).success).toBe(true);
+    expect(ProjectFileRequestSchema.safeParse({
+      ...request,
+      file: { operation: "list", path: "src" },
+    }).success).toBe(true);
+    for (const path of ["../private", "/private", "a\\b", "a//b"]) {
+      expect(ProjectFileRequestSchema.safeParse({
+        ...request,
+        file: { operation: "list", path },
+      }).success).toBe(false);
+    }
+  });
+
+  it("requires the last-read SHA-256 before replacing an existing text file", () => {
+    const request = { ...input, grantId, method: "projectFile" };
+    const update = {
+      operation: "update",
+      path: "src/app.ts",
+      expectedSha256: "a".repeat(64),
+      text: "export const ready = true;",
+    };
+    expect(ProjectFileRequestSchema.safeParse({ ...request, file: update }).success).toBe(true);
+    expect(ProjectFileRequestSchema.safeParse({
+      ...request,
+      file: { ...update, expectedSha256: "wrong" },
+    }).success).toBe(false);
+    expect(ProjectFileRequestSchema.safeParse({ ...request, file: { ...update, argv: ["shell"] } }).success).toBe(false);
+  });
+
+  it("bounds cloud commands and their UTF-8 result", () => {
+    const command = {
+      argv: ["python3", "-c", "print('ok')"],
+      inputFiles: ["src/app.ts"],
+      timeoutMs: 1000,
+    };
+    expect(ProjectCloudCommandSchema.safeParse(command).success).toBe(true);
+    expect(ProjectCloudCommandSchema.safeParse({
+      ...command,
+      argv: ["python3", "x".repeat(4090)],
+    }).success).toBe(false);
+    expect(ProjectCloudCommandSchema.safeParse({
+      ...command,
+      inputFiles: ["src/app.ts", "src/app.ts"],
+    }).success).toBe(false);
+    expect(ProjectCloudCommandResultSchema.safeParse({
+      stdout: "结果",
+      stderr: "",
+      code: 0,
+    }).success).toBe(true);
+    expect(ProjectCloudCommandResultSchema.safeParse({
+      stdout: "x".repeat(PROJECT_FILE_MAX_BYTES),
+      stderr: "y",
+      code: 0,
+    }).success).toBe(false);
   });
 });

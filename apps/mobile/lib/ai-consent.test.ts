@@ -71,7 +71,7 @@ describe("mobile AI consent prompt", () => {
     "translates the consent copy in %s without changing recipient detail",
     async (locale) => {
       resetI18nForTests(locale);
-      const pending = promptAiConsent(recipient);
+      const pending = promptAiConsent(recipient, "https://example.com/privacy");
       expect(native.alert.mock.calls[0]?.slice(0, 2)).toEqual([
         t("Share data with {name}?", { name: recipient.name }),
         [
@@ -95,6 +95,7 @@ describe("mobile AI consent prompt", () => {
     expect(native.alert.mock.calls[0]?.[1]).toBe(
       `${AI_DATA_DISCLOSURES.model}\n\nYou can turn this off in Account → AI data sharing.`,
     );
+    expect(currentAlert().buttons.map((button) => button.text)).toEqual(["Not now", "Allow"]);
     currentAlert().buttons[0]?.onPress?.();
     await expect(pending).resolves.toBe(false);
   });

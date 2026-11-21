@@ -41,6 +41,7 @@ export interface AppEnv {
   companionScreenExperimental?: boolean;
   projectWorkspaceCreateExperiment?: boolean;
   projectConversationCreateExperiment?: boolean;
+  projectDeviceToolsEnabled?: boolean;
   integrationApiCallbackEnabled?: boolean;
   mcpNativeCallbackOrigin?: string;
   nativePasswordResetOnApi?: boolean;
@@ -326,6 +327,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     projectWorkspaceCreateExperiment: source.SYDNEY_PROJECT_CREATE_EXPERIMENT === "true",
     projectConversationCreateExperiment:
       source.SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT === "true",
+    projectDeviceToolsEnabled: source.SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED === "true",
     integrationApiCallbackEnabled: source.SYDNEY_INTEGRATION_API_CALLBACK === "true",
     mcpNativeCallbackOrigin: resolveMcpNativeCallbackOrigin(
       source.SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN,

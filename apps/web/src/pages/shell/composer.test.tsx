@@ -108,6 +108,27 @@ it("keeps a short placeholder and names the destination for assistive technology
   expect(textarea.getAttribute("aria-label")).toBe(`Message ${activeName}`);
 });
 
+it("reuses text-only project composition without file, voice or slash actions", async () => {
+  const onSend = vi.fn(async () => true);
+  const onAttachmentPick = vi.fn();
+  const textarea = renderComposer(onSend, {
+    textOnly: true,
+    onAttachmentPick,
+    phoneCallsEnabled: true,
+  });
+  expect(container?.querySelector('input[type="file"]')).toBeNull();
+  expect(container?.querySelector('[aria-label="Attach file"]')).toBeNull();
+  type(textarea, "/");
+  expect(container?.querySelector('[data-testid="slash-picker"]')).toBeNull();
+  type(textarea, "project message");
+  await act(async () =>
+    container?.querySelector<HTMLButtonElement>('[aria-label="Send"]')?.click(),
+  );
+  expect(onSend).toHaveBeenCalledWith("project message", [], expect.any(String));
+  expect(onAttachmentPick).not.toHaveBeenCalled();
+  expect(textarea.value).toBe("");
+});
+
 it("shows a readable run error with raw details, while preserving send errors", () => {
   const runError = '429: {"message":"Too many requests","metadata":{"provider":"OpenRouter"}}';
   renderComposer(async () => true, { runError, runErrorId: "failed-run" });

@@ -1,21 +1,21 @@
 {
-  "version": "1.0.21",
+  "version": "1.0.22",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "修复 iPhone 项目聊天因取消信号不兼容而中断头像与名称同步的问题，标题和回复同步显示已选头像。",
-      "项目 Bot 和群聊支持置顶、复制、清空、归档、恢复与删除；项目页可查看已归档聊天。",
-      "复用普通 Bot 的资料、设置、通知、语音、指令历史与导出；删除时可选择保留或删除记忆。"
+      "支持导入本地主题包，预览并应用到全部界面或指定页面类型，也可卸载和恢复默认。",
+      "整合项目聊天、模型选择、电脑操控和 Sydney 品牌界面更新。",
+      "保留已上线的项目头像名称同步、聊天管理与原生兼容修复。"
     ],
     "zh-TW": [
-      "修復 iPhone 專案聊天因取消訊號不相容而中斷頭像與名稱同步的問題，標題和回覆同步顯示已選頭像。",
-      "專案 Bot 和群聊支援置頂、複製、清空、封存、還原與刪除；專案頁可查看已封存聊天。",
-      "重用一般 Bot 的資料、設定、通知、語音、指令歷史與匯出；刪除時可選擇保留或刪除記憶。"
+      "支援匯入本機主題包，預覽並套用到全部介面或指定頁面類型，也可解除安裝和還原預設。",
+      "整合專案聊天、模型選擇、電腦操控及 Sydney 品牌介面更新。",
+      "保留已上線的專案頭像名稱同步、聊天管理及原生相容性修復。"
     ],
     "en": [
-      "Fix iPhone cancellation signal compatibility interrupting project avatar and name sync. Headers and replies display the selected avatar.",
-      "Pin, duplicate, clear, archive, restore, and delete project bots and groups. Browse archived chats from the project page.",
-      "Reuse regular Bot profiles, settings, notifications, voice, instruction history, and export. Choose whether to retain memories when deleting a Bot."
+      "Import local theme packs, preview and apply them globally or to selected page types, uninstall them, or restore defaults.",
+      "Includes project chat, model selection, computer controls and Sydney branding updates.",
+      "Preserves published project avatar and name sync, chat management, and native compatibility fixes."
     ]
   }
 }

@@ -245,7 +245,7 @@ vi.mock("react-native", () => {
       accessibilityLabel?: string;
       accessibilityHint?: string;
       accessibilityRole?: string;
-      accessibilityState?: { expanded?: boolean };
+      accessibilityState?: { checked?: boolean; expanded?: boolean };
       style?: unknown;
       hitSlop?: number;
     }) =>
@@ -258,6 +258,7 @@ vi.mock("react-native", () => {
           "data-hint": accessibilityHint,
           role: accessibilityRole,
           "aria-expanded": accessibilityState?.expanded,
+          "aria-checked": accessibilityState?.checked,
           "data-style": JSON.stringify(style),
           "data-hit-slop": hitSlop,
         },
@@ -577,7 +578,7 @@ describe("bot settings device voice menu", () => {
       { projectId: "project-fixture", botId: "bot-fixture", includeArchived: true },
       { skipSpaceAuthRecovery: true },
     );
-    expect(menu()).not.toBeNull();
+    expect(menu()).toBeNull();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
@@ -599,38 +600,20 @@ describe("bot settings device voice menu", () => {
     expect(mocks.back).toHaveBeenCalledOnce();
   });
 
-  it("keeps a legacy set until explicitly switched, saves the choice, and reloads it", async () => {
-    await render();
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
-    );
-    const setMenu = () => container.querySelector('[data-menu="Icon set"]')!;
-    const option = (label: string) =>
-      [...setMenu().querySelectorAll<HTMLButtonElement>("button")].find(
-        (button) => button.textContent === label,
-      )!;
-    expect(option("Original").dataset.state).toBe("on");
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    await act(async () => option("Rakazo").click());
-    mocks.rpc.mockResolvedValueOnce({ avatarSet: "rakazo" });
-    await act(async () =>
-      [...container.querySelectorAll<HTMLButtonElement>("button")]
-        .find((button) => button.textContent === "Save")!
-        .click(),
-    );
-    expect(mocks.rpc).toHaveBeenCalledWith("bots/update", {
-      botId: "bot-fixture",
-      avatarSet: "rakazo",
-    });
-    act(() => root.unmount());
-    root = createRoot(container);
+  it("hides the retired set and lets an existing bot choose another shape", async () => {
     mocks.avatarSet = "rakazo";
     await render();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
-    expect(option("Rakazo").dataset.state).toBe("on");
-    await act(async () => option("Original").click());
+    expect(container.querySelector('[data-menu="Icon set"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Default"]')?.getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Shape 1"]')!.click(),
+    );
     mocks.rpc.mockResolvedValueOnce({ avatarSet: "organic" });
     await act(async () =>
       [...container.querySelectorAll<HTMLButtonElement>("button")]

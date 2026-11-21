@@ -21,12 +21,12 @@ import { readUiLocale, writeUiLocale } from "./setup-store.js";
 const srcDir = import.meta.dirname;
 /** Product and vendor names the setup page shows as they are. */
 const UNTRANSLATED = new Set([
-  "Rakazo",
-  "Rakazo Cloud",
+  "Sydney",
+  "Sydney Cloud",
   "Docker Desktop",
   "OrbStack",
   "Docker Engine",
-  "https://rakazo.example.com",
+  "https://server.example.com",
 ]);
 
 /** Literal `t("…")` ids; the formatter keeps every string double-quoted. */
@@ -78,7 +78,7 @@ describe("desktop language", () => {
   it("starts in the saved language, ignoring a saved value that is not a language tag", () => {
     expect(startDesktopLocale("es-MX", "en-US")).toBe("es");
     expect(t("Check for Updates…")).toBe("Buscar actualizaciones…");
-    expect(t("Rakazo {version} is ready to install.", { version: "1.2.0" })).toBe(
+    expect(t("Sydney {version} is ready to install.", { version: "1.2.0" })).toBe(
       "Sydney 1.2.0 está listo para instalarse.",
     );
     expect(desktopMessages()).toBe(ES_MESSAGES);
@@ -242,7 +242,11 @@ describe.each(Object.entries(CATALOGS))(
     });
 
     it("translates every desktop t() id and setup page string, and nothing else", () => {
-      const ids = new Set(setupPageStrings());
+      const ids = new Set(
+        setupPageStrings().map((message) =>
+          Object.hasOwn(catalog, message) ? message : message.replaceAll("Sydney", "Sydney"),
+        ),
+      );
       for (const file of readdirSync(srcDir)) {
         if (!/\.(ts|js|cjs)$/.test(file) || file.endsWith(".test.ts")) continue;
         for (const id of translationIds(readFileSync(path.join(srcDir, file), "utf8"))) ids.add(id);

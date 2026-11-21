@@ -120,7 +120,6 @@ private struct CompanionAnimatedMark<Content: View>: View {
 
 private struct CompanionBotAvatar: View {
   let organic: Bool
-  let logo: Bool
   let color: Color
   let eyeColor: Color
   let rotation: Double
@@ -128,12 +127,11 @@ private struct CompanionBotAvatar: View {
 
   init?(encoded: String) {
     let parts = encoded.split(separator: "|", omittingEmptySubsequences: false)
-    guard parts.count == 4, ["o", "s", "l"].contains(String(parts[0])), parts[1].count == 6,
+    guard parts.count == 4, ["o", "s"].contains(String(parts[0])), parts[1].count == 6,
       let rgb = UInt32(parts[1], radix: 16),
       parts[3].count <= 2200, parts[3].count % 2 == 0
     else { return nil }
     let organic = parts[0] == "o"
-    let logo = parts[0] == "l"
     let rotation: Double
     let eyes: UInt32
     if organic {
@@ -154,7 +152,6 @@ private struct CompanionBotAvatar: View {
     guard (organic ? (values.count >= 8 && (values.count - 2) % 6 == 0)
       : (values.count >= 6 && values.count % 2 == 0)) else { return nil }
     self.organic = organic
-    self.logo = logo
     self.color = Color(
       red: Double((rgb >> 16) & 255) / 255,
       green: Double((rgb >> 8) & 255) / 255,
@@ -171,32 +168,24 @@ private struct CompanionBotAvatar: View {
     GeometryReader { geometry in
       let size = min(geometry.size.width, geometry.size.height)
       ZStack {
-        if logo {
-          RoundedRectangle(cornerRadius: size * 0.23).fill(Color(uiColor: .secondarySystemBackground))
-        }
-        if logo {
-          CompanionBotShape(coordinates: coordinates, organic: false).fill(color.gradient)
-        } else {
-          CompanionBotShape(coordinates: coordinates, organic: organic).fill(color)
-        }
-        HStack(spacing: size * (organic ? 14.0 / 120 : logo ? 8.6 / 100 : 38.0 / 259)) {
+        CompanionBotShape(coordinates: coordinates, organic: organic).fill(color)
+        HStack(spacing: size * (organic ? 14.0 / 120 : 38.0 / 259)) {
           eye(size)
           eye(size)
         }
         .rotationEffect(.degrees(rotation))
-        .offset(y: organic ? 0 : logo ? -size * 0.01 : size * ((114.2705 - 8 + 15) / 259 - 0.5))
+        .offset(y: organic ? 0 : size * ((114.2705 - 8 + 15) / 259 - 0.5))
       }
       .frame(width: size, height: size)
-      .clipShape(RoundedRectangle(cornerRadius: logo ? size * 0.23 : 0))
     }
   }
 
   private func eye(_ size: CGFloat) -> some View {
-    RoundedRectangle(cornerRadius: size * (organic ? 3.5 / 120 : logo ? 5.2 / 100 : 7.0 / 259))
+    RoundedRectangle(cornerRadius: size * (organic ? 3.5 / 120 : 7.0 / 259))
       .fill(eyeColor)
       .frame(
-        width: size * (organic ? 7.0 / 120 : logo ? 10.4 / 100 : 20.0 / 259),
-        height: size * (organic ? 24.0 / 120 : logo ? 16.0 / 100 : 14.0 / 259))
+        width: size * (organic ? 7.0 / 120 : 20.0 / 259),
+        height: size * (organic ? 24.0 / 120 : 14.0 / 259))
   }
 }
 

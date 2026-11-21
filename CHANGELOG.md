@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-21
+
+### Added
+
+- iPhone `1.0.22` supports declarative local theme packs, embedded images, global or page-specific assignments, preview, uninstall and reset. See the [theme evaluation](docx/THEME_PLUGIN_EVALUATION.md) for supported pages and device checks.
+
+### Changed
+
+- Windows `0.4.2` includes the current project chat interface, directory approval feedback, composer updates and Sydney branding. Downloads and packaged update metadata point to this repository.
+- The companion download site now presents Sydney installation choices and documentation.
+
+### Fixed
+
+- Preserve the published iPhone project avatar, name, chat management and React Native cancellation compatibility fixes while integrating the current App changes.
+
+### Self-host upgrade notes
+
+- This Sydney client release uses the existing Windows cloud-build workflow and iOS `sideload` OTA channel (`sydney-ios-ip-1`). It does not deploy the API, Worker, database migrations or Linux driver, and does not enable project device execution. Windows installers remain unsigned and require manual installation; automatic updates stay disabled.
+- The release tag uses `sydney-desktop-v0.4.2` to distinguish this Windows distribution from the upstream multi-platform `v*` release workflow. Android native branding and App Store submission are outside this release.
+
 ## [0.4.0] - 2026-11-01
 
 ### Security

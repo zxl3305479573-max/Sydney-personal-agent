@@ -1,9 +1,9 @@
 import {
-  ANDROID_APK_URL,
+  CLIENT_RELEASES_URL,
   buildIdAt,
   CLIENT_BUILD_HEADER,
   formatClientBuild,
-  IOS_APP_STORE_URL,
+  IOS_INSTALL_GUIDE_URL,
 } from "@rakazo/contracts";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
@@ -170,7 +170,7 @@ export function useStartupUpdatePrompt(ready: boolean) {
   }, [ready, update, downloaded]);
 }
 
-/** Apply an over-the-air update now if one exists; otherwise send the user to the store. */
+/** Apply an over-the-air update now if one exists, with installation links for other builds. */
 export async function applyRequiredUpdate(): Promise<void> {
   try {
     if (
@@ -191,7 +191,7 @@ export async function applyRequiredUpdate(): Promise<void> {
     Alert.alert(t("This update needs a new app installation."));
     return;
   }
-  await Linking.openURL(Platform.OS === "ios" ? IOS_APP_STORE_URL : ANDROID_APK_URL).catch(
+  await Linking.openURL(Platform.OS === "ios" ? IOS_INSTALL_GUIDE_URL : CLIENT_RELEASES_URL).catch(
     () => undefined,
   );
 }
