@@ -1,3 +1,4 @@
+import { typeScale } from "@rakazo/ui-tokens";
 import { Pressable, Text, View } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
@@ -43,16 +44,9 @@ export function ProjectFolderCard({
       >
         <NativeSymbol ios="folder.fill" android="folder" size={26} color={tokens.primary} />
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-          <Text
-            numberOfLines={1}
-            style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}
-          >
-            {label}
-          </Text>
+          <Text style={{ color: tokens.foreground, ...typeScale.cardTitle }}>{label}</Text>
           {subtitle ? (
-            <Text numberOfLines={1} style={{ color: tokens.mutedForeground, fontSize: 13 }}>
-              {subtitle}
-            </Text>
+            <Text style={{ color: tokens.mutedForeground, ...typeScale.caption }}>{subtitle}</Text>
           ) : null}
         </View>
         <NativeSymbol

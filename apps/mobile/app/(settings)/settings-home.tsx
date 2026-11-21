@@ -98,7 +98,7 @@ export default function SettingsHome() {
           gap: 28,
         }}
       >
-        <SettingsGroup>
+        <SettingsGroup label={t("Account")}>
           {Platform.OS === "android" ? (
             <SettingsRow
               title={t("Notifications")}
@@ -130,7 +130,7 @@ export default function SettingsHome() {
           {link(t("Computers"), "/devices")}
         </SettingsGroup>
 
-        <SettingsGroup>
+        <SettingsGroup label={t("Apps")}>
           {link(t("Connect apps"), "/integrations", true)}
           {link("GitHub", "/github", true)}
         </SettingsGroup>

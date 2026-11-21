@@ -57,6 +57,7 @@ export default function NewSpace() {
           fallbackStyle={{ backgroundColor: native.fill }}
         >
           <TextInput
+            accessibilityLabel={t("Name")}
             autoFocus
             value={name}
             maxLength={60}
@@ -68,7 +69,11 @@ export default function NewSpace() {
             style={{ padding: 14, color: tokens.foreground, fontSize: 16 }}
           />
         </GlassSurface>
-        {error ? <Text style={{ color: tokens.destructive, marginTop: 14 }}>{error}</Text> : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 14 }}>
+            {error}
+          </Text>
+        ) : null}
         <NativeActionButton
           disabled={!name.trim() || pending}
           label={pending ? t("Creating…") : t("Create space")}

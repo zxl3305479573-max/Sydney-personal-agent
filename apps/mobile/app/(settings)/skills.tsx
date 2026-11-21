@@ -297,7 +297,7 @@ function createStyles() {
       backgroundColor: native.fillPressed,
       color: native.label,
       paddingHorizontal: 14,
-      fontSize: 15,
+      fontSize: 17,
     },
     row: {
       minHeight: 56,
@@ -320,7 +320,7 @@ function createStyles() {
       justifyContent: "center",
     },
     grow: { flex: 1, gap: 2, minWidth: 0 },
-    title: { color: native.label, fontSize: 15, fontWeight: "500" },
-    secondary: { color: native.secondaryLabel, fontSize: 13 },
+    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
+    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
   });
 }

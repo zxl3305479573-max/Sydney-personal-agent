@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { ComponentProps } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -36,7 +38,10 @@ vi.mock("../components/message-action-menu", () => ({ presentMessageMenu: vi.fn(
 vi.mock("../components/message-context-menu", () => ({
   MessageContextMenu: ({ children }: { children: unknown }) => children,
 }));
-vi.mock("../components/bot-avatar", () => ({ BotAvatar: () => null }));
+vi.mock("../components/bot-avatar", () => ({
+  BotAvatar: ({ identity, motion, size }: { identity: string; motion?: string; size: number }) =>
+    createElement("span", { "data-avatar": identity, "data-motion": motion, "data-size": size }),
+}));
 vi.mock("../components/reply-line", () => ({ ReplyLine: () => null }));
 vi.mock("../components/time-separator", () => ({ TimeSeparator: () => null }));
 vi.mock("../components/unread-divider", () => ({ UnreadDivider: () => null }));
@@ -44,7 +49,7 @@ vi.mock("../components/unread-divider", () => ({ UnreadDivider: () => null }));
 vi.mock("../components/thread/message-bubble", () => ({
   MessageBubble: ({ actionProps }: { actionProps: MessageActionProps }) => {
     mocks.actionProps = actionProps;
-    return null;
+    return createElement("span", { "data-message-bubble": "" });
   },
 }));
 
@@ -52,7 +57,12 @@ import { MessageRow } from "../components/thread/message-row";
 
 type RowProps = ComponentProps<typeof MessageRow>;
 
-function messageMenu(role: "bot" | "user", blocks: string[], markedUnread = false) {
+function messageMenu(
+  role: "bot" | "user",
+  blocks: string[],
+  markedUnread = false,
+  rowOverrides?: Partial<RowProps>,
+) {
   const text = blocks.map((code) => `\`\`\`\n${code}\n\`\`\``).join("\n\n");
   mocks.markdownCodeBlocks.mockReturnValue(blocks);
   mocks.actionProps = undefined;
@@ -83,7 +93,7 @@ function messageMenu(role: "bot" | "user", blocks: string[], markedUnread = fals
     enableJump: false,
     index: 0,
   } as unknown as RowProps;
-  renderToStaticMarkup(createElement(MessageRow, props));
+  const markup = renderToStaticMarkup(createElement(MessageRow, { ...props, ...rowOverrides }));
   const actionProps = mocks.actionProps as MessageActionProps | undefined;
   if (!actionProps?.accessibilityActions || !actionProps.onAccessibilityAction) {
     throw new Error("MessageRow did not pass accessibility actions to its bubble");
@@ -96,6 +106,7 @@ function messageMenu(role: "bot" | "user", blocks: string[], markedUnread = fals
         typeof onAccessibilityAction
       >[0]),
     text,
+    markup,
   };
 }
 
@@ -136,4 +147,40 @@ it("hides the completed unread action while preserving code copy", () => {
   const completed = messageMenu("bot", ["example"], true);
   expect(completed.accessibilityActions.some((action) => action.name === "unread")).toBe(false);
   expect(completed.accessibilityActions).toContainEqual({ name: "copyCode", label: "Copy code" });
+});
+
+it.each([
+  { inGroup: false, id: "message-1", size: "28", motion: null },
+  { inGroup: true, id: "progress:run-1", size: "20", motion: "running" },
+])("stacks Bot output below its avatar for $id", ({ inGroup, id, size, motion }) => {
+  const container = document.createElement("div");
+  container.innerHTML = messageMenu("bot", [], false, {
+    message: {
+      id,
+      role: "bot",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      blocks: [{ kind: "text", text: "Sample reply" }],
+    } as RowProps["message"],
+    activityBotId: "bot-1",
+    activityColor: "#123456",
+    inGroup,
+  }).markup;
+  const avatar = container.querySelector("[data-avatar]")!;
+  const bubble = container.querySelector("[data-message-bubble]")!;
+  const stack = avatar.parentElement!;
+  expect(stack.style.flexDirection).toBe("column");
+  expect(stack.style.alignItems).toBe("flex-start");
+  expect(avatar.nextElementSibling).toBe(bubble.parentElement);
+  expect(bubble.parentElement?.style.width).toBe("100%");
+  expect(avatar.getAttribute("data-size")).toBe(size);
+  expect(avatar.getAttribute("data-motion")).toBe(motion);
+});
+
+it("keeps user messages at the end of the row with their usual width cap", () => {
+  const container = document.createElement("div");
+  container.innerHTML = messageMenu("user", []).markup;
+  const bubble = container.querySelector("[data-message-bubble]")!;
+  expect(bubble.parentElement?.parentElement?.style.alignItems).toBe("flex-end");
+  expect(bubble.parentElement?.style.maxWidth).toBe("90%");
+  expect(container.querySelector("[data-avatar]")).toBeNull();
 });

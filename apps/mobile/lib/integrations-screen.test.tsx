@@ -170,17 +170,20 @@ vi.mock("react-native", () => {
       </button>
     ),
     TextInput: ({
+      accessibilityLabel,
       placeholder,
       value,
       onChangeText,
       onEndEditing,
     }: {
+      accessibilityLabel?: string;
       placeholder?: string;
       value?: string;
       onChangeText?: (value: string) => void;
       onEndEditing?: () => void;
     }) => (
       <input
+        aria-label={accessibilityLabel}
         onBlur={onEndEditing}
         placeholder={placeholder}
         value={value}
@@ -875,7 +878,7 @@ it("saves native MCP API key auth as a named encrypted header", async () => {
       .find((button) => button.textContent === "API key")
       ?.click();
   });
-  const credential = container.querySelector('input[placeholder="API key"]');
+  const credential = container.querySelector('input[aria-label="API key"]');
   expect(credential).not.toBeNull();
   await act(async () => {
     if (!(credential instanceof HTMLInputElement)) return;

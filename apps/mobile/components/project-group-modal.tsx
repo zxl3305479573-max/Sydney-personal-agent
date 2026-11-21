@@ -1,3 +1,4 @@
+import type { RpcOutput } from "@rakazo/contracts";
 import {
   defaultGroupName,
   GROUP_MEMBER_MAX,
@@ -22,11 +23,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureApiRequestContext, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
+import { BotAvatar } from "./bot-avatar";
 import { GlassSurface } from "./glass-surface";
+import { FALLBACK_COLOR } from "./inbox-rows";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 
-type Member = { id: string; name: string };
+type Member = RpcOutput<"projectWorkspaces/roster">["bots"][number];
 export type ProjectGroupAttempt = { fingerprint: string; id: string };
 
 export function ProjectGroupModal({
@@ -40,7 +43,7 @@ export function ProjectGroupModal({
   current: () => boolean;
   attempt: { current: ProjectGroupAttempt | null };
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (groupId: string) => void;
 }) {
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
@@ -126,7 +129,7 @@ export function ProjectGroupModal({
     try {
       const requestContext = await captureApiRequestContext();
       if (!mounted.current || !current()) return;
-      await rpc(
+      const created = await rpc(
         "projectWorkspaces/createGroup",
         {
           projectId,
@@ -137,7 +140,7 @@ export function ProjectGroupModal({
       );
       if (!mounted.current || !current()) return;
       attempt.current = null;
-      onCreated();
+      onCreated(created.id);
     } catch {
       if (mounted.current && current())
         setError(
@@ -290,20 +293,13 @@ export function ProjectGroupModal({
                         opacity: rowDisabled ? 0.5 : pressed ? 0.7 : 1,
                       })}
                     >
-                      <View
-                        style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 17,
-                          backgroundColor: native.fill,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}>
-                          {item.name.trim().slice(0, 1).toUpperCase() || "B"}
-                        </Text>
-                      </View>
+                      <BotAvatar
+                        color={item.color || FALLBACK_COLOR}
+                        avatarSet={item.avatarSet}
+                        identity={item.id}
+                        size={34}
+                        motion="lazy"
+                      />
                       <Text
                         numberOfLines={1}
                         style={{ flex: 1, color: tokens.foreground, fontSize: 16 }}

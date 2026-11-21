@@ -4,6 +4,7 @@ import { AI_CONSENT_REQUIRED } from "@rakazo/contracts";
 import {
   createProjectWorkspace,
   getProjectWorkspace,
+  IsolationError,
   listProjectWorkspaceRoster,
   listProjectWorkspaces,
   removeEmptyProjectWorkspace,
@@ -14,6 +15,7 @@ import { getLogger } from "@rakazo/logging";
 import { getProjectThreadArtifact } from "../artifacts.js";
 import { resolveThreadTarget, stopThreadRuns, threadSnapshot } from "../thread-target.js";
 import { aiConsentStatus, allowAiConsent } from "../ai-consent.js";
+import { updateBotSettings } from "./bots.js";
 import type { RouterContext } from "./context.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
 import { projectDirectoryRoutes } from "./project-directories.js";
@@ -32,6 +34,7 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       })),
       conversationCapabilities: authed.projectWorkspaces.conversationCapabilities.handler(async () => ({
         createBot: deps.env?.projectConversationCreateExperiment === true,
+        botSettings: deps.env?.projectConversationCreateExperiment === true,
       })),
       groupCreationCapability: authed.projectWorkspaces.groupCreationCapability.handler(async () => ({
         createGroup: deps.env?.projectConversationCreateExperiment === true,
@@ -86,6 +89,22 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
           groupRepos.createGroup(context.actor, { ...input.group, id: input.requestId }),
+        );
+      }),
+      getBot: authed.projectWorkspaces.getBot.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const bot = (await repos.listBots(context.actor)).find(({ id }) => id === input.botId);
+          if (!bot) throw new IsolationError();
+          return bot;
+        });
+      }),
+      updateBot: authed.projectWorkspaces.updateBot.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
+          updateBotSettings(routerContext, context.actor, input.bot),
         );
       }),
       threadSnapshot: authed.projectWorkspaces.threadSnapshot.handler(async ({ context, input }) => {

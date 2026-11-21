@@ -97,6 +97,7 @@ vi.mock("react-native-safe-area-context", () => ({
 vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => mocks.headerInset }));
 vi.mock("expo-clipboard", () => ({ setStringAsync: vi.fn() }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: vi.fn(async () => null) }));
 vi.mock("./message-action-sheet", () => ({ presentMessageActionSheet: vi.fn() }));
 vi.mock("./live-notifications", () => ({ afterChatNotifyChange: vi.fn(async () => undefined) }));
 

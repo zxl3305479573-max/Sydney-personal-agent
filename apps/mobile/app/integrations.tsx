@@ -1082,7 +1082,6 @@ export default function Integrations() {
             {label}
           </Text>
         </View>
-        {renderCatalogActions(item, label)}
       </>
     );
     const tileStyle = catalogColumns === 2 ? styles.catalogCell : undefined;
@@ -1092,18 +1091,20 @@ export default function Integrations() {
           key={catalogItemKey(item)}
           shape="roundedRectangle"
           cornerRadius={14}
-          style={tileStyle}
+          style={[styles.row, tileStyle]}
           fallbackStyle={styles.rowFallback}
         >
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={label}
             onPress={() =>
               brandPlugin ? openPlugin(managedPluginParams(brandPlugin, item)) : openDetail(item)
             }
-            style={styles.row}
+            style={styles.catalogTileBody}
           >
             {body}
           </Pressable>
+          {renderCatalogActions(item, label)}
         </GlassSurface>
       );
     }
@@ -1116,6 +1117,7 @@ export default function Integrations() {
         fallbackStyle={styles.rowFallback}
       >
         {body}
+        {renderCatalogActions(item, label)}
       </GlassSurface>
     );
   }
@@ -1140,9 +1142,7 @@ export default function Integrations() {
               <Text style={styles.link}>{t("Back")}</Text>
             </Pressable>
             <ConnectorIcon logo={item.logo} name={item.name} size={LOGO_SIZE} />
-            <Text numberOfLines={1} style={styles.detailTitle}>
-              {item.name}
-            </Text>
+            <Text style={styles.detailTitle}>{item.name}</Text>
           </View>
           <NativeActionButton
             accessibilityLabel={t("Uninstall")}
@@ -1297,6 +1297,14 @@ export default function Integrations() {
   }
 
   function renderAdding() {
+    const credentialLabel =
+      sourceKind === "treg"
+        ? t("Treg token")
+        : sourceKind === "executor"
+          ? t("Executor token")
+          : sourceAuth === "header"
+            ? t("API key")
+            : t("Bearer token");
     return (
       <View style={styles.catalogStack}>
         <NativeActionButton
@@ -1313,6 +1321,7 @@ export default function Integrations() {
             style={styles.card}
             fallbackStyle={styles.cardFallback}
           >
+            <Text style={styles.fieldLabel}>{t("Plugin GitHub URL")}</Text>
             <TextInput
               value={gitUrl}
               onChangeText={setGitUrl}
@@ -1333,7 +1342,11 @@ export default function Integrations() {
             />
           </GlassSurface>
         ) : null}
-        {sourceError ? <Text style={styles.error}>{sourceError}</Text> : null}
+        {sourceError ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            {sourceError}
+          </Text>
+        ) : null}
         {adding === "source" && sourceKind ? (
           <GlassSurface
             shape="roundedRectangle"
@@ -1352,31 +1365,36 @@ export default function Integrations() {
                       ? t("GraphQL endpoint")
                       : t("OpenAPI JSON")}
             </Text>
+            <Text style={styles.fieldLabel}>{t("Display name")}</Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={t("Display name")}
-              placeholderTextColor={native.tertiaryLabel}
+              accessibilityLabel={t("Display name")}
               style={styles.input}
             />
             {sourceKind !== "treg" ? (
-              <TextInput
-                value={url}
-                onChangeText={setUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={
-                  sourceKind === "mcp"
-                    ? t("https://example.com/mcp")
-                    : sourceKind === "executor"
-                      ? t("https://executor.example/mcp")
-                      : sourceKind === "graphql"
-                        ? t("https://example.com/graphql")
-                        : t("https://example.com/openapi.json")
-                }
-                placeholderTextColor={native.tertiaryLabel}
-                style={styles.input}
-              />
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{t("Server URL")}</Text>
+                <TextInput
+                  value={url}
+                  onChangeText={setUrl}
+                  accessibilityLabel={t("Server URL")}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder={
+                    sourceKind === "mcp"
+                      ? t("https://example.com/mcp")
+                      : sourceKind === "executor"
+                        ? t("https://executor.example/mcp")
+                        : sourceKind === "graphql"
+                          ? t("https://example.com/graphql")
+                          : t("https://example.com/openapi.json")
+                  }
+                  placeholderTextColor={native.tertiaryLabel}
+                  style={styles.input}
+                />
+              </View>
             ) : null}
             {sourceKind !== "treg" && sourceKind !== "executor" ? (
               <MenuPicker
@@ -1393,43 +1411,40 @@ export default function Integrations() {
               />
             ) : null}
             {sourceAuth === "header" ? (
-              <TextInput
-                value={authHeader}
-                onChangeText={setAuthHeader}
-                autoCapitalize="none"
-                autoCorrect={false}
-                accessibilityLabel={t("API key header name")}
-                placeholder="x-api-key"
-                placeholderTextColor={native.tertiaryLabel}
-                style={styles.input}
-              />
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{t("API key header name")}</Text>
+                <TextInput
+                  value={authHeader}
+                  onChangeText={setAuthHeader}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel={t("API key header name")}
+                  placeholder="x-api-key"
+                  placeholderTextColor={native.tertiaryLabel}
+                  style={styles.input}
+                />
+              </View>
             ) : null}
             {sourceAuth === "bearer" || sourceAuth === "header" ? (
-              <TextInput
-                value={credential}
-                onChangeText={setCredential}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={
-                  sourceKind === "treg"
-                    ? t("Treg token")
-                    : sourceKind === "executor"
-                      ? t("Executor token")
-                      : sourceAuth === "header"
-                        ? t("API key")
-                        : t("Bearer token")
-                }
-                placeholderTextColor={native.tertiaryLabel}
-                style={styles.input}
-              />
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{credentialLabel}</Text>
+                <TextInput
+                  value={credential}
+                  onChangeText={setCredential}
+                  accessibilityLabel={credentialLabel}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.input}
+                />
+              </View>
             ) : null}
             <View style={styles.accountActions}>
               <NativeActionButton
                 busy={pending === "source"}
                 label={t("Verify and add")}
                 onPress={() => void addSource()}
-                prominence="secondary"
+                prominence="primary"
               />
               <NativeActionButton
                 label={t("Cancel")}
@@ -1510,7 +1525,9 @@ export default function Integrations() {
 
             {catalogError ? (
               <View style={styles.catalogStack}>
-                <Text style={styles.error}>{catalogError}</Text>
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {catalogError}
+                </Text>
                 <NativeActionButton
                   label={t("Retry")}
                   fill={false}
@@ -1640,19 +1657,29 @@ function createIntegrationsStyles() {
     section: { color: native.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
     card: { padding: 16, borderRadius: 16, gap: 12 },
     cardFallback: { backgroundColor: native.fill },
+    field: { gap: 8 },
+    fieldLabel: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     input: {
       minHeight: 48,
       borderRadius: 12,
       backgroundColor: native.fillPressed,
       color: native.label,
       paddingHorizontal: 14,
-      fontSize: 15,
+      fontSize: 17,
     },
     inputFallback: { backgroundColor: native.fillPressed, borderRadius: 12 },
-    searchInput: { minHeight: 48, color: native.label, paddingHorizontal: 14, fontSize: 15 },
+    searchInput: { minHeight: 48, color: native.label, paddingHorizontal: 14, fontSize: 17 },
     catalogGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     catalogStack: { gap: 8 },
     catalogCell: { flexGrow: 1, flexBasis: "47%", maxWidth: "49%" },
+    catalogTileBody: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
     row: {
       minHeight: 56,
       paddingHorizontal: 12,
@@ -1682,8 +1709,8 @@ function createIntegrationsStyles() {
       backgroundColor: native.fillPressed,
     },
     grow: { flex: 1, gap: 3, minWidth: 0 },
-    title: { color: native.label, fontSize: 15, fontWeight: "600" },
-    secondary: { color: native.secondaryLabel, fontSize: 13 },
+    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     pressed: { backgroundColor: native.fillPressed },
     categoryPicker: { alignSelf: "flex-start" },
     sectionHeader: {
@@ -1725,7 +1752,7 @@ function createIntegrationsStyles() {
     },
     detailTitleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
     backButton: { paddingVertical: 4 },
-    detailTitle: { flex: 1, color: native.label, fontSize: 17, fontWeight: "600" },
+    detailTitle: { flex: 1, color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
     toolsToggle: {
       flexDirection: "row",
       alignItems: "center",

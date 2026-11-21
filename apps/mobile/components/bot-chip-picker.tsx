@@ -73,6 +73,7 @@ export function BotChipPicker({
           value={query}
           onChangeText={setQuery}
           placeholder={selected.length ? t("Add another") : t("Search bots")}
+          accessibilityLabel={t("Search bots")}
           placeholderTextColor={tokens.mutedForeground}
           returnKeyType="search"
           autoCapitalize="none"
@@ -86,9 +87,9 @@ export function BotChipPicker({
           style={{
             flexGrow: 1,
             minWidth: 100,
-            minHeight: 32,
+            minHeight: 44,
             color: tokens.foreground,
-            fontSize: 16,
+            fontSize: 17,
             padding: 0,
           }}
         />

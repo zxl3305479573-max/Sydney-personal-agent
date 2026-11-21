@@ -87,7 +87,8 @@ type ThreadComposerProps = {
   startVoiceCall: () => Promise<void>;
   onSlashAction: (action: SlashActionId) => void;
   modelLabel?: string;
-  onModelPress?: () => void;
+  modelActions?: MenuAction[];
+  onModelSelect?: (key: string) => void;
 };
 
 export function ThreadComposer({
@@ -111,7 +112,8 @@ export function ThreadComposer({
   startVoiceCall,
   onSlashAction,
   modelLabel,
-  onModelPress,
+  modelActions,
+  onModelSelect,
 }: ThreadComposerProps) {
   const tokens = useMobileTokens();
   // A mention is plain text in the link blue; it turns bold while a backspace has it selected.
@@ -711,46 +713,46 @@ export function ThreadComposer({
                 <NativeSymbol ios="plus" android="add" size={21} color={tokens.foreground} />
               </View>
             </MenuView>
-            {onModelPress ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("Model")}
-                accessibilityValue={modelLabel ? { text: modelLabel } : undefined}
-                onPress={onModelPress}
-                style={({ pressed }) => ({
-                  minHeight: 44,
-                  minWidth: 44,
-                  justifyContent: "center",
-                  alignItems: "flex-start",
-                  flex: 1,
-                  backgroundColor: pressed ? tokens.muted : undefined,
-                  borderRadius: 10,
-                })}
-              >
-                <View
-                  style={{
-                    paddingHorizontal: 8,
-                    paddingVertical: 7,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    maxWidth: "100%",
+            {modelActions && onModelSelect ? (
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <MenuView
+                  actions={modelActions}
+                  colorScheme={colorScheme}
+                  onPressAction={(event) => {
+                    const id = event.nativeEvent.event;
+                    if (id.startsWith("model:")) onModelSelect(id.slice("model:".length));
                   }}
+                  title={t("Model")}
                 >
-                  <Text
-                    numberOfLines={1}
-                    style={{ color: tokens.foreground, fontSize: 13, flexShrink: 1 }}
+                  <View
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={t("Model")}
+                    accessibilityValue={modelLabel ? { text: modelLabel } : undefined}
+                    style={{
+                      minHeight: 44,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 8,
+                      gap: 6,
+                      borderRadius: 10,
+                    }}
                   >
-                    {modelLabel || t("Model")}
-                  </Text>
-                  <NativeSymbol
-                    ios="chevron.down"
-                    android="chevron-down"
-                    size={12}
-                    color={tokens.mutedForeground}
-                  />
-                </View>
-              </Pressable>
+                    <Text
+                      numberOfLines={1}
+                      style={{ color: tokens.foreground, fontSize: 13, flexShrink: 1 }}
+                    >
+                      {modelLabel || t("Model")}
+                    </Text>
+                    <NativeSymbol
+                      ios="chevron.down"
+                      android="chevron-down"
+                      size={12}
+                      color={tokens.mutedForeground}
+                    />
+                  </View>
+                </MenuView>
+              </View>
             ) : (
               <View style={{ flex: 1 }} />
             )}

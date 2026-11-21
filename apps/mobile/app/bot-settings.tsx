@@ -1,10 +1,11 @@
-import type { Bot, BotAvatarSet, ComputerMode, ThinkingLevel } from "@rakazo/contracts";
+import type { Bot, BotAvatarSet, ComputerMode, RpcInput, ThinkingLevel } from "@rakazo/contracts";
 import {
   BOT_AVATAR_SHAPE_COUNT,
   BOT_COLORS,
   BOT_DESCRIPTION_MAX_LENGTH,
   BOT_INSTRUCTIONS_MAX_LENGTH,
   BOT_NAME_MAX_LENGTH,
+  ProjectWorkspaceIdInput,
   resolveBotAvatarSet,
 } from "@rakazo/contracts";
 import {
@@ -17,7 +18,7 @@ import {
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { BotAvatar } from "../components/bot-avatar";
 import { BotContextCards } from "../components/bot-context-cards";
@@ -44,26 +45,78 @@ import {
 import { deviceVoices, setVoiceForBot, voiceForBot, voiceLabel } from "../lib/bot-voices";
 import { chatModelPickerChoices } from "../lib/chat-model";
 import { COMPUTER_LIFECYCLE_TIMEOUT_MS } from "../lib/computer";
+import { pickBotAvatar } from "../lib/create-bot-avatar";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
 import { native, useMobileTokens } from "../lib/native";
+import { projectRequestOptions, projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { createQueuedSave } from "../lib/queued-save";
 import { useSideInsets } from "../lib/side-insets";
 import { thinkingLevelLabel } from "../lib/thinking-level";
 import { errorText } from "../lib/user-error";
 import { stopVoicePlayback } from "../lib/voice";
 
-export default function BotSettingsScreen() {
+type BotSettingsParams = {
+  botId: string;
+  model?: string;
+  focus?: string;
+  projectId?: string;
+  scope?: string;
+};
+
+export default function BotSettingsRoute() {
+  const params = useLocalSearchParams<BotSettingsParams>();
+  if (params.projectId !== undefined) return <ProjectBotSettingsRoute params={params} />;
+  return <BotSettingsScreen params={params} />;
+}
+
+function ProjectBotSettingsRoute({ params }: { params: BotSettingsParams }) {
+  const scope = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
+  const [openedScope] = useState(params.scope ?? scope);
+  const { t } = useI18n();
+  const tokens = useMobileTokens();
+  const project = ProjectWorkspaceIdInput.safeParse({ id: params.projectId });
+  if (!project.success || scope !== openedScope) {
+    return (
+      <>
+        <Stack.Screen options={glassHeaderOptions(t("Chat settings"))} />
+        <Text accessibilityRole="alert" style={{ padding: 24, color: tokens.destructive }}>
+          {t("Could not load bot")}
+        </Text>
+      </>
+    );
+  }
+  return (
+    <BotSettingsScreen
+      key={JSON.stringify([scope, project.data.id, params.botId])}
+      params={params}
+      projectId={project.data.id}
+      scope={scope}
+    />
+  );
+}
+
+function BotSettingsScreen({
+  params: { botId, model: pickedModel, focus },
+  projectId,
+  scope,
+}: {
+  params: BotSettingsParams;
+  projectId?: string;
+  scope?: string;
+}) {
   const sideInsets = useSideInsets();
   const tokens = useMobileTokens();
   const { t } = useI18n();
   const router = useRouter();
-  const {
-    botId,
-    model: pickedModel,
-    focus,
-  } = useLocalSearchParams<{ botId: string; model?: string; focus?: string }>();
+  const updateBot = useCallback(
+    async (bot: RpcInput<"bots/update">) =>
+      projectId && scope !== undefined
+        ? rpc("projectWorkspaces/updateBot", { projectId, bot }, await projectRequestOptions(scope))
+        : rpc("bots/update", bot),
+    [projectId, scope],
+  );
   const scrollRef = useRef<ScrollView>(null);
   const modelY = useRef(0);
   const [bot, setBot] = useState<Bot | null>(null);
@@ -75,6 +128,8 @@ export default function BotSettingsScreen() {
   const [computerMode, setComputerMode] = useState<ComputerMode>("team");
   const [avatarSet, setAvatarSet] = useState<BotAvatarSet>("organic");
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [pickingAvatar, setPickingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(focus === "model" || pickedModel !== undefined);
   const [modelKey, setModelKey] = useState("");
   const [thinkingLevel, setThinkingLevel] = useState("");
@@ -136,11 +191,12 @@ export default function BotSettingsScreen() {
     () =>
       createQueuedSave<boolean>(true, {
         save: async (notifyOnFinish) => {
-          const next = await rpc("bots/update", { botId, notifyOnFinish });
+          const next = await updateBot({ botId, notifyOnFinish });
           threadId.current = next.threadId;
         },
         onChange: setNotifyOnFinish,
         onSaved: async (notify) => {
+          if (projectId) return;
           try {
             await afterChatNotifyChange(
               currentApiBase(),
@@ -154,13 +210,13 @@ export default function BotSettingsScreen() {
         },
         onError: (err) => setError(errorText(err)),
       }),
-    [botId],
+    [botId, projectId, updateBot],
   );
   const nameSave = useMemo(
     () =>
       createQueuedSave<string>("", {
         save: async (name) => {
-          await rpc("bots/update", { botId, name });
+          await updateBot({ botId, name });
         },
         onChange: setName,
         onSaved: async (name) => {
@@ -168,13 +224,19 @@ export default function BotSettingsScreen() {
         },
         onError: (err) => setError(errorText(err)),
       }),
-    [botId],
+    [botId, updateBot],
   );
 
   useEffect(() => {
     if (!botId) return;
-    void rpc("bots/get", { botId })
+    const load = async () =>
+      projectId && scope !== undefined
+        ? rpc("projectWorkspaces/getBot", { projectId, botId }, await projectRequestOptions(scope))
+        : rpc("bots/get", { botId });
+    let active = true;
+    void load()
       .then((next) => {
+        if (!active) return;
         threadId.current = next.threadId;
         setBot(next);
         setName(next.name);
@@ -200,8 +262,13 @@ export default function BotSettingsScreen() {
         setFleetManagement(next.fleetManagement);
         fleetSave.reset(next.fleetManagement);
       })
-      .catch((err) => setError(errorText(err, t("Could not load bot"))));
-  }, [botId, dailyCheckInsSave, crossSpaceSave, fleetSave, notifySave, nameSave]);
+      .catch((err) => {
+        if (active) setError(errorText(err, t("Could not load bot")));
+      });
+    return () => {
+      active = false;
+    };
+  }, [botId, projectId, scope, dailyCheckInsSave, crossSpaceSave, fleetSave, notifySave, nameSave, t]);
 
   useEffect(() => {
     void Promise.all([rpc("me"), rpc("models/list"), rpc("models/credentials")])
@@ -274,11 +341,11 @@ export default function BotSettingsScreen() {
 
   // The searchable model list hands its pick back as a one-shot route param.
   useEffect(() => {
-    if (pickedModel === undefined) return;
+    if (!bot || pickedModel === undefined) return;
     router.setParams({ model: undefined });
     setAdvancedOpen(true);
     selectModel(pickedModel);
-  }, [pickedModel]);
+  }, [bot, pickedModel]);
 
   function applyVoices(available: Voice[], assigned: string | undefined) {
     setVoices(available);
@@ -309,7 +376,7 @@ export default function BotSettingsScreen() {
   );
 
   useEffect(() => {
-    if (!botId || !deviceVoiceEnabled) return;
+    if (!botId || !deviceVoiceEnabled || projectId) return;
     let current = true;
     void Promise.all([deviceVoices(), voiceForBot(botId)])
       .then(([available, assigned]) => {
@@ -323,7 +390,7 @@ export default function BotSettingsScreen() {
     return () => {
       current = false;
     };
-  }, [botId, deviceVoiceEnabled, t]);
+  }, [botId, deviceVoiceEnabled, projectId, t]);
 
   async function chooseVoice(voice: Voice) {
     if (!botId) return;
@@ -371,6 +438,20 @@ export default function BotSettingsScreen() {
     }
   }
 
+  async function chooseAvatarPhoto() {
+    if (pickingAvatar) return;
+    setPickingAvatar(true);
+    setAvatarError(null);
+    try {
+      const photo = await pickBotAvatar();
+      if (photo) setColor(photo);
+    } catch (error) {
+      setAvatarError(errorText(error, t("Could not load image")));
+    } finally {
+      setPickingAvatar(false);
+    }
+  }
+
   async function save() {
     if (!botId || !bot || pending) return;
     setPending(true);
@@ -412,8 +493,8 @@ export default function BotSettingsScreen() {
           ? ((thinkingLevel || null) as ThinkingLevel | null)
           : null;
       }
-      if (autoSpeak !== bot.autoSpeak) input.autoSpeak = autoSpeak;
-      if (computerMode !== bot.computerMode) {
+      if (!projectId && autoSpeak !== bot.autoSpeak) input.autoSpeak = autoSpeak;
+      if (!projectId && computerMode !== bot.computerMode) {
         await rpc(
           "bots/setComputer",
           { botId, mode: computerMode },
@@ -423,7 +504,7 @@ export default function BotSettingsScreen() {
       }
       // Use key presence so clearing description to "" still persists.
       if (Object.keys(input).length > 1) {
-        const updated = await rpc("bots/update", input);
+        const updated = await updateBot(input);
         // Saved edits and their history become the baseline, so a retry after a failed switch write
         // does not resend them.
         const { botId: _botId, expectedInstructions: _expected, ...saved } = input;
@@ -436,7 +517,7 @@ export default function BotSettingsScreen() {
         notifySave.flush(),
         nameSave.flush(),
       ]);
-      router.back();
+      if (!projectId || scope === projectScopeKey()) router.back();
     } catch (err) {
       setError(errorText(err, t("Could not save bot")));
     } finally {
@@ -522,7 +603,10 @@ export default function BotSettingsScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("Edit avatar")}
-              onPress={() => setAvatarOpen(true)}
+              onPress={() => {
+                setAvatarError(null);
+                setAvatarOpen(true);
+              }}
               style={{ padding: 4 }}
             >
               <BotAvatar
@@ -573,7 +657,7 @@ export default function BotSettingsScreen() {
             </View>
           </SettingsGroup>
         </View>
-        {botId ? <BotContextCards key={botId} botId={botId} /> : null}
+        {botId && !projectId ? <BotContextCards key={botId} botId={botId} /> : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("Advanced")}
@@ -613,7 +697,7 @@ export default function BotSettingsScreen() {
                     ? () =>
                         router.push({
                           pathname: "/bot-model",
-                          params: { botId, value: selectedModelKey },
+                          params: { botId, value: selectedModelKey, projectId, scope },
                         })
                     : undefined
                 }
@@ -635,79 +719,83 @@ export default function BotSettingsScreen() {
               </Text>
             ) : null}
 
-            <SettingsGroup label={t("Computer")}>
-              <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
-            </SettingsGroup>
-            <SettingsGroup label={t("Voice")}>
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Read replies aloud")}
-                </Text>
-                <NativeSwitch
-                  accessibilityLabel={t("Read replies aloud")}
-                  onValueChange={setAutoSpeak}
-                  value={autoSpeak}
-                />
-              </View>
-              {deviceVoiceEnabled ? (
-                voiceError ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t("Device voice")}
-                    accessibilityValue={{ text: voiceError }}
-                    onPress={() => void retryDeviceVoices()}
-                  >
-                    {voiceRow}
-                  </Pressable>
-                ) : (
-                  voiceRow
-                )
-              ) : null}
-            </SettingsGroup>
-            <SettingsGroup label={t("Permissions")}>
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Daily check-ins on unfinished work")}
-                </Text>
-                <NativeSwitch
-                  accessibilityLabel={t("Daily check-ins on unfinished work")}
-                  value={dailyCheckIns}
-                  onValueChange={(value) => {
-                    if (!botId) return;
-                    setError(null);
-                    dailyCheckInsSave.update(value);
-                  }}
-                />
-              </View>
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Allow cross-space bot communication")}
-                </Text>
-                <NativeSwitch
-                  accessibilityLabel={t("Allow cross-space bot communication")}
-                  value={crossSpaceCommunication}
-                  onValueChange={(value) => {
-                    if (!botId) return;
-                    setError(null);
-                    crossSpaceSave.update(value);
-                  }}
-                />
-              </View>
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Manage other bots")}
-                </Text>
-                <NativeSwitch
-                  accessibilityLabel={t("Manage other bots")}
-                  onValueChange={(value) => {
-                    if (!botId) return;
-                    setError(null);
-                    fleetSave.update(value);
-                  }}
-                  value={fleetManagement}
-                />
-              </View>
-            </SettingsGroup>
+            {!projectId ? (
+              <>
+                <SettingsGroup label={t("Computer")}>
+                  <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
+                </SettingsGroup>
+                <SettingsGroup label={t("Voice")}>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                      {t("Read replies aloud")}
+                    </Text>
+                    <NativeSwitch
+                      accessibilityLabel={t("Read replies aloud")}
+                      onValueChange={setAutoSpeak}
+                      value={autoSpeak}
+                    />
+                  </View>
+                  {deviceVoiceEnabled ? (
+                    voiceError ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t("Device voice")}
+                        accessibilityValue={{ text: voiceError }}
+                        onPress={() => void retryDeviceVoices()}
+                      >
+                        {voiceRow}
+                      </Pressable>
+                    ) : (
+                      voiceRow
+                    )
+                  ) : null}
+                </SettingsGroup>
+                <SettingsGroup label={t("Permissions")}>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                      {t("Daily check-ins on unfinished work")}
+                    </Text>
+                    <NativeSwitch
+                      accessibilityLabel={t("Daily check-ins on unfinished work")}
+                      value={dailyCheckIns}
+                      onValueChange={(value) => {
+                        if (!botId) return;
+                        setError(null);
+                        dailyCheckInsSave.update(value);
+                      }}
+                    />
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                      {t("Allow cross-space bot communication")}
+                    </Text>
+                    <NativeSwitch
+                      accessibilityLabel={t("Allow cross-space bot communication")}
+                      value={crossSpaceCommunication}
+                      onValueChange={(value) => {
+                        if (!botId) return;
+                        setError(null);
+                        crossSpaceSave.update(value);
+                      }}
+                    />
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                      {t("Manage other bots")}
+                    </Text>
+                    <NativeSwitch
+                      accessibilityLabel={t("Manage other bots")}
+                      onValueChange={(value) => {
+                        if (!botId) return;
+                        setError(null);
+                        fleetSave.update(value);
+                      }}
+                      value={fleetManagement}
+                    />
+                  </View>
+                </SettingsGroup>
+              </>
+            ) : null}
             <View>
               <View
                 style={{
@@ -719,7 +807,7 @@ export default function BotSettingsScreen() {
                 }}
               >
                 <SettingsSectionHeading>{t("Instructions")}</SettingsSectionHeading>
-                {bot?.instructionHistory?.length && instructions === bot.instructions ? (
+                {!projectId && bot?.instructionHistory?.length && instructions === bot.instructions ? (
                   <View style={{ width: 44 }}>
                     <MenuPickerMenu
                       label={t("Instruction history")}
@@ -794,57 +882,59 @@ export default function BotSettingsScreen() {
                 inset={0}
               />
             </SettingsGroup>
-            <GlassSurface
-              shape="roundedRectangle"
-              cornerRadius={12}
-              style={{ paddingHorizontal: 16, borderRadius: 12 }}
-              fallbackStyle={{ backgroundColor: native.fill }}
-            >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("Export")}
-                style={styles.row}
-                onPress={() => {
-                  void rpc("export/bot", { botId })
-                    .then((manifest) => Share.share({ message: JSON.stringify(manifest, null, 2) }))
-                    .catch((err) => setError(errorText(err)));
-                }}
+            {!projectId ? (
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={12}
+                style={{ paddingHorizontal: 16, borderRadius: 12 }}
+                fallbackStyle={{ backgroundColor: native.fill }}
               >
-                <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t("Export")}</Text>
-                <NativeSymbol
-                  ios="square.and.arrow.down"
-                  android="download-outline"
-                  size={18}
-                  color={tokens.mutedForeground}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("Clear conversation")}
-                style={[
-                  styles.row,
-                  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
-                ]}
-                onPress={() =>
-                  Alert.alert(t("Clear conversation"), undefined, [
-                    { text: t("Cancel"), style: "cancel" },
-                    {
-                      text: t("Clear conversation"),
-                      style: "destructive",
-                      onPress: () => {
-                        void rpc("threads/clear", { botId })
-                          .then(() => router.back())
-                          .catch((err) => setError(errorText(err)));
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Export")}
+                  style={styles.row}
+                  onPress={() => {
+                    void rpc("export/bot", { botId })
+                      .then((manifest) => Share.share({ message: JSON.stringify(manifest, null, 2) }))
+                      .catch((err) => setError(errorText(err)));
+                  }}
+                >
+                  <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t("Export")}</Text>
+                  <NativeSymbol
+                    ios="square.and.arrow.down"
+                    android="download-outline"
+                    size={18}
+                    color={tokens.mutedForeground}
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Clear conversation")}
+                  style={[
+                    styles.row,
+                    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
+                  ]}
+                  onPress={() =>
+                    Alert.alert(t("Clear conversation"), undefined, [
+                      { text: t("Cancel"), style: "cancel" },
+                      {
+                        text: t("Clear conversation"),
+                        style: "destructive",
+                        onPress: () => {
+                          void rpc("threads/clear", { botId })
+                            .then(() => router.back())
+                            .catch((err) => setError(errorText(err)));
+                        },
                       },
-                    },
-                  ])
-                }
-              >
-                <Text style={{ color: tokens.destructive, fontSize: 14 }}>
-                  {t("Clear conversation")}
-                </Text>
-              </Pressable>
-            </GlassSurface>
+                    ])
+                  }
+                >
+                  <Text style={{ color: tokens.destructive, fontSize: 14 }}>
+                    {t("Clear conversation")}
+                  </Text>
+                </Pressable>
+              </GlassSurface>
+            ) : null}
           </View>
         ) : null}
         {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}
@@ -862,13 +952,30 @@ export default function BotSettingsScreen() {
           visible={avatarOpen}
           animationType="slide"
           presentationStyle="pageSheet"
-          onRequestClose={() => setAvatarOpen(false)}
+          onRequestClose={() => {
+            if (!pickingAvatar) setAvatarOpen(false);
+          }}
         >
           <ScrollView
             contentContainerStyle={{ padding: 24, gap: 16 }}
             style={{ backgroundColor: tokens.background }}
           >
-            <NativeActionButton label={t("Done")} onPress={() => setAvatarOpen(false)} />
+            <NativeActionButton
+              label={t("Done")}
+              disabled={pickingAvatar}
+              onPress={() => setAvatarOpen(false)}
+            />
+            <NativeActionButton
+              label={t("Photo library")}
+              prominence="secondary"
+              busy={pickingAvatar}
+              onPress={() => void chooseAvatarPhoto()}
+            />
+            {avatarError ? (
+              <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+                {avatarError}
+              </Text>
+            ) : null}
             {bot && isAvatarPhoto(color) ? (
               <Pressable
                 accessibilityRole="button"

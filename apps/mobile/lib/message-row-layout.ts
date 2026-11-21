@@ -12,36 +12,22 @@ export function messageAvatarBotId(
   return message.role === "bot" ? (message.botId ?? (!inGroup ? botId : undefined)) : undefined;
 }
 
-/** Sizes a message's column: wide asks and centered events fill it, minus the avatar gutter. */
+/** Bot output, wide asks and centered events can use the entire content column. */
 export function messageRowLayout(
-  blocks: MobileMessage["blocks"],
-  {
-    activityBotId,
-    inGroup,
-    columnWidth,
-  }: {
-    activityBotId?: string;
-    inGroup: boolean;
-    columnWidth: number;
-  },
+  { role, blocks }: Pick<MobileMessage, "role" | "blocks">,
+  columnWidth: number,
 ) {
   const wideAsk = blocks.some(isSecretAskBlock);
-  const full = wideAsk || isCenteredAgentEvent(blocks);
+  const full = role === "bot" || wideAsk || isCenteredAgentEvent(blocks);
   // Connect cards fill the bubble width instead of shrinking to their button.
   const appConnect = blocks.some(
     (block) => block.kind === "app_connect" || block.kind === "mcp_approval",
   );
-  const gutter = activityBotId ? (inGroup ? 28 : 36) : 0;
+  const availableWidth = columnWidth - COLUMN_PADDING;
   return {
-    width: full ? "100%" : appConnect && !activityBotId ? "90%" : undefined,
-    maxWidth: full ? "100%" : activityBotId ? undefined : "90%",
+    width: full ? "100%" : appConnect ? "90%" : undefined,
+    maxWidth: full ? "100%" : "90%",
     menuFullWidth: wideAsk || appConnect,
-    menuMaxWidth: wideAsk
-      ? columnWidth - COLUMN_PADDING - gutter
-      : isCenteredAgentEvent(blocks)
-        ? columnWidth - COLUMN_PADDING
-        : activityBotId
-          ? columnWidth - COLUMN_PADDING - gutter
-          : (columnWidth - COLUMN_PADDING) * 0.9,
+    menuMaxWidth: full ? availableWidth : availableWidth * 0.9,
   } as const;
 }

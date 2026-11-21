@@ -2,6 +2,7 @@ import type { ComputerMode, ComputerReleaseReason } from "@rakazo/contracts";
 import type { ScreenPageState } from "@rakazo/core";
 import {
   createScreenReconnect,
+  DEFAULT_COMPUTER_SCREEN,
   displayName,
   isRetryableError,
   SCREEN_RECONNECT_DELAY_MS,
@@ -34,7 +35,7 @@ import { ComputerModePicker } from "../components/computer-mode-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
 import { GlassSurface } from "../components/glass-surface";
 import { NativeActionButton } from "../components/native-action-button";
-import { NativeComputerControl } from "../components/native-computer-control";
+import { ComputerVirtualMouse, NativeComputerControl } from "../components/native-computer-control";
 import {
   captureApiRequestContext,
   currentApiBase,
@@ -50,7 +51,9 @@ import type { ComputerStatus } from "../lib/computer";
 import {
   COMPUTER_HEARTBEAT_MS,
   COMPUTER_LIFECYCLE_TIMEOUT_MS,
+  COMPUTER_SCREEN_SIZE_SCRIPT,
   computerLabel,
+  computerScreenDimensions,
   controlLabel,
   embeddableScreenUrl,
   fromScreenPage,
@@ -78,7 +81,7 @@ import { tabletopLayout } from "../lib/fold-layout";
 import { useFoldRegions } from "../lib/fold-regions";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
-import type { NativeScreenGeometry } from "../lib/native-computer-control";
+import type { ComputerPointerMode, NativeScreenGeometry } from "../lib/native-computer-control";
 import {
   createNativeComputerInputQueue,
   isNativeControlPage,
@@ -136,11 +139,31 @@ export default function Computer() {
   // Bumped to load the screen page again after the app returns from the background or the
   // WebView loses its renderer; either can leave the stream black until it reconnects.
   const [screenReload, setScreenReload] = useState(0);
+  const [screenFrame, setScreenFrame] = useState<{
+    source: string;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [screenStage, setScreenStage] = useState<{ width: number; height: number } | null>(null);
+  const [pointerMode, setPointerMode] = useState<ComputerPointerMode>("touch");
   const [nativeGeometry, setNativeGeometry] = useState<NativeScreenGeometry | null>(null);
   const [nativeInputError, setNativeInputError] = useState<string | null>(null);
+  const [mouseInputError, setMouseInputError] = useState<string | null>(null);
   const [nativeInputReview, setNativeInputReview] = useState(nativeInputNeedsReview);
 
   const embeddedScreenUrl = embeddableScreenUrl(screenUrl, currentApiBase());
+  const screenSource = embeddedScreenUrl ? screenStreamKey(embeddedScreenUrl) : null;
+  const screenDimensions =
+    screenFrame && screenFrame.source === screenSource
+      ? screenFrame
+      : {
+          width: computer?.screenWidth ?? DEFAULT_COMPUTER_SCREEN.width,
+          height: computer?.screenHeight ?? DEFAULT_COMPUTER_SCREEN.height,
+        };
+  const screenAspectRatio = screenDimensions.width / screenDimensions.height;
+  const screenStageWidth = screenStage
+    ? Math.max(1, Math.min(screenStage.width, screenStage.height * screenAspectRatio))
+    : "100%";
   useEffect(() => setScreenError(null), [embeddedScreenUrl]);
   // Without a WebView a dropped URL never fails on its own, so say so instead of a dead preview.
   const unreachableScreen =
@@ -148,7 +171,7 @@ export default function Computer() {
 
   const hasControl = computer?.controlHolder === "user" && computer.controlBotId === botId;
   const nativeComputer = computer?.kind === "native-linux";
-  const nativeLease = nativeComputer && hasControl ? computer?.controlLeaseId : null;
+  const nativeLease = nativeComputer && hasControl ? (computer?.controlLeaseId ?? null) : null;
   const tabletop = hasControl ? tabletopLayout(windowSize.width, windowSize.height, folds) : null;
   const screenVisible =
     computerOpen && computer?.state === "running" && Boolean(embeddedScreenUrl) && !screenError;
@@ -170,11 +193,15 @@ export default function Computer() {
     scopeSelectionSeq === spaceSelectionSeq() &&
     !isSpaceSelectionPending() &&
     scopeBase === currentApiBase();
-  const nativeQueue = useMemo(() => {
+  function onScreenDimensions(sourceUrl: string, dimensions: { width: number; height: number }) {
+    const source = screenStreamKey(sourceUrl);
+    if (source === screenSource && isCurrentScope()) setScreenFrame({ source, ...dimensions });
+  }
+  const inputQueue = useMemo(() => {
     if (
-      !nativeLease ||
-      nativeLease === nativeInputBlockedLease ||
-      nativeInputReview ||
+      !hasControl ||
+      (nativeComputer &&
+        (!nativeLease || nativeLease === nativeInputBlockedLease || nativeInputReview)) ||
       !botId ||
       !computerOpen ||
       !foreground ||
@@ -192,19 +219,25 @@ export default function Computer() {
         if (!isCurrentScope()) throw new Error("Computer control session changed.");
         return rpc(
           "computer/input",
-          { botId, controlLeaseId: nativeLease, ...input },
+          { botId, ...(nativeLease ? { controlLeaseId: nativeLease } : {}), ...input },
           { requestContext },
         );
       },
-      (cause) =>
-        setNativeInputError(errorText(cause, t("Computer input failed. Take control again."))),
+      (cause) => {
+        const message = errorText(cause, t("Computer input failed. Take control again."));
+        if (nativeComputer) setNativeInputError(message);
+        else setMouseInputError(message);
+      },
       () => {
+        if (!nativeComputer) return;
         nativeInputNeedsReview = true;
         nativeInputBlockedLease = nativeLease;
         setNativeInputReview(true);
       },
     );
   }, [
+    hasControl,
+    nativeComputer,
     nativeLease,
     nativeInputReview,
     botId,
@@ -221,18 +254,23 @@ export default function Computer() {
     scopeBase,
     t,
   ]);
-  const nativeQueueRef = useRef(nativeQueue);
-  nativeQueueRef.current = nativeQueue;
+  const nativeQueue = nativeComputer ? inputQueue : null;
+  const inputQueueRef = useRef(inputQueue);
+  inputQueueRef.current = inputQueue;
   const foregroundRef = useRef(foreground);
   foregroundRef.current = foreground;
   useEffect(() => {
     setNativeGeometry(null);
+    setMouseInputError(null);
     return () => {
-      nativeQueue?.invalidate();
-      nativeQueue?.dispose();
+      inputQueue?.invalidate();
+      inputQueue?.dispose();
     };
-  }, [nativeQueue]);
+  }, [inputQueue]);
   useEffect(() => setNativeInputError(null), [nativeLease]);
+  useEffect(() => {
+    if (!hasControl || !computerOpen) setPointerMode("touch");
+  }, [hasControl, computerOpen]);
   // The gate follows the page the WebView actually loaded. A capability refresh that
   // does not reload that page must not open a session the bridge will never acknowledge.
   const keyboardSurfaceKey = `${computerOpen}:${hasControl}:${screenReload}:${loadedScreenUrl ?? ""}`;
@@ -440,8 +478,8 @@ export default function Computer() {
   currentScreenUrl.current = loadedScreenUrl ?? embeddedScreenUrl;
   useLayoutEffect(() => {
     const clearScope = () => {
-      nativeQueueRef.current?.dispose();
-      nativeQueueRef.current = null;
+      inputQueueRef.current?.dispose();
+      inputQueueRef.current = null;
       refreshController.dispose();
       heldScreenUrl.current = null;
       currentScreenUrl.current = null;
@@ -464,6 +502,7 @@ export default function Computer() {
       setSwitchingCount(0);
       setReleasing(false);
       setNativeGeometry(null);
+      setPointerMode("touch");
       setComputerOpen(false);
       setReadyBotId(null);
       autoBooted.current = null;
@@ -567,7 +606,7 @@ export default function Computer() {
   async function releaseComputer(reason?: ComputerReleaseReason) {
     if (!botId || !refreshController.isActive()) return;
     const action = refreshController.beginAction();
-    nativeQueue?.dispose();
+    inputQueue?.dispose();
     setNativeGeometry(null);
     setReleasing(true);
     try {
@@ -587,7 +626,7 @@ export default function Computer() {
   }
 
   function closeComputer() {
-    nativeQueue?.dispose();
+    inputQueue?.dispose();
     setNativeGeometry(null);
     setComputerOpen(false);
   }
@@ -622,6 +661,7 @@ export default function Computer() {
 
   const keyboardBar = hasControl ? (
     <ComputerKeyboardBar
+      pointer={{ mode: pointerMode, onChange: setPointerMode }}
       active={
         computerOpen &&
         !releasing &&
@@ -755,15 +795,16 @@ export default function Computer() {
       ) : null}
       <View
         style={{
-          height: 360,
-          minHeight: 220,
+          aspectRatio: screenAspectRatio,
           borderRadius: 14,
           overflow: "hidden",
           backgroundColor: tokens.card,
         }}
       >
         {computerOpen ? (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 52 }}
+          >
             <Text style={{ color: tokens.mutedForeground }}>{t("Open in full window")}</Text>
           </View>
         ) : foreground && computer?.state === "running" && embeddedScreenUrl && !screenError ? (
@@ -771,6 +812,7 @@ export default function Computer() {
             key={screenReload}
             url={embeddedScreenUrl}
             interactive={false}
+            onDimensions={onScreenDimensions}
             onScreenState={(state) => {
               if (isCurrentScope()) onScreenState(state);
             }}
@@ -797,6 +839,7 @@ export default function Computer() {
               justifyContent: "center",
               gap: 12,
               padding: 16,
+              paddingBottom: 56,
             }}
           >
             {bootPending ? <ActivityIndicator size="large" color={tokens.mutedForeground} /> : null}
@@ -811,8 +854,22 @@ export default function Computer() {
           accessibilityState={{ disabled: bootPending, busy: bootPending }}
           disabled={bootPending}
           onPress={() => void openComputer({ takeControl: false })}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        />
+          style={({ pressed }) => ({
+            position: "absolute",
+            bottom: 12,
+            end: 12,
+            minHeight: 44,
+            justifyContent: "center",
+            paddingHorizontal: 14,
+            borderRadius: 12,
+            backgroundColor: tokens.primary,
+            opacity: bootPending ? 0.55 : pressed ? 0.78 : 1,
+          })}
+        >
+          <Text style={{ color: tokens.primaryForeground, fontSize: 15, fontWeight: "600" }}>
+            {t("Open computer")}
+          </Text>
+        </Pressable>
       </View>
       <View
         style={{
@@ -957,134 +1014,179 @@ export default function Computer() {
               </Text>
             ) : null}
             {screenReadError && loadedScreenUrl ? retryScreenAction : null}
-            <View style={{ flex: 1, backgroundColor: tokens.card }}>
-              {foreground && loadedScreenUrl ? (
-                <ScreenWebView
-                  key={`${screenReload}:${loadedScreenUrl}:${Boolean(nativeQueue)}`}
-                  url={loadedScreenUrl}
-                  interactive={hasControl && !nativeComputer}
-                  nativeKeyboard={hasControl && !nativeComputer}
-                  nativeGeometry={Boolean(nativeQueue)}
-                  keyboardSession={keyboardSession}
-                  webViewRef={screenWebViewRef}
-                  onNativeGeometry={(geometry) => {
-                    if (!isCurrentScope()) return;
-                    if (!geometry) {
-                      nativeQueue?.invalidate();
-                      nativeQueue?.reject(
-                        new Error(
-                          "画面连接已失效，输入可能已部分执行或结果未知。请核对画面后释放并重新接管。",
-                        ),
-                      );
-                    }
-                    setNativeGeometry(geometry);
-                  }}
-                  onNativeSourceUnavailable={() => {
-                    if (!isCurrentScope()) return;
-                    nativeQueue?.invalidate();
-                    nativeQueue?.reject(
-                      new Error(
-                        "无法验证电脑画面消息来源，此设备暂不支持安全接管。请释放并检查设备兼容性。",
-                      ),
-                    );
-                  }}
-                  onKeyboardMessage={(data) => {
-                    if (!isCurrentScope()) return;
-                    const gate = keyboardGate.current;
-                    if (!isComputerKeyboardReadyMessage(data, String(gate.session))) return;
-                    injectKeyboardCommands(gate.bridge.ready());
-                  }}
-                  onScreenState={(state) => {
-                    if (!isCurrentScope()) return;
-                    if (state !== "connected") {
-                      nativeQueue?.invalidate();
-                      setNativeGeometry(null);
-                    } else if (nativeQueue) {
-                      screenWebViewRef.current?.injectJavaScript(
-                        "window.__rakazoNativeGeometryRefresh?.();true;",
-                      );
-                    }
-                    onScreenState(state);
-                  }}
-                  onLoadStart={() => {
-                    if (!isCurrentScope()) return;
-                    nativeQueue?.invalidate();
-                    setNativeGeometry(null);
-                    onScreenLoadStart();
-                  }}
-                  onRendererLost={() => {
-                    if (!isCurrentScope()) return;
-                    nativeQueue?.invalidate();
-                    void reloadScreen();
-                  }}
-                  onError={() => {
-                    if (!isCurrentScope()) return;
-                    nativeQueue?.invalidate();
-                    refreshController.invalidateScreen();
-                    setScreenOriginError(true);
-                    setScreenError(
-                      t("Could not load the desktop. This device cannot reach the screen URL."),
-                    );
-                  }}
-                />
-              ) : (
+            <SafeAreaView
+              edges={hasControl ? ["left", "right"] : ["left", "right", "bottom"]}
+              style={{ flex: 1, justifyContent: "center", paddingHorizontal: 12 }}
+            >
+              <View
+                onLayout={(event) => setScreenStage(event.nativeEvent.layout)}
+                style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+              >
                 <View
-                  style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}
+                  style={{
+                    width: screenStageWidth,
+                    aspectRatio: screenAspectRatio,
+                    backgroundColor: tokens.card,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                  }}
                 >
-                  <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
-                    {placeholder}
-                  </Text>
-                  {retryScreenAction}
-                </View>
-              )}
-              {nativeComputer && hasControl && computerOpen ? (
-                <>
-                  {nativeQueue && !nativeInputError ? (
-                    <NativeComputerControl
-                      geometry={nativeGeometry}
-                      onInput={(input) => nativeQueue.enqueue(input)}
+                  {foreground && loadedScreenUrl ? (
+                    <ScreenWebView
+                      key={`${screenReload}:${loadedScreenUrl}:${Boolean(nativeQueue)}`}
+                      url={loadedScreenUrl}
+                      interactive={hasControl && !nativeComputer && pointerMode === "touch"}
+                      nativeKeyboard={hasControl && !nativeComputer}
+                      nativeGeometry={Boolean(nativeQueue)}
+                      keyboardSession={keyboardSession}
+                      webViewRef={screenWebViewRef}
+                      onDimensions={onScreenDimensions}
+                      onNativeGeometry={(geometry) => {
+                        if (!isCurrentScope()) return;
+                        if (!geometry) {
+                          nativeQueue?.invalidate();
+                          nativeQueue?.reject(
+                            new Error(
+                              "画面连接已失效，输入可能已部分执行或结果未知。请核对画面后释放并重新接管。",
+                            ),
+                          );
+                        }
+                        setNativeGeometry(geometry);
+                      }}
+                      onNativeSourceUnavailable={() => {
+                        if (!isCurrentScope()) return;
+                        nativeQueue?.invalidate();
+                        nativeQueue?.reject(
+                          new Error(
+                            "无法验证电脑画面消息来源，此设备暂不支持安全接管。请释放并检查设备兼容性。",
+                          ),
+                        );
+                      }}
+                      onKeyboardMessage={(data) => {
+                        if (!isCurrentScope()) return;
+                        const gate = keyboardGate.current;
+                        if (!isComputerKeyboardReadyMessage(data, String(gate.session))) return;
+                        injectKeyboardCommands(gate.bridge.ready());
+                      }}
+                      onScreenState={(state) => {
+                        if (!isCurrentScope()) return;
+                        if (state !== "connected") {
+                          inputQueue?.invalidate();
+                          setNativeGeometry(null);
+                        } else if (nativeQueue) {
+                          screenWebViewRef.current?.injectJavaScript(
+                            "window.__rakazoNativeGeometryRefresh?.();true;",
+                          );
+                        }
+                        onScreenState(state);
+                      }}
+                      onLoadStart={() => {
+                        if (!isCurrentScope()) return;
+                        inputQueue?.invalidate();
+                        setNativeGeometry(null);
+                        onScreenLoadStart();
+                      }}
+                      onRendererLost={() => {
+                        if (!isCurrentScope()) return;
+                        inputQueue?.invalidate();
+                        void reloadScreen();
+                      }}
+                      onError={() => {
+                        if (!isCurrentScope()) return;
+                        inputQueue?.invalidate();
+                        refreshController.invalidateScreen();
+                        setScreenOriginError(true);
+                        setScreenError(
+                          t("Could not load the desktop. This device cannot reach the screen URL."),
+                        );
+                      }}
                     />
-                  ) : null}
-                  {!nativeLease || nativeInputError || !nativeGeometry ? (
+                  ) : (
                     <View
-                      pointerEvents="none"
                       style={{
-                        position: "absolute",
-                        bottom: 12,
-                        left: 16,
-                        right: 16,
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 16,
                       }}
                     >
-                      <GlassSurface
-                        shape="roundedRectangle"
-                        cornerRadius={14}
-                        style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 }}
-                        fallbackStyle={{
-                          backgroundColor: tokens.card,
-                          borderWidth: 1,
-                          borderColor: tokens.border,
-                        }}
-                      >
-                        <Text
-                          accessibilityRole="alert"
-                          style={{ color: tokens.foreground, fontSize: 13 }}
-                        >
-                          {nativeLease && nativeLease === nativeInputBlockedLease
-                            ? "请先释放当前接管，核对画面后重新接管。"
-                            : !nativeLease
-                              ? t(
-                                  "Computer control is unavailable. Release and take control again.",
-                                )
-                              : nativeInputError
-                                ? `${nativeInputError} ${t("Check the screen, then release and take control again.")}`
-                                : t("Waiting for screen dimensions…")}
-                        </Text>
-                      </GlassSurface>
+                      <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
+                        {placeholder}
+                      </Text>
+                      {retryScreenAction}
                     </View>
+                  )}
+                  {pointerMode === "mouse" &&
+                  inputQueue &&
+                  screenVisible &&
+                  !mouseInputError &&
+                  !nativeInputError &&
+                  (!nativeComputer || nativeGeometry) ? (
+                    <ComputerVirtualMouse
+                      key={`${screenReload}:${loadedScreenUrl}`}
+                      geometry={nativeComputer ? nativeGeometry : null}
+                      screen={nativeGeometry ?? screenDimensions}
+                      onInput={(input) => inputQueue.enqueue(input)}
+                    />
                   ) : null}
-                </>
-              ) : null}
-            </View>
+                  {pointerMode === "mouse" && mouseInputError ? (
+                    <Text
+                      accessibilityRole="alert"
+                      style={{ color: tokens.destructive, padding: 8 }}
+                    >
+                      {mouseInputError}
+                    </Text>
+                  ) : null}
+                  {nativeComputer && hasControl && computerOpen ? (
+                    <>
+                      {pointerMode === "touch" && nativeQueue && !nativeInputError ? (
+                        <NativeComputerControl
+                          geometry={nativeGeometry}
+                          onInput={(input) => nativeQueue.enqueue(input)}
+                        />
+                      ) : null}
+                      {!nativeLease || nativeInputError || !nativeGeometry ? (
+                        <View
+                          pointerEvents="none"
+                          style={{
+                            position: "absolute",
+                            bottom: 12,
+                            left: 16,
+                            right: 16,
+                          }}
+                        >
+                          <GlassSurface
+                            shape="roundedRectangle"
+                            cornerRadius={14}
+                            style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 }}
+                            fallbackStyle={{
+                              backgroundColor: tokens.card,
+                              borderWidth: 1,
+                              borderColor: tokens.border,
+                            }}
+                          >
+                            <Text
+                              accessibilityRole="alert"
+                              style={{ color: tokens.foreground, fontSize: 13 }}
+                            >
+                              {nativeLease && nativeLease === nativeInputBlockedLease
+                                ? "请先释放当前接管，核对画面后重新接管。"
+                                : !nativeLease
+                                  ? t(
+                                      "Computer control is unavailable. Release and take control again.",
+                                    )
+                                  : nativeInputError
+                                    ? `${nativeInputError} ${t("Check the screen, then release and take control again.")}`
+                                    : t("Waiting for screen dimensions…")}
+                            </Text>
+                          </GlassSurface>
+                        </View>
+                      ) : null}
+                    </>
+                  ) : null}
+                </View>
+              </View>
+            </SafeAreaView>
             {tabletop ? (
               // A fixed lower half, so the keyboard lifts the bar without pushing the desktop.
               <View style={{ height: windowSize.height - tabletop.top, paddingTop: tabletop.gap }}>
@@ -1152,6 +1254,7 @@ function ScreenWebView({
   nativeGeometry = false,
   keyboardSession,
   webViewRef,
+  onDimensions,
   onKeyboardMessage,
   onNativeGeometry,
   onNativeSourceUnavailable,
@@ -1166,6 +1269,7 @@ function ScreenWebView({
   nativeGeometry?: boolean;
   keyboardSession?: string;
   webViewRef?: RefObject<WebView | null>;
+  onDimensions: (source: string, dimensions: { width: number; height: number }) => void;
   onKeyboardMessage?: (data: string) => void;
   onNativeGeometry?: (geometry: NativeScreenGeometry | null) => void;
   onNativeSourceUnavailable?: () => void;
@@ -1218,9 +1322,11 @@ function ScreenWebView({
             ? nativeScreenGeometryScript(nativePageId)
             : undefined
       }
-      injectedJavaScript={
-        nativeKeyboard && keyboardSession ? computerKeyboardReadyProbe(keyboardSession) : undefined
-      }
+      injectedJavaScript={`${COMPUTER_SCREEN_SIZE_SCRIPT}\n${
+        nativeKeyboard && keyboardSession
+          ? `document.getElementById("mobile-trackpad")?.style.setProperty("display", "none");\n${computerKeyboardReadyProbe(keyboardSession)}`
+          : ""
+      }`}
       onMessage={(event) => {
         if (!mounted.current || (nativeGeometry && nativePageClosed.current)) return;
         if (nativeGeometry && (!event.nativeEvent.url || event.nativeEvent.url === "null")) {
@@ -1236,6 +1342,13 @@ function ScreenWebView({
         const nativeAuthorized =
           !nativeGeometry ||
           isNativeControlPage(event.nativeEvent.url, sourceUrl.current, loadedPageUrl.current);
+        if (authorized && nativeAuthorized) {
+          const dimensions = computerScreenDimensions(event.nativeEvent.data);
+          if (dimensions) {
+            onDimensions(loadedSource, dimensions);
+            return;
+          }
+        }
         const state =
           authorized && nativeAuthorized ? screenPageState(event.nativeEvent.data) : null;
         if (state) {

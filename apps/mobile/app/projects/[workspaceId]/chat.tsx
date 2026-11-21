@@ -1,7 +1,7 @@
 import { AI_DATA_DISCLOSURES, ProjectWorkspaceIdInput } from "@rakazo/contracts";
-import { pendingProjectApproval, projectActiveRuns } from "@rakazo/core";
-import { Stack, useLocalSearchParams } from "expo-router";
-import { useState, useSyncExternalStore } from "react";
+import { pendingProjectApproval, projectActiveRuns, projectMemberName } from "@rakazo/core";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,11 +15,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface } from "../../../components/glass-surface";
 import { glassHeaderOptions } from "../../../components/glass-title";
 import { NativeActionButton } from "../../../components/native-action-button";
-import { selectableMobileMessageText } from "../../../lib/api";
+import { threadHeaderRight } from "../../../components/thread-header-right";
+import { rpc, selectableMobileMessageText } from "../../../lib/api";
 import { mobileBubbleSurfaceStyle, useMobileChatAppearance } from "../../../lib/chat-appearance";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
-import { projectScopeKey, subscribeProjectScope } from "../../../lib/project-scope";
+import {
+  projectRequestOptions,
+  projectScopeKey,
+  subscribeProjectScope,
+} from "../../../lib/project-scope";
 import { useSideInsets } from "../../../lib/side-insets";
 import type { ProjectChatTarget } from "../../../lib/use-project-thread";
 import { useProjectThread } from "../../../lib/use-project-thread";
@@ -29,6 +34,7 @@ export default function ProjectChatRoute() {
     workspaceId: string;
     botId?: string;
     groupId?: string;
+    projectName?: string;
     scope?: string;
   }>();
   const scope = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
@@ -41,6 +47,7 @@ export default function ProjectChatRoute() {
     <ProjectChat
       key={JSON.stringify([scope, params.workspaceId, botId, groupId])}
       projectId={project.success ? project.data.id : ""}
+      initialProjectName={typeof params.projectName === "string" ? params.projectName : undefined}
       target={botId ? { botId } : { groupId: groupId ?? "" }}
       scope={scope}
       enabled={enabled}
@@ -50,23 +57,59 @@ export default function ProjectChatRoute() {
 
 function ProjectChat({
   projectId,
+  initialProjectName,
   target,
   scope,
   enabled,
 }: {
   projectId: string;
+  initialProjectName?: string;
   target: ProjectChatTarget;
   scope: string;
   enabled: boolean;
 }) {
   const chat = useProjectThread(projectId, target, scope, enabled);
+  const router = useRouter();
   const tokens = useMobileTokens();
   const chatAppearance = useMobileChatAppearance();
   const sideInsets = useSideInsets();
   const insets = useSafeAreaInsets();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const [draft, setDraft] = useState("");
+  const [projectName, setProjectName] = useState<string>();
+  const [canEditBot, setCanEditBot] = useState(false);
+  const botId = "botId" in target ? target.botId : undefined;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && scope === projectScopeKey();
+    void projectRequestOptions(scope)
+      .then((options) => {
+        if (!current()) return;
+        const request = { ...options, signal: controller.signal };
+        void rpc("projectWorkspaces/get", { id: projectId }, request)
+          .then((project) => {
+            if (current()) setProjectName(project.name);
+          })
+          .catch(() => undefined);
+        if (botId) {
+          void rpc("projectWorkspaces/conversationCapabilities", undefined, request)
+            .then((capabilities) => {
+              if (current()) setCanEditBot(capabilities.botSettings === true);
+            })
+            .catch(() => undefined);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [botId, enabled, projectId, scope]);
+
+  const openBotSettings = () => {
+    if (!enabled || !botId || scope !== projectScopeKey()) return;
+    router.push({ pathname: "/bot-settings", params: { botId, projectId, scope } });
+  };
   const missing = chat.consent?.recipients.filter((recipient) => !recipient.allowed) ?? [];
   const errorStyle = { color: tokens.destructive, fontSize: 14 };
   const mutedStyle = { color: tokens.mutedForeground, fontSize: 13 };
@@ -78,7 +121,23 @@ function ProjectChat({
       style={{ flex: 1, backgroundColor: tokens.background }}
     >
       <Stack.Screen
-        options={glassHeaderOptions(chat.snapshot?.groupName ?? text("项目会话", "Project chat"))}
+        options={{
+          ...glassHeaderOptions(
+            (enabled ? projectName || initialProjectName : undefined) ?? text("项目", "Project"),
+          ),
+          ...(enabled && botId && canEditBot
+            ? threadHeaderRight({
+                inGroup: false,
+                readOnly: false,
+                hasBot: true,
+                t,
+                color: tokens.foreground,
+                onGroupSettings: openBotSettings,
+                onBotActions: openBotSettings,
+                menuActions: [{ text: t("Settings"), onPress: openBotSettings }],
+              })
+            : {}),
+        }}
       />
       <ScrollView
         style={sideInsets}
@@ -133,10 +192,7 @@ function ProjectChat({
                 <Text style={mutedStyle}>
                   {message.role === "user"
                     ? text("我", "You")
-                    : message.botId
-                      ? (chat.snapshot?.members?.find((member) => member.botId === message.botId)
-                          ?.name ?? "Bot")
-                      : "Bot"}
+                    : (projectMemberName(chat.snapshot?.members, message.botId) ?? "Bot")}
                 </Text>
                 {approval ? (
                   <View style={{ gap: 8 }}>
@@ -188,13 +244,13 @@ function ProjectChat({
         ) : null}
         {enabled
           ? projectActiveRuns(chat.snapshot).map((run) => {
-              const member = chat.snapshot?.members?.find((entry) => entry.botId === run.botId);
+              const memberName = projectMemberName(chat.snapshot?.members, run.botId);
               return (
                 <NativeActionButton
                   key={run.id}
                   label={
-                    member
-                      ? text(`取消 ${member.name} 的任务`, `Cancel ${member.name}'s run`)
+                    memberName
+                      ? text(`取消 ${memberName} 的任务`, `Cancel ${memberName}'s run`)
                       : text("取消任务", "Cancel run")
                   }
                   busy={chat.cancellingRunId === run.id}

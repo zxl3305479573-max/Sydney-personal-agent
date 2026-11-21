@@ -32,6 +32,7 @@ function createStyles() {
       backgroundColor: native.fill,
       borderRadius: 10,
       padding: 12,
+      minHeight: 48,
       marginBottom: 16,
       fontSize: 17,
     },

@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   crossSpaceCommunication: false,
   avatarSet: undefined as "organic" | "rakazo" | undefined,
   focus: undefined as string | undefined,
+  projectId: undefined as string | undefined,
+  pickBotAvatar: vi.fn(),
   os: "ios",
   work: [] as unknown[],
   history: [] as unknown[],
@@ -55,6 +57,12 @@ function deferredSave<T = void>() {
 }
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: mocks.pickBotAvatar }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => "project-scope",
+  subscribeProjectScope: () => () => {},
+  projectRequestOptions: async () => ({ skipSpaceAuthRecovery: true }),
+}));
 vi.mock("./bot-voices", () => ({
   voiceLabel: (voice: { language: string; name: string }) => `${voice.name} (${voice.language})`,
   deviceVoices: mocks.deviceVoices,
@@ -68,7 +76,8 @@ vi.mock("./api", () => ({
   currentApiBase: () => "https://api.example.test",
   loadSessionToken: async () => "token",
   selectedSpaceId: () => "space-a",
-  rpc: async (procedure: string, input?: unknown) => {
+  rpc: async (procedure: string, input?: unknown, options?: unknown) => {
+    if (procedure === "projectWorkspaces/updateBot") return mocks.rpc(procedure, input, options);
     if (
       [
         "bots/update",
@@ -81,7 +90,8 @@ vi.mock("./api", () => ({
       ].includes(procedure)
     )
       return mocks.rpc(procedure, input);
-    if (procedure === "bots/get") {
+    if (procedure === "bots/get" || procedure === "projectWorkspaces/getBot") {
+      if (procedure === "projectWorkspaces/getBot") mocks.rpc(procedure, input, options);
       await mocks.loadBot();
       return {
         id: "bot-fixture",
@@ -119,7 +129,12 @@ vi.mock("expo-notifications", () => ({
 vi.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ back: mocks.back }),
-  useLocalSearchParams: () => ({ botId: "bot-fixture", focus: mocks.focus }),
+  useLocalSearchParams: () => ({
+    botId: "bot-fixture",
+    focus: mocks.focus,
+    projectId: mocks.projectId,
+    scope: mocks.projectId ? "project-scope" : undefined,
+  }),
   useFocusEffect: (effect: () => (() => void) | undefined) => useEffect(effect, [effect]),
 }));
 vi.mock("react-native", () => {
@@ -367,6 +382,8 @@ describe("bot settings device voice menu", () => {
     mocks.loadBot.mockReset();
     vi.mocked(Notifications.getPresentedNotificationsAsync).mockResolvedValue([]);
     mocks.focus = undefined;
+    mocks.projectId = undefined;
+    mocks.pickBotAvatar.mockReset();
     mocks.instructions = "";
     mocks.description = "";
     mocks.os = "ios";
@@ -545,6 +562,38 @@ describe("bot settings device voice menu", () => {
         .click(),
     );
     expect(container.textContent).not.toContain("Shape");
+  });
+
+  it("saves a selected photo to the project bot and keeps the home bot untouched", async () => {
+    mocks.projectId = "project-fixture";
+    const photo = "data:image/jpeg;base64,ZmFrZQ==";
+    mocks.pickBotAvatar.mockResolvedValue(photo);
+    await render();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/getBot",
+      { projectId: "project-fixture", botId: "bot-fixture" },
+      { skipSpaceAuthRecovery: true },
+    );
+    expect(menu()).toBeNull();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
+    );
+    const click = (label: string) =>
+      act(async () =>
+        [...container.querySelectorAll<HTMLButtonElement>("button")]
+          .find((button) => button.textContent === label)!
+          .click(),
+      );
+    await click("Photo library");
+    await click("Done");
+    mocks.rpc.mockResolvedValueOnce({ color: photo });
+    await click("Save");
+    expect(mocks.rpc).toHaveBeenLastCalledWith(
+      "projectWorkspaces/updateBot",
+      { projectId: "project-fixture", bot: { botId: "bot-fixture", color: photo } },
+      { skipSpaceAuthRecovery: true },
+    );
+    expect(mocks.back).toHaveBeenCalledOnce();
   });
 
   it("keeps a legacy set until explicitly switched, saves the choice, and reloads it", async () => {

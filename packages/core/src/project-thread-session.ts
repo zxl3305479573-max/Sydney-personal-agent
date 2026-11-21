@@ -19,6 +19,16 @@ export function projectActiveRuns(snapshot: ProjectThreadHead | null): ProjectRu
   return runs.filter((run) => ACTIVE_RUN_STATUSES.some((status) => status === run.status));
 }
 
+export function projectMemberName(
+  members: readonly { botId: string; name: string }[] | undefined,
+  botId: string | undefined,
+): string | undefined {
+  const member = members?.find((entry) => entry.botId === botId);
+  if (!members || !member) return undefined;
+  const namesakes = members.filter((entry) => entry.name === member.name);
+  return namesakes.length > 1 ? `${member.name} (${namesakes.indexOf(member) + 1})` : member.name;
+}
+
 type ProjectApprovalAnswer = {
   runId: string;
   messageId: string;

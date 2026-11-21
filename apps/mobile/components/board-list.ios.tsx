@@ -4,7 +4,6 @@ import {
   font,
   foregroundStyle,
   frame,
-  lineLimit,
   listRowInsets,
   listSectionMargins,
   listStyle,
@@ -59,7 +58,7 @@ export function BoardList({ sections, error, onMove, onRefresh }: BoardListProps
               error ? <Text modifiers={[font({ textStyle: "footnote" })]}>{error}</Text> : undefined
             }
           >
-            {null}
+            {error ? <Button label={t("Retry")} onPress={() => void onRefresh()} /> : null}
           </Section>
         ) : null}
         {sections.map((section) => (
@@ -94,7 +93,6 @@ export function BoardList({ sections, error, onMove, onRefresh }: BoardListProps
                     </Text>
                     <Text
                       modifiers={[
-                        lineLimit(2),
                         multilineTextAlignment("leading"),
                         foregroundStyle(tokens.foreground),
                       ]}

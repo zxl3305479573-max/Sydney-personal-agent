@@ -24,6 +24,7 @@ export default function UiModeScreen() {
   const [busy, setBusy] = useState(false);
   useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
   const snapshot = getUiModeSnapshot();
+  const canRestoreClassic = snapshot.savedModeId !== "classic" || snapshot.previewModeId !== null;
   const modes = listAvailableUiModes(Platform.OS);
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
@@ -88,7 +89,7 @@ export default function UiModeScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 24 }}
     >
-      <SettingsGroup label={labels.title} footer={labels.hint}>
+      <SettingsGroup accessibilityLabel={labels.title} footer={labels.hint}>
         {modes.map((mode) => (
           <SettingsRow
             key={mode.id}
@@ -152,18 +153,14 @@ export default function UiModeScreen() {
           />
         </View>
       ) : null}
-      <NativeActionButton
-        label={labels.reset}
-        prominence="secondary"
-        disabled={
-          busy ||
-          !snapshot.hydrated ||
-          (snapshot.activeModeId === "classic" &&
-            snapshot.savedModeId === "classic" &&
-            snapshot.previewModeId === null)
-        }
-        onPress={() => void save(resetUiModeToClassic)}
-      />
+      {canRestoreClassic ? (
+        <NativeActionButton
+          label={labels.reset}
+          prominence="secondary"
+          disabled={busy || !snapshot.hydrated}
+          onPress={() => void save(resetUiModeToClassic)}
+        />
+      ) : null}
     </ScrollView>
   );
 }

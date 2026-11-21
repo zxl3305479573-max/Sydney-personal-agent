@@ -1,21 +1,24 @@
 {
-  "version": "1.0.17",
+  "version": "1.0.18",
   "releasedOn": "2026-11-21",
   "notes": {
     "zh-CN": [
-      "首页显示会话最近消息和时间，搜索更容易找到，底栏可直接返回聊天。",
-      "调整聊天输入栏，将编辑区和附件、模型、发送等操作分开排列。",
-      "GitHub 仓库整张卡片都能点开详情，长仓库名可以换行。"
+      "项目整张卡片都能点开，长项目名可以换行；Bot 回复显示在头像下方。",
+      "统一设置和连接表单的分组与标签，改善看板、产物和例行任务的加载及重试提示。",
+      "聊天可从输入栏切换模型。改善项目成员与聊天显示，项目成员设置会在服务器支持时出现。",
+      "电脑预览显示打开入口，接管时可切换触控和虚拟鼠标，并使用快捷键。"
     ],
     "zh-TW": [
-      "首頁顯示對話的最新訊息和時間，搜尋更容易找到，底部導覽可直接返回聊天。",
-      "調整聊天輸入列，將編輯區和附件、模型、傳送等操作分開排列。",
-      "GitHub 儲存庫整張卡片都能點開詳細資料，長名稱可以換行。"
+      "點整張專案卡片即可開啟，長專案名稱可以換行；Bot 回覆顯示在頭像下方。",
+      "統一設定與連線表單的分組和標籤，改善看板、產出與例行任務的載入及重試提示。",
+      "聊天可從輸入列切換模型。改善專案成員與聊天顯示，伺服器支援時會顯示專案成員設定。",
+      "電腦預覽顯示開啟入口，接管時可切換觸控和虛擬滑鼠，並使用快速鍵。"
     ],
     "en": [
-      "Home shows recent messages and timestamps, makes search easier to find, and adds a Chat tab.",
-      "The chat composer places the editor above actions such as Attach, Model, and Send.",
-      "Tap anywhere on a GitHub repository card to open it. Long repository names wrap."
+      "Tap anywhere on a project card to open it. Long project names wrap, and bot replies appear below their avatars.",
+      "Settings and connection forms use consistent groups and labels. Boards, artifacts, and routines show clearer loading and retry states.",
+      "Switch models from the chat composer. Project members and conversations are easier to scan, and member settings appear on supported servers.",
+      "Computer previews show an Open button. Switch between touch and a virtual mouse and use keyboard shortcuts while in control."
     ]
   }
 }

@@ -1,5 +1,9 @@
 import type { ComputerKeyboardCommand } from "./computer-keyboard";
 
+export type ComputerPointerMode = "touch" | "mouse";
+export type ComputerPoint = { x: number; y: number };
+type ScreenSize = { width: number; height: number };
+
 export type NativeScreenGeometry = {
   width: number;
   height: number;
@@ -82,15 +86,11 @@ export function isNativeScreenGeometryInvalidation(data: string, page: string): 
   }
 }
 
-export function nativeScreenPoint(
-  x: number,
-  y: number,
-  bounds: { width: number; height: number },
+export function nativeScreenDisplayBounds(
+  bounds: ScreenSize,
   geometry: NativeScreenGeometry,
-): { x: number; y: number } | null {
+): (ScreenSize & { left: number; top: number }) | null {
   if (
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
     !Number.isFinite(bounds.width) ||
     !Number.isFinite(bounds.height) ||
     bounds.width <= 0 ||
@@ -103,18 +103,67 @@ export function nativeScreenPoint(
     ) > 0.02
   )
     return null;
-  const localX = (x * geometry.viewportWidth) / bounds.width - geometry.left;
-  const localY = (y * geometry.viewportHeight) / bounds.height - geometry.top;
-  if (
-    localX < 0 ||
-    localY < 0 ||
-    localX >= geometry.displayWidth ||
-    localY >= geometry.displayHeight
-  )
-    return null;
+  const scaleX = bounds.width / geometry.viewportWidth;
+  const scaleY = bounds.height / geometry.viewportHeight;
   return {
-    x: Math.floor((localX * geometry.width) / geometry.displayWidth),
-    y: Math.floor((localY * geometry.height) / geometry.displayHeight),
+    left: geometry.left * scaleX,
+    top: geometry.top * scaleY,
+    width: geometry.displayWidth * scaleX,
+    height: geometry.displayHeight * scaleY,
+  };
+}
+
+export function nativeScreenPoint(
+  x: number,
+  y: number,
+  bounds: ScreenSize,
+  geometry: NativeScreenGeometry,
+): ComputerPoint | null {
+  const rect = nativeScreenDisplayBounds(bounds, geometry);
+  if (!rect || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const localX = x - rect.left;
+  const localY = y - rect.top;
+  if (localX < 0 || localY < 0 || localX >= rect.width || localY >= rect.height) return null;
+  return {
+    x: Math.floor((localX * geometry.width) / rect.width),
+    y: Math.floor((localY * geometry.height) / rect.height),
+  };
+}
+
+export function moveVirtualCursor(
+  cursor: ComputerPoint,
+  delta: ComputerPoint,
+  display: ScreenSize,
+): ComputerPoint {
+  return {
+    x: Math.max(0, Math.min(1, cursor.x + (delta.x * 1.3) / display.width)),
+    y: Math.max(0, Math.min(1, cursor.y + (delta.y * 1.3) / display.height)),
+  };
+}
+
+export function virtualCursorPoint(cursor: ComputerPoint, screen: ScreenSize): ComputerPoint {
+  return {
+    x: Math.min(screen.width - 1, Math.floor(cursor.x * screen.width)),
+    y: Math.min(screen.height - 1, Math.floor(cursor.y * screen.height)),
+  };
+}
+
+export function computerScrollInput(
+  point: ComputerPoint,
+  deltaX: number,
+  deltaY: number,
+): NativeComputerInput | null {
+  const distance = Math.hypot(deltaX, deltaY);
+  if (!Number.isFinite(distance) || distance < 12) return null;
+  const horizontal = Math.abs(deltaX) > Math.abs(deltaY);
+  const delta = horizontal ? deltaX : deltaY;
+  return {
+    kind: "scroll",
+    payload: {
+      ...point,
+      direction: horizontal ? (delta < 0 ? "right" : "left") : delta < 0 ? "down" : "up",
+      amount: Math.min(20, Math.max(1, Math.round(Math.abs(delta) / 40))),
+    },
   };
 }
 
@@ -127,20 +176,8 @@ export function nativeTouchInput(
 ): NativeComputerInput | null {
   const point = nativeScreenPoint(start.x, start.y, bounds, geometry);
   if (!point) return null;
-  const deltaX = end.x - start.x;
-  const deltaY = end.y - start.y;
-  if (Math.hypot(deltaX, deltaY) >= 12) {
-    const horizontal = Math.abs(deltaX) > Math.abs(deltaY);
-    const delta = horizontal ? deltaX : deltaY;
-    return {
-      kind: "scroll",
-      payload: {
-        ...point,
-        direction: horizontal ? (delta < 0 ? "right" : "left") : delta < 0 ? "down" : "up",
-        amount: Math.min(20, Math.max(1, Math.round(Math.abs(delta) / 40))),
-      },
-    };
-  }
+  const scroll = computerScrollInput(point, end.x - start.x, end.y - start.y);
+  if (scroll) return scroll;
   return {
     kind: "pointer",
     payload: { ...point, type: "click", button: durationMs >= 600 ? "right" : "left" },
@@ -243,6 +280,7 @@ export function createNativeComputerInputQueue(
   let generation = 0;
   let queued = 0;
   let pending = Promise.resolve();
+  let pendingMove: { input: NativeComputerInput } | null = null;
   let interruptionReported = false;
   function interrupt() {
     generation += 1;
@@ -261,18 +299,28 @@ export function createNativeComputerInputQueue(
   }
   function enqueueBatch(inputs: NativeComputerInput[]) {
     if (!active || failed || inputs.length === 0) return;
+    const [first] = inputs;
+    const moveOnly =
+      inputs.length === 1 && first?.kind === "pointer" && first.payload.type === "move";
+    if (moveOnly && pendingMove) {
+      pendingMove.input = first;
+      return;
+    }
     if (inputs.length > 32 - queued) {
       reject(new Error("Too many pending inputs. Check the screen and take control again."));
       return;
     }
     for (const input of inputs) {
+      const entry = { input };
+      pendingMove = moveOnly ? entry : null;
       const current = generation;
       queued += 1;
       pending = pending
         .then(async () => {
+          if (pendingMove === entry) pendingMove = null;
           if (!active || failed || generation !== current) return;
           try {
-            await send(input, () => active && !failed && generation === current);
+            await send(entry.input, () => active && !failed && generation === current);
           } catch (error) {
             if (active && generation === current && !failed) {
               reject(error);

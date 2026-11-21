@@ -1,4 +1,5 @@
 import type { GithubRepoSummary } from "@rakazo/contracts";
+import { typeScale } from "@rakazo/ui-tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState, useSyncExternalStore } from "react";
 import {
@@ -45,9 +46,9 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   const [topic, setTopic] = useState("");
   useFocusEffect(useCallback(() => () => setToken(""), []));
   const connected = github.status?.status === "connected";
-  const headingStyle = { color: tokens.foreground, fontSize: 19, fontWeight: "600" as const };
-  const bodyStyle = { color: tokens.foreground, fontSize: 15 };
-  const mutedStyle = { color: tokens.mutedForeground, fontSize: 13 };
+  const headingStyle = { color: tokens.foreground, ...typeScale.headline };
+  const bodyStyle = { color: tokens.foreground, ...typeScale.secondary };
+  const mutedStyle = { color: tokens.mutedForeground, ...typeScale.caption };
   const inputStyle = {
     color: tokens.foreground,
     borderColor: tokens.border,
@@ -55,6 +56,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
     borderRadius: 10,
     minHeight: 46,
     padding: 12,
+    fontSize: 17,
   };
   const sections: Array<{ id: GithubSection; label: string }> = [
     { id: "profile", label: text("个人主页", "Profile") },
@@ -90,7 +92,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             fallbackStyle={{ backgroundColor: tokens.card, borderRadius: 14 }}
           >
             <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
+              <Text style={{ color: tokens.foreground, ...typeScale.cardTitle }}>
                 {repo.fullName}
               </Text>
               {repo.description ? <Text style={bodyStyle}>{repo.description}</Text> : null}

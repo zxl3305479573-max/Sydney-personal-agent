@@ -466,8 +466,7 @@ it("stretches secret inputs and equal actions, enabling Save only with input", a
 
 it("fills the message column only for secret asks, including answered and login asks", async () => {
   const isWideAskBlock = (blocks: unknown[]) =>
-    messageRowLayout(blocks as MobileMessage["blocks"], { inGroup: false, columnWidth: 400 })
-      .menuFullWidth;
+    messageRowLayout({ role: "bot", blocks: blocks as MobileMessage["blocks"] }, 400).menuFullWidth;
   for (const status of ["pending", "answered"]) {
     for (const ask of [{ input: "secret" }, loginAsk]) {
       expect(isWideAskBlock([{ kind: "ask", ...ask, status }])).toBe(true);
@@ -483,7 +482,7 @@ it("fills the message column only for secret asks, including answered and login 
   expect((container.firstElementChild as HTMLElement).style.width).toBe("90%");
 });
 
-it("uses the full column for wide asks and reserves only the visible avatar gutter", () => {
+it("uses the full content column for bot replies and wide asks", () => {
   const blocks = {
     wide: [{ kind: "ask", text: "Secret", input: "secret", status: "pending" }],
     regular: [{ kind: "text", text: "Hello" }],
@@ -499,34 +498,26 @@ it("uses the full column for wide asks and reserves only the visible avatar gutt
     ],
     mcpApproval: [{ kind: "mcp_approval", serverId: "server-1", name: "Example" }],
   };
-  const measure = (kind: keyof typeof blocks, avatar: boolean, inGroup: boolean) =>
-    messageRowLayout(blocks[kind] as MobileMessage["blocks"], {
-      activityBotId: avatar ? "bot-1" : undefined,
-      inGroup,
-      columnWidth: 400,
+  for (const kind of ["wide", "regular", "appConnect", "mcpApproval"] as const) {
+    const layout = messageRowLayout(
+      { role: "bot", blocks: blocks[kind] as MobileMessage["blocks"] },
+      320,
+    );
+    expect(layout).toEqual({
+      width: "100%",
+      maxWidth: "100%",
+      menuMaxWidth: 280,
+      menuFullWidth: kind !== "regular",
     });
-  for (const [avatar, inGroup, gutter] of [
-    [false, false, 0],
-    [true, false, 36],
-    [true, true, 28],
-  ] as const) {
-    const wide = measure("wide", avatar, inGroup);
-    expect(wide.width).toBe("100%");
-    expect(wide.maxWidth).toBe("100%");
-    expect(wide.menuMaxWidth).toBe(400 - 40 - gutter);
-    const regular = measure("regular", avatar, inGroup);
-    expect(regular.width).toBeUndefined();
-    expect(regular.maxWidth).toBe(avatar ? undefined : "90%");
-    expect(regular.menuMaxWidth).toBe(avatar ? 360 - gutter : 324);
   }
-  // Connect cards take the full bubble width rather than shrinking to their button.
-  for (const kind of ["appConnect", "mcpApproval"] as const) {
-    const card = measure(kind, false, false);
-    expect(card.width).toBe("90%");
-    expect(card.maxWidth).toBe("90%");
-    expect(card.menuMaxWidth).toBe(324);
-    expect(card.menuFullWidth).toBe(true);
-  }
+  expect(
+    messageRowLayout({ role: "user", blocks: [{ kind: "text", text: "Hello" }] }, 400),
+  ).toEqual({
+    width: undefined,
+    maxWidth: "90%",
+    menuMaxWidth: 324,
+    menuFullWidth: false,
+  });
 });
 
 it.each([

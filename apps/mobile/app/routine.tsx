@@ -7,7 +7,7 @@ import { RoutineRunHistory } from "../components/routine-run-history";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { routineStatusLine } from "../lib/routine";
-import { useBotRoutines } from "../lib/routine-store";
+import { loadBotRoutines, useBotRoutines } from "../lib/routine-store";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
@@ -51,7 +51,23 @@ export default function RoutineDetail() {
     >
       <Stack.Screen options={glassHeaderOptions(routine?.name ?? t("Routine"))} />
       {loading ? <ActivityIndicator color={tokens.mutedForeground} /> : null}
-      {error ? <Text style={{ color: tokens.destructive, fontSize: 15 }}>{error}</Text> : null}
+      {error ? (
+        <View style={{ gap: 12 }}>
+          <Text
+            accessibilityRole="alert"
+            style={{ color: tokens.destructive, fontSize: 15, lineHeight: 22 }}
+          >
+            {error}
+          </Text>
+          {failedSinceShown && botId ? (
+            <NativeActionButton
+              label={t("Retry")}
+              prominence="secondary"
+              onPress={() => void loadBotRoutines(botId)}
+            />
+          ) : null}
+        </View>
+      ) : null}
       {routine ? (
         <>
           <GlassSurface
@@ -69,7 +85,8 @@ export default function RoutineDetail() {
           </GlassSurface>
           <View style={{ gap: 8 }}>
             <Text
-              style={{ color: tokens.mutedForeground, fontSize: 13, textTransform: "uppercase" }}
+              accessibilityRole="header"
+              style={{ color: tokens.foreground, fontSize: 17, lineHeight: 22, fontWeight: "600" }}
             >
               {t("Prompt")}
             </Text>
@@ -83,8 +100,8 @@ export default function RoutineDetail() {
                 selectable
                 style={{
                   color: tokens.foreground,
-                  fontSize: 15,
-                  lineHeight: 23,
+                  fontSize: 17,
+                  lineHeight: 26,
                   padding: 18,
                 }}
               >

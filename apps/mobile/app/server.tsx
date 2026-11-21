@@ -155,7 +155,7 @@ export default function ServerScreen() {
                 borderRadius: 13,
                 padding: 16,
                 color: tokens.foreground,
-                fontSize: 16,
+                fontSize: 17,
               }}
               textContentType="URL"
               value={draft}
@@ -184,7 +184,11 @@ export default function ServerScreen() {
             }}
             disabled={pending}
           />
-          {error ? <Text style={{ color: tokens.destructive, marginTop: 12 }}>{error}</Text> : null}
+          {error ? (
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+              {error}
+            </Text>
+          ) : null}
           {usesCustomApiBase(current) || draft.trim() !== current ? (
             <NativeActionButton
               disabled={pending}

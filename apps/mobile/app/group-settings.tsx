@@ -89,13 +89,14 @@ export default function GroupSettingsScreen() {
           fallbackStyle={{ backgroundColor: native.fill }}
         >
           <TextInput
+            accessibilityLabel={t("Group name")}
             value={name}
             onChangeText={setName}
             maxLength={GROUP_NAME_MAX_LENGTH}
             placeholder={t("Group name")}
             placeholderTextColor={tokens.mutedForeground}
             returnKeyType="done"
-            style={{ padding: 14, color: tokens.foreground, fontSize: 16 }}
+            style={{ minHeight: 48, padding: 14, color: tokens.foreground, fontSize: 17 }}
           />
         </GlassSurface>
         {group ? (
@@ -110,7 +111,11 @@ export default function GroupSettingsScreen() {
             disabled={pending}
           />
         ) : null}
-        {error ? <Text style={{ color: tokens.destructive, marginTop: 12 }}>{error}</Text> : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+            {error}
+          </Text>
+        ) : null}
         <NativeActionButton
           disabled={
             !name.trim() ||

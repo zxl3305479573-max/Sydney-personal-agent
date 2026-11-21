@@ -214,6 +214,7 @@ export default function NewGroup() {
                 fallbackStyle={{ backgroundColor: native.fill }}
               >
                 <TextInput
+                  accessibilityLabel={t("Group name")}
                   autoFocus
                   value={name}
                   onChangeText={setName}
@@ -247,7 +248,9 @@ export default function NewGroup() {
                 style={{ marginTop: 24, borderRadius: 28 }}
               />
               {error ? (
-                <Text style={{ color: tokens.destructive, marginTop: 12 }}>{error}</Text>
+                <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+                  {error}
+                </Text>
               ) : null}
             </View>
           )}

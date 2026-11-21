@@ -150,6 +150,7 @@ import {
   TimeZoneSchema,
   UpdateAgentSkillInput,
   UpdateBotInput,
+  UpdateProjectBotInput,
   UpdateExternalConversationPolicyInput,
   UpdateGroupInput,
   UsageRecordSchema,
@@ -550,7 +551,9 @@ export const appContract = {
     bindCloudDirectory: oc.input(BindProjectCloudDirectoryInput).output(z.object({ ok: z.literal(true) })),
     unbindCloudDirectory: oc.input(UnbindProjectDirectoryInput).output(z.object({ ok: z.literal(true) })),
     capabilities: oc.output(z.object({ create: z.boolean(), removeEmpty: z.boolean() }).strict()),
-    conversationCapabilities: oc.output(z.object({ createBot: z.boolean() }).strict()),
+    conversationCapabilities: oc.output(
+      z.object({ createBot: z.boolean(), botSettings: z.boolean().optional() }).strict(),
+    ),
     groupCreationCapability: oc.output(z.object({ createGroup: z.boolean() }).strict()),
     list: oc.input(ListProjectWorkspacesInput).output(ProjectWorkspacePageSchema),
     get: oc.input(ProjectWorkspaceIdInput).output(ProjectWorkspaceSchema),
@@ -573,6 +576,12 @@ export const appContract = {
           .strict(),
       )
       .output(GroupSchema),
+    getBot: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id }).strict())
+      .output(BotSchema),
+    updateBot: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, bot: UpdateProjectBotInput }).strict())
+      .output(BotSchema),
     threadSnapshot: oc
       .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }))
       .output(ThreadSnapshotSchema),

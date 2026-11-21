@@ -1,5 +1,6 @@
 import type { ProjectWorkspace, RpcOutput } from "@rakazo/contracts";
-import { DEFAULT_NEW_BOT_AVATAR_SET, ProjectWorkspaceIdInput } from "@rakazo/contracts";
+import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
+import type { Href } from "expo-router";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -13,16 +14,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BotAvatar } from "../../components/bot-avatar";
 import { CreateBotModal } from "../../components/create-bot-modal";
 import { ProjectDirectory } from "../../components/project-directory";
 import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
+import { GroupAvatar } from "../../components/group-avatar";
+import { ConversationRow, FALLBACK_COLOR } from "../../components/inbox-rows";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
 import type { ProjectGroupAttempt } from "../../components/project-group-modal";
 import { ProjectGroupModal } from "../../components/project-group-modal";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../../lib/api";
 import type { InboxBotIdentity } from "../../lib/create-inbox-bot";
+import { inboxBotInput } from "../../lib/create-inbox-bot";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
@@ -66,6 +71,7 @@ function ProjectContents({
   const [failed, setFailed] = useState(false);
   const [canRemove, setCanRemove] = useState(false);
   const [canCreateBot, setCanCreateBot] = useState(false);
+  const [canChangeBotSettings, setCanChangeBotSettings] = useState(false);
   const [creatingBot, setCreatingBot] = useState(false);
   const [canCreateGroup, setCanCreateGroup] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
@@ -91,6 +97,7 @@ function ProjectContents({
       setFailed(false);
       setCanRemove(false);
       setCanCreateBot(false);
+      setCanChangeBotSettings(false);
       setCanCreateGroup(false);
       void (async () => {
         try {
@@ -110,7 +117,9 @@ function ProjectContents({
             });
           void rpc("projectWorkspaces/conversationCapabilities", undefined, options)
             .then((capabilities) => {
-              if (current()) setCanCreateBot(capabilities.createBot === true);
+              if (!current()) return;
+              setCanCreateBot(capabilities.createBot === true);
+              setCanChangeBotSettings(capabilities.botSettings === true);
             })
             .catch(() => {
               if (current()) setCanCreateBot(false);
@@ -159,20 +168,15 @@ function ProjectContents({
       throw new Error(
         text("项目已改变，请返回后重新打开。", "The project changed. Return and try again."),
       );
-    await rpc(
+    const bot = await rpc(
       "projectWorkspaces/createBot",
       {
         projectId: workspaceId,
-        bot: {
-          ...identity,
-          notifyOnFinish: true,
-          avatarSet: DEFAULT_NEW_BOT_AVATAR_SET,
-          computerMode: "team",
-        },
+        bot: inboxBotInput(identity),
       },
       { requestContext, skipSpaceAuthRecovery: true },
     );
-    return null;
+    return current() ? conversationHref(workspaceId, "bot", bot.id) : null;
   }
 
   async function removeProject() {
@@ -238,6 +242,15 @@ function ProjectContents({
 
   const unavailable = scopeChanged || !workspaceId;
   const switchLabel = text("切换项目", "Switch project");
+  const conversationHref = (id: string, kind: "bot" | "group", conversationId: string): Href => ({
+    pathname: "/projects/[workspaceId]/chat",
+    params: {
+      workspaceId: id,
+      scope: scopeKey,
+      ...(project?.name ? { projectName: project.name } : {}),
+      ...(kind === "bot" ? { botId: conversationId } : { groupId: conversationId }),
+    },
+  });
   const openConversation = (kind: "bot" | "group", id: string) => {
     if (
       !workspaceId ||
@@ -247,13 +260,14 @@ function ProjectContents({
       isSpaceSelectionPending()
     )
       return;
+    router.push(conversationHref(workspaceId, kind, id));
+  };
+  const openBotSettings = (botId: string) => {
+    if (!workspaceId || scopeChanged || scopeKey !== projectScopeKey() || isSpaceSelectionPending())
+      return;
     router.push({
-      pathname: "/projects/[workspaceId]/chat",
-      params: {
-        workspaceId,
-        scope: scopeKey,
-        ...(kind === "bot" ? { botId: id } : { groupId: id }),
-      },
+      pathname: "/bot-settings",
+      params: { botId, projectId: workspaceId, scope: scopeKey },
     });
   };
 
@@ -438,6 +452,7 @@ function ProjectContents({
                   action={text("新建 Bot", "New bot")}
                   kind="bot"
                   items={roster.bots}
+                  onSettings={canChangeBotSettings ? openBotSettings : undefined}
                   hasPrevious={botCursors.length > 0}
                   next={roster.nextBotId}
                   actionEnabled={canCreateBot}
@@ -504,7 +519,7 @@ function ProjectContents({
         <CreateBotModal
           onClose={() => setCreatingBot(false)}
           onCreate={createProjectBot}
-          onCreated={() => {
+          onCreated={(destination) => {
             setCreatingBot(false);
             if (
               !focused.current ||
@@ -515,6 +530,7 @@ function ProjectContents({
               return;
             setBotCursors([]);
             setAttempt((old) => old + 1);
+            if (destination) router.push(destination);
           }}
         />
       ) : null}
@@ -529,7 +545,7 @@ function ProjectContents({
           }
           attempt={groupAttempt}
           onClose={() => setCreatingGroup(false)}
-          onCreated={() => {
+          onCreated={(groupId) => {
             setCreatingGroup(false);
             if (
               !focused.current ||
@@ -540,6 +556,7 @@ function ProjectContents({
               return;
             setGroupCursors([]);
             setAttempt((old) => old + 1);
+            router.push(conversationHref(workspaceId, "group", groupId));
           }}
         />
       ) : null}
@@ -560,12 +577,19 @@ function ProjectConversationSection({
   actionEnabled = false,
   onAction,
   onOpen,
+  onSettings,
 }: {
   title: string;
   emptyLabel: string;
   action: string;
   kind: "bot" | "group";
-  items: ReadonlyArray<{ id: string; name: string }>;
+  items: ReadonlyArray<{
+    id: string;
+    name: string;
+    color?: RpcOutput<"projectWorkspaces/roster">["bots"][number]["color"];
+    avatarSet?: RpcOutput<"projectWorkspaces/roster">["bots"][number]["avatarSet"];
+    members?: RpcOutput<"projectWorkspaces/roster">["groups"][number]["members"];
+  }>;
   hasPrevious: boolean;
   next: string | null;
   onPrevious: () => void;
@@ -573,6 +597,7 @@ function ProjectConversationSection({
   actionEnabled?: boolean;
   onAction?: () => void;
   onOpen?: (id: string) => void;
+  onSettings?: (id: string) => void;
 }) {
   const tokens = useMobileTokens();
   const { locale } = useI18n();
@@ -633,47 +658,59 @@ function ProjectConversationSection({
           </Text>
         ) : (
           items.map((item, index) => (
-            <Pressable
+            <View
               key={item.id}
-              accessibilityRole="button"
-              accessibilityLabel={item.name}
-              disabled={!onOpen}
-              onPress={() => onOpen?.(item.id)}
               style={{
-                minHeight: 54,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
+                paddingHorizontal: 12,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 12,
                 borderBottomWidth: index < items.length - 1 ? StyleSheet.hairlineWidth : 0,
                 borderBottomColor: tokens.border,
               }}
             >
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: native.fill,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <NativeSymbol
-                  ios={kind === "group" ? "person.2.fill" : "person.fill"}
-                  android={kind === "group" ? "people" : "person"}
-                  size={16}
-                  color={tokens.mutedForeground}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <ConversationRow
+                  wrapTitle
+                  roster
+                  title={item.name}
+                  preview=""
+                  time=""
+                  accessibilityLabel={item.name}
+                  onPress={onOpen ? () => onOpen(item.id) : undefined}
+                  onLongPress={onSettings ? () => onSettings(item.id) : undefined}
+                  avatar={
+                    kind === "group" ? (
+                      <GroupAvatar members={item.members ?? []} size={44} />
+                    ) : (
+                      <BotAvatar
+                        color={item.color || FALLBACK_COLOR}
+                        avatarSet={item.avatarSet}
+                        identity={item.id}
+                        size={44}
+                        motion="lazy"
+                      />
+                    )
+                  }
                 />
               </View>
-              <Text
-                numberOfLines={1}
-                style={{ flex: 1, color: tokens.foreground, fontSize: 16, fontWeight: "500" }}
-              >
-                {item.name}
-              </Text>
-            </Pressable>
+              {onSettings ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={locale.startsWith("zh") ? `设置 ${item.name}` : `Settings for ${item.name}`}
+                  onPress={() => onSettings(item.id)}
+                  style={({ pressed }) => ({
+                    width: 44,
+                    minHeight: 44,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: pressed ? native.fill : undefined,
+                  })}
+                >
+                  <NativeSymbol ios="gearshape" android="settings" size={18} color={tokens.mutedForeground} />
+                </Pressable>
+              ) : null}
+            </View>
           ))
         )}
       </GlassSurface>

@@ -47,6 +47,7 @@ export function ConversationRow({
   accessibilityLabel,
   accessibilityHint,
   roster = false,
+  wrapTitle = false,
 }: {
   chatId?: string;
   title: string;
@@ -54,13 +55,14 @@ export function ConversationRow({
   time: string;
   avatar: ReactNode;
   unread?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
   onLongPress?: () => void;
   actions?: InboxRowAction[];
   onAction?: (action: InboxRowAction) => void;
   accessibilityLabel: string;
   accessibilityHint?: string;
   roster?: boolean;
+  wrapTitle?: boolean;
 }) {
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
@@ -75,7 +77,7 @@ export function ConversationRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={chatId ? { selected } : undefined}
+      accessibilityState={{ disabled: !onPress, ...(chatId ? { selected } : {}) }}
       accessibilityHint={accessibilityHint}
       // Screen readers access swipe actions through the row.
       accessibilityActions={rowActions.length > 0 ? rowActions : undefined}
@@ -85,6 +87,7 @@ export function ConversationRow({
         if (action) onAction?.(action);
       }}
       android_ripple={androidRipple()}
+      disabled={!onPress}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
@@ -102,7 +105,7 @@ export function ConversationRow({
           <View style={styles.titleRow}>
             <Text
               style={[styles.name, unread && styles.unreadName]}
-              numberOfLines={1}
+              numberOfLines={wrapTitle ? undefined : 1}
               ellipsizeMode="tail"
             >
               {title}

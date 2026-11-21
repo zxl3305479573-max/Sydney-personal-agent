@@ -1,10 +1,12 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
+import type { NativeComputerInput } from "./native-computer-control";
 import {
   createNativeComputerInputQueue,
   isNativeControlPage,
   isNativeScreenGeometryInvalidation,
   nativeKeyboardInputs,
+  nativeScreenDisplayBounds,
   nativeScreenGeometry,
   nativeScreenGeometryScript,
   nativeScreenPoint,
@@ -72,6 +74,12 @@ describe("native computer control", () => {
   });
 
   it("maps clicks through the canvas bounds and ignores letterboxing or stale orientation", () => {
+    expect(nativeScreenDisplayBounds(bounds, geometry)).toEqual({
+      left: 0,
+      top: 100,
+      width: 400,
+      height: 225,
+    });
     expect(nativeScreenPoint(200, 212.5, bounds, geometry)).toEqual({ x: 960, y: 540 });
     expect(nativeScreenPoint(200, 50, bounds, geometry)).toBeNull();
     expect(nativeScreenPoint(200, 212, { width: 600, height: 400 }, geometry)).toBeNull();
@@ -263,6 +271,45 @@ describe("native computer control", () => {
     const idle = createNativeComputerInputQueue(vi.fn(), vi.fn(), interrupted);
     idle.dispose();
     expect(interrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces waiting mouse moves without reordering clicks or keys", async () => {
+    let finish = () => {};
+    const leading = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const send = vi
+      .fn<(input: NativeComputerInput) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    send.mockReturnValueOnce(leading);
+    const onError = vi.fn();
+    const queue = createNativeComputerInputQueue(send, onError);
+    const move = (x: number): NativeComputerInput => ({
+      kind: "pointer",
+      payload: { x, y: 20, type: "move" },
+    });
+    const click: NativeComputerInput = {
+      kind: "pointer",
+      payload: { x: 50, y: 20, type: "click", button: "right" },
+    };
+    const key: NativeComputerInput = { kind: "key", payload: { key: "Tab" } };
+    queue.enqueue(move(1));
+    await Promise.resolve();
+    for (let index = 2; index <= 50; index += 1) queue.enqueue(move(index));
+    queue.enqueue(click);
+    queue.enqueue(move(51));
+    queue.enqueue(move(52));
+    queue.enqueue(key);
+    finish();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(5));
+    expect(send.mock.calls.map(([input]) => input)).toEqual([
+      move(1),
+      move(50),
+      click,
+      move(52),
+      key,
+    ]);
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("serializes input and never replays queued work after a failure", async () => {

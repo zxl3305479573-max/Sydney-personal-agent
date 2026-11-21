@@ -1,7 +1,7 @@
 import type { AiConsentStatus, ProductEvent, ThreadMessage } from "@rakazo/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectThreadPendingSend } from "./project-thread-session.js";
-import { createProjectThreadSession } from "./project-thread-session.js";
+import { createProjectThreadSession, projectMemberName } from "./project-thread-session.js";
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void;
@@ -76,6 +76,19 @@ function fixture(pendingSend?: ProjectThreadPendingSend) {
 afterEach(() => vi.useRealTimers());
 
 describe("project conversation session", () => {
+  it("qualifies same-name members in roster order and preserves other names", () => {
+    const members = [
+      { botId: "bot-b", name: "Alpha" },
+      { botId: "bot-c", name: "Beta" },
+      { botId: "bot-a", name: "Alpha" },
+    ];
+    expect(projectMemberName(members, "bot-b")).toBe("Alpha (1)");
+    expect(projectMemberName(members, "bot-a")).toBe("Alpha (2)");
+    expect(projectMemberName(members, "bot-c")).toBe("Beta");
+    expect(projectMemberName(members, "removed")).toBeUndefined();
+    expect(projectMemberName(undefined, "bot-a")).toBeUndefined();
+  });
+
   it("answers only the pending approval belonging to the current snapshot", async () => {
     const item = fixture();
     await vi.waitFor(() => expect(item.subscribe).toHaveBeenCalledOnce());

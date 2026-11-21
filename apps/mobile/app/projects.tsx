@@ -464,6 +464,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                 }}
               >
                 <TextInput
+                  accessibilityLabel={text("项目名称", "Project name")}
                   autoFocus
                   value={projectName}
                   maxLength={80}

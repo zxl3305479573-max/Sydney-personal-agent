@@ -402,7 +402,7 @@ export const CreateBotInput = z.object({
 });
 export type CreateBotInput = z.infer<typeof CreateBotInput>;
 
-export const UpdateBotInput = z
+const BotUpdateFields = z
   .object({
     botId: Id,
     name: z.string().trim().min(1).max(BOT_NAME_MAX_LENGTH).optional(),
@@ -430,8 +430,12 @@ export const UpdateBotInput = z
     disabledBuiltinTools: DisabledBuiltinToolsSchema.optional(),
     /** Write only while these settings still hold, as an undo does. */
     expectedSettings: BotSettingsValuesSchema.optional(),
-  })
-  .superRefine((value, ctx) => {
+  });
+
+function checkBotModelPair(
+  value: { modelProvider?: string | null; modelId?: string | null },
+  ctx: z.RefinementCtx,
+) {
     const providerProvided = value.modelProvider !== undefined;
     const modelProvided = value.modelId !== undefined;
     if (!providerProvided && !modelProvided) return;
@@ -454,8 +458,26 @@ export const UpdateBotInput = z
         path: ["modelId"],
       });
     }
-  });
+}
+
+export const UpdateBotInput = BotUpdateFields.superRefine(checkBotModelPair);
 export type UpdateBotInput = z.infer<typeof UpdateBotInput>;
+
+export const UpdateProjectBotInput = BotUpdateFields.pick({
+  botId: true,
+  name: true,
+  description: true,
+  instructions: true,
+  expectedInstructions: true,
+  notifyOnFinish: true,
+  color: true,
+  avatarSet: true,
+  modelProvider: true,
+  modelId: true,
+  thinkingLevel: true,
+})
+  .strict()
+  .superRefine(checkBotModelPair);
 
 /**
  * A routine's model is optional, but provider and id only mean something together,

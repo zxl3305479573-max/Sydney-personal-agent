@@ -9,9 +9,10 @@ import {
   liveMessageComposing,
   memberName,
   newClientId,
+  parseModelOptionKey,
   displayName as safeDisplayName,
 } from "@rakazo/core";
-import { fetchFresh } from "@rakazo/core/query";
+import { fetchFresh, writeSaved } from "@rakazo/core/query";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
@@ -20,13 +21,24 @@ import { Alert, I18nManager, ImageBackground, Platform, StyleSheet, View } from 
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
-import { isSpaceSelectionPending, rpc, selectedSpaceId, spaceSelectionSeq } from "../../lib/api";
+import {
+  captureApiRequestContext,
+  isSpaceSelectionPending,
+  rpc,
+  selectedSpaceId,
+  spaceSelectionSeq,
+} from "../../lib/api";
 import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useCallSession } from "../../lib/call-session";
 import { useMobileChatAppearance } from "../../lib/chat-appearance";
-import { chatModelDisplayName } from "../../lib/chat-model";
+import {
+  chatModelDisplayName,
+  chatModelPickerChoices,
+  chatModelSelectionKey,
+} from "../../lib/chat-model";
+import { chatModelMenuActions } from "../../lib/chat-model-menu";
 import { activeCompanionIdentity } from "../../lib/companion-activity";
 import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
 import { composerDraftScope } from "../../lib/composer-draft";
@@ -64,6 +76,7 @@ import { useThreadTranscript } from "../../lib/thread-transcript";
 import { useAutoSpeakReply, useSpeakMessages, useThreadVoiceCall } from "../../lib/thread-voice";
 import { liveEndRunError } from "../../lib/thread-window";
 import { UiModeScreenHost } from "../../lib/ui-mode-slots";
+import { errorText } from "../../lib/user-error";
 import type { ThreadUiModeController } from "../../ui-modes/controllers";
 import { FailedSendBubble } from "../failed-send-bubble";
 import type { MarkdownArtifactPreviewTarget } from "../markdown-artifact-preview";
@@ -165,6 +178,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const history = useThreadSnapshot();
   const { snap, composingBots, showingSaved } = history;
   const [agentSkills, setAgentSkills] = useState<AgentSkillCatalogEntry[]>([]);
+  const modelSaving = useRef(false);
   const spaceId = selectedSpaceId() ?? undefined;
   const modelBotId = inGroup || readOnly ? undefined : botId;
   const me = useQuery({ ...rpcQuery("me", undefined, spaceId), enabled: false }, queryClient).data;
@@ -174,6 +188,10 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   ).data;
   const modelBot = useQuery(
     { ...rpcQuery("bots/get", { botId: modelBotId ?? "" }, spaceId), enabled: false },
+    queryClient,
+  ).data;
+  const modelCredentials = useQuery(
+    { ...rpcQuery("models/credentials", undefined, spaceId), enabled: false },
     queryClient,
   ).data;
   // Re-read on focus so returning from Models settings updates unsent missing-model messages.
@@ -192,6 +210,11 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
         void queryClient
           .fetchQuery(rpcQuery("models/list", undefined, spaceId))
           .catch(() => undefined);
+        void fetchFresh(
+          queryClient,
+          rpcQuery("models/credentials", undefined, spaceId),
+          reuse,
+        ).catch(() => undefined);
       }
     }, [modelBotId, spaceId]),
   );
@@ -272,6 +295,59 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
         modelBot ?? (titleBot && "modelId" in titleBot ? titleBot : undefined),
       )
     : undefined;
+  const modelSelectionKey = modelBotId
+    ? chatModelSelectionKey(
+        catalog ?? [],
+        modelBot ??
+          (titleBot && "modelId" in titleBot ? titleBot : undefined) ?? {
+            modelProvider: null,
+            modelId: null,
+          },
+      )
+    : "";
+  const modelActions = modelBotId
+    ? chatModelMenuActions(
+        chatModelPickerChoices(
+          me ?? null,
+          catalog ?? [],
+          modelCredentials ?? [],
+          modelSelectionKey,
+          t,
+        ),
+        modelSelectionKey,
+      )
+    : undefined;
+  async function selectChatModel(key: string) {
+    if (!modelBotId || modelSaving.current || key === modelSelectionKey) return;
+    const selected = key ? parseModelOptionKey(key) : null;
+    if (key && !selected) {
+      Alert.alert(t("Could not load model settings"));
+      return;
+    }
+    modelSaving.current = true;
+    const botQuery = rpcQuery("bots/get", { botId: modelBotId }, spaceId);
+    const selection = spaceSelectionSeq();
+    try {
+      const requestContext = await captureApiRequestContext(spaceId);
+      if (selection !== spaceSelectionSeq() || spaceId !== (selectedSpaceId() ?? undefined))
+        throw new Error(t("Space changed. Please try again."));
+      const saved = await rpc(
+        "bots/update",
+        {
+          botId: modelBotId,
+          modelProvider: selected?.provider ?? null,
+          modelId: selected?.modelId ?? null,
+          thinkingLevel: null,
+        },
+        { requestContext },
+      );
+      await writeSaved(queryClient, botQuery.queryKey, () => saved);
+    } catch (cause) {
+      if (focused) Alert.alert(t("Could not save changes"), errorText(cause, t("Try again.")));
+    } finally {
+      modelSaving.current = false;
+    }
+  }
   // Use a cached name until the chat's own roster arrives.
   const titleName = [currentBot?.name, inboxBot?.name, name]
     .map((candidate) => safeDisplayName(candidate, ""))
@@ -763,12 +839,8 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                 )}
                 botId={botId}
                 modelLabel={modelLabel}
-                onModelPress={
-                  modelBotId
-                    ? () =>
-                        router.push({ pathname: "/thread-model", params: { botId: modelBotId } })
-                    : undefined
-                }
+                modelActions={modelActions}
+                onModelSelect={(key) => void selectChatModel(key)}
                 onCall={onCall}
                 working={working}
                 sending={composer.sending || attachments.shareImporting}

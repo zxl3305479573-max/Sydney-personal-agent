@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadComposerHandle } from "../components/thread-composer";
 import { ThreadComposer } from "../components/thread-composer";
+import { chatModelMenuActions } from "./chat-model-menu";
 import { settleComposer } from "./thread-feedback";
 import { useThreadMentionCatalog } from "./thread-mention-catalog";
 
@@ -18,6 +19,16 @@ const input = vi.hoisted(() => ({
   change: (_value: string) => {},
   key: (_event: { nativeEvent: { key: string } }) => {},
   select: (_event: { nativeEvent: { selection: { start: number; end: number } } }) => {},
+}));
+const modelMenu = vi.hoisted(() => ({
+  actions: [] as {
+    id?: string;
+    title: string;
+    state?: string;
+    displayInline?: boolean;
+    subactions?: { id?: string; title: string; state?: string }[];
+  }[],
+  onPressAction: (_event: { nativeEvent: { event: string } }) => {},
 }));
 const mentionApi = vi.hoisted(() => ({ rpc: vi.fn(), capture: vi.fn(), generation: 1 }));
 vi.mock("./api", () => ({
@@ -206,7 +217,23 @@ vi.mock("react-native", () => {
   };
 });
 vi.mock("@expo/ui/community/menu", () => ({
-  MenuView: ({ children }: { children?: ReactNode }) => children,
+  MenuView: ({
+    children,
+    title,
+    actions,
+    onPressAction,
+  }: {
+    children?: ReactNode;
+    title?: string;
+    actions: typeof modelMenu.actions;
+    onPressAction?: typeof modelMenu.onPressAction;
+  }) => {
+    if (title === "Model") {
+      modelMenu.actions = actions;
+      modelMenu.onPressAction = onPressAction ?? (() => {});
+    }
+    return children;
+  },
 }));
 vi.mock("../components/glass-surface", () => ({
   GlassSurface: ({
@@ -369,12 +396,37 @@ describe("thread composer isolation", () => {
     return container.querySelector("input")!;
   }
 
-  it("opens the model picker without changing the draft", () => {
-    const onModelPress = vi.fn();
-    render({ onModelPress, modelLabel: "Example model" });
+  it("opens the model menu without changing the draft and selects in place", () => {
+    const choices = [
+      { key: "", label: "Space default (Model 1)", title: "Space default", detail: "Model 1" },
+      {
+        key: "openrouter::vendor/model-2",
+        label: "Model 2 (OpenRouter)",
+        providerLabel: "OpenRouter",
+        modelLabel: "Model 2",
+      },
+    ];
+    const onModelSelect = vi.fn();
+    render({
+      modelActions: chatModelMenuActions(choices, ""),
+      modelLabel: "Example model",
+      onModelSelect,
+    });
     type("unfinished message");
-    press("Model");
-    expect(onModelPress).toHaveBeenCalledOnce();
+    expect(container.querySelector('[aria-label="Model"]')?.textContent).toContain("Example model");
+    expect(modelMenu.actions).toEqual([
+      { id: "model:", title: "Space default (Model 1)", state: "on" },
+      {
+        id: "provider:OpenRouter",
+        title: "OpenRouter",
+        displayInline: true,
+        subactions: [{ id: "model:openrouter::vendor/model-2", title: "Model 2", state: "off" }],
+      },
+    ]);
+    act(() =>
+      modelMenu.onPressAction({ nativeEvent: { event: "model:openrouter::vendor/model-2" } }),
+    );
+    expect(onModelSelect).toHaveBeenCalledWith("openrouter::vendor/model-2");
     expect(composer.current?.snapshot().promptText).toBe("unfinished message");
     expect(container.textContent).toContain("Example model");
   });
