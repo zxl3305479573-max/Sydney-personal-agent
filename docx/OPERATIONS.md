@@ -2,7 +2,7 @@
 
 ## iPhone 1.0.18 OTA（2026-11-21）
 
-使用 `mobile-ios-update.yml` 向 iOS `sideload` 通道发布。Runtime 为 `sydney-ios-ip-1`，原生底座、依赖、锁文件与 OTA 配置沿用 `1.0.17`。兼容手机从「设置 → 检查更新」下载，重启后在「关于」查看 `1.0.18`。项目小伙伴设置取决于服务器返回的 `botSettings` 能力。
+`1.0.18` 已经由 `mobile-ios-update.yml` Run `44869546104` 发布到 iOS `sideload`。Runtime 为 `sydney-ios-ip-1`，更新 ID 为 `01a1fc84-bbd8-75bb-8c53-5a8b64e9eaf7`。原生底座、依赖、锁文件与 OTA 配置沿用 `1.0.17`。兼容手机从「设置 → 检查更新」下载，重启后在「关于」查看 `1.0.18`。项目小伙伴设置取决于服务器返回的 `botSettings` 能力。
 
 上一线上版本为 `1.0.17`，源提交 `052c47f24`，更新 ID `01a1fbe6-1a66-745f-92b5-da7e2f8e5077`。需要回退时，发布以该版本为内容的兼容 OTA。回退未执行。[验证](VALIDATION.md#iphone-1018-ota2026-11-21)
 
