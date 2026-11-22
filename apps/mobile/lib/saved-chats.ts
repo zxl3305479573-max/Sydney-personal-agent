@@ -41,8 +41,9 @@ export const SAVED_CHAT_MAX_BYTES = 1024 * 1024;
 export const SAVED_CHATS_MAX_BYTES = 20 * 1024 * 1024;
 const SAVED_INBOX_ROWS = 200;
 
-export function savedChatTarget(target: { botId?: string; groupId?: string }): string {
-  return target.groupId ? `group:${target.groupId}` : `bot:${target.botId}`;
+export function savedChatTarget(target: { botId?: string; groupId?: string }, projectId?: string): string {
+  const chat = target.groupId ? `group:${target.groupId}` : `bot:${target.botId}`;
+  return projectId ? `project:${encodeURIComponent(projectId)}:${chat}` : chat;
 }
 
 function spaceFile(scope: SavedChatsScope, name: string): File {
@@ -131,7 +132,7 @@ export function writeSavedInbox(
             unread,
             pinned,
             spaceId,
-            status,
+            status: threadSessionCache.botStatus(scope, id, status),
             sectionId,
             parentBotId,
             notifyOnFinish,
@@ -156,7 +157,10 @@ export function writeSavedInbox(
       botSections: navigation.current.botSections.slice(0, SAVED_INBOX_ROWS),
       spaces: navigation.spaces.slice(0, 40).map((space) => ({
         ...space,
-        bots: space.bots.slice(0, SAVED_INBOX_ROWS),
+        bots: space.bots.slice(0, SAVED_INBOX_ROWS).map((bot) => ({
+          ...bot,
+          status: threadSessionCache.botStatus({ ...scope, spaceId: space.id }, bot.id, bot.status),
+        })),
         groups: space.groups.slice(0, SAVED_INBOX_ROWS),
         externalConversations: [],
       })),
@@ -222,7 +226,7 @@ export function saveInbox(
 
 export function savedThreadSnapshot(snapshot: MobileSnapshot): MobileSnapshot {
   snapshot = identitySource(snapshot);
-  const { cursor: _cursor, computer: _computer, ...rest } = snapshot;
+  const { computer: _computer, ...rest } = snapshot;
   return {
     ...rest,
     messages: snapshot.messages.slice(-SAVED_CHAT_MESSAGES).map((message) => ({
@@ -239,15 +243,16 @@ export function savedThreadSnapshot(snapshot: MobileSnapshot): MobileSnapshot {
   };
 }
 
-export function readSavedThread(scope: SavedChatsScope, target: string): MobileSnapshot | null {
+export function readSavedThread(scope: SavedChatsScope, target: string, projectId?: string): MobileSnapshot | null {
   if (!isIntegrationsScopeCurrent(scope)) return null;
   try {
     const data = readJson(spaceFile(scope, target), scopeKey(scope, target));
     const snapshot = data?.snapshot as MobileSnapshot | undefined;
     if (
       !snapshot ||
-      savedChatTarget(snapshot) !== target ||
+      savedChatTarget(snapshot, projectId) !== target ||
       typeof snapshot.threadId !== "string" ||
+      (snapshot.cursor !== undefined && !Number.isSafeInteger(snapshot.cursor)) ||
       !isRows(snapshot.messages) ||
       !snapshot.messages.every(
         (message) => typeof message.role === "string" && Array.isArray(message.blocks),
@@ -309,14 +314,18 @@ export function writeSavedThread(
   scope: SavedChatsScope,
   target: string,
   snapshot: MobileSnapshot,
+  projectId?: string,
 ): void {
-  if (!isIntegrationsScopeCurrent(scope) || savedChatTarget(snapshot) !== target) return;
+  if (!isIntegrationsScopeCurrent(scope) || savedChatTarget(snapshot, projectId) !== target) return;
   try {
+    const cached = threadSessionCache.read({ ...scope, projectId }, snapshot);
+    if (cached?.threadId === snapshot.threadId && (cached.cursor ?? -1) > (snapshot.cursor ?? -1))
+      return;
     writeSavedFile(scope, target, {
       key: scopeKey(scope, target),
       snapshot: savedThreadSnapshot(snapshot),
     });
-    updateSavedInboxBotStatus(scope, snapshot);
+    if (!projectId) updateSavedInboxBotStatus(scope, snapshot);
   } catch {}
 }
 

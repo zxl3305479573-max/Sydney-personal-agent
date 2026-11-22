@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { MobileSnapshot } from "./api";
 import { useThreadSnapshot } from "./thread-history";
 import type { ThreadSessionScope } from "./thread-session-cache";
-import { threadSessionCache } from "./thread-session-cache";
+import { applySendActivity, retainAcceptedRuns, threadSessionCache } from "./thread-session-cache";
 
 vi.mock("./response-streaming", () => ({
   getCachedResponseStreamingEnabled: () => false,
@@ -164,4 +164,34 @@ it("clears active runs together with messages so re-entry cannot resurrect the w
   });
   expect(threadSessionCache.botStatus(scope, "bot-a", "running")).toBe("idle");
   act(() => root.unmount());
+});
+
+it("seeds a queued run from the send receipt before SSE or roster polling", () => {
+  const next = applySendActivity(null, { botId: "bot-a" }, {
+    threadId: "thread-a",
+    cursor: 12,
+    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+  });
+  expect(next).toMatchObject({
+    botId: "bot-a",
+    threadId: "thread-a",
+    cursor: 12,
+    run: { id: "run-a", status: "queued" },
+    activeRuns: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+  });
+});
+
+it("keeps accepted work when an older refresh omits the run", () => {
+  const accepted = applySendActivity(null, { botId: "bot-a" }, {
+    threadId: "thread-a",
+    cursor: 12,
+    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+  })!;
+  const refreshed = retainAcceptedRuns(accepted, {
+    ...accepted,
+    cursor: 11,
+    run: null,
+    activeRuns: [],
+  });
+  expect(refreshed.activeRuns).toEqual(accepted.activeRuns);
 });

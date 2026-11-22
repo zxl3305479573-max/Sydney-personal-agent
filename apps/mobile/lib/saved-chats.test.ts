@@ -176,7 +176,7 @@ it("round trips only what the inbox shows", () => {
   expect(saved.messages).toHaveLength(SAVED_CHAT_MESSAGES);
   expect(saved.run).toMatchObject({ id: "run-a", status: "running" });
   expect(saved.activeRuns).toEqual([{ id: "run-a", status: "running" }]);
-  expect(saved).not.toHaveProperty("cursor");
+  expect(saved.cursor).toBe(42);
   expect(readSavedInbox(scope)?.bots[0]?.status).toBe("running");
 });
 

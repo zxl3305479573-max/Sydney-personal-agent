@@ -13,6 +13,7 @@ import {
 import { ARTIFACT_DOWNLOAD_TIMEOUT_MS } from "./artifacts";
 import { usePageState } from "./page-state";
 import { projectScopeKey } from "./project-scope";
+import { applySendActivity } from "./thread-session-cache";
 
 export type ProjectChatTarget = { botId: string } | { groupId: string };
 type Session = ReturnType<typeof createProjectThreadSession<MobileSnapshot>>;
@@ -111,6 +112,10 @@ export function useProjectThread(
             { ...input, text, clientNonce },
             { ...(await requestOptions(signal)), allowConsentPrompt: false },
           ),
+        onSendAccepted: (snapshot, result) =>
+          result.activity
+            ? applySendActivity(snapshot, target, result.activity)
+            : snapshot,
         cancelRun: async (runId, signal) =>
           rpc("projectWorkspaces/cancelRun", { ...input, runId }, await requestOptions(signal)),
         answerApproval: async (answer, signal) =>

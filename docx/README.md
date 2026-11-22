@@ -1,5 +1,7 @@
 # Sydney 开发文档入口
 
+Bot 状态恢复、未读绿标和普通／项目 Bot 持久记忆共享的验收见 [Bot 状态与记忆评测](BOT_STATE_MEMORY_EVALUATION.md)。
+
 Windows `0.4.3` 与 iPhone `1.0.23` 已于 2026-11-22 提交、推送并发布。源码提交 `7d2829aa3` 已推送到集成分支；Windows 发行页、安装包三项资产、iPhone 启动包及 55 项资源均已核验。Bot、项目和 GitHub 状态缓存、应用对接按钮及手机界面材质改动已进入客户端版本；双端真机视觉、手势、覆盖安装与保留数据回退仍待验。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3) · [本批验证](VALIDATION.md#app-0431023-全量提交与发布2026-11-22) · [更新与回退](OPERATIONS.md#sydney-windows-043iphone-1023-发布通道2026-11-22)
 
 手机界面仅保留对话顶部 Bot 名称组件的玻璃效果，设置、应用、项目、GitHub、聊天内容和通用按钮采用融合的平面样式；应用对接登录操作改为文字按钮。项目与 GitHub 页面及 Bot 运行状态在登录会话内先显示缓存，再由后台更新。[范围](PLAN.md#手机界面玻璃效果统一收敛pa-020pa-0212026-11-21) · [状态验证](VALIDATION.md#手机界面玻璃效果统一收敛2026-11-22)

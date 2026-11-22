@@ -46,7 +46,6 @@ import {
 import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
-  effectiveMemoryScope,
   getProjectCloudDirectory,
   guardManagedRun,
   isPartialReplyClientNonce,
@@ -637,7 +636,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           deps.prisma.deploymentSettings.findUnique({
             where: { id: "default" },
           }),
-          projectTextOnly ? null : deps.memoryProviders.resolve(run.spaceId),
+          deps.memoryProviders.resolve(run.spaceId),
           projectTextOnly
             ? []
             : deps.prisma.taughtSkill.findMany({
@@ -780,13 +779,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
         };
-        const memoryScope =
-          configuredMemory && !run.projectWorkspaceId
-            ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
-            : null;
-        const semanticMemory: SemanticMemoryProvider | null = run.projectWorkspaceId
-          ? null
-          : (configuredMemory?.provider ?? null);
+        const memoryScope = configuredMemory ? "shared" : null;
+        const semanticMemory: SemanticMemoryProvider | null = configuredMemory?.provider ?? null;
 
         await deps.events.append({
           spaceId: run.spaceId,
@@ -929,10 +923,10 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         ] = await Promise.all([
           discoveredPromise,
           loadCurrentTurnImages(deps, turnBlocks, context),
-          nonOwnerChatRun || projectTextOnly
+          nonOwnerChatRun
             ? Promise.resolve("")
             : loadAgentMemoryContext(deps.memory, bot.id, context),
-          nonOwnerChatRun || projectTextOnly
+          nonOwnerChatRun
             ? Promise.resolve("")
             : loadAgentScratchpadContext(deps, {
                 spaceId: run.spaceId,

@@ -25,12 +25,22 @@ const options = {
 };
 
 describe("project text tool policy", () => {
-  it("offers only text, scoped history and the current bot's text profile", () => {
+  it("offers text, scoped history, memory and the current bot's text profile", () => {
     expect(
       selectBuiltinToolsForRun(options)
         .map((tool) => tool.name)
         .sort(),
-    ).toEqual(["ask_user", "message_user", "read_history", "search_history", "update_bot"]);
+    ).toEqual([
+      "ask_user",
+      "message_user",
+      "read_history",
+      "recall_memory",
+      "remember",
+      "save_memory",
+      "save_shared_memory",
+      "search_history",
+      "update_bot",
+    ]);
   });
 
   it("preserves disabled tools and the creation-only selection", () => {
@@ -41,7 +51,15 @@ describe("project text tool policy", () => {
       })
         .map((tool) => tool.name)
         .sort(),
-    ).toEqual(["ask_user", "message_user", "read_history"]);
+    ).toEqual([
+      "ask_user",
+      "message_user",
+      "read_history",
+      "recall_memory",
+      "remember",
+      "save_memory",
+      "save_shared_memory",
+    ]);
     expect(
       selectBuiltinToolsForRun({ ...options, trigger: "created" })
         .map((tool) => tool.name)
@@ -172,8 +190,6 @@ describe("project text tool policy", () => {
     "computer_observe",
     "browser_act",
     "run_subagent",
-    "remember",
-    "save_shared_memory",
     "scratchpad_list",
     "ticket_get",
     "skill_read",

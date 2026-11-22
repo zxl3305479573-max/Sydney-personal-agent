@@ -6897,3 +6897,16 @@ USB 项，Apple Mobile Device Service 运行；iPASide 内置库在
   说明新增 Bot 创建界面与项目工作区代码已进入本次构建。
 - 未验证项：本机没有签名证书，未做 IPA 签名、安装或 iPhone 真机启动；未验证登录、新建 Bot、
   人格选择、项目工作区切换和聊天的真机表现，也未验证手机与桌面同账号数据同步。
+## Bot 状态与持久记忆修复（2026-11-22）
+
+状态：源码已修改，定向离线验证通过，数据库和真机验证未完成。
+
+- 已完成定向回归：移动端 87 项、Core 项目会话 21 项、Adapters 197 项。
+- 已完成类型检查：移动端、API、Core、Adapters、DB。
+- 已完成静态检查范围梳理：发送回执、普通线程缓存、项目线程会话、记忆执行器、记忆 API 和 RLS 迁移。
+- `apps/api/src/thread-target.test.ts` 定向命令未计入通过：90 项通过、22 项在既有 `resolveConversationExecutionScope` 无 DB tenant context 的测试夹具中失败，失败点位于原有发送／反应路径，未据此修改无关测试环境。
+- 未执行：PostgreSQL 迁移与 RLS 实测。
+- 未执行：iPhone、Windows 真机的退出重进、冷启动、切换 Space、项目 Bot 与普通 Bot 记忆互读。
+- 未执行：生产发布及发布后回读。
+
+验收用例集中在 [Bot 状态与记忆评测](BOT_STATE_MEMORY_EVALUATION.md)。

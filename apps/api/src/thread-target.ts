@@ -19,6 +19,7 @@ import {
   ACTIVE_RUN_STATUSES,
   BACKGROUND_RUN_TRIGGERS,
   callIdFromClientNonce,
+  isBackgroundRunTrigger,
   isConversationalRun,
   messageBypassesTakeoverWait,
   messageReaction,
@@ -234,7 +235,10 @@ async function replayExistingSend(
       getLogger().error("thread send realtime notification", error);
     });
   }
-  return sendResult(message, runs);
+  return {
+    ...sendResult(message, runs),
+    activity: sendActivity(threadId, latestEvent?.seq ?? message.seq, runs),
+  };
 }
 
 function sendEventRunIds(payload: Prisma.JsonValue | undefined): string[] {
@@ -251,6 +255,22 @@ function sendResult(message: { seq: number }, runs: Array<{ id: string; taskId: 
     runId: first.id,
     seq: message.seq,
     runIds: runs.map((run) => run.id),
+  };
+}
+
+function sendActivity(
+  threadId: string,
+  cursor: number,
+  runs: Array<{ id: string; botId?: string; status: string; trigger?: string }>,
+) {
+  return {
+    threadId,
+    cursor,
+    runs: runs
+      .filter((run): run is typeof run & { botId: string } =>
+        Boolean(run.botId) && !isBackgroundRunTrigger(run.trigger),
+      )
+      .map(({ id, botId, status }) => ({ id, botId, status })),
   };
 }
 
@@ -1241,7 +1261,10 @@ export async function sendThreadMessage(
     }
   }
   await enqueueRunsNeedingContinue(deps.jobs, [...committed.routineRuns, ...committed.runs]);
-  return sendResult(committed.message, committed.runs);
+  return {
+    ...sendResult(committed.message, committed.runs),
+    activity: sendActivity(target.threadId, committed.eventSeq, committed.runs),
+  };
 }
 
 const REACTION_TURN_COOLDOWN_MS = 30_000;

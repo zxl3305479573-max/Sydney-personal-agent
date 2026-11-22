@@ -5,6 +5,7 @@ import { isRetryableError, retryDelayMs } from "./retry-policy.js";
 import { ACTIVE_RUN_STATUSES } from "./run-state.js";
 
 type ProjectRun = { id: string; status: string; botId?: string };
+type ProjectSendResult = RpcOutput<"projectWorkspaces/sendText">;
 export type ProjectThreadHead = {
   threadId: string;
   cursor?: number;
@@ -120,6 +121,7 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
   nonce?: () => string;
   pendingSend?: ProjectThreadPendingSend;
   initialSnapshot?: Snapshot | null;
+  onSendAccepted?: (snapshot: Snapshot, result: ProjectSendResult) => Snapshot | null;
 }) {
   const controller = new AbortController();
   const { signal } = controller;
@@ -335,8 +337,12 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
         if (consent.recipients.some((recipient) => !recipient.allowed)) return false;
         if (pendingSend.current?.text !== text)
           pendingSend.current = { text, nonce: (options.nonce ?? newClientId)() };
-        await options.send(text, pendingSend.current.nonce, signal);
+        const result = await options.send(text, pendingSend.current.nonce, signal) as ProjectSendResult;
         if (!current()) return false;
+        if (state.snapshot && options.onSendAccepted) {
+          const accepted = options.onSendAccepted(state.snapshot, result);
+          if (accepted) commit({ snapshot: accepted, readError: null });
+        }
         pendingSend.current = null;
         try {
           await refresh();

@@ -6,9 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-22
+
+### Changed
+
+- Mobile conversation send receipts now seed Bot and project Run status immediately, preserving the event cursor for fast re-entry and SSE recovery.
+- Project conversations now use the same shared durable, account and semantic memory path as ordinary Bot conversations within the current user and Space.
+
 ### Fixed
 
 - Mobile Bot avatars keep the green unread marker in regular rows, pinned cards and swipe previews, and GitHub navigation keeps a stable full-row layout.
+- Reopening a conversation no longer waits for a fresh roster before showing known processing state, and stale roster responses cannot hide newer work.
+- Memory listings use stable ordering and memory edits return the database update timestamp.
+
+### Self-host upgrade notes
+
+- Apply database migration `20261122120000_shared_memory_across_projects` before using project memory sharing. Verify PostgreSQL RLS and revision-conflict behavior in the target environment.
 
 ## [0.4.3] - 2026-11-22
 

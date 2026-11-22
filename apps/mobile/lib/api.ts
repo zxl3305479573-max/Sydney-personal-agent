@@ -1677,11 +1677,12 @@ export type MobileSpace = Space;
 export type MobileSpaceNavigation = SpaceNavigation;
 
 /** A run as live events report it, before a refresh brings the full record. */
-type MobileRun = Pick<Run, "id"> & Partial<Pick<Run, "botId" | "userId">> & { status: string };
+type MobileRun = Pick<Run, "id"> &
+  Partial<Pick<Run, "botId" | "userId">> & { status: string; sendCursor?: number };
 
 /**
  * A thread as the screen holds it: live events patch it between refreshes, and a saved chat
- * reopens with its last known runs, without its replay cursor or computer control.
+ * reopens with its last known runs and event cursor, without computer control.
  */
 export type MobileSnapshot = Omit<
   ThreadSnapshot,
