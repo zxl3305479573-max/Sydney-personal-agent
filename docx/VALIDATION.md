@@ -1,5 +1,15 @@
 # 验证记录
 
+## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
+
+本机 `.env` 指向 `127.0.0.1:54318/rakazo` 的 `rakazo-dev-postgres` 容器。目标生产数据库地址不在本机配置中，本轮没有连接或修改生产数据库。
+
+- 首次状态检查发现本机数据库有 208 条已完成迁移，源码有一个本机空迁移目录 `20261114220000_native_password_reset_session`，该目录没有被 Git 跟踪且没有 `migration.sql`。清理空目录后使用完整源码迁移目录继续执行。
+- Prisma `migrate deploy` 按顺序补齐 18 条待执行迁移，包括 `20261122120000_shared_memory_across_projects`。最终 `prisma migrate status` 报告 `Database schema is up to date`，账本记录目标迁移已完成。
+- `memory_documents` 与 `memory_revisions` 均确认启用 RLS。目标迁移创建的 `memory_documents_project_scope` 和 `memory_revisions_project_scope` 均存在，前者按当前 `userId + spaceId` 允许同租户 Bot 记忆，后者沿用文档归属校验。
+- 使用 `rakazo_app` 非超级用户、非 RLS bypass 角色验证，当前用户和 Space 可以读到样本记忆；切换为其他用户和 Space 后 `memory_documents` 与 `memory_revisions` 均返回 0 条。
+- 本轮未执行并发写入、revision 冲突、生产数据库备份、生产迁移或服务重启。迁移执行期间本机数据库已经发生变化，生产环境仍需单独按运维流程执行。
+
 ## Bot 状态、记忆共享与 App 发布（2026-11-22）
 
 本批提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。源码覆盖普通／项目会话的 Run 状态恢复、未读头像标记、项目与 GitHub 页面状态缓存，以及同用户同 Space 下普通 Bot 与项目 Bot 的持久记忆共享。

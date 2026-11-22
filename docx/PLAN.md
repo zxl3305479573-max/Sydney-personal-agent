@@ -2,7 +2,7 @@
 
 ## Bot 状态恢复与持久记忆共享（PA-018、PA-021、PA-022）
 
-状态：源码实现、离线验证、提交推送与客户端发布已完成。PostgreSQL 迁移、RLS 实测、真实 iPhone／Windows 验收和服务端部署仍待独立执行。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。
+状态：源码实现、离线验证、提交推送与客户端发布已完成。本机 PostgreSQL 迁移和 RLS 租户范围验证已完成，生产 PostgreSQL 迁移、并发实测、真实 iPhone／Windows 验收和服务端部署仍待独立执行。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。
 
 ## Bot 状态与持久记忆发布结果（2026-11-22）
 
@@ -10,7 +10,7 @@
 
 实际交付：Windows Run `44978766434` 成功，Release ID `454171797` 已公开，标签为 `sydney-desktop-v0.4.4`。安装包 `Sydney-partner-Setup-0.4.4.exe` 为 133,981,118 字节，SHA-256 为 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`，构建元数据确认源码提交一致且安装包未签名。iOS 底座 Run `44978723093` 成功，未签名 IPA SHA-256 为 `f379b20f3c4b044a8f484bfc4d16e1474f7dfd5ab505f445761403cced7b63ee`，Bundle ID 为 `xin.zxlup.sydney`，OTA runtime 为 `sydney-ios-ip-1`，无 Widget 扩展。OTA Run `44978769113` 成功，更新组为 `6cfe7f68-0bc8-40b4-85e2-81a4f9929593`，iOS 更新 ID 为 `01a20136-1ba5-7848-9d7f-518e379615c9`。
 
-未完成项：迁移 `20261122120000_shared_memory_across_projects` 尚未在目标 PostgreSQL 执行，RLS 与并发行为未实测；Windows 安装、iPhone OTA 生效、杀进程／重启、断线恢复、项目与普通 Bot 记忆互读仍待真机或隔离环境验收。客户端发布不代表服务端能力已经上线。
+未完成项：迁移 `20261122120000_shared_memory_across_projects` 已在本机 `rakazo-dev-postgres` 验证，尚未在目标生产 PostgreSQL 执行；生产 RLS 与并发行为未实测。Windows 安装、iPhone OTA 生效、杀进程／重启、断线恢复、项目与普通 Bot 记忆互读仍待真机或隔离环境验收。客户端发布不代表服务端能力已经上线。
 
 ## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
 

@@ -1,5 +1,13 @@
 # 运维手册
 
+## PostgreSQL 记忆共享迁移本机验证（2026-11-22）
+
+本机数据库容器为 `rakazo-dev-postgres`，映射地址为 `127.0.0.1:54318/rakazo`。本轮只在本机数据库执行，没有连接生产 PostgreSQL，也没有执行生产备份、服务重启或生产切换。
+
+本机 Prisma 账本原有 208 条完成迁移。源码目录中发现一个未被 Git 跟踪且没有 `migration.sql` 的空目录 `20261114220000_native_password_reset_session`，清理后按完整迁移顺序执行 `prisma migrate deploy`，补齐 18 条迁移，包含 `20261122120000_shared_memory_across_projects`。最终 `prisma migrate status` 报告 `Database schema is up to date`。
+
+验证结果为 `memory_documents` 和 `memory_revisions` 均启用 RLS，目标 restrictive policy 已存在。使用非超级用户 `rakazo_app` 验证当前用户与 Space 可以读样本记忆，换用其他用户与 Space 后两表均无可见记录。生产执行仍需先备份并核对目标账本，再按现有迁移流程部署，随后补做同租户共享、跨租户隔离、revision 冲突和并发写入验证。
+
 ## Bot 状态与记忆发布核对（2026-11-22）
 
 提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。Windows `0.4.4` 构建 Run `44978766434` 成功，Release ID `454171797` 已公开，标签为 `sydney-desktop-v0.4.4`。安装包为 `Sydney-partner-Setup-0.4.4.exe`，大小 133,981,118 字节，SHA-256 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`，未签名，继续使用手动安装。

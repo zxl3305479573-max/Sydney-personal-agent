@@ -16,6 +16,7 @@
 | 环境 | 证据 |
 | --- | --- |
 | 本机定向回归 | 见 [验证记录](VALIDATION.md) |
-| PostgreSQL 实库 | 待在隔离环境验证迁移、RLS 和并发 |
+| PostgreSQL 本机实库 | 已在 `rakazo-dev-postgres` 容器内按完整迁移顺序部署并验证 RLS 租户范围；并发仍待验证 |
+| PostgreSQL 生产库 | 待在目标环境执行迁移、核对账本和验证 RLS／并发 |
 | iPhone、Windows 真机 | 待使用匹配候选版本验证 |
 | 生产 | 待记录部署版本、发布结果和回读 |
