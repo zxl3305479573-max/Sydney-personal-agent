@@ -152,13 +152,19 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
           <RefreshControl refreshing={github.refreshing} onRefresh={github.pullToRefresh} />
         }
       >
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <View
+          accessibilityRole="tablist"
+          style={{ flexDirection: "row", width: "100%", minHeight: 44, gap: 4 }}
+        >
           {sections.map((section) => (
-            <NativeActionButton
+            <Pressable
               key={section.id}
-              label={section.label}
-              prominence="plain"
-              selected={github.section === section.id}
+              accessibilityRole="tab"
+              accessibilityLabel={section.label}
+              accessibilityState={{
+                selected: github.section === section.id,
+                disabled: github.busy,
+              }}
               disabled={github.busy}
               onPress={() => {
                 setQuery("");
@@ -166,7 +172,38 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                 setTopic("");
                 github.selectSection(section.id);
               }}
-            />
+              style={({ pressed }) => {
+                const selected = github.section === section.id;
+                return {
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 22,
+                  paddingHorizontal: 4,
+                  paddingVertical: 8,
+                  backgroundColor: selected
+                    ? tokens.primary
+                    : pressed
+                      ? tokens.accent
+                      : "transparent",
+                  opacity: github.busy ? 0.45 : pressed ? 0.72 : 1,
+                };
+              }}
+            >
+              <Text
+                style={{
+                  color:
+                    github.section === section.id ? tokens.primaryForeground : tokens.foreground,
+                  fontSize: 17,
+                  fontWeight: github.section === section.id ? "600" : "400",
+                  textAlign: "center",
+                }}
+              >
+                {section.label}
+              </Text>
+            </Pressable>
           ))}
         </View>
         {github.error ? (

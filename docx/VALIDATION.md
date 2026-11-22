@@ -1,5 +1,15 @@
 # 验证记录
 
+## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
+
+用户要求 Bot 有未回复或未读消息时，头像持续保留小绿点。`BotAvatar` 复用现有 `unread` 字段，普通 Bot 行、置顶卡片和滑动预览均传入该状态；运行中和未读同时存在时只渲染一个标记。GitHub 顶部导航固定为等宽三栏，点击高度固定，选中态不再推动布局。
+
+- `pnpm exec vitest run apps/mobile/lib/bot-avatar-render.test.tsx apps/mobile/lib/github-screen.test.tsx`：2 个文件 27 项通过。
+- `pnpm --config.engine-strict=false --filter @rakazo/mobile exec tsc --noEmit -p tsconfig.json`：通过。直接执行因本机 Node `22.22.0` 低于仓库要求 `22.22.2` 被 pnpm 拒绝。
+- 本批源码 Biome、Impeccable `detect --json --changed` 和 `git diff --check`：通过。
+- `apps/mobile/lib/inbox-render.test.tsx` 因测试 mock 没有 `TurboModuleRegistry`／`ExpoSecureStore` 原生替身，在导入阶段失败，未将首页列表断言计入通过。
+- 未启动服务、数据库或本机客户端，未执行真实 iPhone 视觉／导航和客户端发布。当前环境没有 `gh`、Expo token 或 EAS CLI，无法触发发布工作流。
+
 ## App 0.4.3／1.0.23 全量提交与发布（2026-11-22）
 
 用户明确授权提交推送所有修改并发版 App。基线为原集成分支 `4897eaf85`，与远端同步；当前修改含手机 Bot／项目／GitHub 状态缓存、统一平面材质、Windows 目录及默认关闭的 WSL 项目命令候选、共享设备协议与文档。使用 release 技能参考版本和发行说明规则，沿用 Sydney 专用 Windows 工作流与 iOS OTA，不触发上游多平台标签或后台镜像部署。

@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-22（PA-021 Bot 未读头像标记与 GitHub 导航修补）：用户追加要求 Bot 有未回复或未读消息时，首页头像继续显示小绿点。复用现有 Bot `unread` 字段，在 `BotAvatar` 增加未读输入，并接入普通列表、置顶卡片和滑动预览；运行中与未读合并为单个标记。同步完成 GitHub 顶部导航固定等宽铺满一行和固定点击高度的前批修补。头像与 GitHub 定向回归 27 项通过，移动端类型检查在关闭 Node 引擎强制后通过，Biome、Impeccable 与差异检查通过。首页列表测试因 `ExpoSecureStore` 原生模块替身缺失在导入阶段失败，未计入通过。当前环境缺少 `gh`、Expo token 和 EAS CLI，未触发客户端发布。
+
 2026-11-22（REL-01 App 发版完成）：提交 `7d2829aa34690f44d0884cbe5a9e64154117c8ac` 已推送到 `cursor/integrate-remote-branches-7334`，轻量标签 `sydney-desktop-v0.4.3` 已指向同一提交。Windows 工作流 Run `44924368519` 首次因 Windows runner 的 `cpu-features` 原生依赖安装问题导致 Playwright 命令缺失，重跑后成功；下载工件并核对 `runnerSourceVerified=true`。安装包 `Sydney-partner-Setup-0.4.3.exe` 为 133,979,245 字节，SHA-256 `0045647e06c4905cdcd543ca5c10932436b057d872c0eaeb98d63dc4acff8d2f`，Release ID `454106881` 已公开。iPhone 工作流 Run `44924402538` 成功，OTA 更新 ID `01a1feed-f697-7322-933e-a5c89e9ce8f1`，启动包 10,667,888 字节、55 项资源均已核验。发布后文档待本次提交同步。
 
 2026-11-22（REL-01 全部修改提交与 App 发版）：按用户新授权审查当前所有修改，远端集成分支与本机 `4897eaf85` 一致，准备 Windows `0.4.3`／iPhone `1.0.23`。更新双端版本、三语手机说明及 CHANGELOG，保留项目目录／WSL 候选默认关闭和后台不部署边界。31 文件 457 项回归、7 项 Python 请求校验单元、五包类型和 76 文件 lint 通过。复用既有 Windows 云构建与 iOS `sideload`，没有 `gh` 时沿用 Git 凭据的 REST 调用；发布后另补真实任务、摘要和线上分发结果。

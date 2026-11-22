@@ -43,21 +43,25 @@ vi.mock("react-native", () => ({
     accessibilityState,
     disabled,
     onPress,
+    style,
   }: {
     children: ReactNode;
     accessibilityRole: string;
     accessibilityLabel: string;
-    accessibilityState: { disabled: boolean };
+    accessibilityState: { disabled?: boolean; selected?: boolean };
     disabled: boolean;
     onPress: () => void;
+    style?: object | ((state: { pressed: boolean }) => object);
   }) => (
     <button
       type="button"
       role={accessibilityRole}
       aria-label={accessibilityLabel}
       aria-disabled={accessibilityState.disabled}
+      data-selected={accessibilityState.selected}
       disabled={disabled}
       onClick={onPress}
+      style={typeof style === "function" ? style({ pressed: false }) : style}
     >
       {children}
     </button>
@@ -361,6 +365,18 @@ describe("native GitHub screen", () => {
     expect(container.querySelector("script,img,iframe")).toBeNull();
     expect(container.textContent).toContain("Release notes");
     expect(container.textContent).toContain("fixture · Update");
+  });
+
+  it("keeps the GitHub sections in one equal-width row", async () => {
+    await render();
+    const tabs = [...container.querySelectorAll<HTMLButtonElement>('button[role="tab"]')];
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["个人主页", "我的仓库", "开源探索"]);
+    expect(tabs.every((tab) => tab.style.flex === "1 1 0%")).toBe(true);
+    expect(tabs.every((tab) => tab.style.minHeight === "44px")).toBe(true);
+    expect(tabs[0]?.getAttribute("data-selected")).toBe("true");
+    expect(tabs[1]?.getAttribute("data-selected")).toBe("false");
+    await act(async () => tabs[2]?.click());
+    expect(state.selectSection).toHaveBeenCalledWith("explore");
   });
 
   it("confirms disconnect and provides visible retry and independent section actions", async () => {

@@ -1,5 +1,13 @@
 # Sydney 开发总计划
 
+## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
+
+状态：源码完成，离线验证完成，提交与客户端发布待执行。普通 Bot 列表、置顶 Bot 卡片和滑动预览复用现有 `unread` 状态，在 Bot 头像上持续显示一个绿色标记；运行中与未读同时存在时不重复叠加。GitHub 顶部导航固定等宽铺满一行，标签点击高度固定，选中状态不再改变布局。涉及 `apps/mobile/components/bot-avatar.tsx`、`apps/mobile/components/inbox-rows.tsx`、GitHub 页面及对应测试。
+
+实际验证：头像与 GitHub 定向回归 2 个文件 27 项通过；移动端 TypeScript 在关闭 pnpm 引擎强制后通过；本批源码 Biome、Impeccable 扫描和差异检查通过。首页列表测试因测试替身缺少 `ExpoSecureStore` 原生模块而在导入阶段失败，未将该用例计为通过。当前 Node 为 `22.22.0`，低于仓库声明的 `22.22.2`，类型检查因此使用了关闭引擎强制的命令。
+
+发布边界：本机未发现 `gh`、Expo token 或 EAS CLI，无法从当前环境触发 Windows 云构建、iOS `sideload` OTA 或 Android 发布。源码提交和远端推送仍按用户授权执行，客户端发布等待具备 GitHub Actions／Expo 凭据的环境。
+
 ## 全部修改提交与 App 0.4.3／1.0.23 发布（2026-11-22）
 
 状态：已完成（提交、推送、客户端发布与线上资产核验；双端真机及 WSL guest 仍待验）。用户明确授权提交推送所有修改并发版 App，替代本窗口此前不提交／不发布的边界。范围包含当前工作区手机状态缓存与界面材质、Windows 目录／WSL 候选、共享契约与设备协议、配套文档和版本说明；统一提交至原集成分支，沿用 Windows 云构建与 iOS `sideload` OTA，不部署后台、数据库或驱动，不启用项目设备能力。

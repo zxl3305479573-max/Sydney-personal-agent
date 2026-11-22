@@ -1,5 +1,11 @@
 # 运维手册
 
+## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
+
+本批只修改手机客户端显示逻辑和 GitHub 导航布局，不增加依赖、环境变量、权限、数据目录或服务端迁移。未读状态沿用服务端已有 `Bot.unread` 字段，运行状态仍由现有会话缓存和服务端状态合并逻辑提供。发布前不需要清理缓存，更新后首页列表和置顶卡片会直接读取当前 Bot 状态。
+
+本机验证已完成，客户端发布尚未触发。当前环境没有 `gh`、Expo token 或 EAS CLI，无法从本机执行 Windows 云构建、iOS `sideload` OTA 或 Android rolling release。具备仓库 Actions 和 Expo 凭据后，应从 `cursor/integrate-remote-branches-7334` 运行既有客户端发布入口，并核对更新清单和资源。
+
 ## Sydney Windows 0.4.3／iPhone 1.0.23 发布通道（2026-11-22）
 
 本批提交 `7d2829aa34690f44d0884cbe5a9e64154117c8ac` 已推送到 `cursor/integrate-remote-branches-7334`，轻量标签为 `sydney-desktop-v0.4.3`。Windows 工作流 Run `44924368519` 重跑成功，公开发行页为 [Sydney Windows 0.4.3](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3)，Release ID `454106881`。发行页包含 `Sydney-partner-Setup-0.4.3.exe`、`SHA256SUMS` 和 `build-metadata.json`，安装包为 133,979,245 字节，SHA-256 为 `0045647e06c4905cdcd543ca5c10932436b057d872c0eaeb98d63dc4acff8d2f`，文件保持未签名，沿用手动安装流程，自动更新继续关闭。

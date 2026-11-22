@@ -114,6 +114,7 @@ export interface BotAvatarProps {
   avatarSet?: BotAvatarSet;
   activity?: LogoAvatarActivity;
   muted?: boolean;
+  unread?: boolean;
   motion?: AvatarMotionMode;
   composing?: boolean;
   pokeable?: boolean;
@@ -191,15 +192,15 @@ export const BotAvatar = memo(function BotAvatar({
   status,
   identity,
   muted = false,
+  unread = false,
   motion = "static",
   composing = false,
   pokeable = false,
 }: BotAvatarProps) {
   const tokens = useMobileTokens();
   const state = avatarLifeState(status, composing);
-  // The working dot marks a bot at work, not one writing its reply; a running avatar is
-  // itself that sign, so it carries none.
-  const isWorking = isRunWorking(status) && !composing && motion !== "running";
+  // Keep one persistent marker for running work and unread replies.
+  const isWorking = unread || (isRunWorking(status) && !composing && motion !== "running");
   const parsed = mobileBotAvatarPresentation(color);
   const onScreen = useAvatarOnScreen();
   const reducedMotion = useReducedMotion();

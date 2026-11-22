@@ -250,6 +250,7 @@ export const PinnedTiles = memo(function PinnedTiles({
                 size={avatarSize}
                 status={chat.bot.status}
                 muted={chat.bot.notifyOnFinish === false}
+                unread={chat.bot.unread}
                 motion="lazy"
               />
             ) : (
@@ -351,6 +352,7 @@ export const BotRow = memo(function BotRow({
             size={44}
             status={bot.status}
             muted={bot.notifyOnFinish === false}
+            unread={bot.unread}
             motion="lazy"
           />
         </AvatarRow>
@@ -374,6 +376,7 @@ export const BotRow = memo(function BotRow({
             avatarSet={bot.avatarSet}
             identity={bot.id}
             size={32}
+            unread={bot.unread}
           />
         ),
       }}

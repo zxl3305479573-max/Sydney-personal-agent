@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
 
-import {
-  avatarIdentitySeed,
-  organicAvatarPath,
-  shippedBotAvatarShapePath,
-} from "@rakazo/core";
+import { avatarIdentitySeed, organicAvatarPath, shippedBotAvatarShapePath } from "@rakazo/core";
 import type { ColorTokens } from "@rakazo/ui-tokens";
 import { botEyeColor, tokensForAppearance } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
@@ -250,5 +246,20 @@ describe("BotAvatar", () => {
     });
     expect(badge?.querySelector<HTMLElement>("div")?.dataset.background).toBe(tokens.secondary);
     expect(badge?.querySelector("i")?.dataset.color).toBe(tokens.foreground);
+  });
+
+  it("shows the green marker for an unread bot", () => {
+    const view = render("#3EC5A8", undefined, { unread: true });
+    expect(view.querySelectorAll('[aria-label="Working"]')).toHaveLength(1);
+  });
+
+  it("keeps one green marker when a bot is running and unread", () => {
+    const view = render("#3EC5A8", undefined, { status: "running", unread: true });
+    expect(view.querySelectorAll('[aria-label="Working"]')).toHaveLength(1);
+  });
+
+  it("does not show the green marker for a read idle bot", () => {
+    const view = render("#3EC5A8", undefined, { unread: false });
+    expect(view.querySelector('[aria-label="Working"]')).toBeNull();
   });
 });
