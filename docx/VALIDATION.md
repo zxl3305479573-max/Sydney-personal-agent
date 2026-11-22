@@ -8,6 +8,8 @@
 
 本机没有 `gh` 可执行程序，复用现有 Git Credential Manager 的凭据在内存中调用 GitHub REST API，未输出或保存令牌。只触发既有客户端云工作流，不安装依赖、不启动本机服务或全仓构建。手机 `mobile-ui-sheets` 的原生动画导入失败是前批已记录的测试限制，本批未把该用例计为通过。真实 iPhone 视觉／手势和 WSL guest 验收保持待验。
 
+发布与线上核验结果：提交 `7d2829aa34690f44d0884cbe5a9e64154117c8ac` 已推送到 `cursor/integrate-remote-branches-7334`，轻量标签 `sydney-desktop-v0.4.3` 已指向该提交。Windows 工作流 Run [44924368519](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44924368519) 首次因 `cpu-features` 原生依赖安装失败而缺少 Playwright 命令，重跑成功；安装包下载校验通过，大小 133,979,245 字节，SHA-256 `0045647e06c4905cdcd543ca5c10932436b057d872c0eaeb98d63dc4acff8d2f`，工件摘要 `sha256:9a90c7574eed65ed0a3db31f6d0ac8a06d0d4bbfa27d35fb2002bc43659f78b5`，打包的 `project-command-runner.py` 与源码一致。Windows Release ID `454106881` 已公开，发行页三项资产和公开 `SHA256SUMS` 已复核。iPhone 工作流 Run [44924402538](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44924402538) 成功，线上更新 ID `01a1feed-f697-7322-933e-a5c89e9ce8f1`，启动包 HTTP `200`、10,667,888 字节，55 项资源通过校验。两端均未执行真实设备覆盖安装、保留数据回退、侧滑返回或 WSL guest 验收。
+
 ## 手机界面玻璃效果统一收敛（2026-11-22）
 
 关联 PA-020／PA-021。共用表面默认使用平面样式，只有聊天标题显式保留玻璃；主题 `solid-fallback` 与旧系统仍回退。设置、主模块卡片、聊天内容与输入附件、普通标题和按钮均移除玻璃材质；原生导航项隐藏共享玻璃底。源码检索确认 `apps/mobile` 产品代码只剩共用表面内受 `chatTitle` 条件保护的 `glassEffect`，唯一显式启用处是 `chat-title-content.tsx`。

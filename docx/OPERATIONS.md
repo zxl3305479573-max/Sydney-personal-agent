@@ -1,8 +1,16 @@
 # 运维手册
 
+## Sydney Windows 0.4.3／iPhone 1.0.23 发布通道（2026-11-22）
+
+本批提交 `7d2829aa34690f44d0884cbe5a9e64154117c8ac` 已推送到 `cursor/integrate-remote-branches-7334`，轻量标签为 `sydney-desktop-v0.4.3`。Windows 工作流 Run `44924368519` 重跑成功，公开发行页为 [Sydney Windows 0.4.3](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3)，Release ID `454106881`。发行页包含 `Sydney-partner-Setup-0.4.3.exe`、`SHA256SUMS` 和 `build-metadata.json`，安装包为 133,979,245 字节，SHA-256 为 `0045647e06c4905cdcd543ca5c10932436b057d872c0eaeb98d63dc4acff8d2f`，文件保持未签名，沿用手动安装流程，自动更新继续关闭。
+
+iPhone 工作流 Run `44924402538` 已把 `1.0.23` 发布到 `sideload` runtime `sydney-ios-ip-1`，更新 ID 为 `01a1feed-f697-7322-933e-a5c89e9ce8f1`。启动包请求返回 HTTP `200`，大小为 10,667,888 字节，55 项资源已核验。用户在「设置 → 检查更新」下载并重启后，可在「设置 → 关于」核对 `1.0.23`。该流程不提交 App Store，也不替换原生签名包。
+
+本批只发布客户端，不部署 API／Worker、数据库迁移、Linux 驱动或官网，不更改 `SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED`。Windows 回退使用上一版已核验安装包，iPhone 回退按既有 Expo `sideload` 流程重新发布兼容内容，再复核更新 ID、清单和资源。双端真实覆盖安装、数据保留回退、iPhone 视觉／手势和 WSL guest 仍待验。
+
 ## 手机界面材质候选（2026-11-22）
 
-PA-020／PA-021 当前源码仅对话顶部 Bot 名称保留玻璃，其余共用表面使用既有平面样式，导航栏操作隐藏玻璃底。现有主题包仍可切换配色／几何；玻璃策略仅对对话标题生效，`solid-fallback` 仍关闭标题玻璃。没有新增设置、依赖、权限、存储路径或数据迁移，也不需要手动清缓存。此批未提交推送、构建或发布 OTA，现用客户端不会因源码编辑自动变化。更新后需在真实 iPhone 验证设置、主模块、聊天标题与消息／输入框，以及返回、侧滑返回和菜单；离线验证详见[验证记录](VALIDATION.md#手机界面玻璃效果统一收敛2026-11-22)。
+PA-020／PA-021 当前源码仅对话顶部 Bot 名称保留玻璃，其余共用表面使用既有平面样式，导航栏操作隐藏玻璃底。现有主题包仍可切换配色／几何；玻璃策略仅对对话标题生效，`solid-fallback` 仍关闭标题玻璃。没有新增设置、依赖、权限、存储路径或数据迁移，也不需要手动清缓存。相关改动已随 iPhone `1.0.23` OTA 发布，更新后需在真实 iPhone 验证设置、主模块、聊天标题与消息／输入框，以及返回、侧滑返回和菜单；离线验证详见[验证记录](VALIDATION.md#手机界面玻璃效果统一收敛2026-11-22)。
 
 ## 手机项目与 GitHub 页面缓存（2026-11-21）
 
