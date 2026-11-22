@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Mobile Bot avatars keep the green unread marker in regular rows, pinned cards and swipe previews, and GitHub navigation keeps a stable full-row layout.
+
 ## [0.4.3] - 2026-11-22
 
 ### Changed
