@@ -2,7 +2,15 @@
 
 ## Bot 状态恢复与持久记忆共享（PA-018、PA-021、PA-022）
 
-状态：进行中。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。依赖现有聊天快照、事件流、存储和 Provider 能力，验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。
+状态：源码实现、离线验证、提交推送与客户端发布已完成。PostgreSQL 迁移、RLS 实测、真实 iPhone／Windows 验收和服务端部署仍待独立执行。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。
+
+## Bot 状态与持久记忆发布结果（2026-11-22）
+
+状态：客户端发布完成，服务端迁移未部署。提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。Windows `0.4.4` 安装包构建成功，iPhone `sideload` OTA 发布成功，原生 IPA 的 `CFBundleShortVersionString` 仍为 `1.0.12`，本次可见发布版本来自 OTA 版本文件 `1.0.24`。
+
+实际交付：Windows Run `44978766434` 成功，Release ID `454171797` 已公开，标签为 `sydney-desktop-v0.4.4`。安装包 `Sydney-partner-Setup-0.4.4.exe` 为 133,981,118 字节，SHA-256 为 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`，构建元数据确认源码提交一致且安装包未签名。iOS 底座 Run `44978723093` 成功，未签名 IPA SHA-256 为 `f379b20f3c4b044a8f484bfc4d16e1474f7dfd5ab505f445761403cced7b63ee`，Bundle ID 为 `xin.zxlup.sydney`，OTA runtime 为 `sydney-ios-ip-1`，无 Widget 扩展。OTA Run `44978769113` 成功，更新组为 `6cfe7f68-0bc8-40b4-85e2-81a4f9929593`，iOS 更新 ID 为 `01a20136-1ba5-7848-9d7f-518e379615c9`。
+
+未完成项：迁移 `20261122120000_shared_memory_across_projects` 尚未在目标 PostgreSQL 执行，RLS 与并发行为未实测；Windows 安装、iPhone OTA 生效、杀进程／重启、断线恢复、项目与普通 Bot 记忆互读仍待真机或隔离环境验收。客户端发布不代表服务端能力已经上线。
 
 ## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
 
@@ -10,7 +18,7 @@
 
 实际验证：头像与 GitHub 定向回归 2 个文件 27 项通过；移动端 TypeScript 在关闭 pnpm 引擎强制后通过；本批源码 Biome、Impeccable 扫描和差异检查通过。首页列表测试因测试替身缺少 `ExpoSecureStore` 原生模块而在导入阶段失败，未将该用例计为通过。当前 Node 为 `22.22.0`，低于仓库声明的 `22.22.2`，类型检查因此使用了关闭引擎强制的命令。
 
-发布边界：本机未发现 `gh`、Expo token 或 EAS CLI，无法从当前环境触发 Windows 云构建、iOS `sideload` OTA 或 Android 发布。源码提交和远端推送仍按用户授权执行，客户端发布等待具备 GitHub Actions／Expo 凭据的环境。
+发布结果：本机未使用 `gh`、Expo CLI 或本地 token，复用 Git Credential Manager 凭据通过 GitHub Actions API 触发既有客户端工作流。Windows `0.4.4` 构建、iOS 未签名底座构建和 `1.0.24` OTA 均已成功。详细工件与线上标识见本计划顶部发布结果及[验证记录](VALIDATION.md)。
 
 ## 全部修改提交与 App 0.4.3／1.0.23 发布（2026-11-22）
 

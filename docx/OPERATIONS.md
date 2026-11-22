@@ -1,10 +1,18 @@
 # 运维手册
 
+## Bot 状态与记忆发布核对（2026-11-22）
+
+提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。Windows `0.4.4` 构建 Run `44978766434` 成功，Release ID `454171797` 已公开，标签为 `sydney-desktop-v0.4.4`。安装包为 `Sydney-partner-Setup-0.4.4.exe`，大小 133,981,118 字节，SHA-256 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`，未签名，继续使用手动安装。
+
+iOS 侧载底座 Run `44978723093` 成功，IPA SHA-256 `f379b20f3c4b044a8f484bfc4d16e1474f7dfd5ab505f445761403cced7b63ee`，Bundle ID `xin.zxlup.sydney`，原生版本 `1.0.12`，OTA runtime `sydney-ios-ip-1`，无 Widget 扩展。OTA Run `44978769113` 成功，更新组 `6cfe7f68-0bc8-40b4-85e2-81a4f9929593`，iOS 更新 ID `01a20136-1ba5-7848-9d7f-518e379615c9`。手机应用通过既有 `sideload` 通道读取本次 JS／资源更新，原生版本和签名包不变。
+
+服务端迁移 `packages/db/prisma/migrations/20261122120000_shared_memory_across_projects/migration.sql` 尚未执行。执行前需在目标 PostgreSQL 的隔离维护窗口备份并核对迁移账本，随后验证同账号同 Space 共享记忆、跨账号／Space 隔离、RLS 和并发冲突；本次客户端发布不会自动执行该迁移。Windows 覆盖安装、iPhone OTA 生效、杀进程／重启和断线恢复待设备验收。
+
 ## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
 
 本批只修改手机客户端显示逻辑和 GitHub 导航布局，不增加依赖、环境变量、权限、数据目录或服务端迁移。未读状态沿用服务端已有 `Bot.unread` 字段，运行状态仍由现有会话缓存和服务端状态合并逻辑提供。发布前不需要清理缓存，更新后首页列表和置顶卡片会直接读取当前 Bot 状态。
 
-本机验证已完成，客户端发布尚未触发。当前环境没有 `gh`、Expo token 或 EAS CLI，无法从本机执行 Windows 云构建、iOS `sideload` OTA 或 Android rolling release。具备仓库 Actions 和 Expo 凭据后，应从 `cursor/integrate-remote-branches-7334` 运行既有客户端发布入口，并核对更新清单和资源。
+本机验证已完成，客户端发布结果见本手册顶部。当前通过 GitHub Actions 使用仓库既有凭据触发 Windows 构建、iOS `sideload` OTA 和 iOS 未签名底座构建，未执行 Android rolling release。下载工件放在仓库忽略目录，未进入提交。
 
 ## Sydney Windows 0.4.3／iPhone 1.0.23 发布通道（2026-11-22）
 

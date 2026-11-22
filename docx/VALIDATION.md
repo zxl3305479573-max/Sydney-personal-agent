@@ -1,5 +1,15 @@
 # 验证记录
 
+## Bot 状态、记忆共享与 App 发布（2026-11-22）
+
+本批提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。源码覆盖普通／项目会话的 Run 状态恢复、未读头像标记、项目与 GitHub 页面状态缓存，以及同用户同 Space 下普通 Bot 与项目 Bot 的持久记忆共享。
+
+- Windows 工作流 Run [44978766434](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44978766434)：成功。Release [Sydney Windows 0.4.4](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.4) 已公开，Release ID `454171797`，包含安装包、`SHA256SUMS` 和 `build-metadata.json`。安装包 `Sydney-partner-Setup-0.4.4.exe`，133,981,118 字节，SHA-256 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`。`build-metadata.json` 确认源码提交、Windows x64 产物和未签名状态。
+- iOS 未签名底座工作流 Run [44978723093](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44978723093)：成功。IPA SHA-256 `f379b20f3c4b044a8f484bfc4d16e1474f7dfd5ab505f445761403cced7b63ee`，Bundle ID `xin.zxlup.sydney`，原生版本 `1.0.12`，OTA runtime `sydney-ios-ip-1`，OTA URL 指向 Sydney 独立项目，未包含 Widget 扩展，9 个资源目录均被主 bundle 引用。
+- iOS OTA 工作流 Run [44978769113](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/44978769113)：成功。更新组 `6cfe7f68-0bc8-40b4-85e2-81a4f9929593`，iOS 更新 ID `01a20136-1ba5-7848-9d7f-518e379615c9`，runtime 与已安装底座匹配。
+- 发布核对只使用内存中的 Git Credential Manager 凭据，没有输出或保存 token。下载的构建工件放在仓库忽略目录 `.tmp/release-check/`，未进入提交。
+- 尚未执行 PostgreSQL 迁移及 RLS／并发实测，未部署 API／Worker；Windows 覆盖安装、iPhone OTA 生效、系统重启、断线恢复和跨入口记忆互读仍待真实设备或隔离环境验收。
+
 ## Bot 未读头像标记与 GitHub 导航修补（2026-11-22）
 
 用户要求 Bot 有未回复或未读消息时，头像持续保留小绿点。`BotAvatar` 复用现有 `unread` 字段，普通 Bot 行、置顶卡片和滑动预览均传入该状态；运行中和未读同时存在时只渲染一个标记。GitHub 顶部导航固定为等宽三栏，点击高度固定，选中态不再推动布局。
@@ -8,7 +18,7 @@
 - `pnpm --config.engine-strict=false --filter @rakazo/mobile exec tsc --noEmit -p tsconfig.json`：通过。直接执行因本机 Node `22.22.0` 低于仓库要求 `22.22.2` 被 pnpm 拒绝。
 - 本批源码 Biome、Impeccable `detect --json --changed` 和 `git diff --check`：通过。
 - `apps/mobile/lib/inbox-render.test.tsx` 因测试 mock 没有 `TurboModuleRegistry`／`ExpoSecureStore` 原生替身，在导入阶段失败，未将首页列表断言计入通过。
-- 未启动服务、数据库或本机客户端，未执行真实 iPhone 视觉／导航和客户端发布。当前环境没有 `gh`、Expo token 或 EAS CLI，无法触发发布工作流。
+- 未启动本机服务或数据库，未执行真实 iPhone 视觉／导航。客户端发布结果已在本文件顶部的发布记录中核对。
 
 ## App 0.4.3／1.0.23 全量提交与发布（2026-11-22）
 
