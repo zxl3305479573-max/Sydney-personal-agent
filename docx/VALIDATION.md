@@ -1,5 +1,24 @@
 # 验证记录
 
+## iPhone 1.0.26 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **发布前本机复验**：
+  - 全仓 Biome 静态与格式检查（3,681 文件）：**0 错误**；`@rakazo/mobile`、`packages/db`、`packages/testkit`、`apps/api` `tsc --noEmit`：**0 错误**；`git diff --check`：**0 警告**。
+  - 发布配置与版本定向 Vitest（4 个文件、82 项全部通过）：`app-version.test.ts`（6）、`app-config.test.ts`（34）、`client-update.test.ts`（14）、`account-screen.test.tsx`（28）；移动端全量 302 测试文件全部通过。
+- **Git 提交与 GitHub Actions OTA 结果**：
+  - 源码提交 `92b007043f69cc7e08d69fc1a9a43156d6d65830`（位于 `e81ba0eba` 之上）已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - `mobile-ios-update.yml` [Run 45638630093](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45638630093)（分支 `main`、提交 `92b007043`、runtime `sydney-ios-ip-1`）：**completed / success**（`14:51:25Z`–`14:53:25Z`）。
+  - 更新组 ID：`f8082377-26ac-4d0d-8ee4-2220d2b838af`；iOS 更新 ID：`01a21332-6929-7fe6-9c68-473e21b4a79b`；发布时间：`2026-11-25T14:53:20.553Z`。
+- **线上 Expo 清单与产物校验**：
+  - `https://u.expo.dev/c33e1434-f7d0-4c40-8839-78b050d41388`（`expo-platform: ios`、`expo-runtime-version: sydney-ios-ip-1`、`expo-channel-name: sideload`）返回 **HTTP `200`**（`multipart/mixed`），`id` 为 `01a21332-6929-7fe6-9c68-473e21b4a79b`，`sydneyMobileRelease.version` 为 `1.0.26`、`releasedOn` 为 `2026-11-25`，`zh-CN`/`zh-TW`/`en` 说明各 4 条。
+  - 启动包（`launchAsset`）：**HTTP `200`**，大小 **`10,827,436` 字节**，SHA-256 为 `33118985e03046be4f78eadb33cfbec824c6e567d0374ea288c807e565dd216f`，与清单摘要完全匹配。
+  - 静态资源：按清单 `extensions.assetRequestHeaders` 逐项拉取，**`56 / 56` 全部 HTTP `200` 且 SHA-256 匹配**（0 失败）。
+- **同期其他 GitHub Actions 观测（不做推定通过）**：
+  - 核验时点 `ci` Run `45638515188`（`main`／`92b007043`）与 `iOS unsigned sideload build` Run `45638505458`（`92b007043`）处于 `in_progress`，不提前推定通过。
+- **未执行项**：iPhone 真机在「设置 → 检查更新」下载重启、核对「设置 → 关于」为 `1.0.26`，以及无滚动条视觉、原生 Tab 保活／重按回顶、应用与 GitHub 详情侧滑返回、iOS `formSheet`、`ActionSheetIOS`、原生登录页、无限滚动、单色暖瓷输入栏与群聊状态隔离的真机验收待用户实测。
+
 ## 手机 App 原生交互与 iOS HIG 全面重构（2026-11-25）
 
 关联 PA-021／REL-01。
