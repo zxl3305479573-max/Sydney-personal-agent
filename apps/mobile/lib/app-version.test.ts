@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import sydneyRelease from "../sydney-release.json";
 
 const application = vi.hoisted(() => ({
   nativeApplicationVersion: null as string | null,
@@ -14,7 +15,7 @@ const updates = vi.hoisted(() => ({
 }));
 
 const constants = vi.hoisted(() => ({
-  expoConfig: { version: "1.0.3" } as { version?: string } | null,
+  expoConfig: { version: "1.0.3" } as { version?: string; extra?: Record<string, unknown> } | null,
   platform: {
     ios: { buildNumber: "1" },
     android: { versionCode: 10 },
@@ -72,6 +73,19 @@ describe("app version footer helpers", () => {
   it("falls back to Constants when Application is empty", async () => {
     const { getAppVersionInfo } = await import("./app-version");
     expect(getAppVersionInfo().nativeLabel).toBe("1.0.3 (1)");
+  });
+
+  it("keeps the release version separate from the installed binary", async () => {
+    application.nativeApplicationVersion = "1.0.12";
+    application.nativeBuildVersion = "4";
+    constants.expoConfig = { version: "1.0.12", extra: { sydneyMobileRelease: sydneyRelease } };
+    const { getAppVersionInfo } = await import("./app-version");
+    expect(getAppVersionInfo()).toMatchObject({
+      nativeLabel: "1.0.12 (4)",
+      release: sydneyRelease,
+    });
+    constants.expoConfig.extra = { sydneyMobileRelease: { version: "1.0.13" } };
+    expect(getAppVersionInfo().release).toBeNull();
   });
 
   it("summarizes an OTA update with channel and date", async () => {

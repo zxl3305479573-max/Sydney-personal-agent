@@ -1,4 +1,4 @@
-import type { AgentSkillCatalogEntry, RpcPath } from "@rakazo/contracts";
+import type { AgentSkillCatalogEntry, RpcOutput, RpcPath } from "@rakazo/contracts";
 import type { ComposerMention, resolveComposerSendPlan } from "@rakazo/core";
 import {
   isImageInputConfirmation,
@@ -62,7 +62,7 @@ export async function deliverSend(
   payload: SendPayload,
   attempt: SendAttempt,
   request: typeof rpc,
-): Promise<number | undefined> {
+): Promise<RpcOutput<"threads/send"> | undefined> {
   const { plan, groupTarget, botTarget, reroutedToGroup, attachments } = payload;
   if (plan.shouldRunRoutines) {
     await Promise.all(
@@ -105,7 +105,7 @@ export async function deliverSend(
     replyToMessageId: reroutedToGroup ? undefined : payload.replyTargetId,
     replyQuote: reroutedToGroup ? undefined : (payload.replyQuote ?? undefined),
   });
-  return sent.seq;
+  return sent;
 }
 
 export type OutboxScope = Pick<SendAttempt, "apiBase" | "spaceId" | "userId" | "cacheSession">;
@@ -131,6 +131,7 @@ type Config = {
   disk: UnsentDisk;
   errorText(error: unknown): string;
   notDelivered(attempt: SendAttempt): void;
+  accepted?(attempt: SendAttempt, result: RpcOutput<"threads/send">): void;
 };
 let config: Config | undefined;
 let unsentSends: SendAttempt[] = [];
@@ -309,13 +310,15 @@ export function sendWaitingMessages(force = false): Promise<void> {
             return config!.request(proc, body, options, attempt.spaceId);
           }) as typeof rpc;
           if (!memoryOnly.has(attempt)) await config.disk.hydrate(attempt);
-          const seq = await deliverSend(attempt.payload, attempt, request);
+          const result = await deliverSend(attempt.payload, attempt, request);
           // The retry under the new session gets the same seq back for the same nonce.
           if (stale()) {
             requeue(attempt);
             continue;
           }
+          const seq = result?.seq;
           attempt.acceptedSeq = seq;
+          if (result) config.accepted?.(attempt, result);
           for (const listener of deliveredListeners) listener(attempt);
           if (
             !screens.has(attempt.payload.originThreadKey) ||

@@ -125,6 +125,7 @@ export default function SkillScreen() {
               unstable_headerRightItems: () => [
                 {
                   type: "button" as const,
+                  hidesSharedBackground: true,
                   label: t("Save"),
                   variant: "prominent" as const,
                   tintColor: mobileTokens().primary,

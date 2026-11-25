@@ -3,6 +3,7 @@ import type { Actor, MessageBlock } from "@rakazo/contracts";
 import { callClientNonce } from "@rakazo/core";
 import type * as MessageQuoteModule from "@rakazo/core/message-quote";
 import type { PrismaClient } from "@rakazo/db";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { ThreadTarget } from "./thread-target.js";
 import {
@@ -1508,7 +1509,39 @@ function groupTarget() {
 }
 
 describe("sendThreadMessage", () => {
-  it("answers a waiting question with a free-text chat message", async () => {
+  it.each([
+    { text: "Paris", latestMessageId: "ask-1", prompt: "Paris", choice: false },
+    {
+      text: "没了",
+      latestMessageId: "ask-1",
+      prompt: expect.stringContaining("请用用户此前提供的信息继续原任务"),
+      choice: true,
+    },
+    {
+      text: "没了！",
+      latestMessageId: "newer-message",
+      prompt: expect.stringContaining("请用用户此前提供的信息继续原任务"),
+      choice: true,
+    },
+  ])("resumes a waiting run after sending $text (latest $latestMessageId)", async ({
+    text,
+    latestMessageId,
+    prompt,
+    choice,
+  }) => {
+    const ask = {
+      kind: "ask",
+      text: "Which city should I use?",
+      status: "pending",
+      ...(choice
+        ? {
+            actions: [
+              { id: "paris", label: "Paris" },
+              { id: "no-more-details", label: "没了" },
+            ],
+          }
+        : {}),
+    };
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "thread-1" }]),
       thread: {
@@ -1522,22 +1555,17 @@ describe("sendThreadMessage", () => {
           threadId: "thread-1",
           seq: 1,
           role: "user",
-          blocks: [{ kind: "text", text: "Paris" }],
+          blocks: [{ kind: "text", text }],
           botId: null,
           replyToMessageId: null,
           runId: null,
           createdAt: new Date("2026-01-01T00:00:00Z"),
         }),
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: "ask-1",
-            blocks: [{ kind: "ask", text: "Which city should I use?", status: "pending" }],
-          },
-        ]),
-        findFirst: vi.fn().mockResolvedValue({
-          id: "ask-1",
-          blocks: [{ kind: "ask", text: "Which city should I use?", status: "pending" }],
-        }),
+        findMany: vi.fn().mockResolvedValue([{ id: "ask-1", blocks: [ask] }]),
+        findFirst: vi.fn(async ({ where }: { where: { id?: string } }) => ({
+          id: where.id ?? latestMessageId,
+          blocks: where.id || latestMessageId === "ask-1" ? [ask] : [{ kind: "text", text: "Update" }],
+        })),
         update: vi.fn(),
       },
       run: {
@@ -1579,7 +1607,7 @@ describe("sendThreadMessage", () => {
         actor,
         target,
         {
-          text: "Paris",
+          text,
           clientNonce: "nonce-ask",
         },
       ),
@@ -1591,14 +1619,18 @@ describe("sendThreadMessage", () => {
     });
     expect(tx.task.updateMany).toHaveBeenCalledWith({
       where: { runs: { some: { id: "run-waiting" } } },
-      data: { prompt: "Paris" },
+      data: { prompt },
     });
     expect(tx.run.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ status: "waiting_input" }),
-        data: { status: "queued" },
+        data: { status: "queued", ...(choice ? { checkpoint: null } : {}) },
       }),
     );
+    expect(tx.message.update).toHaveBeenCalledWith({
+      where: { id: "ask-1" },
+      data: { blocks: [{ ...ask, status: "answered", answer: text }] },
+    });
     expect(tx.steeringMessage.create).not.toHaveBeenCalled();
     expect(tx.task.create).not.toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
@@ -1608,7 +1640,7 @@ describe("sendThreadMessage", () => {
       { name: "message_sent", trigger: "user" },
       { id: "msg-1", at: new Date("2026-01-01T00:00:00Z") },
     );
-    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain("Paris");
+    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain(text);
     expect(tx.event.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         type: "thread.message.created",
@@ -3721,6 +3753,77 @@ describe("sendThreadMessage", () => {
 });
 
 describe("stopThreadRuns", () => {
+  it.each(["active", "finished", "foreign"] as const)(
+    "cancels only the selected project Run (%s)",
+    async (scenario) => {
+      const actor = { spaceId: "space-a", userId: "user-a" } as Actor;
+      const scope = { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-a" };
+      const run = { id: "run-a", botId: "bot-a", taskId: "task-a", ...scope };
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const tx = {
+        $queryRaw: vi.fn(),
+        run: {
+          findFirst: vi.fn().mockResolvedValue(scenario === "foreign" ? null : run),
+          updateManyAndReturn: vi.fn().mockResolvedValue(scenario === "active" ? [{ id: run.id }] : []),
+          findMany: vi.fn().mockResolvedValue([run]),
+          findUnique: vi.fn().mockResolvedValue({ status: "cancelled" }),
+        },
+        task: { updateMany: vi.fn() },
+        attempt: { updateMany: vi.fn() },
+        message: { findMany: vi.fn().mockResolvedValue([]) },
+        secret: { deleteMany: vi.fn() },
+        steeringMessage: { deleteMany: vi.fn() },
+        externalEffect: { deleteMany: vi.fn() },
+        computerExecutionLease: { findMany: vi.fn().mockResolvedValue([]) },
+        computer: { findMany: vi.fn().mockResolvedValue([]) },
+        thread: { update: vi.fn().mockResolvedValue({ nextEventSeq: 4 }) },
+        event: {
+          create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+          deleteMany: vi.fn(),
+        },
+      };
+      const prisma = {
+        $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
+        computer: { updateMany: vi.fn() },
+        computerExecutionLease: { updateMany: vi.fn() },
+      } as unknown as PrismaClient;
+      const target = { kind: "bot", botId: "bot-a", threadId: "thread-a" } as ThreadTarget;
+      const outcome = runAsTenant(scope, () => stopThreadRuns({
+        prisma, sandbox: {} as SandboxProvider, events: { notify } as never,
+      }, actor, target, "run-a"));
+      if (scenario === "foreign") {
+        await expect(outcome).rejects.toMatchObject({ code: "NOT_FOUND" });
+        expect(tx.run.updateManyAndReturn).not.toHaveBeenCalled();
+      } else {
+        await outcome;
+        expect(tx.run.updateManyAndReturn).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+          where: { id: { in: ["run-a"] }, status: { in: expect.arrayContaining(["queued", "running"]) } },
+          data: expect.objectContaining({ status: "cancelled", leaseOwner: null, leaseExpiresAt: null }),
+        }));
+      }
+      expect(tx.run.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: "run-a", threadId: "thread-a", ...scope },
+      }));
+      if (scenario !== "active") {
+        expect(tx.task.updateMany).not.toHaveBeenCalled();
+        expect(tx.steeringMessage.deleteMany).not.toHaveBeenCalled();
+        expect(tx.event.create).not.toHaveBeenCalled();
+        expect(notify).not.toHaveBeenCalled();
+        return;
+      }
+      expect(tx.task.updateMany).toHaveBeenCalledExactlyOnceWith({
+        where: { id: { in: ["task-a"] } }, data: { status: "cancelled" },
+      });
+      expect(tx.steeringMessage.deleteMany).toHaveBeenCalledExactlyOnceWith({
+        where: { runId: "run-a", message: { threadId: "thread-a" } },
+      });
+      expect(tx.event.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        data: expect.objectContaining({ runId: "run-a", threadId: "thread-a", type: "run.cancelled" }),
+      }));
+      expect(notify).toHaveBeenCalledExactlyOnceWith("thread-a", 3);
+    },
+  );
+
   it("snapshots every lease when group members share a team computer", async () => {
     const releaseScreen = vi.fn().mockResolvedValue(undefined);
     const execute = vi.fn(async function* () {

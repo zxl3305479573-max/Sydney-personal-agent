@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { oauthCallbackFrom } from "./oauth-callback.js";
 
+it("captures native MCP replies only from the configured server and callback path", () => {
+  const options = {
+    frameName: "rakazo-mcp-oauth",
+    serverOrigin: "https://server.example.test",
+  };
+  const callback = `${options.serverOrigin}/api/mcp/oauth/callback?code=example&state=session`;
+  expect(oauthCallbackFrom(callback, options)).toEqual({ code: "example", state: "session" });
+  expect(oauthCallbackFrom(`${callback}&state=duplicate`, options)).toBeUndefined();
+  expect(oauthCallbackFrom(callback.replace("/api/mcp", "/mcp"), options)).toBeUndefined();
+  expect(
+    oauthCallbackFrom(callback.replace("server.example", "other.example"), options),
+  ).toBeUndefined();
+});
+
 describe("loopback OAuth callbacks", () => {
   it("reads the code and state Anthropic redirects with", () => {
     expect(

@@ -9,8 +9,11 @@ import {
   liveMessageComposing,
   memberName,
   newClientId,
+  parseModelOptionKey,
   displayName as safeDisplayName,
 } from "@rakazo/core";
+import { fetchFresh, writeSaved } from "@rakazo/core/query";
+import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,22 +21,37 @@ import { Alert, I18nManager, ImageBackground, Platform, StyleSheet, View } from 
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../../lib/adaptive-layout";
-import { isSpaceSelectionPending, rpc, selectedSpaceId, spaceSelectionSeq } from "../../lib/api";
-import { activeCompanionIdentity } from "../../lib/companion-activity";
-import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
+import {
+  captureApiRequestContext,
+  currentApiBase,
+  isSpaceSelectionPending,
+  rpc,
+  selectedSpaceId,
+  spaceSelectionSeq,
+} from "../../lib/api";
 import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useCallSession } from "../../lib/call-session";
 import { useMobileChatAppearance } from "../../lib/chat-appearance";
+import {
+  chatModelDisplayName,
+  chatModelPickerChoices,
+  chatModelSelectionKey,
+} from "../../lib/chat-model";
+import { chatModelMenuActions } from "../../lib/chat-model-menu";
+import { activeCompanionIdentity } from "../../lib/companion-activity";
+import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
 import { composerDraftScope } from "../../lib/composer-draft";
 import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
 import { useThemedStyles } from "../../lib/native";
+import { queryClient, rpcQuery } from "../../lib/query";
+import { useScopedTheme } from "../../lib/scoped-theme-context";
 import { useInboxBot } from "../../lib/search-inbox";
+import { currentSessionGeneration } from "../../lib/session";
 import { useSplitView } from "../../lib/split-view";
 import { useIncomingShareImport, useThreadAttachments } from "../../lib/thread-attachments";
-import { currentSessionGeneration } from "../../lib/session";
 import { useThreadBots } from "../../lib/thread-bots";
 import {
   threadColumnPadding,
@@ -59,6 +77,9 @@ import { useThreadSync } from "../../lib/thread-sync";
 import { useThreadTranscript } from "../../lib/thread-transcript";
 import { useAutoSpeakReply, useSpeakMessages, useThreadVoiceCall } from "../../lib/thread-voice";
 import { liveEndRunError } from "../../lib/thread-window";
+import { UiModeScreenHost } from "../../lib/ui-mode-slots";
+import { errorText } from "../../lib/user-error";
+import type { ThreadUiModeController } from "../../ui-modes/controllers";
 import { FailedSendBubble } from "../failed-send-bubble";
 import type { MarkdownArtifactPreviewTarget } from "../markdown-artifact-preview";
 import { MarkdownArtifactPreview } from "../markdown-artifact-preview";
@@ -72,7 +93,6 @@ import { ThreadComposerDock } from "./thread-composer-dock";
 import { BotActionsModal, useThreadHeader } from "./thread-header";
 import { LoadEarlierButton, ThreadWorkingFooter } from "./thread-list-controls";
 import { ThreadMessageList } from "./thread-message-list";
-import { ThreadModelSheet } from "./thread-model-sheet";
 import { useLatestRowActions, useThreadRows } from "./thread-rows";
 import { useThreadRunError } from "./thread-run-error";
 
@@ -86,6 +106,8 @@ function isActiveStatus(status: string | undefined): boolean {
  */
 export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string }) {
   const tokens = mobileTokens();
+  const scopedTheme = useScopedTheme();
+  const cardLayout = scopedTheme?.layout === "cards";
   const chatAppearance = useMobileChatAppearance();
   const styles = useThemedStyles(createThreadHeaderStyles);
   const { t, locale } = useI18n();
@@ -157,34 +179,58 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     : botId
       ? { botId }
       : undefined;
-  const history = useThreadSnapshot();
+  const history = useThreadSnapshot({
+    scope: {
+      apiBase: currentApiBase(),
+      sessionGeneration: currentSessionGeneration(),
+      userId,
+      spaceId: selectedSpaceId() ?? "",
+    },
+    botId,
+    groupId,
+    messageId,
+  });
   const { snap, composingBots, showingSaved } = history;
   const [agentSkills, setAgentSkills] = useState<AgentSkillCatalogEntry[]>([]);
-  const [uploadConfig, setUploadConfig] = useState<{
-    maxUploadSizeBytes?: number;
-    maxAttachmentsPerMessage?: number;
-  }>();
-  const [needsModel, setNeedsModel] = useState<boolean>();
-  const [defaultModel, setDefaultModel] = useState<string | null>(null);
-  const [modelSheetOpen, setModelSheetOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<{ botId: string; modelId: string | null }>();
+  const modelSaving = useRef(false);
+  const spaceId = selectedSpaceId() ?? undefined;
+  const modelBotId = inGroup || readOnly ? undefined : botId;
+  const me = useQuery({ ...rpcQuery("me", undefined, spaceId), enabled: false }, queryClient).data;
+  const catalog = useQuery(
+    { ...rpcQuery("models/list", undefined, spaceId), enabled: false },
+    queryClient,
+  ).data;
+  const modelBot = useQuery(
+    { ...rpcQuery("bots/get", { botId: modelBotId ?? "" }, spaceId), enabled: false },
+    queryClient,
+  ).data;
+  const modelCredentials = useQuery(
+    { ...rpcQuery("models/credentials", undefined, spaceId), enabled: false },
+    queryClient,
+  ).data;
   // Re-read on focus so returning from Models settings updates unsent missing-model messages.
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      setSelectedModel(undefined);
-      void rpc("me")
-        .then((me) => {
-          if (cancelled) return;
-          setUploadConfig(me);
-          setNeedsModel(me.needsModel);
-          setDefaultModel(me.defaultModel ?? null);
-        })
-        .catch(() => undefined);
-      return () => {
-        cancelled = true;
-      };
-    }, []),
+      const reuse = { reuse: true };
+      void fetchFresh(queryClient, rpcQuery("me", undefined, spaceId), reuse).catch(
+        () => undefined,
+      );
+      if (modelBotId) {
+        void fetchFresh(
+          queryClient,
+          rpcQuery("bots/get", { botId: modelBotId }, spaceId),
+          reuse,
+        ).catch(() => undefined);
+        void queryClient
+          .fetchQuery(rpcQuery("models/list", undefined, spaceId))
+          .catch(() => undefined);
+        void fetchFresh(
+          queryClient,
+          rpcQuery("models/credentials", undefined, spaceId),
+          reuse,
+        ).catch(() => undefined);
+      }
+    }, [modelBotId, spaceId]),
   );
 
   const { mentionBots, mentionBotsRef, mentionGroups, refreshMentionBots } = useThreadBots({
@@ -201,7 +247,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     JSON.stringify([userId, sessionEpoch, botId, groupId, requestedThreadId]),
     mentionBots,
   );
-  const attachments = useThreadAttachments({ botId, groupId, readOnly, uploadConfig });
+  const attachments = useThreadAttachments({ botId, groupId, readOnly, uploadConfig: me });
   const draftScope = useMemo(
     () => composerDraftScope(userId, botId, groupId),
     [userId, botId, groupId],
@@ -256,6 +302,66 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   // Until the chat's own roster arrives, the bot as the inbox last loaded it.
   const inboxBot = useInboxBot(botId);
   const titleBot = currentBot ?? inboxBot;
+  const modelLabel = modelBotId
+    ? chatModelDisplayName(
+        me,
+        catalog ?? [],
+        modelBot ?? (titleBot && "modelId" in titleBot ? titleBot : undefined),
+      )
+    : undefined;
+  const modelSelectionKey = modelBotId
+    ? chatModelSelectionKey(
+        catalog ?? [],
+        modelBot ??
+          (titleBot && "modelId" in titleBot ? titleBot : undefined) ?? {
+            modelProvider: null,
+            modelId: null,
+          },
+      )
+    : "";
+  const modelActions = modelBotId
+    ? chatModelMenuActions(
+        chatModelPickerChoices(
+          me ?? null,
+          catalog ?? [],
+          modelCredentials ?? [],
+          modelSelectionKey,
+          t,
+        ),
+        modelSelectionKey,
+      )
+    : undefined;
+  async function selectChatModel(key: string) {
+    if (!modelBotId || modelSaving.current || key === modelSelectionKey) return;
+    const selected = key ? parseModelOptionKey(key) : null;
+    if (key && !selected) {
+      Alert.alert(t("Could not load model settings"));
+      return;
+    }
+    modelSaving.current = true;
+    const botQuery = rpcQuery("bots/get", { botId: modelBotId }, spaceId);
+    const selection = spaceSelectionSeq();
+    try {
+      const requestContext = await captureApiRequestContext(spaceId);
+      if (selection !== spaceSelectionSeq() || spaceId !== (selectedSpaceId() ?? undefined))
+        throw new Error(t("Space changed. Please try again."));
+      const saved = await rpc(
+        "bots/update",
+        {
+          botId: modelBotId,
+          modelProvider: selected?.provider ?? null,
+          modelId: selected?.modelId ?? null,
+          thinkingLevel: null,
+        },
+        { requestContext },
+      );
+      await writeSaved(queryClient, botQuery.queryKey, () => saved);
+    } catch (cause) {
+      if (focused) Alert.alert(t("Could not save changes"), errorText(cause, t("Try again.")));
+    } finally {
+      modelSaving.current = false;
+    }
+  }
   // Use a cached name until the chat's own roster arrives.
   const titleName = [currentBot?.name, inboxBot?.name, name]
     .map((candidate) => safeDisplayName(candidate, ""))
@@ -274,8 +380,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   );
   const activityLine = liveActivityLine(snap?.messages ?? []);
   const userBubble = useMemo(
-    () =>
-      !inGroup && titleBot ? chatUserBubbleColors(titleBot.color, titleBot.id) : undefined,
+    () => (!inGroup && titleBot ? chatUserBubbleColors(titleBot.color, titleBot.id) : undefined),
     [inGroup, titleBot?.color, titleBot?.id],
   );
   const activeGroupBots = useMemo(() => {
@@ -403,7 +508,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     composerRef: composer.composerRef,
     readOnly,
     threadKey,
-    uploadConfig,
+    uploadConfig: me,
   });
 
   const openBot = useCallback(
@@ -438,9 +543,12 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const companionVoiceHandled = useRef(false);
   const companionVoiceFocused = useRef(focused);
   companionVoiceFocused.current = focused;
-  useEffect(() => () => {
-    companionVoiceFocused.current = false;
-  }, []);
+  useEffect(
+    () => () => {
+      companionVoiceFocused.current = false;
+    },
+    [],
+  );
   useEffect(() => {
     if (companionVoice !== "1") {
       companionVoiceHandled.current = false;
@@ -453,28 +561,39 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     const spaceId = selectedSpaceId();
     const activity = activeCompanionIdentity();
     const spaceSelection = spaceSelectionSeq();
-    router.setParams({ companionVoice: undefined, companionToken: undefined, companionLink: undefined });
-    if (!activity || !companionVoiceLinkMatches(companionToken, activity, requestedBot, spaceId) ||
-      isSpaceSelectionPending()) return;
+    router.setParams({
+      companionVoice: undefined,
+      companionToken: undefined,
+      companionLink: undefined,
+    });
+    if (
+      !activity ||
+      !companionVoiceLinkMatches(companionToken, activity, requestedBot, spaceId) ||
+      isSpaceSelectionPending()
+    )
+      return;
     Alert.alert("语音对话", "开始后将按照系统授权使用麦克风。", [
       { text: "取消", style: "cancel" },
       {
         text: "开始",
         onPress: () => {
-          if (canStartCompanionVoice({
-            focused: companionVoiceFocused.current,
-            requestedBot,
-            activeBot: activeBotId.current,
-            requestGeneration: generation,
-            currentGeneration: currentSessionGeneration(),
-            requestSpace: spaceId,
-            currentSpace: selectedSpaceId(),
-            requestActivityId: activity.id,
-            activeActivity: activeCompanionIdentity(),
-            requestSpaceSelection: spaceSelection,
-            currentSpaceSelection: spaceSelectionSeq(),
-            spaceSelectionPending: isSpaceSelectionPending(),
-          })) void startVoiceCall(false, generation);
+          if (
+            canStartCompanionVoice({
+              focused: companionVoiceFocused.current,
+              requestedBot,
+              activeBot: activeBotId.current,
+              requestGeneration: generation,
+              currentGeneration: currentSessionGeneration(),
+              requestSpace: spaceId,
+              currentSpace: selectedSpaceId(),
+              requestActivityId: activity.id,
+              activeActivity: activeCompanionIdentity(),
+              requestSpaceSelection: spaceSelection,
+              currentSpaceSelection: spaceSelectionSeq(),
+              spaceSelectionPending: isSpaceSelectionPending(),
+            })
+          )
+            void startVoiceCall(false, generation);
         },
       },
     ]);
@@ -550,13 +669,13 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   });
 
   const workingBots =
-    !inGroup && currentBot && isRunWorking(currentBotStatus) && !hasLiveProgress
+    !inGroup && titleBot && isRunWorking(currentBotStatus) && !hasLiveProgress
       ? [
           {
-            id: currentBot.id,
-            name: currentBot.name,
-            color: currentBot.color,
-            avatarSet: currentBot.avatarSet,
+            id: titleBot.id,
+            name: titleBot.name,
+            color: titleBot.color,
+            avatarSet: titleBot.avatarSet,
             status: currentBotStatus,
           },
         ]
@@ -592,7 +711,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     <FailedSendBubble
       key={attempt.clientNonce}
       attempt={attempt}
-      needsModel={needsModel}
+      needsModel={me?.needsModel}
       onRetry={() => composer.retry(attempt)}
       onDelete={() => feedback.discard(attempt)}
       userBubble={userBubble}
@@ -611,8 +730,26 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     />
   );
 
-  return (
-    <View style={{ flex: 1 }}>
+  const controller: ThreadUiModeController = {
+    botId,
+    groupId,
+    userId,
+    displayName,
+    readOnly,
+    snapshot: snap,
+    messages: visibleMessages,
+    error,
+    showingSaved,
+    working,
+    composer,
+    attachments,
+    paging,
+    showLatest,
+    openBot,
+    openComputer,
+  };
+  const classicContent = (
+    <View style={[{ flex: 1 }, cardLayout ? { paddingHorizontal: 8, paddingTop: 8 } : null]}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
         resizeMode={chatAppearance.backgroundFit}
@@ -641,6 +778,14 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           style={{
             flex: 1,
             backgroundColor: tokens.background,
+            ...(cardLayout
+              ? {
+                  borderRadius: scopedTheme.geometry.cardRadius,
+                  overflow: "hidden" as const,
+                  borderWidth: scopedTheme.geometry.borderWidth,
+                  borderColor: tokens.border,
+                }
+              : null),
           }}
         >
           {/* The keyboard's padding shrinks this, so the floating composer rides above it. */}
@@ -715,22 +860,12 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
                   (attachment) => attachment.id,
                 )}
                 botId={botId}
-                modelLabel={
-                  selectedModel && selectedModel.botId === botId
-                    ? (selectedModel.modelId ?? defaultModel ?? undefined)
-                    : currentBot
-                      ? (currentBot.modelId ?? defaultModel ?? undefined)
-                      : undefined
-                }
-                onModelPress={
-                  botId && !inGroup
-                    ? () => setModelSheetOpen(true)
-                    : undefined
-                }
+                modelLabel={modelLabel}
+                modelActions={modelActions}
+                onModelSelect={(key) => void selectChatModel(key)}
                 onCall={onCall}
                 working={working}
                 sending={composer.sending || attachments.shareImporting}
-                styles={styles}
                 attachActions={attachments.attachActions}
                 attachFrom={attachments.attachFrom}
                 send={composer.send}
@@ -742,21 +877,6 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           </View>
           {botActionsOpen ? (
             <BotActionsModal actions={botActions} onClose={closeBotActions} />
-          ) : null}
-          {modelSheetOpen && botId && !inGroup ? (
-            <ThreadModelSheet
-              key={botId}
-              botId={botId}
-              onClose={() => setModelSheetOpen(false)}
-              onChanged={(modelId) => {
-                setSelectedModel({ botId, modelId });
-                void refreshMentionBots();
-              }}
-              onAdd={() => {
-                setModelSheetOpen(false);
-                router.push("/models");
-              }}
-            />
           ) : null}
           {selectableText !== null ? (
             <SelectTextSheet text={selectableText} onClose={() => setSelectableText(null)} />
@@ -791,5 +911,12 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
         </KeyboardAvoidingView>
       </ImageBackground>
     </View>
+  );
+  return (
+    <UiModeScreenHost
+      slot={inGroup ? "groupThread" : "thread"}
+      controller={controller}
+      renderClassic={() => classicContent}
+    />
   );
 }

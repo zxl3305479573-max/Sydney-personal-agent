@@ -95,10 +95,13 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.name == 'app' && (github.repository == 'elie222/rakazo' && 'self-host' || 'server') || '' }}
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+          build-args: |
+            ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+            ${{ matrix.name == 'app' && github.repository != 'elie222/rakazo' && 'SYDNEY_PREPARE_WUYING_ASSETS=true' || '' }}
           cache-from: |
             type=gha,scope=pr-${{ github.event.pull_request.number }}-${{ matrix.name }}
             type=gha,scope=${{ matrix.name }}
@@ -171,6 +174,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.name == 'app' && (github.repository == 'elie222/rakazo' && 'self-host' || 'server') || '' }}
           platforms: linux/${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           # A fork can publish only to its own namespace; no credential can redirect this value.
@@ -179,7 +183,9 @@ jobs:
             type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
             ${{ matrix.name == 'app' && 'type=tar,dest=/tmp/rootfs.tar' || '' }}
           # GET /health can report the exact source commit without a deployment-supplied override.
-          build-args: ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+          build-args: |
+            ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+            ${{ matrix.name == 'app' && github.repository != 'elie222/rakazo' && 'SYDNEY_PREPARE_WUYING_ASSETS=true' || '' }}
           cache-from: type=gha,scope=${{ matrix.name }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ matrix.arch }}
           provenance: mode=max
@@ -268,11 +274,14 @@ jobs:
           project: ${{ vars.DEPOT_PROJECT_ID }}
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.name == 'app' && (github.repository == 'elie222/rakazo' && 'self-host' || 'server') || '' }}
           platforms: linux/amd64,linux/arm64
           labels: ${{ steps.meta.outputs.labels }}
           # A fork can publish only to its own namespace; no credential can redirect this value.
           outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
-          build-args: ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+          build-args: |
+            ${{ matrix.name == 'app' && format('GIT_SHA={0}', github.sha) || '' }}
+            ${{ matrix.name == 'app' && github.repository != 'elie222/rakazo' && 'SYDNEY_PREPARE_WUYING_ASSETS=true' || '' }}
           provenance: mode=max
           sbom: true
       - id: depot

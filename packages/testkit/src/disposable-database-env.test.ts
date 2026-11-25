@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { disposableDatabaseEnv } from "./cli/postgres.js";
+import { assertIsolatedDatabaseUrls, disposableDatabaseEnv } from "./cli/postgres.js";
 
 const developerUrl = "postgres://owner:fixture@127.0.0.1:5433/developer_fixture";
 const disposableUrl = "postgres://test:fixture@127.0.0.1:55432/disposable_fixture";
@@ -32,5 +32,32 @@ describe("disposable database env", () => {
       DATABASE_MIGRATION_URL: disposableUrl,
       REALTIME_DATABASE_URL: disposableUrl,
     });
+  });
+
+  it("requires distinct logins for the same clearly isolated database", () => {
+    expect(() =>
+      assertIsolatedDatabaseUrls(
+        "postgres://runtime:fixture@db.example:5432/sydney_isolated_drill",
+        "postgres://owner:fixture@db.example:5432/sydney_isolated_drill",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertIsolatedDatabaseUrls(
+        "postgres://runtime:fixture@db.example:5432/sydney",
+        "postgres://owner:fixture@db.example:5432/sydney",
+      ),
+    ).toThrow(/test-only database name/);
+    expect(() =>
+      assertIsolatedDatabaseUrls(
+        "postgres://runtime:fixture@db.example:5432/sydney_test",
+        "postgres://owner:fixture@db.example:5432/sydney",
+      ),
+    ).toThrow(/same isolated database/);
+    expect(() =>
+      assertIsolatedDatabaseUrls(
+        "postgres://runtime:fixture@db.example:5432/sydney_test",
+        "postgres://runtime:other@db.example:5432/sydney_test",
+      ),
+    ).toThrow(/distinct runtime and migration logins/);
   });
 });

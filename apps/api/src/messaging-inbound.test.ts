@@ -295,6 +295,8 @@ function createDeps(
           ["bot-1", "bot-9"].map((id) => ({
             id,
             spaceId: id,
+            userId: id,
+            projectWorkspaceId: null,
             crossSpaceCommunication: true,
             archivedAt: null,
           })),
@@ -1488,7 +1490,7 @@ describe("createMessagingInboundHandler owner commands", () => {
     expect(deps.outboundRows.at(-1)).toEqual(
       expect.objectContaining({
         identityId: "mi-1",
-        body: "Answer this request in the Rakazo app.",
+        body: "Answer this request in the Sydney app.",
       }),
     );
 
@@ -2369,6 +2371,8 @@ describe("createMessagingInboundHandler confirmation atomicity", () => {
           ["bot-1", "bot-9"].map((id) => ({
             id,
             spaceId: id,
+            userId: id,
+            projectWorkspaceId: null,
             crossSpaceCommunication: true,
             archivedAt: null,
           })),

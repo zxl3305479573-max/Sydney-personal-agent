@@ -1,4 +1,5 @@
 import { navigateAuthorizationPopup, openAuthorizationPopup } from "./authorization-popup";
+import { desktopBridge } from "./desktop";
 import { MCP_OAUTH_CHANNEL } from "./mcp-oauth-channel";
 import { rpc } from "./rpc";
 
@@ -25,24 +26,40 @@ export function mcpOAuthRedirectUri(): string {
 
 export async function connectMcpOauth(serverId: string): Promise<McpOauthResult> {
   const popup = openAuthorizationPopup(MCP_OAUTH_CHANNEL);
+  const desktop = desktopBridge();
+  const serverOrigin = await desktop?.settings?.serverOrigin?.().catch(() => null);
   let started: Awaited<ReturnType<typeof rpc.mcp.oauth.begin>>;
   try {
-    started = await rpc.mcp.oauth.begin({ serverId, redirectUri: mcpOAuthRedirectUri() });
+    started = await rpc.mcp.oauth.begin(
+      serverOrigin
+        ? { serverId, nativeCallback: true }
+        : { serverId, redirectUri: mcpOAuthRedirectUri() },
+    );
     if (started.status !== "authorization_required") {
       popup?.close();
       return started.status;
+    }
+    if (
+      serverOrigin &&
+      started.callbackUri !== new URL("/api/mcp/oauth/callback", serverOrigin).href
+    ) {
+      throw new Error("MCP OAuth native callback must use the desktop server origin");
     }
   } catch (error) {
     popup?.close();
     throw error;
   }
   if (!popup) {
+    if (serverOrigin) return "cancelled";
     navigateAuthorizationPopup(null, started.authorizationUrl);
     return "cancelled";
   }
+  const { sessionId } = started;
   return await new Promise<McpOauthResult>((resolve, reject) => {
     const channel = new BroadcastChannel(MCP_OAUTH_CHANNEL);
     let settled = false;
+    let completing = false;
+    let unsubscribe: (() => void) | undefined;
     let pollTimer = 0;
     let timeoutTimer = 0;
     const cleanup = () => {
@@ -51,6 +68,7 @@ export async function connectMcpOauth(serverId: string): Promise<McpOauthResult>
       window.clearInterval(pollTimer);
       window.clearTimeout(timeoutTimer);
       channel.close();
+      unsubscribe?.();
     };
     const finish = (result: McpOauthResult) => {
       if (settled) return;
@@ -60,16 +78,32 @@ export async function connectMcpOauth(serverId: string): Promise<McpOauthResult>
     // COOP makes an open popup read as closed, but it keeps focus until the
     // user really closes it.
     pollTimer = window.setInterval(() => {
-      if (popup.closed && document.hasFocus()) finish("cancelled");
+      if (!completing && popup.closed && document.hasFocus()) finish("cancelled");
     }, 500);
     timeoutTimer = window.setTimeout(() => {
-      popup.close();
-      finish("cancelled");
+      if (!completing) {
+        popup.close();
+        finish("cancelled");
+      }
     }, MCP_OAUTH_TIMEOUT_MS);
     channel.onmessage = (event: MessageEvent) => {
+      if (serverOrigin) return;
       if ((event.data as { type?: string } | null)?.type !== "mcp-oauth-complete") return;
       finish("connected");
     };
+    if (serverOrigin) {
+      unsubscribe = desktop?.oauth?.onCallback(({ code, state }) => {
+        if (settled || completing || state !== sessionId) return;
+        completing = true;
+        void rpc.mcp.oauth.complete({ sessionId, code, state }).then(
+          () => finish("connected"),
+          (error) => {
+            cleanup();
+            reject(error);
+          },
+        );
+      });
+    }
     try {
       navigateAuthorizationPopup(popup, started.authorizationUrl);
     } catch (error) {

@@ -41,6 +41,7 @@ export interface AppEnv {
   companionScreenExperimental?: boolean;
   projectWorkspaceCreateExperiment?: boolean;
   projectConversationCreateExperiment?: boolean;
+  projectDeviceToolsEnabled?: boolean;
   integrationApiCallbackEnabled?: boolean;
   mcpNativeCallbackOrigin?: string;
   nativePasswordResetOnApi?: boolean;
@@ -102,6 +103,7 @@ export interface AppEnv {
   /** Raw PAYMENT_WALLET_* values; createPaymentWalletProvider resolves them. */
   paymentWalletProvider: string | undefined;
   paymentWalletClientId: string | undefined;
+  githubProvider: string | undefined;
   agentRuntime: string;
   deploymentModelKey: string | undefined;
   /** The deployment default model can run; see resolveDeploymentModel. */
@@ -217,6 +219,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     "SYDNEY_NATIVE_PASSWORD_RESET_ON_API",
     "SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API",
     "SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API",
+    "SYDNEY_INTEGRATION_API_CALLBACK",
   ]) {
     const value = source[key];
     if (value && !["true", "false"].includes(value))
@@ -324,6 +327,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     projectWorkspaceCreateExperiment: source.SYDNEY_PROJECT_CREATE_EXPERIMENT === "true",
     projectConversationCreateExperiment:
       source.SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT === "true",
+    projectDeviceToolsEnabled: source.SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED === "true",
     integrationApiCallbackEnabled: source.SYDNEY_INTEGRATION_API_CALLBACK === "true",
     mcpNativeCallbackOrigin: resolveMcpNativeCallbackOrigin(
       source.SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN,
@@ -349,6 +353,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     cursorApiKey: optional(source.CURSOR_API_KEY),
     paymentWalletProvider: optional(source.PAYMENT_WALLET_PROVIDER),
     paymentWalletClientId: optional(source.PAYMENT_WALLET_CLIENT_ID),
+    githubProvider: optional(source.GITHUB_PROVIDER),
     agentRuntime: source.AGENT_RUNTIME ?? "pi",
     // Provider, model and key resolve together: see resolveDeploymentModel.
     deploymentModelKey: deploymentModel.key,

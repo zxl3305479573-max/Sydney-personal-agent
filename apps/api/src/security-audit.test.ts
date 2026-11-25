@@ -1,4 +1,4 @@
-import { BotSecretPutInput } from "@rakazo/contracts";
+import { BotSecretPutInput, GithubConnectInputSchema } from "@rakazo/contracts";
 import type * as Db from "@rakazo/db";
 import { recordSecurityEvent } from "@rakazo/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,6 +70,47 @@ describe("procedureSecurityEvent", () => {
         actor,
       ),
     ).toMatchObject({ type: "approval.decided", metadata: { decision: "deny", kind: "mcp" } });
+  });
+
+  it("records GitHub credential changes and deletions without leaking PAT tokens", () => {
+    const classicToken = "ghp_1234567890abcdefABCDEF1234567890abcd";
+    const fineGrainedToken = "github_pat_11ABCDEFG0123456789_secretTokenValue987654321";
+
+    const classicEvent = procedureSecurityEvent(
+      ["github", "connect"],
+      GithubConnectInputSchema.parse({ token: classicToken }),
+      actor,
+    );
+    expect(classicEvent).toEqual({
+      type: "credential.changed",
+      userId: "user-1",
+      spaceId: "space-1",
+      metadata: { procedure: "github.connect", kind: "github" },
+    });
+    expect(JSON.stringify(classicEvent)).not.toContain(classicToken);
+    expect(JSON.stringify(classicEvent)).not.toContain("ghp_");
+
+    const fineGrainedEvent = procedureSecurityEvent(
+      ["github", "connect"],
+      GithubConnectInputSchema.parse({ token: fineGrainedToken }),
+      actor,
+    );
+    expect(fineGrainedEvent).toEqual({
+      type: "credential.changed",
+      userId: "user-1",
+      spaceId: "space-1",
+      metadata: { procedure: "github.connect", kind: "github" },
+    });
+    expect(JSON.stringify(fineGrainedEvent)).not.toContain(fineGrainedToken);
+    expect(JSON.stringify(fineGrainedEvent)).not.toContain("github_pat_");
+
+    const disconnectEvent = procedureSecurityEvent(["github", "disconnect"], undefined, actor);
+    expect(disconnectEvent).toEqual({
+      type: "credential.deleted",
+      userId: "user-1",
+      spaceId: "space-1",
+      metadata: { procedure: "github.disconnect", kind: "github" },
+    });
   });
 
   it("ignores procedures that change nothing security-relevant", () => {

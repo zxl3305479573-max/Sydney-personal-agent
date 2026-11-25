@@ -101,6 +101,34 @@ function rerenderComposer(overrides: Partial<ComponentProps<typeof Composer>>) {
   act(() => root?.render(<Composer {...composerProps} />));
 }
 
+it("keeps a short placeholder and names the destination for assistive technology", () => {
+  const activeName = "A conversation name that is longer than the composer";
+  const textarea = renderComposer(async () => true, { activeName });
+  expect(textarea.placeholder).toBe("Message…");
+  expect(textarea.getAttribute("aria-label")).toBe(`Message ${activeName}`);
+});
+
+it("reuses text-only project composition without file, voice or slash actions", async () => {
+  const onSend = vi.fn(async () => true);
+  const onAttachmentPick = vi.fn();
+  const textarea = renderComposer(onSend, {
+    textOnly: true,
+    onAttachmentPick,
+    phoneCallsEnabled: true,
+  });
+  expect(container?.querySelector('input[type="file"]')).toBeNull();
+  expect(container?.querySelector('[aria-label="Attach file"]')).toBeNull();
+  type(textarea, "/");
+  expect(container?.querySelector('[data-testid="slash-picker"]')).toBeNull();
+  type(textarea, "project message");
+  await act(async () =>
+    container?.querySelector<HTMLButtonElement>('[aria-label="Send"]')?.click(),
+  );
+  expect(onSend).toHaveBeenCalledWith("project message", [], expect.any(String));
+  expect(onAttachmentPick).not.toHaveBeenCalled();
+  expect(textarea.value).toBe("");
+});
+
 it("shows a readable run error with raw details, while preserving send errors", () => {
   const runError = '429: {"message":"Too many requests","metadata":{"provider":"OpenRouter"}}';
   renderComposer(async () => true, { runError, runErrorId: "failed-run" });
@@ -938,6 +966,34 @@ describe("Composer", () => {
     const second = renderComposer(onSend, { draftKey });
     expect(second.value).toBe("unsent thought");
   });
+
+  it.each(["restore", "edit", "switch space", "switch account"])(
+    "handles an asynchronous legacy draft during %s",
+    async (action) => {
+      let finish: (value: { owner: string; draft: string; bindings: null }) => void = () =>
+        undefined;
+      const pending = new Promise<{ owner: string; draft: string; bindings: null }>((resolve) => {
+        finish = resolve;
+      });
+      localStorage.setItem("rakazo:space-id", "old-space");
+      localStorage.setItem("rakazo.signedInUser", "same-user");
+      const readLegacyDraft = vi.fn(() => pending);
+      vi.stubGlobal("rakazoDesktop", { settings: { readLegacyDraft } });
+      try {
+        const textarea = renderComposer(vi.fn(), { draftKey: "bot:legacy-draft" });
+        expect(readLegacyDraft).toHaveBeenCalledWith("bot:legacy-draft", "old-space");
+        if (action === "edit") type(textarea, "new edit");
+        if (action === "switch space") localStorage.setItem("rakazo:space-id", "new-space");
+        if (action === "switch account") localStorage.setItem("rakazo.signedInUser", "other-user");
+        await act(async () => finish({ owner: "same-user", draft: "old draft", bindings: null }));
+        expect(textarea.value).toBe(
+          action === "restore" ? "old draft" : action === "edit" ? "new edit" : "",
+        );
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 
   it("keeps Enter as newline and Ctrl+Enter as send when enter-to-send is off", async () => {
     const onSend = vi.fn().mockResolvedValue(true);

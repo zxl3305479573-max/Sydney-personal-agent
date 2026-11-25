@@ -47,6 +47,7 @@ model User {
   modelCredentials            UserModelCredential[]
   voiceCredentials            UserVoiceCredential[]
   paymentWallet               PaymentWallet?
+  githubConnection            GithubConnection?
   secrets                     Secret[]
   mcpServers                  McpServer[]
   botSections                 BotSection[]
@@ -146,7 +147,9 @@ model UserDevice {
   /// Who revoked it: "owner", "device" or "session" (its sign-in ended). Null when unknown.
   revokedBy   String?
   connections UserDeviceConnection[]
+  projectDirectories ProjectDirectoryBinding[]
 
+  @@unique([id, userId])
   @@index([userId, revokedAt])
   @@map("user_devices")
 }
@@ -509,10 +512,45 @@ model ProjectWorkspace {
   tasks      Task[]
   runs       Run[]
   artifacts  Artifact[]
+  directoryBinding ProjectDirectoryBinding?
+  cloudDirectoryBinding ProjectCloudDirectoryBinding?
 
   @@unique([id, spaceId, userId])
   @@index([spaceId, userId, createdAt, id])
   @@map("project_workspaces")
+}
+
+model ProjectDirectoryBinding {
+  projectId String @id
+  spaceId String
+  userId String
+  deviceId String
+  grantId String @unique
+  directoryName String
+  intent String @default("read-only")
+  createdAt DateTime @default(now())
+  project ProjectWorkspace @relation(fields: [projectId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_directory_bindings_project_fkey")
+  device UserDevice @relation(fields: [deviceId, userId], references: [id, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_directory_bindings_device_fkey")
+
+  @@unique([projectId, spaceId, userId])
+  @@index([spaceId, userId])
+  @@map("project_directory_bindings")
+}
+
+model ProjectCloudDirectoryBinding {
+  projectId String @id
+  spaceId String
+  userId String
+  computerId String
+  grantId String @unique
+  providerRef String
+  folder Json
+  intent String
+  project ProjectWorkspace @relation(fields: [projectId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_cloud_directory_project_fkey")
+  computer Computer @relation(fields: [computerId, spaceId, userId], references: [id, spaceId, userId], onDelete: Cascade, onUpdate: Restrict, map: "project_cloud_directory_computer_fkey")
+
+  @@unique([projectId, spaceId, userId], map: "project_cloud_directory_project_owner_key")
+  @@map("project_cloud_directory_bindings")
 }
 
 model Invitation {
@@ -998,6 +1036,7 @@ model Run {
   userId               String
   projectWorkspaceId   String?
   projectWorkspace     ProjectWorkspace? @relation(fields: [projectWorkspaceId, spaceId, userId], references: [id, spaceId, userId], onDelete: Restrict, onUpdate: Restrict, map: "runs_project_workspace_owner_fkey")
+  projectDirectoryPin  Json?
   status               String
     taskMandate          Json?
   trigger              String
@@ -1149,6 +1188,30 @@ model PaymentWallet {
   updatedAt  DateTime  @updatedAt
 
   @@map("payment_wallets")
+}
+
+model GithubConnection {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String
+  authKind       String    @default("pat")
+  status         String
+  githubUserId   String
+  login          String
+  displayName    String?
+  avatarUrl      String?
+  htmlUrl        String
+  scopes         Json      @default("[]")
+  highRiskScopes Json      @default("[]")
+  ciphertext     String
+  invalidMessage String?
+  connectedAt    DateTime  @default(now())
+  lastVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("github_connections")
 }
 
 model Purchase {
@@ -1508,7 +1571,9 @@ model Computer {
   executionLeases         ComputerExecutionLease[]
   maintenanceId           String?
   updates                 ComputerUpdate[]
+  projectCloudDirectories ProjectCloudDirectoryBinding[]
 
+  @@unique([id, spaceId, userId], map: "computers_project_owner_key")
   @@index([spaceId, scope])
   @@map("computers")
 }

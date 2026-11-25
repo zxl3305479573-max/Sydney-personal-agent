@@ -4,8 +4,10 @@ export const DE_MESSAGES: Record<string, string> = {
     "Die Kontolöschung konnte nicht bestätigt werden. Prüfen Sie Ihr Konto, bevor Sie es erneut versuchen.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "Das ursprüngliche Konto wurde gelöscht, aber die lokale Bereinigung ist fehlgeschlagen und Ihre Sitzung hat sich geändert.",
-  "The original account was deleted. Your current session has changed.": "Das ursprüngliche Konto wurde gelöscht. Ihre aktuelle Sitzung hat sich geändert.",
-  "The session changed. Open account deletion again.": "Die Sitzung hat sich geändert. Öffnen Sie die Kontolöschung erneut.",
+  "The original account was deleted. Your current session has changed.":
+    "Das ursprüngliche Konto wurde gelöscht. Ihre aktuelle Sitzung hat sich geändert.",
+  "The session changed. Open account deletion again.":
+    "Die Sitzung hat sich geändert. Öffnen Sie die Kontolöschung erneut.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "Das Konto wurde gelöscht, aber die lokale Sitzung konnte nicht bereinigt werden. Starten Sie die App neu und versuchen Sie, sich abzumelden.",
   Computers: "Computer",
@@ -137,8 +139,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Your model provider": "Dein Modellanbieter",
   "Connect a model in Settings before running bots.":
     "Verbinde ein Modell in den Einstellungen, bevor du Bots ausführst.",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "Verbinde deinen eigenen API-Schlüssel unter Modelle oder wähle Rakazo-Guthaben unter Abrechnung.",
+  "Connect your own API key in Models or choose Sydney credits in Billing.":
+    "Verbinde deinen eigenen API-Schlüssel unter Modelle oder wähle Sydney-Guthaben unter Abrechnung.",
   "The model provider returned an error.": "Der Modellanbieter hat einen Fehler zurückgegeben.",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider} begrenzt die Anfragerate. Versuche es gleich noch einmal.",
@@ -205,8 +207,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Chat Settings": "Chat-Einstellungen",
   "Configure a plugin catalog on the server to connect apps.":
     "Richte auf dem Server einen Plugin-Katalog ein, um Apps zu verbinden.",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "Füge die OpenAI-kompatible Adresse deines Servers ein. Rakazo ergänzt /v1 bei Bedarf.",
+  "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed.":
+    "Füge die OpenAI-kompatible Adresse deines Servers ein. Sydney ergänzt /v1 bei Bedarf.",
   "Settings: General": "Einstellungen: Allgemein",
   "Settings: Usage": "Einstellungen: Nutzung",
   "Sign-in did not return a session": "Die Anmeldung hat keine Sitzung zurückgegeben",
@@ -247,9 +249,9 @@ export const DE_MESSAGES: Record<string, string> = {
   "Reset your password": "Setze dein Passwort zurück",
   "Send reset link": "Link zum Zurücksetzen senden",
   Server: "Server",
-  "Sign in to Rakazo": "Bei Rakazo anmelden",
+  "Sign in to Sydney": "Bei Sydney anmelden",
   "Sign up": "Registrieren",
-  "Sign up for Rakazo": "Bei Rakazo registrieren",
+  "Sign up for Sydney": "Bei Sydney registrieren",
   "Use a custom server": "Eigenen Server verwenden",
   "Use default server": "Standardserver verwenden",
   Activity: "Aktivität",
@@ -496,6 +498,9 @@ export const DE_MESSAGES: Record<string, string> = {
   Bot: "Bot",
   "Close computer": "Computer schließen",
   "Computer keyboard": "Computertastatur",
+  "Pointer mode": "Zeigermodus",
+  "Direct touch": "Direkte Berührung",
+  "Virtual mouse": "Virtuelle Maus",
   Control: "Strg",
   Down: "Nach unten",
   Escape: "Esc",
@@ -573,8 +578,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Supports images": "Unterstützt Bilder",
   "Supports thinking": "Unterstützt Denkmodus",
   "Then paste the code here.": "Füge dann den Code hier ein.",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Diese Abonnementanmeldung ist in Rakazo noch nicht verfügbar. Verwende Zugangsdaten der Bereitstellung oder wähle einen anderen Anbieter.",
+  "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider.":
+    "Diese Abonnementanmeldung ist in Sydney noch nicht verfügbar. Verwende Zugangsdaten der Bereitstellung oder wähle einen anderen Anbieter.",
   "Use a found model": "Gefundenes Modell verwenden",
   "Waiting for sign-in…": "Warten auf Anmeldung…",
   "exact-model-id": "exact-model-id",
@@ -840,8 +845,8 @@ export const DE_MESSAGES: Record<string, string> = {
     "Gib nur die Serveradresse ein, ohne Anmeldedaten, Pfad, Abfrage oder Fragment",
   "Public servers need https://. HTTP only works on your local network.":
     "Öffentliche Server brauchen https://. HTTP funktioniert nur im lokalen Netzwerk.",
-  "That URL did not look like a Rakazo server":
-    "Diese URL sieht nicht nach einem Rakazo-Server aus",
+  "That URL did not look like a Sydney server":
+    "Diese URL sieht nicht nach einem Sydney-Server aus",
   "That URL is missing a host": "Dieser URL fehlt ein Host",
   "That doesn’t look like a URL": "Das sieht nicht nach einer URL aus",
   "Use an http or https URL": "Verwende eine http- oder https-URL",
@@ -911,7 +916,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "AI models": "KI-Modelle",
   Memory: "Gedächtnis",
   "Privacy policies": "Datenschutzerklärungen",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Alle Berechtigungen widerrufen",
   "Withdraw all permissions?": "Alle Berechtigungen widerrufen?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1050,14 +1054,14 @@ export const DE_MESSAGES: Record<string, string> = {
   Subscribe: "Abonnieren",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Monatliches Guthaben verfällt bei Verlängerung. Einmalige Aufladungen verfallen nicht.",
-  "Use Rakazo credits": "Rakazo-Guthaben verwenden",
+  "Use Sydney credits": "Sydney-Guthaben verwenden",
   "Choose a plan": "Tarif wählen",
   "Change plan": "Tarif ändern",
   "Current plan": "Aktueller Tarif",
   Plan: "Tarif",
   None: "Keiner",
   "Free trial": "Kostenlose Testphase",
-  "Rakazo credits": "Rakazo-Guthaben",
+  "Sydney credits": "Sydney-Guthaben",
   "Free until": "Kostenlos bis",
   Ends: "Endet am",
   Renews: "Verlängert sich am",
@@ -1093,7 +1097,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Your free trial has started": "Deine kostenlose Testphase hat begonnen",
   "Free until {date}": "Kostenlos bis {date}",
   "Connect your AI": "Deine KI verbinden",
-  "Start using Rakazo": "Mit Rakazo loslegen",
+  "Start using Sydney": "Mit Sydney loslegen",
   "1 unread": "1 ungelesen",
   "{count} unread": "{count} ungelesen",
   "{count} need attention": "{count} brauchen Aufmerksamkeit",
@@ -1101,11 +1105,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}, unten",
   Work: "Arbeit",
   Both: "Beides",
-  "How will you use Rakazo?": "Wie wirst du Rakazo nutzen?",
-  "What do you most want Rakazo to help with?": "Wobei soll dir Rakazo am meisten helfen?",
+  "How will you use Sydney?": "Wie wirst du Sydney nutzen?",
+  "What do you most want Sydney to help with?": "Wobei soll dir Sydney am meisten helfen?",
   "How big is your team?": "Wie groß ist dein Team?",
   "How did you hear about us?": "Wie hast du von uns erfahren?",
-  "Welcome to Rakazo": "Willkommen bei Rakazo",
+  "Welcome to Sydney": "Willkommen bei Sydney",
   Messaging: "Nachrichten",
   Unlink: "Verknüpfung aufheben",
   "Connect a chat app": "Chat-App verbinden",
@@ -1299,23 +1303,65 @@ export const DE_MESSAGES: Record<string, string> = {
   "{count} bots now use the space default.": "{count} Bots verwenden jetzt den Space-Standard.",
   "Could not switch {failedNames}. Try again.":
     "{failedNames} konnte nicht umgestellt werden. Versuche es erneut.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Ein eigener Hintergrund ist aktiv.",
+  "A custom bubble style is active.": "Ein eigener Sprechblasenstil ist aktiv.",
+  "Background and bubbles": "Hintergrund und Sprechblasen",
+  "Bubble presets": "Sprechblasen-Vorlagen",
+  "Bubble style": "Sprechblasenstil",
+  Change: "Ändern",
+  "Chat appearance": "Chat-Darstellung",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "Die Chat-Darstellung wird nur auf diesem Gerät gespeichert und nicht hochgeladen.",
+  "Chat background": "Chat-Hintergrund",
+  Custom: "Eigene",
+  "Default bubbles": "Standard-Sprechblasen",
+  "Remove background": "Hintergrund entfernen",
+  "The image could not be removed.": "Das Bild konnte nicht entfernt werden.",
+  "The image could not be saved on this device.":
+    "Das Bild konnte auf diesem Gerät nicht gespeichert werden.",
+  "Use the default background.": "Standardhintergrund verwenden.",
+  "Use the default bubbles.": "Standard-Sprechblasen verwenden.",
+  "Add model": "Modell hinzufügen",
+  "Check for updates": "Nach Updates suchen",
+  "Check the screen, then release and take control again.":
+    "Prüfe den Bildschirm, gib die Steuerung frei und übernimm sie erneut.",
+  "Checking for updates…": "Suche nach Updates…",
+  "Complete connection": "Verbindung abschließen",
+  "Computer control is unavailable. Release and take control again.":
+    "Computersteuerung nicht verfügbar. Gib sie frei und übernimm sie erneut.",
+  "Computer input failed. Take control again.":
+    "Computereingabe fehlgeschlagen. Übernimm die Steuerung erneut.",
+  "Could not check for updates. Try again later.":
+    "Updates konnten nicht geprüft werden. Versuche es später erneut.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "Verbindung konnte nicht bestätigt werden. Starte einen neuen Versuch.",
+  "Could not restart. Reopen the app to apply the update.":
+    "Neustart fehlgeschlagen. Öffne die App erneut, um das Update anzuwenden.",
+  "Could not save changes": "Änderungen konnten nicht gespeichert werden",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Falls der Browser nicht abschließen kann, kopiere die vollständige Rücksprungadresse und füge sie hier ein.",
+  "MCP callback address": "MCP-Rücksprungadresse",
+  "Paste callback address": "Rücksprungadresse einfügen",
+  Restart: "Neu starten",
+  "Restart the app now? Save unfinished work first.":
+    "App jetzt neu starten? Speichere zuerst ungesicherte Arbeit.",
+  "The account, server, or space changed. Start the connection again.":
+    "Konto, Server oder Space hat sich geändert. Starte die Verbindung erneut.",
+  "The callback address does not match this connection attempt.":
+    "Die Rücksprungadresse passt nicht zu diesem Verbindungsversuch.",
+  "This update needs a new app installation.": "Dieses Update erfordert eine Neuinstallation.",
+  "Update downloaded": "Update heruntergeladen",
+  "Updates are unavailable in this build.": "Updates sind in diesem Build nicht verfügbar.",
+  "Waiting for screen dimensions…": "Warte auf Bildschirmgröße…",
+  "Your app is up to date.": "Deine App ist auf dem neuesten Stand.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Beim Serverwechsel wirst du abgemeldet und ungesendete Nachrichten sowie Anhänge können gelöscht werden. Sende oder speichere sie zuerst.",
+  "Disable bot voice": "Bot-Stimme deaktivieren",
+  "Enable bot voice": "Bot-Stimme aktivieren",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "Gespeicherte ungesendete Nachrichten konnten nicht geladen werden. Neue nicht zugestellte Nachrichten können beim Schließen der App verloren gehen.",
+  "Server settings or the saved session could not be verified.":
+    "Servereinstellungen oder gespeicherte Sitzung konnten nicht überprüft werden.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

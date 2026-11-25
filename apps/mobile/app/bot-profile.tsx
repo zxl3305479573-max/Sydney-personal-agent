@@ -1,7 +1,8 @@
 import type { ComputerStatus } from "@rakazo/contracts";
+import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import { displayName } from "@rakazo/core";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, AppState, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BotAvatar } from "../components/bot-avatar";
 import { glassHeaderOptions } from "../components/glass-title";
@@ -18,6 +19,7 @@ import {
   currentApiBase, isSpaceSelectionPending, loadSessionToken, rpc, selectedSpaceId,
   spaceSelectionSeq, subscribeSpaceSelection,
 } from "../lib/api";
+import type { CompanionScreenState } from "../lib/companion-activity";
 import {
   activeCompanionIdentity,
   companionAvailable,
@@ -28,7 +30,6 @@ import {
   stopCompanionScreen,
   subscribeCompanionScreenState,
   takeCompanionScreenText,
-  type CompanionScreenState,
 } from "../lib/companion-activity";
 import { captureScreenSendScope, screenSendScopeCurrent, sendReviewedScreenText } from "../lib/companion-screen-send";
 import { startCompanionScreenAuto, stopCompanionScreenAuto, useCompanionScreenAuto } from "../lib/companion-screen-auto";
@@ -39,9 +40,24 @@ import { createQueuedSave } from "../lib/queued-save";
 import { useBotRoutines } from "../lib/routine-store";
 import { currentSessionGeneration } from "../lib/session";
 import { useSideInsets } from "../lib/side-insets";
+import { projectRequestOptions, projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { errorText } from "../lib/user-error";
 
 export default function BotProfile() {
+  const params = useLocalSearchParams<{ botId?: string; name?: string; projectId?: string; scope?: string }>();
+  return params.projectId !== undefined ? <ProjectBotProfileRoute params={params} /> : <BotProfileBody />;
+}
+
+function ProjectBotProfileRoute({ params }: { params: { botId?: string; projectId?: string; scope?: string } }) {
+  const { t } = useI18n();
+  const scope = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
+  const project = ProjectWorkspaceIdInput.safeParse({ id: params.projectId });
+  if (!project.success || !params.botId || scope !== params.scope)
+    return <Text>{t("The project changed. Reopen the project and try again.")}</Text>;
+  return <BotProfileBody key={JSON.stringify([scope, params.projectId, params.botId])} projectId={project.data.id} scope={scope} />;
+}
+
+function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: string }) {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const router = useRouter();
@@ -60,7 +76,7 @@ export default function BotProfile() {
   activeProfileBot.current = botId;
   const name = displayName(bot?.name ?? nameParam, t("Bot"));
   const companionMatches = companion?.botId === botId && companion.spaceId === selectedSpaceId();
-  const { routines } = useBotRoutines(botId);
+  const { routines } = useBotRoutines(projectId ? "" : botId);
   // Counts switch saves as they start and end, so a reload can tell it overlapped one.
   const notifySaves = useRef(0);
   const notifyQueue = useRef<ReturnType<typeof createQueuedSave<boolean>> | null>(null);
@@ -70,6 +86,16 @@ export default function BotProfile() {
     useCallback(() => {
       if (!botId) return;
       profileFocused.current = true;
+      if (projectId && scope) {
+        let current = true;
+        void projectRequestOptions(scope)
+          .then((options) => rpc("projectWorkspaces/getBot", { projectId, botId, includeArchived: true }, options))
+          .then((next) => { if (current && scope === projectScopeKey()) setBot(next); })
+          .catch((error) => {
+            if (current && scope === projectScopeKey()) Alert.alert(t("Could not load bot"), errorText(error, t("Try again.")));
+          });
+        return () => { current = false; profileFocused.current = false; };
+      }
       const unsubscribeSpace = subscribeSpaceSelection(() => setCompanion(activeCompanionIdentity()));
       let current = true;
       let screenRevision = 0;
@@ -118,7 +144,7 @@ export default function BotProfile() {
         unsubscribeScreen();
         unsubscribeSpace();
       };
-    }, [botId]),
+    }, [botId, projectId, scope, t]),
   );
 
   // The chat list's Silence notifications saves the same setting. The switch moves
@@ -128,12 +154,17 @@ export default function BotProfile() {
     notifyQueue.current ??= createQueuedSave(bot.notifyOnFinish, {
       onChange: (notifyOnFinish) => setBot((current) => current && { ...current, notifyOnFinish }),
       save: async (notifyOnFinish) => {
-        await rpc("bots/update", { botId, notifyOnFinish });
+        if (projectId && scope) {
+          const options = await projectRequestOptions(scope);
+          if (!profileFocused.current || activeProfileBot.current !== botId || scope !== projectScopeKey()) return;
+          await rpc("projectWorkspaces/updateBot", { projectId, bot: { botId, notifyOnFinish } }, options);
+        } else await rpc("bots/update", { botId, notifyOnFinish });
       },
       onSavingChange: () => {
         notifySaves.current += 1;
       },
       onSaved: async (notify) => {
+        if (projectId) return;
         try {
           await afterChatNotifyChange(
             currentApiBase(),
@@ -372,11 +403,11 @@ export default function BotProfile() {
           label={t("Edit")}
           prominence="secondary"
           style={styles.edit}
-          onPress={() => router.push({ pathname: "/bot-settings", params: { botId } })}
+          onPress={() => router.push({ pathname: "/bot-settings", params: { botId, ...(projectId ? { projectId, scope } : {}) } })}
         />
       </View>
       <SettingsGroup>
-        {companionAvailable() && bot ? (
+        {!projectId && companionAvailable() && bot ? (
           <SettingsRow
             accessibilityRole="button"
             title={companionMatches ? "停止灵动岛陪伴" : "开启灵动岛陪伴"}
@@ -385,7 +416,7 @@ export default function BotProfile() {
             onPress={toggleCompanion}
           />
         ) : null}
-        {companionAvailable() && screenState !== "unsupported" && (companionMatches || screenState !== "idle") ? (
+        {!projectId && companionAvailable() && screenState !== "unsupported" && (companionMatches || screenState !== "idle") ? (
           <>
             <SettingsRow
               accessibilityRole="button"
@@ -420,7 +451,7 @@ export default function BotProfile() {
             ) : null}
           </>
         ) : null}
-        <SettingsRow
+        {!projectId ? <><SettingsRow
           key="routines"
           accessibilityRole="button"
           chevron="right"
@@ -467,6 +498,13 @@ export default function BotProfile() {
           }
           onPress={() => router.push({ pathname: "/computer", params: { botId, name } })}
         />
+        </> : <SettingsRow
+          accessibilityRole="button"
+          chevron="right"
+          title={t("Project")}
+          leading={<NativeSymbol ios="folder" android="folder-outline" color={tokens.mutedForeground} />}
+          onPress={() => router.push({ pathname: "/projects/[workspaceId]", params: { workspaceId: projectId, scope } })}
+        />}
       </SettingsGroup>
       {bot ? (
         <SettingsGroup footer={t("Get notified when this Bot finishes or needs input")}>

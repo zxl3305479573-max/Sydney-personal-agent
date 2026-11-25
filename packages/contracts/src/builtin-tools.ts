@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { GITHUB_TOOL_NAMES } from "./github.js";
 
 /** Fleet management tools. Only list_fleet is read-only. */
 export const FLEET_TOOL_NAMES = [
@@ -29,6 +30,9 @@ export const BUILTIN_TOOL_NAMES = [
   "list_files",
   "read_file",
   "write_file",
+  "project_read_file",
+  "project_create_file",
+  "project_windows_terminal",
   "attach_file",
   "shell",
   "user_computer_shell",
@@ -53,6 +57,7 @@ export const BUILTIN_TOOL_NAMES = [
   "save_shared_memory",
   "web_search",
   "web_fetch",
+  ...GITHUB_TOOL_NAMES,
   "cloud_agent_launch",
   "cloud_agent_status",
   "cloud_agent_reply",

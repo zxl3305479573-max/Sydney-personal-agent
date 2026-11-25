@@ -1,26 +1,12 @@
 import type { RpcInput, RpcOutput, RpcPath } from "@rakazo/contracts";
 import type { DataTag, QueryFunction, QueryKey } from "@tanstack/react-query";
-import { QueryClient } from "@tanstack/react-query";
 import type { RpcArgs } from "./api";
 import { captureApiRequestContext, currentApiBase, rpc, selectedSpaceId } from "./api";
 import { t } from "./i18n";
+import { queryClient } from "./query-client";
 import { currentSessionGeneration } from "./session";
 
-/**
- * Screens paint what they last saw and refresh it in the background, so reopening a settings
- * screen does not wait on the network again. Kept in memory only; saved chats own the disk.
- */
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: 30 * 60_000,
-      // Screens refresh when they gain focus, and rpc already bounds each request.
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  },
-});
+export { queryClient } from "./query-client";
 
 /**
  * The server and signed-in session a read belongs to. A session change (sign-in, sign-out,

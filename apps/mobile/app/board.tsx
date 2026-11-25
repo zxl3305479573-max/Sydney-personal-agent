@@ -3,6 +3,8 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { BoardList } from "../components/board-list";
+import { NativeActionButton } from "../components/native-action-button";
+import { NativeSymbol } from "../components/native-symbol";
 import { rpc } from "../lib/api";
 import { boardSections } from "../lib/board";
 import { useI18n } from "../lib/i18n";
@@ -70,9 +72,28 @@ export default function BoardScreen() {
     return (
       <View style={[styles.centered, sideInsets]}>
         {loading ? (
-          <ActivityIndicator color={native.secondaryLabel} />
+          <ActivityIndicator color={native.secondaryLabel} accessibilityLabel={t("Loading…")} />
         ) : (
-          <Text style={styles.message}>{error || t("No tickets yet.")}</Text>
+          <>
+            <NativeSymbol
+              ios="checklist"
+              android="list-outline"
+              size={32}
+              color={native.secondaryLabel}
+            />
+            <Text accessibilityRole={error ? "alert" : undefined} style={styles.message}>
+              {error || t("No tickets yet.")}
+            </Text>
+            <NativeActionButton
+              label={error ? t("Try Again") : t("Refresh")}
+              prominence="secondary"
+              fill={false}
+              onPress={() => {
+                setLoading(true);
+                void load();
+              }}
+            />
+          </>
         )}
       </View>
     );
@@ -94,8 +115,9 @@ function createStyles() {
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 32,
+      gap: 16,
       backgroundColor: native.groupedPage,
     },
-    message: { color: native.secondaryLabel, fontSize: 17, textAlign: "center" },
+    message: { color: native.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
   });
 }

@@ -2,6 +2,7 @@ import { File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useSyncExternalStore } from "react";
+import { getActiveUiMode, subscribeUiMode } from "./ui-mode";
 
 export type MobileBubbleStyle = {
   userBackground: string;
@@ -37,6 +38,8 @@ const listeners = new Set<() => void>();
 function notify() {
   for (const listener of listeners) listener();
 }
+
+subscribeUiMode(notify);
 
 function validColor(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
@@ -87,6 +90,10 @@ function normalize(value: unknown): MobileChatAppearance {
 
 export function getMobileChatAppearance(): MobileChatAppearance {
   return appearance;
+}
+
+export function getEffectiveMobileChatAppearance(): MobileChatAppearance {
+  return getActiveUiMode().chatAppearancePolicy === "suspend" ? DEFAULT_APPEARANCE : appearance;
 }
 
 export async function loadMobileChatAppearance(): Promise<MobileChatAppearance> {
@@ -148,6 +155,17 @@ export function useMobileChatAppearance(): MobileChatAppearance {
   }, []);
   return useSyncExternalStore(
     subscribeMobileChatAppearance,
+    getEffectiveMobileChatAppearance,
+    () => DEFAULT_APPEARANCE,
+  );
+}
+
+export function useSavedMobileChatAppearance(): MobileChatAppearance {
+  useEffect(() => {
+    if (!loaded) void loadMobileChatAppearance();
+  }, []);
+  return useSyncExternalStore(
+    subscribeMobileChatAppearance,
     getMobileChatAppearance,
     () => DEFAULT_APPEARANCE,
   );
@@ -159,16 +177,19 @@ export function mobileBubbleSurfaceStyle(
   fallback: { backgroundColor: string },
 ) {
   const bubble = current.bubble;
-  if (!bubble) {
-    return { backgroundColor: fallback.backgroundColor, borderRadius: 20 };
-  }
-  const color = role === "user" ? bubble.userBackground : bubble.botBackground;
+  const color = bubble
+    ? role === "user"
+      ? bubble.userBackground
+      : bubble.botBackground
+    : fallback.backgroundColor;
+  const borderRadius = bubble?.radius ?? 20;
+  if (!validColor(color)) return { backgroundColor: color, borderRadius };
   const red = Number.parseInt(color.slice(1, 3), 16);
   const green = Number.parseInt(color.slice(3, 5), 16);
   const blue = Number.parseInt(color.slice(5, 7), 16);
   return {
-    backgroundColor: `rgba(${red}, ${green}, ${blue}, ${bubble.opacity})`,
-    borderRadius: bubble.radius,
+    backgroundColor: `rgba(${red}, ${green}, ${blue}, ${Math.min(bubble?.opacity ?? 0.64, 0.78)})`,
+    borderRadius,
   };
 }
 

@@ -12,6 +12,29 @@ export function disposableDatabaseEnv(url: string) {
   return { DATABASE_URL: url, DATABASE_MIGRATION_URL: url, REALTIME_DATABASE_URL: url };
 }
 
+export function assertIsolatedDatabaseUrls(runtimeUrl: string, migrationUrl: string) {
+  const runtime = new URL(runtimeUrl);
+  const migration = new URL(migrationUrl);
+  const runtimeDatabase = decodeURIComponent(runtime.pathname.slice(1));
+  const migrationDatabase = decodeURIComponent(migration.pathname.slice(1));
+  if (
+    !["postgres:", "postgresql:"].includes(runtime.protocol) ||
+    !["postgres:", "postgresql:"].includes(migration.protocol) ||
+    !runtime.username ||
+    !migration.username ||
+    decodeURIComponent(runtime.username) === decodeURIComponent(migration.username) ||
+    runtime.hostname !== migration.hostname ||
+    (runtime.port || "5432") !== (migration.port || "5432") ||
+    !runtimeDatabase ||
+    runtimeDatabase !== migrationDatabase ||
+    !/(?:^|[-_])(test|tests|isolated|disposable|drill|temporary)(?:[-_]|$)/i.test(runtimeDatabase)
+  ) {
+    throw new Error(
+      "Database verification requires distinct runtime and migration logins for the same isolated database, with a test-only database name",
+    );
+  }
+}
+
 /** A disposable Postgres; image registries rate-limit shared CI runners per minute, so pulls are retried. */
 export async function startPostgres(signal?: AbortSignal) {
   for (let attempt = 1; ; attempt += 1) {

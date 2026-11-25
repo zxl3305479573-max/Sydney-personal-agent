@@ -46,6 +46,7 @@ import { native, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
 import { mcpServerReady, sourceHref } from "../../lib/plugin-marketplace";
+import { closeSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
 import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
@@ -281,11 +282,13 @@ export default function PluginScreen() {
     ? managedConnected
       ? {
           label: t("Added"),
-          onPress: () =>
+          onPress: () => {
+            closeSettingsSheet();
             router.navigate({
               pathname: "/integrations",
               params: { app: catalogItemKey(managedApp!) },
-            }),
+            });
+          },
           destructive: false,
         }
       : {
@@ -340,6 +343,7 @@ export default function PluginScreen() {
             unstable_headerRightItems: () => [
               {
                 type: "button" as const,
+                hidesSharedBackground: true,
                 label: action.label,
                 ...(action.destructive
                   ? { tintColor: mobileTokens().destructive }
@@ -470,6 +474,7 @@ export default function PluginScreen() {
                           label={server.oauthStatus === "reconnect" ? t("Reconnect") : t("Sign in")}
                           onPress={() => void signIn(server)}
                           prominence="secondary"
+                          variant="text"
                         />
                       )}
                       {botId ? (
@@ -607,11 +612,17 @@ function createStyles() {
     content: { padding: 20, gap: 20 },
     hero: { flexDirection: "row", alignItems: "center", gap: 14 },
     grow: { flex: 1, gap: 3, minWidth: 0 },
-    name: { color: native.label, fontSize: 22, fontWeight: "600" },
+    name: { color: native.label, fontSize: 22, lineHeight: 28, fontWeight: "600" },
     sourceLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
     description: { color: native.secondaryLabel, fontSize: 15, lineHeight: 21 },
     section: { gap: 8 },
-    sectionTitle: { color: native.label, fontSize: 15, fontWeight: "600", paddingHorizontal: 4 },
+    sectionTitle: {
+      color: native.label,
+      fontSize: 17,
+      lineHeight: 22,
+      fontWeight: "600",
+      paddingHorizontal: 4,
+    },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -630,8 +641,8 @@ function createStyles() {
       paddingLeft: 27,
     },
     divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
-    title: { color: native.label, fontSize: 15, fontWeight: "500" },
-    secondary: { color: native.secondaryLabel, fontSize: 13 },
+    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
+    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     more: { color: native.label, fontSize: 14, textAlign: "right" },
     errorRow: { gap: 8 },
     error: { color: tokens.destructive, fontSize: 14 },

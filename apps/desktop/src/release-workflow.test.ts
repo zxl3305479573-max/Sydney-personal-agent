@@ -6,8 +6,29 @@ const workflow = readFileSync(
   path.resolve(import.meta.dirname, "../../../.github/workflows/release-desktop.yml"),
   "utf8",
 );
+const windowsCandidate = readFileSync(
+  path.resolve(import.meta.dirname, "../../../.github/workflows/desktop-windows-build.yml"),
+  "utf8",
+);
 
 const expression = (inner: string) => `\${{ ${inner} }}`;
+
+it("uploads an unpublished Windows installer after testing its bundled renderer and direct connection", () => {
+  expect(windowsCandidate).toContain("node-version: 24");
+  expect(windowsCandidate).toContain("electron-builder --win nsis --x64 --publish never");
+  expect(windowsCandidate).toContain(
+    'if ($installer.Length -eq 0) { throw "Windows installer is empty" }',
+  );
+  expect(windowsCandidate).toContain(
+    "packaged Windows opens direct setup for a legacy local profile",
+  );
+  expect(windowsCandidate).toContain("apps/desktop/out/Sydney-partner-Setup-*.exe");
+  expect(windowsCandidate).toContain(`name: sydney-windows-installer-${expression("github.sha")}`);
+  expect(windowsCandidate).toContain("apps/desktop/out/win-unpacked/");
+  expect(windowsCandidate.indexOf("Verify packaged PC backend connection")).toBeLessThan(
+    windowsCandidate.indexOf("Upload unpublished installer"),
+  );
+});
 
 describe("desktop release workflow", () => {
   it("cannot execute contributor pull-request code with release credentials", () => {
@@ -94,8 +115,8 @@ describe("desktop release workflow", () => {
 
   it("pins every platform update feed to the official GitHub owner and repo", () => {
     expect(workflow).toContain('grep -Fqx "provider: github"');
-    expect(workflow).toContain('grep -Fqx "owner: elie222"');
-    expect(workflow).toContain('grep -Fqx "repo: rakazo"');
+    expect(workflow).toContain('grep -Fqx "owner: zxl3305479573-max"');
+    expect(workflow).toContain('grep -Fqx "repo: Sydney-personal-agent"');
     expect(workflow).toContain("Verify Linux update feed is pinned to the official GitHub channel");
     expect(workflow).toContain("Windows update config missing");
     expect(workflow).toContain("RELEASE_VERSION:");

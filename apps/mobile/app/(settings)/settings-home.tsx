@@ -3,47 +3,66 @@ import { useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AccountAvatar } from "../../components/account-avatar";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
-import { checkForManualUpdate, restartForUpdate } from "../../lib/client-update";
+import { useAccountAvatar } from "../../lib/account-avatar";
+import { getAppVersionInfo } from "../../lib/app-version";
+import {
+  checkForManualUpdate,
+  promptForAvailableUpdate,
+  useClientUpdateState,
+} from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { accountRpcQuery, queryClient } from "../../lib/query";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
+import { sydneyReleaseFromManifest, sydneyReleaseNotes } from "../../lib/sydney-release";
 
 export default function SettingsHome() {
   const { t, locale } = useI18n();
   const router = useRouter();
   const insets = useSideInsets();
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
+  const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const { update, downloaded, downloading } = useClientUpdateState();
+  const availableRelease = sydneyReleaseFromManifest(update?.manifest);
+  const availableVersion = update
+    ? availableRelease
+      ? t("Version {version} available", { version: availableRelease.version })
+      : t("Update available")
+    : undefined;
+  const { release, nativeLabel } = getAppVersionInfo();
+  const currentVersion = release?.version ?? nativeLabel;
   const account = accountDisplay(me ?? {}, t("Your account"));
-  const chinese = locale === "zh-CN";
+  const chinese = locale.startsWith("zh");
+  const traditional = locale === "zh-TW";
 
   function accountSection(section: string) {
     router.push({ pathname: "/account", params: { section } });
   }
 
   async function checkUpdate() {
-    if (checkingUpdate) return;
+    if (checkingUpdate || downloading) return;
+    if (update && downloaded) {
+      promptForAvailableUpdate({ id: update.updateId, release: availableRelease }, true);
+      return;
+    }
     setCheckingUpdate(true);
     try {
       const result = await checkForManualUpdate();
-      if (result === "disabled") Alert.alert(t("Updates are unavailable in this build."));
-      else if (result === "current") Alert.alert(t("Your app is up to date."));
-      else {
-        Alert.alert(t("Update downloaded"), t("Restart the app now? Save unfinished work first."), [
-          { text: t("Not Now"), style: "cancel" },
-          {
-            text: t("Restart"),
-            onPress: () =>
-              void restartForUpdate().catch(() =>
-                Alert.alert(t("Could not restart. Reopen the app to apply the update.")),
-              ),
-          },
-        ]);
+      if (result.status === "available") {
+        promptForAvailableUpdate(result.update);
+      } else if (result.status === "disabled") {
+        Alert.alert(t("Updates are unavailable in this build."));
+      } else {
+        Alert.alert(
+          t("Your app is up to date."),
+          currentVersion ? t("Version {version}", { version: currentVersion }) : undefined,
+        );
       }
     } catch {
       Alert.alert(t("Could not check for updates. Try again later."));
@@ -79,7 +98,7 @@ export default function SettingsHome() {
           gap: 28,
         }}
       >
-        <SettingsGroup>
+        <SettingsGroup label={t("Account")}>
           {Platform.OS === "android" ? (
             <SettingsRow
               title={t("Notifications")}
@@ -94,19 +113,8 @@ export default function SettingsHome() {
             detail={me?.email && account.label !== me.email ? me.email : undefined}
             chevron="right"
             leading={
-              <View
-                accessibilityElementsHidden
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  backgroundColor: native.fill,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 12,
-                }}
-              >
-                <Text style={{ color: native.label, fontSize: 18 }}>{account.initial ?? "?"}</Text>
+              <View style={{ marginRight: 12 }}>
+                <AccountAvatar image={avatar} initial={account.initial} />
               </View>
             }
             onPress={() => accountSection("account")}
@@ -122,11 +130,14 @@ export default function SettingsHome() {
           {link(t("Computers"), "/devices")}
         </SettingsGroup>
 
-        <SettingsGroup>{link(t("Connect apps"), "/integrations")}</SettingsGroup>
+        <SettingsGroup label={t("Apps")}>
+          {link(t("Connect apps"), "/integrations", true)}
+          {link("GitHub", "/github", true)}
+        </SettingsGroup>
 
-        <SettingsGroup label={chinese ? "小伙伴" : t("Bots")}>
+        <SettingsGroup label={chinese ? (traditional ? "小夥伴" : "小伙伴") : t("Bots")}>
           <SettingsRow
-            title={chinese ? "权限" : t("Rules")}
+            title={chinese ? (traditional ? "權限" : "权限") : t("Rules")}
             accessibilityRole="button"
             chevron="right"
             onPress={() => accountSection("permissions")}
@@ -149,6 +160,9 @@ export default function SettingsHome() {
             onPress={() => accountSection("appearance")}
           />
           {link(t("Language"), "/language")}
+          {Platform.OS === "ios"
+            ? link(chinese ? (traditional ? "介面模式" : "界面模式") : "Interface mode", "/ui-mode")
+            : null}
           {link(t("Chat appearance"), "/chat-appearance")}
           <SettingsRow
             title={t("Advanced")}
@@ -157,11 +171,44 @@ export default function SettingsHome() {
             onPress={() => accountSection("advanced")}
           />
           {link(t("Archived"), "/archived-bots")}
+        </SettingsGroup>
+
+        <SettingsGroup label={t("Software update")}>
+          {release ? (
+            <SettingsRow
+              title={t("Release notes")}
+              accessibilityRole="button"
+              chevron="right"
+              onPress={() =>
+                Alert.alert(
+                  t("Version {version}", { version: release.version }),
+                  `${release.releasedOn}\n\n${sydneyReleaseNotes(release, locale)}`,
+                  [{ text: t("Close") }],
+                )
+              }
+            />
+          ) : null}
           <SettingsRow
-            title={checkingUpdate ? t("Checking for updates…") : t("Check for updates")}
+            title={
+              downloading
+                ? t("Downloading update…")
+                : checkingUpdate
+                  ? t("Checking for updates…")
+                  : t("Check for updates")
+            }
+            detail={availableVersion}
             accessibilityRole="button"
-            disabled={checkingUpdate}
+            disabled={checkingUpdate || downloading}
             onPress={() => void checkUpdate()}
+          />
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsRow
+            title={t("About")}
+            value={currentVersion ?? undefined}
+            accessibilityRole="button"
+            chevron="right"
+            onPress={() => router.push("/about")}
           />
         </SettingsGroup>
       </ScrollView>

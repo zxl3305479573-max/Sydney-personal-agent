@@ -1,5 +1,14 @@
-import type { Connection, ConnectionCatalogItem, Me } from "@rakazo/contracts";
-import { ConnectionCatalogItemSchema, ConnectionSchema } from "@rakazo/contracts";
+import type {
+  Connection,
+  ConnectionCatalogItem,
+  GithubConnectionStatus,
+  Me,
+} from "@rakazo/contracts";
+import {
+  ConnectionCatalogItemSchema,
+  ConnectionSchema,
+  GithubConnectionStatusSchema,
+} from "@rakazo/contracts";
 import { Directory, File, Paths } from "expo-file-system";
 import { currentApiBase, rpc, selectedSpaceId } from "./api";
 import { t } from "./i18n";
@@ -87,15 +96,45 @@ function scopeKey(scope: IntegrationsCacheScope): string {
   return JSON.stringify([scope.apiBase, scope.userId, scope.spaceId]);
 }
 
-function cacheFile(scope: IntegrationsCacheScope): File {
+function cacheFile(scope: IntegrationsCacheScope, namespace = "integrations-v1"): File {
   const root = new Directory(
     Paths.cache,
-    "integrations-v1",
+    namespace,
     encodeURIComponent(scope.apiBase),
     `user-${encodeURIComponent(scope.userId)}`,
   );
   if (!root.exists) root.create({ intermediates: true, idempotent: true });
   return new File(root, `${encodeURIComponent(scope.spaceId)}.json`);
+}
+
+export function readGithubConnectionCache(
+  scope: IntegrationsCacheScope,
+): GithubConnectionStatus | null {
+  try {
+    const file = cacheFile(scope, "github-status-v1");
+    if (!file.exists) return null;
+    const data = JSON.parse(file.textSync());
+    if (data.key !== scopeKey(scope)) return null;
+    const parsed = GithubConnectionStatusSchema.safeParse(data.status);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeGithubConnectionCache(
+  scope: IntegrationsCacheScope,
+  status: GithubConnectionStatus,
+): void {
+  try {
+    const parsed = GithubConnectionStatusSchema.safeParse(status);
+    if (!parsed.success) return;
+    const file = cacheFile(scope, "github-status-v1");
+    file.create({ overwrite: true });
+    file.write(JSON.stringify({ key: scopeKey(scope), status: parsed.data }));
+  } catch {
+    return;
+  }
 }
 
 export function readIntegrationsCache(scope: IntegrationsCacheScope): IntegrationsSnapshot | null {

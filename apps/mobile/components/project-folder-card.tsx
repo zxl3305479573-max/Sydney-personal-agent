@@ -1,3 +1,4 @@
+import { typeScale } from "@rakazo/ui-tokens";
 import { Pressable, Text, View } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
@@ -22,26 +23,38 @@ export function ProjectFolderCard({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({ paddingTop: 10, opacity: disabled ? 0.5 : pressed ? 0.7 : 1 })}
+      style={({ pressed }) => ({ opacity: disabled ? 0.5 : pressed ? 0.7 : 1 })}
     >
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={8}
-        style={{ position: "absolute", top: 0, left: 12, width: 56, height: 22, borderRadius: 8 }}
-        fallbackStyle={{ backgroundColor: tokens.card, borderWidth: 1, borderColor: tokens.border }}
-      />
-      <GlassSurface
-        shape="roundedRectangle"
         cornerRadius={16}
-        style={{ minHeight: 64, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", gap: 12 }}
-        fallbackStyle={{ backgroundColor: tokens.card, borderWidth: 1, borderColor: tokens.border }}
+        style={{
+          minHeight: 64,
+          borderRadius: 16,
+          padding: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+        fallbackStyle={{
+          backgroundColor: tokens.card,
+          borderWidth: 1,
+          borderColor: tokens.border,
+        }}
       >
         <NativeSymbol ios="folder.fill" android="folder" size={26} color={tokens.primary} />
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-          <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>{label}</Text>
-          {subtitle ? <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>{subtitle}</Text> : null}
+          <Text style={{ color: tokens.foreground, ...typeScale.cardTitle }}>{label}</Text>
+          {subtitle ? (
+            <Text style={{ color: tokens.mutedForeground, ...typeScale.caption }}>{subtitle}</Text>
+          ) : null}
         </View>
-        <NativeSymbol ios="chevron.right" android="chevron-forward" size={16} color={tokens.mutedForeground} />
+        <NativeSymbol
+          ios="chevron.right"
+          android="chevron-forward"
+          size={16}
+          color={tokens.mutedForeground}
+        />
       </GlassSurface>
     </Pressable>
   );

@@ -8,6 +8,8 @@ import {
 } from "./response-streaming";
 import type { SavedChatsScope } from "./saved-chats";
 import { ThreadJumpAnchor } from "./thread-jump";
+import type { ThreadSessionScope } from "./thread-session-cache";
+import { threadSessionCache } from "./thread-session-cache";
 import { reconcileVisibleThreadSnapshot } from "./thread-snapshot";
 import type { PinnedThreadWindow } from "./thread-window";
 
@@ -41,11 +43,23 @@ export type ThreadHistory = {
 };
 
 /** Owns the chat's snapshot: what is committed, what is shown, and the history window refs. */
-export function useThreadSnapshot(): ThreadHistory {
-  const [snap, setSnap] = useState<MobileSnapshot | null>(null);
+export function useThreadSnapshot(cache?: {
+  scope: ThreadSessionScope;
+  botId?: string;
+  groupId?: string;
+  messageId?: string;
+}): ThreadHistory {
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  const [initial] = useState(() =>
+    cache && !cache.messageId ? threadSessionCache.read(cache.scope, cache) : null,
+  );
+  const [snap, setSnap] = useState<MobileSnapshot | null>(() =>
+    withLiveStreamingProgress(initial, getCachedResponseStreamingEnabled()),
+  );
   const [composingBots, setComposingBots] = useState("");
   const [showingSaved, setShowingSaved] = useState(false);
-  const snapRef = useRef<MobileSnapshot | null>(null);
+  const snapRef = useRef<MobileSnapshot | null>(initial);
   const snapshotOrigin = useRef<SavedChatsScope | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
   const expandedHistoryThread = useRef<string | null>(null);
@@ -70,6 +84,17 @@ export function useThreadSnapshot(): ThreadHistory {
 
   const commitSnap = useCallback((next: MobileSnapshot | null) => {
     snapRef.current = next;
+    const target = cacheRef.current;
+    if (
+      next &&
+      target &&
+      next.botId === target.botId &&
+      next.groupId === target.groupId &&
+      !expandedHistoryThread.current &&
+      !pinnedAroundRef.current &&
+      !jumpScrollTarget.current
+    )
+      threadSessionCache.remember(target.scope, next);
     const visible = withLiveStreamingProgress(next, streamResponsesRef.current);
     setSnap((previous) => reconcileVisibleThreadSnapshot(previous, visible));
     // Read before streamed text is hidden, so a writing bot shows it even with streaming off.
@@ -94,7 +119,7 @@ export function useThreadSnapshot(): ThreadHistory {
     historyEpoch.current += 1;
     commitSnap(
       snapRef.current
-        ? { ...snapRef.current, messages: [], olderCursor: null, run: null }
+        ? { ...snapRef.current, messages: [], olderCursor: null, run: null, activeRuns: [] }
         : snapRef.current,
     );
   }

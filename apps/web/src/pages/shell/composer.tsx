@@ -16,6 +16,7 @@ import {
   serializeComposerPrompt,
   truncateSlashDescription,
   updateComposerMentionBindings,
+  validateComposerMentionBindings,
 } from "@rakazo/core";
 import { Button } from "@rakazo/ui-web";
 import { ArrowUp, Box, Paperclip, Plus, Settings, Square, X } from "lucide-react";
@@ -28,7 +29,8 @@ import {
 } from "../../components/composer/HoldToTalk";
 import type { ArtifactTarget } from "../../lib/artifact-open";
 import { attachmentPickerAccept } from "../../lib/attachment-picker-accept";
-import { useCallSession } from "../../lib/call-session";
+import { SIGNED_IN_USER_KEY, useCallSession } from "../../lib/call-session";
+import { chatBackgroundKey, restoreChatBackground } from "../../lib/chat-appearance";
 import {
   beginComposerDraftSubmission,
   readComposerDraft,
@@ -37,7 +39,9 @@ import {
   subscribeComposerDraftAccepted,
   writeComposerDraft,
 } from "../../lib/composer-draft";
+import { desktopBridge } from "../../lib/desktop";
 import { isFileDrag, isFilePaste } from "../../lib/pending-attachments";
+import { selectedSpaceId } from "../../lib/rpc";
 import { ComposerReplyPreview } from "./chat-context";
 import type { PendingAttachment } from "./chat-shared";
 import { previewMessageText } from "./chat-shared";
@@ -59,6 +63,7 @@ export const Composer = memo(function Composer({
   inGroup = false,
   running,
   disabled,
+  textOnly = false,
   pendingAttachments,
   attachmentNotice,
   sendError,
@@ -94,6 +99,7 @@ export const Composer = memo(function Composer({
   inGroup?: boolean;
   running: boolean;
   disabled?: boolean;
+  textOnly?: boolean;
   pendingAttachments: PendingAttachment[];
   attachmentNotice: string | null;
   sendError: string | null;
@@ -140,6 +146,63 @@ export const Composer = memo(function Composer({
   const mentionBindings = composition.bindings;
   const compositionRef = useRef(composition);
   compositionRef.current = composition;
+  useEffect(() => {
+    const settings = desktopBridge()?.settings;
+    if (!settings?.readLegacyDraft) return;
+    const space = selectedSpaceId();
+    if (!space) return;
+    let active = true;
+    const recover = () => {
+      void settings
+        .readLegacyDraft?.(draftKey, space)
+        .then(async (result) => {
+          if (!result) return;
+          const isCurrent = () =>
+            active &&
+            selectedSpaceId() === space &&
+            localStorage.getItem(SIGNED_IN_USER_KEY) === result.owner;
+          if (!isCurrent()) return;
+          const thread = /^(bot|group):(.+)$/.exec(draftKey);
+          if (thread && result.backgroundId) {
+            const kind = thread[1] === "bot" ? "bot" : "group";
+            await restoreChatBackground(
+              chatBackgroundKey(result.owner, kind, thread[2]!),
+              result.backgroundId,
+              isCurrent,
+            ).catch(() => undefined);
+          }
+          if (
+            !isCurrent() ||
+            !result.draft ||
+            compositionRef.current.text ||
+            readComposerDraft(draftKey)
+          )
+            return;
+          const marker = `sydney.migration.draft.v1.${result.owner}.${space}.${draftKey}`;
+          if (localStorage.getItem(marker)) return;
+          let bindings: ReturnType<typeof validateComposerMentionBindings> = [];
+          try {
+            const record = result.bindings ? JSON.parse(result.bindings) : null;
+            if (record?.version === 1 && record.text === result.draft) {
+              bindings = validateComposerMentionBindings(result.draft, record.bindings);
+            }
+          } catch {}
+          writeComposerDraft(draftKey, result.draft, undefined, bindings);
+          if (readComposerDraft(draftKey) !== result.draft) return;
+          localStorage.setItem(marker, "1");
+          setComposition({ text: result.draft, bindings });
+        })
+        .catch(() => undefined);
+    };
+    const stop = settings.onLegacyMigrationReady?.(recover);
+    window.addEventListener("sydney:legacy-appearance-imported", recover);
+    recover();
+    return () => {
+      active = false;
+      window.removeEventListener("sydney:legacy-appearance-imported", recover);
+      stop?.();
+    };
+  }, [draftKey]);
   const selectedMentions = useMemo(
     () => composerSelectedMentions(mentionBindings),
     [mentionBindings],
@@ -176,7 +239,7 @@ export const Composer = memo(function Composer({
   const onCall = useCallSession() !== null;
   const talk = useHoldToTalk({
     transcribe: dictationTranscribe,
-    disabled: disabled || onCall || !phoneCallsEnabled,
+    disabled: textOnly || disabled || onCall || !phoneCallsEnabled,
     onText: (text) => {
       // A refused send keeps the words: they land in the field to edit or retry.
       void onSend(text, [], newClientId())
@@ -409,7 +472,7 @@ export const Composer = memo(function Composer({
     : undefined;
 
   const slashSkillOptions = useMemo(() => {
-    if (slashQuery === null) return [];
+    if (textOnly || slashQuery === null) return [];
     const query = slashQuery.trim().toLowerCase();
     const skills = agentSkills ?? [];
     return skills
@@ -421,13 +484,13 @@ export const Composer = memo(function Composer({
         );
       })
       .slice(0, 8);
-  }, [agentSkills, slashQuery]);
+  }, [agentSkills, slashQuery, textOnly]);
 
   const slashActionOptions = useMemo(() => {
-    if (slashQuery === null) return [];
+    if (textOnly || slashQuery === null) return [];
     const query = slashQuery.trim().toLowerCase();
     return SLASH_ACTIONS.filter((action) => !query || action.label.toLowerCase().includes(query));
-  }, [slashQuery]);
+  }, [slashQuery, textOnly]);
 
   const showSlashPicker =
     slashQuery !== null &&
@@ -580,10 +643,10 @@ export const Composer = memo(function Composer({
     <fieldset
       aria-label={t`Message composer`}
       data-dragging={draggingFiles ? "files" : undefined}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragEnter={textOnly ? (event) => event.preventDefault() : handleDragEnter}
+      onDragOver={textOnly ? (event) => event.preventDefault() : handleDragOver}
+      onDragLeave={textOnly ? undefined : handleDragLeave}
+      onDrop={textOnly ? (event) => event.preventDefault() : handleDrop}
       className={`relative z-30 m-0 min-w-0 border-0 px-3 pb-4 pt-0 md:px-[max(1.5rem,calc((100%_-_60rem)/2))] md:pb-6 [&>*]:pointer-events-auto ${fileDragActive ? "pointer-events-auto" : "pointer-events-none"} ${
         draggingFiles ? "rounded-[14px] ring-2 ring-inset ring-ring" : ""
       }`}
@@ -748,33 +811,37 @@ export const Composer = memo(function Composer({
         data-expanded={expanded}
         data-mobile-chat={mobile ? "true" : undefined}
         data-mobile-group={mobile && inGroup ? "true" : undefined}
-        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] content-end items-center rounded-[26px] border border-border bg-background pe-2.5 ps-3 transition-colors focus-within:border-input ${
+        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] content-end items-center rounded-[26px] border border-border bg-background pe-2.5 ps-3 transition-colors has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ring ${
           expanded ? "gap-x-2 gap-y-2 pb-[9px] pt-3" : "gap-x-3.5 py-[9px]"
         }`}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ATTACHMENT_ACCEPT}
-          className="hidden"
-          onChange={(event) => pickAttachments(event.target.files)}
-        />
+        {!textOnly ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ATTACHMENT_ACCEPT}
+            className="hidden"
+            onChange={(event) => pickAttachments(event.target.files)}
+          />
+        ) : null}
         <div
           className={`col-start-1 flex shrink-0 items-center gap-1 ${expanded ? "row-start-2" : ""}`}
           data-composer-attachments=""
         >
-          <Button
-            ref={attachButtonRef}
-            variant="ghost"
-            size="icon"
-            aria-label={t`Attach file`}
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-            className="size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <Plus size={16} strokeWidth={2} />
-          </Button>
+          {!textOnly ? (
+            <Button
+              ref={attachButtonRef}
+              variant="ghost"
+              size="icon"
+              aria-label={t`Attach file`}
+              disabled={disabled}
+              onClick={() => fileInputRef.current?.click()}
+              className="size-8 shrink-0 rounded-full border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Plus size={16} strokeWidth={2} />
+            </Button>
+          ) : null}
           {showMentionButton ? (
             <Button
               type="button"
@@ -844,7 +911,7 @@ export const Composer = memo(function Composer({
                   )?.query ?? null,
                 );
               }}
-              onPaste={handlePaste}
+              onPaste={textOnly ? undefined : handlePaste}
               onKeyDown={(event) => {
                 rememberSelection(event.currentTarget);
                 if (event.key === "Backspace" && draft.length === 0 && selectedSkill !== null) {
@@ -909,13 +976,7 @@ export const Composer = memo(function Composer({
                 }
               }}
               disabled={disabled}
-              placeholder={
-                showComposerPlaceholder
-                  ? activeName
-                    ? t`Message ${activeName}`
-                    : t`Message…`
-                  : undefined
-              }
+              placeholder={showComposerPlaceholder ? t`Message…` : undefined}
               aria-label={activeName ? t`Message ${activeName}` : t`Message`}
               role="combobox"
               aria-autocomplete="list"
@@ -948,7 +1009,7 @@ export const Composer = memo(function Composer({
             <HoldToTalkControls talk={talk} />
           ) : running ? (
             <>
-              {phoneCallsEnabled && draft.trim().length === 0 ? (
+              {!textOnly && phoneCallsEnabled && draft.trim().length === 0 ? (
                 <HoldToTalkControls talk={talk} disabled={disabled || onCall} />
               ) : null}
               <Button
@@ -956,7 +1017,7 @@ export const Composer = memo(function Composer({
                 aria-label={t`Send`}
                 disabled={sending || !canSend || disabled}
                 onClick={() => void send()}
-                className="size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
+                className="size-8 shrink-0 rounded-full transition-transform motion-safe:active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
               >
                 <ArrowUp size={16} strokeWidth={2.2} />
               </Button>
@@ -973,7 +1034,7 @@ export const Composer = memo(function Composer({
             </>
           ) : (
             <>
-              {phoneCallsEnabled && draft.trim().length === 0 ? (
+              {!textOnly && phoneCallsEnabled && draft.trim().length === 0 ? (
                 <HoldToTalkControls talk={talk} disabled={disabled || onCall} />
               ) : null}
               <Button
@@ -981,7 +1042,7 @@ export const Composer = memo(function Composer({
                 aria-label={t`Send`}
                 disabled={sending || !canSend || disabled}
                 onClick={() => void send()}
-                className="size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
+                className="size-8 shrink-0 rounded-full transition-transform motion-safe:active:scale-95 disabled:bg-primary-disabled disabled:text-foreground/30 disabled:opacity-100"
               >
                 <ArrowUp size={16} strokeWidth={2.2} />
               </Button>

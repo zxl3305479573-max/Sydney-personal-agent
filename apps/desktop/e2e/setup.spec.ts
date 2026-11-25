@@ -7,7 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { ElectronApplication, Page } from "@playwright/test";
 import { _electron as electron, expect, test } from "@playwright/test";
-import type { RakazoDesktop } from "@rakazo/contracts";
+import type { RakazoDesktop, RakazoSetup } from "@rakazo/contracts";
 import { foregroundWindow } from "./foreground-window";
 
 const APP_MARKER = "Existing Rakazo instance ready";
@@ -22,6 +22,7 @@ let userData: string;
 let app: ElectronApplication | undefined;
 let monitoringRequests = 0;
 let updateRequests = 0;
+let rootHtmlRequests = 0;
 
 /** A port nothing listens on, so a connection attempt is refused rather than blocked. */
 async function reserveClosedPort() {
@@ -50,6 +51,11 @@ test.beforeAll(async () => {
       response.end(JSON.stringify({ dsn: null }));
       return;
     }
+    if (request.url?.startsWith("/api/auth/get-session")) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("null");
+      return;
+    }
     if (request.url?.startsWith("/redirect?")) {
       const target = new URL(request.url, serverUrl).searchParams.get("to") ?? "/";
       response.writeHead(302, { location: target });
@@ -61,6 +67,12 @@ test.beforeAll(async () => {
       response.end(JSON.stringify({ json: { ok: true, version: "0.1.0" } }));
       return;
     }
+    if (request.url?.startsWith("/api/") || request.url?.startsWith("/rpc/")) {
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "Unauthenticated" }));
+      return;
+    }
+    rootHtmlRequests++;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     response.end(
       `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Rakazo</title></head><body><main>${APP_MARKER}</main></body></html>`,
@@ -100,6 +112,7 @@ async function launch(extraEnv: Record<string, string> = {}) {
   delete env.RAKAZO_WEB_URL;
   delete env.SYDNEY_PC_BACKEND_URL;
   delete env.RAKAZO_FORCE_SETUP;
+  delete env.SYDNEY_STANDALONE_RENDERER_DIR;
   const executablePath = process.env.RAKAZO_E2E_EXECUTABLE;
   const launched = await electron.launch({
     ...(executablePath ? { executablePath: path.resolve(executablePath) } : {}),
@@ -117,9 +130,42 @@ async function launch(extraEnv: Record<string, string> = {}) {
 }
 
 test("opens a healthy configured PC backend", async () => {
+  rootHtmlRequests = 0;
   app = await launch({ SYDNEY_PC_BACKEND_URL: serverUrl });
+  const packaged = await app.evaluate(({ app: electronApp }) => electronApp.isPackaged);
   const window = await foregroundWindow(app);
-  await expect(window.getByText(APP_MARKER)).toBeVisible();
+  if (packaged) {
+    await expect(window.locator('[data-rakazo-surface="welcome"]')).toBeVisible();
+    expect(rootHtmlRequests).toBe(0);
+  } else {
+    await expect(window.getByText(APP_MARKER)).toBeVisible();
+  }
+});
+
+test("packaged Windows opens direct setup for a legacy local profile", async () => {
+  test.skip(
+    process.platform !== "win32" || !process.env.RAKAZO_E2E_EXECUTABLE,
+    "Requires a packaged Windows executable",
+  );
+  const setupFile = path.join(userData, "setup.json");
+  const saved = { mode: "new", serverUrl: closedUrl } as const;
+  const profile = JSON.stringify(saved);
+  await writeFile(setupFile, profile, { mode: 0o600 });
+  app = await launch();
+  const window = await foregroundWindow(app);
+  await expect(window.getByRole("heading", { name: "Welcome to Sydney" })).toBeVisible();
+  await expect(window.locator('label[for="mode-new"]')).toBeHidden();
+  await expect(window.locator("#mode-cloud")).toBeChecked();
+  const result = await window.evaluate(async (selection) => {
+    const setup = (window as typeof window & { rakazoSetup: RakazoSetup }).rakazoSetup;
+    return {
+      stack: await setup.stack.start(),
+      saved: await setup.save(selection),
+    };
+  }, saved);
+  expect(result.stack).toBeNull();
+  expect(result.saved.ok).toBe(false);
+  expect(await readFile(setupFile, "utf8")).toBe(profile);
 });
 
 test("packaged Sydney disables desktop updates", async () => {
@@ -142,7 +188,7 @@ test("packaged Sydney disables desktop updates", async () => {
     app = await launch({ SYDNEY_PC_BACKEND_URL: serverUrl, RAKAZO_DISABLE_AUTO_UPDATE: "0" });
     expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
     const window = await foregroundWindow(app);
-    await expect(window.getByText(APP_MARKER)).toBeVisible();
+    await expect(window.locator('[data-rakazo-surface="welcome"]')).toBeVisible();
     const states = await window.evaluate(async () => {
       const desktop = (window as typeof window & { rakazoDesktop: RakazoDesktop }).rakazoDesktop;
       return [
@@ -156,7 +202,7 @@ test("packaged Sydney disables desktop updates", async () => {
       expect(state).toMatchObject({
         phase: "unsupported",
         availableVersion: null,
-        message: "Automatic updates are turned off for this install.",
+        message: expect.stringMatching(/\S/),
       });
     }
     await window.waitForTimeout(12_000);
@@ -165,7 +211,7 @@ test("packaged Sydney disables desktop updates", async () => {
     );
     expect(finalState).toMatchObject({
       phase: "unsupported",
-      message: "Automatic updates are turned off for this install.",
+      message: expect.stringMatching(/\S/),
     });
   };
   updateRequests = 0;

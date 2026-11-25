@@ -7,6 +7,7 @@ import { displayIdentityEvent, displayIdentityResult } from "@rakazo/core";
 import { clientCorrelationHeaders, responseCorrelation } from "@rakazo/logging/monitoring";
 import { authClient } from "./auth";
 import { CLIENT_BUILD } from "./client-build";
+import { desktopBridge } from "./desktop";
 import { i18n } from "./i18n";
 import { identityLabels } from "./identity-display";
 import { reportClientError } from "./monitoring";
@@ -76,7 +77,11 @@ const link = new RPCLink<RpcClientContext>({
       options.context.spaceId === undefined ? selectedSpaceId() : options.context.spaceId;
     const correlation = clientCorrelationHeaders();
     const headers = withSpaceHeaders(request.headers, spaceId);
-    if (CLIENT_BUILD) headers.set(CLIENT_BUILD_HEADER, formatClientBuild("web", CLIENT_BUILD));
+    if (CLIENT_BUILD)
+      headers.set(
+        CLIENT_BUILD_HEADER,
+        formatClientBuild(desktopBridge() ? "desktop" : "web", CLIENT_BUILD),
+      );
     for (const [key, value] of Object.entries(correlation)) headers.set(key, value);
     let response: Response;
     try {

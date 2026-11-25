@@ -1,5 +1,5 @@
 import type { AiConsentStatus } from "@rakazo/contracts";
-import { AI_DATA_DISCLOSURES, AI_PRIVACY_URL } from "@rakazo/contracts";
+import { AI_DATA_DISCLOSURES } from "@rakazo/contracts";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet } from "react-native";
 import {
@@ -28,6 +28,8 @@ export default function AiDataSharing() {
   const [pending, setPending] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const placeholder = aiDataSharingPlaceholder(status, loadFailed);
+  const privacyUrl = status?.privacyUrl;
+  const privacyLinks = status ? aiPrivacyLinks(status.recipients) : [];
   const styles = useThemedStyles(createStyles);
   const stacked = useStackedSettings();
   const error = (cause: unknown) =>
@@ -124,23 +126,27 @@ export default function AiDataSharing() {
               ))}
             </SettingsGroup>
           ))}
-          <SettingsGroup label={t("Privacy policies")}>
-            {aiPrivacyLinks(status.recipients).map(({ name, url }) => (
-              <SettingsRow
-                key={JSON.stringify([name, url])}
-                title={name}
-                accessibilityRole="link"
-                chevron="right"
-                onPress={() => void Linking.openURL(url)}
-              />
-            ))}
-            <SettingsRow
-              title={t("Rakazo")}
-              accessibilityRole="link"
-              chevron="right"
-              onPress={() => void Linking.openURL(status.privacyUrl ?? AI_PRIVACY_URL)}
-            />
-          </SettingsGroup>
+          {privacyLinks.length > 0 || privacyUrl ? (
+            <SettingsGroup label={t("Privacy policies")}>
+              {privacyLinks.map(({ name, url }) => (
+                <SettingsRow
+                  key={JSON.stringify([name, url])}
+                  title={name}
+                  accessibilityRole="link"
+                  chevron="right"
+                  onPress={() => void Linking.openURL(url)}
+                />
+              ))}
+              {privacyUrl ? (
+                <SettingsRow
+                  title="Sydney"
+                  accessibilityRole="link"
+                  chevron="right"
+                  onPress={() => void Linking.openURL(privacyUrl)}
+                />
+              ) : null}
+            </SettingsGroup>
+          ) : null}
           <SettingsGroup>
             <SettingsRow
               accessibilityRole="button"

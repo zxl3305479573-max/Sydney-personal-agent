@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "global-ocean",
+  "name": "Ocean Global",
+  "author": "Sydney",
+  "version": "1.0.0",
+  "coverage": "all",
+  "defaults": {
+    "layout": "classic",
+    "surface": "glass",
+    "colors": {
+      "light": {
+        "background": "#EAF5FF",
+        "card": "#FFFFFF",
+        "foreground": "#0B2239",
+        "primary": "#0B6EBD",
+        "primaryForeground": "#FFFFFF",
+        "accent": "#CDEBFF",
+        "accentForeground": "#0B2239",
+        "border": "#A8D4F2"
+      },
+      "dark": {
+        "background": "#071A2B",
+        "card": "#102B43",
+        "foreground": "#EAF5FF",
+        "primary": "#6CC5FF",
+        "primaryForeground": "#071A2B",
+        "accent": "#1B4667",
+        "accentForeground": "#EAF5FF",
+        "border": "#2D5F83"
+      }
+    }
+  }
+}

@@ -1,9 +1,9 @@
 {
   "name": "@rakazo/desktop",
-  "productName": "Sydney",
-  "version": "0.4.0",
+  "productName": "Sydney-partner",
+  "version": "0.4.4",
   "author": {
-    "name": "Rakazo"
+    "name": "Sydney"
   },
   "license": "Apache-2.0",
   "type": "module",
@@ -51,14 +51,6 @@
       {
         "from": "../web/dist",
         "to": "web"
-      },
-      {
-        "from": "../../infra/compose/docker-compose.images.yml",
-        "to": "stack/docker-compose.images.yml"
-      },
-      {
-        "from": "../../infra/compose/.env.images.example",
-        "to": "stack/.env.images.example"
       }
     ],
     "extraMetadata": {
@@ -76,6 +68,14 @@
         "NSSpeechRecognitionUsageDescription": "Sydney turns what you say into text for dictation and voice calls with your bots."
       },
       "extraResources": [
+        {
+          "from": "../../infra/compose/docker-compose.images.yml",
+          "to": "stack/docker-compose.images.yml"
+        },
+        {
+          "from": "../../infra/compose/.env.images.example",
+          "to": "stack/.env.images.example"
+        },
         {
           "from": "build/speech/rakazo-speech",
           "to": "speech/rakazo-speech"
@@ -117,6 +117,12 @@
     },
     "win": {
       "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "../../infra/windows-wsl/project-command-runner.py",
+          "to": "project-command-runner.py"
+        }
+      ],
       "target": [
         "nsis"
       ],
@@ -125,6 +131,16 @@
     "linux": {
       "executableName": "rakazo",
       "icon": "assets/icon.png",
+      "extraResources": [
+        {
+          "from": "../../infra/compose/docker-compose.images.yml",
+          "to": "stack/docker-compose.images.yml"
+        },
+        {
+          "from": "../../infra/compose/.env.images.example",
+          "to": "stack/.env.images.example"
+        }
+      ],
       "target": [
         "AppImage"
       ]
@@ -132,8 +148,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "elie222",
-        "repo": "rakazo"
+        "owner": "zxl3305479573-max",
+        "repo": "Sydney-personal-agent"
       }
     ]
   }

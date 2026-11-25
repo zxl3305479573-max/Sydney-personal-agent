@@ -43,6 +43,7 @@ export function threadHeaderRight({
             inGroup
               ? {
                   type: "button" as const,
+                  hidesSharedBackground: true,
                   label: t("Group settings"),
                   accessibilityLabel: t("Group settings"),
                   icon: { type: "sfSymbol" as const, name: "gearshape" },
@@ -50,6 +51,7 @@ export function threadHeaderRight({
                 }
               : {
                   type: "menu" as const,
+                  hidesSharedBackground: true,
                   label: t("Bot actions"),
                   accessibilityLabel: t("Bot actions"),
                   icon: { type: "sfSymbol" as const, name: "ellipsis" },

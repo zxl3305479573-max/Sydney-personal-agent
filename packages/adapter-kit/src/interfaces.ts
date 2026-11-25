@@ -1,4 +1,11 @@
 import type {
+  ProjectCloudCommand,
+  ProjectCloudCommandResult,
+  ProjectCloudFolder,
+  ProjectFileOperation,
+  ProjectFileResult,
+} from "@rakazo/contracts";
+import type {
   AdapterContext,
   AdapterDescriptor,
   AgentRunRequest,
@@ -101,6 +108,24 @@ export interface SandboxProvider {
   /** True when every running minute is billed, so the active-lifetime cap applies. */
   billsWhileRunning?(computer: Pick<ComputerRef, "kind">): boolean;
   describe(): AdapterDescriptor<SandboxCapabilities>;
+  identifyProjectFolder?(
+    computer: ComputerRef,
+    path: string,
+    context: AdapterContext,
+  ): Promise<ProjectCloudFolder>;
+  executeProjectFile?(
+    computer: ComputerRef,
+    folder: ProjectCloudFolder,
+    file: ProjectFileOperation,
+    context: AdapterContext,
+  ): Promise<ProjectFileResult>;
+  executeProjectCommand?(
+    computer: ComputerRef,
+    folder: ProjectCloudFolder,
+    command: ProjectCloudCommand,
+    context: AdapterContext,
+  ): Promise<ProjectCloudCommandResult>;
+  projectCommandAvailable?(computer: ComputerRef, context: AdapterContext): Promise<boolean>;
   /** Workspace directory operations for hosts without the standard Unix command tools. */
   workspaceDirectories?(
     computer: ComputerRef,

@@ -45,6 +45,7 @@ x-app-environment: &app-environment
   RAKAZO_UPDATE_RESTART_SUPERVISOR:
   TICKET_BOARD_ENABLED:
   USER_DEVICES_ENABLED:
+  SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED: ${SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED:-false}
   BOT_MESSAGE_MAX_HOPS:
   RAKAZO_MESSAGE_USER_MAX_CHARS:
   TEACH_RECORDING_TTL_MS:
@@ -219,6 +220,7 @@ x-app-environment: &app-environment
   CURSOR_API_KEY: ${CURSOR_API_KEY:-}
   # Tools and integrations
   WEB_PROVIDER:
+  GITHUB_PROVIDER:
   KEENABLE_API_KEY:
   COMPOSIO_API_KEY:
   PIPEDREAM_CLIENT_ID:
@@ -373,9 +375,10 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      target: server
       args:
         GIT_SHA: ${GIT_SHA:-}
-        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-true}
     working_dir: /app/apps/api
     command: ["pnpm", "db:deploy"]
     restart: "no"
@@ -406,9 +409,10 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      target: server
       args:
         GIT_SHA: ${GIT_SHA:-}
-        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-true}
     restart: unless-stopped
     # Node runs directly, not through pnpm: pnpm does not pass SIGTERM on, so a stop would kill the
     # process before its graceful shutdown finishes in-flight requests and jobs.
@@ -432,18 +436,18 @@ services:
       BETTER_AUTH_URL:
       WEB_ORIGIN:
       AUTH_PUBLIC_LINK_ORIGIN:
-      SYDNEY_INTEGRATION_API_CALLBACK:
+      SYDNEY_INTEGRATION_API_CALLBACK: ${SYDNEY_INTEGRATION_API_CALLBACK:-true}
       SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN:
       SYDNEY_COMPANION_SCREEN_EXPERIMENT:
-      SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT:-true}
-      SYDNEY_PROJECT_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CREATE_EXPERIMENT:-true}
+      SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT:-false}
+      SYDNEY_PROJECT_CREATE_EXPERIMENT: ${SYDNEY_PROJECT_CREATE_EXPERIMENT:-false}
       SYDNEY_NATIVE_PASSWORD_RESET_ON_API:
       SYDNEY_NATIVE_EMAIL_VERIFICATION_ON_API:
-      SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API:
+      SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API: ${SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API:-true}
       SCREEN_PROXY_PUBLIC_ORIGIN:
-      SYDNEY_SCREEN_PROXY_ON_API:
-      SYDNEY_WUYING_ASSETS_ON_API:
-      SYDNEY_WUYING_ASSETS_DIR:
+      SYDNEY_SCREEN_PROXY_ON_API: ${SYDNEY_SCREEN_PROXY_ON_API:-true}
+      SYDNEY_WUYING_ASSETS_ON_API: ${SYDNEY_WUYING_ASSETS_ON_API:-true}
+      SYDNEY_WUYING_ASSETS_DIR: ${SYDNEY_WUYING_ASSETS_DIR:-/app/packages/core/wuying-assets}
       EXTRA_TRUSTED_ORIGINS:
       AUTH_PASSWORD_ENABLED: ${AUTH_PASSWORD_ENABLED:-true}
       AUTH_BREACHED_PASSWORD_CHECK_ENABLED: ${AUTH_BREACHED_PASSWORD_CHECK_ENABLED:-false}
@@ -521,9 +525,10 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      target: server
       args:
         GIT_SHA: ${GIT_SHA:-}
-        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
+        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-true}
     restart: unless-stopped
     # Directly, not through pnpm, so a stop reaches it (see the api command).
     working_dir: /app/apps/worker
@@ -565,60 +570,6 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
-
-  web:
-    image: ${RAKAZO_IMAGE:-ghcr.io/elie222/rakazo/app}:${RAKAZO_IMAGE_TAG:-local}
-    build:
-      context: ../..
-      dockerfile: infra/compose/Dockerfile
-      args:
-        GIT_SHA: ${GIT_SHA:-}
-        SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
-    restart: unless-stopped
-    # Directly, not through pnpm, so a stop reaches it (see the api command).
-    working_dir: /app/apps/web
-    command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "5173"]
-    # Recent builds' hashed assets, so tabs still running one keep loading chunks after a deploy.
-    volumes:
-      - webassets:/app/apps/web/asset-archive
-    init: true
-    logging: *logging
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 128
-    mem_limit: 512m
-    environment:
-      NODE_ENV: production
-      # vite preview bundles its config with Rolldown, which starts one thread per host CPU.
-      # Keep that fixed so pids_limit holds on many-core hosts (#2430).
-      RAYON_NUM_THREADS: "4"
-      API_PROXY_TARGET: http://api:3100
-      RAKAZO_HOST: ${RAKAZO_HOST:-app.example.com}
-      SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
-      RAKAZO_CSP_SCRIPT_SRC: ${RAKAZO_CSP_SCRIPT_SRC:-}
-      RAKAZO_CSP_CONNECT_SRC: ${RAKAZO_CSP_CONNECT_SRC:-}
-      CRISP_WEBSITE_ID:
-    expose:
-      - "5173"
-    networks:
-      - edge
-      - app
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - fetch('http://127.0.0.1:5173/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 2m
-      start_interval: 1s
 
   # The updater holds the Docker socket, which is root-equivalent on the host, so it is opt-in and
   # deliberately the narrowest service here: no `ports` (nothing on the host), only the dedicated
@@ -664,6 +615,7 @@ services:
       RAKAZO_COMPOSE_FILE: ${RAKAZO_COMPOSE_FILE:-infra/compose/docker-compose.prod.yml}
       RAKAZO_COMPOSE_OVERLAY_FILE: ${RAKAZO_COMPOSE_OVERLAY_FILE:-}
       RAKAZO_UPDATE_SERVICES: ${RAKAZO_UPDATE_SERVICES:-}
+      SYDNEY_WEB_SERVICE_ENABLED: "false"
       COMPOSE_PATH_SEPARATOR: ${COMPOSE_PATH_SEPARATOR:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: ${LOG_FORMAT:-}
@@ -705,9 +657,10 @@ services:
     mem_limit: 256m
     environment:
       RAKAZO_HOST: ${RAKAZO_HOST:-app.example.com}
-      SYDNEY_SCREEN_PROXY_UPSTREAM: ${SYDNEY_SCREEN_PROXY_UPSTREAM:-web:5173}
-      SYDNEY_WUYING_SCREEN_UPSTREAM: ${SYDNEY_WUYING_SCREEN_UPSTREAM:-web:5173}
-      SYDNEY_SIGN_IN_UPSTREAM: ${SYDNEY_SIGN_IN_UPSTREAM:-web:5173}
+      SYDNEY_SCREEN_PROXY_UPSTREAM: ${SYDNEY_SCREEN_PROXY_UPSTREAM:-api:3100}
+      SYDNEY_WUYING_SCREEN_UPSTREAM: ${SYDNEY_WUYING_SCREEN_UPSTREAM:-api:3100}
+      SYDNEY_SIGN_IN_UPSTREAM: ${SYDNEY_SIGN_IN_UPSTREAM:-api:3100}
+      SYDNEY_INTEGRATION_CALLBACK_UPSTREAM: ${SYDNEY_INTEGRATION_CALLBACK_UPSTREAM:-api:3100}
       # Go listens with multipath TCP by default, which widens the kernel attack surface.
       GODEBUG: multipathtcp=0
     ports:
@@ -724,7 +677,7 @@ services:
     tmpfs:
       - /tmp
     depends_on:
-      web:
+      api:
         condition: service_started
 
 volumes:
@@ -733,7 +686,6 @@ volumes:
   appdata:
   caddydata:
   caddyconfig:
-  webassets:
   pitrspool:
 
 networks:

@@ -37,7 +37,10 @@ function parseApiBase(input: string, requireOrigin: boolean): EndpointResult {
       !authority ||
       authority[1] === undefined ||
       authority[2] === undefined ||
-      /[\u0000-\u001f\u007f]/.test(withScheme) ||
+      [...withScheme].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 0x1f || code === 0x7f;
+      }) ||
       authority[1].includes("@") ||
       (authority[2] !== "" && authority[2] !== "/")
     ) {
@@ -108,7 +111,7 @@ export async function probeApiBase(
       (res.url && res.url !== healthUrl)
     ) {
       cancelResponseBody(res);
-      return { ok: false, error: t("That URL did not look like a Rakazo server") };
+      return { ok: false, error: t("That URL did not look like a Sydney server") };
     }
     let body: HealthResponse;
     try {
@@ -122,7 +125,7 @@ export async function probeApiBase(
       body = {};
     }
     if (body.error || body.json?.ok !== true) {
-      return { ok: false, error: t("That URL did not look like a Rakazo server") };
+      return { ok: false, error: t("That URL did not look like a Sydney server") };
     }
     return parsed;
   } catch {

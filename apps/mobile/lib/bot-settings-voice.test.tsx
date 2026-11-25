@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   crossSpaceCommunication: false,
   avatarSet: undefined as "organic" | "rakazo" | undefined,
   focus: undefined as string | undefined,
+  projectId: undefined as string | undefined,
+  pickBotAvatar: vi.fn(),
   os: "ios",
   work: [] as unknown[],
   history: [] as unknown[],
@@ -55,6 +57,12 @@ function deferredSave<T = void>() {
 }
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: mocks.pickBotAvatar }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => "project-scope",
+  subscribeProjectScope: () => () => {},
+  projectRequestOptions: async () => ({ skipSpaceAuthRecovery: true }),
+}));
 vi.mock("./bot-voices", () => ({
   voiceLabel: (voice: { language: string; name: string }) => `${voice.name} (${voice.language})`,
   deviceVoices: mocks.deviceVoices,
@@ -68,7 +76,11 @@ vi.mock("./api", () => ({
   currentApiBase: () => "https://api.example.test",
   loadSessionToken: async () => "token",
   selectedSpaceId: () => "space-a",
-  rpc: async (procedure: string, input?: unknown) => {
+  rpc: async (procedure: string, input?: unknown, options?: unknown) => {
+    if (procedure === "projectWorkspaces/updateBot") return mocks.rpc(procedure, input, options);
+    if (procedure === "projectWorkspaces/botContext") return { work: mocks.work, docs: mocks.docs };
+    if (procedure === "projectWorkspaces/botContextAction")
+      return mocks.rpc(procedure, input, options);
     if (
       [
         "bots/update",
@@ -81,7 +93,8 @@ vi.mock("./api", () => ({
       ].includes(procedure)
     )
       return mocks.rpc(procedure, input);
-    if (procedure === "bots/get") {
+    if (procedure === "bots/get" || procedure === "projectWorkspaces/getBot") {
+      if (procedure === "projectWorkspaces/getBot") mocks.rpc(procedure, input, options);
       await mocks.loadBot();
       return {
         id: "bot-fixture",
@@ -119,7 +132,12 @@ vi.mock("expo-notifications", () => ({
 vi.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ back: mocks.back }),
-  useLocalSearchParams: () => ({ botId: "bot-fixture", focus: mocks.focus }),
+  useLocalSearchParams: () => ({
+    botId: "bot-fixture",
+    focus: mocks.focus,
+    projectId: mocks.projectId,
+    scope: mocks.projectId ? "project-scope" : undefined,
+  }),
   useFocusEffect: (effect: () => (() => void) | undefined) => useEffect(effect, [effect]),
 }));
 vi.mock("react-native", () => {
@@ -227,7 +245,7 @@ vi.mock("react-native", () => {
       accessibilityLabel?: string;
       accessibilityHint?: string;
       accessibilityRole?: string;
-      accessibilityState?: { expanded?: boolean };
+      accessibilityState?: { checked?: boolean; expanded?: boolean };
       style?: unknown;
       hitSlop?: number;
     }) =>
@@ -240,6 +258,7 @@ vi.mock("react-native", () => {
           "data-hint": accessibilityHint,
           role: accessibilityRole,
           "aria-expanded": accessibilityState?.expanded,
+          "aria-checked": accessibilityState?.checked,
           "data-style": JSON.stringify(style),
           "data-hit-slop": hitSlop,
         },
@@ -367,6 +386,8 @@ describe("bot settings device voice menu", () => {
     mocks.loadBot.mockReset();
     vi.mocked(Notifications.getPresentedNotificationsAsync).mockResolvedValue([]);
     mocks.focus = undefined;
+    mocks.projectId = undefined;
+    mocks.pickBotAvatar.mockReset();
     mocks.instructions = "";
     mocks.description = "";
     mocks.os = "ios";
@@ -547,38 +568,52 @@ describe("bot settings device voice menu", () => {
     expect(container.textContent).not.toContain("Shape");
   });
 
-  it("keeps a legacy set until explicitly switched, saves the choice, and reloads it", async () => {
+  it("saves a selected photo to the project bot and keeps the home bot untouched", async () => {
+    mocks.projectId = "project-fixture";
+    const photo = "data:image/jpeg;base64,ZmFrZQ==";
+    mocks.pickBotAvatar.mockResolvedValue(photo);
     await render();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/getBot",
+      { projectId: "project-fixture", botId: "bot-fixture", includeArchived: true },
+      { skipSpaceAuthRecovery: true },
+    );
+    expect(menu()).toBeNull();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
-    const setMenu = () => container.querySelector('[data-menu="Icon set"]')!;
-    const option = (label: string) =>
-      [...setMenu().querySelectorAll<HTMLButtonElement>("button")].find(
-        (button) => button.textContent === label,
-      )!;
-    expect(option("Original").dataset.state).toBe("on");
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    await act(async () => option("Rakazo").click());
-    mocks.rpc.mockResolvedValueOnce({ avatarSet: "rakazo" });
-    await act(async () =>
-      [...container.querySelectorAll<HTMLButtonElement>("button")]
-        .find((button) => button.textContent === "Save")!
-        .click(),
+    const click = (label: string) =>
+      act(async () =>
+        [...container.querySelectorAll<HTMLButtonElement>("button")]
+          .find((button) => button.textContent === label)!
+          .click(),
+      );
+    await click("Photo library");
+    await click("Done");
+    mocks.rpc.mockResolvedValueOnce({ color: photo });
+    await click("Save");
+    expect(mocks.rpc).toHaveBeenLastCalledWith(
+      "projectWorkspaces/updateBot",
+      { projectId: "project-fixture", bot: { botId: "bot-fixture", color: photo } },
+      { skipSpaceAuthRecovery: true },
     );
-    expect(mocks.rpc).toHaveBeenCalledWith("bots/update", {
-      botId: "bot-fixture",
-      avatarSet: "rakazo",
-    });
-    act(() => root.unmount());
-    root = createRoot(container);
+    expect(mocks.back).toHaveBeenCalledOnce();
+  });
+
+  it("hides the retired set and lets an existing bot choose another shape", async () => {
     mocks.avatarSet = "rakazo";
     await render();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
-    expect(option("Rakazo").dataset.state).toBe("on");
-    await act(async () => option("Original").click());
+    expect(container.querySelector('[data-menu="Icon set"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Default"]')?.getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Shape 1"]')!.click(),
+    );
     mocks.rpc.mockResolvedValueOnce({ avatarSet: "organic" });
     await act(async () =>
       [...container.querySelectorAll<HTMLButtonElement>("button")]

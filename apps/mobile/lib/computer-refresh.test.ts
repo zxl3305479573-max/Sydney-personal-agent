@@ -22,6 +22,7 @@ function setup() {
       .mockResolvedValue("https://screen.example.test"),
     onStatus: vi.fn(),
     onScreen: vi.fn(),
+    onScreenError: vi.fn(),
     onReady: vi.fn(),
     onInitialError: vi.fn(),
   };
@@ -33,12 +34,14 @@ describe("computer refresh lifecycle", () => {
   it("discards a screen whose context changes before the refresh applies it", async () => {
     const pending = deferred<{ url: string; isCurrent: () => boolean }>();
     const onScreen = vi.fn();
+    const onScreenError = vi.fn();
     const onReady = vi.fn();
     const controller = createComputerRefresh({
       readStatus: async () => running,
       readScreen: () => pending.promise,
       onStatus: vi.fn(),
       onScreen,
+      onScreenError,
       onReady,
       onInitialError: vi.fn(),
     });
@@ -48,6 +51,7 @@ describe("computer refresh lifecycle", () => {
     current = false;
     await vi.waitFor(() => expect(onReady).toHaveBeenCalledOnce());
     expect(onScreen).not.toHaveBeenCalled();
+    expect(onScreenError).not.toHaveBeenCalled();
     controller.dispose();
   });
 
@@ -160,6 +164,49 @@ describe("computer refresh lifecycle", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(fixture.onScreen).toHaveBeenCalledWith(null);
     fixture.controller.dispose();
+  });
+
+  it("reports screen read failures and clears the error after a successful retry", async () => {
+    vi.useFakeTimers();
+    const fixture = setup();
+    const failure = new Error("screen unavailable");
+    fixture.readScreen.mockRejectedValueOnce(failure);
+    fixture.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.onScreenError).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(fixture.onScreen).not.toHaveBeenCalled();
+    expect(fixture.onReady).toHaveBeenCalledOnce();
+    await fixture.controller.refresh();
+    expect(fixture.onScreenError).toHaveBeenLastCalledWith(null);
+    expect(fixture.onScreen).toHaveBeenCalledExactlyOnceWith("https://screen.example.test");
+    fixture.controller.dispose();
+  });
+
+  it("keeps the connected screen when renewing its URL fails", async () => {
+    vi.useFakeTimers();
+    const fixture = setup();
+    fixture.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const failure = new Error("renewal failed");
+    fixture.readScreen.mockRejectedValueOnce(failure);
+    await fixture.controller.refresh();
+    expect(fixture.onScreen).toHaveBeenCalledExactlyOnceWith("https://screen.example.test");
+    expect(fixture.onScreenError).toHaveBeenLastCalledWith(failure);
+    fixture.controller.dispose();
+  });
+
+  it("does not report a screen error from a disposed target", async () => {
+    vi.useFakeTimers();
+    const fixture = setup();
+    const pending = deferred<string | null>();
+    fixture.readScreen.mockReturnValueOnce(pending.promise);
+    fixture.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    fixture.controller.dispose();
+    pending.reject(new Error("old target failed"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fixture.onScreenError).not.toHaveBeenCalled();
+    expect(fixture.onReady).not.toHaveBeenCalled();
   });
 
   it("stops polling when the server refuses the status but keeps polling through a 503", async () => {

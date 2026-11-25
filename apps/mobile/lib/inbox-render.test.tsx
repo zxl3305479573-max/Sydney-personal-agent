@@ -179,11 +179,13 @@ vi.mock("../components/bot-avatar", () => ({
     muted,
     motion,
     size,
+    unread,
   }: {
     identity: string;
     muted?: boolean;
     motion?: string;
     size?: number;
+    unread?: boolean;
   }) => {
     ui.avatars.push(identity);
     return (
@@ -192,6 +194,7 @@ vi.mock("../components/bot-avatar", () => ({
         data-muted={String(Boolean(muted))}
         data-motion={motion}
         data-size={size}
+        data-unread={String(Boolean(unread))}
       />
     );
   },
@@ -465,15 +468,42 @@ it("shows actionable bot status in place of the message preview", () => {
   ]);
 });
 
+it("keeps an unread marker on the regular bot avatar", () => {
+  const bot = {
+    id: "bot-unread",
+    name: "Unread",
+    preview: "New reply",
+    unread: true,
+  } as MobileBot;
+  render(
+    <BotRow
+      bot={bot}
+      day={0}
+      onPress={action}
+      sections={[]}
+      onOrganize={action}
+      onEditSection={action}
+    />,
+  );
+  expect(
+    container
+      .querySelector('[data-row="bot-unread"] b[data-identity="bot-unread"]')
+      ?.getAttribute("data-unread"),
+  ).toBe("true");
+});
+
 it("shows pinned tiles with avatar and name without the message preview", () => {
   const bot = {
     id: "bot-p",
     name: "Pinned",
     preview: "Private preview",
     pinned: true,
+    unread: true,
   } as MobileBot;
   render(<List items={[{ type: "pinned", chats: [{ kind: "bot", bot }] }]} />);
-  expect(container.querySelector('[data-row="pinned"] b[data-identity="bot-p"]')).not.toBeNull();
+  const avatar = container.querySelector('[data-row="pinned"] b[data-identity="bot-p"]');
+  expect(avatar).not.toBeNull();
+  expect(avatar?.getAttribute("data-unread")).toBe("true");
   expect(container.querySelector('[aria-label="Pinned"]')?.textContent).toContain("Pinned");
   expect(container.textContent).not.toContain("Private preview");
 });

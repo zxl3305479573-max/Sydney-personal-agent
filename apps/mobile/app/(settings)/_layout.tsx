@@ -3,13 +3,14 @@ import { HeaderBackButton } from "expo-router/react-navigation";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { floatingHeaderOptions, glassHeaderOptions } from "../../components/glass-title";
+import { ScopedThemeScreen } from "../../components/scoped-theme";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
 import { registerSettingsSheet, settingsSheetCloser } from "../../lib/settings-sheet";
 
 /** Settings pages share one stack, which the root layout presents as a sheet on iOS. */
 export default function SettingsLayout() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const tokens = useMobileTokens();
   const sheet = useNavigation();
   const close = settingsSheetCloser(sheet);
@@ -18,6 +19,9 @@ export default function SettingsLayout() {
 
   return (
     <Stack
+      screenLayout={({ children }) => (
+        <ScopedThemeScreen scope="settings">{children}</ScopedThemeScreen>
+      )}
       screenOptions={({ navigation, route }) => ({
         headerStyle: { backgroundColor: tokens.background },
         ...floatingHeaderOptions(),
@@ -35,6 +39,7 @@ export default function SettingsLayout() {
                 unstable_headerLeftItems: () => [
                   {
                     type: "button" as const,
+                    hidesSharedBackground: true,
                     label: t("Dismiss"),
                     icon: { type: "sfSymbol" as const, name: "xmark" as const },
                     onPress: close,
@@ -82,11 +87,22 @@ export default function SettingsLayout() {
           contentStyle: { backgroundColor: native.groupedPage },
         })}
       />
+      <Stack.Screen name="about" options={glassHeaderOptions(t("About"))} />
       <Stack.Screen name="ai-data-sharing" options={glassHeaderOptions(t("AI data sharing"))} />
       <Stack.Screen name="archived-bots" options={{ title: t("Archived") }} />
       <Stack.Screen name="change-password" options={{ title: t("Change password") }} />
       <Stack.Screen name="chat-appearance" options={glassHeaderOptions(t("Chat appearance"))} />
-      <Stack.Screen name="signup-survey" options={glassHeaderOptions(t("Welcome to Rakazo"))} />
+      <Stack.Screen
+        name="ui-mode"
+        options={glassHeaderOptions(
+          locale.startsWith("zh")
+            ? locale === "zh-TW"
+              ? "介面模式"
+              : "界面模式"
+            : "Interface mode",
+        )}
+      />
+      <Stack.Screen name="signup-survey" options={glassHeaderOptions(t("Welcome to Sydney"))} />
       <Stack.Screen name="language" options={glassHeaderOptions(t("Language"))} />
       <Stack.Screen name="model-picker" options={glassHeaderOptions(t("Model"))} />
       <Stack.Screen name="model-connection" options={glassHeaderOptions(t("Model"))} />
@@ -121,7 +137,6 @@ export default function SettingsLayout() {
       />
       <Stack.Screen name="messaging" options={glassHeaderOptions(t("Messaging"))} />
       <Stack.Screen name="team-conversation" />
-      <Stack.Screen name="integrations" options={glassHeaderOptions(t("Integrations"))} />
       <Stack.Screen name="skills" options={glassHeaderOptions(t("Skills"))} />
       {/* Titled by the screen once the skill loads. */}
       <Stack.Screen name="skill" options={glassHeaderOptions("")} />
@@ -131,10 +146,6 @@ export default function SettingsLayout() {
         options={({ route }) =>
           glassHeaderOptions((route.params as { name?: string } | undefined)?.name ?? "")
         }
-      />
-      <Stack.Screen
-        name="integration-setup"
-        options={glassHeaderOptions(t("Server integrations"))}
       />
     </Stack>
   );

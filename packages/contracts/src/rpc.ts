@@ -44,6 +44,18 @@ import {
   VaultRevealInput,
 } from "./bot-secrets.js";
 import {
+  GithubConnectInputSchema,
+  GithubConnectionStatusSchema,
+  GithubListMyReposInputSchema,
+  GithubProfileOverviewInputSchema,
+  GithubProfileOverviewSchema,
+  GithubRepoDetailInputSchema,
+  GithubRepoDetailSchema,
+  GithubRepoPageSchema,
+  GithubSearchReposInputSchema,
+  GithubSearchReposOutputSchema,
+} from "./github.js";
+import {
   AccessGrantInputSchema,
   AccessGrantSchema,
   AccountItemSchema,
@@ -138,6 +150,7 @@ import {
   TimeZoneSchema,
   UpdateAgentSkillInput,
   UpdateBotInput,
+  UpdateProjectBotInput,
   UpdateExternalConversationPolicyInput,
   UpdateGroupInput,
   UsageRecordSchema,
@@ -171,6 +184,13 @@ import {
   ProjectWorkspaceRosterSchema,
   ProjectWorkspaceSchema,
 } from "./project-workspace.js";
+import {
+  ProjectDirectorySnapshotSchema,
+  BindProjectCloudDirectoryInput,
+  ProjectCloudDirectoryStatusSchema,
+  UnbindProjectDirectoryInput,
+  UnbindProjectDirectoryResultSchema,
+} from "./project-directory.js";
 import { MessageReactionSchema } from "./reactions.js";
 import { RoutineWatchSchema } from "./routine-watch.js";
 import {
@@ -249,6 +269,11 @@ const threadSendOutput = z.object({
   runId: Id,
   seq: z.number().int(),
   runIds: z.array(Id).optional(),
+  activity: z.object({
+    threadId: Id,
+    cursor: z.number().int().nonnegative(),
+    runs: z.array(z.object({ id: Id, botId: Id, status: z.string() })),
+  }).optional(),
 });
 
 /** Without text or attachments, only the routines run and no message is saved. */
@@ -524,8 +549,16 @@ export const appContract = {
     ),
   },
   projectWorkspaces: {
+    directoryCapability: oc.output(z.object({ localDevice: z.boolean() }).strict()),
+    directory: oc.input(ProjectWorkspaceIdInput).output(ProjectDirectorySnapshotSchema),
+    unbindDirectory: oc.input(UnbindProjectDirectoryInput).output(UnbindProjectDirectoryResultSchema),
+    cloudDirectory: oc.input(ProjectWorkspaceIdInput).output(ProjectCloudDirectoryStatusSchema),
+    bindCloudDirectory: oc.input(BindProjectCloudDirectoryInput).output(z.object({ ok: z.literal(true) })),
+    unbindCloudDirectory: oc.input(UnbindProjectDirectoryInput).output(z.object({ ok: z.literal(true) })),
     capabilities: oc.output(z.object({ create: z.boolean(), removeEmpty: z.boolean() }).strict()),
-    conversationCapabilities: oc.output(z.object({ createBot: z.boolean() }).strict()),
+    conversationCapabilities: oc.output(
+      z.object({ createBot: z.boolean(), botSettings: z.boolean().optional(), chatManagement: z.boolean().optional() }).strict(),
+    ),
     groupCreationCapability: oc.output(z.object({ createGroup: z.boolean() }).strict()),
     list: oc.input(ListProjectWorkspacesInput).output(ProjectWorkspacePageSchema),
     get: oc.input(ProjectWorkspaceIdInput).output(ProjectWorkspaceSchema),
@@ -548,6 +581,43 @@ export const appContract = {
           .strict(),
       )
       .output(GroupSchema),
+    getBot: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id, includeArchived: z.boolean().optional() }).strict())
+      .output(BotSchema),
+    updateBot: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, bot: UpdateProjectBotInput }).strict())
+      .output(BotSchema),
+    conversations: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, archived: z.boolean().default(false) }).strict())
+      .output(z.object({ bots: z.array(BotSchema), groups: z.array(GroupSchema) }).strict()),
+    botContext: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id }).strict())
+      .output(z.object({ work: z.array(ScratchpadItemSchema), docs: z.array(MemoryDocumentSchema) }).strict()),
+    botContextAction: oc
+      .input(z.object({
+        projectId: ProjectWorkspaceIdInput.shape.id,
+        botId: Id,
+        action: z.enum(["create", "complete"]),
+        itemId: Id.optional(),
+        title: z.string().trim().min(1).max(200).optional(),
+      }).strict())
+      .output(z.object({ ok: z.literal(true), item: ScratchpadItemSchema.optional() }).strict()),
+    conversationAction: oc
+      .input(threadTarget.safeExtend({
+        projectId: ProjectWorkspaceIdInput.shape.id,
+        action: z.enum(["archive", "restore", "remove", "clear", "duplicate", "read", "unread"]),
+        deleteMemories: z.boolean().default(false),
+      }).strict())
+      .output(z.object({ ok: z.literal(true), bot: BotSchema.optional(), group: GroupSchema.optional() }).strict()),
+    updateGroup: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, group: UpdateGroupInput }).strict())
+      .output(GroupSchema),
+    restoreBotInstructions: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id, versionId: Id, expectedInstructions: z.string(), undo: z.boolean().optional() }).strict())
+      .output(BotSchema),
+    exportBot: oc
+      .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id }).strict())
+      .output(ExportManifestSchema),
     threadSnapshot: oc
       .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }))
       .output(ThreadSnapshotSchema),
@@ -577,6 +647,33 @@ export const appContract = {
           .strict(),
       )
       .output(threadSendOutput),
+    cancelRun: oc
+      .input(
+        threadTarget
+          .safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id, runId: Id })
+          .strict(),
+      )
+      .output(z.object({ ok: z.literal(true) })),
+    answerApproval: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            runId: Id,
+            messageId: Id,
+            effectId: Id,
+            decision: z.enum(["allow", "deny"]),
+          })
+          .strict(),
+      )
+      .output(z.object({ ok: z.literal(true) })),
+    getArtifact: oc
+      .input(
+        threadTarget
+          .safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id, artifactId: Id })
+          .strict(),
+      )
+      .output(ArtifactWithContentSchema),
     subscribe: oc
       .input(
         threadTarget
@@ -1245,10 +1342,12 @@ export const appContract = {
         .input(
           z.object({
             botId: Id.optional(),
-            returnTo: z.enum(["web", "mobile"]).optional(),
+            returnTo: z.enum(["web", "mobile", "native"]).optional(),
           }),
         )
-        .output(z.object({ url: z.string(), returnTo: z.enum(["web", "mobile"]).optional() })),
+        .output(
+          z.object({ url: z.string(), returnTo: z.enum(["web", "mobile", "native"]).optional() }),
+        ),
       complete: oc
         .input(z.object({ state: z.string().max(64), code: z.string().max(4096) }))
         .output(z.object({ ok: z.literal(true) })),
@@ -1497,6 +1596,25 @@ export const appContract = {
     remove: oc
       .input(z.object({ botId: Id, name: StoredBotSecretName }))
       .output(z.object({ ok: z.literal(true) })),
+  },
+  github: {
+    status: oc
+      .input(z.object({ verifyRemote: z.boolean().optional() }).optional())
+      .output(GithubConnectionStatusSchema),
+    connect: oc.input(GithubConnectInputSchema).output(GithubConnectionStatusSchema),
+    disconnect: oc.output(GithubConnectionStatusSchema),
+    profileOverview: oc
+      .input(GithubProfileOverviewInputSchema.optional())
+      .output(GithubProfileOverviewSchema),
+    listMyRepos: oc
+      .input(GithubListMyReposInputSchema.optional())
+      .output(GithubRepoPageSchema),
+    searchRepos: oc
+      .input(GithubSearchReposInputSchema)
+      .output(GithubSearchReposOutputSchema),
+    repoDetail: oc
+      .input(GithubRepoDetailInputSchema)
+      .output(GithubRepoDetailSchema),
   },
 };
 

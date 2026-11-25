@@ -122,6 +122,10 @@ let supervisorInfo: Docker.ContainerInspectInfo | undefined;
 let dockerApiVersion: string | undefined;
 const supervisorToken = resolveSupervisorToken(process.env);
 const screenNetworkMode = resolveScreenNetworkMode(process.env.SANDBOX_SCREEN_NETWORK);
+const screenPeerService = process.env.SANDBOX_SCREEN_PEER_SERVICE ?? "web";
+if (screenPeerService !== "web" && screenPeerService !== "api") {
+  throw new Error("SANDBOX_SCREEN_PEER_SERVICE must be web or api");
+}
 const computerEgressSetting = resolveComputerEgressMode();
 // `auto` starts open and becomes restricted once the probe shows the host rules are in place.
 let computerEgressMode: ComputerEgressMode =
@@ -1756,13 +1760,16 @@ async function composeScreenPeerIds(info: Docker.ContainerInspectInfo) {
   const peerIds = new Set([info.Id]);
   const project = info.Config.Labels?.["com.docker.compose.project"];
   if (project) {
-    const webContainers = await docker.listContainers({
+    const screenPeers = await docker.listContainers({
       all: true,
       filters: {
-        label: [`com.docker.compose.project=${project}`, "com.docker.compose.service=web"],
+        label: [
+          `com.docker.compose.project=${project}`,
+          `com.docker.compose.service=${screenPeerService}`,
+        ],
       },
     });
-    for (const container of webContainers) peerIds.add(container.Id);
+    for (const container of screenPeers) peerIds.add(container.Id);
   }
   return peerIds;
 }

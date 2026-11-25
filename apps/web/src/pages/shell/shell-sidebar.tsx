@@ -9,7 +9,7 @@ import {
   InputGroupInput,
   Sidebar,
 } from "@rakazo/ui-web";
-import { Folder, Grid2X2Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { Folder, GitBranch, Grid2X2Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { InviteDialog } from "../../components/InviteDialog";
@@ -17,8 +17,8 @@ import { PasskeyOffer } from "../../components/PasskeyOffer";
 import { SidebarFooter } from "../../components/SidebarFooter";
 import { useBilling } from "../../components/SubscriptionGate";
 import { formatBillingDate } from "../../lib/billing";
-import { desktopBridge } from "../../lib/desktop";
 import type { BotsSidebarDensity } from "../../lib/bots-sidebar-density-pref";
+import { desktopBridge } from "../../lib/desktop";
 import type { Panel } from "../../lib/right-panel-state";
 import { useSignOut } from "../../lib/sign-out";
 import { ActivityList } from "../ActivityList";
@@ -113,209 +113,241 @@ export function ShellSidebar({
     activityFilterCount,
   } = search;
   return (
-    <>
-      <Sidebar
-        collapsible={isMobile ? "none" : "icon"}
-        side={document.documentElement.dir === "rtl" ? "right" : "left"}
-        data-testid="bots-sidebar"
-        data-mobile-sidebar={isMobile ? "true" : undefined}
-        data-space-switch="sidebar"
-        inert={isMobile && !mobileOpen ? true : undefined}
-        aria-hidden={isMobile && !mobileOpen ? true : undefined}
-        data-bots-sidebar-density={density}
-        data-collapsed={collapsed ? "true" : "false"}
-        className={
-          isMobile
-            ? `fixed inset-0 z-40 flex h-[100dvh] w-full max-w-none shrink-0 flex-col bg-sidebar pt-[env(safe-area-inset-top)] pb-[max(env(safe-area-inset-bottom),12px)] transition-transform duration-200 ease-out motion-reduce:transition-none [&_[data-roster-top-bots]]:grid-cols-3 ${mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"}`
-            : "h-full overflow-hidden border-sidebar-border"
-        }
-      >
-        <SidebarHeader
-          mini={mini}
-          mobile={isMobile}
-          createMenuOpen={createMenuOpen}
-          setCreateMenuOpen={setCreateMenuOpen}
-          activityMode={activityMode}
-          toggleActivityMode={() => {
-            if (mini) setCollapsedPref(false);
-            toggleActivityMode();
-          }}
-          searchOpen={searchOpen && !mini}
-          onSearch={
-            isMobile || (activityMode && !mini)
-              ? undefined
-              : () => {
-                  if (searchOpen && !mini) {
-                    setQuery("");
-                    setSearchOpen(false);
-                    return;
-                  }
-                  if (mini) setCollapsedPref(false);
-                  setSearchOpen(true);
-                  focusSidebarSearch();
-                }
-          }
-          setBotsSidebarCollapsedPref={setCollapsedPref}
-          bots={bots}
-          setMobileSidebarOpen={setMobileOpen}
-          setPanel={setPanel}
-          navigate={navigate}
-          setNewSpaceOpen={setNewSpaceOpen}
-          setCreateBotOpen={setCreateBotOpen}
-        />
-        {mini || (!isMobile && !(activityMode || searchOpen || query)) ? null : (
-          <div className={isMobile ? "order-last flex shrink-0 items-center gap-2 px-4 pt-2" : ""}>
-            {isMobile ? (
-              <button
-                type="button"
-                aria-label={t`Connect apps`}
-                onClick={openIntegrations}
-                className="sydney-mobile-glass flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[15px] text-foreground"
-              >
-                <Grid2X2Plus size={18} aria-hidden="true" />
-                <span>
-                  <Trans>Connect apps</Trans>
-                </span>
-              </button>
-            ) : null}
-            <InputGroup
-              data-testid="sidebar-search"
-              className={
-                isMobile
-                  ? "sydney-mobile-glass h-11 min-w-0 flex-1 rounded-full text-muted-foreground focus-within:border-ring"
-                  : "mx-2.5 mb-3 w-auto rounded-xl bg-card dark:bg-input border border-border text-muted-foreground focus-within:border-ring"
-              }
-            >
-              <InputGroupAddon>
-                <Search size={16} strokeWidth={1.8} aria-hidden="true" />
-              </InputGroupAddon>
-              <InputGroupInput
-                type="search"
-                className="[&::-webkit-search-cancel-button]:hidden"
-                value={activityMode ? activityFilters.query : query}
-                onChange={(e) => {
-                  if (activityMode)
-                    setActivityFilters({ ...activityFilters, query: e.target.value });
-                  else setQuery(e.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key !== "Escape" ||
-                    event.nativeEvent.isComposing ||
-                    event.keyCode === 229
-                  )
-                    return;
-                  if (activityMode) {
-                    setActivityFilters({ ...activityFilters, query: "" });
-                    return;
-                  }
+    <Sidebar
+      collapsible={isMobile ? "none" : "icon"}
+      side={document.documentElement.dir === "rtl" ? "right" : "left"}
+      data-testid="bots-sidebar"
+      data-mobile-sidebar={isMobile ? "true" : undefined}
+      data-space-switch="sidebar"
+      inert={isMobile && !mobileOpen ? true : undefined}
+      aria-hidden={isMobile && !mobileOpen ? true : undefined}
+      data-bots-sidebar-density={density}
+      data-collapsed={collapsed ? "true" : "false"}
+      className={
+        isMobile
+          ? `fixed inset-0 z-40 flex h-[100dvh] w-full max-w-none shrink-0 flex-col bg-sidebar pt-[env(safe-area-inset-top)] pb-[max(env(safe-area-inset-bottom),12px)] transition-transform duration-200 ease-out motion-reduce:transition-none [&_[data-roster-top-bots]]:grid-cols-3 ${mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"}`
+          : "h-full overflow-hidden border-sidebar-border"
+      }
+    >
+      <SidebarHeader
+        mini={mini}
+        mobile={isMobile}
+        createMenuOpen={createMenuOpen}
+        setCreateMenuOpen={setCreateMenuOpen}
+        activityMode={activityMode}
+        toggleActivityMode={() => {
+          if (mini) setCollapsedPref(false);
+          toggleActivityMode();
+        }}
+        searchOpen={searchOpen && !mini}
+        onSearch={
+          isMobile || (activityMode && !mini)
+            ? undefined
+            : () => {
+                if (searchOpen && !mini) {
                   setQuery("");
                   setSearchOpen(false);
-                }}
-                placeholder={activityMode ? t`Search runs` : t`Search`}
-                aria-label={activityMode ? t`Search runs` : t`Search`}
-                autoComplete="off"
-                name="sidebar-search"
-              />
-              <div className="flex w-8 shrink-0 items-center justify-center">
-                {(activityMode ? activityFilters.query : query) ? (
-                  <button
-                    type="button"
-                    aria-label={`${t`Clear`} ${activityMode ? t`Search runs` : t`Search`}`}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      if (activityMode) setActivityFilters({ ...activityFilters, query: "" });
-                      else {
-                        setSearchOpen(true);
-                        setQuery("");
-                      }
-                      focusSidebarSearch();
-                    }}
-                    className="animate-in fade-in zoom-in-95 rounded-md p-1 text-muted-foreground duration-150 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring motion-reduce:animate-none motion-reduce:transition-none"
-                  >
-                    <X className="size-4" aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-              {activityMode ? (
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-sm"
-                    aria-label={t`Filters`}
-                    aria-expanded={activityFiltersExpanded}
-                    aria-controls={activityFiltersId}
-                    onClick={() => setActivityFiltersExpanded((expanded) => !expanded)}
-                    className="relative rounded-lg"
-                  >
-                    <SlidersHorizontal size={16} aria-hidden="true" />
-                    {activityFilterCount > 0 ? (
-                      <span
-                        data-testid="activity-filter-indicator"
-                        aria-hidden="true"
-                        className="absolute end-1 top-1 size-1.5 rounded-full bg-primary"
-                      />
-                    ) : null}
-                  </InputGroupButton>
-                </InputGroupAddon>
-              ) : null}
-            </InputGroup>
-          </div>
-        )}
-        <div className="rk-scroll scroll-fade-y scroll-fade-12 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-2.5">
-          {showSpaceSearch && !mini ? (
-            <SpaceSearchResults
-              hits={searchHits}
-              loading={searchLoading}
-              error={searchError}
-              onRetry={retrySearch}
-              onSelect={(hit) => jumpToSearchHit(hit)}
+                  return;
+                }
+                if (mini) setCollapsedPref(false);
+                setSearchOpen(true);
+                focusSidebarSearch();
+              }
+        }
+        setBotsSidebarCollapsedPref={setCollapsedPref}
+        bots={bots}
+        setMobileSidebarOpen={setMobileOpen}
+        setPanel={setPanel}
+        navigate={navigate}
+        setNewSpaceOpen={setNewSpaceOpen}
+        setCreateBotOpen={setCreateBotOpen}
+      />
+      {mini || (!isMobile && !(activityMode || searchOpen || query)) ? null : (
+        <div className={isMobile ? "order-last flex shrink-0 items-center gap-2 px-4 pt-2" : ""}>
+          {isMobile ? (
+            <button
+              type="button"
+              aria-label={t`Connect apps`}
+              onClick={openIntegrations}
+              className="sydney-mobile-glass flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[15px] text-foreground"
+            >
+              <Grid2X2Plus size={18} aria-hidden="true" />
+              <span>
+                <Trans>Connect apps</Trans>
+              </span>
+            </button>
+          ) : null}
+          <InputGroup
+            data-testid="sidebar-search"
+            className={
+              isMobile
+                ? "sydney-mobile-glass h-11 min-w-0 flex-1 rounded-full text-muted-foreground focus-within:border-ring"
+                : "mx-2.5 mb-3 w-auto rounded-xl bg-card dark:bg-input border border-border text-muted-foreground focus-within:border-ring"
+            }
+          >
+            <InputGroupAddon>
+              <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput
+              type="search"
+              className="[&::-webkit-search-cancel-button]:hidden"
+              value={activityMode ? activityFilters.query : query}
+              onChange={(e) => {
+                if (activityMode) setActivityFilters({ ...activityFilters, query: e.target.value });
+                else setQuery(e.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== "Escape" ||
+                  event.nativeEvent.isComposing ||
+                  event.keyCode === 229
+                )
+                  return;
+                if (activityMode) {
+                  setActivityFilters({ ...activityFilters, query: "" });
+                  return;
+                }
+                setQuery("");
+                setSearchOpen(false);
+              }}
+              placeholder={activityMode ? t`Search runs` : t`Search`}
+              aria-label={activityMode ? t`Search runs` : t`Search`}
+              autoComplete="off"
+              name="sidebar-search"
             />
-          ) : (
-            <>
-              {activityMode && !mini ? (
-                <ActivityList
-                  filters={activityFilters}
-                  onFiltersChange={setActivityFilters}
-                  filtersExpanded={activityFiltersExpanded}
-                  filtersId={activityFiltersId}
-                  onOpenRun={(run) => {
-                    setMobileOpen(false);
-                    if (run.groupId) navigate(`/app/g/${run.groupId}`);
-                    else navigate(`/app/${run.botId}`);
+            <div className="flex w-8 shrink-0 items-center justify-center">
+              {(activityMode ? activityFilters.query : query) ? (
+                <button
+                  type="button"
+                  aria-label={`${t`Clear`} ${activityMode ? t`Search runs` : t`Search`}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (activityMode) setActivityFilters({ ...activityFilters, query: "" });
+                    else {
+                      setSearchOpen(true);
+                      setQuery("");
+                    }
+                    focusSidebarSearch();
                   }}
-                />
+                  className="animate-in fade-in zoom-in-95 rounded-md p-1 text-muted-foreground duration-150 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring motion-reduce:animate-none motion-reduce:transition-none"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
               ) : null}
-              {roster}
-            </>
-          )}
-          <div className={mini ? "hidden" : "contents"}>{archived}</div>
+            </div>
+            {activityMode ? (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-sm"
+                  aria-label={t`Filters`}
+                  aria-expanded={activityFiltersExpanded}
+                  aria-controls={activityFiltersId}
+                  onClick={() => setActivityFiltersExpanded((expanded) => !expanded)}
+                  className="relative rounded-lg"
+                >
+                  <SlidersHorizontal size={16} aria-hidden="true" />
+                  {activityFilterCount > 0 ? (
+                    <span
+                      data-testid="activity-filter-indicator"
+                      aria-hidden="true"
+                      className="absolute end-1 top-1 size-1.5 rounded-full bg-primary"
+                    />
+                  ) : null}
+                </InputGroupButton>
+              </InputGroupAddon>
+            ) : null}
+          </InputGroup>
         </div>
-        <div className={mini ? "hidden" : "contents"}>
-          <PasskeyOffer />
-        </div>
-        <ShellSidebarFooter
-          mini={mini}
-          mobile={isMobile}
-          logos={footerLogos}
-          user={user}
-          ticketBoardEnabled={ticketBoardEnabled}
-          navLinks={navLinks}
-          closeMobileSidebar={() => setMobileOpen(false)}
-          navigate={navigate}
-          openSettings={openSettings}
-          openIntegrations={openIntegrations}
-          openSkills={openSkills}
-        />
+      )}
+      <div className="rk-scroll scroll-fade-y scroll-fade-12 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-2.5">
+        {showSpaceSearch && !mini ? (
+          <SpaceSearchResults
+            hits={searchHits}
+            loading={searchLoading}
+            error={searchError}
+            onRetry={retrySearch}
+            onSelect={(hit) => jumpToSearchHit(hit)}
+          />
+        ) : (
+          <>
+            {activityMode && !mini ? (
+              <ActivityList
+                filters={activityFilters}
+                onFiltersChange={setActivityFilters}
+                filtersExpanded={activityFiltersExpanded}
+                filtersId={activityFiltersId}
+                onOpenRun={(run) => {
+                  setMobileOpen(false);
+                  if (run.groupId) navigate(`/app/g/${run.groupId}`);
+                  else navigate(`/app/${run.botId}`);
+                }}
+              />
+            ) : null}
+            {roster}
+          </>
+        )}
+        <div className={mini ? "hidden" : "contents"}>{archived}</div>
+      </div>
+      <div className={mini ? "hidden" : "contents"}>
+        <PasskeyOffer />
+      </div>
+      <ShellSidebarFooter
+        mini={mini}
+        mobile={isMobile}
+        logos={footerLogos}
+        user={user}
+        ticketBoardEnabled={ticketBoardEnabled}
+        navLinks={navLinks}
+        closeMobileSidebar={() => setMobileOpen(false)}
+        navigate={navigate}
+        openSettings={openSettings}
+        openIntegrations={openIntegrations}
+        openSkills={openSkills}
+      />
+      <div
+        className={
+          mini
+            ? "mx-1.5 mb-3 flex shrink-0 flex-col items-center gap-1.5"
+            : desktopBridge()
+              ? "mx-2.5 mb-3 grid shrink-0 grid-cols-2 gap-2"
+              : "mx-2.5 mb-3 flex shrink-0 flex-col"
+        }
+      >
+        <button
+          type="button"
+          aria-label="GitHub"
+          title="GitHub"
+          data-testid="sidebar-github-button"
+          className={`sydney-list-surface flex shrink-0 items-center justify-center gap-2 rounded-2xl border hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring ${
+            mini ? "size-9 rounded-xl p-0" : "min-h-11 px-3 py-2 text-sm font-medium"
+          }`}
+          onClick={() => {
+            setMobileOpen(false);
+            navigate("/app/github");
+          }}
+        >
+          <GitBranch size={18} aria-hidden="true" />
+          {!mini ? <span className="truncate">GitHub</span> : null}
+        </button>
         {desktopBridge() ? (
-          <button type="button" aria-label={projectLabel} title={projectLabel}
-            className="sydney-list-surface mx-2.5 mb-3 flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 py-2 hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring"
-            onClick={() => { setMobileOpen(false); navigate("/app/projects"); }}>
-            <Folder size={22} aria-hidden="true" />
-            {!mini ? <span>{projectLabel}</span> : null}
+          <button
+            type="button"
+            aria-label={projectLabel}
+            title={projectLabel}
+            className={`sydney-list-surface flex shrink-0 items-center justify-center gap-2 rounded-2xl border hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-ring ${
+              mini ? "size-9 rounded-xl p-0" : "min-h-11 px-3 py-2 text-sm font-medium"
+            }`}
+            onClick={() => {
+              setMobileOpen(false);
+              navigate("/app/projects");
+            }}
+          >
+            <Folder size={18} aria-hidden="true" />
+            {!mini ? <span className="truncate">{projectLabel}</span> : null}
           </button>
         ) : null}
-      </Sidebar>
-    </>
+      </div>
+    </Sidebar>
   );
 }
 
@@ -417,6 +449,11 @@ function ShellSidebarFooter({
           setMenuOpen(false);
           closeMobileSidebar();
           navigate("/app/artifacts");
+        }}
+        onGithub={() => {
+          setMenuOpen(false);
+          closeMobileSidebar();
+          navigate("/app/github");
         }}
         onSettings={() => {
           setMenuOpen(false);

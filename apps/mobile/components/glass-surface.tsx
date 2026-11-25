@@ -9,20 +9,29 @@ export type GlassSurfaceProps = Pick<
   | "accessibilityRole"
   | "accessibilityLiveRegion"
   | "accessibilityViewIsModal"
+  | "pointerEvents"
 > & {
+  chatTitle?: boolean;
   shape?: "capsule" | "circle" | "roundedRectangle";
   /** Corner radius for `roundedRectangle`. */
   cornerRadius?: number;
   /** Glass tint, e.g. for a selected or primary control. */
   tint?: string;
   style?: StyleProp<ViewStyle>;
-  /** Applied where Liquid Glass is unavailable (Android, iOS before 26). */
   fallbackStyle?: StyleProp<ViewStyle>;
   children?: ReactNode;
 };
 
-/** Android and older iOS draw the fallback fill; iOS 26 renders Liquid Glass. */
-export function GlassSurface({ style, fallbackStyle, children, ...viewProps }: GlassSurfaceProps) {
+export function GlassSurface({
+  chatTitle: _chatTitle,
+  shape: _shape,
+  cornerRadius: _cornerRadius,
+  tint: _tint,
+  style,
+  fallbackStyle,
+  children,
+  ...viewProps
+}: GlassSurfaceProps) {
   return (
     <View {...viewProps} style={[style, fallbackStyle]}>
       {children}

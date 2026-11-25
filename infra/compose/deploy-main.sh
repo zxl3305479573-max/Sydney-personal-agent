@@ -123,7 +123,7 @@ healthy() {
   curl --fail --silent --show-error --max-time 15 "${RAKAZO_HEALTH_URL}" >/dev/null
 }
 
-# The image the api, web and worker share, as Compose resolves it from .env (by default
+# The image the API and worker share, as Compose resolves it from .env (by default
 # ghcr.io/<owner>/<repo>/app:local). A pulled image is tagged as it, so hand-run Compose commands
 # and backups keep using whatever the deploy started.
 compose_app_image() {
@@ -235,36 +235,44 @@ replace_worker() {
   drain_workers "${live}"
 }
 
-# Replaces the API, web and worker without a gap: one new container starts beside the running
+client_services() {
+  local services
+  services="$(compose 1m config --services)" || return
+  if grep -qxE 'web|native-screen-web-loopback' <<<"${services}"; then
+    echo "Production Compose enables a retired Web service. Use a client-only configuration." >&2
+    return 1
+  fi
+  printf '%s\n' "${services}"
+}
+
+# Replaces the API and worker without a gap: one new container starts beside the running
 # ones, and the old ones stop only once it passes its health check. Caddy dials whichever container
 # answers, so requests keep flowing through a deploy, and the new worker picks up chat runs while
 # the old one hands back the runs it was executing. Every other service is then reconciled
 # normally; the replaced containers already match the new configuration and stay as they are.
 # Compose leaves the worker alone there, since it would stop a draining one.
 roll_out() {
-  local service old
+  local old services
+  services="$(client_services)"
   # Migrations run first, from their own container: it is the only one given the owner login.
   # The old API keeps serving meanwhile, so each migration must work with the previous release.
   # A rollback to a release without that service has nothing to run: its API migrates on start.
-  if compose 1m config --services | grep -qx migrate; then
+  if grep -qx migrate <<<"${services}"; then
     compose "${UP_TIMEOUT}" run --rm -T migrate
   fi
-  for service in api web; do
-    old="$(compose 1m ps --all --quiet "${service}")"
-    if [[ -z "${old}" ]]; then
-      # Nothing to keep serving, so start it with its dependencies (the database on a new host).
-      compose "${UP_TIMEOUT}" up -d --wait "${service}"
-      continue
-    fi
-    start_beside "${service}" "${old}"
+  old="$(compose 1m ps --all --quiet api)"
+  if [[ -z "${old}" ]]; then
+    compose "${UP_TIMEOUT}" up -d --wait api
+  else
+    start_beside api "${old}"
     # shellcheck disable=SC2086 # one container ID per word
     sudo docker stop --time 30 ${old} >/dev/null
     # shellcheck disable=SC2086
     sudo docker rm ${old} >/dev/null
-  done
+  fi
   replace_worker
   # shellcheck disable=SC2046 # one service name per word
-  compose "${UP_TIMEOUT}" up -d --remove-orphans $(compose 1m config --services | grep -vx worker)
+  compose "${UP_TIMEOUT}" up -d --remove-orphans $(grep -vx worker <<<"${services}")
 }
 
 # Caddy mounts its config as a single file, which keeps the old inode after a git checkout, so a
@@ -299,6 +307,13 @@ previous_revision="$(git rev-parse HEAD)"
 git fetch --quiet --prune origin main
 # The launcher pins the commit its copy of this script came from.
 target_revision="$(git rev-parse --verify "${RAKAZO_DEPLOY_REVISION:-origin/main}^{commit}")"
+
+# Older deployments may lack the runtime database login password.
+if ! grep -Eq '^POSTGRES_APP_PASSWORD=[^[:space:]]' .env; then
+  printf '\nPOSTGRES_APP_PASSWORD=%s\n' "$(openssl rand -hex 16)" >>.env
+  echo "Added POSTGRES_APP_PASSWORD to .env."
+fi
+client_services >/dev/null
 
 # Written only after a healthy rollout. A reset can make HEAD match before containers change.
 deployed_revision=""
@@ -367,11 +382,10 @@ prune_docker() {
 }
 
 git reset --hard "${target_revision}"
-# The app's own database login (subject to row-level security) needs a password
-# that older .env files do not have. Appending one leaves existing lines alone.
-if ! grep -Eq '^POSTGRES_APP_PASSWORD=[^[:space:]]' .env; then
-  printf '\nPOSTGRES_APP_PASSWORD=%s\n' "$(openssl rand -hex 16)" >>.env
-  echo "Added POSTGRES_APP_PASSWORD to .env."
+if ! client_services >/dev/null; then
+  trap - ERR
+  git reset --hard "${previous_revision}"
+  exit 1
 fi
 compose 1m config --quiet
 # Postgres 18 refuses a Postgres 16 volume until upgrade-postgres.sh has copied the data across.

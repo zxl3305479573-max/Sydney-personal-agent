@@ -115,10 +115,12 @@ describe("mobile startup watchdog", () => {
     expect(ready).toBe(true);
   });
 
-  it("does not allow startup when loading the server fails", async () => {
+  it("reports a server settings failure even when a preference is stalled", async () => {
     const startup = await import("./startup");
     await expect(
-      startup.waitForMobileStartup(Promise.reject(new Error("storage failed")), [Promise.resolve()]),
-    ).rejects.toThrow("Could not load server settings");
+      startup.waitForMobileStartup(Promise.reject(new Error("storage failed")), [
+        new Promise(() => {}),
+      ]),
+    ).rejects.toBeInstanceOf(startup.ServerSettingsStartupError);
   });
 });

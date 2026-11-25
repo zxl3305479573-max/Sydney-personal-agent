@@ -1,13 +1,8 @@
 import { Host, Text } from "@expo/ui/swift-ui";
-import {
-  dynamicTypeSize,
-  font,
-  frame,
-  glassEffect,
-  lineLimit,
-  padding,
-} from "@expo/ui/swift-ui/modifiers";
+import { dynamicTypeSize, font, frame, lineLimit, padding } from "@expo/ui/swift-ui/modifiers";
+import { router } from "expo-router";
 import { Text as RNText, StyleSheet, useWindowDimensions, View } from "react-native";
+import { t } from "../lib/i18n";
 import { useResolvedAppearance } from "../lib/native";
 import {
   HEADER_CONTROL_SIZE,
@@ -15,10 +10,6 @@ import {
   iosAtLeast,
 } from "../lib/native-controls";
 
-/**
- * Liquid Glass title capsule. The bar sizes its title view before SwiftUI measures,
- * so an invisible copy of the title gives the capsule its size on the first layout.
- */
 export function GlassTitle({ title }: { title: string }) {
   const scheme = useResolvedAppearance();
   // Bar titles stay between the default text size and xxxLarge; the sizer must match the text.
@@ -34,7 +25,7 @@ export function GlassTitle({ title }: { title: string }) {
       >
         {title}
       </RNText>
-      <Host colorScheme={scheme} style={StyleSheet.absoluteFill}>
+      <Host colorScheme={scheme} ignoreSafeArea="all" style={StyleSheet.absoluteFill}>
         <Text
           modifiers={[
             font({ textStyle: "body", weight: "semibold" }),
@@ -42,7 +33,6 @@ export function GlassTitle({ title }: { title: string }) {
             lineLimit(1),
             padding({ horizontal: 16 }),
             frame({ height: HEADER_CONTROL_SIZE }),
-            glassEffect({ glass: { variant: "regular" }, shape: "capsule" }),
           ]}
         >
           {title}
@@ -55,9 +45,22 @@ export function GlassTitle({ title }: { title: string }) {
 export function floatingHeaderOptions() {
   if (!iosAtLeast(26)) return {};
   return {
-    headerTransparent: true,
-    headerStyle: { backgroundColor: "transparent" },
+    headerTransparent: false,
     headerTitle: ({ children }: { children: string }) => <GlassTitle title={children} />,
+    headerBackVisible: false,
+    unstable_headerLeftItems: ({ canGoBack }: { canGoBack?: boolean }) =>
+      canGoBack
+        ? [
+            {
+              type: "button" as const,
+              label: t("Back"),
+              accessibilityLabel: t("Back"),
+              icon: { type: "sfSymbol" as const, name: "chevron.left" },
+              hidesSharedBackground: true,
+              onPress: () => router.back(),
+            },
+          ]
+        : [],
   };
 }
 

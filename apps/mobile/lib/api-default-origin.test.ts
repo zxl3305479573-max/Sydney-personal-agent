@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API_BASE_STORAGE_KEY } from "./server-config";
 
 vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));
 vi.mock("expo-secure-store", () => ({
@@ -19,9 +20,18 @@ afterEach(() => {
 });
 
 describe("default server startup protection", () => {
-  it.each(["missing", "legacy", "ip", "foreign", "corrupt", "unreadable"])(
-    "preserves the stored session while choosing the production default with %s scope",
-    async (scope) => {
+  it.each([
+    ["missing", null],
+    ["legacy", null],
+    ["ip", null],
+    ["foreign", null],
+    ["corrupt", null],
+    ["unreadable", null],
+    ["legacy", ""],
+    ["foreign", ""],
+  ])(
+    "preserves the stored session with %s scope and endpoint marker %j",
+    async (scope, endpointMarker) => {
       vi.resetModules();
       vi.stubEnv("EXPO_PUBLIC_SYDNEY_SIDELOAD", "1");
       vi.stubEnv("EXPO_PUBLIC_API_URL", "https://124.221.182.39");
@@ -29,6 +39,7 @@ describe("default server startup protection", () => {
         ["rakazo.session_token", "synthetic-token"],
         ["rakazo.space_id", "synthetic-space"],
       ]);
+      if (endpointMarker !== null) disk.set(API_BASE_STORAGE_KEY, endpointMarker);
       if (scope !== "missing") {
         disk.set(
           "rakazo.integrations-scope",
@@ -144,8 +155,9 @@ describe("default server startup protection", () => {
     const { guardDefaultOrigin } = await import("./default-origin-guard");
     await expect(guardDefaultOrigin("https://203.0.113.10", false)).rejects.toThrow();
     await expect(guardDefaultOrigin("https://203.0.113.10", true)).resolves.toBeUndefined();
-    await expect(guardDefaultOrigin("https://124.221.182.39", false)).resolves.toBeUndefined();
     await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).resolves.toBeUndefined();
+    await expect(guardDefaultOrigin("https://124.221.182.39", false)).resolves.toBeUndefined();
+    await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();
     disk.delete("rakazo.integrations-scope");
     await expect(guardDefaultOrigin("https://124.221.182.39", false)).resolves.toBeUndefined();
     await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();

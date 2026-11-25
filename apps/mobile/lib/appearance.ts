@@ -2,12 +2,16 @@ import type { AppearancePreference, ResolvedAppearance } from "@rakazo/ui-tokens
 import {
   normalizeAppearancePreference,
   resolveAppearance,
-  tokensForAppearance,
   UI_APPEARANCE_STORAGE_KEY,
 } from "@rakazo/ui-tokens";
 import * as SecureStore from "expo-secure-store";
 import type { ColorSchemeName } from "react-native";
-import { Appearance } from "react-native";
+import { Appearance, Platform } from "react-native";
+import { effectiveThemeAssignments } from "./theme-manager";
+import { hasCustomThemeForScope, resolveScopedTheme } from "./theme-pack";
+import { themeManager } from "./theme-state";
+import { getActiveUiMode, subscribeUiMode } from "./ui-mode";
+import { resolveUiModeTheme } from "./ui-mode-registry";
 
 export type { AppearancePreference, ResolvedAppearance };
 
@@ -50,6 +54,28 @@ export function resolveMobileAppearance(
   preference: AppearancePreference = getCachedAppearancePreference(),
   scheme?: ColorSchemeName | null,
 ): ResolvedAppearance {
+  const installed = themeManager.getSnapshot();
+  if (Platform.OS === "ios" && installed.hydrated) {
+    const assignments = effectiveThemeAssignments(installed);
+    const scope = themeManager.getActiveScope();
+    if (hasCustomThemeForScope(installed.packs, assignments, scope)) {
+      return resolveScopedTheme(
+        installed.packs,
+        assignments,
+        scope,
+        resolveUserMobileAppearance(preference, scheme),
+      ).appearance;
+    }
+  }
+  const lock = getActiveUiMode().colorSchemeLock;
+  if (lock !== "none") return lock;
+  return resolveUserMobileAppearance(preference, scheme);
+}
+
+export function resolveUserMobileAppearance(
+  preference: AppearancePreference = getCachedAppearancePreference(),
+  scheme?: ColorSchemeName | null,
+): ResolvedAppearance {
   return resolveAppearance(preference, systemAppearance(scheme));
 }
 
@@ -57,7 +83,28 @@ export function mobileTokens(
   preference: AppearancePreference = getCachedAppearancePreference(),
   scheme?: ColorSchemeName | null,
 ) {
-  return tokensForAppearance(resolveMobileAppearance(preference, scheme));
+  const installed = themeManager.getSnapshot();
+  if (Platform.OS === "ios" && installed.hydrated) {
+    const assignments = effectiveThemeAssignments(installed);
+    const scope = themeManager.getActiveScope();
+    if (hasCustomThemeForScope(installed.packs, assignments, scope)) {
+      return resolveScopedTheme(
+        installed.packs,
+        assignments,
+        scope,
+        resolveUserMobileAppearance(preference, scheme),
+      ).tokens;
+    }
+    return resolveUiModeTheme(getActiveUiMode().id, {
+      platform: Platform.OS,
+      userAppearance: resolveUserMobileAppearance(preference, scheme),
+    }).tokens;
+  }
+  const mode = getActiveUiMode();
+  return resolveUiModeTheme(mode.id, {
+    platform: Platform.OS,
+    userAppearance: resolveMobileAppearance(preference, scheme),
+  }).tokens;
 }
 
 export function subscribeAppearance(listener: () => void): () => void {
@@ -90,8 +137,27 @@ async function persistAppearancePreference(
 // Native surfaces (alerts, action sheets, the keyboard, iOS platform colors) follow the
 // window's scheme, so an explicit app choice overrides it and System hands it back to the OS.
 function applyNativeColorScheme(preference: AppearancePreference) {
-  Appearance.setColorScheme(preference === "system" ? "unspecified" : preference);
+  const installed = themeManager.getSnapshot();
+  const lock =
+    Platform.OS === "ios" && installed.hydrated
+      ? installed.assignments.globalPackId === "midnight"
+        ? "dark"
+        : "none"
+      : getActiveUiMode().colorSchemeLock;
+  Appearance.setColorScheme(
+    lock !== "none" ? lock : preference === "system" ? "unspecified" : preference,
+  );
 }
+
+subscribeUiMode(() => {
+  applyNativeColorScheme(getCachedAppearancePreference());
+  notify();
+});
+
+themeManager.subscribe(() => {
+  applyNativeColorScheme(getCachedAppearancePreference());
+  notify();
+});
 
 Appearance.addChangeListener(() => {
   if (getCachedAppearancePreference() === "system") notify();

@@ -1,25 +1,52 @@
-import { defaultGroupName, GROUP_MEMBER_MAX, GROUP_MEMBER_MIN, GROUP_NAME_MAX_LENGTH } from "@rakazo/contracts";
+import type { RpcOutput } from "@rakazo/contracts";
+import {
+  defaultGroupName,
+  GROUP_MEMBER_MAX,
+  GROUP_MEMBER_MIN,
+  GROUP_NAME_MAX_LENGTH,
+} from "@rakazo/contracts";
 import { newClientId } from "@rakazo/core";
 import { useEffect, useRef, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureApiRequestContext, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
+import { native, useMobileTokens } from "../lib/native";
+import { BotAvatar } from "./bot-avatar";
+import { GlassSurface } from "./glass-surface";
+import { FALLBACK_COLOR } from "./inbox-rows";
 import { NativeActionButton } from "./native-action-button";
+import { NativeSymbol } from "./native-symbol";
 
-type Member = { id: string; name: string };
+type Member = RpcOutput<"projectWorkspaces/roster">["bots"][number];
 export type ProjectGroupAttempt = { fingerprint: string; id: string };
 
-export function ProjectGroupModal({ projectId, current, attempt, onClose, onCreated }: {
+export function ProjectGroupModal({
+  projectId,
+  current,
+  attempt,
+  onClose,
+  onCreated,
+}: {
   projectId: string;
   current: () => boolean;
   attempt: { current: ProjectGroupAttempt | null };
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (groupId: string) => void;
 }) {
   const { locale } = useI18n();
-  const text = (chinese: string, english: string) => locale.startsWith("zh") ? chinese : english;
+  const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const tokens = useMobileTokens();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<Member[]>([]);
@@ -36,7 +63,9 @@ export function ProjectGroupModal({ projectId, current, attempt, onClose, onCrea
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+    };
   }, []);
   useEffect(() => {
     let active = true;
@@ -47,24 +76,45 @@ export function ProjectGroupModal({ projectId, current, attempt, onClose, onCrea
       try {
         const requestContext = await captureApiRequestContext();
         if (!active || !current()) return;
-        const page = await rpc("projectWorkspaces/roster", { id: projectId, afterBotId: after }, {
-          requestContext, signal: controller.signal, skipSpaceAuthRecovery: true,
-        });
+        const page = await rpc(
+          "projectWorkspaces/roster",
+          { id: projectId, afterBotId: after },
+          {
+            requestContext,
+            signal: controller.signal,
+            skipSpaceAuthRecovery: true,
+          },
+        );
         if (active && current()) {
           setItems(page.bots);
           setNext(page.nextBotId);
         }
       } catch {
-        if (active && current()) setError(text("无法加载项目成员，请关闭后重试。", "Could not load project members. Close and retry."));
+        if (active && current())
+          setError(
+            text(
+              "无法加载项目成员，请关闭后重试。",
+              "Could not load project members. Close and retry.",
+            ),
+          );
       } finally {
         if (active) setLoading(false);
       }
     })();
-    return () => { active = false; controller.abort(); };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [projectId, after]);
 
   async function create() {
-    if (inFlight.current || !current() || selected.length < GROUP_MEMBER_MIN || selected.length > GROUP_MEMBER_MAX) return;
+    if (
+      inFlight.current ||
+      !current() ||
+      selected.length < GROUP_MEMBER_MIN ||
+      selected.length > GROUP_MEMBER_MAX
+    )
+      return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -79,15 +129,26 @@ export function ProjectGroupModal({ projectId, current, attempt, onClose, onCrea
     try {
       const requestContext = await captureApiRequestContext();
       if (!mounted.current || !current()) return;
-      await rpc("projectWorkspaces/createGroup", {
-        projectId, requestId, group,
-      }, { requestContext, skipSpaceAuthRecovery: true });
+      const created = await rpc(
+        "projectWorkspaces/createGroup",
+        {
+          projectId,
+          requestId,
+          group,
+        },
+        { requestContext, skipSpaceAuthRecovery: true },
+      );
       if (!mounted.current || !current()) return;
       attempt.current = null;
-      onCreated();
+      onCreated(created.id);
     } catch {
       if (mounted.current && current())
-        setError(text("创建未确认。请使用相同内容重试，或返回项目名单确认。", "Creation was not confirmed. Retry with the same details or check the project list."));
+        setError(
+          text(
+            "创建未确认。请使用相同内容重试，或返回项目名单确认。",
+            "Creation was not confirmed. Retry with the same details or check the project list.",
+          ),
+        );
     } finally {
       inFlight.current = false;
       if (mounted.current) setBusy(false);
@@ -95,44 +156,235 @@ export function ProjectGroupModal({ projectId, current, attempt, onClose, onCrea
   }
 
   return (
-    <Modal transparent animationType="slide" onRequestClose={() => { if (!busy) onClose(); }}>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: tokens.overlay }}>
-        <Pressable accessibilityLabel={text("关闭", "Close")} disabled={busy} onPress={onClose} style={{ flex: 1 }} />
-        <View accessibilityViewIsModal style={{ maxHeight: "90%", backgroundColor: tokens.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: insets.bottom + 16 }}>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}>
-            <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: "700", color: tokens.foreground }}>{text("新建项目群聊", "New project group")}</Text>
-            <Text style={{ color: tokens.mutedForeground, marginVertical: 12 }}>
-              {text(`选择 ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} 个项目 Bot，已选 ${selected.length} 个。`, `Choose ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} project bots; ${selected.length} selected.`)}
-            </Text>
-            {loading ? <Text style={{ color: tokens.mutedForeground }}>{text("正在加载…", "Loading…")}</Text> : items.map((item) => {
-              const checked = selected.some((member) => member.id === item.id);
-              return <Pressable key={item.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled: busy || (!checked && selected.length >= GROUP_MEMBER_MAX) }}
-                disabled={busy || (!checked && selected.length >= GROUP_MEMBER_MAX)}
-                onPress={() => setSelected((old) => checked ? old.filter((member) => member.id !== item.id) : [...old, item])}
-                style={{ paddingVertical: 12, flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={{ color: tokens.foreground }}>{item.name}</Text>
-                <Text style={{ color: tokens.primary }}>{checked ? "✓" : "○"}</Text>
-              </Pressable>;
-            })}
-            <View style={{ flexDirection: "row", gap: 16, marginVertical: 8 }}>
-              {cursors.length ? <NativeActionButton label={text("上一页", "Previous")} disabled={loading || busy}
-                prominence="quiet" onPress={() => setCursors((old) => old.at(-1) === after ? old.slice(0, -1) : old)} /> : null}
-              {next ? <NativeActionButton label={text("下一页", "Next")} disabled={loading || busy}
-                prominence="quiet" onPress={() => {
-                  const nextCursor = next;
-                  if (nextCursor) setCursors((old) => old.at(-1) === after ? [...old, nextCursor] : old);
-                }} /> : null}
+    <Modal
+      transparent
+      animationType="slide"
+      onRequestClose={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1, justifyContent: "flex-end", backgroundColor: tokens.overlay }}
+      >
+        <Pressable
+          accessibilityLabel={text("关闭", "Close")}
+          disabled={busy}
+          onPress={onClose}
+          style={{ flex: 1 }}
+        />
+        <View
+          accessibilityViewIsModal
+          style={{
+            maxHeight: "90%",
+            backgroundColor: tokens.background,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            paddingTop: 10,
+            paddingHorizontal: 20,
+            paddingBottom: Math.max(insets.bottom, 16),
+            gap: 12,
+          }}
+        >
+          <View
+            accessible={false}
+            style={{
+              alignSelf: "center",
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: tokens.mutedForeground,
+              opacity: 0.35,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text
+                accessibilityRole="header"
+                style={{ fontSize: 20, fontWeight: "700", color: tokens.foreground }}
+              >
+                {text("新建项目群聊", "New project group")}
+              </Text>
+              <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+                {text(
+                  `选择 ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} 个项目 Bot，已选 ${selected.length} 个`,
+                  `Choose ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} project bots · ${selected.length} selected`,
+                )}
+              </Text>
             </View>
-            <TextInput value={name} onChangeText={setName} maxLength={GROUP_NAME_MAX_LENGTH} editable={!busy}
-              placeholder={text("群聊名称（可选）", "Group name (optional)")} placeholderTextColor={tokens.mutedForeground}
-              style={{ color: tokens.foreground, borderColor: tokens.border, borderWidth: 1, borderRadius: 12, padding: 12, marginVertical: 12 }} />
-            {error ? <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>{error}</Text> : null}
-            <NativeActionButton label={busy ? text("正在创建…", "Creating…") : text("创建群聊", "Create group")}
-              disabled={busy || loading || selected.length < GROUP_MEMBER_MIN} onPress={() => void create()} />
-            <NativeActionButton label={text("取消", "Cancel")} disabled={busy} prominence="quiet" onPress={onClose} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={text("取消", "Cancel")}
+              disabled={busy}
+              onPress={onClose}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: native.fill,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <NativeSymbol ios="xmark" android="close" size={16} color={tokens.foreground} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            contentContainerStyle={{ gap: 12 }}
+          >
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={16}
+              style={{ borderRadius: 16, overflow: "hidden" }}
+              fallbackStyle={{
+                backgroundColor: tokens.card,
+                borderWidth: 1,
+                borderColor: tokens.border,
+              }}
+            >
+              {loading ? (
+                <View style={{ padding: 20, alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator />
+                  <Text style={{ color: tokens.mutedForeground }}>
+                    {text("正在加载…", "Loading…")}
+                  </Text>
+                </View>
+              ) : items.length === 0 ? (
+                <Text style={{ padding: 18, color: tokens.mutedForeground }}>
+                  {text(
+                    "此项目暂无可选 Bot，请先新建项目 Bot。",
+                    "No project bots available yet. Create project bots first.",
+                  )}
+                </Text>
+              ) : (
+                items.map((item, index) => {
+                  const checked = selected.some((member) => member.id === item.id);
+                  const rowDisabled = busy || (!checked && selected.length >= GROUP_MEMBER_MAX);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked, disabled: rowDisabled }}
+                      disabled={rowDisabled}
+                      onPress={() =>
+                        setSelected((old) =>
+                          checked ? old.filter((member) => member.id !== item.id) : [...old, item],
+                        )
+                      }
+                      style={({ pressed }) => ({
+                        minHeight: 52,
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                        borderBottomWidth: index < items.length - 1 ? StyleSheet.hairlineWidth : 0,
+                        borderBottomColor: tokens.border,
+                        opacity: rowDisabled ? 0.5 : pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <BotAvatar
+                        color={item.color || FALLBACK_COLOR}
+                        avatarSet={item.avatarSet}
+                        identity={item.id}
+                        size={34}
+                        motion="lazy"
+                      />
+                      <Text
+                        numberOfLines={1}
+                        style={{ flex: 1, color: tokens.foreground, fontSize: 16 }}
+                      >
+                        {item.name}
+                      </Text>
+                      <NativeSymbol
+                        ios={checked ? "checkmark.circle.fill" : "circle"}
+                        android={checked ? "checkmark-circle" : "ellipse-outline"}
+                        size={22}
+                        color={checked ? tokens.primary : tokens.mutedForeground}
+                      />
+                    </Pressable>
+                  );
+                })
+              )}
+            </GlassSurface>
+
+            {cursors.length || next ? (
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                {cursors.length ? (
+                  <NativeActionButton
+                    label={text("上一页", "Previous")}
+                    disabled={loading || busy}
+                    prominence="quiet"
+                    onPress={() =>
+                      setCursors((old) => (old.at(-1) === after ? old.slice(0, -1) : old))
+                    }
+                  />
+                ) : null}
+                {next ? (
+                  <NativeActionButton
+                    label={text("下一页", "Next")}
+                    disabled={loading || busy}
+                    prominence="quiet"
+                    onPress={() => {
+                      const nextCursor = next;
+                      if (nextCursor)
+                        setCursors((old) => (old.at(-1) === after ? [...old, nextCursor] : old));
+                    }}
+                  />
+                ) : null}
+              </View>
+            ) : null}
           </ScrollView>
+
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={14}
+            style={{ borderRadius: 14 }}
+            fallbackStyle={{
+              backgroundColor: tokens.card,
+              borderWidth: 1,
+              borderColor: tokens.border,
+            }}
+          >
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              maxLength={GROUP_NAME_MAX_LENGTH}
+              editable={!busy}
+              placeholder={text("群聊名称（可选）", "Group name (optional)")}
+              placeholderTextColor={tokens.mutedForeground}
+              returnKeyType="done"
+              style={{
+                color: tokens.foreground,
+                minHeight: 46,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+              }}
+            />
+          </GlassSurface>
+          {error ? (
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              {error}
+            </Text>
+          ) : null}
+          <NativeActionButton
+            label={busy ? text("正在创建…", "Creating…") : text("创建群聊", "Create group")}
+            disabled={busy || loading || selected.length < GROUP_MEMBER_MIN}
+            busy={busy}
+            onPress={() => void create()}
+          />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

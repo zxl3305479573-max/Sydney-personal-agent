@@ -90,7 +90,11 @@ interface Harness {
   resolveSave: (result: DesktopSetupResult) => void;
 }
 
-function mount(saved: DesktopSetup | null, locale = ENGLISH): Harness {
+function mount(
+  saved: DesktopSetup | null,
+  locale = ENGLISH,
+  managedLocalAvailable = true,
+): Harness {
   document.body.innerHTML = setupBody ?? "";
   const checkCalls: Array<Deferred<DesktopReachability>> = [];
   const startResult = deferred<DesktopLocalStackState>();
@@ -138,7 +142,12 @@ function mount(saved: DesktopSetup | null, locale = ENGLISH): Harness {
   new Function(setupScript)();
 
   const initState = stateCalls.shift();
-  initState?.resolve({ defaultLocalUrl: DEFAULT_LOCAL_URL, cloudUrl: CLOUD_URL, saved });
+  initState?.resolve({
+    defaultLocalUrl: DEFAULT_LOCAL_URL,
+    cloudUrl: CLOUD_URL,
+    managedLocalAvailable,
+    saved,
+  });
   return {
     nextCheck: () => {
       const call = checkCalls.shift();
@@ -148,9 +157,12 @@ function mount(saved: DesktopSetup | null, locale = ENGLISH): Harness {
     resolveCheck: (result) => checkCalls.shift()?.resolve(result),
     startResult,
     resolveAppState: (next) =>
-      stateCalls
-        .shift()
-        ?.resolve({ defaultLocalUrl: DEFAULT_LOCAL_URL, cloudUrl: CLOUD_URL, saved: next }),
+      stateCalls.shift()?.resolve({
+        defaultLocalUrl: DEFAULT_LOCAL_URL,
+        cloudUrl: CLOUD_URL,
+        managedLocalAvailable,
+        saved: next,
+      }),
     resolveStackState: (state) => stackStateCalls.shift()?.resolve(state),
     pushStackState: (state) => {
       for (const listener of pushListeners) listener(state);
@@ -174,6 +186,19 @@ describe("setup", () => {
   afterEach(() => {
     document.body.innerHTML = "";
     delete (window as { rakazoSetup?: RakazoSetup }).rakazoSetup;
+  });
+
+  it("offers a direct connection when a packaged Windows client had saved a local stack", async () => {
+    const ui = mount({ mode: "new", serverUrl: DEFAULT_LOCAL_URL }, ENGLISH, false);
+    await flush();
+    const managed = element<HTMLInputElement>("mode-new");
+    expect(managed.disabled).toBe(true);
+    expect(managed.closest("label")?.hidden).toBe(true);
+    expect(element<HTMLElement>("panel-new").hidden).toBe(true);
+    element<HTMLButtonElement>("continue").click();
+    expect(ui.saves).toEqual([{ mode: "existing", serverUrl: CLOUD_URL }]);
+    ui.resolveSave({ ok: true });
+    await flush();
   });
 
   it("keeps an address edited while the connection check is pending", async () => {

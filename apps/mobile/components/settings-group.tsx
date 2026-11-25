@@ -114,7 +114,8 @@ export function SettingsRow({
   ...props
 }: SettingsRowProps) {
   const styles = useThemedStyles(createSettingsStyles);
-  const stacked = useStackedSettings();
+  const largeText = useStackedSettings();
+  const stacked = largeText || Boolean(detail && value);
   const end = (
     <>
       {value ? (
@@ -164,7 +165,7 @@ export function SettingsRow({
         accessibilityState={props.accessibilityState}
         accessibilityValue={props.accessibilityValue}
         onAccessibilityAction={props.onAccessibilityAction}
-        style={[styles.row, stacked && styles.compactRow, dimmed && styles.dimmed]}
+        style={[styles.row, largeText && styles.compactRow, dimmed && styles.dimmed]}
       >
         {content}
       </View>
@@ -172,11 +173,14 @@ export function SettingsRow({
   }
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={[title, detail, value].filter(Boolean).join(". ")}
+      accessibilityState={{ disabled: props.disabled === true }}
       {...props}
       android_ripple={androidRipple()}
       style={({ pressed }) => [
         styles.row,
-        stacked && styles.compactRow,
+        largeText && styles.compactRow,
         pressed && Platform.OS !== "android" && styles.pressed,
         dimmed && styles.dimmed,
       ]}
@@ -232,16 +236,13 @@ function createSettingsStyles() {
     group: { gap: 10 },
     groupLabel: {
       color: native.label,
-      fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-      fontSize: 18,
-      fontWeight: "600",
-      lineHeight: 24,
+      ...typeScale.cardTitle,
       paddingStart: 4,
     },
     footer: {
       color: native.secondaryLabel,
       ...typeScale.caption,
-      paddingHorizontal: 16,
+      paddingHorizontal: 4,
     },
     card: {
       borderRadius: 12,
@@ -258,26 +259,26 @@ function createSettingsStyles() {
       backgroundColor: native.separator,
     },
     row: {
-      minHeight: 52,
-      paddingHorizontal: 20,
-      paddingVertical: 18,
+      minHeight: 56,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
     },
     compactLabel: { paddingStart: 4 },
     compactRow: { paddingHorizontal: 12, gap: 8 },
-    titleColumn: { flex: 1, flexShrink: 1, gap: 2 },
+    titleColumn: { flex: 1, minWidth: 0, gap: 4 },
     stackedSwitch: { alignSelf: "flex-start", marginTop: 6 },
-    title: { color: native.label, fontSize: 14 },
+    title: { color: native.label, ...typeScale.body },
     inputTitle: { fontSize: 17 },
     prominent: { fontSize: 20, fontWeight: "600" },
     detail: { color: native.secondaryLabel, ...typeScale.caption },
     destructive: { color: tokens.destructive },
     tinted: { color: tokens.link },
-    value: { flexShrink: 1, color: native.secondaryLabel, fontSize: 14 },
+    value: { flexShrink: 1, color: native.secondaryLabel, ...typeScale.secondary },
     // A long value truncates instead of pushing the title out of the row.
-    inlineValue: { maxWidth: "60%" },
+    inlineValue: { maxWidth: "45%" },
     pressed: { backgroundColor: native.fillPressed },
     dimmed: { opacity: 0.45 },
   });

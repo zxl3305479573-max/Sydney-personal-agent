@@ -7,24 +7,38 @@ import type { Duplex } from "node:stream";
 const SOCKET_PATH =
   /^\/{1,2}novnc\/session\/(?:view|control)\/\d{1,16}\.[A-Za-z0-9_-]{1,8192}\/websockify$/;
 const HANDSHAKE_TIMEOUT_MS = 20_000;
+const PROXY_CAPABILITY_HEADER = "x-sydney-proxy-capability";
 
 export class StandaloneScreenSocket {
   private readonly requests = new Set<ClientRequest>();
   private readonly sockets = new Set<Duplex>();
   private readonly configuredHeaders: Readonly<Record<string, string>>;
-  private readonly capability: string | undefined;
+  private readonly capabilities: ReadonlyArray<string> | undefined;
 
   constructor(
     private readonly remote: URL,
     configuredHeaders: Readonly<Record<string, string>> = {},
-    capability?: string,
+    capability?: string | ReadonlyArray<string>,
   ) {
-    this.configuredHeaders = Object.freeze({ ...configuredHeaders });
-    this.capability = capability;
+    this.configuredHeaders = Object.freeze(
+      Object.fromEntries(
+        Object.entries(configuredHeaders)
+          .map(([name, value]) => [name.toLowerCase(), value] as const)
+          .filter(([name]) => name !== PROXY_CAPABILITY_HEADER),
+      ),
+    );
+    this.capabilities =
+      capability === undefined
+        ? undefined
+        : typeof capability === "string"
+          ? [capability]
+          : [...capability];
   }
 
   handle(request: IncomingMessage, socket: Duplex, head: Buffer, local: URL) {
+    this.sockets.add(socket);
     socket.on("error", () => socket.destroy());
+    socket.once("close", () => this.sockets.delete(socket));
     const raw = request.url ?? "";
     const [pathname, ...queryParts] = raw.split("?");
     const key = request.headers["sec-websocket-key"];
@@ -32,7 +46,7 @@ export class StandaloneScreenSocket {
     const connection = request.headers.connection?.toLowerCase().split(/\s*,\s*/);
     if (
       request.method !== "GET" ||
-      !this.capabilityMatches(request.headers["x-sydney-proxy-capability"]) ||
+      !this.capabilityMatches(request.headers[PROXY_CAPABILITY_HEADER]) ||
       request.headers.host !== local.host ||
       request.headers.origin !== "null" ||
       request.headers.upgrade?.toLowerCase() !== "websocket" ||
@@ -53,7 +67,9 @@ export class StandaloneScreenSocket {
         (typeof protocol !== "string" ||
           !/^[\w!#$%&'*+.^`|~,-]+(?:\s*,\s*[\w!#$%&'*+.^`|~-]+)*$/.test(protocol)))
     ) {
-      socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n", () =>
+        socket.destroy(),
+      );
       return;
     }
 
@@ -80,7 +96,6 @@ export class StandaloneScreenSocket {
       maxHeaderSize: 32_768,
     });
     this.requests.add(upstream);
-    this.sockets.add(socket);
     let peer: Duplex | undefined;
     let upgraded = false;
     const timer = setTimeout(() => {
@@ -88,10 +103,10 @@ export class StandaloneScreenSocket {
       socket.destroy();
       peer?.destroy();
     }, HANDSHAKE_TIMEOUT_MS);
+    timer.unref();
     const cleanup = () => {
       clearTimeout(timer);
       this.requests.delete(upstream);
-      this.sockets.delete(socket);
       if (peer) this.sockets.delete(peer);
     };
     socket.once("close", () => {
@@ -105,7 +120,9 @@ export class StandaloneScreenSocket {
     });
     upstream.once("response", (response) => {
       response.destroy();
-      socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n", () =>
+        socket.destroy(),
+      );
       cleanup();
     });
     upstream.once("upgrade", (response, upstreamSocket, upstreamHead) => {
@@ -157,12 +174,18 @@ export class StandaloneScreenSocket {
   }
 
   private capabilityMatches(actual: string | string[] | undefined) {
-    if (this.capability === undefined) return true;
-    const value = Array.isArray(actual) ? actual[0] : actual;
-    if (typeof value !== "string") return false;
-    const given = Buffer.from(value, "utf8");
-    const wanted = Buffer.from(this.capability, "utf8");
-    return given.length === wanted.length && timingSafeEqual(given, wanted);
+    if (this.capabilities === undefined) return true;
+    if (Array.isArray(actual) || (typeof actual === "string" && actual.includes(","))) return false;
+    if (typeof actual !== "string") return false;
+    const given = Buffer.from(actual, "utf8");
+    let matched = false;
+    for (const expected of this.capabilities) {
+      const wanted = Buffer.from(expected, "utf8");
+      if (given.length === wanted.length && timingSafeEqual(given, wanted)) {
+        matched = true;
+      }
+    }
+    return matched;
   }
 
   stop() {

@@ -12,6 +12,7 @@ import {
   composerHoldsWorkInFlight,
   hasUnsentComposerDraft,
 } from "./composer-draft";
+import { desktopBridge } from "./desktop";
 import { hasOpenDialog } from "./has-open-dialog";
 import { recoveryReload } from "./preload-recovery";
 import { onRpcResponse } from "./rpc";
@@ -224,6 +225,7 @@ function sessionStorageOrNull(): Storage | null {
 
 /** The tab's one update tracker. */
 export function clientUpdates(): ReturnType<typeof createClientUpdates> {
+  const desktop = Boolean(desktopBridge());
   shared ??= createClientUpdates({
     build: typeof window === "undefined" ? "" : CLIENT_BUILD,
     document: globalThis.document,
@@ -233,7 +235,16 @@ export function clientUpdates(): ReturnType<typeof createClientUpdates> {
       target.addEventListener(type, listener, { capture: true, passive: true });
       return () => target.removeEventListener(type, listener, { capture: true });
     },
-    responses: onRpcResponse,
+    responses: desktop
+      ? () =>
+          onRpcResponse((response) => {
+            if (response.status === CLIENT_UPDATE_REQUIRED_STATUS)
+              toast(t`Install a newer version of the desktop app to continue.`, {
+                id: "client-update-required",
+                duration: Number.POSITIVE_INFINITY,
+              });
+          })
+      : onRpcResponse,
     servedBuild: async () => {
       const response = await fetch("/build-id", { cache: "no-store", credentials: "omit" });
       return response.ok ? (await response.text()).trim() : null;

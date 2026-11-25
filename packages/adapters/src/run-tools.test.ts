@@ -65,6 +65,67 @@ beforeEach(() => {
   audited.length = 0;
 });
 
+describe("project text dispatch", () => {
+  it.each([
+    "shell",
+    "read_file",
+    "user_computer_shell",
+    "run_subagent",
+    "catalog_execute",
+    "plugin_tool",
+  ])("rejects %s before resolution, approval or execution", async (name) => {
+    const ctx = dispatchContext(false);
+    const resolveCall = vi.fn();
+    const project = {
+      ...ctx,
+      run: { ...ctx.run, projectWorkspaceId: "project-a" },
+      deps: { ...ctx.deps, connector: { resolveCall } },
+    };
+    vi.mocked(gateToolCall).mockClear();
+    await expect(applyTool(project as never, name, {}, "call-1")).resolves.toEqual({
+      error: "This tool or setting is unavailable in project text conversations.",
+    });
+    expect(resolveCall).not.toHaveBeenCalled();
+    expect(gateToolCall).not.toHaveBeenCalled();
+    expect(audited).toEqual([]);
+  });
+
+  it.each([{ dailyCheckIns: true }, { bot_id: "bot-other", name: "Changed" }])(
+    "rejects an unsupported profile setting before approval: %j",
+    async (args) => {
+      const ctx = dispatchContext(false);
+      const project = { ...ctx, run: { ...ctx.run, projectWorkspaceId: "project-a" } };
+      vi.mocked(gateToolCall).mockClear();
+      await expect(
+        applyTool(project as never, "update_bot", args, "call-1"),
+      ).resolves.toHaveProperty("error");
+      expect(gateToolCall).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a restored unsupported approval before reaching the gate", async () => {
+    const ctx = dispatchContext(false);
+    const project = {
+      ...ctx,
+      run: { ...ctx.run, projectWorkspaceId: "project-a" },
+      tools: {
+        ...ctx.tools,
+        approvedReplays: createApprovedEffectReplayQueue([
+          { kind: "update_bot", request: { dailyCheckIns: true } },
+        ]),
+      },
+    };
+    vi.mocked(gateToolCall).mockClear();
+    await expect(
+      applyTool(project as never, "update_bot", { name: "Writer" }, "call-1"),
+    ).resolves.toEqual({
+      error: "This tool or setting is unavailable in project text conversations.",
+    });
+    expect(gateToolCall).not.toHaveBeenCalled();
+    expect(audited).toEqual([]);
+  });
+});
+
 describe("dispatchTool audit outcomes", () => {
   it("does not execute a managed tool when cancelled during the approval gate", async () => {
     const ctx = dispatchContext(false);

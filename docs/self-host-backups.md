@@ -167,7 +167,7 @@ umask 077
 COMPOSE="sudo docker compose --env-file .env -f infra/compose/docker-compose.prod.yml"
 VOLUME=rakazo-prod_appdata
 
-ssh deploy@app.example.com "cd /srv/rakazo && $COMPOSE stop api worker web"
+ssh deploy@app.example.com "cd /srv/rakazo && $COMPOSE stop api worker"
 ROLLBACK_DUMP="$(mktemp "$PWD/before-restore.dump.XXXXXX")"
 if ! ssh deploy@app.example.com \
   "cd /srv/rakazo && $COMPOSE exec -T postgres sh -c 'pg_dump -Fc -U \"\$POSTGRES_USER\" \"\$POSTGRES_DB\"'" \
@@ -198,7 +198,7 @@ Only after verification succeeds, recreate and start the application containers:
 
 ```bash
 ssh deploy@app.example.com \
-  "cd /srv/rakazo && $COMPOSE up -d --force-recreate --wait --pull never api worker web"
+  "cd /srv/rakazo && $COMPOSE up -d --force-recreate --wait --pull never api worker"
 ```
 
 The archive must extract successfully before the SQL import starts. The clean staging directory
@@ -206,7 +206,7 @@ and the rollback tree sit beside the volume's active data directory, on the same
 Recreating the application containers makes them mount the replacement directory.
 `--single-transaction` rolls back SQL errors, but it cannot include the directory switch.
 After the import commits, a failed switch or startup can leave the database and active tree
-out of sync. If startup fails, stop `api worker web` again, including containers that did start.
+out of sync. If startup fails, stop `api worker` again, including containers that did start.
 
 `$ROLLBACK_DUMP` names a private, plaintext rollback dump. `mktemp` creates a new mode-`0600`
 file for each attempt without overwriting `before-restore.dump`, earlier rollback dumps, or
@@ -313,7 +313,7 @@ unless it names a zone:
 
 ```bash
 COMPOSE="sudo docker compose --env-file .env -f infra/compose/docker-compose.prod.yml"
-ssh deploy@app.example.com "cd /srv/rakazo && $COMPOSE stop api worker web pitr postgres"
+ssh deploy@app.example.com "cd /srv/rakazo && $COMPOSE stop api worker pitr postgres"
 ssh deploy@app.example.com \
   "cd /srv/rakazo && sudo infra/compose/pitr.sh restore '2026-01-31 09:41:00+00' rakazo-prod_postgres" \
   < rakazo-backup.key

@@ -13,7 +13,7 @@ import { getLogger } from "@rakazo/logging";
 import { credentialDigest } from "./credential-digest.js";
 import { installationSenderAddress } from "./installed-messaging-surface.js";
 
-export type MessagingInstallReturnTo = "web" | "mobile";
+export type MessagingInstallReturnTo = "web" | "mobile" | "native";
 
 /** OAuth state is short-lived, single-use and tied to a user, space and bot. */
 export class MessagingInstallations implements MessagingInstallationStore {
@@ -30,7 +30,8 @@ export class MessagingInstallations implements MessagingInstallationStore {
     botId?: string,
     returnTo: MessagingInstallReturnTo = "web",
   ): Promise<string> {
-    if (returnTo !== "web" && returnTo !== "mobile") throw new Error("Invalid return target");
+    if (returnTo !== "web" && returnTo !== "mobile" && returnTo !== "native")
+      throw new Error("Invalid return target");
     const bot = botId
       ? await this.prisma.bot.findFirst({
           where: { id: botId, spaceId: actor.spaceId, userId: actor.userId, archivedAt: null },
@@ -72,20 +73,33 @@ export class MessagingInstallations implements MessagingInstallationStore {
         session.expiresAt <= new Date()
       )
         return null;
-      if (session.returnTo === "mobile") return session.callbackReturnedAt ? null : "mobile";
+      if (session.returnTo === "mobile" || session.returnTo === "native")
+        return session.callbackReturnedAt ? null : session.returnTo;
       return session.returnTo == null || session.returnTo === "web" ? "web" : null;
     });
   }
 
   async claimMobileReturn(state: string): Promise<boolean> {
+    return this.claimOneTimeReturn(state, "mobile", "return mobile messaging authorization once");
+  }
+
+  async claimNativeReturn(state: string): Promise<boolean> {
+    return this.claimOneTimeReturn(state, "native", "return native messaging authorization once");
+  }
+
+  private async claimOneTimeReturn(
+    state: string,
+    returnTo: "mobile" | "native",
+    reason: string,
+  ): Promise<boolean> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(state)) return false;
-    return runAsSystem("return mobile messaging authorization once", async () => {
+    return runAsSystem(reason, async () => {
       const now = new Date();
       const result = await this.prisma.messagingInstallSession.updateMany({
         where: {
           id: credentialDigest(state),
           provider: this.provider.provider,
-          returnTo: "mobile",
+          returnTo,
           callbackReturnedAt: null,
           expiresAt: { gt: now },
         },

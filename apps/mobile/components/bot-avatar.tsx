@@ -14,15 +14,13 @@ import {
   avatarSchedulePose,
   avatarThinkingDot,
   avatarWorkingDot,
-  botAvatarActivity,
   isRunWorking,
   organicAvatarPath,
   SHIPPED_BOT_AVATAR_CENTER,
   SHIPPED_BOT_AVATAR_VIEWBOX,
-  usesLogoAvatar,
 } from "@rakazo/core";
 import { botEyeColor } from "@rakazo/ui-tokens";
-import { memo, useSyncExternalStore } from "react";
+import { memo } from "react";
 import { Image, Pressable, View } from "react-native";
 import Animated, {
   useAnimatedProps,
@@ -34,9 +32,7 @@ import type { AvatarLife } from "../lib/avatar-life";
 import { useAvatarOnScreen, useLife, usePoke, useSettling } from "../lib/avatar-life";
 import { mobileBotAvatarPresentation } from "../lib/bot-avatar";
 import { useI18n } from "../lib/i18n";
-import { mobileLogoAvatarActivity } from "../lib/logo-avatar-activity";
 import { useMobileTokens } from "../lib/native";
-import { LogoAvatar } from "./logo-avatar";
 import { NativeSymbol } from "./native-symbol";
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -118,57 +114,10 @@ export interface BotAvatarProps {
   avatarSet?: BotAvatarSet;
   activity?: LogoAvatarActivity;
   muted?: boolean;
+  unread?: boolean;
   motion?: AvatarMotionMode;
   composing?: boolean;
   pokeable?: boolean;
-}
-
-/** Missing set metadata deliberately preserves every existing avatar. */
-export const BotAvatar = memo(function BotAvatar(props: BotAvatarProps) {
-  if (usesLogoAvatar(props)) {
-    return <RakazoBotAvatar {...props} />;
-  }
-  return <LegacyBotAvatar {...props} />;
-});
-
-function RakazoBotAvatar({
-  color,
-  identity,
-  size = 54,
-  status,
-  activity,
-  composing = false,
-  muted = false,
-  motion = "static",
-  pokeable = false,
-}: BotAvatarProps) {
-  const liveActivity = useSyncExternalStore(
-    mobileLogoAvatarActivity.subscribe,
-    () => mobileLogoAvatarActivity.getActivity(identity ?? "", status),
-    (): LogoAvatarActivity => "idle",
-  );
-  const resolved = botAvatarActivity(
-    { color, avatarSet: "rakazo" },
-    activity ??
-      (composing && (liveActivity === "working" || liveActivity === "idle")
-        ? "writing"
-        : liveActivity),
-  );
-  const working = isRunWorking(status) && resolved !== "writing" && motion !== "running";
-  return (
-    <View style={{ width: size, height: size }}>
-      <LogoAvatar
-        color={color}
-        identity={identity}
-        size={size}
-        activity={resolved}
-        motion={motion}
-        pokeable={pokeable}
-      />
-      {working ? <WorkingDot size={size} muted={muted} /> : null}
-      {muted ? <MutedBadge size={size} /> : null}
-    </View>
-  );
 }
 
 function WorkingDot({ size, muted }: { size: number; muted: boolean }) {
@@ -237,40 +186,21 @@ function MutedBadge({ size }: { size: number }) {
   );
 }
 
-function LegacyBotAvatar({
+export const BotAvatar = memo(function BotAvatar({
   color,
   size = 54,
   status,
   identity,
   muted = false,
+  unread = false,
   motion = "static",
   composing = false,
   pokeable = false,
-}: {
-  color: string;
-  size?: number;
-  status?: string;
-  identity?: string;
-  muted?: boolean;
-  /**
-   * How the avatar may move: still (the default), lazy (inbox rows and pinned chats: still
-   * at rest, moving while the bot is busy), live (the call card: also blinks at rest) or
-   * running (the activity mark in a chat).
-   */
-  motion?: AvatarMotionMode;
-  /**
-   * The bot is writing its reply: a moving avatar turns into the typing dots, and no avatar
-   * shows the working dot.
-   */
-  composing?: boolean;
-  /** A tap plays a little reaction (the activity mark). */
-  pokeable?: boolean;
-}) {
+}: BotAvatarProps) {
   const tokens = useMobileTokens();
   const state = avatarLifeState(status, composing);
-  // The working dot marks a bot at work, not one writing its reply; a running avatar is
-  // itself that sign, so it carries none.
-  const isWorking = isRunWorking(status) && !composing && motion !== "running";
+  // Keep one persistent marker for running work and unread replies.
+  const isWorking = unread || (isRunWorking(status) && !composing && motion !== "running");
   const parsed = mobileBotAvatarPresentation(color);
   const onScreen = useAvatarOnScreen();
   const reducedMotion = useReducedMotion();
@@ -338,7 +268,7 @@ function LegacyBotAvatar({
   ) : (
     avatar
   );
-}
+});
 
 /** The three typing dots a writing bot's avatar turns into; the middle one is its body. */
 function ThinkingDots({ color, size, life }: { color: string; size: number; life: AvatarLife }) {

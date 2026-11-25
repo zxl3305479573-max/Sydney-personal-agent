@@ -1,4 +1,24 @@
-import { USER_DEVICE_CONNECT_PATH } from "@rakazo/contracts";
+import type {
+  ProjectFileRequest,
+  ProjectFileResult,
+  ProjectWindowsCommandRequest,
+  ProjectWindowsCommandResult,
+  ProjectWindowsCommandStatusRequest,
+  ProjectWindowsCommandStatusResult,
+  ProjectWindowsTerminalRequest,
+  ProjectWindowsTerminalResult,
+  WorkspaceGrantRequest,
+  WorkspaceGrantResult,
+} from "@rakazo/contracts";
+import {
+  ProjectFileResultSchema,
+  ProjectWindowsCommandResultSchema,
+  ProjectWindowsCommandStatusResultSchema,
+  ProjectWindowsTerminalResultSchema,
+  USER_DEVICE_CONNECT_PATH,
+  WorkspaceGrantResultSchema,
+} from "@rakazo/contracts";
+import { isLoopbackHost } from "@rakazo/contracts/network-host";
 import WebSocket from "ws";
 import type { HostComputerFrame } from "./host-computer-protocol.js";
 import { HOST_COMPUTER_MAX_BYTES } from "./host-computer-protocol.js";
@@ -22,13 +42,71 @@ export interface UserDeviceClientOptions {
   serverUrl: string;
   token: string;
   root: string;
+  /** Optional validated server headers (e.g. Cloudflare Access) sent on TLS or loopback upgrades. */
+  headers?: Readonly<Record<string, string>>;
   /** Drives this computer's apps. Owned by the caller, which closes it. */
   screen?: HostScreen;
   /** The server revoked the device or rejected its token. The client has already stopped. */
   onRevoked: (reason?: UserDeviceRevokeReason) => void;
   /** Whether this computer lets the server's bots run anything. Asked before every request. */
   authorize: () => Promise<boolean>;
+  workspaceGrant?: (request: WorkspaceGrantRequest) => Promise<WorkspaceGrantResult>;
+  projectFile?: (request: ProjectFileRequest, signal: AbortSignal) => Promise<ProjectFileResult>;
+  projectWindowsTerminal?: (
+    request: ProjectWindowsTerminalRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsTerminalResult>;
+  projectWindowsCommand?: (
+    request: ProjectWindowsCommandRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandResult>;
+  projectWindowsCommandStatus?: (
+    request: ProjectWindowsCommandStatusRequest,
+    signal: AbortSignal,
+  ) => Promise<ProjectWindowsCommandStatusResult>;
   retryMs?: { min: number; max: number };
+}
+
+const RESERVED_UPGRADE_HEADERS = new Set([
+  "authorization",
+  "connection",
+  "cookie",
+  "host",
+  "keep-alive",
+  "origin",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "sec-websocket-extensions",
+  "sec-websocket-key",
+  "sec-websocket-protocol",
+  "sec-websocket-version",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+function buildUpgradeHeaders(
+  url: URL,
+  token: string,
+  extra?: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (extra && (url.protocol === "wss:" || isLoopbackHost(url.hostname))) {
+    for (const [name, value] of Object.entries(extra)) {
+      const lower = name.toLowerCase();
+      if (
+        RESERVED_UPGRADE_HEADERS.has(lower) ||
+        lower.startsWith("sec-") ||
+        lower.startsWith("proxy-")
+      ) {
+        continue;
+      }
+      headers[lower] = value;
+    }
+  }
+  headers.authorization = `Bearer ${token}`;
+  return headers;
 }
 
 /**
@@ -42,6 +120,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
   runner.setEnabled(true);
   const url = new URL(USER_DEVICE_CONNECT_PATH, options.serverUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  const upgradeHeaders = buildUpgradeHeaders(url, options.token, options.headers);
   let stopped = false;
   let attempt = 0;
   let socket: WebSocket | undefined;
@@ -52,6 +131,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
     if (stopped) return;
     stopped = true;
     clearTimeout(reconnectTimer);
+    refuseWaiting?.();
     runner.close();
     socket?.terminate();
   }
@@ -81,7 +161,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
   function connect() {
     if (stopped) return;
     const ws = new WebSocket(url, {
-      headers: { authorization: `Bearer ${options.token}` },
+      headers: upgradeHeaders,
       maxPayload: USER_DEVICE_MAX_MESSAGE_BYTES,
       handshakeTimeout: 15_000,
       followRedirects: false,
@@ -93,6 +173,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       { call: HostComputerCall; cancelled: boolean; settled: boolean }
     >();
     const authorizing = new Set<string>();
+    const projectCalls = new Map<string, AbortController>();
     let alive = true;
     let openedAt = 0;
     let ping: NodeJS.Timeout | undefined;
@@ -100,6 +181,13 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       for (const id of authorizing)
         void send(id, { error: NOT_ALLOWED_MESSAGE }).catch(() => undefined);
       authorizing.clear();
+      for (const [id, controller] of projectCalls) {
+        controller.abort();
+        void send(id, { error: "Project operation stopped or its result is unconfirmed" }).catch(
+          () => undefined,
+        );
+      }
+      projectCalls.clear();
     };
 
     ws.on("unexpected-response", (request, response) => {
@@ -134,6 +222,8 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       // A lost response is never retried, so in-flight work stops with the connection.
       for (const { call } of calls.values()) call.abort();
       calls.clear();
+      for (const controller of projectCalls.values()) controller.abort();
+      projectCalls.clear();
       if (socket === ws) {
         socket = undefined;
         refuseWaiting = undefined;
@@ -158,6 +248,7 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       }
       if (message.type === "cancel") {
         authorizing.delete(message.id);
+        projectCalls.get(message.id)?.abort();
         const entry = calls.get(message.id);
         if (entry) {
           entry.cancelled = true;
@@ -165,7 +256,8 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
         }
         return;
       }
-      if (calls.has(message.id) || authorizing.has(message.id)) return;
+      if (calls.has(message.id) || authorizing.has(message.id) || projectCalls.has(message.id))
+        return;
       void handle(message.id, message.request);
     });
 
@@ -187,8 +279,74 @@ export function startUserDeviceClient(options: UserDeviceClientOptions) {
       });
     }
 
-    async function handle(id: string, request: unknown) {
+    async function handle(
+      id: string,
+      request: import("./user-device-protocol.js").UserDeviceRequest,
+    ) {
+      if (
+        request.method === "projectFile" ||
+        request.method === "projectWindowsTerminal" ||
+        request.method === "projectWindowsCommand" ||
+        request.method === "projectWindowsCommandStatus"
+      ) {
+        if (url.protocol !== "wss:" && !isLoopbackHost(url.hostname)) {
+          await send(id, { error: "Project operations require a secure device connection" }).catch(
+            () => undefined,
+          );
+          return;
+        }
+        const operation = new AbortController();
+        projectCalls.set(id, operation);
+        const current = () => socket === ws && !operation.signal.aborted;
+        try {
+          const result =
+            request.method === "projectFile"
+              ? ProjectFileResultSchema.parse(
+                  await options.projectFile?.(request, operation.signal),
+                )
+              : request.method === "projectWindowsTerminal"
+                ? ProjectWindowsTerminalResultSchema.parse(
+                    await options.projectWindowsTerminal?.(request, operation.signal),
+                  )
+                : request.method === "projectWindowsCommand"
+                  ? ProjectWindowsCommandResultSchema.parse(
+                      await options.projectWindowsCommand?.(request, operation.signal),
+                    )
+                  : ProjectWindowsCommandStatusResultSchema.parse(
+                      await options.projectWindowsCommandStatus?.(request, operation.signal),
+                    );
+          if (!current()) return;
+          if (
+            "operation" in result &&
+            request.method === "projectFile" &&
+            result.operation !== request.file.operation &&
+            !(request.file.operation === "update" && result.operation === "conflict")
+          )
+            throw new Error("Mismatched project file response");
+          await send(id, { value: result });
+          if (current()) await send(id, { done: true });
+        } catch {
+          if (current())
+            await send(id, {
+              error: "Project operation unavailable or its result is unconfirmed",
+            }).catch(() => undefined);
+        } finally {
+          if (projectCalls.get(id) === operation) projectCalls.delete(id);
+        }
+        return;
+      }
       authorizing.add(id);
+      if (request.method === "workspaceGrant") {
+        const result = await Promise.resolve()
+          .then(() => options.workspaceGrant?.(request) ?? { state: "unavailable" })
+          .then((value) => WorkspaceGrantResultSchema.parse(value))
+          .catch(() => ({ state: "unavailable" as const }));
+        if (!authorizing.delete(id) || socket !== ws) return;
+        await send(id, { value: result })
+          .then(() => send(id, { done: true }))
+          .catch(() => undefined);
+        return;
+      }
       const allowed = await options.authorize().catch(() => false);
       if (!authorizing.delete(id) || socket !== ws) return;
       if (!allowed) {

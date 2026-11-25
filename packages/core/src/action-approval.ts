@@ -31,6 +31,11 @@ const APPROVAL_EXEMPT_TOOLS = new Set([
 ]);
 
 const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
+  "project_list_files",
+  "project_read_file",
+  "project_create_file",
+  "project_update_file",
+  "project_windows_terminal",
   "generate_image",
   "generate_video",
   "delete_bot",
@@ -50,6 +55,11 @@ const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
   "feedback",
 ]);
 const EXPLICIT_APPROVAL_BUILTIN_TOOLS = new Set([
+  "project_list_files",
+  "project_read_file",
+  "project_create_file",
+  "project_update_file",
+  "project_windows_terminal",
   "respond_agent_connection",
   "create_space",
   "set_child_instructions",
@@ -74,6 +84,10 @@ const UNATTENDED_SAFE_BUILTIN_TOOLS = new Set([
   "skill_read",
   "web_fetch",
   "web_search",
+  "github_get_profile",
+  "github_list_my_repos",
+  "github_search_repos",
+  "github_read_repo",
 ]);
 
 const READ_ONLY_CONNECTOR_PATTERN = /(^|[_-])(get|list|search|find|read)([_-]|$)/i;

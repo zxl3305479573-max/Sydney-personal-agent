@@ -2,10 +2,13 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import { GlassTitle } from "../components/glass-title.ios";
+import { floatingHeaderOptions, GlassTitle } from "../components/glass-title.ios";
 import { HEADER_CONTROL_SIZE, HEADER_TITLE_MAX_FONT_SCALE } from "./native-controls";
 
 const window = vi.hoisted(() => ({ fontScale: 1 }));
+const back = vi.hoisted(() => vi.fn());
+vi.mock("expo-router", () => ({ router: { back } }));
+vi.mock("./i18n", () => ({ t: (text: string) => text }));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios", Version: 26 },
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
@@ -31,7 +34,9 @@ vi.mock("react-native", () => ({
   useWindowDimensions: () => window,
 }));
 vi.mock("@expo/ui/swift-ui", () => ({
-  Host: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Host: ({ children, ignoreSafeArea }: { children: ReactNode; ignoreSafeArea?: string }) => (
+    <div data-ignore-safe-area={ignoreSafeArea}>{children}</div>
+  ),
   Text: ({ children, modifiers }: { children: ReactNode; modifiers: unknown[] }) => (
     <span data-modifiers={JSON.stringify(modifiers)}>{children}</span>
   ),
@@ -53,11 +58,13 @@ it.each(["", "   "])("omits glass chrome for an empty title %j", (title) => {
   expect(renderToStaticMarkup(<GlassTitle title={title} />)).toBe("");
 });
 
-it("preserves a named floating header", () => {
-  expect(renderToStaticMarkup(<GlassTitle title="Models" />)).toContain("Models");
+it("preserves a named header without a glass surface", () => {
+  const markup = renderToStaticMarkup(<GlassTitle title="Models" />);
+  expect(markup).toContain("Models");
+  expect(markup).toContain('data-ignore-safe-area="all"');
 });
 
-it("draws the glass at the header buttons' height", () => {
+it("keeps a plain title at the header buttons' height", () => {
   const markup = renderToStaticMarkup(<GlassTitle title="Models" />);
   expect(markup).toContain(`data-height="${HEADER_CONTROL_SIZE}"`);
   const modifiers: Record<string, unknown>[] = JSON.parse(
@@ -68,8 +75,19 @@ it("draws the glass at the header buttons' height", () => {
   );
   const frame = modifiers.findIndex((modifier) => "frame" in modifier);
   expect(modifiers[frame]).toEqual({ frame: { height: HEADER_CONTROL_SIZE } });
-  expect(modifiers.findIndex((modifier) => "glassEffect" in modifier)).toBe(frame + 1);
+  expect(modifiers.some((modifier) => "glassEffect" in modifier)).toBe(false);
   expect(modifiers).toContainEqual({ dynamicTypeSize: { min: "large", max: "xxxLarge" } });
+});
+
+it("uses a flat back item and omits it at the stack root", () => {
+  const options = floatingHeaderOptions();
+  expect(options.headerTransparent).toBe(false);
+  expect(options.headerBackVisible).toBe(false);
+  expect(options.unstable_headerLeftItems?.({ canGoBack: false })).toEqual([]);
+  const [item] = options.unstable_headerLeftItems?.({ canGoBack: true }) ?? [];
+  expect(item).toMatchObject({ label: "Back", hidesSharedBackground: true });
+  item?.onPress();
+  expect(back).toHaveBeenCalledOnce();
 });
 
 // The bar keeps its title between the default text size and xxxLarge, so the invisible copy that

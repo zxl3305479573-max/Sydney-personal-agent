@@ -15,6 +15,7 @@ import { t } from "./i18n";
 import { integrationsCacheScope } from "./integrations-cache";
 import { openModelSettings } from "./model-settings";
 import { outboxDisk } from "./outbox-disk";
+import { savedChatsScope, savedChatTarget, writeSavedThread } from "./saved-chats";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
@@ -29,6 +30,7 @@ import {
   restoreUnsentSends,
   sendWaitingMessages,
 } from "./thread-feedback";
+import { applySendActivity, threadSessionCache } from "./thread-session-cache";
 import { errorText } from "./user-error";
 
 let activeScope: (OutboxScope & { generation: number }) | null = null;
@@ -84,6 +86,28 @@ configureUnsentSends({
   passwordChanging: passwordChangeInFlight,
   scope,
   disk: outboxDisk,
+  accepted: (attempt, { activity }) => {
+    const current = scope();
+    if (!activity || !current || !attempt.spaceId) return;
+    const target = { botId: attempt.payload.botTarget, groupId: attempt.payload.groupTarget };
+    const acceptedScope = {
+      apiBase: attempt.apiBase,
+      sessionGeneration: current.generation,
+      userId: attempt.userId,
+      spaceId: attempt.spaceId,
+    };
+    const previous = threadSessionCache.read(acceptedScope, target);
+    const snapshot = applySendActivity(previous, target, activity);
+    if (!snapshot || snapshot === previous) return;
+    threadSessionCache.remember(acceptedScope, snapshot);
+    void savedChatsScope().then((saved) => {
+      if (saved?.userId !== acceptedScope.userId || saved.spaceId !== acceptedScope.spaceId ||
+        saved.sessionGeneration !== acceptedScope.sessionGeneration || saved.apiBase !== acceptedScope.apiBase)
+        return;
+      if (threadSessionCache.read(acceptedScope, target) === snapshot)
+        writeSavedThread(saved, savedChatTarget(target), snapshot);
+    }).catch(() => undefined);
+  },
   errorText: (error) => errorText(error, t("Failed to send message")),
   notDelivered: (attempt) => {
     if (isModelRequiredSendError(attempt.error)) {

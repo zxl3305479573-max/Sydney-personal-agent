@@ -1,0 +1,24 @@
+{
+  "version": "1.0.24",
+  "releasedOn": "2026-11-22",
+  "notes": {
+    "zh-CN": [
+      "保留最近对话与 Bot 运行状态，返回首页继续显示运行标记，重进对话先显示已有内容。",
+      "项目与 GitHub 页面保留内容、筛选、分页和滚动位置，重新进入时后台更新。",
+      "设置、卡片、按钮与聊天内容统一为平面样式，仅对话顶部 Bot 名称保留玻璃效果。",
+      "Bot 有未读消息时，首页普通列表、置顶卡片和滑动预览的头像持续显示小绿点；GitHub 顶部导航铺满一行并保持点击位置稳定。"
+    ],
+    "zh-TW": [
+      "保留最近對話及 Bot 執行狀態，返回首頁繼續顯示執行標記，重進對話先顯示已有內容。",
+      "專案及 GitHub 頁面保留內容、篩選、分頁與捲動位置，重新進入時在背景更新。",
+      "設定、卡片、按鈕及聊天內容統一為平面樣式，僅對話頂部 Bot 名稱保留玻璃效果。",
+      "Bot 有未讀訊息時，首頁普通列表、置頂卡片及滑動預覽的頭像持續顯示小綠點；GitHub 頂部導覽鋪滿一行並保持點擊位置穩定。"
+    ],
+    "en": [
+      "Keep recent conversations and Bot run status available when returning Home or reopening a chat.",
+      "Restore project and GitHub content, filters, pages and scroll positions while refreshing in the background.",
+      "Use flat surfaces across settings, cards, buttons and chat content, with glass reserved for the Bot name in the chat header.",
+      "Keep a green marker on Bot avatars with unread messages across regular rows, pinned cards and swipe previews, and make the GitHub top navigation fill one row without shifting after selection."
+    ]
+  }
+}

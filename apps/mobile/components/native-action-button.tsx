@@ -58,12 +58,7 @@ export function NativeActionButton({
         {
           flexDirection: "row",
           gap: icon && label ? 6 : undefined,
-          minHeight:
-            variant === "rectangular" || (variant === "text" && prominence === "destructive")
-              ? 44
-              : variant === "text" || small || compact
-                ? undefined
-                : 48,
+          minHeight: variant ? 44 : small || compact ? undefined : 48,
           borderRadius: variant === "rectangular" ? 9 : 12,
           alignItems: "center",
           justifyContent: "center",

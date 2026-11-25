@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import type { MobileSnapshot } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
-import { openModelSettings } from "../../lib/model-settings";
 import { runErrorActionLabel } from "../../lib/run-error-presentation";
 import { useRunError } from "../run-error-sheet";
 
@@ -20,19 +19,18 @@ export function useThreadRunError(run: MobileSnapshot["run"] | undefined, botId?
   const runErrorAction = label
     ? {
         label,
-        // Without a bot to change, the model settings pick the default model instead.
         onPress:
           normalizedRunError?.recovery === "model" && runBotId
             ? () => {
                 setDetailsOpen(false);
                 router.push({
-                  pathname: "/bot-settings",
-                  params: { botId: runBotId, focus: "model" },
+                  pathname: "/thread-model",
+                  params: { botId: runBotId },
                 });
               }
             : () => {
                 setDetailsOpen(false);
-                openModelSettings();
+                router.push("/settings-home");
               },
       }
     : null;

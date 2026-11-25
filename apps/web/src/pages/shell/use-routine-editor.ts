@@ -2,7 +2,8 @@ import { useLingui } from "@lingui/react/macro";
 import type { Bot, Routine, ThinkingLevel, ThreadSnapshot } from "@rakazo/contracts";
 import { cronFromPreset } from "@rakazo/core";
 import type { ComponentProps, Dispatch, RefObject, SetStateAction } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { desktopBridge } from "../../lib/desktop";
 import { localTimezone } from "../../lib/local-timezone";
 import { parseModelOptionKey } from "../../lib/model-catalog";
 import type { Panel } from "../../lib/right-panel-state";
@@ -90,6 +91,20 @@ export function useRoutineEditor({
     routineSaveRequest.current += 1;
     setRoutineError(null);
   }
+  const [serverOrigin, setServerOrigin] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void desktopBridge()
+      ?.settings?.serverOrigin?.()
+      .then((origin) => {
+        if (current) setServerOrigin(origin);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, []);
+  const callbackOrigin = serverOrigin ?? globalThis.location?.origin ?? "";
   const editorProps = active
     ? ({
         draft: routineDraft,
@@ -97,17 +112,11 @@ export function useRoutineEditor({
         editing: editingRoutine,
         timezone: editingRoutine?.timezone ?? timezone ?? localTimezone(),
         webhook: {
-          path:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/api/v1/bots/${active.id}/webhook`
-              : `/api/v1/bots/${active.id}/webhook`,
+          path: `${callbackOrigin}/api/v1/bots/${active.id}/webhook`,
           secret: routineWebhookSecret,
           configured: active.webhookConfigured || Boolean(routineWebhookSecret),
         },
-        githubPath:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/api/v1/bots/${active.id}/github`
-            : `/api/v1/bots/${active.id}/github`,
+        githubPath: `${callbackOrigin}/api/v1/bots/${active.id}/github`,
         messageProviders,
         saving: savingRoutine,
         running: runningRoutine,

@@ -21,6 +21,7 @@ import type {
   Actor,
   Bot,
   BotSecretMetadata,
+  RpcInput,
   SettingsScope,
   VaultPutInput,
 } from "@rakazo/contracts";
@@ -260,8 +261,90 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
   if (run) await deps.jobs.enqueue(runContinueJob(run.id));
 }
 
+export async function updateBotSettings(
+  { deps, repos, botModelValidation }: RouterContext,
+  actor: Actor,
+  input: RpcInput<"bots/update">,
+) {
+  const existing = await repos.getBot(actor, input.botId);
+  if (input.sectionId) {
+    const section = await deps.prisma.botSection.findFirst({
+      where: { id: input.sectionId, spaceId: actor.spaceId, userId: actor.userId },
+      select: { id: true },
+    });
+    if (!section) throw new IsolationError();
+  }
+  const modelChange = await validateBotModelChange(botModelValidation(actor), {
+    userId: actor.userId,
+    spaceId: actor.spaceId,
+    provider: input.modelProvider !== undefined ? input.modelProvider : existing.modelProvider,
+    model: input.modelId !== undefined ? input.modelId : existing.modelId,
+    thinkingLevel: input.thinkingLevel,
+    current: { provider: existing.modelProvider, model: existing.modelId },
+  });
+  if (!modelChange.ok) throw new ORPCError("BAD_REQUEST", { message: modelChange.error });
+  if (!existing.thread) throw new IsolationError();
+  await commitBotUpdate({
+    prisma: deps.prisma,
+    notify: (threadId, seq) => deps.events.notify(threadId, seq),
+    spaceId: actor.spaceId,
+    threadId: existing.thread.id,
+    botId: input.botId,
+    emitBotUpdated:
+      botProfileLabelsChanged(input) ||
+      input.expectedSettings !== undefined ||
+      input.dailyCheckIns !== undefined,
+    expectedInstructions: input.expectedInstructions,
+    expectedSettings: input.expectedSettings,
+    data: {
+      name: input.name,
+      description: input.description,
+      instructions: input.instructions,
+      notifyOnFinish: input.notifyOnFinish,
+      color: input.color,
+      avatarSet: input.avatarSet,
+      pinned: input.pinned,
+      memoryScope: input.memoryScope,
+      sectionId: input.sectionId,
+      voiceId: input.voiceId,
+      autoSpeak: input.autoSpeak,
+      ...(input.modelProvider !== undefined
+        ? { modelProvider: input.modelProvider, modelId: input.modelId ?? null }
+        : {}),
+      ...(input.thinkingLevel !== undefined ? { thinkingLevel: input.thinkingLevel } : {}),
+      ...(input.teamChatAmbientEnabled !== undefined
+        ? { teamChatAmbientEnabled: input.teamChatAmbientEnabled }
+        : {}),
+      ...(input.teamChatRules !== undefined ? { teamChatRules: input.teamChatRules } : {}),
+      ...(input.crossSpaceCommunication !== undefined
+        ? { crossSpaceCommunication: input.crossSpaceCommunication }
+        : {}),
+      ...(input.dailyCheckIns !== undefined ? { dailyCheckIns: input.dailyCheckIns } : {}),
+      ...(input.fleetManagement !== undefined ? { fleetManagement: input.fleetManagement } : {}),
+      ...(input.disabledBuiltinTools !== undefined
+        ? { disabledBuiltinTools: input.disabledBuiltinTools }
+        : {}),
+    },
+  }).catch((error) => {
+    if (error instanceof MainBotLimitError)
+      throw new ORPCError("BAD_REQUEST", { message: error.message });
+    if (input.expectedSettings && isRecordNotFound(error))
+      throw new ORPCError("CONFLICT", {
+        message: "Settings changed; review the current settings first.",
+      });
+    if (!(error instanceof InstructionConflictError)) throw error;
+    throw new ORPCError("CONFLICT", { message: error.message });
+  });
+  for (const setting of changedBotSettings(existing, input)) {
+    deps.analytics?.capture(actor.userId, { name: "bot_setting_changed", setting });
+  }
+  const bot = (await repos.listBots(actor)).find((candidate) => candidate.id === input.botId);
+  if (!bot) throw new IsolationError();
+  return bot;
+}
+
 export function botsRoutes(ctx: RouterContext) {
-  const { deps, repos, botModelValidation, removeBot, agentImportServices, groupRepos, authed } =
+  const { deps, repos, removeBot, agentImportServices, groupRepos, authed } =
     ctx;
   return {
     bots: {
@@ -347,92 +430,9 @@ export function botsRoutes(ctx: RouterContext) {
         await repos.reorderBots(context.actor, input.botIds);
         return { ok: true as const };
       }),
-      update: authed.bots.update.handler(async ({ context, input }) => {
-        const existing = await repos.getBot(context.actor, input.botId);
-        if (input.sectionId) {
-          const section = await deps.prisma.botSection.findFirst({
-            where: {
-              id: input.sectionId,
-              spaceId: context.actor.spaceId,
-              userId: context.actor.userId,
-            },
-            select: { id: true },
-          });
-          if (!section) throw new IsolationError();
-        }
-        const modelChange = await validateBotModelChange(botModelValidation(context.actor), {
-          userId: context.actor.userId,
-          spaceId: context.actor.spaceId,
-          provider:
-            input.modelProvider !== undefined ? input.modelProvider : existing.modelProvider,
-          model: input.modelId !== undefined ? input.modelId : existing.modelId,
-          thinkingLevel: input.thinkingLevel,
-          current: { provider: existing.modelProvider, model: existing.modelId },
-        });
-        if (!modelChange.ok) throw new ORPCError("BAD_REQUEST", { message: modelChange.error });
-        const thinkingLevel = input.thinkingLevel;
-        if (!existing.thread) throw new IsolationError();
-        await commitBotUpdate({
-          prisma: deps.prisma,
-          notify: (threadId, seq) => deps.events.notify(threadId, seq),
-          spaceId: context.actor.spaceId,
-          threadId: existing.thread.id,
-          botId: input.botId,
-          emitBotUpdated:
-            botProfileLabelsChanged(input) ||
-            input.expectedSettings !== undefined ||
-            input.dailyCheckIns !== undefined,
-          expectedInstructions: input.expectedInstructions,
-          expectedSettings: input.expectedSettings,
-          data: {
-            name: input.name,
-            description: input.description,
-            instructions: input.instructions,
-            notifyOnFinish: input.notifyOnFinish,
-            color: input.color,
-            avatarSet: input.avatarSet,
-            pinned: input.pinned,
-            memoryScope: input.memoryScope,
-            sectionId: input.sectionId,
-            voiceId: input.voiceId,
-            autoSpeak: input.autoSpeak,
-            ...(input.modelProvider !== undefined
-              ? { modelProvider: input.modelProvider, modelId: input.modelId ?? null }
-              : {}),
-            ...(input.thinkingLevel !== undefined ? { thinkingLevel } : {}),
-            ...(input.teamChatAmbientEnabled !== undefined
-              ? { teamChatAmbientEnabled: input.teamChatAmbientEnabled }
-              : {}),
-            ...(input.teamChatRules !== undefined ? { teamChatRules: input.teamChatRules } : {}),
-            ...(input.crossSpaceCommunication !== undefined
-              ? { crossSpaceCommunication: input.crossSpaceCommunication }
-              : {}),
-            ...(input.dailyCheckIns !== undefined ? { dailyCheckIns: input.dailyCheckIns } : {}),
-            ...(input.fleetManagement !== undefined
-              ? { fleetManagement: input.fleetManagement }
-              : {}),
-            ...(input.disabledBuiltinTools !== undefined
-              ? { disabledBuiltinTools: input.disabledBuiltinTools }
-              : {}),
-          },
-        }).catch((error) => {
-          if (error instanceof MainBotLimitError)
-            throw new ORPCError("BAD_REQUEST", { message: error.message });
-          if (input.expectedSettings && isRecordNotFound(error))
-            throw new ORPCError("CONFLICT", {
-              message: "Settings changed; review the current settings first.",
-            });
-          if (!(error instanceof InstructionConflictError)) throw error;
-          throw new ORPCError("CONFLICT", { message: error.message });
-        });
-        for (const setting of changedBotSettings(existing, input)) {
-          deps.analytics?.capture(context.actor.userId, { name: "bot_setting_changed", setting });
-        }
-        const bots = await repos.listBots(context.actor);
-        const bot = bots.find((b) => b.id === input.botId);
-        if (!bot) throw new IsolationError();
-        return bot;
-      }),
+      update: authed.bots.update.handler(({ context, input }) =>
+        updateBotSettings(ctx, context.actor, input),
+      ),
       restoreInstructions: authed.bots.restoreInstructions.handler(async ({ context, input }) => {
         const bot = await repos.getBot(context.actor, input.botId);
         if (!bot.thread) throw new IsolationError();

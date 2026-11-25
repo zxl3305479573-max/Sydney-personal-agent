@@ -4,8 +4,10 @@ export const JA_MESSAGES: Record<string, string> = {
     "アカウントの削除を確認できませんでした。再試行する前にアカウントの状態を確認してください。",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "元のアカウントは削除されましたが、端末内のデータを消去できず、現在のセッションも変更されています。",
-  "The original account was deleted. Your current session has changed.": "元のアカウントは削除されました。現在のセッションは変更されています。",
-  "The session changed. Open account deletion again.": "セッションが変更されました。アカウント削除を開き直してください。",
+  "The original account was deleted. Your current session has changed.":
+    "元のアカウントは削除されました。現在のセッションは変更されています。",
+  "The session changed. Open account deletion again.":
+    "セッションが変更されました。アカウント削除を開き直してください。",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "アカウントは削除されましたが、端末のセッションを消去できませんでした。アプリを再起動してサインアウトをお試しください。",
   Computers: "コンピューター",
@@ -137,8 +139,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Your model provider": "お使いのモデルプロバイダー",
   "Connect a model in Settings before running bots.":
     "ボットを実行する前に、設定でモデルを接続してください。",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "モデルで自分のAPIキーを接続するか、請求でRakazoクレジットを選択してください。",
+  "Connect your own API key in Models or choose Sydney credits in Billing.":
+    "モデルで自分のAPIキーを接続するか、請求でSydneyクレジットを選択してください。",
   "The model provider returned an error.": "モデルプロバイダーがエラーを返しました。",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider}がリクエストを制限しています。しばらくしてからもう一度お試しください。",
@@ -188,8 +190,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Chat Settings": "チャット設定",
   "Configure a plugin catalog on the server to connect apps.":
     "アプリを接続するには、サーバーでプラグインカタログを設定してください。",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "サーバーのOpenAI互換アドレスを貼り付けてください。必要に応じてRakazoが/v1を追加します。",
+  "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed.":
+    "サーバーのOpenAI互換アドレスを貼り付けてください。必要に応じてSydneyが/v1を追加します。",
   "Settings: General": "設定: 一般",
   "Settings: Usage": "設定: 使用量",
   "Sign-in did not return a session": "ログインでセッションが返されませんでした",
@@ -230,9 +232,9 @@ export const JA_MESSAGES: Record<string, string> = {
   "Reset your password": "パスワードをリセット",
   "Send reset link": "リセットリンクを送信",
   Server: "サーバー",
-  "Sign in to Rakazo": "Rakazoにログイン",
+  "Sign in to Sydney": "Sydneyにログイン",
   "Sign up": "新規登録",
-  "Sign up for Rakazo": "Rakazoに新規登録",
+  "Sign up for Sydney": "Sydneyに新規登録",
   "Use a custom server": "カスタムサーバーを使用",
   "Use default server": "デフォルトのサーバーを使用",
   Activity: "アクティビティ",
@@ -478,6 +480,9 @@ export const JA_MESSAGES: Record<string, string> = {
   Bot: "ボット",
   "Close computer": "コンピューターを閉じる",
   "Computer keyboard": "コンピューターのキーボード",
+  "Pointer mode": "ポインターモード",
+  "Direct touch": "直接タッチ",
+  "Virtual mouse": "仮想マウス",
   Control: "Control",
   Down: "下",
   Escape: "Escape",
@@ -555,8 +560,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Supports images": "画像に対応",
   "Supports thinking": "思考に対応",
   "Then paste the code here.": "その後、ここにコードを貼り付けてください。",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "このサブスクリプションでのログインはRakazoではまだ利用できません。デプロイの認証情報を使うか、別のプロバイダーを選択してください。",
+  "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider.":
+    "このサブスクリプションでのログインはSydneyではまだ利用できません。デプロイの認証情報を使うか、別のプロバイダーを選択してください。",
   "Use a found model": "見つかったモデルを使用",
   "Waiting for sign-in…": "ログインを待っています…",
   "exact-model-id": "exact-model-id",
@@ -822,7 +827,7 @@ export const JA_MESSAGES: Record<string, string> = {
     "サーバーのアドレスのみを入力し、認証情報、パス、クエリ、フラグメントは含めないでください",
   "Public servers need https://. HTTP only works on your local network.":
     "公開サーバーには https:// が必要です。HTTPはローカルネットワークでのみ使用できます。",
-  "That URL did not look like a Rakazo server": "そのURLはRakazoサーバーではないようです",
+  "That URL did not look like a Sydney server": "そのURLはSydneyサーバーではないようです",
   "That URL is missing a host": "URLにホストがありません",
   "That doesn’t look like a URL": "URLではないようです",
   "Use an http or https URL": "http または https のURLを使用してください",
@@ -892,7 +897,6 @@ export const JA_MESSAGES: Record<string, string> = {
   "AI models": "AIモデル",
   Memory: "メモリ",
   "Privacy policies": "プライバシーポリシー",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "すべての許可を取り消す",
   "Withdraw all permissions?": "すべての許可を取り消しますか？",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1030,14 +1034,14 @@ export const JA_MESSAGES: Record<string, string> = {
   Subscribe: "登録する",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "月間クレジットは更新時に失効します。追加購入分は失効しません。",
-  "Use Rakazo credits": "Rakazoクレジットを使用",
+  "Use Sydney credits": "Sydneyクレジットを使用",
   "Choose a plan": "プランを選択",
   "Change plan": "プランを変更",
   "Current plan": "現在のプラン",
   Plan: "プラン",
   None: "なし",
   "Free trial": "無料トライアル",
-  "Rakazo credits": "Rakazoクレジット",
+  "Sydney credits": "Sydneyクレジット",
   "Free until": "無料期間の終了日",
   Ends: "終了日",
   Renews: "更新日",
@@ -1073,7 +1077,7 @@ export const JA_MESSAGES: Record<string, string> = {
   "Your free trial has started": "無料トライアルが始まりました",
   "Free until {date}": "{date}まで無料",
   "Connect your AI": "AIを接続",
-  "Start using Rakazo": "Rakazoを使い始める",
+  "Start using Sydney": "Sydneyを使い始める",
   "1 unread": "未読1件",
   "{count} unread": "未読{count}件",
   "{count} need attention": "{count}件が要対応",
@@ -1081,11 +1085,11 @@ export const JA_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}、下",
   Work: "仕事",
   Both: "両方",
-  "How will you use Rakazo?": "Rakazoをどのように使いますか？",
-  "What do you most want Rakazo to help with?": "Rakazoで一番手伝ってほしいことは何ですか？",
+  "How will you use Sydney?": "Sydneyをどのように使いますか？",
+  "What do you most want Sydney to help with?": "Sydneyで一番手伝ってほしいことは何ですか？",
   "How big is your team?": "チームの規模はどのくらいですか？",
-  "How did you hear about us?": "Rakazoを何で知りましたか？",
-  "Welcome to Rakazo": "Rakazoへようこそ",
+  "How did you hear about us?": "Sydneyを何で知りましたか？",
+  "Welcome to Sydney": "Sydneyへようこそ",
   "Stop all workers and confirm that provider operations have stopped before releasing this computer.":
     "このコンピューターを解放する前に、すべてのワーカーを停止し、プロバイダーの処理が停止したことを確認してください。",
   "Workers and operations are stopped": "ワーカーと処理は停止済み",
@@ -1105,8 +1109,8 @@ export const JA_MESSAGES: Record<string, string> = {
   Loading: "読み込み中",
   "Members ({min}–{max})": "メンバー（{min}–{max}）",
   "Open computer →": "コンピューターを開く →",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "ブラウザで開くのと同じHTTPSのURLで、セルフホストのRakazoオリジンを指定してください。",
+  "Point this app at your self-hosted Sydney origin, the same HTTPS URL you open in a browser.":
+    "ブラウザで開くのと同じHTTPSのURLで、セルフホストのSydneyオリジンを指定してください。",
   Recover: "復旧",
   "Remove thumbs-up": "いいねを削除",
   Searching: "検索中",
@@ -1325,23 +1329,65 @@ export const JA_MESSAGES: Record<string, string> = {
     "{count}個のボットがスペースのデフォルトを使用するようになりました。",
   "Could not switch {failedNames}. Try again.":
     "{failedNames}を切り替えられませんでした。もう一度お試しください。",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "カスタム背景が有効です。",
+  "A custom bubble style is active.": "カスタム吹き出しスタイルが有効です。",
+  "Background and bubbles": "背景と吹き出し",
+  "Bubble presets": "吹き出しプリセット",
+  "Bubble style": "吹き出しスタイル",
+  Change: "変更",
+  "Chat appearance": "チャットの外観",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "チャットの外観はこのデバイスにのみ保存され、アップロードされません。",
+  "Chat background": "チャットの背景",
+  Custom: "カスタム",
+  "Default bubbles": "デフォルトの吹き出し",
+  "Remove background": "背景を削除",
+  "The image could not be removed.": "画像を削除できませんでした。",
+  "The image could not be saved on this device.": "このデバイスに画像を保存できませんでした。",
+  "Use the default background.": "デフォルトの背景を使用します。",
+  "Use the default bubbles.": "デフォルトの吹き出しを使用します。",
+  "Add model": "モデルを追加",
+  "Check for updates": "アップデートを確認",
+  "Check the screen, then release and take control again.":
+    "画面を確認してから操作を解放し、もう一度操作を取得してください。",
+  "Checking for updates…": "アップデートを確認中…",
+  "Complete connection": "接続を完了",
+  "Computer control is unavailable. Release and take control again.":
+    "コンピュータ操作を利用できません。解放してから再度操作を取得してください。",
+  "Computer input failed. Take control again.":
+    "コンピュータへの入力に失敗しました。再度操作を取得してください。",
+  "Could not check for updates. Try again later.":
+    "アップデートを確認できませんでした。後でもう一度お試しください。",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "接続を確認できませんでした。新しく接続をやり直してください。",
+  "Could not restart. Reopen the app to apply the update.":
+    "再起動できませんでした。アップデートを適用するにはアプリを開き直してください。",
+  "Could not save changes": "変更を保存できませんでした",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "ブラウザで完了できない場合は、コールバックURL全体をコピーしてここに貼り付けてください。",
+  "MCP callback address": "MCPコールバックURL",
+  "Paste callback address": "コールバックURLを貼り付け",
+  Restart: "再起動",
+  "Restart the app now? Save unfinished work first.":
+    "今すぐアプリを再起動しますか？作業中の内容を先に保存してください。",
+  "The account, server, or space changed. Start the connection again.":
+    "アカウント、サーバー、またはスペースが変更されました。接続をやり直してください。",
+  "The callback address does not match this connection attempt.":
+    "コールバックURLがこの接続試行と一致しません。",
+  "This update needs a new app installation.":
+    "このアップデートにはアプリの再インストールが必要です。",
+  "Update downloaded": "アップデートをダウンロードしました",
+  "Updates are unavailable in this build.": "このビルドではアップデートを利用できません。",
+  "Waiting for screen dimensions…": "画面サイズの取得を待機中…",
+  "Your app is up to date.": "アプリは最新の状態です。",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "サーバーを変更するとログアウトされ、未送信のメッセージや添付ファイルが削除される場合があります。先に送信または保存してください。",
+  "Disable bot voice": "ボットの音声を無効にする",
+  "Enable bot voice": "ボットの音声を有効にする",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "保存された未送信メッセージを読み込めませんでした。未配信の新しいメッセージはアプリ終了時に失われる場合があります。",
+  "Server settings or the saved session could not be verified.":
+    "サーバー設定または保存されたセッションを確認できませんでした。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };

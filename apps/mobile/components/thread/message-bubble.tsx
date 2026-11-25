@@ -12,7 +12,7 @@ import { fontWeight, typeScale } from "@rakazo/ui-tokens";
 import type { ComponentProps } from "react";
 import { memo, useContext, useMemo, useState } from "react";
 import type { TextProps } from "react-native";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { MobileBot, MobileMessage, MobileSnapshot } from "../../lib/api";
 import { blockText, messagingProviderLabel } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
@@ -42,6 +42,7 @@ import { MessageMentions } from "../bot-mention";
 import { ChoiceCard } from "../ChoiceCard";
 import { ComputerCard } from "../ComputerCard";
 import { ChangeUndo, isUndoableChange } from "../change-undo";
+import { GlassSurface } from "../glass-surface";
 import type { ImageArtifactPreviewTarget } from "../image-artifact-viewer";
 import { InlineImageAttachment } from "../inline-image-attachment";
 import { McpApprovalCard } from "../McpApprovalCard";
@@ -504,19 +505,25 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     const speakerColor =
       message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
     const hasInlineImages = attachments.some(isInlineImageBlock);
+    const bubble = mobileBubbleSurfaceStyle(
+      chatAppearance,
+      message.role === "user" ? "user" : "bot",
+      {
+        backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
+      },
+    );
     const bubbleStyle = {
       maxWidth: "100%",
       paddingHorizontal: 14,
       paddingVertical: 12,
       gap: 8,
-      ...mobileBubbleSurfaceStyle(chatAppearance, message.role === "user" ? "user" : "bot", {
-        backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted,
-      }),
     } as const;
     return (
       <View style={hasInlineImages ? { maxWidth: "100%", gap: 8 } : bubbleStyle}>
+        {!hasInlineImages ? <MessageGlass {...bubble} /> : null}
         {(showBotSenderName && speaker) || caption ? (
           <View style={hasInlineImages ? bubbleStyle : undefined}>
+            {hasInlineImages ? <MessageGlass {...bubble} /> : null}
             {showBotSenderName && speaker ? (
               <Text
                 style={{ color: speakerColor ?? tokens.mutedForeground, ...typeScale.footnote }}
@@ -540,6 +547,9 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
             key={`${attachment.artifactId ?? attachment.name ?? attachment.kind}-${index}`}
             style={hasInlineImages && !isInlineImageBlock(attachment) ? bubbleStyle : undefined}
           >
+            {hasInlineImages && !isInlineImageBlock(attachment) ? (
+              <MessageGlass {...bubble} />
+            ) : null}
             {attachment.kind === "image" ? (
               isInlineImageBlock(attachment) ? (
                 <InlineImageAttachment
@@ -730,7 +740,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
 
 const OPEN_BOT_ACTION = "open-bot:";
 
-function MessageTextCard({
+export function MessageTextCard({
   message,
   speaker,
   speakerColor,
@@ -748,7 +758,6 @@ function MessageTextCard({
   const colorScheme = useResolvedAppearance();
   const chatAppearance = useMobileChatAppearance();
   const baseTokens = withUserBubble(mobileTokens(), userBubble);
-  const plainText = !chatAppearance.bubble && message.role !== "user";
   const tokens = chatAppearance.bubble
     ? {
         ...baseTokens,
@@ -779,6 +788,11 @@ function MessageTextCard({
     : actionProps.accessibilityActions;
   // The menu wrapper owns surface gestures; links and code controls remain responders.
   const Surface = doubleTapSurface ? View : Pressable;
+  const bubble = mobileBubbleSurfaceStyle(
+    chatAppearance,
+    message.role === "user" ? "user" : "bot",
+    { backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted },
+  );
   return (
     <Surface
       {...actionProps}
@@ -795,19 +809,11 @@ function MessageTextCard({
         flexShrink: 1,
         minWidth: 0,
         maxWidth: "100%",
-        ...(plainText
-          ? {}
-          : {
-              ...mobileBubbleSurfaceStyle(
-                chatAppearance,
-                message.role === "user" ? "user" : "bot",
-                { backgroundColor: message.role === "user" ? tokens.chatUser : tokens.muted },
-              ),
-              paddingHorizontal: 14,
-              paddingVertical: 9,
-            }),
+        paddingHorizontal: 14,
+        paddingVertical: 9,
       }}
     >
+      <MessageGlass {...bubble} />
       {speaker ? (
         <Text
           style={{
@@ -827,6 +833,22 @@ function MessageTextCard({
         streaming={message.id.startsWith("progress:")}
       />
     </Surface>
+  );
+}
+
+function MessageGlass({
+  backgroundColor,
+  borderRadius,
+}: ReturnType<typeof mobileBubbleSurfaceStyle>) {
+  return (
+    <GlassSurface
+      pointerEvents="none"
+      shape="roundedRectangle"
+      cornerRadius={borderRadius}
+      tint={backgroundColor}
+      style={StyleSheet.absoluteFill}
+      fallbackStyle={{ backgroundColor, borderRadius }}
+    />
   );
 }
 

@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Computer from "../app/computer";
+import type { ComputerPointerMode, NativeComputerInput } from "./native-computer-control";
 
 const rpc = vi.hoisted(() => vi.fn());
 const textScale = vi.hoisted(() => ({ fontScale: 1 }));
@@ -33,6 +34,12 @@ const screens = vi.hoisted(() => ({
   mixedContentMode: "",
   onLoadStart: undefined as ((event?: { nativeEvent: { url: string } }) => void) | undefined,
   nativePage: "",
+  injectedScript: "",
+}));
+const screenStage = vi.hoisted(() => ({
+  onLayout: undefined as
+    | ((event: { nativeEvent: { layout: { width: number; height: number } } }) => void)
+    | undefined,
 }));
 const picker = vi.hoisted(() => ({
   mounts: 0,
@@ -42,6 +49,9 @@ const picker = vi.hoisted(() => ({
 }));
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./ui-mode-slots", () => ({
+  UiModeScreenHost: ({ renderClassic }: { renderClassic: () => ReactNode }) => renderClassic(),
+}));
 vi.mock("react-native", () => {
   function MockView(props: {
     children?: ReactNode;
@@ -51,10 +61,14 @@ vi.mock("react-native", () => {
       alignSelf?: string;
       color?: string;
       height?: number;
+      width?: number | string;
+      aspectRatio?: number;
       paddingTop?: number;
     };
+    onLayout?: typeof screenStage.onLayout;
     keyboardShouldPersistTaps?: string;
   }) {
+    if (props.onLayout) screenStage.onLayout = props.onLayout;
     return createElement(
       "div",
       {
@@ -63,6 +77,8 @@ vi.mock("react-native", () => {
         "data-flex": props.style?.flex,
         "data-align-self": props.style?.alignSelf,
         "data-height": props.style?.height,
+        "data-width": props.style?.width,
+        "data-aspect-ratio": props.style?.aspectRatio,
         "data-padding-top": props.style?.paddingTop,
         "data-persist-taps": props.keyboardShouldPersistTaps,
       },
@@ -125,19 +141,46 @@ vi.mock("../components/computer-keyboard-bar", () => ({
   ComputerKeyboardBar: (props: {
     active: boolean;
     onCommand: (value: typeof keyboardCommand.value) => void;
-  }) =>
-    createElement(
-      "button",
-      {
-        type: "button",
-        "data-keyboard-bar": true,
-        "data-active": String(props.active),
-        onClick: () => props.onCommand(keyboardCommand.value),
-      },
-      "keyboard",
-    ),
+    pointer: { mode: ComputerPointerMode; onChange: (mode: ComputerPointerMode) => void };
+  }) => (
+    <>
+      <button
+        type="button"
+        data-keyboard-bar
+        data-active={String(props.active)}
+        onClick={() => props.onCommand(keyboardCommand.value)}
+      >
+        keyboard
+      </button>
+      <button
+        type="button"
+        data-pointer-mode={props.pointer.mode}
+        disabled={!props.active}
+        onClick={() => props.pointer.onChange(props.pointer.mode === "touch" ? "mouse" : "touch")}
+      >
+        pointer mode
+      </button>
+    </>
+  ),
 }));
 vi.mock("../components/native-computer-control", () => ({
+  ComputerVirtualMouse: (props: {
+    screen: { width: number; height: number };
+    onInput: (value: NativeComputerInput) => void;
+  }) => (
+    <button
+      type="button"
+      data-virtual-mouse
+      onClick={() =>
+        props.onInput({
+          kind: "pointer",
+          payload: { x: props.screen.width / 2, y: props.screen.height / 2, type: "move" },
+        })
+      }
+    >
+      virtual mouse
+    </button>
+  ),
   NativeComputerControl: (props: { geometry: unknown; onInput: (value: unknown) => void }) =>
     createElement(
       "button",
@@ -168,6 +211,7 @@ vi.mock("react-native-webview", () => {
       onShouldStartLoadWithRequest?: (request: { url: string }) => boolean;
       mixedContentMode?: string;
       injectedJavaScriptBeforeContentLoaded?: string;
+      injectedJavaScript?: string;
     }) => {
       screens.onMessage = props.onMessage;
       screens.error = props.onError;
@@ -175,6 +219,7 @@ vi.mock("react-native-webview", () => {
       screens.onLoadStart = props.onLoadStart;
       screens.onShouldStartLoadWithRequest = props.onShouldStartLoadWithRequest;
       screens.mixedContentMode = props.mixedContentMode ?? "";
+      screens.injectedScript = props.injectedJavaScript ?? "";
       screens.nativePage =
         props.injectedJavaScriptBeforeContentLoaded?.match(/rakazoNativePage: "([^"]+)"/)?.[1] ??
         "";
@@ -359,6 +404,7 @@ describe("computer screen", () => {
     keyboardCommand.value = { type: "text", text: "hello" };
     folds.regions = [];
     screens.mounts = 0;
+    screenStage.onLayout = undefined;
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   });
 
@@ -465,6 +511,34 @@ describe("computer screen", () => {
     expect(
       screens.onShouldStartLoadWithRequest?.({ url: "https://old.example.test/redirect" }),
     ).toBe(false);
+  });
+
+  it("shows a screen address failure and retries without booting the computer again", async () => {
+    let unavailable = true;
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "computer/status") return botWorking;
+      if (method === "computer/screenUrl") {
+        if (unavailable)
+          throw Object.assign(new Error("Screen connection needs recovery"), { status: 409 });
+        return { url: "https://screen.example.test/embed" };
+      }
+      return {};
+    });
+    const view = await render();
+    const bootsBeforeRetry = calls("computer/boot").length;
+    expect(view.textContent).toContain("Screen connection needs recovery");
+    expect(view.querySelector("iframe")).toBeNull();
+    const retry = Array.from(view.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry screen",
+    );
+    expect(retry).toBeDefined();
+    unavailable = false;
+    await act(async () => retry?.click());
+    await settle();
+    expect(view.textContent).not.toContain("Screen connection needs recovery");
+    expect(view.querySelector("iframe")).not.toBeNull();
+    expect(calls("computer/boot")).toHaveLength(bootsBeforeRetry);
+    expect(calls("computer/recover")).toHaveLength(0);
   });
 
   it.each([
@@ -1043,6 +1117,58 @@ describe("computer screen", () => {
     );
   });
 
+  it.each(["native-linux", "docker"] as const)(
+    "switches %s pointer modes without reloading or input after closing",
+    async (kind) => {
+      let view: HTMLElement;
+      if (kind === "native-linux") {
+        ({ view } = await openNativeScreen());
+      } else {
+        respond({ ...botWorking, controlHolder: "user", controlBotId: "bot-1" });
+        view = await render();
+        await act(async () => preview(view).click());
+        await settle();
+      }
+      const toggle = () => view.querySelector<HTMLButtonElement>("[data-pointer-mode]");
+      const mouse = () => view.querySelector<HTMLButtonElement>("[data-virtual-mouse]");
+      const mounts = screens.mounts;
+      expect(toggle()?.dataset.pointerMode).toBe("touch");
+      expect(mouse()).toBeNull();
+      await act(async () => toggle()?.click());
+      expect(toggle()?.dataset.pointerMode).toBe("mouse");
+      expect(view.querySelector("[data-native-control]")).toBeNull();
+      expect(view.querySelector("iframe")?.getAttribute("data-elements-hidden")).toBe("true");
+      expect(mouse()).not.toBeNull();
+      await act(async () => mouse()?.click());
+      await settle();
+      expect(calls("computer/input")).toEqual([
+        [
+          "computer/input",
+          {
+            botId: "bot-1",
+            ...(kind === "native-linux"
+              ? { controlLeaseId: `native-fixture-${nativeFixtureSequence}` }
+              : {}),
+            kind: "pointer",
+            payload: { x: 640, y: 400, type: "move" },
+          },
+          expect.any(Object),
+        ],
+      ]);
+      await act(async () => toggle()?.click());
+      expect(toggle()?.dataset.pointerMode).toBe("touch");
+      expect(mouse()).toBeNull();
+      expect(screens.mounts).toBe(mounts);
+      await act(async () => toggle()?.click());
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Close computer"]')?.click(),
+      );
+      expect(toggle()).toBeNull();
+      expect(mouse()).toBeNull();
+      expect(calls("computer/input")).toHaveLength(1);
+    },
+  );
+
   it("does not enable native control when the server does not provide a lease", async () => {
     respond({
       ...botWorking,
@@ -1447,6 +1573,59 @@ describe("computer screen", () => {
     expect(lowerHalf?.contains(view.querySelector("[data-keyboard-bar]"))).toBe(true);
     expect(lowerHalf?.querySelector('[data-avoids-keyboard="true"]')).not.toBeNull();
     expect(lowerHalf?.contains(fullWindow?.querySelector("iframe") ?? null)).toBe(false);
+  });
+
+  it("fits the preview and control window to the actual desktop's ratio", async () => {
+    respond({ ...botWorking, controlHolder: "user", controlBotId: "bot-1", busyBotName: null });
+    const view = await render();
+    const frame = () => view.querySelector("iframe")?.closest<HTMLElement>("[data-aspect-ratio]");
+    const ratioMessage = (size: number[], url: string) =>
+      screens.onMessage?.({
+        nativeEvent: { url, data: JSON.stringify({ rakazoScreenSize: size }) },
+      });
+
+    expect(frame()?.dataset.aspectRatio).toBe(String(1280 / 800));
+    expect(screens.injectedScript).toContain("rakazoScreenSize");
+    act(() => ratioMessage([1024, 768], "https://unrelated.test/"));
+    act(() => ratioMessage([1024, 0], screens.source));
+    expect(frame()?.dataset.aspectRatio).toBe(String(1280 / 800));
+
+    const screenPage = document.implementation.createHTMLDocument();
+    const screenHost = screenPage.createElement("div");
+    screenHost.id = "noVNC_container";
+    screenPage.body.append(screenHost);
+    const canvas = screenPage.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 768;
+    const postMessage = vi.fn((data: string) =>
+      screens.onMessage?.({ nativeEvent: { url: screens.source, data } }),
+    );
+    await act(async () => {
+      new Function("window", "document", "MutationObserver", screens.injectedScript)(
+        { ReactNativeWebView: { postMessage } },
+        screenPage,
+        MutationObserver,
+      );
+      screenHost.append(canvas);
+    });
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(frame()?.dataset.aspectRatio).toBe(String(4 / 3));
+    await act(async () => preview(view).click());
+    await settle();
+    const layout = (width: number, height: number) =>
+      screenStage.onLayout?.({ nativeEvent: { layout: { width, height } } });
+    act(() => layout(369, 660));
+    expect(frame()?.dataset.width).toBe("369");
+    expect(frame()?.dataset.aspectRatio).toBe(String(4 / 3));
+    const keyboard = view.querySelector("[data-keyboard-bar]")!;
+    expect(frame()?.compareDocumentPosition(keyboard)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    act(() => layout(740, 240));
+    expect(frame()?.dataset.width).toBe("320");
+    act(() => ratioMessage([1920, 1080], screens.source));
+    expect(frame()?.dataset.width).toBe(String(240 * (16 / 9)));
+    expect(frame()?.dataset.aspectRatio).toBe(String(16 / 9));
+    expect(screens.mounts).toBe(2);
   });
 
   it("keeps the keys under the desktop when flat or only viewing", async () => {
