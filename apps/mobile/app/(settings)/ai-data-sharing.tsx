@@ -1,5 +1,6 @@
 import type { AiConsentStatus } from "@rakazo/contracts";
 import { AI_DATA_DISCLOSURES } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet } from "react-native";
 import {
@@ -17,8 +18,10 @@ import {
 } from "../../lib/ai-data-sharing";
 import { rpc } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 export default function AiDataSharing() {
@@ -163,9 +166,13 @@ export default function AiDataSharing() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     container: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 28 },
     compactContainer: { paddingHorizontal: 8 },
   });

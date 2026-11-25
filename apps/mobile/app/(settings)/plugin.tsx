@@ -13,6 +13,7 @@ import {
   installedPluginParts,
   isCatalogItemConnected,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -42,12 +43,14 @@ import { useAppForeground } from "../../lib/app-foreground";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
 import { loadLastBotId } from "../../lib/last-bot";
-import { native, useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
 import { mcpServerReady, sourceHref } from "../../lib/plugin-marketplace";
 import { closeSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { useMcpOAuthReturn } from "../../lib/use-mcp-oauth-return";
 import { errorText } from "../../lib/user-error";
 
@@ -58,6 +61,7 @@ export default function PluginScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const sideInsets = useSideInsets();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
   const { t } = useI18n();
   const foreground = useAppForeground();
@@ -346,10 +350,10 @@ export default function PluginScreen() {
                 hidesSharedBackground: true,
                 label: action.label,
                 ...(action.destructive
-                  ? { tintColor: mobileTokens().destructive }
+                  ? { tintColor: tokens.destructive }
                   : managedConnected
                     ? {}
-                    : { variant: "prominent" as const, tintColor: mobileTokens().primary }),
+                    : { variant: "prominent" as const, tintColor: tokens.primary }),
                 disabled: actionDisabled,
                 onPress: () => void actionRef.current.onPress(),
               },
@@ -357,7 +361,16 @@ export default function PluginScreen() {
           }
         : {}),
     } satisfies NativeStackNavigationOptions);
-  }, [navigation, params.name, action.label, action.destructive, actionDisabled, managedConnected]);
+  }, [
+    navigation,
+    params.name,
+    action.label,
+    action.destructive,
+    actionDisabled,
+    managedConnected,
+    tokens.destructive,
+    tokens.primary,
+  ]);
 
   const description = detail?.description || params.description;
   const skills = detail?.skills ?? [];
@@ -593,31 +606,35 @@ function ConnectorSymbol() {
 }
 
 function ConnectedMark({ label }: { label: string }) {
+  const tokens = useMobileTokens();
   return (
     <View accessible accessibilityLabel={label}>
       <NativeSymbol
         ios="checkmark.circle.fill"
         android="checkmark-circle"
         size={16}
-        color={mobileTokens().success}
+        color={tokens.success}
       />
     </View>
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 20, gap: 20 },
     hero: { flexDirection: "row", alignItems: "center", gap: 14 },
     grow: { flex: 1, gap: 3, minWidth: 0 },
-    name: { color: native.label, fontSize: 22, lineHeight: 28, fontWeight: "600" },
+    name: { color: colors.label, fontSize: 22, lineHeight: 28, fontWeight: "600" },
     sourceLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
-    description: { color: native.secondaryLabel, fontSize: 15, lineHeight: 21 },
+    description: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 21 },
     section: { gap: 8 },
     sectionTitle: {
-      color: native.label,
+      color: colors.label,
       fontSize: 17,
       lineHeight: 22,
       fontWeight: "600",
@@ -629,8 +646,8 @@ function createStyles() {
       justifyContent: "space-between",
       gap: 12,
     },
-    count: { color: native.secondaryLabel, fontWeight: "400" },
-    card: { borderRadius: 14, backgroundColor: native.fill, overflow: "hidden" },
+    count: { color: colors.secondaryLabel, fontWeight: "400" },
+    card: { borderRadius: 14, backgroundColor: colors.fill, overflow: "hidden" },
     item: { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
     itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     itemActions: {
@@ -640,10 +657,10 @@ function createStyles() {
       gap: 8,
       paddingLeft: 27,
     },
-    divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
-    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
-    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    more: { color: native.label, fontSize: 14, textAlign: "right" },
+    divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
+    title: { color: colors.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
+    secondary: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    more: { color: colors.label, fontSize: 14, textAlign: "right" },
     errorRow: { gap: 8 },
     error: { color: tokens.destructive, fontSize: 14 },
   });

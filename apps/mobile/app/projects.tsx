@@ -28,6 +28,7 @@ import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { clearPageState, usePageScroll, usePageState } from "../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
@@ -44,6 +45,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const appearance = useResolvedAppearance();
   const sideInsets = useSideInsets();
   const bottomClaimed = useBottomSafeAreaClaimed();
@@ -250,7 +252,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
       <ScrollView
         {...scroll}
         contentInsetAdjustmentBehavior="automatic"
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{
           padding: 20,
           paddingBottom: bottomClaimed ? 28 : Math.max(insets.bottom, 28),

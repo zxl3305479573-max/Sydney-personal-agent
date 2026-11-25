@@ -1,6 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { BotSecretMetadata, VaultRevealed } from "@rakazo/contracts";
 import { isIdentityConfirmationRequired } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -14,9 +15,11 @@ import { VaultCredentialSheet } from "../../components/vault-credential-sheet";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
 import { presentMessageActionSheet } from "../../lib/message-action-sheet";
+import type { NativeColors } from "../../lib/native";
 import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
 import { settingsRpc, settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 import type { CredentialAuth, CredentialDestination } from "../../lib/vault";
 import { credentialDetail, readableCredential, withCredential } from "../../lib/vault";
@@ -254,10 +257,13 @@ function isCredentialAction(action: string): action is CredentialAction {
   return action === "show" || action === "replace" || action === "remove";
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { width: "100%", padding: 20, gap: 24, paddingBottom: 40 },
     error: { color: tokens.destructive, fontSize: 14 },
   });

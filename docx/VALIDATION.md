@@ -1,5 +1,33 @@
 # 验证记录
 
+## iPhone 换肤插件作用域隔离、背景层叠、材质消费与错误本地化（2026-11-24）
+
+关联 PA-019、PA-020、PA-021。工作区为 `ui-plugin` 分支（基于合并提交 `95de23355` 之上续作）。
+
+- 首轮失败与修复记录：
+  - `apps/mobile/lib/theme-controls.test.ts` 首次运行失败 1 项：`localizeThemeError` 中 `/JSON/i` 匹配早于 `.sydney-theme.json`，导致文件后缀错误被误报为 JSON 语法错误；调整分支顺序后通过。
+  - `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 首次检出新增测试 `apps/mobile/lib/scoped-theme.test.tsx` 的 `vi.hoisted` 缺少 `currentRenderRoute` 属性；补齐后通过。
+- 最终已执行并通过：
+  - 移动端定向回归（两批覆盖全部 19 个相关测试文件、151 项测试，均在最终代码上有效）：
+    - 19 文件首轮通过的 18 个未改文件 140 项：`project-chat-screen.test.tsx`（21）、`account-screen.test.tsx`（28）、`settings-group.test.tsx`（16）、`ui-mode.test.ts`（9）、`ui-mode-slots.test.tsx`（7）、`app-error-boundary.test.tsx`（5）、`glass-surface.test.tsx`（5）、`appearance.test.ts`（6）、`home-route.test.tsx`（5）、`ui-mode-provider.test.tsx`（2）、`ui-mode-store.test.ts`（12）、`chat-appearance.test.ts`（6）、`home-styles.test.ts`（2）、`ui-mode-registry.test.ts`（9）、`theme-manager.test.ts`（3）、`theme-pack.test.ts`（4）——以及修复后重跑通过的 3 个文件 11 项：`theme-controls.test.ts`（4）、`ui-mode-screen.test.tsx`（5）、`scoped-theme.test.tsx`（2），合计 **19 个文件 151 项全部通过**。
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 通过（0 错误）。
+  - 格式与 lint 检查：本批 14 个源码／测试文件执行 Biome `check`，0 错误（`index.tsx:1017` 保留既有未改行的单条无用 Fragment info 提示）；`git diff --check` 通过。
+- 未执行项：
+  - 真实 iPhone 视觉、大字体、VoiceOver、分屏往返、背景共存、导入／替换／卸载实机交互及 OTA 构建：**未执行**，离线回归不能替代真机验收。
+
+## iPhone 换肤插件状态统一与设置页重构（2026-11-24）
+
+关联 PA-019、PA-020、PA-021。工作区为 `ui-plugin` 分支（已先合并对齐 `cursor/integrate-remote-branches-7334` 至 `95de23355`）。
+
+- 已执行并全部通过：
+  - 经用户明确授权执行 `pnpm install --offline --frozen-lockfile` 恢复本工作树离线依赖（2,113 包从本机 store 离线链接完成；可选原生包 `cpu-features` 编译提示失败但不影响安装退出码 0 及移动端离线验证）。
+  - 移动端定向回归：`pnpm exec vitest run --maxWorkers=1` 执行 `apps/mobile/lib/` 下 `theme-pack.test.ts`（4 项）、`theme-manager.test.ts`（3 项）、`theme-controls.test.ts`（3 项）、`ui-mode-screen.test.tsx`（5 项）、`ui-mode.test.ts`（9 项）、`ui-mode-store.test.ts`（12 项）、`ui-mode-registry.test.ts`（9 项）、`ui-mode-provider.test.tsx`（2 项）、`ui-mode-slots.test.tsx`（7 项）、`appearance.test.ts`（6 项）、`app-error-boundary.test.tsx`（5 项）、`glass-surface.test.tsx`（5 项）、`account-screen.test.tsx`（28 项），**13 个文件共 98 项全部通过**。
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 通过（0 错误）。
+  - 静态格式与 lint 检查：全部 19 个新增／修改源码及测试文件执行 Biome `check`，0 错误。
+  - 空白与补丁检查：`git diff --check` 通过。
+- 未执行项：
+  - 真实 iPhone 视觉、大字体、VoiceOver、导入／替换／卸载实机交互及 OTA 构建：**未执行**，离线回归不能替代真机验收。
+
 ## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
 
 本机 `.env` 指向 `127.0.0.1:54318/rakazo` 的 `rakazo-dev-postgres` 容器。目标生产数据库地址不在本机配置中，本轮没有连接或修改生产数据库。

@@ -7,6 +7,7 @@ import { currentApiBase, subscribeApiBase } from "../../lib/api";
 import { dateLocaleForUi, useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { queryClient } from "../../lib/query";
+import { useScreenBackground } from "../../lib/scoped-theme-context";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
@@ -19,6 +20,7 @@ export default function Devices() {
   const { t, locale } = useI18n();
   const navigation = useNavigation();
   const insets = useSideInsets();
+  const screenBackground = useScreenBackground(native.groupedPage);
   const server = useSyncExternalStore(subscribeApiBase, currentApiBase);
   const generation = useSyncExternalStore(subscribeSessionGeneration, currentSessionGeneration);
   const ready = useSyncExternalStore(subscribeSessionGeneration, currentReadySessionGeneration);
@@ -81,7 +83,7 @@ export default function Devices() {
             : t("Could not load devices.");
   return (
     <ScrollView
-      style={[{ flex: 1, backgroundColor: native.groupedPage }, insets]}
+      style={[{ flex: 1, backgroundColor: screenBackground }, insets]}
       contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 32, gap: 16 }}
       contentInsetAdjustmentBehavior="automatic"
     >

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
 import { openMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens } from "../lib/native";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { NativeSymbol } from "./native-symbol";
 
 export function MainBottomNavigation() {
@@ -11,6 +12,12 @@ export function MainBottomNavigation() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const indicatorRadius = scope ? Math.max(6, Math.min(18, scope.geometry.controlRadius)) : 10;
+  const topBorderWidth =
+    scope?.surface === "outlined"
+      ? Math.max(1, Math.min(2, scope.geometry.borderWidth))
+      : StyleSheet.hairlineWidth;
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
@@ -46,7 +53,7 @@ export function MainBottomNavigation() {
       style={{
         flexShrink: 0,
         flexDirection: "row",
-        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopWidth: topBorderWidth,
         borderTopColor: tokens.border,
         backgroundColor: tokens.background,
         paddingLeft: insets.left + 8,
@@ -81,7 +88,7 @@ export function MainBottomNavigation() {
               style={{
                 width: 46,
                 height: 26,
-                borderRadius: 10,
+                borderRadius: indicatorRadius,
                 justifyContent: "center",
                 alignItems: "center",
                 backgroundColor: selected ? tokens.muted : undefined,

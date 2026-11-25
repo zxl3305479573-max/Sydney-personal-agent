@@ -23,6 +23,7 @@ import {
   newClientId,
   OTHER_PLUGINS,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -62,6 +63,7 @@ import {
 } from "../lib/integrations-cache";
 import { loadLastBotId } from "../lib/last-bot";
 import { useHideMainNavigation } from "../lib/main-navigation";
+import type { NativeColors } from "../lib/native";
 import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import type { PluginParams } from "../lib/plugin-marketplace";
@@ -78,6 +80,7 @@ import {
 } from "../lib/plugin-marketplace";
 import { queryClient, rpcQuery } from "../lib/query";
 import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { useMcpOAuthReturn } from "../lib/use-mcp-oauth-return";
 import { errorText } from "../lib/user-error";
 
@@ -1640,27 +1643,30 @@ export default function Integrations() {
   );
 }
 
-function createIntegrationsStyles() {
-  const destructive = mobileTokens().destructive;
+function createIntegrationsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 20, gap: 14 },
-    explanation: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    section: { color: native.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
+    explanation: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    section: { color: colors.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
     card: { padding: 16, borderRadius: 16, gap: 12 },
-    cardFallback: { backgroundColor: native.fill },
+    cardFallback: { backgroundColor: colors.fill },
     field: { gap: 8 },
-    fieldLabel: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    fieldLabel: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
     input: {
       minHeight: 48,
       borderRadius: 12,
-      backgroundColor: native.fillPressed,
-      color: native.label,
+      backgroundColor: colors.fillPressed,
+      color: colors.label,
       paddingHorizontal: 14,
       fontSize: 17,
     },
-    inputFallback: { backgroundColor: native.fillPressed, borderRadius: 12 },
-    searchInput: { minHeight: 48, color: native.label, paddingHorizontal: 14, fontSize: 17 },
+    inputFallback: { backgroundColor: colors.fillPressed, borderRadius: 12 },
+    searchInput: { minHeight: 48, color: colors.label, paddingHorizontal: 14, fontSize: 17 },
     catalogGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     catalogStack: { gap: 8 },
     catalogCell: { flexGrow: 1, flexBasis: "47%", maxWidth: "49%" },
@@ -1681,29 +1687,29 @@ function createIntegrationsStyles() {
       alignItems: "center",
       gap: 10,
     },
-    rowFallback: { backgroundColor: native.fill, borderRadius: 14 },
+    rowFallback: { backgroundColor: colors.fill, borderRadius: 14 },
     logoPlaceholder: {
       width: LOGO_SIZE,
       height: LOGO_SIZE,
       borderRadius: 10,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     titlePlaceholder: {
       width: "65%",
       height: 14,
       borderRadius: 4,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     pillPlaceholder: {
       width: 52,
       height: 30,
       borderRadius: 15,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     grow: { flex: 1, gap: 3, minWidth: 0 },
-    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
-    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    pressed: { backgroundColor: native.fillPressed },
+    title: { color: colors.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+    secondary: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    pressed: { backgroundColor: colors.fillPressed },
     categoryPicker: { alignSelf: "flex-start" },
     sectionHeader: {
       marginTop: 10,
@@ -1711,7 +1717,7 @@ function createIntegrationsStyles() {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    sectionTitle: { color: native.label, fontSize: 16, fontWeight: "600" },
+    sectionTitle: { color: colors.label, fontSize: 16, fontWeight: "600" },
     accountActions: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -1728,13 +1734,13 @@ function createIntegrationsStyles() {
       flex: 1,
       minHeight: 36,
       borderRadius: 10,
-      backgroundColor: native.fillPressed,
-      color: native.label,
+      backgroundColor: colors.fillPressed,
+      color: colors.label,
       paddingHorizontal: 10,
       fontSize: 13,
     },
-    link: { color: native.label, fontSize: 14, fontWeight: "600" },
-    error: { color: destructive, fontSize: 14 },
+    link: { color: colors.label, fontSize: 14, fontWeight: "600" },
+    error: { color: tokens.destructive, fontSize: 14 },
     detail: { gap: 14 },
     detailHeader: {
       flexDirection: "row",
@@ -1744,7 +1750,7 @@ function createIntegrationsStyles() {
     },
     detailTitleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
     backButton: { paddingVertical: 4 },
-    detailTitle: { flex: 1, color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+    detailTitle: { flex: 1, color: colors.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
     toolsToggle: {
       flexDirection: "row",
       alignItems: "center",
@@ -1752,7 +1758,7 @@ function createIntegrationsStyles() {
       gap: 8,
     },
     toolsBody: { gap: 8, paddingTop: 4 },
-    toolName: { color: native.label, fontSize: 14 },
+    toolName: { color: colors.label, fontSize: 14 },
     addCustom: { alignSelf: "flex-end", padding: 4 },
   });
 }

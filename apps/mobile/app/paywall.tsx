@@ -44,6 +44,7 @@ import {
 import { translucentColor } from "../lib/color";
 import { dateLocaleForUi, useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { errorText } from "../lib/user-error";
 
 type Amount = (typeof MODEL_CREDIT_AMOUNTS)[number];
@@ -68,6 +69,7 @@ const CREW = [
 export default function Paywall() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dismissible = useLocalSearchParams<{ dismissible?: string }>().dismissible === "1";
@@ -210,7 +212,7 @@ export default function Paywall() {
 
   if (!status) {
     return (
-      <View style={[styles.screen, { backgroundColor: tokens.background }]}>
+      <View style={[styles.screen, { backgroundColor: screenBackground }]}>
         {topBar}
         <View style={[styles.screen, styles.center]}>
           {loadFailed ? (
@@ -238,7 +240,7 @@ export default function Paywall() {
         style={[
           styles.screen,
           styles.center,
-          { backgroundColor: tokens.background, paddingBottom: insets.bottom + 16 },
+          { backgroundColor: screenBackground, paddingBottom: insets.bottom + 16 },
         ]}
       >
         <View style={styles.done}>
@@ -326,7 +328,7 @@ export default function Paywall() {
           : null;
 
   return (
-    <View style={[styles.screen, { backgroundColor: tokens.background }]}>
+    <View style={[styles.screen, { backgroundColor: screenBackground }]}>
       {topBar}
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="never">
         <View style={styles.hero}>

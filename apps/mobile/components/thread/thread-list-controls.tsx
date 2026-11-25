@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import { useMobileTokens } from "../../lib/native";
 import type { ActivityMarkBot } from "../activity-mark";
 import { ActivityMark } from "../activity-mark";
 import { ScrollToBottomButton } from "../scroll-to-bottom-button";
@@ -33,7 +33,7 @@ export function ThreadWorkingFooter({
 }
 
 export function LoadEarlierButton({ loading, onPress }: { loading: boolean; onPress: () => void }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { t } = useI18n();
   return (
     <Pressable
@@ -71,7 +71,7 @@ export function JumpToLatestButton({
   unread: boolean;
   onPress: () => void;
 }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { t } = useI18n();
   return (
     <View style={{ position: "absolute", end: insetEnd, bottom: bottomInset + 12 }}>

@@ -23,6 +23,7 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { ActionProminence, NativeActionButtonProps } from "../lib/native-controls";
 import { actionFills, actionProminence } from "../lib/native-controls";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 
 export function NativeActionButton({
   label,
@@ -41,6 +42,7 @@ export function NativeActionButton({
   selected,
 }: NativeActionButtonProps) {
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
   const { fontScale } = useWindowDimensions();
   const scheme = useResolvedAppearance();
   const inactive = disabled || busy;
@@ -54,6 +56,10 @@ export function NativeActionButton({
   const rectangular = variant === "rectangular";
   const measuredWidth = StyleSheet.flatten(style)?.width;
   const primary = effectiveProminence === "primary";
+  const rectangularCornerRadius = scope
+    ? Math.max(6, Math.min(20, scope.geometry.controlRadius))
+    : 9;
+  const rectangularLineWidth = scope ? Math.max(1, Math.min(2, scope.geometry.borderWidth)) : 1;
   const labelModifiers = variant
     ? [
         font({
@@ -85,13 +91,13 @@ export function NativeActionButton({
           ? [
               background(
                 primary ? tokens.primary : tokens.card,
-                shapes.roundedRectangle({ cornerRadius: 9 }),
+                shapes.roundedRectangle({ cornerRadius: rectangularCornerRadius }),
               ),
               strokeBorder({
                 content: primary ? tokens.primary : tokens.foreground,
                 shape: "roundedRectangle",
-                cornerRadius: 9,
-                style: { lineWidth: 1 },
+                cornerRadius: rectangularCornerRadius,
+                style: { lineWidth: rectangularLineWidth },
               }),
             ]
           : []),

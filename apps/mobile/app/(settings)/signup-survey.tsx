@@ -1,5 +1,6 @@
 import type { SignupSurvey as SignupSurveyAnswers } from "@rakazo/contracts";
 import { signupSurveyAsksTeamSize } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 
 import { useRef, useState } from "react";
 import {
@@ -16,11 +17,13 @@ import { NativeSymbol } from "../../components/native-symbol";
 import { SettingsGroup, SettingsRow, useStackedSettings } from "../../components/settings-group";
 import { rpc } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { closeSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
 import type { SignupSurveyTeamSize } from "../../lib/signup-survey";
 import { SIGNUP_SURVEY_TEAM_SIZE_CHOICES, signupSurveyAnswers } from "../../lib/signup-survey";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 
 type Use = NonNullable<SignupSurveyAnswers["use"]>;
 
@@ -150,16 +153,20 @@ function ChoiceRow<T extends string>({
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 28 },
     compactContent: { paddingHorizontal: 8 },
     input: {
       minHeight: 48,
       paddingHorizontal: 16,
       paddingVertical: 12,
-      color: native.label,
+      color: colors.label,
       fontSize: 16,
     },
     multiline: { minHeight: 96 },

@@ -39,6 +39,7 @@ import type { ComposerDraftScope } from "../lib/composer-draft";
 import { readComposerDraft, writeComposerDraft } from "../lib/composer-draft";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import type { ComposerSnapshot } from "../lib/thread-feedback";
 import { BotAvatar } from "./bot-avatar";
 import { NativeSymbol } from "./native-symbol";
@@ -122,6 +123,12 @@ export function ThreadComposer({
   onModelSelect,
 }: ThreadComposerProps) {
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const composerRadius = scope ? Math.max(12, Math.min(26, scope.geometry.controlRadius + 6)) : 18;
+  const composerBorderWidth =
+    scope?.surface === "outlined" ? Math.max(1, Math.min(2, scope.geometry.borderWidth)) : 1;
+  const controlRadius = scope ? Math.max(6, Math.min(18, scope.geometry.controlRadius)) : 10;
+  const pickerRadius = scope ? Math.max(10, Math.min(22, scope.geometry.controlRadius + 2)) : 14;
   // A mention is plain text in the link blue; it turns bold while a backspace has it selected.
   const mentionStyle = (selected: boolean) => ({
     color: tokens.link,
@@ -367,7 +374,7 @@ export function ThreadComposer({
   const toolButton = {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: controlRadius,
     alignItems: "center",
     justifyContent: "center",
   } as const;
@@ -384,8 +391,8 @@ export function ThreadComposer({
             flexGrow: 0,
             flexShrink: 1,
             marginTop: 12,
-            borderRadius: 14,
-            borderWidth: 1,
+            borderRadius: pickerRadius,
+            borderWidth: composerBorderWidth,
             borderColor: tokens.border,
             backgroundColor: tokens.card,
             overflow: "hidden",
@@ -446,8 +453,8 @@ export function ThreadComposer({
             flexGrow: 0,
             flexShrink: 1,
             marginTop: 12,
-            borderRadius: 14,
-            borderWidth: 1,
+            borderRadius: pickerRadius,
+            borderWidth: composerBorderWidth,
             borderColor: tokens.border,
             backgroundColor: tokens.card,
             overflow: "hidden",
@@ -510,8 +517,8 @@ export function ThreadComposer({
       <View style={{ marginTop: 8, flexShrink: 1, minHeight: 0 }}>
         <View
           style={{
-            borderRadius: 18,
-            borderWidth: 1,
+            borderRadius: composerRadius,
+            borderWidth: composerBorderWidth,
             borderColor: tokens.border,
             backgroundColor: tokens.card,
             flexShrink: 1,
@@ -744,7 +751,7 @@ export function ThreadComposer({
                       alignItems: "center",
                       paddingHorizontal: 8,
                       gap: 6,
-                      borderRadius: 10,
+                      borderRadius: controlRadius,
                     }}
                   >
                     <Text

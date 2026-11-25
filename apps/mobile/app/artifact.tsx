@@ -1,6 +1,7 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type { ArtifactVersion, ArtifactWithContent } from "@rakazo/contracts";
 import { isAttachmentImageMimeType } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { File } from "expo-file-system";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import type { ReactNode } from "react";
@@ -19,7 +20,6 @@ import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { SandboxedHtmlPreview } from "../components/sandboxed-html-preview";
 import { formatActivityRelativeTime } from "../lib/activity";
-import { mobileTokens } from "../lib/appearance";
 import { shareLocalFile, writeArtifactCacheFile } from "../lib/artifact-open";
 import {
   artifactThreadTarget,
@@ -30,9 +30,11 @@ import {
 import { useFloatingHeaderInset } from "../lib/floating-header";
 import { t, useI18n } from "../lib/i18n";
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
-import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
+import type { NativeColors } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 type PreviewContent =
@@ -60,6 +62,7 @@ export default function ArtifactDetailScreen() {
   const headerInset = useFloatingHeaderInset();
   const { t } = useI18n();
   const colorScheme = useResolvedAppearance();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
 
   const [versions, setVersions] = useState<ArtifactVersion[] | null>(null);
@@ -200,7 +203,7 @@ export default function ArtifactDetailScreen() {
                 ios="trash"
                 android="trash-outline"
                 size={19}
-                color={mobileTokens().destructive}
+                color={tokens.destructive}
               />
             </Pressable>
           </View>
@@ -222,7 +225,7 @@ export default function ArtifactDetailScreen() {
                       hidesSharedBackground: true,
                       label: t("Delete"),
                       icon: { type: "sfSymbol" as const, name: "trash" },
-                      tintColor: mobileTokens().destructive,
+                      tintColor: tokens.destructive,
                       onPress: confirmDelete,
                     },
                   ]
@@ -230,7 +233,7 @@ export default function ArtifactDetailScreen() {
           }
         : {}),
     });
-  }, [confirmDelete, content, navigation, share, styles, t]);
+  }, [confirmDelete, content, navigation, share, styles, t, tokens.destructive]);
 
   const scrolling = content.status === "ready" && content.preview.kind === "markdown";
   const versionPicker =
@@ -296,7 +299,7 @@ function ArtifactPreview({
 }) {
   const sideInsets = useSideInsets();
   const styles = useThemedStyles(createStyles);
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const colorScheme = useResolvedAppearance();
   if (preview.kind === "html") {
     return (
@@ -339,9 +342,13 @@ function ArtifactPreview({
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
     headerButton: { padding: 8 },
     pillRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
@@ -353,19 +360,19 @@ function createStyles() {
       paddingVertical: 6,
       paddingHorizontal: 12,
       borderRadius: 999,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
     },
-    pillText: { color: native.label, fontSize: 13, fontWeight: "600" },
+    pillText: { color: colors.label, fontSize: 13, fontWeight: "600" },
     body: { flex: 1, margin: 16, marginTop: 8, borderRadius: 18, overflow: "hidden" },
     centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
-    errorText: { color: native.secondaryLabel, fontSize: 15, lineHeight: 22, textAlign: "center" },
+    errorText: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 22, textAlign: "center" },
     previewCard: { flex: 1, borderRadius: 18, overflow: "hidden" },
     markdownScroll: { padding: 20 },
     imageWrap: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
     },
     image: { width: "100%", height: "100%" },
   });

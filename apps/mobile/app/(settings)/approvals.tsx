@@ -1,6 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { ActionApprovalRule } from "@rakazo/contracts";
 import { humanizeToolName } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
@@ -9,9 +10,11 @@ import { LoadFailure } from "../../components/load-failure";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
 import { settingsRpc, settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 type RuleAction = "always_allow" | "deny" | "remove";
@@ -170,10 +173,13 @@ function isRuleAction(action: string): action is RuleAction {
   return action === "always_allow" || action === "deny" || action === "remove";
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { width: "100%", padding: 20, gap: 24, paddingBottom: 40 },
     error: { color: tokens.destructive, fontSize: 14 },
   });

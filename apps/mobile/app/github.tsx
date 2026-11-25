@@ -25,6 +25,7 @@ import { useHideMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens } from "../lib/native";
 import { usePageScroll, usePageState } from "../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import type { GithubSection } from "../lib/use-github";
 import { useGithub } from "../lib/use-github";
@@ -50,6 +51,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   ]);
   useHideMainNavigation(github.selectedRepo !== null);
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const sideInsets = useSideInsets();
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
@@ -137,7 +139,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, backgroundColor: tokens.background }}
+      style={{ flex: 1, backgroundColor: screenBackground }}
     >
       <MainNavigationHeader
         onBack={github.selectedRepo ? () => github.selectRepo(null) : undefined}

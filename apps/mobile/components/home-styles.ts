@@ -1,38 +1,40 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { StyleSheet } from "react-native";
 import { mobileTokens } from "../lib/appearance";
+import type { NativeColors } from "../lib/native";
 import { native } from "../lib/native";
-import { effectiveThemeAssignments } from "../lib/theme-manager";
-import { resolveScopedTheme } from "../lib/theme-pack";
-import { themeManager } from "../lib/theme-state";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 
 export const INBOX_ROW = { padding: 16, gap: 12, avatarSize: 62 };
 export const COMPACT_INBOX_ROW = { padding: 12, gap: 10 };
 // Drops the Android create menu below the header pill; the trigger's negative margin keeps the layout.
 export const CREATE_MENU_GAP = 6;
 
-export function createHomeStyles() {
-  const tokens = mobileTokens();
-  const snapshot = themeManager.getSnapshot();
-  const scope = themeManager.getActiveScope();
-  const layout =
-    snapshot.hydrated &&
-    (snapshot.assignments.globalPackId !== "classic" || snapshot.assignments.pages[scope])
-      ? resolveScopedTheme(snapshot.packs, effectiveThemeAssignments(snapshot), scope, "dark")
-          .layout
-      : "classic";
-  const cards = layout === "cards";
+export function createHomeStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
+  const cards = scope?.layout === "cards";
+  const outlined = scope?.surface === "outlined";
+  const hasBackground = Boolean(scope?.background);
+  const cardRadius = Math.max(10, Math.min(24, scope?.geometry.cardRadius ?? 18));
+  const cardBorderWidth =
+    cards || outlined
+      ? Math.max(StyleSheet.hairlineWidth, scope?.geometry.borderWidth ?? StyleSheet.hairlineWidth)
+      : 0;
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.page,
+      backgroundColor: hasBackground ? "transparent" : colors.page,
     },
     centered: {
       alignItems: "center",
       justifyContent: "center",
     },
     emptyPane: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       textAlign: "center",
     },
@@ -49,7 +51,7 @@ export function createHomeStyles() {
       alignItems: "center",
       padding: 2,
       borderRadius: 22,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     circleButton: {
       width: 44,
@@ -57,7 +59,7 @@ export function createHomeStyles() {
       borderRadius: 22,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     headerButton: {
       width: 40,
@@ -72,18 +74,18 @@ export function createHomeStyles() {
       paddingBottom: CREATE_MENU_GAP,
     },
     headerButtonActive: {
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
     },
     headerButtonAccent: {
       backgroundColor: tokens.primary,
     },
     profileInitials: {
-      color: native.label,
+      color: colors.label,
       fontSize: 15,
       fontWeight: "600",
     },
     error: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       paddingHorizontal: 20,
       paddingBottom: 8,
     },
@@ -103,7 +105,7 @@ export function createHomeStyles() {
       paddingBottom: 16,
     },
     inboxTitle: {
-      color: native.label,
+      color: colors.label,
       fontSize: 32,
       fontWeight: "700",
     },
@@ -115,15 +117,15 @@ export function createHomeStyles() {
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 12,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     inboxSearchLabel: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       flexShrink: 1,
       ...typeScale.secondary,
     },
     empty: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 16,
       paddingHorizontal: 20,
       paddingTop: 28,
@@ -135,15 +137,15 @@ export function createHomeStyles() {
       paddingHorizontal: cards ? 14 : INBOX_ROW.padding,
       paddingVertical: cards ? 16 : 14,
       gap: INBOX_ROW.gap,
-      borderRadius: cards ? 18 : 0,
+      borderRadius: cards ? cardRadius : 0,
       backgroundColor: cards ? tokens.card : "transparent",
-      borderWidth: cards ? StyleSheet.hairlineWidth : 0,
+      borderWidth: cards ? cardBorderWidth : 0,
       borderColor: cards ? tokens.border : "transparent",
       marginBottom: cards ? 8 : 0,
     },
     rowSelected: {
       borderRadius: 12,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
     },
     rosterRow: {
       marginHorizontal: 8,
@@ -164,21 +166,21 @@ export function createHomeStyles() {
       alignItems: "center",
       paddingVertical: 8,
       paddingHorizontal: 4,
-      borderRadius: cards ? 20 : 16,
+      borderRadius: cards ? Math.min(24, cardRadius + 2) : 16,
       gap: 4,
       backgroundColor: cards ? tokens.card : "transparent",
-      borderWidth: cards ? StyleSheet.hairlineWidth : 0,
+      borderWidth: cards ? cardBorderWidth : 0,
       borderColor: cards ? tokens.border : "transparent",
     },
     pinnedName: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       fontWeight: "500",
       textAlign: "center",
       writingDirection: "auto",
     },
     pinnedUnread: {
-      color: native.label,
+      color: colors.label,
       fontWeight: "700",
     },
     compactRow: {
@@ -215,13 +217,13 @@ export function createHomeStyles() {
     },
     name: {
       flexShrink: 1,
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
     time: {
       flexShrink: 1,
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.caption,
       fontVariant: ["tabular-nums"],
     },
@@ -229,12 +231,12 @@ export function createHomeStyles() {
       fontWeight: "700",
     },
     preview: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       writingDirection: "auto",
     },
     unreadPreview: {
-      color: native.label,
+      color: colors.label,
       fontWeight: "600",
     },
     unreadDot: {
@@ -255,7 +257,7 @@ export function createHomeStyles() {
       justifyContent: "center",
     },
     spaceTitle: {
-      color: native.label,
+      color: colors.label,
       fontSize: 14,
       fontWeight: "600",
       writingDirection: "auto",
@@ -286,16 +288,16 @@ export function createHomeStyles() {
     archivedRow: { flex: 0, width: "100%" },
     sectionTitle: {
       flexShrink: 1,
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
     },
     sectionCount: {
-      color: native.tertiaryLabel,
+      color: colors.tertiaryLabel,
       ...typeScale.caption,
       fontVariant: ["tabular-nums"],
     },
     sectionHeading: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       paddingHorizontal: 16,
       paddingTop: 12,
@@ -303,7 +305,7 @@ export function createHomeStyles() {
     },
     activitySection: {
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: native.fillPressed,
+      borderBottomColor: colors.fillPressed,
       marginBottom: 4,
       paddingBottom: 4,
     },
@@ -314,12 +316,12 @@ export function createHomeStyles() {
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },
     groupAvatarLabel: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 16,
       fontWeight: "600",
     },

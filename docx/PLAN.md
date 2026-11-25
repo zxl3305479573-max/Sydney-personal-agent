@@ -1,5 +1,13 @@
 # Sydney 开发总计划
 
+## iPhone 换肤插件双轨状态统一、设置页重构与作用域渲染修复（PA-019、PA-020、PA-021，2026-11-24）
+
+- **当前范围**：在将 `ui-plugin` 分支合并对齐 `cursor/integrate-remote-branches-7334`（`95de23355`）后，完成（1）旧 `ui-mode` 存储与 `themeManager` 双轨状态统一及设置页重构；（2）按 Stop That Shit 原则修复四项具体运行时缺陷：页面作用域隔离防串页与分屏独立作用域、对话/首页/项目会话背景层防遮挡与用户聊天背景优先级、首页与设置分组消费 scoped `tokens`/`geometry`/`surface`，以及主题包报错与警告三语本地化。
+- **交付物**：[iPhone 声明式换肤评测](THEME_PLUGIN_EVALUATION.md)、统一状态与本地化协调层 `apps/mobile/lib/theme-controls.ts`、实时预览卡片 `apps/mobile/components/theme-preview-card.tsx`、重构后的 `ui-mode.tsx` 与 `settings-home.tsx`、`scoped-theme.tsx` / `_layout.tsx` 路由隔离修复、`thread-screen.tsx` / `index.tsx` / `projects/[workspaceId]/chat.tsx` 背景层叠与令牌修复、`native.ts` / `home-styles.ts` / `settings-group.tsx` 作用域样式消费、对应 19 文件定向测试，以及计划/开发/验证/分工文档。
+- **依赖**：既有 `@rakazo/ui-tokens`、`theme-pack.ts`、`theme-manager.ts`、`ui-mode` 注册与持久化契约；不引入新依赖、不改动后台与生产部署。
+- **验收条件**：全局内置模式与自定义主题包双轨一致；后台保活页与分屏左右栏不串页；用户聊天背景覆盖主题背景不叠加发花，无用户背景时透出主题背景；首页卡片与设置分组安全消费 scoped 几何与材质；非法文件/格式提示三语本地化；离线定向测试、类型检查及真机交互通过。
+- **状态**：进行中（源码与全部离线验证已完成：移动端 `tsc --noEmit` 通过、19 文件 151 项定向 Vitest 全部通过、Biome 0 错误与 `git diff --check` 通过；真实 iPhone 视觉、大字体、VoiceOver、导入/卸载实机交互与 OTA 待验）。
+
 ## Bot 状态恢复与持久记忆共享（PA-018、PA-021、PA-022）
 
 状态：源码实现、离线验证、提交推送与客户端发布已完成。本机 PostgreSQL 迁移和 RLS 租户范围验证已完成，生产 PostgreSQL 迁移、并发实测、真实 iPhone／Windows 验收和服务端部署仍待独立执行。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。

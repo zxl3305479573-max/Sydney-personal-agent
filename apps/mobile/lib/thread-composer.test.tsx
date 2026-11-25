@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadComposerHandle } from "../components/thread-composer";
 import { ThreadComposer } from "../components/thread-composer";
 import { chatModelMenuActions } from "./chat-model-menu";
+import { ScopedThemeContext } from "./scoped-theme-context";
+import type { ResolvedScopedTheme } from "./theme-pack";
 import { settleComposer } from "./thread-feedback";
 import { useThreadMentionCatalog } from "./thread-mention-catalog";
 
@@ -1344,6 +1346,81 @@ describe("thread composer isolation", () => {
     expect(JSON.parse(surface.dataset.style!)).toMatchObject({
       borderRadius: 18,
       borderWidth: 1,
+    });
+  });
+
+  it("applies clamped scoped controlRadius and outlined borderWidth to the composer while keeping defaults unchanged", () => {
+    const makeScope = (
+      controlRadius: number,
+      borderWidth: number,
+      surface: ResolvedScopedTheme["surface"],
+    ) =>
+      ({
+        geometry: {
+          cardRadius: 20,
+          controlRadius,
+          pillRadius: 999,
+          borderWidth,
+          cornerShape: "continuous",
+          chamferSize: 0,
+          topSpecularHighlight: null,
+        },
+        surface,
+      }) as ResolvedScopedTheme;
+    const styleOf = (element: Element) => JSON.parse((element as HTMLElement).dataset.style!);
+    const renderScoped = (scope: ResolvedScopedTheme | null) =>
+      act(() =>
+        root.render(
+          <ScopedThemeContext.Provider value={scope}>
+            <ThreadHarness />
+          </ScopedThemeContext.Provider>,
+        ),
+      );
+
+    renderScoped(null);
+    const defaultCall = container.querySelector('button[aria-label="Call"]')!;
+    const defaultSurface = container.querySelector('[data-style*="borderRadius"]')!;
+    expect(styleOf(defaultSurface)).toMatchObject({ borderRadius: 18, borderWidth: 1 });
+    expect(styleOf(defaultCall)).toMatchObject({ borderRadius: 10, width: 44, height: 44 });
+
+    renderScoped(makeScope(16, 2, "outlined"));
+    expect(styleOf(container.querySelector('[data-style*="borderRadius"]')!)).toMatchObject({
+      borderRadius: 22,
+      borderWidth: 2,
+    });
+    expect(styleOf(container.querySelector('button[aria-label="Call"]')!)).toMatchObject({
+      borderRadius: 16,
+      width: 44,
+      height: 44,
+    });
+    type("@");
+    expect(styleOf(container.querySelector('[data-testid="mention-picker"]')!)).toMatchObject({
+      borderRadius: 18,
+      borderWidth: 2,
+    });
+
+    renderScoped(makeScope(32, 3, "outlined"));
+    expect(styleOf(container.querySelector('[data-testid="mention-picker"]')!)).toMatchObject({
+      borderRadius: 22,
+      borderWidth: 2,
+    });
+    const composerSurfaces = [...container.querySelectorAll('[data-style*="borderRadius"]')];
+    const frameSurface = composerSurfaces.find(
+      (element) => element.getAttribute("data-testid") !== "mention-picker",
+    )!;
+    expect(styleOf(frameSurface)).toMatchObject({ borderRadius: 26, borderWidth: 2 });
+    expect(styleOf(container.querySelector('button[aria-label="Send"]')!)).toMatchObject({
+      borderRadius: 18,
+    });
+
+    renderScoped(makeScope(0, 3, "flat"));
+    const flatSurfaces = [...container.querySelectorAll('[data-style*="borderRadius"]')];
+    const flatFrame = flatSurfaces.find(
+      (element) => element.getAttribute("data-testid") !== "mention-picker",
+    )!;
+    expect(styleOf(flatFrame)).toMatchObject({ borderRadius: 12, borderWidth: 1 });
+    expect(styleOf(container.querySelector('button[aria-label="Send"]')!)).toMatchObject({
+      borderRadius: 6,
     });
   });
 

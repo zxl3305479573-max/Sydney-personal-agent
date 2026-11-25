@@ -12,27 +12,39 @@ import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import { confirmDeleteGroup } from "../lib/bot-lifecycle";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
+import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
-import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
 
 export default function GroupSettingsScreen() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const router = useRouter();
-  const { groupId, projectId, scope } = useLocalSearchParams<{ groupId: string; projectId?: string; scope?: string }>();
+  const { groupId, projectId, scope } = useLocalSearchParams<{
+    groupId: string;
+    projectId?: string;
+    scope?: string;
+  }>();
   const isProject = Boolean(projectId);
   const focused = useRef(false);
-  useFocusEffect(useCallback(() => {
-    focused.current = true;
-    return () => { focused.current = false; };
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
   const routeKey = JSON.stringify([projectId, groupId, scope]);
   const activeKey = useRef(routeKey);
   activeKey.current = routeKey;
   const currentRef = useRef<() => boolean>(() => true);
-  currentRef.current = () => !isProject || (focused.current && activeKey.current === routeKey && scope === projectScopeKey());
+  currentRef.current = () =>
+    !isProject ||
+    (focused.current && activeKey.current === routeKey && scope === projectScopeKey());
   const [group, setGroup] = useState<MobileGroup | null>(null);
   const [bots, setBots] = useState<MobileBot[]>([]);
   const [name, setName] = useState("");
@@ -45,14 +57,22 @@ export default function GroupSettingsScreen() {
     let current = true;
     const request = async () => {
       const options = isProject ? await projectRequestOptions(scope ?? "") : undefined;
-      if (!current || !currentRef.current()) throw new Error(t("The project changed. Reopen the project and try again."));
+      if (!current || !currentRef.current())
+        throw new Error(t("The project changed. Reopen the project and try again."));
       return options;
     };
     void (async () => {
       const options = await request();
       if (isProject) {
-        const conversations = await rpc("projectWorkspaces/conversations", { projectId: projectId!, archived: false }, options);
-        return [conversations.groups.find((row) => row.id === groupId) ?? null, conversations.bots] as const;
+        const conversations = await rpc(
+          "projectWorkspaces/conversations",
+          { projectId: projectId!, archived: false },
+          options,
+        );
+        return [
+          conversations.groups.find((row) => row.id === groupId) ?? null,
+          conversations.bots,
+        ] as const;
       }
       const [groups, nextBots] = await Promise.all([rpc("groups/list"), rpc("bots/list")]);
       return [groups.find((row) => row.id === groupId) ?? null, nextBots] as const;
@@ -65,8 +85,12 @@ export default function GroupSettingsScreen() {
         setSelected(nextGroup.members.map((member) => member.botId));
         setBots(nextBots.filter((bot) => !bot.archivedAt));
       })
-      .catch((err) => { if (current && currentRef.current()) setError(errorText(err, t("Could not load group"))); });
-    return () => { current = false; };
+      .catch((err) => {
+        if (current && currentRef.current()) setError(errorText(err, t("Could not load group")));
+      });
+    return () => {
+      current = false;
+    };
   }, [groupId, isProject, projectId, scope, t]);
 
   async function save() {
@@ -74,7 +98,8 @@ export default function GroupSettingsScreen() {
     setPending(true);
     setError(null);
     try {
-      if (!currentRef.current()) throw new Error(t("The project changed. Reopen the project and try again."));
+      if (!currentRef.current())
+        throw new Error(t("The project changed. Reopen the project and try again."));
       const input: { groupId: string; name?: string; botIds?: string[] } = { groupId };
       if (name.trim() !== group.name) input.name = name.trim();
       const memberIds = group.members.map((member) => member.botId).join(",");
@@ -82,8 +107,13 @@ export default function GroupSettingsScreen() {
       if (input.name || input.botIds) {
         if (isProject) {
           const options = await projectRequestOptions(scope ?? "");
-          if (!currentRef.current()) throw new Error(t("The project changed. Reopen the project and try again."));
-          await rpc("projectWorkspaces/updateGroup", { projectId: projectId!, group: input }, options);
+          if (!currentRef.current())
+            throw new Error(t("The project changed. Reopen the project and try again."));
+          await rpc(
+            "projectWorkspaces/updateGroup",
+            { projectId: projectId!, group: input },
+            options,
+          );
         } else await rpc("groups/update", input);
       }
       if (currentRef.current()) router.back();
@@ -97,31 +127,50 @@ export default function GroupSettingsScreen() {
   function remove() {
     if (!groupId || !group) return;
     const current = currentRef.current;
-    const scoped = isProject ? {
-      current,
-      remove: async () => {
-        if (!current()) throw new Error(t("The project changed. Reopen the project and try again."));
-        const options = await projectRequestOptions(scope ?? "");
-        if (!current()) throw new Error(t("The project changed. Reopen the project and try again."));
-        await rpc("projectWorkspaces/conversationAction", {
-          projectId: projectId!, groupId, action: "remove", deleteMemories: false,
-        }, options);
+    const scoped = isProject
+      ? {
+          current,
+          remove: async () => {
+            if (!current())
+              throw new Error(t("The project changed. Reopen the project and try again."));
+            const options = await projectRequestOptions(scope ?? "");
+            if (!current())
+              throw new Error(t("The project changed. Reopen the project and try again."));
+            await rpc(
+              "projectWorkspaces/conversationAction",
+              {
+                projectId: projectId!,
+                groupId,
+                action: "remove",
+                deleteMemories: false,
+              },
+              options,
+            );
+          },
+        }
+      : undefined;
+    confirmDeleteGroup(
+      { id: groupId, name: group.name },
+      () => {
+        notifyArchivedChatsChanged();
+        if (current()) {
+          if (isProject)
+            router.dismissTo({
+              pathname: "/projects/[workspaceId]",
+              params: { workspaceId: projectId!, scope },
+            });
+          else router.replace("/");
+        }
       },
-    } : undefined;
-    confirmDeleteGroup({ id: groupId, name: group.name }, () => {
-      notifyArchivedChatsChanged();
-      if (current()) {
-        if (isProject) router.dismissTo({ pathname: "/projects/[workspaceId]", params: { workspaceId: projectId!, scope } });
-        else router.replace("/");
-      }
-    }, scoped);
+      scoped,
+    );
   }
 
   return (
     <>
       <Stack.Screen options={glassHeaderOptions(t("Group settings"))} />
       <ScrollView
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 24 }}
         automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"
@@ -153,7 +202,14 @@ export default function GroupSettingsScreen() {
             selected={selected}
             onChange={setSelected}
             onOpenBot={(bot) =>
-              router.push({ pathname: "/bot-profile", params: { botId: bot.id, name: bot.name, ...(isProject ? { projectId, scope } : {}) } })
+              router.push({
+                pathname: "/bot-profile",
+                params: {
+                  botId: bot.id,
+                  name: bot.name,
+                  ...(isProject ? { projectId, scope } : {}),
+                },
+              })
             }
             disabled={pending}
           />

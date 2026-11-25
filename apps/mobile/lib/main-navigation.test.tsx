@@ -13,6 +13,8 @@ import {
   useHideMainNavigation,
   useMainNavigationHidden,
 } from "./main-navigation";
+import { ScopedThemeContext } from "./scoped-theme-context";
+import type { ResolvedScopedTheme } from "./theme-pack";
 
 const state = vi.hoisted(() => ({
   pathname: "/",
@@ -50,6 +52,7 @@ vi.mock("./native", () => ({
 }));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => <i /> }));
 vi.mock("react-native", () => ({
+  Platform: { OS: "ios", Version: 26 },
   StyleSheet: { hairlineWidth: 1 },
   View: ({ children, style, testID }: { children: ReactNode; style: object; testID?: string }) => (
     <div style={style} data-testid={testID}>
@@ -214,5 +217,55 @@ describe("main mobile navigation", () => {
     act(() => root.render(options().headerLeft()));
     act(() => container.querySelector<HTMLButtonElement>("button")!.click());
     expect(back).toHaveBeenCalledOnce();
+  });
+
+  it("applies clamped scoped indicator radius and outlined top border while preserving defaults", () => {
+    const makeScope = (
+      controlRadius: number,
+      borderWidth: number,
+      surface: ResolvedScopedTheme["surface"],
+    ) =>
+      ({
+        geometry: {
+          cardRadius: 18,
+          controlRadius,
+          pillRadius: 999,
+          borderWidth,
+          cornerShape: "continuous",
+          chamferSize: 0,
+          topSpecularHighlight: null,
+        },
+        surface,
+      }) as ResolvedScopedTheme;
+
+    act(() => root.render(<MainBottomNavigation />));
+    let bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
+    let indicator = container.querySelector<HTMLElement>('[data-selected="true"] div')!;
+    expect(bar.style.borderTopWidth).toBe("1px");
+    expect(indicator.style.borderRadius).toBe("10px");
+
+    act(() =>
+      root.render(
+        <ScopedThemeContext.Provider value={makeScope(30, 3, "outlined")}>
+          <MainBottomNavigation />
+        </ScopedThemeContext.Provider>,
+      ),
+    );
+    bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
+    indicator = container.querySelector<HTMLElement>('[data-selected="true"] div')!;
+    expect(bar.style.borderTopWidth).toBe("2px");
+    expect(indicator.style.borderRadius).toBe("18px");
+
+    act(() =>
+      root.render(
+        <ScopedThemeContext.Provider value={makeScope(0, 3, "flat")}>
+          <MainBottomNavigation />
+        </ScopedThemeContext.Provider>,
+      ),
+    );
+    bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
+    indicator = container.querySelector<HTMLElement>('[data-selected="true"] div')!;
+    expect(bar.style.borderTopWidth).toBe("1px");
+    expect(indicator.style.borderRadius).toBe("6px");
   });
 });

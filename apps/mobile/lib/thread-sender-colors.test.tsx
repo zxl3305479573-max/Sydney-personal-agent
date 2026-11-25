@@ -45,7 +45,14 @@ vi.mock("expo-image-picker", () => ({}));
 vi.mock("./live-notifications", () => ({ resumeLiveNotifications: vi.fn() }));
 vi.mock("./network-cache", () => ({ clearNetworkCache: vi.fn() }));
 vi.mock("./artifact-open", () => ({ openMobileArtifact: vi.fn() }));
-vi.mock("./native", () => ({ native: {}, useResolvedAppearance: () => "dark" }));
+vi.mock("./native", async () => {
+  const { darkTokens } = await import("@rakazo/ui-tokens");
+  return {
+    native: {},
+    useMobileTokens: () => darkTokens,
+    useResolvedAppearance: () => "dark",
+  };
+});
 
 vi.mock("@rakazo/chat-ui/native", () => ({
   ChatMarkdown: () => null,

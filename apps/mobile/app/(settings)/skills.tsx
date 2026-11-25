@@ -3,6 +3,7 @@ import type {
   CapabilityInstall,
   PluginMarketplaceEntry,
 } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -21,6 +22,7 @@ import { Chevron } from "../../components/row-accessories";
 import { SkillSymbol } from "../../components/skill-symbol";
 import { rpc } from "../../lib/api";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
@@ -32,6 +34,7 @@ import {
   skillPacks,
 } from "../../lib/plugin-marketplace";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 
 const LOGO_SIZE = 32;
 
@@ -290,17 +293,21 @@ export default function SkillsScreen() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, gap: 14 },
     card: { gap: 10 },
     list: { gap: 8 },
     input: {
       minHeight: 48,
       borderRadius: 12,
-      backgroundColor: native.fillPressed,
-      color: native.label,
+      backgroundColor: colors.fillPressed,
+      color: colors.label,
       paddingHorizontal: 14,
       fontSize: 17,
     },
@@ -309,23 +316,23 @@ function createStyles() {
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderRadius: 14,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
     },
-    pressed: { backgroundColor: native.fillPressed },
-    section: { color: native.secondaryLabel, fontSize: 13, fontWeight: "500", marginTop: 6 },
+    pressed: { backgroundColor: colors.fillPressed },
+    section: { color: colors.secondaryLabel, fontSize: 13, fontWeight: "500", marginTop: 6 },
     skillMark: {
       width: LOGO_SIZE,
       height: LOGO_SIZE,
       borderRadius: 10,
-      backgroundColor: native.fillPressed,
+      backgroundColor: colors.fillPressed,
       alignItems: "center",
       justifyContent: "center",
     },
     grow: { flex: 1, gap: 2, minWidth: 0 },
-    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
-    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    title: { color: colors.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
+    secondary: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
   });
 }

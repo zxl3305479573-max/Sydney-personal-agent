@@ -1,4 +1,5 @@
 import { reportUiLocale } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { Checkmark } from "../../components/row-accessories";
@@ -7,8 +8,10 @@ import { currentApiBase, loadSessionToken, rpc, selectedSpaceId } from "../../li
 import { mobileTokens } from "../../lib/appearance";
 import { getActiveUiLocale, setUiLocale, useI18n } from "../../lib/i18n";
 import { resumeLiveNotifications } from "../../lib/live-notifications";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import type { UiLocale } from "../../lib/ui-locale";
 import { UI_LOCALE_LABELS, UI_LOCALES } from "../../lib/ui-locale";
 
@@ -77,10 +80,13 @@ export default function Language() {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
     error: {
       color: tokens.destructive,

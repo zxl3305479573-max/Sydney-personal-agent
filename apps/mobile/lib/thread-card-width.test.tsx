@@ -140,6 +140,8 @@ vi.mock("../components/change-undo", () => ({
 
 import { McpApprovalCard } from "../components/McpApprovalCard";
 import { MessageBubble } from "../components/thread/message-bubble";
+import { ScopedThemeContext } from "./scoped-theme-context";
+import type { ResolvedScopedTheme } from "./theme-pack";
 
 type BubbleProps = ComponentProps<typeof MessageBubble>;
 
@@ -634,4 +636,40 @@ describe("thread cards", () => {
     expect(card()?.getAttribute("aria-expanded")).toBe("false");
     expect(container.textContent).not.toContain("A long report");
   });
+
+  it.each([helper(), cloud])(
+    "applies clamped scoped cardRadius and outlined borderWidth to $kind cards",
+    (block) => {
+      const scoped = {
+        geometry: {
+          cardRadius: 32,
+          controlRadius: 14,
+          pillRadius: 999,
+          borderWidth: 3,
+          cornerShape: "continuous",
+          chamferSize: 0,
+          topSpecularHighlight: null,
+        },
+        surface: "outlined",
+      } as ResolvedScopedTheme;
+      act(() =>
+        root.render(
+          <ScopedThemeContext.Provider value={scoped}>
+            <Bubble
+              botId="bot-1"
+              bots={[]}
+              message={{ id: "scoped-1", role: "bot", blocks: [block] }}
+              canAnswer={false}
+              actionProps={{}}
+            />
+          </ScopedThemeContext.Provider>,
+        ),
+      );
+      expect(styleOf(container.firstElementChild)).toMatchObject({
+        width: "90%",
+        borderRadius: 24,
+        borderWidth: 2,
+      });
+    },
+  );
 });

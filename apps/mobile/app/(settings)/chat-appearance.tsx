@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
@@ -14,7 +15,9 @@ import {
   useSavedMobileChatAppearance,
 } from "../../lib/chat-appearance";
 import { useI18n } from "../../lib/i18n";
-import { useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 
 type AppearanceState = ReturnType<typeof getMobileChatAppearance>;
 type BubbleValue = NonNullable<AppearanceState["bubble"]>;
@@ -34,7 +37,7 @@ function matchesBubblePreset(current: AppearanceState["bubble"], candidate: Bubb
 export default function ChatAppearanceScreen() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
   const stacked = useStackedSettings();
   const appearance = useSavedMobileChatAppearance();
@@ -174,7 +177,7 @@ export default function ChatAppearanceScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <SettingsGroup label={chinese ? (traditional ? "即時預覽" : "实时预览") : "Live preview"}>
         <View style={styles.preview}>
           <View
@@ -399,7 +402,7 @@ function SliderControl({
   onIncrease: () => void;
   chinese: boolean;
 }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const trackWidth = useRef(0);
   const lastValue = useRef(value);
   lastValue.current = value;
@@ -532,9 +535,13 @@ function SliderControl({
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return {
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { padding: 16, gap: 20, paddingBottom: 40 },
     preview: { padding: 14, backgroundColor: tokens.card },
     previewFrame: { overflow: "hidden" as const, borderRadius: 14, minHeight: 164 },

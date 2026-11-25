@@ -1,6 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { AccountSecurity, UsageSummary } from "@rakazo/contracts";
 import { accountDisplay, displayName } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useQuery } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import type { Href } from "expo-router";
@@ -69,7 +70,8 @@ import {
   openPromotedNotificationSettings,
   setLiveNotificationSettings,
 } from "../../lib/live-notifications";
-import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../../lib/native";
 import type { MobilePasskey } from "../../lib/passkey";
 import {
   addPasskey,
@@ -96,6 +98,7 @@ import { isSettingsLink, openFromSettingsSheet } from "../../lib/settings-sheet"
 import { ACCOUNT_SETTINGS } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
 import { continueWithSso } from "../../lib/sso";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import {
   loadTrustedLinkSites,
   removeTrustedLinkSite,
@@ -205,6 +208,7 @@ export default function Account() {
     }
   }, [t]);
   const colorScheme = useResolvedAppearance();
+  const themeTokens = useMobileTokens();
   const trustedSites = useTrustedLinkSites();
   const [archivedCount, setArchivedCount] = useState(0);
   // A list that fails to refresh keeps its last count, so a passing error doesn't hide the row.
@@ -839,9 +843,7 @@ export default function Account() {
               disabled={pending}
               onPress={() => void deletion.request()}
               title={t("Delete account")}
-              trailing={
-                pending ? <ActivityIndicator color={mobileTokens().destructive} /> : undefined
-              }
+              trailing={pending ? <ActivityIndicator color={themeTokens.destructive} /> : undefined}
             />
             {deletion.error ? (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -869,12 +871,15 @@ export default function Account() {
   );
 }
 
-function createAccountStyles() {
-  const tokens = mobileTokens();
+function createAccountStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
     content: {
       flexGrow: 1,
@@ -899,7 +904,7 @@ function createAccountStyles() {
       alignItems: "center",
     },
     versionLine: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       textAlign: "center",
     },

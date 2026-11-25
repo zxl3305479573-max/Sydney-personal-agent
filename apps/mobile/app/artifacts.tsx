@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -28,8 +29,10 @@ import {
   removeArtifact,
 } from "../lib/artifacts";
 import { useI18n } from "../lib/i18n";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 const PAGE_SIZE = 30;
@@ -432,10 +435,13 @@ function ArtifactRow({
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     centered: { alignItems: "center", justifyContent: "center", paddingTop: 40 },
     chipsScroll: { flexGrow: 0, flexShrink: 0 },
     chipsRow: {
@@ -455,15 +461,15 @@ function createStyles() {
       paddingVertical: 6,
       paddingHorizontal: 12,
       borderRadius: 999,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
     },
     chipActive: { backgroundColor: tokens.primary },
-    chipLabel: { color: native.label, fontSize: 13, fontWeight: "600" },
+    chipLabel: { color: colors.label, fontSize: 13, fontWeight: "600" },
     chipLabelActive: { color: tokens.primaryForeground },
     listView: { flex: 1 },
     list: { paddingBottom: 32 },
     empty: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 15,
       textAlign: "center",
       paddingHorizontal: 24,
@@ -476,26 +482,26 @@ function createStyles() {
       width: 36,
       height: 36,
       borderRadius: 10,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       alignItems: "center",
       justifyContent: "center",
     },
     rowBody: { flex: 1, minWidth: 0, gap: 3 },
     rowTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-    rowName: { flex: 1, minWidth: 0, color: native.label, fontSize: 15, fontWeight: "600" },
+    rowName: { flex: 1, minWidth: 0, color: colors.label, fontSize: 15, fontWeight: "600" },
     badge: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 10.5,
       fontWeight: "700",
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,
       overflow: "hidden",
     },
-    rowDescription: { color: native.secondaryLabel, fontSize: 12.5 },
+    rowDescription: { color: colors.secondaryLabel, fontSize: 12.5 },
     rowFooter: { flexDirection: "row", alignItems: "center", gap: 6 },
-    rowBotName: { flexShrink: 1, color: native.secondaryLabel, fontSize: 11.5 },
-    rowMeta: { color: native.secondaryLabel, fontSize: 11.5 },
+    rowBotName: { flexShrink: 1, color: colors.secondaryLabel, fontSize: 11.5 },
+    rowMeta: { color: colors.secondaryLabel, fontSize: 11.5 },
   });
 }

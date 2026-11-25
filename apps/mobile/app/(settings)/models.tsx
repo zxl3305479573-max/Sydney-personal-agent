@@ -1,5 +1,6 @@
 import { OPENAI_COMPATIBLE_PROVIDER_ID } from "@rakazo/contracts";
 import { fetchFresh } from "@rakazo/core/query";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { isCancelledError, useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,10 +21,12 @@ import type { ModelConnectionRequest } from "../../lib/model-connection-request"
 import { closeModelConnection, openModelConnection } from "../../lib/model-connection-request";
 import type { ModelPickerRequest } from "../../lib/model-picker-selection";
 import { closeModelPicker, openModelPicker } from "../../lib/model-picker-selection";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
 import { settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 const noModels: MobileModel[] = [];
@@ -268,12 +271,15 @@ export default function Models() {
   );
 }
 
-function createModelsStyles() {
-  const tokens = mobileTokens();
+function createModelsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.page,
+      backgroundColor: scope?.background ? "transparent" : colors.page,
     },
     centered: {
       alignItems: "center",

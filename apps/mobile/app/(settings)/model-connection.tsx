@@ -34,6 +34,7 @@ import {
   savedCompatibleModelIds,
   toggleEnabledModelId,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -70,8 +71,10 @@ import {
   MODEL_CONNECT_TIMEOUT_MS,
   modelConnectionRequest,
 } from "../../lib/model-connection-request";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { ACCOUNT_SETTINGS, settingsRpc } from "../../lib/settings-target";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { thinkingLevelLabel } from "../../lib/thinking-level";
 import { useListSearch } from "../../lib/use-list-search";
 import { errorText } from "../../lib/user-error";
@@ -1228,12 +1231,15 @@ export default function ModelConnection() {
   );
 }
 
-function createModelsStyles() {
-  const tokens = mobileTokens();
+function createModelsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.page,
+      backgroundColor: scope?.background ? "transparent" : colors.page,
     },
     centered: {
       alignItems: "center",
@@ -1246,20 +1252,20 @@ function createModelsStyles() {
       paddingBottom: 40,
     },
     secondary: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 14,
       lineHeight: 20,
       marginTop: 4,
     },
     sectionTitle: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 14,
       marginTop: 8,
       marginBottom: 2,
     },
     card: {
       borderRadius: 14,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       overflow: "hidden",
     },
     providerCopy: {
@@ -1280,7 +1286,7 @@ function createModelsStyles() {
       alignItems: "center",
       gap: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: native.fillPressed,
+      borderBottomColor: colors.fillPressed,
     },
     modelRowChoice: {
       flex: 1,
@@ -1291,37 +1297,37 @@ function createModelsStyles() {
     },
     modelLabel: {
       flex: 1,
-      color: native.label,
+      color: colors.label,
       fontSize: 15,
     },
     singleRow: {
       borderBottomWidth: 0,
     },
     hint: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       lineHeight: 19,
       marginTop: 4,
     },
     textAction: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 15,
       marginTop: 8,
     },
     oauthCard: {
       borderRadius: 14,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       padding: 16,
       marginTop: 8,
     },
     link: {
-      color: native.label,
+      color: colors.label,
       fontSize: 14,
       textDecorationLine: "underline",
       marginTop: 6,
     },
     code: {
-      color: native.label,
+      color: colors.label,
       fontFamily: "monospace",
       fontSize: 24,
       letterSpacing: 3,
@@ -1330,7 +1336,7 @@ function createModelsStyles() {
     },
     nestedInput: {
       // The OAuth card is already a fill; the page color keeps the field visible on it.
-      backgroundColor: native.page,
+      backgroundColor: colors.page,
     },
     keySection: {
       marginTop: 4,
@@ -1338,8 +1344,8 @@ function createModelsStyles() {
     keyInput: {
       minHeight: 48,
       borderRadius: 12,
-      backgroundColor: native.fill,
-      color: native.label,
+      backgroundColor: colors.fill,
+      color: colors.label,
       paddingHorizontal: 14,
       paddingVertical: 10,
       marginTop: 4,

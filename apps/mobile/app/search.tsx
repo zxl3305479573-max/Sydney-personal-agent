@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { botColors, typeScale } from "@rakazo/ui-tokens";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -22,13 +23,15 @@ import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { readableGutters } from "../lib/adaptive-layout";
 import { currentApiBase, selectedSpaceId, selectSpace, spaceSelectionSeq } from "../lib/api";
-import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
+import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
-import { native, useThemedStyles } from "../lib/native";
+import type { NativeColors } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { getSearchInbox, subscribeSearchInbox } from "../lib/search-inbox";
 import type { SearchSheetRow } from "../lib/search-sheet";
 import { searchSheetRows } from "../lib/search-sheet";
 import { currentSessionGeneration } from "../lib/session";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { useSearch } from "../lib/use-search";
 
 const kindIcons = {
@@ -44,8 +47,8 @@ export default function SearchSheet() {
   const router = useRouter();
   const navigation = useNavigation();
   const styles = useThemedStyles(createStyles);
-  const tokens = mobileTokens();
-  const appearance = resolveMobileAppearance();
+  const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
   const insets = useSafeAreaInsets();
   const gutters = readableGutters(useWindowDimensions().width, insets);
   const field = useRef<TextInput>(null);
@@ -280,10 +283,13 @@ export default function SearchSheet() {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     top: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
     fieldPill: {
       flex: 1,
@@ -297,7 +303,7 @@ function createStyles() {
       flex: 1,
       minHeight: 44,
       paddingVertical: 10,
-      color: native.label,
+      color: colors.label,
       fontSize: 17,
       writingDirection: "auto",
     },
@@ -323,17 +329,17 @@ function createStyles() {
     // Result rows match the inbox rows.
     name: {
       flex: 1,
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
-    time: { color: native.secondaryLabel, ...typeScale.caption },
+    time: { color: colors.secondaryLabel, ...typeScale.caption },
     preview: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       writingDirection: "auto",
     },
-    empty: { color: native.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
+    empty: { color: colors.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
     failure: { alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 28 },
     error: { color: tokens.destructive, fontSize: 14 },
   });

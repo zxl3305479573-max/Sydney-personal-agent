@@ -21,6 +21,7 @@ import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { addToSearchInbox, searchInboxSession } from "../lib/search-inbox";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
@@ -29,6 +30,7 @@ export default function NewGroup() {
   const sideInsets = useSideInsets();
   const { t, locale } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const [bots, setBots] = useState<MobileBot[]>([]);
@@ -43,7 +45,8 @@ export default function NewGroup() {
   const openedScope = useRef(scopeKey).current;
   const current = () => openedScope === projectScopeKey() && !isSpaceSelectionPending();
   const scopeChanged = scopeKey !== openedScope || isSpaceSelectionPending();
-  const valid = !scopeChanged && selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
+  const valid =
+    !scopeChanged && selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
   const picked = selected.flatMap((id) => bots.find((bot) => bot.id === id) ?? []);
   const goBack = () => {
     if (!creating.current) setStep("bots");
@@ -62,15 +65,22 @@ export default function NewGroup() {
         const requestContext = await captureApiRequestContext();
         if (!active || !mounted.current || !current()) return;
         const nextBots = await rpc("bots/list", undefined, {
-          requestContext, signal: controller.signal, skipSpaceAuthRecovery: true,
+          requestContext,
+          signal: controller.signal,
+          skipSpaceAuthRecovery: true,
         });
-        if (active && mounted.current && current()) setBots(nextBots.filter((bot) => !bot.archivedAt));
+        if (active && mounted.current && current())
+          setBots(nextBots.filter((bot) => !bot.archivedAt));
       } catch (cause) {
         if (active && mounted.current && current())
           setError(errorText(cause, t("Could not load bots")));
       }
     })();
-    return () => { active = false; mounted.current = false; controller.abort(); };
+    return () => {
+      active = false;
+      mounted.current = false;
+      controller.abort();
+    };
   }, []);
   useEffect(() => {
     if (step !== "name") return;
@@ -90,12 +100,17 @@ export default function NewGroup() {
     try {
       const requestContext = await captureApiRequestContext();
       if (!mounted.current || !current()) return;
-      const group = await rpc("groups/create", {
-        name: name.trim() || defaultGroupName(picked.map((bot) => bot.name)),
-        botIds: selected,
-      }, {
-        requestContext, skipSpaceAuthRecovery: true,
-      });
+      const group = await rpc(
+        "groups/create",
+        {
+          name: name.trim() || defaultGroupName(picked.map((bot) => bot.name)),
+          botIds: selected,
+        },
+        {
+          requestContext,
+          skipSpaceAuthRecovery: true,
+        },
+      );
       if (!mounted.current || !current()) return;
       addToSearchInbox({ kind: "group", group }, askedIn);
       router.replace({
@@ -176,7 +191,7 @@ export default function NewGroup() {
       <KeyboardAvoidingView
         behavior="padding"
         automaticOffset
-        style={{ flex: 1, backgroundColor: tokens.background }}
+        style={{ flex: 1, backgroundColor: screenBackground }}
       >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -196,7 +211,14 @@ export default function NewGroup() {
             </Text>
           ) : step === "bots" ? (
             <>
-              {error ? <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>{error}</Text> : null}
+              {error ? (
+                <Text
+                  accessibilityRole="alert"
+                  style={{ color: tokens.destructive, marginBottom: 12 }}
+                >
+                  {error}
+                </Text>
+              ) : null}
               <BotChipPicker bots={bots} selected={selected} onChange={setSelected} />
             </>
           ) : (
@@ -250,7 +272,10 @@ export default function NewGroup() {
                 style={{ marginTop: 24, borderRadius: 28 }}
               />
               {error ? (
-                <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+                <Text
+                  accessibilityRole="alert"
+                  style={{ color: tokens.destructive, marginTop: 12 }}
+                >
                   {error}
                 </Text>
               ) : null}

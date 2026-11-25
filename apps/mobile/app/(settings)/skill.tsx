@@ -1,4 +1,5 @@
 import type { AgentSkill } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -16,9 +17,11 @@ import { NativeActionButton } from "../../components/native-action-button";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
-import { native, useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 const NEW_SKILL_TEMPLATE = `---
@@ -35,6 +38,7 @@ export default function SkillScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const sideInsets = useSideInsets();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
   const { t } = useI18n();
   const [skill, setSkill] = useState<AgentSkill | null>(null);
@@ -128,7 +132,7 @@ export default function SkillScreen() {
                   hidesSharedBackground: true,
                   label: t("Save"),
                   variant: "prominent" as const,
-                  tintColor: mobileTokens().primary,
+                  tintColor: tokens.primary,
                   disabled: !canSave,
                   onPress: () => void saveRef.current(),
                 },
@@ -145,7 +149,7 @@ export default function SkillScreen() {
               ),
             }),
     } satisfies NativeStackNavigationOptions);
-  }, [navigation, skill?.name, params.id, readOnly, canSave, t]);
+  }, [navigation, skill?.name, params.id, readOnly, canSave, t, tokens.primary]);
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
@@ -198,20 +202,24 @@ export default function SkillScreen() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, gap: 14 },
     editor: {
       minHeight: 320,
       borderRadius: 12,
-      backgroundColor: native.fill,
-      color: native.label,
+      backgroundColor: colors.fill,
+      color: colors.label,
       padding: 14,
       fontSize: 14,
       lineHeight: 20,
       fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     },
-    error: { color: mobileTokens().destructive, fontSize: 13 },
+    error: { color: tokens.destructive, fontSize: 13 },
   });
 }

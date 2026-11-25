@@ -9,9 +9,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppErrorBoundary } from "../components/app-error-boundary";
 import { ServerSettingsStartupError } from "./startup";
 
-const modeState = vi.hoisted(() => ({ isClassic: true }));
+const modeState = vi.hoisted(() => ({
+  isClassic: true,
+  themeHydrated: false,
+  themeGlobalId: "classic",
+  themeReset: vi.fn(async () => {
+    modeState.themeGlobalId = "classic";
+  }),
+  themeCancelPreview: vi.fn(),
+}));
 
 vi.mock("./monitoring", () => ({ reportMobileError: vi.fn() }));
+vi.mock("./theme-state", () => ({
+  themeManager: {
+    getSnapshot: () => ({
+      hydrated: modeState.themeHydrated,
+      packs: [],
+      assignments: { schemaVersion: 1, globalPackId: modeState.themeGlobalId, pages: {} },
+      preview: null,
+      warning: null,
+    }),
+    reset: modeState.themeReset,
+    cancelPreview: modeState.themeCancelPreview,
+  },
+}));
 vi.mock("./ui-mode", () => ({
   getUiModeSnapshot: () => ({ isClassic: modeState.isClassic }),
   resetUiModeToClassic: vi.fn(async () => {
@@ -56,6 +77,10 @@ describe("AppErrorBoundary", () => {
 
   beforeEach(() => {
     modeState.isClassic = true;
+    modeState.themeHydrated = false;
+    modeState.themeGlobalId = "classic";
+    modeState.themeReset.mockClear();
+    modeState.themeCancelPreview.mockClear();
     shouldThrow = true;
     serverSettingsFailure = false;
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -138,5 +163,24 @@ describe("AppErrorBoundary", () => {
     expect(container.textContent).toContain(
       "Server settings or the saved session could not be verified.",
     );
+  });
+
+  it("resets an active custom theme pack and retries automatically after a render failure", () => {
+    modeState.themeHydrated = true;
+    modeState.themeGlobalId = "ocean";
+    shouldThrow = false;
+    function ThemeChild() {
+      if (modeState.themeGlobalId !== "classic") throw new Error("theme pack failed");
+      return <div>Recovered content</div>;
+    }
+    act(() =>
+      root.render(
+        <AppErrorBoundary>
+          <ThemeChild />
+        </AppErrorBoundary>,
+      ),
+    );
+    expect(modeState.themeReset).toHaveBeenCalledOnce();
+    expect(container.textContent).toBe("Recovered content");
   });
 });

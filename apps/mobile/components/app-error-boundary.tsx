@@ -6,6 +6,7 @@ import { mobileTokens } from "../lib/appearance";
 import { t } from "../lib/i18n";
 import { reportMobileError } from "../lib/monitoring";
 import { completeMobileStartup, ServerSettingsStartupError } from "../lib/startup";
+import { themeManager } from "../lib/theme-state";
 import { getUiModeSnapshot, resetUiModeToClassic } from "../lib/ui-mode";
 
 type Props = { children: ReactNode };
@@ -21,7 +22,20 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error) {
     reportMobileError(error, "react.render");
-    if (!(error instanceof ServerSettingsStartupError) && !getUiModeSnapshot().isClassic) {
+    const themeSnapshot = themeManager.getSnapshot();
+    const hasCustomTheme =
+      themeSnapshot.hydrated &&
+      (themeSnapshot.assignments.globalPackId !== "classic" ||
+        Object.keys(themeSnapshot.assignments.pages).length > 0 ||
+        themeSnapshot.preview !== null);
+    if (
+      !(error instanceof ServerSettingsStartupError) &&
+      (!getUiModeSnapshot().isClassic || hasCustomTheme)
+    ) {
+      if (hasCustomTheme) {
+        if (themeSnapshot.preview) themeManager.cancelPreview();
+        else void themeManager.reset().catch(() => undefined);
+      }
       void resetUiModeToClassic();
       this.setState({ failed: false, serverSettingsError: false });
       return;

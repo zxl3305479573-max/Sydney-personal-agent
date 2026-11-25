@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { Children, Fragment, isValidElement } from "react";
@@ -12,9 +13,12 @@ import {
   View,
 } from "react-native";
 import { mobileTokens } from "../lib/appearance";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { androidRipple } from "../lib/ripple";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { stacksAtTextScale } from "../lib/text-scale";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { GlassSurface } from "./glass-surface";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
@@ -51,6 +55,8 @@ export function SettingsGroup({
   children: ReactNode;
 }) {
   const styles = useThemedStyles(createSettingsStyles);
+  const scopedTheme = useScopedTheme();
+  const cardRadius = scopedTheme ? Math.max(8, Math.min(24, scopedTheme.geometry.cardRadius)) : 12;
   const rows = Children.toArray(children).filter(isValidElement);
   if (rows.length === 0) return null;
   return (
@@ -58,7 +64,7 @@ export function SettingsGroup({
       {label ? <SettingsLabel>{label}</SettingsLabel> : null}
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={12}
+        cornerRadius={cardRadius}
         style={styles.card}
         fallbackStyle={styles.cardFallback}
       >
@@ -230,33 +236,41 @@ export function SettingsSwitch({
   );
 }
 
-function createSettingsStyles() {
-  const tokens = mobileTokens();
+function createSettingsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
+  const cardRadius = scope ? Math.max(8, Math.min(24, scope.geometry.cardRadius)) : 12;
+  const cardBorderWidth =
+    scope?.surface === "outlined"
+      ? Math.max(1, Math.min(2, scope.geometry.borderWidth))
+      : StyleSheet.hairlineWidth;
   return StyleSheet.create({
     group: { gap: 10 },
     groupLabel: {
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       paddingStart: 4,
     },
     footer: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.caption,
       paddingHorizontal: 4,
     },
     card: {
-      borderRadius: 12,
+      borderRadius: cardRadius,
       borderCurve: "continuous",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: native.separator,
+      borderWidth: cardBorderWidth,
+      borderColor: colors.separator,
       overflow: "hidden",
     },
-    cardFallback: { backgroundColor: native.groupedCell },
+    cardFallback: { backgroundColor: colors.groupedCell },
     separator: {
       // iOS draws sheets scaled down slightly, which makes a one-pixel line fall between
       // pixels and vanish at some offsets. Two pixels always leave at least one visible.
       height: StyleSheet.hairlineWidth * 2,
-      backgroundColor: native.separator,
+      backgroundColor: colors.separator,
     },
     row: {
       minHeight: 56,
@@ -270,16 +284,16 @@ function createSettingsStyles() {
     compactRow: { paddingHorizontal: 12, gap: 8 },
     titleColumn: { flex: 1, minWidth: 0, gap: 4 },
     stackedSwitch: { alignSelf: "flex-start", marginTop: 6 },
-    title: { color: native.label, ...typeScale.body },
+    title: { color: colors.label, ...typeScale.body },
     inputTitle: { fontSize: 17 },
     prominent: { fontSize: 20, fontWeight: "600" },
-    detail: { color: native.secondaryLabel, ...typeScale.caption },
+    detail: { color: colors.secondaryLabel, ...typeScale.caption },
     destructive: { color: tokens.destructive },
     tinted: { color: tokens.link },
-    value: { flexShrink: 1, color: native.secondaryLabel, ...typeScale.secondary },
+    value: { flexShrink: 1, color: colors.secondaryLabel, ...typeScale.secondary },
     // A long value truncates instead of pushing the title out of the row.
     inlineValue: { maxWidth: "45%" },
-    pressed: { backgroundColor: native.fillPressed },
+    pressed: { backgroundColor: colors.fillPressed },
     dimmed: { opacity: 0.45 },
   });
 }

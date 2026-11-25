@@ -1,10 +1,12 @@
 import type { Routine } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { NativeActionButton } from "../components/native-action-button";
 import { RoutineList } from "../components/routine-list";
 import { useI18n } from "../lib/i18n";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { deviceTimeZone } from "../lib/routine";
 import {
@@ -14,6 +16,7 @@ import {
   useBotRoutines,
 } from "../lib/routine-store";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 export default function Routines() {
@@ -94,7 +97,11 @@ export default function Routines() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     empty: {
       flex: 1,
@@ -102,9 +109,9 @@ function createStyles() {
       justifyContent: "center",
       paddingHorizontal: 32,
       gap: 8,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
-    message: { color: native.secondaryLabel, fontSize: 17, textAlign: "center" },
+    message: { color: colors.secondaryLabel, fontSize: 17, textAlign: "center" },
     // The button aligns itself to the start by default.
     retry: { alignSelf: "center" },
   });

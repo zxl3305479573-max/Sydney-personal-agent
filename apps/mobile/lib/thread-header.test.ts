@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { expect, it, vi } from "vitest";
 import { createThreadHeaderStyles } from "../components/thread-header-styles";
 import { HEADER_CONTROL_SIZE } from "./native-controls";
@@ -48,4 +49,16 @@ it("sets the chat title in medium 17 on a 22 line, in the text colour", () => {
     fontWeight: "500",
     color: "foreground",
   });
+});
+
+it("uses scoped ColorTokens when passed by useThemedStyles instead of global mobileTokens", () => {
+  const scopedTokens = {
+    background: "#101820",
+    foreground: "#F5F7FA",
+    glassFill: "#1A2430",
+  } as ColorTokens;
+  const styles = createThreadHeaderStyles(scopedTokens);
+  expect(styles.title.color).toBe("#F5F7FA");
+  expect(styles.titleCapsuleFill.backgroundColor).toBe("#1A2430");
+  expect(styles.statusBarFade.experimental_backgroundImage).toContain("#101820");
 });

@@ -104,6 +104,11 @@ vi.mock("react-native", () => {
   };
 });
 
+let scopedThemeMock: {
+  geometry: { cardRadius: number; controlRadius: number; borderWidth: number };
+  surface: "flat" | "outlined" | "glass";
+} | null = null;
+
 vi.mock("./native", () => ({
   native: {
     fill: "fill",
@@ -114,9 +119,25 @@ vi.mock("./native", () => ({
     tertiaryLabel: "tertiary-label",
     separator: "separator",
   },
-  useThemedStyles: <T,>(factory: () => T) => factory(),
+  useThemedStyles: <T,>(factory: (tokens?: unknown, colors?: unknown, scope?: unknown) => T) =>
+    factory(
+      { destructive: "destructive", link: "link" },
+      {
+        fill: "fill",
+        groupedCell: "grouped-cell",
+        fillPressed: "fill-pressed",
+        label: "label",
+        secondaryLabel: "secondary-label",
+        tertiaryLabel: "tertiary-label",
+        separator: "separator",
+      },
+      scopedThemeMock,
+    ),
   useResolvedAppearance: () => "light",
   systemGreen: () => "system-green",
+}));
+vi.mock("./scoped-theme-context", () => ({
+  useScopedTheme: () => scopedThemeMock,
 }));
 
 vi.mock("./appearance", () => ({
@@ -161,6 +182,7 @@ describe("settings group", () => {
 
   beforeEach(() => {
     fontScale = 1;
+    scopedThemeMock = null;
     Platform.OS = "ios";
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   });
@@ -360,5 +382,21 @@ describe("settings group", () => {
 
     fontScale = 1.353;
     expect(beforeSwitch(render(row))).toBe("SPAN");
+  });
+
+  it("applies clamped scoped cardRadius and outlined borderWidth safely", () => {
+    scopedThemeMock = {
+      geometry: { cardRadius: 32, controlRadius: 16, borderWidth: 3 },
+      surface: "outlined",
+    };
+    const view = render(
+      <SettingsGroup label="Theme">
+        <SettingsRow title="Mode" />
+      </SettingsGroup>,
+    );
+    const cardStyles = [...view.querySelectorAll<HTMLElement>("div[data-style]")]
+      .flatMap((el) => [JSON.parse(el.dataset.style ?? "null")].flat())
+      .find((style) => style && typeof style.borderRadius === "number");
+    expect(cardStyles).toMatchObject({ borderRadius: 24, borderWidth: 2 });
   });
 });

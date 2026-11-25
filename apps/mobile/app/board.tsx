@@ -1,4 +1,5 @@
 import type { Ticket, TicketStatus } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
@@ -8,8 +9,10 @@ import { NativeSymbol } from "../components/native-symbol";
 import { rpc } from "../lib/api";
 import { boardSections } from "../lib/board";
 import { useI18n } from "../lib/i18n";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 /** The Space's ticket board: every column, with the status changed in place. */
@@ -108,7 +111,11 @@ export default function BoardScreen() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  _tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     centered: {
       flex: 1,
@@ -116,8 +123,8 @@ function createStyles() {
       justifyContent: "center",
       paddingHorizontal: 32,
       gap: 16,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
-    message: { color: native.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
+    message: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
   });
 }

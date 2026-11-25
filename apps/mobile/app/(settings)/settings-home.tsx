@@ -2,7 +2,7 @@ import { accountDisplay } from "@rakazo/core";
 import { useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Alert, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AccountAvatar } from "../../components/account-avatar";
@@ -17,14 +17,19 @@ import {
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import { accountRpcQuery, queryClient } from "../../lib/query";
+import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
 import { sydneyReleaseFromManifest, sydneyReleaseNotes } from "../../lib/sydney-release";
+import { formatUnifiedThemeSummary, getUnifiedThemeState } from "../../lib/theme-controls";
+import { themeManager } from "../../lib/theme-state";
+import { getUiModeRevision, subscribeUiMode } from "../../lib/ui-mode";
 
 export default function SettingsHome() {
   const { t, locale } = useI18n();
   const router = useRouter();
   const insets = useSideInsets();
+  const screenBackground = useScreenBackground(native.groupedPage);
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -40,6 +45,12 @@ export default function SettingsHome() {
   const account = accountDisplay(me ?? {}, t("Your account"));
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
+  useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
+  useSyncExternalStore(themeManager.subscribe, themeManager.getSnapshot, themeManager.getSnapshot);
+  const themeSummary =
+    Platform.OS === "ios"
+      ? formatUnifiedThemeSummary(getUnifiedThemeState(Platform.OS), locale)
+      : undefined;
 
   function accountSection(section: string) {
     router.push({ pathname: "/account", params: { section } });
@@ -87,7 +98,7 @@ export default function SettingsHome() {
   }
 
   return (
-    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: native.groupedPage }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <ScrollView
         style={insets}
         contentInsetAdjustmentBehavior="automatic"
@@ -160,9 +171,15 @@ export default function SettingsHome() {
             onPress={() => accountSection("appearance")}
           />
           {link(t("Language"), "/language")}
-          {Platform.OS === "ios"
-            ? link(chinese ? (traditional ? "介面模式" : "界面模式") : "Interface mode", "/ui-mode")
-            : null}
+          {Platform.OS === "ios" ? (
+            <SettingsRow
+              title={chinese ? (traditional ? "介面模式" : "界面模式") : "Interface mode"}
+              value={themeSummary}
+              accessibilityRole="button"
+              chevron="right"
+              onPress={() => router.push("/ui-mode")}
+            />
+          ) : null}
           {link(t("Chat appearance"), "/chat-appearance")}
           <SettingsRow
             title={t("Advanced")}
