@@ -44,6 +44,22 @@ vi.mock("../components/bot-avatar", () => ({
 vi.mock("../components/native-symbol", () => ({
   NativeSymbol: ({ ios }: { ios: string }) => <i data-symbol={ios} />,
 }));
+vi.mock("./companion-activity", () => ({
+  companionAvailable: () => false,
+  activeCompanionIdentity: () => null,
+  companionActivityRevision: () => 0,
+  subscribeCompanionActivity: () => () => undefined,
+  companionScreenState: vi.fn(async () => "unsupported"),
+  subscribeCompanionScreenState: () => () => undefined,
+  startCompanion: vi.fn(),
+  stopCompanion: vi.fn(),
+  presentCompanionScreen: vi.fn(),
+  stopCompanionScreen: vi.fn(),
+}));
+vi.mock("./companion-screen-auto", () => ({
+  useCompanionScreenAuto: () => ({ phase: "idle" }),
+  stopCompanionScreenAuto: vi.fn(),
+}));
 vi.mock("react-native", () => {
   const flatten = (style: unknown): CSSProperties =>
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));

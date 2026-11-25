@@ -7,16 +7,33 @@ import {
   IsolationError,
   listProjectWorkspaceRoster,
   listProjectWorkspaces,
+  ProjectAccountDeletionInProgressError,
+  ProjectWorkspaceConflictError,
+  ProjectWorkspaceDeferredResourcesError,
+  ProjectWorkspaceDeletionInProgressError,
+  ProjectWorkspaceNotFoundError,
+  recordAuditEvent,
   removeEmptyProjectWorkspace,
+  renameProjectWorkspace,
   runAsTenant,
   runInProjectWorkspace,
+  SpaceDeletionInProgressError,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
-import { getProjectThreadArtifact } from "../artifacts.js";
-import { resolveThreadTarget, stopThreadRuns, threadSnapshot } from "../thread-target.js";
 import { aiConsentStatus, allowAiConsent } from "../ai-consent.js";
+import { getProjectThreadArtifact } from "../artifacts.js";
+import { deleteProjectWorkspaceWithContent } from "../project-workspace-deletion.js";
+import { loadMessagePage } from "../thread-message-pages.js";
+import {
+  markThreadRead,
+  resolveThreadTarget,
+  stopThreadRuns,
+  threadHead,
+  threadSnapshot,
+} from "../thread-target.js";
 import { updateBotSettings } from "./bots.js";
 import type { RouterContext } from "./context.js";
+import { THREAD_MESSAGE_PAGE_SIZE } from "./shared.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
 import { projectDirectoryRoutes } from "./project-directories.js";
 import { projectCloudDirectoryRoutes } from "./project-cloud-directories.js";
@@ -33,6 +50,7 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       capabilities: authed.projectWorkspaces.capabilities.handler(async () => ({
         create: deps.env?.projectWorkspaceCreateExperiment === true,
         removeEmpty: deps.env?.projectWorkspaceCreateExperiment === true,
+        remove: deps.env?.projectWorkspaceCreateExperiment === true,
       })),
       conversationCapabilities: authed.projectWorkspaces.conversationCapabilities.handler(async () => ({
         createBot: deps.env?.projectConversationCreateExperiment === true,
@@ -71,7 +89,28 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
             message: "Project creation is not available yet",
           });
         }
-        return createProjectWorkspace(deps.prisma, context.actor, input);
+        try {
+          return await createProjectWorkspace(deps.prisma, context.actor, input);
+        } catch (error) {
+          if (
+            error instanceof ProjectAccountDeletionInProgressError ||
+            error instanceof ProjectWorkspaceConflictError ||
+            error instanceof SpaceDeletionInProgressError
+          ) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
+      }),
+      rename: authed.projectWorkspaces.rename.handler(async ({ context, input }) => {
+        if (!deps.env?.projectWorkspaceCreateExperiment) {
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project editing is not available yet",
+          });
+        }
+        const workspace = await renameProjectWorkspace(deps.prisma, context.actor, input);
+        if (!workspace) throw new ORPCError("NOT_FOUND");
+        return workspace;
       }),
       removeEmpty: authed.projectWorkspaces.removeEmpty.handler(async ({ context, input }) => {
         if (!deps.env?.projectWorkspaceCreateExperiment)
@@ -80,19 +119,72 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           throw new ORPCError("CONFLICT", { message: "Project is unavailable or contains data" });
         return { ok: true as const };
       }),
+      remove: authed.projectWorkspaces.remove.handler(async ({ context, input }) => {
+        if (!deps.env?.projectWorkspaceCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project removal is not available yet" });
+        try {
+          const deleted = await deleteProjectWorkspaceWithContent(
+            deps,
+            context.actor,
+            input,
+            context.signal,
+          );
+          await recordAuditEvent({
+            action: "project_workspace.deleted",
+            actor: { type: "user", id: context.actor.userId },
+            spaceId: context.actor.spaceId,
+            target: { type: "project_workspace", id: deleted.id, label: deleted.name },
+          });
+          return { ok: true as const };
+        } catch (error) {
+          if (error instanceof ProjectWorkspaceNotFoundError || error instanceof IsolationError) {
+            throw new ORPCError("NOT_FOUND", { message: error.message });
+          }
+          if (
+            error instanceof ProjectWorkspaceDeletionInProgressError ||
+            error instanceof ProjectWorkspaceDeferredResourcesError ||
+            error instanceof SpaceDeletionInProgressError
+          ) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
+      }),
       createBot: authed.projectWorkspaces.createBot.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
-          repos.createBot(context.actor, input.bot),
-        );
+        try {
+          return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
+            repos.createBot(context.actor, input.bot),
+          );
+        } catch (error) {
+          if (error instanceof ProjectWorkspaceDeletionInProgressError) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
       }),
       createGroup: authed.projectWorkspaces.createGroup.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
-          groupRepos.createGroup(context.actor, { ...input.group, id: input.requestId }),
-        );
+        try {
+          return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
+            groupRepos.createGroup(context.actor, { ...input.group, id: input.requestId }),
+          );
+        } catch (error) {
+          if (error instanceof ProjectWorkspaceDeletionInProgressError) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
+      }),
+      threadHead: authed.projectWorkspaces.threadHead.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+          return threadHead(deps.prisma, target);
+        });
       }),
       getBot: authed.projectWorkspaces.getBot.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
@@ -121,6 +213,22 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
           return threadSnapshot(deps, target);
         });
       }),
+      messages: authed.projectWorkspaces.messages.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input, { includeArchived: true });
+          return loadMessagePage(
+            deps.prisma,
+            target.threadId,
+            input.before,
+            THREAD_MESSAGE_PAGE_SIZE,
+            input.around,
+            input.includePeerRuns,
+            input.includePeerReceipts,
+          );
+        });
+      }),
       consentStatus: authed.projectWorkspaces.consentStatus.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
@@ -146,15 +254,40 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       sendText: authed.projectWorkspaces.sendText.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
           throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const status = await aiConsentStatus(deps, context.actor, {
-            botId: input.botId,
-            groupId: input.groupId,
-            uses: ["model"],
+        try {
+          return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+            const status = await aiConsentStatus(deps, context.actor, {
+              botId: input.botId,
+              groupId: input.groupId,
+              uses: ["model"],
+            });
+            if (status.recipients.some((recipient) => !recipient.allowed))
+              throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });
+            return send(context.actor, input);
           });
-          if (status.recipients.some((recipient) => !recipient.allowed))
-            throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });
-          return send(context.actor, input);
+        } catch (error) {
+          if (error instanceof ProjectWorkspaceDeletionInProgressError) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
+      }),
+      stop: authed.projectWorkspaces.stop.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+          await stopThreadRuns(deps, context.actor, target);
+          return { ok: true as const };
+        });
+      }),
+      markRead: authed.projectWorkspaces.markRead.handler(async ({ context, input }) => {
+        if (!deps.env?.projectConversationCreateExperiment)
+          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+          const unreadAfterSeq = await markThreadRead(deps.prisma, context.actor, target);
+          return { ok: true as const, unreadAfterSeq };
         });
       }),
       cancelRun: authed.projectWorkspaces.cancelRun.handler(async ({ context, input }) => {

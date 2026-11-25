@@ -178,6 +178,49 @@ Epicurus 完成 Electron 覆盖实验，写集仅新增
 `docx/design/DESKTOP_STANDALONE_STARTUP.md`。Pascal 网页退役盘点因模型
 服务不支持工具调用失败，未交付；后续重派。
 
+2026-11-24（按用户 `/goal` 批准启动 3 个正交写集子代理实施 G1–G5 + 主代理收口）：
+- 子代理 A（`141c9958`）：`packages/db/src/{task-execution.ts,task-execution.test.ts}`、`apps/api/src/routes/{tasks.ts,tasks.test.ts}`、`packages/adapters/src/{run-tools.ts,run-tools.test.ts,executor.ts,executor.test.ts}`、`docs/audit/{db-task-execution.md,pi-adapters.md,api-web.md}`（G2 受管任务中断/服务端静止证据 + G3 Pi 审批前预检与模型预留回滚）。
+- 子代理 B（`f11b0737`）：`packages/db/src/{project-account-lifecycle.ts,project-account-lifecycle.test.ts}`、`apps/api/src/{account-deletion.ts,app.ts,account-deletion-claim-recovery.test.ts}`、`apps/mobile/app/projects/[workspaceId].tsx`、`apps/web/src/pages/{Projects.tsx,Projects.test.tsx}`（G1 账号删除破坏前失败释放声明 + G5 手机/Web 非空项目删除双模式接线）。
+- 子代理 C（`4b8fcb2b`）：`infra/native-linux/{driver.py,test_driver.py}`、`docs/audit/native-linux.md`（G4 Native Linux `.driver-state.json` 原子安全持久化与 Python 单测验证）。
+- 主代理收口：独占更新 `packages/db/src/index.ts`（补齐 `releaseProjectAccountDeletionClaim` 导出）、执行全工作区跨包符号核对、Node v24 `stripTypeScriptTypes` 语法检查、Python 单测复跑、`git diff --check` 并统一同步 `docx/{PLAN,DEVELOPMENT_LOG,VALIDATION,OPERATIONS,WORKSTREAMS}.md` 与 `docx/design/PROJECT_WORKSPACE_PLAN.md`。未重装依赖或启动服务，未提交或推送。
+
+2026-11-24（按用户当前明确要求启动 3 个并行子代理协作 + 主代理统一收口）：
+- 子代理 1（`03c853b3`）：`packages/adapters/src/{executor.ts,executor.test.ts,run-tools.ts,run-tools.test.ts}`、`docs/audit/pi-adapters.md`（Pi Adapters 受管控制预检、模型预算包装与工具中止校验）。
+- 子代理 2（`82253c94`）：`packages/adapters/src/{native-linux-sandbox.ts,native-linux-sandbox.test.ts}`、`infra/native-linux/{driver.py,test_driver.py}`、`docs/audit/native-linux.md`（Native Linux `requestId` 防重放与 `cwd` 路径边界）。
+- 子代理 3（`73e02864`）：只读仓库，产出全量插件评测报告 `stop-that-shit-full-evaluation.md` 并对 `project-workspace-deletion` 执行 Stop Ladder 审查。
+- 主代理收口：协调更新 `packages/adapters/src/executor-lazy-computer.test.ts`、修复子代理 3 发现的 `apps/api/src/{project-workspace-deletion.ts,project-workspace-deletion.test.ts,routes/project-workspaces.ts,routes/project-workspaces.test.ts}` 两处可达问题，并统一同步 `docx/{PLAN,DEVELOPMENT_LOG,VALIDATION,WORKSTREAMS}.md`。未重装依赖或启动服务，未提交或推送。
+
+2026-11-24（`backend` 工作区完成 PA-022 非空项目删除与运行撤权闭环）：当前窗口按已批准规划
+领取并完成写集：
+- `packages/db/prisma/{schema.prisma,migrations/20261124140000_project_workspace_deletion_claim/migration.sql}`
+- `packages/db/src/{project-workspace-deletion.ts,project-workspace-deletion.test.ts,project-workspace-read.ts,project-workspace.postgres.test.ts,repos.ts,groups.ts,index.ts}`
+- `packages/adapters/src/{background-job-handlers.ts,background-job-handlers.test.ts}`
+- `packages/contracts/src/{rpc.ts,project-workspace.test.ts}`
+- `apps/api/src/{project-workspace-deletion.ts,project-workspace-deletion.test.ts,thread-target.ts,routes/project-workspaces.ts,routes/project-workspaces.test.ts,routes/project-workspace-thread.test.ts}`
+及对应计划、开发、验证、运维与方案文档。未调用子代理，未重装依赖或启动服务，未提交或推送。
+
+2026-11-24（`backend` 工作区接续 PA-023 并发窗口修复）：当前窗口从 `butterflyray` 工作区
+完整同步前述 31 个修改文件与 2 个新增文件到 `backend`（保留 `butterflyray` 未删），并继续
+在写集 `packages/adapters/src/{mcp-oauth.ts,mcp-oauth.test.ts}` 及对应计划、开发、验证、
+迁移与分工文档内修复 `complete()` 锁内原子 `revision` 递增与 `disconnect()` 无密文行锁内
+递增 `revision` 两处并发窗口。未调用子代理，未重装依赖或启动服务，未提交或推送。
+
+2026-11-24（续行三项后端补强）：当前窗口按序追加领取：
+1. PA-022 生命周期安全：`packages/db/src/{project-account-lifecycle.ts,project-account-lifecycle.test.ts,index.ts,groups.ts,groups.test.ts}`、
+   `packages/auth/src/{index.ts,account-deletion-response.test.ts}`、
+   `apps/api/src/{account-deletion.ts,app.ts}`；
+2. PA-023 MCP 原生回调：`packages/adapters/src/{mcp-oauth.ts,mcp-oauth.test.ts}`；
+3. P2/P3 任务审计：`packages/adapters/src/executor.ts`、`apps/api/src/routes/{tasks.ts,tasks.test.ts}`
+及对应计划、开发、验证、审计与迁移文档。未调用子代理，未重装依赖或启动服务，未提交或推送。
+
+2026-11-24：当前窗口按 PA-022 规划领取项目工作区与项目内会话后端闭环写集：
+`packages/db/prisma/migrations/20261124120000_enable_project_conversation_scope/migration.sql`、
+`packages/db/src/{index.ts,groups.ts,groups.test.ts,project-workspace-read.ts,project-workspace-read.test.ts,project-workspace.postgres.test.ts}`、
+`packages/contracts/src/{rpc.ts,project-workspace.test.ts}`、
+`apps/api/src/{thread-target.ts,thread-read.test.ts,routes/project-workspaces.ts,routes/project-workspaces.test.ts,routes/project-workspace-thread.test.ts}`
+及对应计划、开发、验证、运维与方案文档。未调用子代理，未重装依赖或启动服务，
+未提交或推送。
+
 2026-11-16：当前窗口领取手机默认后台地址迁移，写集限定
 `apps/mobile/lib/default-origin-guard.ts`、专属
 `api-default-origin.test.ts` 及对应计划、运维、开发和验证记录；不改

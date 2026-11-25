@@ -109,6 +109,19 @@ export default function SettingsLayout() {
       <Stack.Screen name="billing" options={glassHeaderOptions(t("Billing"))} />
       <Stack.Screen name="devices" options={glassHeaderOptions(t("Computers"))} />
       <Stack.Screen name="models" options={glassHeaderOptions(t("Models"))} />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          ...glassHeaderOptions(
+            locale.startsWith("zh")
+              ? locale === "zh-TW"
+                ? "消息通知"
+                : "消息通知"
+              : t("Notifications"),
+          ),
+          contentStyle: { backgroundColor: native.groupedPage },
+        }}
+      />
       <Stack.Screen name="voice" options={glassHeaderOptions(t("Voice"))} />
       <Stack.Screen name="wallet" options={glassHeaderOptions(t("Wallet"))} />
       <Stack.Screen

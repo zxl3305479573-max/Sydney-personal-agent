@@ -41,9 +41,13 @@ type OAuthState = {
   tokens?: OAuthTokens;
   obtainedAt?: number;
   clientInformation?: OAuthClientInformationMixed;
+  /** The redirect URI `clientInformation` was dynamically registered with. */
+  clientRedirectUri?: string;
   discoveryState?: OAuthDiscoveryState;
   redirectUri?: string;
   codeVerifier?: string;
+  /** Ephemeral revision captured in `mcp_oauth_sessions`; stripped before live persist. */
+  sessionRevision?: number;
 };
 
 export type OAuthMaterial = {
@@ -273,6 +277,7 @@ type TokenGrant = Pick<OAuthState, "tokens" | "obtainedAt">;
 type PersistMaterial = (
   material: OAuthMaterial,
   storedRefreshToken?: string | null,
+  options?: { incrementRevision?: boolean },
 ) => Promise<TokenGrant | undefined>;
 
 type ProviderOptions = {
@@ -284,7 +289,33 @@ type ProviderOptions = {
   refresh?: (heldRefreshToken: string) => Promise<TokenGrant>;
   /** The instance opt-in that lets OAuth URLs use plain HTTP on a private network. */
   allowPrivateEndpoint?: boolean;
+  /** Keep pending begin-phase mutations in the staged session copy instead of live storage. */
+  stageOnly?: boolean;
+  /** Require the MCP server revision to match when committing the authorization grant. */
+  expectedRevision?: number;
+  /** Atomically bump the server revision in the same locked transaction that stores issued tokens. */
+  incrementRevisionOnIssue?: boolean;
 };
+
+/**
+ * Dynamic OAuth clients are registered for a specific callback URI. When a flow switches
+ * callback URI (e.g. from web callback to API native callback), an incompatible or legacy
+ * unbound dynamic client must not be reused; the session registers a fresh client instead.
+ */
+function dynamicClientMatchesRedirect(
+  oauth: OAuthState | undefined,
+  redirectUri: string,
+): boolean {
+  const client = oauth?.clientInformation;
+  if (!client) return true;
+  if (oauth?.clientRedirectUri) return oauth.clientRedirectUri === redirectUri;
+  const registeredUris =
+    "redirect_uris" in client && Array.isArray(client.redirect_uris)
+      ? client.redirect_uris.filter((uri): uri is string => typeof uri === "string")
+      : [];
+  if (registeredUris.length > 0) return registeredUris.includes(redirectUri);
+  return Boolean(oauth?.redirectUri && oauth.redirectUri === redirectUri);
+}
 
 /** Refresh before expiry to cover clock skew and request time. */
 export const TOKEN_REFRESH_SKEW_MS = 60_000;
@@ -365,7 +396,13 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
   private served?: OAuthTokens;
   /** The refresh token storage held when this provider last read or wrote it. */
   private storedRefreshToken: string | null;
+  /** Whether `saveTokens()` has committed a newly issued grant through this provider. */
+  private tokensCommitted = false;
   private readonly stagedRegistration: boolean;
+
+  get committedTokens(): boolean {
+    return this.tokensCommitted;
+  }
 
   constructor(
     readonly serverId: string,
@@ -383,7 +420,21 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     );
     if (this.stagedRegistration) material.oauth = {};
     if (options.redirectUri) {
-      this.material.oauth = { ...(this.material.oauth ?? {}), redirectUri: options.redirectUri };
+      const prior = this.material.oauth;
+      if (
+        !this.material.oauthClient &&
+        prior?.clientInformation &&
+        !dynamicClientMatchesRedirect(prior, options.redirectUri)
+      ) {
+        const {
+          clientInformation: _staleClient,
+          clientRedirectUri: _staleRedirect,
+          ...rest
+        } = prior;
+        this.material.oauth = { ...rest, redirectUri: options.redirectUri };
+      } else {
+        this.material.oauth = { ...(prior ?? {}), redirectUri: options.redirectUri };
+      }
     }
   }
 
@@ -437,8 +488,10 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     this.material.oauthClient = { ...client, authorization_server: bound };
   }
   async saveClientInformation(value: OAuthClientInformationMixed): Promise<void> {
-    this.oauth().clientInformation = value;
-    await this.persist();
+    const oauth = this.oauth();
+    oauth.clientInformation = value;
+    if (this.redirectUrl) oauth.clientRedirectUri = this.redirectUrl;
+    if (!this.options.stageOnly) await this.persist();
   }
   /**
    * Some providers return a JSON-RPC error with HTTP 200 after access-token
@@ -527,6 +580,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     oauth.tokens = value;
     oauth.obtainedAt = Date.now();
     await this.persist(true);
+    this.tokensCommitted = true;
   }
   async redirectToAuthorization(url: URL): Promise<void> {
     let authorizationUrl: URL;
@@ -558,7 +612,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
   }
   async saveCodeVerifier(value: string): Promise<void> {
     this.oauth().codeVerifier = value;
-    await this.persist();
+    if (!this.options.stageOnly) await this.persist();
   }
   codeVerifier(): string {
     const verifier = this.material.oauth?.codeVerifier;
@@ -570,7 +624,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
   }
   async saveDiscoveryState(value: OAuthDiscoveryState): Promise<void> {
     this.oauth().discoveryState = value;
-    await this.persist();
+    if (!this.options.stageOnly) await this.persist();
   }
   discoveryState(): OAuthDiscoveryState | undefined {
     return this.material.oauth?.discoveryState;
@@ -582,7 +636,10 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
       const redirectUri = this.redirectUrl;
       this.material.oauth = redirectUri ? { redirectUri } : undefined;
     } else if (this.material.oauth) {
-      if (scope === "client") delete this.material.oauth.clientInformation;
+      if (scope === "client") {
+        delete this.material.oauth.clientInformation;
+        delete this.material.oauth.clientRedirectUri;
+      }
       if (scope === "tokens") {
         delete this.material.oauth.tokens;
         delete this.material.oauth.obtainedAt;
@@ -590,7 +647,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
       if (scope === "verifier") delete this.material.oauth.codeVerifier;
       if (scope === "discovery") delete this.material.oauth.discoveryState;
     }
-    await this.persist();
+    if (!this.options.stageOnly) await this.persist();
   }
 
   private oauth(): OAuthState {
@@ -604,8 +661,13 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     const snapshot = structuredClone(this.material);
     const held = this.material.oauth?.tokens;
     const storedRefreshToken = issued ? undefined : this.storedRefreshToken;
+    const incrementRevision = issued && Boolean(this.options.incrementRevisionOnIssue);
     const next = this.persistQueue.then(async () => {
-      const kept = await this.persistMaterial(snapshot, storedRefreshToken);
+      const kept = await this.persistMaterial(
+        snapshot,
+        storedRefreshToken,
+        incrementRevision ? { incrementRevision: true } : undefined,
+      );
       const oauth = this.material.oauth;
       if (kept && oauth && oauth.tokens === held) applyGrant(oauth, kept);
       this.storedRefreshToken = (kept ?? snapshot.oauth)?.tokens?.refresh_token ?? null;
@@ -623,6 +685,8 @@ type Pending = {
   endpoint: string;
   stdio: boolean;
   provider: StoredMcpOAuthProvider;
+  /** Server revision when authorization began; a disconnect or concurrent completion bumps it. */
+  expectedRevision?: number;
   createdAt: number;
   expiry?: ReturnType<typeof setTimeout>;
 };
@@ -1011,10 +1075,17 @@ export class McpOAuthBroker {
       throw new Error("Too many pending MCP authorization attempts; wait and try again");
     }
     const sessionId = randomUUID();
+    const expectedRevision = typeof server.revision === "number" ? server.revision : undefined;
+    // Stage dynamic-client and already-bound sessions in an isolated copy so an abandoned or
+    // re-registered begin() never overwrites a live grant or its dynamically registered client.
+    const stageOnly =
+      !loaded.material.oauthClient || Boolean(loaded.material.oauthClient.authorization_server);
+    const staged = { ...loaded, material: structuredClone(loaded.material) };
     let authorizationUrl: URL | undefined;
-    const provider = this.createProvider(server, context, loaded, {
+    const provider = this.createProvider(server, context, staged, {
       redirectUri: input.redirectUri,
       state: sessionId,
+      stageOnly,
       onAuthorization: (url) => {
         authorizationUrl = url;
       },
@@ -1025,7 +1096,7 @@ export class McpOAuthBroker {
     const networkFetch = oauthFetch(
       target,
       this.network,
-      server.endpoint ? loaded.material : withoutRequestCredentials(loaded.material),
+      server.endpoint ? staged.material : withoutRequestCredentials(staged.material),
       this.allowPrivateEndpoint,
     );
     try {
@@ -1041,7 +1112,7 @@ export class McpOAuthBroker {
         // refresh token, or the refresh keeps failing) cannot start the process, so the
         // user re-authorizes instead of being told it is connected.
         const tokens = await provider.tokens();
-        const expiresAt = accessTokenExpiresAt(loaded.material.oauth);
+        const expiresAt = accessTokenExpiresAt(staged.material.oauth);
         if (!tokens || (expiresAt !== undefined && Date.now() >= expiresAt))
           await authorizeAtIssuer(provider, target, provider.wrapFetch(networkFetch.fetch));
       }
@@ -1058,8 +1129,11 @@ export class McpOAuthBroker {
       }
       return { status: "authorization_not_requested" };
     }
+    if (expectedRevision !== undefined && staged.material.oauth) {
+      staged.material.oauth.sessionRevision = expectedRevision;
+    }
     const sessionMaterial = await this.secrets.put(
-      JSON.stringify(loaded.material),
+      JSON.stringify(staged.material),
       {
         operationId: "mcp.oauth.session",
         traceId: "mcp.oauth.session",
@@ -1081,6 +1155,12 @@ export class McpOAuthBroker {
         oauthCiphertext: sessionMaterial.ciphertext,
       },
     });
+    const commitProvider = this.createProvider(server, context, staged, {
+      redirectUri: input.redirectUri,
+      state: sessionId,
+      expectedRevision,
+      incrementRevisionOnIssue: true,
+    });
     const expiry = setTimeout(() => {
       this.pending.delete(sessionId);
       void this.prisma.mcpOAuthSession
@@ -1094,7 +1174,8 @@ export class McpOAuthBroker {
       userId: input.userId,
       endpoint: target,
       stdio: !server.endpoint,
-      provider,
+      provider: commitProvider,
+      expectedRevision,
       createdAt: Date.now(),
       expiry,
     });
@@ -1143,6 +1224,10 @@ export class McpOAuthBroker {
         material: await this.read(session.oauthCiphertext, session.id),
         ...(server.secretId ? { secretId: server.secretId } : {}),
       };
+      const expectedRevision =
+        typeof loaded.material.oauth?.sessionRevision === "number"
+          ? loaded.material.oauth.sessionRevision
+          : undefined;
       pending = {
         serverId: server.id,
         spaceId: input.spaceId,
@@ -1152,7 +1237,10 @@ export class McpOAuthBroker {
         provider: this.createProvider(server, context, loaded, {
           redirectUri: session.redirectUri,
           state: session.id,
+          expectedRevision,
+          incrementRevisionOnIssue: true,
         }),
+        expectedRevision,
         createdAt: session.createdAt.getTime(),
         expiry: undefined,
       };
@@ -1174,9 +1262,21 @@ export class McpOAuthBroker {
     // the one this flow started with, in case an overlapping flow bound the client first.
     const current = await this.prisma.mcpServer.findFirst({
       where: { id: pending.serverId, ...availableInSpace(input) },
-      select: { id: true, endpoint: true, secretId: true },
+      select: { id: true, endpoint: true, secretId: true, enabled: true, revision: true },
     });
     if (current) {
+      if (current.enabled === false) {
+        throw new Error("MCP OAuth session is invalid or expired");
+      }
+      if (
+        pending.expectedRevision !== undefined &&
+        typeof current.revision === "number" &&
+        current.revision !== pending.expectedRevision
+      ) {
+        throw new McpCredentialRefusedError(
+          "MCP OAuth state changed during authorization; reconnect this server",
+        );
+      }
       const stored = await this.loadMaterial(current, input);
       pending.provider.adoptClientBinding(stored.material.oauthClient);
     }
@@ -1203,16 +1303,14 @@ export class McpOAuthBroker {
         }
       }
     } catch (error) {
+      if (isCredentialRefusal(error)) throw error;
       throw networkFetch.publicError(error, "Could not complete MCP OAuth");
     } finally {
       await networkFetch.close().catch(() => undefined);
     }
-    if (!(await pending.provider.tokens())) throw new Error("MCP OAuth authorization failed");
-    // Bump the revision so cached runtime sessions rebuild with the fresh tokens.
-    await this.prisma.mcpServer.update({
-      where: { id: pending.serverId },
-      data: { revision: { increment: 1 } },
-    });
+    if (!pending.provider.committedTokens || !(await pending.provider.tokens())) {
+      throw new Error("MCP OAuth authorization failed");
+    }
   }
 
   private async sweepExpiredPending(): Promise<void> {
@@ -1236,14 +1334,22 @@ export class McpOAuthBroker {
     const server = await this.prisma.mcpServer.findFirst({
       where: { id: input.serverId, ...availableInSpace(input) },
     });
-    if (!server?.secretId) return;
-    const row = await this.prisma.secret.findFirst({
-      where: { id: server.secretId, ...itemSecretIn(input) },
+    if (!server) return;
+    for (const [sessionId, pending] of this.pending) {
+      if (
+        pending.serverId === server.id &&
+        pending.spaceId === input.spaceId &&
+        pending.userId === input.userId
+      ) {
+        this.discardPending(sessionId, pending);
+      }
+    }
+    await this.prisma.mcpOAuthSession?.deleteMany({
+      where: { serverId: server.id, spaceId: input.spaceId, userId: input.userId },
     });
-    if (!row) return;
-    const material = await this.read(row.ciphertext, row.id);
-    delete material.oauth;
-    await this.replaceMaterial(server.id, material, input, { incrementRevision: true });
+    // Always bump revision under the credential lock—even before any secret row exists—so an
+    // in-flight complete() that already consumed its session row cannot commit stale tokens.
+    await this.replaceMaterial(server.id, {}, input, { incrementRevision: true });
   }
 
   private async loadMaterial(
@@ -1271,9 +1377,11 @@ export class McpOAuthBroker {
     return new StoredMcpOAuthProvider(
       server.id,
       loaded.material,
-      (material, storedRefreshToken) =>
+      (material, storedRefreshToken, writeOptions) =>
         this.replaceMaterial(server.id, material, context, {
           expectedEndpoint: endpoint,
+          expectedRevision: options.expectedRevision,
+          incrementRevision: writeOptions?.incrementRevision,
           onPersisted: options.onPersisted,
           storedRefreshToken,
         }),
@@ -1404,6 +1512,7 @@ export class McpOAuthBroker {
     options: {
       incrementRevision?: boolean;
       expectedEndpoint?: string | null;
+      expectedRevision?: number;
       onPersisted?: ProviderOptions["onPersisted"];
       storedRefreshToken?: string | null;
       replaceCleared?: boolean;
@@ -1414,8 +1523,33 @@ export class McpOAuthBroker {
     // Recheck both the pointer and ciphertext under the existing advisory lock.
     for (let attempt = 0; attempt < 5; attempt++) {
       const snapshot = await this.prisma.$transaction((tx) =>
-        this.snapshot(tx, serverId, context, options.expectedEndpoint),
+        this.snapshot(tx, serverId, context, options.expectedEndpoint, options.expectedRevision),
       );
+      if (!material.oauth && snapshot.server.secretId && !snapshot.secret) {
+        // Keep an unreadable/dangling secret pointer intact on disconnect, while still bumping
+        // revision under the credential lock to invalidate any in-flight authorization.
+        const committed = await this.prisma.$transaction(async (tx) => {
+          await lockMaterial(tx, serverId);
+          const currentServer = await tx.mcpServer.findFirst({
+            where: { id: serverId, ...availableInSpace(context) },
+            select: { endpoint: true, secretId: true },
+          });
+          if (!currentServer) throw new McpCredentialRefusedError("MCP server is unavailable");
+          if (
+            currentServer.endpoint !== snapshot.server.endpoint ||
+            currentServer.secretId !== snapshot.server.secretId
+          )
+            return false;
+          if (options.incrementRevision)
+            await tx.mcpServer.update({
+              where: { id: serverId },
+              data: { revision: { increment: 1 } },
+            });
+          return true;
+        });
+        if (committed) return undefined;
+        continue;
+      }
       const nextMaterial = snapshot.secret
         ? await this.read(snapshot.secret.ciphertext, snapshot.secret.id)
         : {};
@@ -1436,6 +1570,7 @@ export class McpOAuthBroker {
         if (nextMaterial.oauthClient && bound && !nextMaterial.oauthClient.authorization_server)
           nextMaterial.oauthClient = { ...nextMaterial.oauthClient, authorization_server: bound };
         nextMaterial.oauth = structuredClone(material.oauth);
+        delete nextMaterial.oauth.sessionRevision;
         // A process that spent the rotated-away token meanwhile cleared the grant this write renews.
         const staleClear = options.replaceCleared && storedOAuth && !storedOAuth.tokens;
         if (
@@ -1475,6 +1610,7 @@ export class McpOAuthBroker {
               snapshot,
               stored,
               options.incrementRevision,
+              options.expectedRevision,
             );
           }),
         (committed) => {
@@ -1496,15 +1632,24 @@ export class McpOAuthBroker {
     serverId: string,
     context: ActorRef,
     expectedEndpoint?: string | null,
+    expectedRevision?: number,
   ): Promise<MaterialSnapshot> {
     const server = await tx.mcpServer.findFirst({
       where: { id: serverId, ...availableInSpace(context) },
-      select: { endpoint: true, secretId: true },
+      select: { endpoint: true, secretId: true, revision: true },
     });
     if (!server) throw new McpCredentialRefusedError("MCP server is unavailable");
     if (expectedEndpoint !== undefined && server.endpoint !== expectedEndpoint)
       throw new McpCredentialRefusedError(
         "MCP server endpoint changed during authorization; reconnect this server",
+      );
+    if (
+      expectedRevision !== undefined &&
+      typeof server.revision === "number" &&
+      server.revision !== expectedRevision
+    )
+      throw new McpCredentialRefusedError(
+        "MCP OAuth state changed during authorization; reconnect this server",
       );
     const secret = server.secretId
       ? await tx.secret.findFirst({
@@ -1536,12 +1681,21 @@ export class McpOAuthBroker {
     snapshot: MaterialSnapshot,
     stored: { id: string; ciphertext: string } | undefined,
     incrementRevision = false,
+    expectedRevision?: number,
   ): Promise<boolean> {
     const server = await tx.mcpServer.findFirst({
       where: { id: serverId, ...availableInSpace(context) },
-      select: { endpoint: true, secretId: true, spaceId: true, allSpaces: true },
+      select: { endpoint: true, secretId: true, spaceId: true, allSpaces: true, revision: true },
     });
     if (!server) throw new McpCredentialRefusedError("MCP server is unavailable");
+    if (
+      expectedRevision !== undefined &&
+      typeof server.revision === "number" &&
+      server.revision !== expectedRevision
+    )
+      throw new McpCredentialRefusedError(
+        "MCP OAuth state changed during authorization; reconnect this server",
+      );
     if (
       server.endpoint !== snapshot.server.endpoint ||
       server.secretId !== snapshot.server.secretId
@@ -1555,12 +1709,12 @@ export class McpOAuthBroker {
         })
       : null;
     if (current?.ciphertext !== snapshot.secret?.ciphertext) return false;
-    // A server available beyond this space keeps its credential on the account, for every space.
-    const shared =
-      server.allSpaces ||
-      server.spaceId !== context.spaceId ||
-      (await tx.mcpServerSpace.count({ where: { serverId } })) > 0;
-    if (stored)
+    if (stored) {
+      // A server available beyond this space keeps its credential on the account, for every space.
+      const shared =
+        server.allSpaces ||
+        server.spaceId !== context.spaceId ||
+        (await tx.mcpServerSpace.count({ where: { serverId } })) > 0;
       await tx.secret.create({
         data: {
           id: stored.id,
@@ -1570,6 +1724,7 @@ export class McpOAuthBroker {
           ciphertext: stored.ciphertext,
         },
       });
+    }
     await tx.mcpServer.update({
       where: { id: serverId },
       data: {

@@ -16,6 +16,11 @@ import {
 } from "../../lib/client-update";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
+import {
+  getCachedNotificationPreferences,
+  notificationSummaryLabel,
+  subscribeNotificationPreferences,
+} from "../../lib/notification-preferences";
 import { accountRpcQuery, queryClient } from "../../lib/query";
 import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
@@ -47,6 +52,13 @@ export default function SettingsHome() {
   const traditional = locale === "zh-TW";
   useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
   useSyncExternalStore(themeManager.subscribe, themeManager.getSnapshot, themeManager.getSnapshot);
+  const notificationPrefs = useSyncExternalStore(
+    subscribeNotificationPreferences,
+    getCachedNotificationPreferences,
+    getCachedNotificationPreferences,
+  );
+  const notificationSummary =
+    Platform.OS === "ios" ? notificationSummaryLabel(notificationPrefs, locale) : undefined;
   const themeSummary =
     Platform.OS === "ios"
       ? formatUnifiedThemeSummary(getUnifiedThemeState(Platform.OS), locale)
@@ -117,7 +129,15 @@ export default function SettingsHome() {
               chevron="right"
               onPress={() => accountSection("notifications")}
             />
-          ) : null}
+          ) : (
+            <SettingsRow
+              title={chinese ? "消息通知" : t("Notifications")}
+              detail={notificationSummary}
+              accessibilityRole="button"
+              chevron="right"
+              onPress={() => router.push("/notifications")}
+            />
+          )}
           <SettingsRow
             accessibilityRole="button"
             prominent

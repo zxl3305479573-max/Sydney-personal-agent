@@ -71,7 +71,9 @@ import {
 } from "../lib/main-navigation";
 import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { loadNotificationPreferences } from "../lib/notification-preferences";
 import { useNotificationResponses } from "../lib/open-notification";
+import { useFirstLaunchNotificationPrompt } from "../lib/use-first-launch-notification-prompt";
 import { clearQueries } from "../lib/query";
 import {
   getCachedRemoteImagesEnabled,
@@ -322,6 +324,7 @@ function LayoutContent() {
   const [appearanceReady, setAppearanceReady] = useState(false);
   const [splashHidden, setSplashHidden] = useState(false);
   useStartupUpdatePrompt(splashHidden);
+  useFirstLaunchNotificationPrompt(splashHidden && ready, pathname);
   const resolved = useResolvedAppearance();
   const tokens = useMobileTokens();
   const loadRemoteImages = useSyncExternalStore(
@@ -378,6 +381,7 @@ function LayoutContent() {
       }),
       trackMobileStartup("streaming", loadResponseStreamingPreference()),
       trackMobileStartup("images", loadRemoteImagesPreference()),
+      trackMobileStartup("notifications", loadNotificationPreferences()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])

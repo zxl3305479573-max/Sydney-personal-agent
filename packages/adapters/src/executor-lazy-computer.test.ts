@@ -85,6 +85,7 @@ async function runRoutine(
     leaseFence: 0,
     leaseExpiresAt: null as Date | null,
     wakeAt: null as Date | null,
+    error: null as string | null,
   };
   const toolResults: unknown[] = [];
   const steeringInputs: unknown[] = [];
@@ -379,7 +380,6 @@ describe("run computer provisioning", () => {
       projectWorkspaceId: "project-a",
       native: true,
       computerSwitching: true,
-      setupError: new Error("Account memory should not be loaded"),
     });
     expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({ outcome: "completed" }));
     expect(runtimeRun).toHaveBeenCalledOnce();
@@ -397,12 +397,9 @@ describe("run computer provisioning", () => {
     expect(sandbox.environment).not.toHaveBeenCalled();
     expect(executorInput.connector.discoverTools).not.toHaveBeenCalled();
     expect(executorInput.userDevices.connected).not.toHaveBeenCalled();
-    expect(executorInput.memory.read).not.toHaveBeenCalled();
-    expect(executorInput.memoryProviders.resolve).not.toHaveBeenCalled();
     expect(prisma.connection.findMany).not.toHaveBeenCalled();
     expect(prisma.agentSkill.findMany).not.toHaveBeenCalled();
     expect(prisma.taughtSkill.findMany).not.toHaveBeenCalled();
-    expect(prisma.scratchpadItem.findMany).not.toHaveBeenCalled();
   });
 
   it("refuses a project scripted runtime before opening its stream", async () => {
@@ -432,21 +429,19 @@ describe("run computer provisioning", () => {
     expect(sandbox.writeFile).not.toHaveBeenCalled();
   });
 
-  it("stops a managed attempt before model and connector setup when control is unavailable", async () => {
-    const { prisma, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
+  it("stops a managed run before acquiring a computer lease or creating an attempt when control is unavailable", async () => {
+    const { prisma, run, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
       managedControlBlocked: true,
     });
     expect(prisma.task.findFirst).toHaveBeenCalled();
+    expect(prisma.bot.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(prisma.attempt.create).not.toHaveBeenCalled();
     expect(prisma.task.findUniqueOrThrow).not.toHaveBeenCalled();
     expect(prisma.connection.findMany).not.toHaveBeenCalled();
     expect(runtimeRun).not.toHaveBeenCalled();
-    expect(finalizeRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        runId: "run-1",
-        outcome: "failed",
-        error: "Managed task was stopped or its control state was unavailable.",
-      }),
-    );
+    expect(finalizeRun).not.toHaveBeenCalled();
+    expect(run.status).toBe("failed");
+    expect(run.error).toBe("Managed task was stopped or its control state was unavailable.");
     expect(enqueue).not.toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
   });
 

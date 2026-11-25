@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { apiBaseWarning, normalizeApiBase } from "./endpoint";
 import { getActiveUiLocale, t } from "./i18n";
+import { getCachedNotificationPreferences } from "./notification-preferences-state";
 import { serverHeaders } from "./server-headers";
 
 export interface LiveNotificationSettings {
@@ -90,14 +91,34 @@ export function configureForegroundNotifications(): void {
   foregroundHandlerConfigured = true;
   Notifications.setNotificationHandler({
     handleNotification: async ({ request }) => {
-      // Finished work is already on screen while the app is open; only questions and failures alert.
+      const prefs = getCachedNotificationPreferences();
+      const data = request.content.data;
+      const kind = typeof data?.kind === "string" ? data.kind : undefined;
+      if (kind === "test") {
+        return {
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: prefs.sound,
+          shouldSetBadge: false,
+        };
+      }
+      const categoryAllowed =
+        kind === "completion"
+          ? prefs.completions
+          : kind === "help" ||
+              kind === "takeover" ||
+              kind === "failure" ||
+              kind === "approval" ||
+              kind === "question" ||
+              kind === "attention"
+            ? prefs.needsAttention
+            : prefs.messages;
       const show =
-        request.content.data?.kind !== "completion" &&
-        !notificationTargetsThread(request.content.data, openThread);
+        prefs.enabled && categoryAllowed && !notificationTargetsThread(data, openThread);
       return {
         shouldShowBanner: show,
         shouldShowList: show,
-        shouldPlaySound: false,
+        shouldPlaySound: show && prefs.sound,
         shouldSetBadge: false,
       };
     },

@@ -10,6 +10,13 @@ import {
   ProjectAccountDeletionInProgressError,
 } from "./project-account-lifecycle.js";
 import { runInProjectWorkspace } from "./project-workspace-context.js";
+import {
+  cancelClaimedProjectWorkspaceRuns,
+  claimProjectWorkspaceDeletion,
+  finalizeProjectWorkspaceDeletion,
+  lockProjectWorkspaceForMutation,
+  ProjectWorkspaceDeletionInProgressError,
+} from "./project-workspace-deletion.js";
 import { createProjectWorkspace, listProjectWorkspaces } from "./project-workspace-read.js";
 import { createRepos } from "./repos.js";
 import { drainUnscopedDatabaseAccess, runAsSystem, runAsTenant } from "./row-security.js";
@@ -874,6 +881,183 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
       name: `${table}_project_scope_disabled`, validated: true,
       definition: expect.stringMatching(/"projectWorkspaceId" IS NULL/),
     })));
+  });
+
+  it("allows project-scoped conversations while isolating them from home and other projects", async () => {
+    const projectBotId = `workspace-project-bot-${suffix}`;
+    const projectThreadId = `workspace-project-thread-${suffix}`;
+    const projectTaskId = `workspace-project-task-${suffix}`;
+    const projectRunId = `workspace-project-run-${suffix}`;
+    const projectTenant = { ...tenant(first), projectWorkspaceId: first.workspaceId };
+    try {
+      await runAsTenant(projectTenant, () =>
+        app.prisma.$transaction(async (tx) => {
+          await tx.bot.create({ data: {
+            id: projectBotId, spaceId, userId: first.userId, projectWorkspaceId: first.workspaceId,
+            name: "Project Bot", color: "#000000",
+          } });
+          await tx.thread.create({ data: {
+            id: projectThreadId, spaceId, userId: first.userId, projectWorkspaceId: first.workspaceId,
+            botId: projectBotId,
+          } });
+          await tx.task.create({ data: {
+            id: projectTaskId, spaceId, userId: first.userId, projectWorkspaceId: first.workspaceId,
+            botId: projectBotId, threadId: projectThreadId, prompt: "project fixture", status: "queued",
+          } });
+          await tx.run.create({ data: {
+            id: projectRunId, spaceId, userId: first.userId, projectWorkspaceId: first.workspaceId,
+            botId: projectBotId, threadId: projectThreadId, taskId: projectTaskId,
+            trigger: "chat", status: "queued",
+          } });
+        }),
+      );
+      expect(await runAsTenant(projectTenant, () =>
+        app.prisma.run.findUnique({ where: { id: projectRunId } }),
+      )).toMatchObject({ id: projectRunId, projectWorkspaceId: first.workspaceId });
+      expect(await runAsTenant(tenant(first), () =>
+        app.prisma.bot.findUnique({ where: { id: projectBotId } }),
+      )).toBeNull();
+      expect(await runAsTenant({ ...tenant(first), projectWorkspaceId: otherWorkspaceId }, () =>
+        app.prisma.bot.findUnique({ where: { id: projectBotId } }),
+      )).toBeNull();
+      await expect(runAsSystem("synthetic cross-project thread mismatch", () =>
+        app.prisma.thread.create({ data: {
+          spaceId, userId: first.userId, projectWorkspaceId: null, botId: projectBotId,
+        } }),
+      )).rejects.toThrow(/Thread parent scope does not match/);
+    } finally {
+      await runAsSystem("cleanup synthetic project conversation", () =>
+        owner.prisma.$transaction(async (tx) => {
+          await tx.run.deleteMany({ where: { id: projectRunId } });
+          await tx.task.deleteMany({ where: { id: projectTaskId } });
+          await tx.thread.deleteMany({ where: { id: projectThreadId } });
+          await tx.bot.deleteMany({ where: { id: projectBotId } });
+        }),
+      );
+    }
+  });
+
+  it("claims a non-empty project, hides rows via RLS, cancels runs, blocks concurrent mutation locks, and finalizes deletion", async () => {
+    const targetWorkspaceId = randomUUID();
+    const projectBotId = `del-bot-${suffix}`;
+    const projectThreadId = `del-thread-${suffix}`;
+    const projectTaskId = `del-task-${suffix}`;
+    const projectRunId = `del-run-${suffix}`;
+    const projectTenant = { ...tenant(first), projectWorkspaceId: targetWorkspaceId };
+    try {
+      await createProjectWorkspace(app.prisma, tenant(first), {
+        id: targetWorkspaceId,
+        name: "To Be Deleted",
+      });
+      await runAsTenant(projectTenant, () =>
+        app.prisma.$transaction(async (tx) => {
+          await lockProjectWorkspaceForMutation(tx, tenant(first), targetWorkspaceId);
+          await tx.bot.create({
+            data: {
+              id: projectBotId,
+              spaceId,
+              userId: first.userId,
+              projectWorkspaceId: targetWorkspaceId,
+              name: "Delete Target Bot",
+              color: "#000000",
+            },
+          });
+          await tx.thread.create({
+            data: {
+              id: projectThreadId,
+              spaceId,
+              userId: first.userId,
+              projectWorkspaceId: targetWorkspaceId,
+              botId: projectBotId,
+            },
+          });
+          await tx.task.create({
+            data: {
+              id: projectTaskId,
+              spaceId,
+              userId: first.userId,
+              projectWorkspaceId: targetWorkspaceId,
+              botId: projectBotId,
+              threadId: projectThreadId,
+              prompt: "delete fixture",
+              status: "queued",
+            },
+          });
+          await tx.run.create({
+            data: {
+              id: projectRunId,
+              spaceId,
+              userId: first.userId,
+              projectWorkspaceId: targetWorkspaceId,
+              botId: projectBotId,
+              threadId: projectThreadId,
+              taskId: projectTaskId,
+              trigger: "chat",
+              status: "queued",
+            },
+          });
+        }),
+      );
+
+      const claimed = await claimProjectWorkspaceDeletion(app.prisma, tenant(first), {
+        id: targetWorkspaceId,
+        confirmRemoveAppData: true,
+      });
+      expect(claimed.recovered).toBe(false);
+
+      // Once claimed, RESTRICTIVE RLS immediately hides project rows from normal tenant queries.
+      expect(
+        await runAsTenant(projectTenant, () =>
+          app.prisma.bot.findUnique({ where: { id: projectBotId } }),
+        ),
+      ).toBeNull();
+      await expect(
+        runAsTenant(projectTenant, () =>
+          app.prisma.$transaction((tx) =>
+            lockProjectWorkspaceForMutation(tx, tenant(first), targetWorkspaceId),
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ProjectWorkspaceDeletionInProgressError);
+
+      const stopped = await cancelClaimedProjectWorkspaceRuns(app.prisma, tenant(first), {
+        id: targetWorkspaceId,
+        claimId: claimed.claimId,
+      });
+      expect(stopped.cancelledRunIds).toEqual([projectRunId]);
+
+      // Finalize refuses while bots still remain.
+      await expect(
+        finalizeProjectWorkspaceDeletion(app.prisma, tenant(first), {
+          id: targetWorkspaceId,
+          claimId: claimed.claimId,
+        }),
+      ).rejects.toBeInstanceOf(ProjectWorkspaceDeletionInProgressError);
+
+      await runAsSystem("remove torn-down bot before finalization", () =>
+        app.prisma.bot.delete({ where: { id: projectBotId } }),
+      );
+      await finalizeProjectWorkspaceDeletion(app.prisma, tenant(first), {
+        id: targetWorkspaceId,
+        claimId: claimed.claimId,
+      });
+      expect(
+        await runAsSystem("verify deleted project workspace row is gone", () =>
+          app.prisma.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM project_workspaces WHERE id = ${targetWorkspaceId}
+          `,
+        ),
+      ).toEqual([]);
+    } finally {
+      await runAsSystem("cleanup synthetic non-empty project deletion fixture", () =>
+        owner.prisma.$transaction(async (tx) => {
+          await tx.run.deleteMany({ where: { id: projectRunId } });
+          await tx.task.deleteMany({ where: { id: projectTaskId } });
+          await tx.thread.deleteMany({ where: { id: projectThreadId } });
+          await tx.bot.deleteMany({ where: { id: projectBotId } });
+          await tx.$executeRaw`DELETE FROM project_workspaces WHERE id = ${targetWorkspaceId}`;
+        }),
+      );
+    }
   });
 
   it("persists and isolates Bot and group text sends across projects in the same Space", async () => {

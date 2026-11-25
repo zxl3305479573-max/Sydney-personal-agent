@@ -300,6 +300,7 @@ describe("archiveGroup", () => {
           id: "group-1",
           spaceId: actor.spaceId,
           userId: actor.userId,
+          projectWorkspaceId: null,
         },
         select: { archivedAt: true, thread: { select: { id: true } } },
       }),
@@ -462,8 +463,13 @@ describe("createGroup", () => {
     };
     const create = vi.fn();
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
-        query.join("").includes("FROM chat_groups") ? [{ id: "request-1" }] : []),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
+        (Array.isArray(query) ? query : (query?.strings ?? []))
+          .join("")
+          .includes("FROM chat_groups")
+          ? [{ id: "request-1" }]
+          : [],
+      ),
       spaceMember: { findUnique: vi.fn(async () => ({
         organizationId: "org-1", space: { deletingAt: null },
       })) },
@@ -486,8 +492,13 @@ describe("createGroup", () => {
   it("does not create a group when a candidate bot cannot be locked in scope", async () => {
     const create = vi.fn();
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
-        query.join("").includes('FROM "bots"') ? [{ id: "lead" }] : []),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
+        (Array.isArray(query) ? query : (query?.strings ?? []))
+          .join("")
+          .includes('FROM "bots"')
+          ? [{ id: "lead" }]
+          : [],
+      ),
       spaceMember: {
         findUnique: vi.fn(async () => ({
           organizationId: "org-1",
@@ -532,8 +543,13 @@ describe("createGroup", () => {
       ],
     };
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
-        query.join("").includes('FROM "bots"') ? [{ id: "build" }, { id: "lead" }] : []),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
+        (Array.isArray(query) ? query : (query?.strings ?? []))
+          .join("")
+          .includes('FROM "bots"')
+          ? [{ id: "build" }, { id: "lead" }]
+          : [],
+      ),
       spaceMember: {
         findUnique: vi.fn(async () => ({
           organizationId: "org-1",
@@ -711,6 +727,7 @@ describe("listGroups archived", () => {
     expect(query.where).toEqual({
       spaceId: "space-1",
       userId: "user-1",
+      projectWorkspaceId: null,
       OR: [
         { archivedAt: { not: null } },
         { members: { some: { bot: { archivedAt: { not: null } } } } },
@@ -729,6 +746,7 @@ describe("listGroups archived", () => {
     expect(findMany.mock.calls[0]![0].where).toEqual({
       spaceId: "space-1",
       userId: "user-1",
+      projectWorkspaceId: null,
       archivedAt: null,
     });
   });

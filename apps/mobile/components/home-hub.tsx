@@ -23,6 +23,7 @@ import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { BotAvatar } from "./bot-avatar";
+import { HomeCompanionCard } from "./home-companion-card";
 import { NativeSymbol } from "./native-symbol";
 
 const FALLBACK_COLOR = botColors[3];
@@ -577,6 +578,15 @@ export function HomeHub({
           </View>
         </View>
       </Pressable>
+
+      {/* Background Companion Control Card */}
+      <HomeCompanionCard
+        bots={bots}
+        primaryBot={primaryBot}
+        spaceId={me?.spaceId ?? null}
+        cardStyle={cardSurface("lavender")}
+        onOpenBot={openBotThread}
+      />
 
       {/* Full-Width Card 1: Chats & Companions Hub */}
       <View style={[cardSurface("champagne"), { padding: 20, overflow: "hidden" }]}>

@@ -8,6 +8,30 @@
 更新日期：2026-11-21。
 关联需求：PA-004、PA-010、PA-015、PA-017、PA-021、PA-022。
 
+2026-11-24 账号删除防卡死（G1）与双端非空删除接线（G5）（源码已更新，离线/实机验证待执行）：
+`claimProjectAccountDeletion` 改为返回 `{ claimedNow }` 并新增 `releaseProjectAccountDeletionClaim`，`beforeDeleteUser` 在破坏性清理前的计费取消失败且声明为本次新建时自动释放 `projectDeletionClaimedAt`（进入 `deleteAccountContent` 后继续保留以保证重试收敛）；手机端（`apps/mobile/app/projects/[workspaceId].tsx`）与 Web/桌面端（`apps/web/src/pages/Projects.tsx`）接入 `capabilities.remove` 优先调用 `projectWorkspaces.remove`（确认提示明确不删除电脑本地文件），旧后端自动降级 `removeEmpty`，并补充 `apps/api/src/account-deletion-claim-recovery.test.ts` 与 `apps/web/src/pages/Projects.test.tsx`。本机无 `node_modules`，测试与实机验收留待授权服务器。
+
+2026-11-24 非空项目删除、清理恢复与运行撤权闭环（源码已更新，离线/DB 验证待执行）：
+新增迁移 `20261124140000_project_workspace_deletion_claim`（增加 `deletionClaimId`）与
+`packages/db/src/project-workspace-deletion.ts`，实现可断点续跑的项目删除认领、5 分钟过期接管、
+活跃 Run/Task/Routine 取消、电脑租约释放、受控 `runAsSystem` 下逐个 `destroyBot` 以及
+RESTRICT 逆序终态清理（仍拒绝对存在延期表残留的项目执行盲删，且不触碰本地目录）；
+`createBot`、`createGroup`、`sendThreadMessage` 接入 `lockProjectWorkspaceForMutation`
+与认领删除串行化；`background-job-handlers.ts` 在 `asOwner` 统一拦截失活项目的会话/任务
+后台作业并对 `run.continue` 自动取消收口；契约与 API 新增 `projectWorkspaces.remove` 与
+`capabilities.remove`（保留 `removeEmpty` 兼容旧端）。本机无 `node_modules`，离线测试、
+类型检查、迁移与真实端到端联调待授权服务器执行。
+
+2026-11-24 后端闭环补齐（源码已更新，离线/DB 验证待执行）：新增迁移
+`20261124120000_enable_project_conversation_scope` 仅解除五张核心会话表
+（`bots`、`chat_groups`、`threads`、`tasks`、`runs`）的禁写 CHECK 约束，
+保留 `artifacts`、`cloud_agents`、`purchases` 三张延期表禁写约束及既有
+外键、RLS、不可变与父子一致性触发器；补充 `projectWorkspaces.rename`、
+`threadHead`、`messages`、`stop`、`markRead` 与 `create` 冲突状态码映射，
+并补齐 `updateGroup` 与已读/未读更新的显式 `projectWorkspaceId` 过滤。
+本机无 `node_modules`，尚未执行 Vitest、TypeScript、Biome、Prisma 迁移
+或 PostgreSQL 隔离验收；成员退出组织门禁与非空项目清理留待后续批次。
+
 ## 2026-11-21 项目聊天与普通聊天共用组件
 
 手机项目聊天直接使用普通聊天的 `MessageTextCard` 和 `ThreadComposer`；Windows 包内项目聊天与普通聊天共用 `MessageTextBubble`／`MessageText`，输入直接使用 `Composer`。两个输入组件提供仅文字模式，保留现有编辑、键盘和发送反馈，隐藏项目尚不支持的附件上传、语音、技能和斜杠菜单。项目审批与文件下载继续由项目页面显式调用项目会话接口，不接入首页的消息操作和文件接口。

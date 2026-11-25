@@ -183,6 +183,7 @@ import {
   ProjectWorkspaceRosterInput,
   ProjectWorkspaceRosterSchema,
   ProjectWorkspaceSchema,
+  RenameProjectWorkspaceInput,
 } from "./project-workspace.js";
 import {
   ProjectDirectorySnapshotSchema,
@@ -555,7 +556,9 @@ export const appContract = {
     cloudDirectory: oc.input(ProjectWorkspaceIdInput).output(ProjectCloudDirectoryStatusSchema),
     bindCloudDirectory: oc.input(BindProjectCloudDirectoryInput).output(z.object({ ok: z.literal(true) })),
     unbindCloudDirectory: oc.input(UnbindProjectDirectoryInput).output(z.object({ ok: z.literal(true) })),
-    capabilities: oc.output(z.object({ create: z.boolean(), removeEmpty: z.boolean() }).strict()),
+    capabilities: oc.output(
+      z.object({ create: z.boolean(), removeEmpty: z.boolean(), remove: z.boolean() }).strict(),
+    ),
     conversationCapabilities: oc.output(
       z.object({ createBot: z.boolean(), botSettings: z.boolean().optional(), chatManagement: z.boolean().optional() }).strict(),
     ),
@@ -564,7 +567,9 @@ export const appContract = {
     get: oc.input(ProjectWorkspaceIdInput).output(ProjectWorkspaceSchema),
     roster: oc.input(ProjectWorkspaceRosterInput).output(ProjectWorkspaceRosterSchema),
     create: oc.input(CreateProjectWorkspaceInput).output(ProjectWorkspaceSchema),
+    rename: oc.input(RenameProjectWorkspaceInput).output(ProjectWorkspaceSchema),
     removeEmpty: oc.input(DeleteProjectWorkspaceInput).output(z.object({ ok: z.literal(true) })),
+    remove: oc.input(DeleteProjectWorkspaceInput).output(z.object({ ok: z.literal(true) })),
     createBot: oc
       .input(
         z.object({ projectId: ProjectWorkspaceIdInput.shape.id, bot: CreateBotInput }).strict(),
@@ -581,6 +586,14 @@ export const appContract = {
           .strict(),
       )
       .output(GroupSchema),
+    threadHead: oc
+      .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }).strict())
+      .output(
+        z.object({
+          threadId: Id,
+          cursor: z.number().int().min(-1),
+        }),
+      ),
     getBot: oc
       .input(z.object({ projectId: ProjectWorkspaceIdInput.shape.id, botId: Id, includeArchived: z.boolean().optional() }).strict())
       .output(BotSchema),
@@ -621,6 +634,24 @@ export const appContract = {
     threadSnapshot: oc
       .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }))
       .output(ThreadSnapshotSchema),
+    messages: oc
+      .input(
+        threadTarget
+          .safeExtend({
+            projectId: ProjectWorkspaceIdInput.shape.id,
+            before: z.number().int().nonnegative().optional(),
+            includePeerRuns: z.boolean().optional(),
+            includePeerReceipts: z.boolean().optional(),
+            around: z
+              .object({
+                messageId: Id.optional(),
+                seq: z.number().int().nonnegative().optional(),
+              })
+              .optional(),
+          })
+          .strict(),
+      )
+      .output(ThreadMessagePageSchema),
     consentStatus: oc
       .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }).strict())
       .output(AiConsentStatusSchema),
@@ -647,6 +678,12 @@ export const appContract = {
           .strict(),
       )
       .output(threadSendOutput),
+    stop: oc
+      .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }).strict())
+      .output(z.object({ ok: z.literal(true) })),
+    markRead: oc
+      .input(threadTarget.safeExtend({ projectId: ProjectWorkspaceIdInput.shape.id }).strict())
+      .output(z.object({ ok: z.literal(true), unreadAfterSeq: z.number().int().nullable() })),
     cancelRun: oc
       .input(
         threadTarget

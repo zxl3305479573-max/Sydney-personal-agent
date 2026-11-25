@@ -1,7 +1,7 @@
 import type { AgentToolExecutionObserver } from "@rakazo/adapter-kit";
 import { StoredTaskMandateSchema } from "@rakazo/contracts";
 import { taskToolResource, toolResultTaintsRun } from "@rakazo/core";
-import { guardManagedRun, runAsTenant } from "@rakazo/db";
+import { guardManagedRun, preflightManagedRun, runAsTenant } from "@rakazo/db";
 import { isTerminatingReplyResult } from "./approval-effect.js";
 import { IMAGE_RETURNING_COMPUTER_TOOLS, MODEL_CANNOT_SEE_MESSAGE } from "./model-vision.js";
 import type { RunContext } from "./run-context.js";
@@ -137,7 +137,7 @@ async function dispatchTool(
     }
   }
   const request = await resolveToolRequest(ctx, name, args, executionId);
-  if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
+  ctx.context.signal.throwIfAborted();
   if ("error" in request) return request;
   if (!inRunScope(ctx, request.name, request.args)) return projectScopeError(ctx);
   if (ctx.run.trigger === "managed_task") {
@@ -164,11 +164,59 @@ async function dispatchTool(
         : request.name === PROJECT_CLOUD_COMMAND
           ? await prepareProjectCloudCommand(ctx, request)
           : await prepareToolRequest(ctx, request);
-  if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
+  ctx.context.signal.throwIfAborted();
   if (refused) return refused;
+  if (ctx.run.trigger === "managed_task") {
+    try {
+      const mandate = StoredTaskMandateSchema.parse(ctx.run.taskMandate);
+      const resource = taskToolResource(request.name, request.args, {
+        taskId: mandate.taskId,
+        botId: mandate.botId,
+        grants: mandate.scopes,
+      });
+      if (!resource) {
+        return { error: "Managed task permission does not allow this tool or resource." };
+      }
+      const preflight = await runAsTenant(
+        {
+          userId: ctx.run.userId,
+          spaceId: ctx.run.spaceId,
+          projectWorkspaceId: ctx.run.projectWorkspaceId,
+        },
+        () =>
+          preflightManagedRun(
+            ctx.deps.prisma,
+            { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
+            mandate.taskId,
+            {
+              runId: ctx.runId,
+              workerId: ctx.workerId,
+              fence: ctx.fence,
+              action: { tool: request.name, action: "execute", resource },
+              executionId,
+            },
+            0,
+          ),
+      );
+      ctx.context.signal.throwIfAborted();
+      if (!preflight.allowed) {
+        return {
+          error:
+            preflight.code === "scope_mismatch"
+              ? "Managed task permission does not allow this tool or resource."
+              : "Managed task authorization or execution budget rejected this tool.",
+        };
+      }
+    } catch {
+      ctx.context.signal.throwIfAborted();
+      return { error: "Managed task authorization or execution budget rejected this tool." };
+    }
+    ctx.context.signal.throwIfAborted();
+  }
   const gate = await gateToolCall(ctx, request, observer);
   if (ctx.run.trigger === "managed_task") ctx.context.signal.throwIfAborted();
   if ("result" in gate) return gate.result;
+  ctx.context.signal.throwIfAborted();
   if (ctx.run.trigger === "managed_task") {
     try {
       const mandate = StoredTaskMandateSchema.parse(ctx.run.taskMandate);

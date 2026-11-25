@@ -12,6 +12,7 @@ import {
 import { transientRunEventsWhere } from "./events.js";
 import { withNewestThreadMessages } from "./preview-messages.js";
 import { conversationProjectId } from "./project-workspace-context.js";
+import { lockProjectWorkspaceForMutation } from "./project-workspace-deletion.js";
 import { IsolationError } from "./scope.js";
 import { lockSpaceForContentCreation } from "./spaces.js";
 import {
@@ -456,6 +457,9 @@ export function createGroupRepos(prisma: PrismaClient) {
           spaceId: actor.spaceId,
           userId: actor.userId,
         });
+        if (projectWorkspaceId !== null) {
+          await lockProjectWorkspaceForMutation(tx, actor, projectWorkspaceId);
+        }
         if (input.id) {
           let existing = await tx.chatGroup.findFirst({
             where: {
@@ -540,6 +544,7 @@ export function createGroupRepos(prisma: PrismaClient) {
             id: input.groupId,
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId: conversationProjectId(actor),
             archivedAt: null,
           },
           include: {
@@ -639,6 +644,7 @@ export function createGroupRepos(prisma: PrismaClient) {
             id: groupId,
             spaceId: actor.spaceId,
             userId: actor.userId,
+            projectWorkspaceId: conversationProjectId(actor),
           },
           select: { archivedAt: true, thread: { select: { id: true } } },
         });

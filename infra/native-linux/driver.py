@@ -1,4 +1,5 @@
 import base64
+from collections import OrderedDict
 import ctypes
 import errno
 import hashlib
@@ -13,6 +14,7 @@ import socket
 import stat
 import struct
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -29,6 +31,10 @@ PROJECT_SEARCH_MAX_MATCHES = 50
 PROJECT_SEARCH_MAX_EXCERPT = 200
 PROJECT_SEARCH_MAX_DEPTH = 6
 PROJECT_SEARCH_MAX_FILES = 200
+MAX_SEEN_REQUEST_IDS = 4096
+STATE_VERSION = 1
+STATE_FILENAME = ".driver-state.json"
+MAX_STATE_BYTES = 4 * 1024 * 1024
 PROJECT_COMMAND_OUTPUT_LIMIT = 64 * 1024
 PROJECT_COMMAND_INPUT_LIMIT = PROJECT_FILE_LIMIT * 16
 PROJECT_COMMAND_RUNTIME = "/opt/sydney/project-command-runtime"
@@ -36,6 +42,10 @@ SECCOMP_ALLOW = 0x7FFF0000
 SECCOMP_DENY = 0x00050000 | errno.EPERM
 VALID_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 VALID_KEY = re.compile(r"^[A-Za-z0-9_.+-]{1,100}$")
+VALID_REQUEST_ID = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+SIDE_EFFECT_RUN_METHODS = frozenset({"execute", "act", "write"})
 
 
 class Refused(Exception):
@@ -79,12 +89,18 @@ def project_command_filter(descriptor):
 
 
 class Driver:
-    def __init__(self, root, control_uid, display, xauthority, project_commands=False):
+    def __init__(self, root, control_uid, display, xauthority, project_commands=False, state_path=None):
         self.root = os.path.abspath(root)
         self.control_uid = control_uid
         self.display = display
         self.xauthority = xauthority
         self.project_commands = project_commands
+        if state_path is None:
+            self.state_path = os.path.join(self.root, STATE_FILENAME)
+        else:
+            if not isinstance(state_path, str) or not state_path.strip():
+                raise ValueError("Invalid state path")
+            self.state_path = os.path.abspath(state_path)
         self.generation = uuid.uuid4().hex
         self.lock = threading.RLock()
         self.active = None
@@ -93,7 +109,199 @@ class Driver:
         self.control = None
         self.control_fences = {}
         self.revoked_controls = {}
+        self.seen_request_ids = OrderedDict()
         os.makedirs(self.root, mode=0o700, exist_ok=True)
+        state_dir = os.path.dirname(self.state_path)
+        if state_dir:
+            os.makedirs(state_dir, mode=0o700, exist_ok=True)
+        self._load_state()
+
+    def _warn_state(self, message):
+        sys.stderr.write(f"sydney-driver: {message}\n")
+        sys.stderr.flush()
+
+    def _parse_state(self, raw):
+        if not isinstance(raw, dict):
+            raise ValueError("state root must be a JSON object")
+        expected_keys = {"version", "fences", "control_fences", "seen_request_ids"}
+        if set(raw.keys()) != expected_keys:
+            raise ValueError("unexpected or missing state keys")
+        version = raw.get("version")
+        if not isinstance(version, int) or isinstance(version, bool) or version != STATE_VERSION:
+            raise ValueError("unsupported state version")
+
+        raw_fences = raw.get("fences")
+        if not isinstance(raw_fences, dict):
+            raise ValueError("fences must be an object")
+        fences = {}
+        for run_id, fence in raw_fences.items():
+            if (
+                not isinstance(run_id, str)
+                or not VALID_ID.fullmatch(run_id)
+                or not isinstance(fence, int)
+                or isinstance(fence, bool)
+                or fence < 0
+            ):
+                raise ValueError("invalid fence entry")
+            fences[run_id] = fence
+
+        raw_control_fences = raw.get("control_fences")
+        if not isinstance(raw_control_fences, dict):
+            raise ValueError("control_fences must be an object")
+        control_fences = {}
+        for bot_id, entry in raw_control_fences.items():
+            if not isinstance(bot_id, str) or not VALID_ID.fullmatch(bot_id):
+                raise ValueError("invalid control fence bot id")
+            if not isinstance(entry, dict) or set(entry.keys()) != {"fence", "leaseId"}:
+                raise ValueError("invalid control fence entry")
+            fence = entry.get("fence")
+            lease_id = entry.get("leaseId")
+            if (
+                not isinstance(fence, int)
+                or isinstance(fence, bool)
+                or fence < 0
+                or not isinstance(lease_id, str)
+                or not VALID_ID.fullmatch(lease_id)
+            ):
+                raise ValueError("invalid control fence values")
+            control_fences[bot_id] = {"fence": fence, "leaseId": lease_id}
+
+        raw_seen = raw.get("seen_request_ids")
+        if not isinstance(raw_seen, list):
+            raise ValueError("seen_request_ids must be a list")
+        seen = OrderedDict()
+        for item in raw_seen:
+            if not isinstance(item, str) or not VALID_REQUEST_ID.fullmatch(item):
+                raise ValueError("invalid seen request id")
+            normalized = item.lower()
+            if normalized in seen:
+                seen.move_to_end(normalized)
+            else:
+                seen[normalized] = None
+        while len(seen) > MAX_SEEN_REQUEST_IDS:
+            seen.popitem(last=False)
+
+        return fences, control_fences, seen
+
+    def _load_state(self):
+        state_path = getattr(self, "state_path", None)
+        if not state_path:
+            return
+        if os.path.islink(state_path):
+            self._warn_state(f"refusing symlink state file: {state_path}; starting with empty state")
+            return
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0)
+        )
+        try:
+            descriptor = os.open(state_path, flags)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            self._warn_state(f"unable to open state file ({exc}); starting with empty state")
+            return
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                self._warn_state("state file is not a regular file; starting with empty state")
+                return
+            if metadata.st_size > MAX_STATE_BYTES:
+                self._warn_state("state file exceeds size limit; starting with empty state")
+                return
+            chunks = bytearray()
+            while len(chunks) <= MAX_STATE_BYTES:
+                chunk = os.read(descriptor, min(65536, MAX_STATE_BYTES + 1 - len(chunks)))
+                if not chunk:
+                    break
+                chunks.extend(chunk)
+            if len(chunks) > MAX_STATE_BYTES:
+                self._warn_state("state file exceeds size limit; starting with empty state")
+                return
+        except OSError as exc:
+            self._warn_state(f"unable to read state file ({exc}); starting with empty state")
+            return
+        finally:
+            os.close(descriptor)
+        try:
+            raw = json.loads(chunks.decode("utf-8"))
+            fences, control_fences, seen = self._parse_state(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            self._warn_state(f"invalid state file ({exc}); starting with empty state")
+            return
+        self.fences = fences
+        self.control_fences = control_fences
+        self.seen_request_ids = seen
+
+    def _save_state_locked(self):
+        state_path = getattr(self, "state_path", None)
+        if not state_path:
+            return
+        if os.path.islink(state_path):
+            self._warn_state(f"refusing to overwrite symlink state file: {state_path}")
+            raise Refused("State file is a symlink")
+        state_dir = os.path.dirname(state_path) or "."
+        os.makedirs(state_dir, mode=0o700, exist_ok=True)
+        payload = {
+            "version": STATE_VERSION,
+            "fences": dict(self.fences),
+            "control_fences": {
+                bot_id: {"fence": entry["fence"], "leaseId": entry["leaseId"]}
+                for bot_id, entry in self.control_fences.items()
+            },
+            "seen_request_ids": list(self.seen_request_ids.keys()),
+        }
+        data = (json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+        tmp_path = os.path.join(state_dir, f".driver-state-{uuid.uuid4().hex}.tmp")
+        flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_BINARY", 0)
+        )
+        descriptor = None
+        try:
+            descriptor = os.open(tmp_path, flags, 0o600)
+            view = memoryview(data)
+            written = 0
+            while written < len(view):
+                step = os.write(descriptor, view[written:])
+                if step <= 0:
+                    raise OSError("Short write while persisting driver state")
+                written += step
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = None
+            if os.path.islink(state_path):
+                self._warn_state(f"refusing to overwrite symlink state file: {state_path}")
+                raise Refused("State file is a symlink")
+            os.replace(tmp_path, state_path)
+            if hasattr(os, "O_DIRECTORY"):
+                dir_fd = None
+                try:
+                    dir_fd = os.open(
+                        state_dir, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+                    )
+                    os.fsync(dir_fd)
+                except OSError:
+                    pass
+                finally:
+                    if dir_fd is not None:
+                        os.close(dir_fd)
+        except Exception:
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def peer_allowed(self, connection):
         credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
@@ -138,6 +346,36 @@ class Driver:
             os.close(current)
             raise
 
+    def consume_request_id(self, request, required=False):
+        request_id = request.get("requestId")
+        if request_id is None:
+            if required:
+                raise Refused("Request ID required")
+            return None
+        if not isinstance(request_id, str) or not VALID_REQUEST_ID.fullmatch(request_id):
+            raise Refused("Invalid request ID")
+        normalized = request_id.lower()
+        with self.lock:
+            seen = getattr(self, "seen_request_ids", None)
+            if seen is None:
+                seen = OrderedDict()
+                self.seen_request_ids = seen
+            if normalized in seen:
+                raise Refused("Replayed request ID")
+            evicted = []
+            seen[normalized] = None
+            while len(seen) > MAX_SEEN_REQUEST_IDS:
+                evicted.append(seen.popitem(last=False))
+            try:
+                self._save_state_locked()
+            except Exception:
+                seen.pop(normalized, None)
+                for key, value in reversed(evicted):
+                    seen[key] = value
+                    seen.move_to_end(key, last=False)
+                raise
+        return normalized
+
     def authorize_run(self, request):
         run = request.get("run")
         if not isinstance(run, dict):
@@ -160,7 +398,17 @@ class Driver:
                 self.active["id"] != run_id or self.active["botId"] != request["botId"]
             ):
                 raise Refused("Desktop is held by another run")
-            self.fences[run_id] = fence
+            previous_fence = self.fences.get(run_id)
+            if previous_fence != fence:
+                self.fences[run_id] = fence
+                try:
+                    self._save_state_locked()
+                except Exception:
+                    if previous_fence is None:
+                        self.fences.pop(run_id, None)
+                    else:
+                        self.fences[run_id] = previous_fence
+                    raise
             self.active = {**run, "botId": request["botId"]}
         return run_id
 
@@ -656,6 +904,29 @@ class Driver:
             "platform": "linux", "home": os.path.join(self.root, bot_id), "shell": "/bin/bash",
         }
 
+    def resolve_command_cwd(self, bot_id, cwd, home=None):
+        if home is None:
+            home = self.environment(bot_id)["home"]
+        home_real = os.path.realpath(home)
+        if cwd is None or cwd == "":
+            return home_real
+        if not isinstance(cwd, str) or "\0" in cwd or "\\" in cwd:
+            raise Refused("Invalid command directory")
+        if any(part == ".." for part in cwd.split("/")):
+            raise Refused("Invalid command directory")
+        if cwd.startswith("/") or os.path.isabs(cwd):
+            candidate = cwd
+        else:
+            candidate = os.path.join(home_real, cwd)
+        real_target = os.path.realpath(candidate)
+        try:
+            within_home = os.path.commonpath([home_real, real_target]) == home_real
+        except ValueError:
+            within_home = False
+        if not within_home or not os.path.isdir(real_target):
+            raise Refused("Invalid command directory")
+        return real_target
+
     def run_command(self, request, connection):
         run_id = self.authorize_run(request)
         command = request.get("command")
@@ -671,11 +942,7 @@ class Driver:
         ):
             raise Refused("Invalid command")
         home = self.environment(request["botId"])["home"]
-        cwd = command.get("cwd") or home
-        if isinstance(cwd, str) and not os.path.isabs(cwd):
-            cwd = os.path.join(home, cwd)
-        if not isinstance(cwd, str) or "\0" in cwd or not os.path.isdir(cwd):
-            raise Refused("Invalid command directory")
+        cwd = self.resolve_command_cwd(request["botId"], command.get("cwd"), home=home)
         environment = {
             "HOME": home, "USER": pwd.getpwuid(os.getuid()).pw_name,
             "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8",
@@ -802,24 +1069,35 @@ class Driver:
             or not now < expiry <= now + 1500
         ):
             raise Refused("Invalid or expired human control lease")
-        self.revoked_controls = {
-            token: until for token, until in self.revoked_controls.items() if until > now
-        }
-        previous = self.control_fences.get(request["botId"])
-        if lease_id in self.revoked_controls or (previous and fence < previous["fence"]):
-            raise Refused("Revoked human control lease")
-        if previous and fence == previous["fence"] and previous["leaseId"] != lease_id:
-            raise Refused("Human control fence mismatch")
-        if self.control and self.control["expiresAt"] > now and (
-            self.control["botId"] != request["botId"] or self.control["leaseId"] != lease_id
-        ):
-            raise ControlBusy("Desktop is held by another user")
-        if self.active and self.active["expiresAt"] > now:
-            raise ControlBusy("Desktop is held by another run")
-        if any(process.poll() is None for items in self.processes.values() for process in items):
-            raise ControlBusy("Desktop command is still active")
-        self.control_fences[request["botId"]] = {"fence": fence, "leaseId": lease_id}
-        self.control = {**control, "botId": request["botId"]}
+        with self.lock:
+            self.revoked_controls = {
+                token: until for token, until in self.revoked_controls.items() if until > now
+            }
+            previous = self.control_fences.get(request["botId"])
+            if lease_id in self.revoked_controls or (previous and fence < previous["fence"]):
+                raise Refused("Revoked human control lease")
+            if previous and fence == previous["fence"] and previous["leaseId"] != lease_id:
+                raise Refused("Human control fence mismatch")
+            if self.control and self.control["expiresAt"] > now and (
+                self.control["botId"] != request["botId"] or self.control["leaseId"] != lease_id
+            ):
+                raise ControlBusy("Desktop is held by another user")
+            if self.active and self.active["expiresAt"] > now:
+                raise ControlBusy("Desktop is held by another run")
+            if any(process.poll() is None for items in self.processes.values() for process in items):
+                raise ControlBusy("Desktop command is still active")
+            new_entry = {"fence": fence, "leaseId": lease_id}
+            if previous != new_entry:
+                self.control_fences[request["botId"]] = new_entry
+                try:
+                    self._save_state_locked()
+                except Exception:
+                    if previous is None:
+                        self.control_fences.pop(request["botId"], None)
+                    else:
+                        self.control_fences[request["botId"]] = previous
+                    raise
+            self.control = {**control, "botId": request["botId"]}
 
     def control_input(self, request):
         payload = request.get("request") or {}
@@ -930,6 +1208,7 @@ class Driver:
             raise Refused("Invalid desktop identity")
         if method != "provision" and request.get("generation") != self.generation:
             raise GenerationChanged("Desktop generation changed; reconcile previous work")
+        self.consume_request_id(request, required=method in SIDE_EFFECT_RUN_METHODS)
         if method == "provision":
             descriptor = self.bot_directory(bot_id)
             os.close(descriptor)

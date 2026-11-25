@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import type {
   AdapterContext,
@@ -43,6 +44,53 @@ type Transport = (
 ) => Promise<unknown>;
 
 type DriverResponse = { ok: true; value: unknown } | { ok: false; error: string };
+
+export function buildNativeDriverRequest(
+  method: string,
+  params: unknown,
+  context?: AdapterContext,
+  computer?: ComputerRef,
+  provisionBotId?: string,
+): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    typeof params === "object" && params !== null
+      ? { ...(params as Record<string, unknown>) }
+      : { value: params };
+  delete base.requestId;
+  delete base.method;
+  delete base.botId;
+  delete base.generation;
+  delete base.run;
+  return {
+    ...base,
+    method,
+    botId: computer?.botId ?? provisionBotId,
+    ...(computer ? { generation: computer.providerRef.slice("native:".length) } : {}),
+    ...(context?.nativeRunLease
+      ? {
+          requestId: randomUUID(),
+          run: {
+            id: context.runId,
+            fence: context.nativeRunLease.fence,
+            expiresAt: context.nativeRunLease.expiresAt,
+          },
+        }
+      : {}),
+  };
+}
+
+function assertSafeRelativeCwd(cwd: unknown): void {
+  if (cwd === undefined || cwd === "") return;
+  if (
+    typeof cwd !== "string" ||
+    cwd.includes("\0") ||
+    cwd.includes("\\") ||
+    cwd.startsWith("/") ||
+    cwd.split("/").some((part) => part === "..")
+  ) {
+    throw new Error("native_invalid_cwd");
+  }
+}
 
 export class NativeProjectFileDispatchError extends Error {
   constructor(
@@ -128,21 +176,7 @@ function socketTransport(socketPath: string) {
       });
       socket.once("connect", () => {
         connected = true;
-        const request = {
-          ...(typeof params === "object" && params !== null ? params : { value: params }),
-          method,
-          botId: computer?.botId ?? provisionBotId,
-          ...(computer ? { generation: computer.providerRef.slice("native:".length) } : {}),
-          ...(context?.nativeRunLease
-            ? {
-                run: {
-                  id: context.runId,
-                  fence: context.nativeRunLease.fence,
-                  expiresAt: context.nativeRunLease.expiresAt,
-                },
-              }
-            : {}),
-        };
+        const request = buildNativeDriverRequest(method, params, context, computer, provisionBotId);
         socket.write(`${JSON.stringify(request)}\n`);
       });
     });
@@ -368,6 +402,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
     context: AdapterContext,
   ): AsyncIterable<ProcessEvent> {
     const guardedContext = await this.guard(context, computer);
+    assertSafeRelativeCwd(request.cwd);
     const command = { ...request, timeoutMs: Math.min(request.timeoutMs ?? 8_000, 8_000) };
     const result = (await this.transport("execute", { command }, guardedContext, computer)) as {
       stdout?: string;

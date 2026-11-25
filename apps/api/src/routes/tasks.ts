@@ -1,13 +1,16 @@
 import { ORPCError } from "@orpc/server";
-import { runContinueJob } from "@rakazo/adapter-kit";
+import { runContinueJob, runJobKey } from "@rakazo/adapter-kit";
+import { cancelComputerRunWork, screenLeaseIdForRun, toComputerRef } from "@rakazo/adapters";
 import { SandboxKind } from "@rakazo/contracts";
 import { projectTask } from "@rakazo/core";
+import type { ManagedTaskStopEvidence } from "@rakazo/db";
 import {
   confirmManagedTaskStopped,
   conversationScopeWhere,
   controlManagedTask,
   createManagedTask,
   dispatchManagedTask,
+  expireComputerExecutionLeases,
   finishManagedTaskReview,
   IsolationError,
   readTaskExecutionHistory,
@@ -31,6 +34,192 @@ async function taskOperation<Result>(operation: () => Promise<Result>): Promise<
     }
     throw error;
   }
+}
+
+async function cancelManagedRunComputerWork(
+  deps: RouterContext["deps"],
+  actor: { userId: string; spaceId: string },
+  runId: string,
+): Promise<void> {
+  try {
+    const leases = await deps.prisma.computerExecutionLease.findMany({
+      where: { runId, computer: { spaceId: actor.spaceId, userId: actor.userId } },
+      select: { computerId: true, botId: true, runId: true, fence: true },
+    });
+    const leaseComputerIds = [...new Set(leases.map((lease) => lease.computerId))];
+    const computers = await deps.prisma.computer.findMany({
+      where: {
+        spaceId: actor.spaceId,
+        userId: actor.userId,
+        ...(leaseComputerIds.length > 0
+          ? { OR: [{ id: { in: leaseComputerIds } }, { executionRunId: runId }] }
+          : { executionRunId: runId }),
+      },
+      select: {
+        id: true,
+        homeKey: true,
+        kind: true,
+        providerRef: true,
+        executionBotId: true,
+        executionRunId: true,
+      },
+    });
+    const computerById = new Map(computers.map((computer) => [computer.id, computer]));
+    const teardownTargets: Array<{
+      computer: (typeof computers)[number];
+      botId: string;
+      lease: (typeof leases)[number] | null;
+    }> = [];
+    const seenComputerIds = new Set<string>();
+    for (const lease of leases) {
+      const computer = computerById.get(lease.computerId);
+      if (!computer || seenComputerIds.has(computer.id)) continue;
+      seenComputerIds.add(computer.id);
+      teardownTargets.push({ computer, botId: lease.botId, lease });
+    }
+    for (const computer of computers) {
+      if (!computer.executionBotId || computer.executionRunId !== runId) continue;
+      if (seenComputerIds.has(computer.id)) continue;
+      seenComputerIds.add(computer.id);
+      teardownTargets.push({ computer, botId: computer.executionBotId, lease: null });
+    }
+    await Promise.all(
+      teardownTargets.map(async ({ computer, botId, lease }) => {
+        if (!computer.providerRef) return;
+        const cancelContext = {
+          operationId: `task-cancel:${runId}`,
+          traceId: `task-cancel:${runId}`,
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+          botId,
+          runId,
+          screenLeaseId: screenLeaseIdForRun(lease, runId),
+          cancelRunWork: true,
+          signal: AbortSignal.timeout(15_000),
+        };
+        const ref = toComputerRef(computer);
+        await cancelComputerRunWork(deps.sandbox, ref, computer.id, runId, cancelContext);
+        await deps.sandbox.releaseScreen?.(ref, cancelContext).catch(() => undefined);
+      }),
+    );
+    await expireComputerExecutionLeases(deps.prisma, {
+      runId,
+      computer: { spaceId: actor.spaceId, userId: actor.userId },
+    });
+    await deps.prisma.computer.updateMany({
+      where: {
+        spaceId: actor.spaceId,
+        userId: actor.userId,
+        executionRunId: runId,
+      },
+      data: {
+        executionRunId: null,
+        executionBotId: null,
+        executionLeaseExpiresAt: null,
+      },
+    });
+  } catch (error) {
+    getLogger().error("managed task cancel computer teardown", error);
+  }
+}
+
+async function applyManagedTaskControlSideEffects(
+  deps: RouterContext["deps"],
+  actor: { userId: string; spaceId: string },
+  intent: "pause" | "cancel" | "continue",
+  result: {
+    runId: string | null;
+    threadId: string | null;
+    eventSeq: number | null;
+    cancelledQueuedRun: boolean;
+  },
+  label: "control" | "revoke",
+): Promise<void> {
+  if (intent === "pause" || intent === "cancel") {
+    if (result.runId) {
+      await deps.jobs.cancel(runJobKey(result.runId)).catch((error) => {
+        getLogger().error(`managed task ${label} job cancel`, error);
+      });
+    }
+    if (result.threadId) {
+      await deps.events.notify(result.threadId, result.eventSeq ?? 0).catch((error) => {
+        getLogger().error(`managed task ${label} realtime notification`, error);
+      });
+    }
+    if (intent === "cancel" && result.runId && !result.cancelledQueuedRun) {
+      await cancelManagedRunComputerWork(deps, actor, result.runId);
+    }
+    return;
+  }
+  if (result.threadId && result.eventSeq !== null) {
+    await deps.events.notify(result.threadId, result.eventSeq).catch((error) => {
+      getLogger().error(`managed task ${label} realtime notification`, error);
+    });
+  }
+}
+
+async function probeManagedRunBackgroundWork(
+  deps: RouterContext["deps"],
+  actor: { userId: string; spaceId: string },
+  input: { taskId: string; runId: string },
+  signal?: AbortSignal,
+): Promise<ManagedTaskStopEvidence["backgroundWork"]> {
+  const run = await deps.prisma.run.findFirst({
+    where: {
+      id: input.runId,
+      taskId: input.taskId,
+      ...conversationScopeWhere(actor),
+    },
+    select: {
+      id: true,
+      botId: true,
+      bot: {
+        select: {
+          computer: {
+            select: {
+              id: true,
+              homeKey: true,
+              kind: true,
+              providerRef: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  const computer = run?.bot?.computer;
+  if (!run || !computer?.providerRef) return "unknown";
+  const ref = toComputerRef(computer);
+  const probeContext = {
+    operationId: `task-confirm-stop:${input.taskId}:${input.runId}`,
+    traceId: `task-confirm-stop:${input.taskId}:${input.runId}`,
+    spaceId: actor.spaceId,
+    userId: actor.userId,
+    botId: run.botId,
+    runId: run.id,
+    signal: signal ?? AbortSignal.timeout(10_000),
+  };
+  try {
+    if (deps.sandbox.inspectBackgroundWorkEvidence) {
+      const evidence = await deps.sandbox.inspectBackgroundWorkEvidence(
+        ref,
+        computer.id,
+        probeContext,
+      );
+      return evidence.status;
+    }
+    if (deps.sandbox.inspectBackgroundWork) {
+      return await deps.sandbox.inspectBackgroundWork(ref, computer.id, probeContext);
+    }
+  } catch (error) {
+    getLogger().warn("managed task confirm stop background work probe failed", {
+      taskId: input.taskId,
+      runId: input.runId,
+      computerId: computer.id,
+      error,
+    });
+  }
+  return "unknown";
 }
 
 export function tasksRoutes(ctx: RouterContext) {
@@ -89,11 +278,13 @@ export function tasksRoutes(ctx: RouterContext) {
             input.intent,
             input.expectedVersion,
           );
-          if (result.threadId && result.eventSeq !== null) {
-            await deps.events.notify(result.threadId, result.eventSeq).catch((error) => {
-              getLogger().error("managed task control realtime notification", error);
-            });
-          }
+          await applyManagedTaskControlSideEffects(
+            deps,
+            context.actor,
+            input.intent,
+            result,
+            "control",
+          );
           await recordAuditEvent({
             action: `task.${input.intent}`,
             actor: { type: "user", id: context.actor.userId },
@@ -105,12 +296,19 @@ export function tasksRoutes(ctx: RouterContext) {
       ),
       revoke: authed.tasks.revoke.handler(({ context, input }) =>
         taskOperation(async () => {
-          await controlManagedTask(
+          const result = await controlManagedTask(
             deps.prisma,
             context.actor,
             input.taskId,
             "cancel",
             input.expectedVersion,
+          );
+          await applyManagedTaskControlSideEffects(
+            deps,
+            context.actor,
+            "cancel",
+            result,
+            "revoke",
           );
           await recordAuditEvent({
             action: "task.mandate.revoked",
@@ -136,12 +334,19 @@ export function tasksRoutes(ctx: RouterContext) {
       ),
       confirmStop: authed.tasks.confirmStop.handler(({ context, input }) =>
         taskOperation(async () => {
+          const backgroundWork = await probeManagedRunBackgroundWork(
+            deps,
+            context.actor,
+            input,
+            context.signal,
+          );
           await confirmManagedTaskStopped(
             deps.prisma,
             context.actor,
             input.taskId,
             input.runId,
             input.expectedVersion,
+            { backgroundWork },
           );
           return { ok: true as const };
         }),
@@ -156,6 +361,13 @@ export function tasksRoutes(ctx: RouterContext) {
             input.outcome,
             input.expectedVersion,
           );
+          await recordAuditEvent({
+            action: "task.effect.reconciled",
+            actor: { type: "user", id: context.actor.userId },
+            spaceId: context.actor.spaceId,
+            target: { type: "task", id: input.taskId },
+            metadata: { effectId: input.effectId, outcome: input.outcome },
+          });
           return { ok: true as const };
         }),
       ),
@@ -217,8 +429,7 @@ export function tasksRoutes(ctx: RouterContext) {
         const bot = await deps.prisma.bot.findFirst({
           where: {
             id: input.botId,
-            userId: context.actor.userId,
-            spaceId: context.actor.spaceId,
+            ...conversationScopeWhere(context.actor),
             archivedAt: null,
           },
           include: { computer: true },

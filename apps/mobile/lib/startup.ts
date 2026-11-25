@@ -1,7 +1,14 @@
 import { AppState } from "react-native";
 import { reportMobileError } from "./monitoring";
 
-type StartupStep = "server" | "appearance" | "streaming" | "images" | "inbox" | "language";
+type StartupStep =
+  | "server"
+  | "appearance"
+  | "streaming"
+  | "images"
+  | "notifications"
+  | "inbox"
+  | "language";
 
 export class ServerSettingsStartupError extends Error {}
 

@@ -16,10 +16,18 @@ async function fixture(workspaceResult: "present" | "failure") {
         memoryAdapter(prisma.authData),
     };
   });
-  const { createAuth } = await import("./index.js");
-  const { assertAccountDeletionAllowed } = await import(
-    "../../../apps/api/src/account-deletion.js"
-  );
+  const { accountHasProjectWorkspacesAuthError, createAuth } = await import("./index.js");
+  const { claimProjectAccountDeletion, ProjectAccountHasWorkspacesError } = await import("@rakazo/db");
+  const assertAccountDeletionAllowed = async (client: unknown, userId: string) => {
+    try {
+      await claimProjectAccountDeletion(client as never, userId);
+    } catch (error) {
+      if (error instanceof ProjectAccountHasWorkspacesError) {
+        throw accountHasProjectWorkspacesAuthError();
+      }
+      throw error;
+    }
+  };
   const now = new Date();
   const secret = "offline-auth-secret-at-least-32-characters";
   const token = "offline-session-token";
@@ -88,18 +96,29 @@ async function fixture(workspaceResult: "present" | "failure") {
     headers: new Headers({ authorization: `Bearer ${token}.${signature}` }),
   });
   expect(session).not.toBeNull();
+  const authHeaders = {
+    "content-type": "application/json",
+    origin: "http://web.example.test",
+    authorization: `Bearer ${token}.${signature}`,
+  };
   const response = await auth.handler(
     new Request("http://auth.example.test/api/auth/delete-user", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: "http://web.example.test",
-        authorization: `Bearer ${token}.${signature}`,
-      },
+      headers: authHeaders,
       body: JSON.stringify({ password: "offline-password12" }),
     }),
   );
-  return { response, data, query, cancelBilling, cleanup, failure, assertAccountDeletionAllowed };
+  return {
+    auth,
+    authHeaders,
+    response,
+    data,
+    query,
+    cancelBilling,
+    cleanup,
+    failure,
+    assertAccountDeletionAllowed,
+  };
 }
 
 describe("account deletion workspace authentication response", () => {
@@ -130,15 +149,36 @@ describe("account deletion workspace authentication response", () => {
     ).rejects.toBe(result.failure);
   });
 
-  it("keeps the application preflight ahead of billing and cleanup", () => {
+  it("keeps the application preflight ahead of billing and cleanup and wires member removal guard", () => {
     const source = readFileSync(new URL("../../../apps/api/src/app.ts", import.meta.url), "utf8");
+    const memberGuard = source.indexOf("beforeRemoveMember: async (userId, organizationId)");
+    const memberCheck = source.indexOf(
+      "await assertMemberRemovalAllowed(prisma, userId, organizationId)",
+      memberGuard,
+    );
     const start = source.indexOf("beforeDeleteUser: async (userId)");
     const guard = source.indexOf("await assertAccountDeletionAllowed(prisma, userId)", start);
     const billing = source.indexOf("await billing?.cancelForDeletedUser(userId)", start);
     const cleanup = source.indexOf("await deleteAccountContent(", start);
+    expect(memberGuard).toBeGreaterThan(-1);
+    expect(memberCheck).toBeGreaterThan(memberGuard);
     expect(start).toBeGreaterThan(-1);
     expect(guard).toBeGreaterThan(start);
     expect(billing).toBeGreaterThan(guard);
     expect(cleanup).toBeGreaterThan(billing);
+  });
+
+  it("blocks direct organization leave and member removal auth routes inside Better Auth", async () => {
+    const result = await fixture("present");
+    for (const path of ["/api/auth/organization/leave", "/api/auth/organization/remove-member"]) {
+      const response = await result.auth.handler(
+        new Request(`http://auth.example.test${path}`, {
+          method: "POST",
+          headers: result.authHeaders,
+          body: JSON.stringify({ organizationId: "org-1" }),
+        }),
+      );
+      expect(response.status, path).toBe(404);
+    }
   });
 });

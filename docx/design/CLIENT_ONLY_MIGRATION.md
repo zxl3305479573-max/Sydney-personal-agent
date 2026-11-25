@@ -1,5 +1,15 @@
 # 手机与桌面客户端迁移方案
 
+2026-11-24 MCP 原生回调客户端绑定与并发候选（源码已更新，离线/实机验证待执行）：
+`StoredMcpOAuthProvider` 与 `McpOAuthBroker` 为动态注册 OAuth 客户端记录
+`clientRedirectUri`，回调 URI 变化且旧客户端不兼容时在 `begin()` 隔离暂存副本中
+重新注册，失败或取消不再破坏现网有效 grant；`complete()` 通过 `incrementRevisionOnIssue`
+在 `lockMaterial` 锁内校验 `expectedRevision` 并原子提交新密文与 `revision + 1`（移除锁外
+二次更新并校验 `committedTokens`）；`disconnect()` 同步清理内存与数据库 pending 会话，
+并在 `lockMaterial` 锁内统一递增 `revision`（含 `secretId === null` 或密文行不可读场景），
+阻止断开后在途授权落盘与并发乱序覆盖。`SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN` 仍保持默认
+关闭，真实服务商、预注册客户端登记、Caddy 日志与设备验收前不可启用。
+
 2026-11-20 范围调整：用户允许网页退役后直接删除，生产已停止的旧 Web 与专用画面桥容器已删除；取消恢复旧 Web／再次切流演练，以下历史计划中的该项不再作为必执行步骤。源码生产部署已移除独立网页服务，`apps/web` 仍供 Windows 包内界面构建，API／认证／屏幕能力保留；源码配置尚未整体发布。原目标面板由用户清除，本次不新建目标。最新状态与生产覆盖清理条件见 [总计划](../PLAN.md#当前实施删除退役-web-部署pa-0232026-11-20)、[运维](../OPERATIONS.md#删除退役-web2026-11-20) 和 [ADR-0025](../../docs/adr/0025-retired-web-removal.md)。
 
 2026-11-18 网页退役 Batch 2 收口：桌面端 `main.ts` 已正式接入固定回环端口登记（`standalone-origins.json`）、`persist:sydney-standalone-<摘要>` 独立分区、单 Session `webRequest` 门禁管理与主进程一次性随机数 `fetchBackend` 通道，彻底移除对远程 `/` 页面与默认会话的启动探测，解耦本地 `uiOrigin` 与远端 `remoteOrigin`（打通 `userDevices` 配对/WS 自定义头与监控配置拉取），并通过 Electron 45 Playwright E2E 实测确认回环 `__Secure-` `Secure` Cookie 持久、`EADDRINUSE` 零泄露拒绝以及 `A -> B`/`A -> A` 事务回滚，独立只读子代理三轮终审 0 阻断。下一步进入 Batch 3（服务端 Slack/MCP 双端回调闭环、`buildTrustedOrigins` 补 `apiUrl` 与前端回环展示修复）。

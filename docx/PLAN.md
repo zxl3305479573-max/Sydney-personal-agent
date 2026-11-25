@@ -1,5 +1,17 @@
 # Sydney 开发总计划
 
+## 手机 App 首次进入通知弹窗与消息通知设置（PA-021，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（iPhone 真机弹窗、系统权限框与横幅/声音留待真机验收）。按用户批准方案实现手机 App 首次进入主界面时的「开启消息通知」一次性引导弹窗、本地通知偏好持久化、前台通知策略消费及 iOS 独立「消息通知」设置页（Android 保留既有 `RakazoNotifications` 链路）。专项评测见 [NOTIFICATION_SETTINGS_EVALUATION.md](NOTIFICATION_SETTINGS_EVALUATION.md)，实际证据见 [验证记录](VALIDATION.md#手机-app-首次进入通知弹窗与消息通知设置2026-11-25)。
+
+范围与交付物：
+- `apps/mobile/lib/notification-preferences-state.ts`、`apps/mobile/lib/notification-preferences.ts` 与 `apps/mobile/lib/use-first-launch-notification-prompt.ts`：通知偏好 `SecureStore` 存储、权限申请、测试通知发送及首次进入一次性引导弹窗。
+- `apps/mobile/lib/live-notifications.ts` 与 `apps/mobile/app/_layout.tsx`：启动并行加载通知偏好、前台通知按用户开关与提示音偏好生效、Splash 隐藏后触发首次引导。
+- `apps/mobile/app/(settings)/notifications.tsx`、`(settings)/_layout.tsx` 与 `(settings)/settings-home.tsx`：全平台设置入口与 iOS 独立消息通知设置页（含系统拒绝跳转、分类开关、一键测试通知与侧载边界说明）。
+- 7 个核心通知定向 Vitest 回归（40 项通过）与文档同步。
+
+依赖与验收条件：复用现有 `expo-notifications`、`expo-secure-store` 与暖瓷设置组件，不新增依赖、不修改后台或无关文件。验收以 [专项评测](NOTIFICATION_SETTINGS_EVALUATION.md) 的 `NOTIF-01`–`NOTIF-05` 定向回归实跑结果为准；iPhone 真机弹窗与系统设置联动单列 `NOTIF-06` 待真机验收。
+
 ## 未实现功能总规划与部分实现项（第 2、3、4 项）专项实施（2026-11-25）
 
 关联需求：PA-004、PA-005、PA-006、PA-010、PA-012、PA-014、PA-021、PA-022。
@@ -634,6 +646,57 @@ Windows 安装候选沿用现有手动、非发布构建工作流。使用 Node 
 回环来源、启动上下文、能力注入顺序、独立分区、旧数据迁移、提交与回滚
 矩阵，并列出 H-01 至 H-12 待验证假设。设计本身不代表实现；首个已实测
 阻断是首次导航/iframe 导航缺令牌。
+
+## 剩余缺口总整改 G1–G5（多子代理并行推进，2026-11-24）
+
+- **范围**：按已批准总整改规划与 `stop-that-shit` + `stss` 评测定标，派发 3 个正交写集子代理并行完成本机可实施的 5 项缺口并由主代理收口：
+  1. **G1 — PA-022 账号删除声明防卡死（子代理 B）**：`packages/db/src/project-account-lifecycle.ts` 使 `claimProjectAccountDeletion` 返回 `{ claimedNow: boolean }` 并新增 `releaseProjectAccountDeletionClaim`；`apps/api/src/account-deletion.ts` 与 `apps/api/src/app.ts` 的 `beforeDeleteUser` 在破坏性清理前（`billing.cancelForDeletedUser` 阶段）失败且 `claimedNow === true` 时尽力释放 `user.projectDeletionClaimedAt`，进入 `deleteAccountContent` 后保持不释放以维持重试收敛；补充 `project-account-lifecycle.test.ts` 与 `account-deletion-claim-recovery.test.ts`。
+  2. **G2 — 受管任务实时中断与 `confirmStop` 服务端可信静止证据（子代理 A）**：`packages/db/src/task-execution.ts` 扩展 `controlManagedTask` 返回 `runId`/`threadId`/`eventSeq`/`cancelledQueuedRun`，升级 `confirmManagedTaskStopped` 仅在无活跃 `computerExecutionLease`、无遗留 `computer.executionRunId` 且满足 `attemptCount === 0`（排队期取消从未执行）或服务端查询 `evidence.backgroundWork === "idle"` 时置 `quiesced = true`（其余一律维持 fail-closed `stop_evidence_unavailable`，绝不接受客户端自报）；`apps/api/src/routes/tasks.ts` 在 `control`/`revoke` 联动取消作业、通知线程订阅并尽力停止电脑运行与过期租约，在 `confirmStop` 由服务端实时查询 `inspectBackgroundWorkEvidence`/`inspectBackgroundWork`。
+  3. **G3 — Pi Adapters 审批前预检与模型预留回滚（子代理 A）**：`packages/db/src/task-execution.ts` 新增只读 `preflightManagedRun` 与行锁回滚 `rollbackManagedModelReservation`；`packages/adapters/src/run-tools.ts` 在 `managed_task` 进入 `gateToolCall` 前执行 DB 预检，拒绝时不再写入多余审批记录；`packages/adapters/src/executor.ts` 在 `managedCallObserver.beforeCall` 遇下游 billing 失败或中止时精准回滚刚预留的 `modelCalls` 与 `reservedTokens`。
+  4. **G4 — Native Linux 驱动状态原子持久化（子代理 C）**：`infra/native-linux/driver.py` 新增可选 `state_path`（默认 `os.path.join(self.root, ".driver-state.json")`），严格校验并持久化 `fences`、`control_fences`（含 `fence` + `leaseId`）与有界 `seen_request_ids`，采用 `os.path.islink` + `O_NOFOLLOW` + `0o600` 临时文件 + `fsync` + `os.replace` 防软链与半写，损坏 JSON 告警降级空表；补充 `infra/native-linux/test_driver.py` 跨重启防重放、低 fence、损坏文件与软链拒绝单测并同步 `docs/audit/native-linux.md`。
+  5. **G5 — PA-022 手机端与 Web 端非空项目删除接线（子代理 B）**：`apps/mobile/app/projects/[workspaceId].tsx` 与 `apps/web/src/pages/Projects.tsx` 优先按 `capabilities.remove` 调用 `projectWorkspaces.remove`（弹窗明确提示不删除电脑本地文件），面对旧后端自动降级 `removeEmpty`，新增 `apps/web/src/pages/Projects.test.tsx`。
+  6. **明确推迟项**：经源码核查 PA-018 独立代理 `PROXY_CAPABILITY_HEADER` 32 字节回环令牌已在 `standalone-renderer-proxy.ts` 实现，剩余 Electron session 隔离/实机验收、延期表放开、`modelDataConsent` 契约改造及全量构建/PostgreSQL/Linux 实测留待授权服务器与独立里程碑。
+- **验收条件**：本机 Python 离线单测（30 通过 / 2 Linux 专项跳过 / 0 失败）、40 个改动 `.ts` 文件 Node `stripTypeScriptTypes` 语法校验与 `git diff --check` 已通过；全部 TypeScript / Biome / Vitest、`db:migrate`、`VERIFY_DATABASE=1` PostgreSQL 集成测试与 Linux/双端实机联调待授权服务器完成。
+- **状态**：进行中（G1–G5 源码、测试与审计/项目文档已落地并通过本机可执行校验；因本机无 `node_modules` 且未连数据库/Linux，Vitest/TypeScript/Biome 与实机验收均未执行，不能标记为已验收）。
+
+## 多子代理并行推进：Pi Adapters 控制/预算加固、Native Linux 安全加固与 `stop-that-shit` 插件全量评测（2026-11-24）
+
+- **范围**：按用户明确要求启动 3 个正交写集子代理并行推进，并由主代理统一收口审查发现与文档：
+  1. **Pi Adapters 控制与预算加固（子代理 1）**：`packages/adapters/src/executor.ts` 在领取 Run lease 后、获取电脑租约与创建 Attempt 之前新增 `managed_task` 控制预检（`isManagedTaskControlAllowed`）；修复 `mayOpenModelStream` 在 `ManagedTaskControlStopped` 下静默返回遗留 `running` 状态的问题；加固 `managedCallObserver` 的中止校验与 `"managed-task-call"` 合成 ID 透传防护；`run-tools.ts` 将中止校验统一覆盖所有触发类型的 `resolveToolRequest`/`prepareToolRequest`/`gateToolCall` 后路径；补充 `executor.test.ts`、`run-tools.test.ts` 与 `executor-lazy-computer.test.ts` 回归测试，同步 `docs/audit/pi-adapters.md`。
+  2. **Native Linux 请求防重放与 `cwd` 路径加固（子代理 2）**：`packages/adapters/src/native-linux-sandbox.ts` 新增 `buildNativeDriverRequest()` 剥离保留字段并为所有带 `nativeRunLease` 请求附加 UUID `requestId`，新增 `assertSafeRelativeCwd()` 前置拦截非法 `cwd`；`infra/native-linux/driver.py` 新增有界防重放缓存（`MAX_SEEN_REQUEST_IDS = 4096`）与 `resolve_command_cwd()` 强制将初始工作目录约束在 Bot home 内部（拦截空字节、反斜线、`..`、越界绝对路径与符号链接逃逸）；补充 `native-linux-sandbox.test.ts` 与 `infra/native-linux/test_driver.py` 测试，同步 `docs/audit/native-linux.md`。
+  3. **`stop-that-shit` 全量插件实战评测与即时收口（子代理 3 + 主代理）**：对整个 `stop-that-shit`（v0.2.6）开展内核基准（24/24）、零依赖测试（52/57 文件 / 728 pass）、48 步 Antigravity Guard 实测（含多子代理 `agents=N`、`run_workflow`、`swarm`、文件锁、`status`/`runtime`/`explain`/`label`）与 `stss` 文档实战；根据其 Stop Ladder 代码审查发现，主代理即时修复 `apps/api/src/project-workspace-deletion.ts` 提前 abort 释放 claim 路径（消除死代码并修正对应单测）及 `apps/api/src/routes/project-workspaces.ts` 映射 `SpaceDeletionInProgressError` / `IsolationError`。
+- **验收条件**：Python 离线单测（已通过 25/25，2 个 Linux 专用跳过）、全部 TS/Vitest 定向测试、Biome 检查，以及授权 Linux/PostgreSQL 服务器端到端联调通过。
+- **状态**：进行中（源码、离线测试与插件评测均已落地；Python 驱动单测与 `git diff --check` 已通过；因本机无 `node_modules` 且未连 Linux/PostgreSQL，Vitest/TypeScript/Biome 与实机验收均未执行，不能标记为已验收）。
+
+## PA-022 非空项目删除、清理恢复与项目运行撤权闭环（2026-11-24）
+
+- **范围**：补齐 PA-022 下一阶段非空项目工作区删除与撤权闭环：
+  1. **Schema 与迁移**：新增 `20261124140000_project_workspace_deletion_claim`（为 `project_workspaces` 增加 `deletionClaimId` 列）并同步 `schema.prisma`。
+  2. **DB 删除状态机与写锁串行化**：新增 `packages/db/src/project-workspace-deletion.ts`（`lockProjectWorkspaceForMutation`、`claimProjectWorkspaceDeletion` 含 5 分钟过期接管、续约/释放、列 Bot、`cancelClaimedProjectWorkspaceRuns`、`finalizeProjectWorkspaceDeletion` 含延期表门禁与 RESTRICT 逆序清理）；在 `repos.ts`（`createBot`）、`groups.ts`（`createGroup`）、`thread-target.ts`（`sendThreadMessage`）接入项目写锁；`removeEmptyProjectWorkspace` 补充 `deletionClaimId IS NULL`。
+  3. **后台作业与运行撤权收口**：`packages/adapters/src/background-job-handlers.ts` 在 `asOwner` 统一拦截失活项目的会话/任务作业（`run.continue`、`routine.wakeup`、`routine.retry`、`history.compact`、`call.expire`、`skill.teaching-expire`、带 `runId` 的 `messaging.deliver` 镜像），`run.continue` 对失活项目的未终结 Run 自动收口为 `cancelled`。
+  4. **契约与 API 非空删除编排**：`packages/contracts/src/rpc.ts` 新增 `capabilities.remove` 与 `projectWorkspaces.remove`（保留 `removeEmpty` 兼容旧端，仅删服务端应用数据、不触碰本地文件）；新增 `apps/api/src/project-workspace-deletion.ts`（全程受控 `runAsSystem` + `claimId` 核验、取消在途 Run 与唤醒 SSE 订阅、逐个 `destroyBot`、终态删除）并接线 `apps/api/src/routes/project-workspaces.ts`。
+- **验收条件**：契约/DB/Adapters/API 定向 Vitest 离线测试、TypeScript、Biome 检查，以及授权服务器 `db:migrate` 与 `VERIFY_DATABASE=1` PostgreSQL 集成测试通过。
+- **状态**：进行中（源码、迁移与离线/PostgreSQL 测试已编写，完成静态核对与 `git diff --check`；因本机无 `node_modules` 且按协作约定不重装依赖/不启数据库，测试、类型检查、迁移与真实端到端验收均未执行，不能标记为已验收）。
+
+## PA-022 / PA-023 / P3 后端三项按序补强（2026-11-24）
+
+- **范围**：按规划顺序推进三项后端补强：
+  1. **PA-022 生命周期安全补强**：将 `/organization/*`（含 `/organization/leave`、`/organization/remove-member`）封禁下沉至 Better Auth `hooks.before`，并接入 `organizationHooks.beforeRemoveMember` -> `assertMemberHasNoProjectWorkspacesInOrg`（`FOR UPDATE` 用户行锁 + 系统上下文核查该组织内项目工作区）；修复 `packages/auth/src/account-deletion-response.test.ts` 跨包相对导入导致的 `TS6059`；`groups.ts` 的 `archiveGroup` 补齐显式 `projectWorkspaceId`。
+  2. **PA-023 MCP 原生回调后端解阻**：`StoredMcpOAuthProvider` 与 `McpOAuthBroker` 为动态注册客户端补充 `clientRedirectUri` 持久绑定与兼容校验；动态客户端/已绑定客户端的 `begin()` 改为在隔离副本中暂存（不提前覆盖现网有效 token 与旧动态客户端）；`complete()` 通过 `incrementRevisionOnIssue` 将密文落盘与 `revision` 递增合并进同一 `lockMaterial` 事务锁内原子提交并核验 `committedTokens`；`disconnect()` 同步清理内存 pending 与数据库 `mcpOAuthSession`，并统一在 `lockMaterial` 锁内递增 `revision`（含 `secretId === null` 或密文行不可读场景），阻断并发 `complete()` 覆盖与断开后在途授权落盘。`SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN` 保持默认关闭，待真实服务商、日志与设备验收。
+  3. **P2/P3 任务执行审计项**：`executor.ts` 中 `resolveModel`（供子助手模型选择路径使用）在 `managed_task` 下同步接入 `managedCallObserver`（同时 `filterManagedTaskTools` 继续保持不暴露 `run_subagent`）；`apps/api/src/routes/tasks.ts` 补齐 `revoke` 取消排队 Run 后的实时事件通知、`reconcile` 审计事件及 `preview` 显式项目作用域过滤，新增 `apps/api/src/routes/tasks.test.ts`。
+- **验收条件**：涉及包 Vitest 定向离线测试、TypeScript（含 `@rakazo/auth`）、Biome 检查，以及授权服务器 PostgreSQL / MCP 服务商 / 真实 Run 联调通过。
+- **状态**：进行中（源码与离线测试代码已编写，完成静态核对与 `git diff --check`；因本机无 `node_modules` 且按协作约定不重装依赖/不启数据库，测试、类型检查与服务器验收均未执行，不能标记为已验收）。
+
+## PA-022 项目工作区与项目内会话后端闭环（2026-11-24）
+
+- **范围**：承接 `79deaa54d` 开启项目实验开关后的后端缺口，按 2026-11-13 优先级调整（先打通项目创建/管理、项目内 Bot 与群聊、文字对话及归属隔离；附件与外部操作延后）补齐后端迁移、存储接口、契约与路由。
+- **依赖**：既有 `project_workspaces` 元数据表、五表复合外键与 RESTRICTIVE RLS（`20261119130000`–`20261119150000`）、记忆 RLS（`20261119190000`）及既有 `runInProjectWorkspace` 上下文。
+- **交付物**：
+  1. 增量迁移 `20261124120000_enable_project_conversation_scope`：仅解除五张核心会话表（`bots`、`chat_groups`、`threads`、`tasks`、`runs`）的 `*_project_scope_disabled` CHECK 约束，继续保留 `artifacts`、`cloud_agents`、`purchases` 三张延期表的禁写约束，并更新 `project-workspace.postgres.test.ts`。
+  2. 项目工作区管理与错误语义：DB 新增 `renameProjectWorkspace` 与 `ProjectWorkspaceConflictError`；API 新增 `projectWorkspaces.rename`，并在 `create` 将账号删除声明冲突与幂等冲突映射为 `CONFLICT`（不再泄露为 500）。
+  3. 项目内文字会话后端闭环：契约与 API 新增 `projectWorkspaces.threadHead`、`messages`、`stop`、`markRead`，均经 `projectConversationCreateExperiment` 与 `runInProjectWorkspace` 校验；`markThreadRead` / `markThreadUnreadFrom` / `setThreadUnreadState` 与 `updateGroup` 补齐显式 `projectWorkspaceId` 范围条件。
+- **验收条件**：定向契约/DB/API 离线测试、TypeScript 检查、Biome 检查通过，且授权服务器执行 `db:migrate` 与 PostgreSQL 隔离集成测试及双端实测通过。
+- **状态**：进行中（源码、迁移与离线测试代码已编写，完成静态核对与 `git diff --check`；因本机未安装 `node_modules` 且按协作约定不重装依赖/不启数据库，Vitest、TypeScript、Biome 及 PostgreSQL 迁移测试均未执行，不能标记为已验收）。
 
 ## PA-021 手机默认后台地址迁移（2026-11-16）
 

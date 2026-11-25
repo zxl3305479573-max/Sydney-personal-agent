@@ -73,14 +73,7 @@ function stateToStatus(state: TaskExecutionState): string {
   return "queued";
 }
 
-async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: string) {
-  const locked = await tx.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "tasks"
-    WHERE "id" = ${taskId} AND "userId" = ${actor.userId} AND "spaceId" = ${actor.spaceId}
-      AND "projectWorkspaceId" IS NOT DISTINCT FROM ${conversationProjectId(actor)}
-    FOR UPDATE
-  `;
-  if (locked.length !== 1) throw new IsolationError();
+async function readTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: string) {
   const rows = await tx.task.findMany({
     where: { id: taskId, ...conversationScopeWhere(actor) },
     select: {
@@ -110,6 +103,17 @@ async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: s
   }
   const state = TaskExecutionStateSchema.parse(task.executionState);
   return { task, state } as const;
+}
+
+async function lockedTask(tx: Prisma.TransactionClient, actor: Tenant, taskId: string) {
+  const locked = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "tasks"
+    WHERE "id" = ${taskId} AND "userId" = ${actor.userId} AND "spaceId" = ${actor.spaceId}
+      AND "projectWorkspaceId" IS NOT DISTINCT FROM ${conversationProjectId(actor)}
+    FOR UPDATE
+  `;
+  if (locked.length !== 1) throw new IsolationError();
+  return readTask(tx, actor, taskId);
 }
 
 export async function createManagedTask(prisma: PrismaClient, actor: Tenant, rawInput: unknown) {
@@ -290,6 +294,101 @@ export type ManagedTaskGuardInput = {
   executionId?: string;
 };
 
+export type ManagedRunPreflightResult =
+  | { allowed: true }
+  | { allowed: false; code: string; reason: string };
+
+async function assertManagedRunPreconditions(
+  tx: Prisma.TransactionClient,
+  actor: Tenant,
+  task: TaskRow,
+  state: TaskExecutionState,
+  input: ManagedTaskGuardInput,
+  tokenEstimate: number,
+) {
+  if (state.currentRunId !== input.runId) throw new TaskExecutionError("run_mismatch");
+  if (state.deadline !== null && state.deadline <= Date.now()) {
+    throw new TaskExecutionError("task_deadline_exceeded");
+  }
+  const run = await tx.run.findFirst({
+    where: { id: input.runId, taskId: task.id, ...conversationScopeWhere(actor) },
+    select: {
+      id: true,
+      status: true,
+      leaseOwner: true,
+      leaseFence: true,
+      leaseExpiresAt: true,
+      taskMandate: true,
+    },
+  });
+  if (!run || run.status !== "running") throw new TaskExecutionError("run_not_running");
+  if (run.leaseOwner !== input.workerId || run.leaseFence !== input.fence) {
+    throw new TaskExecutionError("lease_mismatch");
+  }
+  if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= Date.now()) {
+    throw new TaskExecutionError("lease_expired");
+  }
+  const mandate = StoredTaskMandateSchema.parse(run.taskMandate);
+  if (
+    mandate.runId !== run.id ||
+    mandate.taskId !== task.id ||
+    mandate.botId !== task.botId ||
+    mandate.threadId !== task.threadId ||
+    mandate.userId !== actor.userId ||
+    mandate.spaceId !== actor.spaceId
+  ) {
+    throw new TaskExecutionError("mandate_binding_mismatch");
+  }
+  if (mandate.expiresAt <= Date.now()) throw new TaskExecutionError("mandate_expired");
+  const scope =
+    input.action.tool === "model_call" ||
+    mandate.scopes.some(
+      (grant) =>
+        grant.tool === input.action.tool &&
+        grant.action === input.action.action &&
+        grant.resource === input.action.resource,
+    );
+  if (!scope) throw new TaskExecutionError("scope_mismatch");
+  if (state.control.intent !== "continue") throw new TaskExecutionError("control_blocked");
+  const reserved = input.reserveTokens ?? tokenEstimate;
+  if (!Number.isInteger(reserved) || reserved < 0 || !Number.isFinite(reserved)) {
+    throw new TaskExecutionError("unknown_token_reservation");
+  }
+  const modelCall = input.action.tool === "model_call";
+  if (modelCall && state.reservedTokens + reserved > state.budget.maxReservedTokens) {
+    throw new TaskExecutionError("budget_exceeded");
+  }
+  if (modelCall && state.modelCalls >= state.budget.maxModelCalls) {
+    throw new TaskExecutionError("model_calls_exceeded");
+  }
+  if (!modelCall && state.toolCalls.length >= state.budget.maxToolCalls) {
+    throw new TaskExecutionError("tool_calls_exceeded");
+  }
+  return { reserved, modelCall } as const;
+}
+
+export async function preflightManagedRun(
+  prisma: PrismaClient,
+  actor: Tenant,
+  taskId: string,
+  input: ManagedTaskGuardInput,
+  tokenEstimate = 0,
+): Promise<ManagedRunPreflightResult> {
+  assertTenant(actor);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const { task, state } = await readTask(tx, actor, taskId);
+      await assertManagedRunPreconditions(tx, actor, task, state, input, tokenEstimate);
+      return { allowed: true as const };
+    });
+  } catch (error) {
+    if (error instanceof TaskExecutionError) {
+      return { allowed: false as const, code: error.message, reason: error.message };
+    }
+    throw error;
+  }
+}
+
 export async function guardManagedRun(
   prisma: PrismaClient,
   actor: Tenant,
@@ -300,64 +399,14 @@ export async function guardManagedRun(
   assertTenant(actor);
   return prisma.$transaction(async (tx) => {
     const { task, state } = await lockedTask(tx, actor, taskId);
-    if (state.currentRunId !== input.runId) throw new TaskExecutionError("run_mismatch");
-    if (state.deadline !== null && state.deadline <= Date.now()) {
-      throw new TaskExecutionError("task_deadline_exceeded");
-    }
-    const run = await tx.run.findFirst({
-      where: { id: input.runId, taskId, ...conversationScopeWhere(actor) },
-      select: {
-        id: true,
-        status: true,
-        leaseOwner: true,
-        leaseFence: true,
-        leaseExpiresAt: true,
-        taskMandate: true,
-      },
-    });
-    if (!run || run.status !== "running") throw new TaskExecutionError("run_not_running");
-    if (run.leaseOwner !== input.workerId || run.leaseFence !== input.fence) {
-      throw new TaskExecutionError("lease_mismatch");
-    }
-    if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= Date.now()) {
-      throw new TaskExecutionError("lease_expired");
-    }
-    const mandate = StoredTaskMandateSchema.parse(run.taskMandate);
-    if (
-      mandate.runId !== run.id ||
-      mandate.taskId !== task.id ||
-      mandate.botId !== task.botId ||
-      mandate.threadId !== task.threadId ||
-      mandate.userId !== actor.userId ||
-      mandate.spaceId !== actor.spaceId
-    ) {
-      throw new TaskExecutionError("mandate_binding_mismatch");
-    }
-    if (mandate.expiresAt <= Date.now()) throw new TaskExecutionError("mandate_expired");
-    const scope =
-      input.action.tool === "model_call" ||
-      mandate.scopes.some(
-        (grant) =>
-          grant.tool === input.action.tool &&
-          grant.action === input.action.action &&
-          grant.resource === input.action.resource,
-      );
-    if (!scope) throw new TaskExecutionError("scope_mismatch");
-    if (state.control.intent !== "continue") throw new TaskExecutionError("control_blocked");
-    const reserved = input.reserveTokens ?? tokenEstimate;
-    if (!Number.isInteger(reserved) || reserved < 0 || !Number.isFinite(reserved)) {
-      throw new TaskExecutionError("unknown_token_reservation");
-    }
-    const modelCall = input.action.tool === "model_call";
-    if (modelCall && state.reservedTokens + reserved > state.budget.maxReservedTokens) {
-      throw new TaskExecutionError("budget_exceeded");
-    }
-    if (modelCall && state.modelCalls >= state.budget.maxModelCalls) {
-      throw new TaskExecutionError("model_calls_exceeded");
-    }
-    if (!modelCall && state.toolCalls.length >= state.budget.maxToolCalls) {
-      throw new TaskExecutionError("tool_calls_exceeded");
-    }
+    const { reserved, modelCall } = await assertManagedRunPreconditions(
+      tx,
+      actor,
+      task,
+      state,
+      input,
+      tokenEstimate,
+    );
     const toolCallId =
       input.executionId ??
       `call-${createHash("sha256").update(JSON.stringify(input.action)).digest("hex").slice(0, 16)}`;
@@ -371,6 +420,32 @@ export async function guardManagedRun(
       ],
     });
     return { allowed: true as const, toolCallId };
+  });
+}
+
+export async function rollbackManagedModelReservation(
+  prisma: PrismaClient,
+  actor: Tenant,
+  taskId: string,
+  input: { runId: string; reservedTokens: number },
+) {
+  assertTenant(actor);
+  const releaseTokens = Number.isFinite(input.reservedTokens)
+    ? Math.max(0, Math.trunc(input.reservedTokens))
+    : 0;
+  return prisma.$transaction(async (tx) => {
+    const { task, state } = await lockedTask(tx, actor, taskId);
+    if (state.currentRunId !== input.runId) {
+      return { rolledBack: false as const };
+    }
+    const modelCalls = Math.max(0, state.modelCalls - 1);
+    const reservedTokens = Math.max(0, state.reservedTokens - releaseTokens);
+    await saveState(tx, task, {
+      ...state,
+      modelCalls,
+      reservedTokens,
+    });
+    return { rolledBack: true as const, modelCalls, reservedTokens };
   });
 }
 
@@ -435,12 +510,24 @@ export async function controlManagedTask(
         });
         const control = { intent, quiesced: false };
         await saveState(tx, task, { ...state, version: state.version + 1, control });
-        return { ok: true as const, threadId: task.threadId, eventSeq: event.seq };
+        return {
+          ok: true as const,
+          runId: state.currentRunId,
+          threadId: task.threadId,
+          eventSeq: event.seq,
+          cancelledQueuedRun: true,
+        };
       }
     }
     const control = { intent, quiesced: intent === "continue" ? true : false };
     await saveState(tx, task, { ...state, version: state.version + 1, control });
-    return { ok: true as const, threadId: null, eventSeq: null };
+    return {
+      ok: true as const,
+      runId: state.currentRunId,
+      threadId: task.threadId,
+      eventSeq: null,
+      cancelledQueuedRun: false,
+    };
   });
 }
 
@@ -493,16 +580,21 @@ export async function renewManagedTaskMandate(
   });
 }
 
+export type ManagedTaskStopEvidence = {
+  backgroundWork: "idle" | "active" | "unknown" | "unused";
+};
+
 export async function confirmManagedTaskStopped(
   prisma: PrismaClient,
   actor: Tenant,
   taskId: string,
   runId: string,
   expectedVersion: number,
+  evidence: ManagedTaskStopEvidence = { backgroundWork: "unknown" },
 ) {
   assertTenant(actor);
   return prisma.$transaction(async (tx) => {
-    const { state } = await lockedTask(tx, actor, taskId);
+    const { task, state } = await lockedTask(tx, actor, taskId);
     if (state.version !== expectedVersion) throw new TaskExecutionError("version_conflict");
     if (state.currentRunId !== runId || state.control.intent === "continue") {
       throw new TaskExecutionError("run_mismatch");
@@ -514,7 +606,29 @@ export async function confirmManagedTaskStopped(
     if (!run || ACTIVE_RUN_STATUSES.includes(run.status as (typeof ACTIVE_RUN_STATUSES)[number])) {
       throw new TaskExecutionError("run_not_stopped");
     }
-    throw new TaskExecutionError("stop_evidence_unavailable");
+    const now = new Date();
+    const activeLease = await tx.computerExecutionLease.findFirst({
+      where: { runId, expiresAt: { gt: now } },
+      select: { id: true },
+    });
+    if (activeLease) throw new TaskExecutionError("stop_evidence_unavailable");
+    const activeComputer = await tx.computer.findFirst({
+      where: { executionRunId: runId },
+      select: { id: true },
+    });
+    if (activeComputer) throw new TaskExecutionError("stop_evidence_unavailable");
+    const attemptCount = await tx.attempt.count({ where: { runId } });
+    const backgroundWork = evidence?.backgroundWork ?? "unknown";
+    if (attemptCount > 0 && backgroundWork !== "idle") {
+      throw new TaskExecutionError("stop_evidence_unavailable");
+    }
+    const nextVersion = state.version + 1;
+    await saveState(tx, task, {
+      ...state,
+      version: nextVersion,
+      control: { ...state.control, quiesced: true },
+    });
+    return { ok: true as const, quiesced: true as const, version: nextVersion };
   });
 }
 

@@ -19,6 +19,8 @@ import { ProjectDirectory } from "./ProjectDirectory";
 import type { CreateBotDialogInput } from "./shell/create-bot-dialog";
 import { CreateBotDialog } from "./shell/create-bot-dialog";
 
+type ProjectRemoveMode = "remove" | "removeEmpty" | null;
+
 export function ProjectsPage() {
   const userId = useQueryUserId();
   const spaceId = selectedSpaceId();
@@ -44,7 +46,11 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{
+    id: string;
+    name: string;
+    mode: "remove" | "removeEmpty";
+  } | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [cursors, setCursors] = useState<ProjectWorkspaceCursor[]>([]);
@@ -56,7 +62,13 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
   });
   const capabilities = useQuery(queries.projectWorkspaces.capabilities.queryOptions());
   const canCreate = !capabilities.error && capabilities.data?.create === true;
-  const canRemove = !capabilities.error && capabilities.data?.removeEmpty === true;
+  const removeMode: ProjectRemoveMode = capabilities.error
+    ? null
+    : capabilities.data?.remove === true
+      ? "remove"
+      : capabilities.data?.removeEmpty === true
+        ? "removeEmpty"
+        : null;
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
@@ -93,25 +105,43 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
 
   async function removeProject() {
     const target = removeTarget;
-    if (!target || !canRemove || removingRef.current || currentWorkspace.current !== target.id ||
-      selectedSpaceId() !== spaceId) return;
+    if (!target || removeMode !== target.mode || removingRef.current ||
+      currentWorkspace.current !== target.id || selectedSpaceId() !== spaceId) return;
     removingRef.current = true;
     setRemoving(true);
     setRemoveError(null);
     try {
-      await createSpaceRpc(spaceId).projectWorkspaces.removeEmpty({
-        id: target.id, confirmRemoveAppData: true,
-      });
+      const spaceRpc = createSpaceRpc(spaceId);
+      if (target.mode === "remove") {
+        await spaceRpc.projectWorkspaces.remove({
+          id: target.id, confirmRemoveAppData: true,
+        });
+      } else {
+        await spaceRpc.projectWorkspaces.removeEmpty({
+          id: target.id, confirmRemoveAppData: true,
+        });
+      }
       if (!mounted.current || selectedSpaceId() !== spaceId) return;
       setRemoveTarget(null);
       void list.refetch();
       if (currentWorkspace.current === target.id) navigate("/app/projects");
-    } catch {
-      if (mounted.current && selectedSpaceId() === spaceId && currentWorkspace.current === target.id)
-        setRemoveError(text(
-          "无法删除项目；项目可能包含内容，或请求结果尚未确认。请刷新后查看。",
-          "Could not remove the project. It may contain data or the result may be unknown; refresh to check.",
-        ));
+    } catch (cause) {
+      if (mounted.current && selectedSpaceId() === spaceId && currentWorkspace.current === target.id) {
+        setRemoveError(
+          target.mode === "remove"
+            ? errorText(
+                cause,
+                text(
+                  "无法删除项目，请求结果可能尚未确认。请刷新后查看。",
+                  "Could not remove the project. The result may be unknown; refresh to check.",
+                ),
+              )
+            : text(
+                "无法删除项目；项目可能包含内容，或请求结果尚未确认。请刷新后查看。",
+                "Could not remove the project. It may contain data or the result may be unknown; refresh to check.",
+              ),
+        );
+      }
     } finally {
       removingRef.current = false;
       if (mounted.current) setRemoving(false);
@@ -207,9 +237,14 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
                 <div className="mt-5 flex flex-wrap gap-3">
                   <ProjectBotCreation key={detail.data.id} workspaceId={detail.data.id} spaceId={spaceId} />
                   <ProjectGroupCreation key={detail.data.id} workspaceId={detail.data.id} spaceId={spaceId} />
-                  {canRemove ? <Button type="button" variant="secondary" disabled={removing}
-                    onClick={() => { setRemoveError(null); setRemoveTarget({ id: detail.data.id, name: detail.data.name }); }}>
-                    {text("删除空项目", "Remove empty project")}
+                  {removeMode ? <Button type="button" variant="secondary" disabled={removing}
+                    onClick={() => {
+                      setRemoveError(null);
+                      setRemoveTarget({ id: detail.data.id, name: detail.data.name, mode: removeMode });
+                    }}>
+                    {removeMode === "remove"
+                      ? text("删除项目", "Remove project")
+                      : text("删除空项目", "Remove empty project")}
                   </Button> : null}
                 </div>
                 <p className="mt-5 text-sm text-muted-foreground">
@@ -224,16 +259,28 @@ function ProjectBrowser({ spaceId }: { spaceId: string | null }) {
         onOpenChange={(open) => { if (!open && !removingRef.current) setRemoveTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{text("删除空项目？", "Remove empty project?")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {removeTarget?.mode === "remove"
+                ? text("删除项目？", "Remove project?")
+                : text("删除空项目？", "Remove empty project?")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {text("只删除空项目记录，不删除电脑中的文件。", "Only an empty project record is removed; files on your computer are not deleted.")}
+              {removeTarget?.mode === "remove"
+                ? text(
+                    "将永久删除此项目及其中在 Sydney 中的小伙伴、群聊和聊天记录，不会删除你电脑中的本地文件。",
+                    "This removes the project along with its bots, group chats, and chat history in Sydney. Local files on your computer are not deleted.",
+                  )
+                : text(
+                    "只删除空项目记录，不删除电脑中的文件。",
+                    "Only an empty project record is removed; files on your computer are not deleted.",
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <p className="break-words" dir="auto">{removeTarget?.name}</p>
           {removeError ? <p role="alert">{removeError}</p> : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removing}>{text("取消", "Cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={removing || !canRemove} onClick={(event) => {
+            <AlertDialogAction disabled={removing || !removeTarget || removeMode !== removeTarget.mode} onClick={(event) => {
               event.preventDefault();
               void removeProject();
             }}>

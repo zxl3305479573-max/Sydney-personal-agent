@@ -56,6 +56,7 @@ import {
   RunHistoryWriteError,
   readRunTimingFields,
   recordUsage,
+  rollbackManagedModelReservation,
   runAsTenant,
   settleReleasedTakeoverCards,
   spaceHasModelAccess,
@@ -393,6 +394,69 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         data: { status: "running" },
       });
       if (started.count !== 1) return;
+      const MANAGED_TASK_STOPPED_ERROR =
+        "Managed task was stopped or its control state was unavailable.";
+      const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
+      const isManagedTaskControlAllowed = async (): Promise<boolean> => {
+        if (!managedTaskId) return true;
+        return runAsTenant(
+          {
+            userId: run.userId,
+            spaceId: run.spaceId,
+            projectWorkspaceId: run.projectWorkspaceId,
+          },
+          async () => {
+            const task = await deps.prisma.task.findFirst({
+              where: {
+                id: managedTaskId,
+                userId: run.userId,
+                spaceId: run.spaceId,
+                projectWorkspaceId: run.projectWorkspaceId,
+              },
+              select: { executionState: true },
+            });
+            const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
+            return Boolean(
+              parsed.success &&
+                parsed.data.currentRunId === runId &&
+                parsed.data.control.intent === "continue" &&
+                (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
+            );
+          },
+        );
+      };
+      if (managedTaskId) {
+        let allowed = false;
+        try {
+          allowed = await isManagedTaskControlAllowed();
+        } catch {
+          allowed = false;
+        }
+        if (!allowed) {
+          const stopped = await deps.prisma.run.updateMany({
+            where: {
+              id: runId,
+              status: "running",
+              leaseOwner: workerId,
+              leaseFence: fence,
+            },
+            data: {
+              status: "failed",
+              error: MANAGED_TASK_STOPPED_ERROR,
+              completedAt: new Date(),
+              leaseOwner: null,
+              leaseExpiresAt: null,
+            },
+          });
+          if (
+            stopped.count === 1 ||
+            (await runEndedForThisWorker(deps.prisma, { runId, leaseOwner: workerId }))
+          ) {
+            endRunConnectorState(runId);
+          }
+          return;
+        }
+      }
       const leaseTarget = await deps.prisma.bot.findUniqueOrThrow({
         where: { id: run.botId },
         select: {
@@ -540,37 +604,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       const onShutdown = () => runAbortController.abort(deps.shutdownSignal?.reason);
       deps.shutdownSignal?.addEventListener("abort", onShutdown);
       detachShutdown = () => deps.shutdownSignal?.removeEventListener("abort", onShutdown);
-      const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
       const managedControlWatch = managedTaskId
-        ? watchManagedTaskControl(
-            async () =>
-              runAsTenant(
-                {
-                  userId: run.userId,
-                  spaceId: run.spaceId,
-                  projectWorkspaceId: run.projectWorkspaceId,
-                },
-                async () => {
-                  const task = await deps.prisma.task.findFirst({
-                    where: {
-                      id: managedTaskId,
-                      userId: run.userId,
-                      spaceId: run.spaceId,
-                      projectWorkspaceId: run.projectWorkspaceId,
-                    },
-                    select: { executionState: true },
-                  });
-                  const parsed = TaskExecutionStateSchema.safeParse(task?.executionState);
-                  return Boolean(
-                    parsed.success &&
-                      parsed.data.currentRunId === runId &&
-                      parsed.data.control.intent === "continue" &&
-                      (parsed.data.deadline === null || parsed.data.deadline > Date.now()),
-                  );
-                },
-              ),
-            runAbortController,
-          )
+        ? watchManagedTaskControl(isManagedTaskControlAllowed, runAbortController)
         : undefined;
       const runSecrets = [...deps.secrets];
       let dispatchHandedOff = false;
@@ -1827,6 +1862,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             !lease.valid || Boolean(runAbortController?.signal.aborted),
           )
         ) {
+          if (
+            runAbortController.signal.reason instanceof ManagedTaskControlStopped &&
+            mayOpenModelStream(beforeModel, workerId, fence, !lease.valid)
+          ) {
+            throw runAbortController.signal.reason;
+          }
           return;
         }
 
@@ -1863,30 +1904,50 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             beforeCall: async (
               call: Parameters<NonNullable<AgentRunModel["callObserver"]>["beforeCall"]>[0],
             ) => {
-              await runAsTenant(
-                {
-                  userId: run.userId,
-                  spaceId: run.spaceId,
-                  projectWorkspaceId: run.projectWorkspaceId,
-                },
-                () =>
-                  guardManagedRun(
+              runAbortController.signal.throwIfAborted();
+              const reserveTokens = call.inputTokensEstimate + call.maxOutputTokens;
+              const tenant = {
+                userId: run.userId,
+                spaceId: run.spaceId,
+                projectWorkspaceId: run.projectWorkspaceId,
+              };
+              await runAsTenant(tenant, () =>
+                guardManagedRun(
+                  deps.prisma,
+                  { userId: run.userId, spaceId: run.spaceId },
+                  managedTaskId,
+                  {
+                    runId,
+                    workerId,
+                    fence,
+                    action: { tool: "model_call", action: "execute", resource: "model" },
+                    reserveTokens,
+                    executionId: call.callId,
+                  },
+                  0,
+                ),
+              );
+              try {
+                runAbortController.signal.throwIfAborted();
+                const reservation = await observer?.beforeCall(call);
+                return reservation ? `managed:${reservation}` : "managed-task-call";
+              } catch (error) {
+                await runAsTenant(tenant, () =>
+                  rollbackManagedModelReservation(
                     deps.prisma,
                     { userId: run.userId, spaceId: run.spaceId },
                     managedTaskId,
-                    {
-                      runId,
-                      workerId,
-                      fence,
-                      action: { tool: "model_call", action: "execute", resource: "model" },
-                      reserveTokens: call.inputTokensEstimate + call.maxOutputTokens,
-                      executionId: call.callId,
-                    },
-                    0,
+                    { runId, reservedTokens: reserveTokens },
                   ),
-              );
-              const reservation = await observer?.beforeCall(call);
-              return reservation ? `managed:${reservation}` : "managed-task-call";
+                ).catch((rollbackError) => {
+                  getLogger().warn("managed task model reservation rollback failed", {
+                    taskId: managedTaskId,
+                    runId,
+                    error: rollbackError,
+                  });
+                });
+                throw error;
+              }
             },
             afterCall: async (
               reservationId: string,
@@ -1897,11 +1958,12 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 await observer?.afterCall(reservationId.slice(8), usage);
               }
             },
-            onRequestId: (reservationId: string, providerRequestId: string) =>
-              observer?.onRequestId?.(
-                reservationId.startsWith("managed:") ? reservationId.slice(8) : reservationId,
-                providerRequestId,
-              ),
+            onRequestId: (reservationId: string, providerRequestId: string) => {
+              if (reservationId === "managed-task-call" || !reservationId.startsWith("managed:")) {
+                return;
+              }
+              return observer?.onRequestId?.(reservationId.slice(8), providerRequestId);
+            },
           };
         };
         // Shutdown must not finalize the attempt. The finally block queues the run
@@ -2135,10 +2197,20 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                     ),
               resolveModel: scripted
                 ? undefined
-                : (provider, modelId) =>
-                    resolveConnectedModel(run, provider, modelId, (values) =>
-                      runSecrets.push(...values),
-                    ),
+                : async (provider, modelId) => {
+                    const helperModel = await resolveConnectedModel(
+                      run,
+                      provider,
+                      modelId,
+                      (values) => runSecrets.push(...values),
+                    );
+                    return {
+                      ...helperModel,
+                      ...(run.trigger === "managed_task"
+                        ? { callObserver: managedCallObserver(helperModel.callObserver) }
+                        : {}),
+                    };
+                  },
               onToolCompleted: (completion) => {
                 if (effects.restoredPending?.executionId === completion.executionId)
                   effects.restoredPending = undefined;
@@ -2208,7 +2280,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             leaseOwner: workerId,
             leaseFence: fence,
             outcome: "failed",
-            error: "Managed task was stopped or its control state was unavailable.",
+            error: MANAGED_TASK_STOPPED_ERROR,
           });
           return;
         }

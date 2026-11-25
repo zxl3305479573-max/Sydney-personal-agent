@@ -1,5 +1,30 @@
 # 验证记录
 
+## 个人中枢首页「后台陪伴」组件（2026-11-25）
+
+关联 PA-021。
+
+- 定向 Vitest（2 个文件，5 项通过、0 失败）：
+  - `apps/mobile/lib/home-companion-card.test.tsx`（2 项通过：覆盖切换伙伴、一键开启／停止后台陪伴、触发屏幕陪伴，以及原生扩展不可用时降级提示与直达对话）
+  - `apps/mobile/lib/home-hub.test.tsx`（3 项通过：覆盖首页完整渲染与既有 Bento 卡片零回归）
+- `git diff --check`（本批修改文件）：0 警告通过。
+- 未执行：带原生 `SydneyCompanion` 扩展的 Xcode 构建、iPhone 真机灵动岛展示与屏幕共享交互验收。
+
+## 手机 App 首次进入通知弹窗与消息通知设置（2026-11-25）
+
+关联 PA-021；专项评测见 [NOTIFICATION_SETTINGS_EVALUATION.md](NOTIFICATION_SETTINGS_EVALUATION.md)。
+
+- 核心通知定向 Vitest（7 个文件，40 项通过、0 失败）：
+  - `apps/mobile/lib/notification-preferences.test.ts`（7 项通过，覆盖 `NOTIF-01`–`NOTIF-03`）
+  - `apps/mobile/lib/use-first-launch-notification-prompt.test.tsx`（3 项通过，覆盖 `NOTIF-01`）
+  - `apps/mobile/lib/notifications-screen.test.tsx`（2 项通过，覆盖 `NOTIF-04`）
+  - `apps/mobile/lib/live-notifications.test.ts`（12 项通过，覆盖 `NOTIF-03`）
+  - `apps/mobile/lib/push.test.ts`（4 项通过）、`apps/mobile/lib/open-notification.test.ts`（8 项通过）、`apps/mobile/lib/use-open-notification-thread.test.tsx`（4 项通过，覆盖 `NOTIF-05`）
+- 附带回归 `apps/mobile/lib/live-notifications-android.test.ts`：13 项通过、1 项失败（`resumes the native poller with the normalized server and the active UI locale`，属于既有 URL 校验行为，本批未触碰 `resumeLiveNotifications` 或 `endpoint.ts`）。
+- `git diff --check`（本批修改文件）：0 警告通过。
+- `@rakazo/mobile` 全包 `tsc --noEmit` 仍被工作区既有 7 个无关 UI 文件的合并冲突标记（`TS1185`）阻断，未顺带修改无关文件。
+- 未执行（环境受限）：iPhone 真机冷启动首次弹窗、系统通知权限框、前台/后台本地横幅与提示音、以及从系统设置返回刷新状态（`NOTIF-06`）。
+
 ## 未实现功能分批规划与第 2、3、4 项定向实现（2026-11-25）
 
 关联 PA-004、PA-005、PA-006、PA-010、PA-012、PA-014、PA-021、PA-022；评测矩阵见 [PARTIAL_IMPLEMENTATION_EVALUATION.md](PARTIAL_IMPLEMENTATION_EVALUATION.md)。
@@ -1496,6 +1521,86 @@ fetch、Worker fetch 和同源重定向可注入令牌；跨源重定向剥离�
 受保护代理会拒绝首次加载。实验服务未强制令牌，iframe 后续请求成功不能
 证明受保护代理下 iframe 加载正常。其他窗口隔离、正式代理联调和更多
 Worker 类型未验证。该实验阻断正式窗口接线。
+
+2026-11-24（剩余缺口总整改 G1–G5 — 多子代理并行与主代理收口）：
+- **已执行并通过**：
+  - `python -m py_compile infra/native-linux/driver.py infra/native-linux/test_driver.py`：退出码 `0`。
+  - `python -m unittest -v infra/native-linux/test_driver.py`（Windows Python 离线）：**32 ran — 30 passed, 2 skipped, 0 failed**（含新增 5 项跨重启持久化、`MAX_SEEN_REQUEST_IDS` 截断、13 组损坏 JSON 降级与软链 load/save 拒绝单测；2 个跳过为既有 Linux 进程/socket 专用用例）。
+  - Node v24 `module.stripTypeScriptTypes` 语法校验：全部 40 个改动/新增 `.ts` 文件通过（`failed: []`）。
+  - 跨包导出/导入静态一致性核对（`@rakazo/db`、`@rakazo/adapters`、`@rakazo/contracts`、`@rakazo/adapter-kit`）及 `packages/auth/src/account-deletion-response.test.ts` 对 `apps/api/src/app.ts` 的源码顺序不变量检查通过。
+  - 全工作区 `git diff --check`：退出码 `0`。
+- **未执行**（本机无 `node_modules`，按协作约定未重装依赖或启动数据库/桌面/Linux 服务）：
+  - 全量 TypeScript 类型检查（`pnpm typecheck`）与 Biome 检查（`pnpm biome check`）；
+  - Vitest 离线单元测试（含 `project-account-lifecycle.test.ts`、`account-deletion-claim-recovery.test.ts`、`task-execution.test.ts`、`apps/api/src/routes/tasks.test.ts`、`run-tools.test.ts`、`executor.test.ts`、`apps/web/src/pages/Projects.test.tsx` 及全部前序 PA-022/PA-023 测试）；
+  - 授权服务器 `pnpm --filter @rakazo/api db:migrate`（`20261124120000` + `20261124140000`）、`VERIFY_DATABASE=1` PostgreSQL 集成测试、Linux 实机 `SO_PEERCRED`/驱动重启/文件权限验收及移动端/Web 端实机联调。
+
+2026-11-24（多子代理并行：Pi Adapters 加固 + Native Linux 加固 + `stop-that-shit` 全量评测与发现修复）：
+- **已执行并通过**：
+  - `python -m unittest -v infra/native-linux/test_driver.py`（Windows Python 3.13.13 离线）：25 passed，2 skipped（Linux 进程/socket 专用用例按标注跳过）；`python -m py_compile infra/native-linux/driver.py infra/native-linux/test_driver.py` 通过。
+  - `stop-that-shit` 插件（独立临时 `PLUGIN_DATA`）：`node scripts/evaluate-cases.cjs` 24/24 PASS、`node scripts/sts.cjs doctor` PASS、52/57 零依赖测试文件（728 pass / 0 fail / 3 skip；5 个失败文件均因未装选装包 `effect`/`acorn`）、48 步 Antigravity Guard 端到端实测全部 exit 0（含 `agents=N`、`run_workflow`、`swarm`、文件锁、Hash/依赖拦截与诊断命令）。
+  - 全工作区 `git diff --check` 通过（退出码 0）。
+- **未执行**（本机无 `node_modules`，按约定未重装依赖或启动数据库/Linux 服务）：
+  - `vitest` 定向测试（`executor.test.ts`、`executor-lazy-computer.test.ts`、`run-tools.test.ts`、`native-linux-sandbox.test.ts`、`project-workspace-deletion.test.ts`、`project-workspaces.test.ts`）
+  - `@rakazo/adapters`、`@rakazo/api` TypeScript 类型检查与 Biome 检查
+  - 授权 Linux/PostgreSQL 服务器实机验证（Unix socket `SO_PEERCRED`、真实符号链接 `cwd`、进程组清理、真实 Pi provider 与 PostgreSQL 并发）
+
+2026-11-24（PA-022 非空项目删除、清理恢复与项目运行撤权闭环）：
+本机已执行 `git diff --check` 通过，并静态核对 `20261124140000_project_workspace_deletion_claim`
+迁移 SQL、`lockProjectWorkspaceForMutation` 锁顺序（Space 锁 → `project_workspaces` 行锁 → 业务行锁）、
+`claim/renew/release/cancelRuns/listBots/finalize` 认领与 RESTRICT 逆序清理逻辑、
+`background-job-handlers.ts` 统一项目存续守卫与僵尸 Run 取消收口、`project-workspace-deletion.ts`
+受控 `runAsSystem` 拆卸流程及全部新增/更新测试文件。本机不存在 `node_modules`，按协作约定
+未重装依赖或启动数据库，以下验证均**未执行**：
+- `vitest` 定向离线测试（`packages/contracts/src/project-workspace.test.ts`、
+  `packages/db/src/project-workspace-read.test.ts`、`packages/db/src/project-workspace-deletion.test.ts`、
+  `packages/db/src/groups.test.ts`、`packages/adapters/src/background-job-handlers.test.ts`、
+  `apps/api/src/project-workspace-deletion.test.ts`、`apps/api/src/routes/project-workspaces.test.ts`、
+  `apps/api/src/routes/project-workspace-thread.test.ts`）
+- `@rakazo/contracts`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api` TypeScript 类型检查与 Biome 检查
+- 授权服务器 `prisma migrate deploy` 与 `VERIFY_DATABASE=1` PostgreSQL 集成测试
+  （`packages/db/src/project-workspace.postgres.test.ts`）及真实非空项目删除/崩溃恢复联调
+
+2026-11-24（`backend` 工作区迁移 + PA-023 `mcp-oauth.ts` 两处并发窗口修复）：
+本机已核对 `butterflyray` -> `backend` 迁移后 33 项文件集合与初始 `git diff` 哈希一致；
+对 `packages/adapters/src/mcp-oauth.ts` 与 `packages/adapters/src/mcp-oauth.test.ts`
+完成静态路径核对（`incrementRevisionOnIssue`、`committedTokens`、`disconnect()` 无密文行与
+不可读密文行分支、`commitMaterial` 条件 `mcpServerSpace` 查询、既有断言与新增两项交错
+回归测试）并执行 `git diff --check` 通过。本机不存在 `node_modules`，按协作约定未重装依赖
+或启动服务，以下验证均**未执行**：
+- `vitest` 定向测试（`packages/adapters/src/mcp-oauth.test.ts`、
+  `packages/adapters/src/secret-persistence.test.ts`、
+  `packages/adapters/src/mcp-oauth.postgres.test.ts` 及前述 PA-022/P3 定向测试）
+- `@rakazo/adapters` 及相关包 TypeScript 类型检查与 Biome 检查
+- 授权服务器 PostgreSQL 真实锁并发与真实 MCP OAuth 服务商端到端验收
+
+2026-11-24（PA-022 / PA-023 / P3 后端三项按序补强）：本机已执行
+`git diff --check` 通过，并静态核对认证组织拦截、`beforeRemoveMember`
+钩子与 `TS6059` 修复、MCP OAuth 动态客户端回调绑定/暂存/revision 锁校验、
+`executor.ts` `resolveModel` 预算包装以及 `tasks.ts` 通知与审计代码。本机
+不存在 `node_modules`，按协作约定未重新安装依赖或启动服务，以下验证均**未执行**：
+- `vitest` 定向测试（`packages/db/src/project-account-lifecycle.test.ts`、
+  `packages/db/src/groups.test.ts`、`packages/auth/src/account-deletion-response.test.ts`、
+  `packages/adapters/src/mcp-oauth.test.ts`、`apps/api/src/routes/tasks.test.ts`）
+- `@rakazo/db`、`@rakazo/auth`、`@rakazo/adapters`、`@rakazo/api` TypeScript
+  类型检查与 Biome 检查
+- 真实 PostgreSQL 并发、真实 MCP OAuth 服务商回调/断开竞态、真实 Pi 运行时与
+  managed task 中断/预算端到端验收
+
+2026-11-24（PA-022 项目工作区与项目内会话后端闭环）：本机已执行
+`git diff --check` 通过，并静态核对新增迁移 SQL、既有外键/RLS/触发器兼容、
+`projectWorkspaces` 契约严格校验、API 路由门禁与错误映射、以及涉及测试
+桩与断言（含修正 `thread-read.test.ts` 与 `groups.test.ts` 的
+`projectWorkspaceId` 断言）。本机工作区不存在 `node_modules`（确认
+`Test-Path node_modules` 为 `False`），按协作约定未重新安装依赖或启动
+PostgreSQL/Docker，以下验证均**未执行**：
+- `vitest` 定向离线测试（`packages/contracts/src/project-workspace.test.ts`、
+  `packages/db/src/project-workspace-read.test.ts`、`packages/db/src/groups.test.ts`、
+  `apps/api/src/thread-read.test.ts`、`apps/api/src/routes/project-workspaces.test.ts`、
+  `apps/api/src/routes/project-workspace-thread.test.ts`）
+- `@rakazo/contracts`、`@rakazo/db`、`@rakazo/api` TypeScript 类型检查与 Biome 检查
+- 授权服务器 `prisma migrate deploy` 与 `VERIFY_DATABASE=1` PostgreSQL 集成测试
+  （`packages/db/src/project-workspace.postgres.test.ts`）
+- 真实数据库下的项目创建、重命名、项目内 Bot/群聊创建及文字聊天端到端联调
 
 2026-11-16（PA-021 手机默认后台地址迁移）：静态核对默认来源及旧
 会话绑定分支，更新专属测试以覆盖缺失、旧域名、IP、未知及损坏作用域；

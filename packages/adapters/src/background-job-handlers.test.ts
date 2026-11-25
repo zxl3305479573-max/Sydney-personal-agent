@@ -188,19 +188,87 @@ describe("createBackgroundJobHandlers", () => {
     expect(continueRun).toHaveBeenCalledTimes(2);
   });
 
-  it("skips a project run if its workspace is no longer accessible", async () => {
+  it("skips a project run and cancels it when its workspace is no longer accessible", async () => {
     const continueRun = vi.fn();
     const query = vi.fn().mockResolvedValue([]);
+    const runFindFirst = vi.fn().mockResolvedValue({
+      id: "run-1",
+      taskId: "task-1",
+      userId: owner.userId,
+      spaceId: owner.spaceId,
+    });
+    const runUpdateManyAndReturn = vi.fn().mockResolvedValue([{ id: "run-1" }]);
+    const attemptUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const taskUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const tx = {
+      run: {
+        findFirst: runFindFirst,
+        findMany: vi.fn().mockResolvedValue([]),
+        updateManyAndReturn: runUpdateManyAndReturn,
+      },
+      attempt: { updateMany: attemptUpdateMany },
+      task: { updateMany: taskUpdateMany },
+      externalEffect: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      message: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const handlers = createBackgroundJobHandlers({
       prisma: {
         run: { findUnique: vi.fn().mockResolvedValue({ ...owner, projectWorkspaceId: "project-a" }) },
         $queryRaw: query,
+        $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
       },
       executor: { continueRun },
     } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
     await handlers["run.continue"]({ runId: "run-1" });
     expect(query).toHaveBeenCalledOnce();
     expect(continueRun).not.toHaveBeenCalled();
+    expect(runUpdateManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: ["run-1"] } }),
+        data: expect.objectContaining({ status: "cancelled" }),
+      }),
+    );
+    expect(taskUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["task-1"] } },
+      data: { status: "cancelled" },
+    });
+  });
+
+  it("skips routine, retry, and compaction jobs when their project workspace is inactive or deleting", async () => {
+    vi.mocked(compactHistory).mockClear();
+    const wakeRoutine = vi.fn();
+    const retryRoutineRun = vi.fn();
+    const query = vi.fn().mockResolvedValue([]);
+    const handlers = createBackgroundJobHandlers({
+      prisma: {
+        routine: {
+          findUnique: vi.fn(async () => ({
+            ...owner,
+            bot: { ...owner, projectWorkspaceId: "project-deleting" },
+          })),
+        },
+        run: { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })) },
+        thread: { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })) },
+        $queryRaw: query,
+      },
+      executor: { wakeRoutine, retryRoutineRun, contextStrategy: "current" },
+    } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
+
+    await handlers["routine.wakeup"]({
+      routineId: "routine-1",
+      scheduledFor: "2026-11-24T00:00:00.000Z",
+    });
+    await handlers["routine.retry"]({ runId: "run-1" });
+    await handlers["history.compact"]({ threadId: "thread-1" });
+
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(wakeRoutine).not.toHaveBeenCalled();
+    expect(retryRoutineRun).not.toHaveBeenCalled();
+    expect(compactHistory).not.toHaveBeenCalled();
   });
 
   it.each([null, "project-original"])("restores a Run's stored project (%s) instead of the caller's", async (projectWorkspaceId) => {
@@ -243,7 +311,14 @@ describe("createBackgroundJobHandlers", () => {
     }));
     const wakeRoutine = vi.fn(async () => { seen.push(currentDbContext()); });
     const handlers = createBackgroundJobHandlers({
-      prisma: { routine: { findUnique } },
+      prisma: {
+        routine: { findUnique },
+        $queryRaw: vi.fn(async () =>
+          projectWorkspaceId
+            ? [{ id: projectWorkspaceId, name: "Project", createdAt: new Date(0), updatedAt: new Date(0) }]
+            : [],
+        ),
+      },
       executor: { wakeRoutine },
     } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
     const caller = { ...owner, projectWorkspaceId: "project-current" };

@@ -1,5 +1,9 @@
 # 开发过程记录
 
+2026-11-25（PA-021 个人中枢首页新增「后台陪伴」卡片组件）：在 `apps/mobile/components/home-companion-card.tsx` 新增暖瓷风格（`lavender` 微光渐变、零字体覆写）的 `<HomeCompanionCard />` 组件并挂载到 `apps/mobile/components/home-hub.tsx` 置顶横幅下方。复用现有 `companion-activity.ts` 与 `companion-screen-auto.ts`，支持在中枢首页直接查看实时陪伴／屏幕共享状态、切换陪伴伙伴、一键开启／停止灵动岛后台陪伴及触发屏幕陪伴，并在未打包原生扩展的侧载版本下清晰提示并降级为直达对话入口。新增 `apps/mobile/lib/home-companion-card.test.tsx` 并更新 `home-hub.test.tsx`，2 个文件 5 项 Vitest 回归及 `git diff --check` 全部通过；iPhone 真机灵动岛与屏幕共享交互待真机验证，未提交或推送。
+
+2026-11-25（PA-021 手机 App 首次进入通知弹窗与消息通知设置）：按用户批准的实施计划与 [专项评测](NOTIFICATION_SETTINGS_EVALUATION.md) 完成移动端通知引导与设置闭环：（1）新增无原生依赖状态模块 `apps/mobile/lib/notification-preferences-state.ts` 与持久化模块 `apps/mobile/lib/notification-preferences.ts`，将 `prompted`、`enabled`、`messages`、`needsAttention`、`completions`、`sound` 存入 `SecureStore`（`sydney.mobile.notifications.v1`），避免冷启动调用阻塞型 `getPermissionsAsync()`，并在侧载构建下解耦本地通知权限申请与远程 APNs 注册；（2）新增 `apps/mobile/lib/use-first-launch-notification-prompt.ts` 并接入 `apps/mobile/app/_layout.tsx`，在启动加载完成且 Splash 隐藏、进入主路由（非 `/sign-in`、`/server`、`/paywall`）时弹出一次性「开启消息通知」询问框；（3）更新 `apps/mobile/lib/live-notifications.ts` 使 `configureForegroundNotifications()` 按用户偏好控制前台横幅与提示音；（4）新增 `apps/mobile/app/(settings)/notifications.tsx` 并在 `(settings)/_layout.tsx` 与 `(settings)/settings-home.tsx` 注册入口，提供总开关、系统拒绝跳转系统设置、分类提醒开关、一键本地测试通知与侧载边界说明，保留 Android 原生 `RakazoNotifications` 入口不变。7 个核心通知 Vitest 文件（40 项）全部通过，`git diff --check` 通过；iPhone 真机弹窗与横幅待真机验证，未提交或推送。详见 [本批验证](VALIDATION.md#手机-app-首次进入通知弹窗与消息通知设置2026-11-25)。
+
 2026-11-25（PA-004／PA-005／PA-006／PA-010／PA-012／PA-014／PA-021／PA-022 未实现功能分批规划与部分实现项第 2、3、4 项专项落地）：先按 Stop That Shit 原则编写 [专项评测与总规划](PARTIAL_IMPLEMENTATION_EVALUATION.md) 并在 [总计划](PLAN.md#未实现功能总规划与部分实现项第-234-项专项实施2026-11-25) 登记范围、交付物与验收边界，随后完成三项源码实施：（1）第 2 项 PA-022 授权目录内容搜索：在 `packages/contracts/src/project-directory.ts` 扩展 `ProjectFileOperationSchema`／`ProjectFileResultSchema` 的 `search` 契约，在 `packages/adapters/src/run-project-policy.ts` 与 `run-tools-project-files.ts` 注册受 `read-only`／`read-write` 允许且走逐次项目审批与离线排队续接的 `project_search_files`，在 `apps/desktop/src/project-directory.ts`、`packages/adapters/src/windows-project-files.ts` 和 `infra/native-linux/driver.py` 实现受限深度/文件数/匹配数、跳过符号链接与重解析点/非 UTF-8/超限文件的安全搜索；（2）第 3 项 PA-021 iPhone 陪伴状态连续性：修复 `apps/mobile/lib/companion-thread-watch.ts` 中语音通话状态被 `snapshot === null` 阻断的问题，使切页或重连期间活跃陪伴 Bot 的语音通话状态（`listening`／`thinking`／`present`）无需等待首帧快照即可即时同步；（3）第 4 项 P2–P4 受管任务与原生 Linux 审计缺口：在 `packages/adapters/src/pi-runtime-subagent.ts` 新增 `composeSubagentCallObserver`，修复子代理优先使用 `target.config.callObserver` 而绕过父级 `host.modelCallObserver`（Task token 预算门禁）的阻塞项，并补齐及实跑 11 个 Vitest 文件（168 项通过、2 项 Linux-only 跳过）与 Python `test_driver.py`（23 项通过、4 项跳过）。未提交或推送，未修改无关文件，详见 [本批验证](VALIDATION.md#未实现功能分批规划与第-234-项定向实现2026-11-25)。
 
 2026-11-24（PA-019／PA-020／PA-021／PA-022／PA-023／PA-024 手机 App 个人中枢首页与全界面浅柔暖瓷风格统一）：接续中断会话并将 `ui` 工作区切换至最新集成分支 `cursor/integrate-remote-branches-7334`（`148a4f5af`）。按用户逐步确认的明确边界——（1）100% 保持原有字体不做修改；（2）PC 端不做修改（`apps/web`、`apps/desktop`、`packages/ui-web` 已恢复至 `HEAD` 零差异）；（3）仅在手机 App 端构建个人中枢首页 `/`、拆分独立会话列表 `/chats` 并保留底部三项文字导航栏「首页 · 聊天 · 项目」；（4）将首页与组件色彩整体调浅（清透奶白画布 `#F3F1EC`、暖奶瓷白卡片 `#FFFEFC`、雾感暮蓝置顶横幅 `#364556`、暖灰棕 `#6E675E` 细圆环与浅石／陶粉图表）；（5）通过三个写集互不重叠的并行子代理，将手机 App 其余全部子界面（聊天列表、全局搜索、新建群／空间／Bot 抽屉、对话内电脑／多选／MCP／语音／询问卡片、项目工作区与目录绑定、GitHub 三栏分段与热力图／仓库页、连接应用目录与详情、云电脑画面与键盘栏、产物库、例行任务，以及共用 `SettingsGroup`／`ListSearchInput`／`SegmentedPills`／`NativeSheet` 与 `(settings)/*` 13 个设置子页，共 73 个 `.ts/.tsx` 文件）全面统一为同一套浅柔暖瓷风格。随后按用户进一步要求（「首页的组件都有一些颜色的渐变，其他界面的也需要这样」），新增 `apps/mobile/lib/card-gradient.ts` 并在共用 `glass-surface.tsx`／`glass-surface.ios.tsx`、`settings-group.tsx`、`home-hub.tsx`、`home-styles.ts`、`project-folder-card.tsx`、`github.tsx`、`integrations.tsx`、`AppConnectCard.tsx`、`search.tsx`、`artifacts.tsx`、`routine-list.tsx`、`special-message-card.tsx` 等全部卡片层接入 React Native `0.86` 原生 `experimental_backgroundImage` 角落径向光晕与底色线性渐变（明暗双主题适配，覆盖暖香槟、雾蓝、鼠尾草绿、暖陶粉、暮紫与珠光六套柔和微光）。全量 138 项对比度与令牌同步断言、76 个 `.ts/.tsx` AST 解析、`tokens.css` 配对、零字体违规扫描及 `git diff --check` 全部通过；Vitest、`tsc`、打包及 iPhone 真机验收待具备完整依赖与设备环境执行，未提交或推送。[设计方案](design/DUAL_SURFACE_UI_DESIGN_PLAN.md) · [本批验证](VALIDATION.md#手机-app-个人中枢首页与全界面风格统一离线校验2026-11-24)
@@ -432,6 +436,86 @@ USB 实测无设备，当前进程没有 Expo 发布令牌，本机 Expo 状态�
 重定向可注入；跨源重定向剥离。首次主页面导航和 iframe 导航的 `frame`
 为空，候选不注入，受保护代理会拒绝首次加载。实验未强制令牌，不能证明
 iframe 完整加载；正式窗口接线保持阻断。
+
+2026-11-24（剩余缺口总整改 G1–G5 — 3 个正交写集子代理并行 + 主代理收口）：
+1. **G2 + G3 受管任务与 Pi Adapters（子代理 A）**：
+   - `packages/db/src/task-execution.ts`：抽取只读 `readTask` 与 `assertManagedRunPreconditions`，新增 `preflightManagedRun`（不加行锁、不扣减预算）与 `rollbackManagedModelReservation`（行锁扣回 `modelCalls`/`reservedTokens` 并以 0 为下界）；扩展 `controlManagedTask` 返回 `runId`/`threadId`/`eventSeq`/`cancelledQueuedRun`；升级 `confirmManagedTaskStopped` 仅在终态 Run 无未过期 `computerExecutionLease`、无遗留 `computer.executionRunId` 且 `attemptCount === 0` 或服务端 `evidence.backgroundWork === "idle"` 时置 `quiesced = true`（默认 fail-closed `"unknown"`）。
+   - `apps/api/src/routes/tasks.ts`：`control`（`pause`/`cancel`）与 `revoke` 统一取消 `runJobKey` 队列作业、触发 `deps.events.notify` 唤醒订阅，且对非排队取消的 `cancel`/`revoke` 尽力调用 `cancelComputerRunWork` + `releaseScreen` 并过期租约；`confirmStop` 改为服务端实时探查 `inspectBackgroundWorkEvidence` → `inspectBackgroundWork` → `"unknown"`，不信任客户端自报。
+   - `packages/adapters/src/run-tools.ts` 与 `executor.ts`：`managed_task` 工具在 `gateToolCall` 前执行 `preflightManagedRun` 拦截多余审批记录；`managedCallObserver.beforeCall` 在下游 `observer.beforeCall` 抛错或中止时尽力调用 `rollbackManagedModelReservation` 并透传原异常。同步更新 `task-execution.test.ts`、`apps/api/src/routes/tasks.test.ts`、`run-tools.test.ts`、`executor.test.ts` 与 `docs/audit/{db-task-execution,pi-adapters,api-web}.md`。
+2. **G1 + G5 账号删除声明防卡死与双端非空删除接线（子代理 B）**：
+   - `packages/db/src/project-account-lifecycle.ts`：`claimProjectAccountDeletion` 改为返回 `{ claimedNow: boolean }`（兼容仅返回 `{ authorized: true }` 的旧单测桩），新增 `releaseProjectAccountDeletionClaim`；`apps/api/src/account-deletion.ts` 与 `apps/api/src/app.ts` 的 `beforeDeleteUser` 通过 `withPreDestructiveAccountDeletionClaim` 在破坏前 `billing.cancelForDeletedUser` 失败且 `claimedNow === true` 时释放声明，进入 `deleteAccountContent` 后保持不释放；更新 `project-account-lifecycle.test.ts` 并新增 `account-deletion-claim-recovery.test.ts`（同时保持 `packages/auth/src/account-deletion-response.test.ts` 源码顺序不变量）。
+   - `apps/mobile/app/projects/[workspaceId].tsx` 与 `apps/web/src/pages/Projects.tsx`：按 `capabilities.remove` 优先调用 `projectWorkspaces.remove({ id, confirmRemoveAppData: true })`，确认弹窗明确提示不删除电脑本地文件，并在旧后端仅返回 `removeEmpty: true` 时自动降级；新增 `apps/web/src/pages/Projects.test.tsx`（未在 `apps/mobile/app/` 下新建测试文件，遵循 Expo Router 路由目录与 `vitest.config.ts` 仅扫描 `apps/mobile/lib/**/*.test.{ts,tsx}` 的约束）。
+3. **G4 Native Linux 状态原子持久化（子代理 C）**：
+   - `infra/native-linux/driver.py`：`Driver.__init__` 增加可选 `state_path`（默认 `<root>/.driver-state.json`），对 `fences`、`control_fences`（保留 `fence` + `leaseId` 结构）与有界 `seen_request_ids` 做严格 Schema 校验和原子落盘（`os.path.islink` + `O_NOFOLLOW` + `0o600` 临时文件 + `fsync` + `os.replace`，写失败回滚内存，软链拒绝，损坏 JSON 告警降级空表）；新增 5 项重启/容量/损坏/软链单测到 `infra/native-linux/test_driver.py` 并更新 `docs/audit/native-linux.md`。
+4. **主代理收口**：在 `packages/db/src/index.ts` 统一补齐 `releaseProjectAccountDeletionClaim` 导出（`task-execution.js` 已 `export *`），完成全部跨包导出符号一致性校验、Node v24 `stripTypeScriptTypes` 语法检查（40 个改动 `.ts` 文件全部通过）、Python 单测复跑与 `git diff --check`。未安装依赖、未启服务、未提交或推送。
+
+2026-11-24（多子代理并行：Pi Adapters 控制/预算加固 + Native Linux 防重放/`cwd` 加固 + `stop-that-shit` 全量评测及发现修复）：
+1. **Pi Adapters（子代理 1 + 主代理协调）**：`packages/adapters/src/executor.ts` 在获取电脑执行租约前加入 `isManagedTaskControlAllowed` 预检、修复准备阶段 `mayOpenModelStream` 对 `ManagedTaskControlStopped` 的收口路径并加固 `managedCallObserver`；`packages/adapters/src/run-tools.ts` 统一所有触发类型的异步工具阶段中止校验；新增 `executor.test.ts` 与 `run-tools.test.ts` 回归用例，同步更新写集外的 `executor-lazy-computer.test.ts` 匹配前置控制预检断言，并更新 `docs/audit/pi-adapters.md`。
+2. **Native Linux（子代理 2）**：`packages/adapters/src/native-linux-sandbox.ts` 新增 `buildNativeDriverRequest()`（剥离保留字段 + 附加 UUID `requestId`）与 `assertSafeRelativeCwd()`；`infra/native-linux/driver.py` 新增有界防重放缓存（`MAX_SEEN_REQUEST_IDS = 4096`）并对 `execute`/`act`/`write` 强制 UUID `requestId`，新增 `resolve_command_cwd()` 通过 `realpath` + `commonpath` 约束初始工作目录在 Bot home 内；补充 `native-linux-sandbox.test.ts` 与 `infra/native-linux/test_driver.py`（Python 离线单测 25 passed / 2 skipped），同步更新 `docs/audit/native-linux.md`。
+3. **`stop-that-shit` 全量评测与 2 处即时修复（子代理 3 + 主代理）**：完成 `stop-that-shit` 插件 48 步 Guard 端到端实测（含多子代理 `agents=N` 并发门禁、发现 `swarm(add, n=5)` 漏算批量配额等 3 项适配层局限）与 `stss` 运维文档实战；依据其 Stop Ladder 对 `project-workspace-deletion` 的只读审查发现，修复 `apps/api/src/project-workspace-deletion.ts` 破坏前 `signal?.aborted` 释放 claim 逻辑与单测，并在 `apps/api/src/routes/project-workspaces.ts` 补齐 `SpaceDeletionInProgressError` → `CONFLICT` 及 `IsolationError` → `NOT_FOUND` 错误映射。未安装依赖或执行提交/推送。
+
+2026-11-24（PA-022 下一阶段：非空项目删除、清理恢复与项目运行撤权闭环）：
+1. **迁移与 Schema**：新增 `packages/db/prisma/migrations/20261124140000_project_workspace_deletion_claim/migration.sql` 为 `project_workspaces` 添加 `deletionClaimId` 列，同步更新 `packages/db/prisma/schema.prisma`。
+2. **DB 删除生命周期与写并发串行化**：新增 `packages/db/src/project-workspace-deletion.ts` 并在 `packages/db/src/index.ts` 导出：`lockProjectWorkspaceForMutation`（`FOR SHARE OF w`）、`claimProjectWorkspaceDeletion`（Space 锁 + 行锁 + 5 分钟过期认领接管）、`renewProjectWorkspaceDeletionClaim` / `releaseProjectWorkspaceDeletionClaim`、`listClaimedProjectWorkspaceBots`、`cancelClaimedProjectWorkspaceRuns`、`finalizeProjectWorkspaceDeletion`（核验剩余 Bot 归零及延期表 `artifacts`/`cloud_agents`/`purchases` 无残留后按 RESTRICT 逆序删除残余会话行与项目行）。在 `packages/db/src/repos.ts`（`createBot`）、`packages/db/src/groups.ts`（`createGroup`）、`apps/api/src/thread-target.ts`（`sendThreadMessage`）接入 `lockProjectWorkspaceForMutation`；`removeEmptyProjectWorkspace` 补充 `deletionClaimId IS NULL`。
+3. **后台作业与运行撤权收口**：在 `packages/adapters/src/background-job-handlers.ts` 将非空 `projectWorkspaceId` 存续守卫提升至 `asOwner`（覆盖 `run.continue`、`routine.wakeup`、`routine.retry`、`history.compact`、`call.expire`、`skill.teaching-expire` 与带 `runId` 的 `messaging.deliver` 镜像）；`run.continue` 遇失活项目时在受控 `runAsSystem` 下将未终结 Run 收口为 `cancelled`。
+4. **契约、API 编排与测试**：`packages/contracts/src/rpc.ts` 新增 `projectWorkspaces.capabilities.remove` 与 `projectWorkspaces.remove`；新增 `apps/api/src/project-workspace-deletion.ts` 编排认领、取消在途 Run/队列作业/电脑工作、唤醒 SSE 订阅、受控 `runAsSystem` 下逐个 `destroyBot` 及终态删除，接线 `apps/api/src/routes/project-workspaces.ts` 并记录 `project_workspace.deleted` 审计事件；同步新增/更新契约、DB、Adapters、API 离线测试与 PostgreSQL 集成测试。本机无 `node_modules`，未安装依赖或运行测试/类型检查，未提交或推送。
+
+2026-11-24（工作区同步至 `backend` 并修复 `mcp-oauth.ts` 两处并发窗口）：
+1. 将原 `butterflyray` 工作区的全部 31 个修改文件与 2 个新增文件完整同步至 `backend` 工作区（基线均为 `831156acf`，保留 `butterflyray` 原样未删除）。
+2. 修复只读审查发现的两处 PA-023 `packages/adapters/src/mcp-oauth.ts` 并发窗口：
+   - **`complete()` 密文提交与 `revision` 递增原子化**：为 `ProviderOptions` 新增 `incrementRevisionOnIssue`、`PersistMaterial` 透传 `incrementRevision`，`begin()`/`complete()` 构造提交用 provider 时启用 `incrementRevisionOnIssue: true`；`StoredMcpOAuthProvider.persist(true)` 将 `revision: { increment: 1 }` 合并进 `lockMaterial` 锁内的 `commitMaterial` 单次 `tx.mcpServer.update`，并移除锁外第二次 `prisma.mcpServer.update`，同时在 `complete()` 核验 `pending.provider.committedTokens`。
+   - **`disconnect()` 无密文行场景同样锁内递增 `revision`**：`disconnect()` 清理内存 `pending` 与 DB `mcpOAuthSession` 后不再因 `server.secretId === null` 或 `secret` 行缺失提前返回，而是统一经 `replaceMaterial(server.id, {}, input, { incrementRevision: true })` 在 `lockMaterial` 锁内递增 `revision`（对不可读/悬空 `secretId` 仅递增 `revision` 而不改动指针；`commitMaterial` 仅在 `stored` 存在时查询 `mcpServerSpace`）；阻断已消费 session 的在途 `complete()` 在断开后落盘。
+3. 同步更新 `packages/adapters/src/mcp-oauth.test.ts` 中 3 处旧 `mcpServer.update` 断言与 `$transaction` 桩，新增 2 项确定性并发交错回归测试（覆盖并发 `complete()` 原子锁竞态与 `secretId === null` 时的 `disconnect()`/在途 `complete()` 竞态）。本机无 `node_modules`，按约定未安装依赖或运行测试/类型检查，未提交或推送。
+
+2026-11-24（按序推进 PA-022 / PA-023 / P3 后端三项补强）：
+1. **PA-022 生命周期安全补强**：在 `packages/db/src/project-account-lifecycle.ts`
+   新增 `assertMemberHasNoProjectWorkspacesInOrg`（持有 `user` 行锁并核验系统
+   权限后检查该用户在目标组织任意 Space 下的 `project_workspaces`）；在
+   `packages/auth/src/index.ts` 将 `isBlockedAuthPath(ctx.path)` 下沉到
+   `hooks.before` 直接拦截 `/organization/leave` 与 `/organization/remove-member`，
+   并为 `organization` 插件接线 `organizationHooks.beforeRemoveMember`，在
+   `apps/api/src/account-deletion.ts` 与 `apps/api/src/app.ts` 完成错误映射与
+   注入；同步移除 `packages/auth/src/account-deletion-response.test.ts` 的跨包
+   相对导入以消除既往 `TS6059`；`packages/db/src/groups.ts` 的 `archiveGroup`
+   补齐显式 `projectWorkspaceId: conversationProjectId(actor)`。
+2. **PA-023 MCP 原生回调客户端绑定与并发防线**：在
+   `packages/adapters/src/mcp-oauth.ts` 新增 `clientRedirectUri` 与
+   `dynamicClientMatchesRedirect`，当回调 URI 切换（如网页回调迁往 API 原生
+   回调）且旧动态客户端不兼容时，在 `begin()` 隔离副本中（`stageOnly: true`）
+   重新注册动态客户端，不再提前污染现网有效 grant 与旧客户端；在 `begin()` 捕获
+   `server.revision` 写入加密会话并在 `complete()` 换码前与 `commitMaterial()`
+   的 `lockMaterial` 锁内双重校验 `expectedRevision`，提交前剥离临时
+   `sessionRevision`；`disconnect()` 同步清理内存 pending 与 DB `mcpOAuthSession`
+   行，阻断断开重连与并发乱序覆盖。同步补充 `mcp-oauth.test.ts` 回归测试；
+   `SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN` 保持默认关闭。
+3. **P2/P3 任务执行审计补强**：在 `packages/adapters/src/executor.ts` 为
+   `resolveModel` 补齐 `managed_task` 下的 `managedCallObserver` 包装（仍保持
+   `filterManagedTaskTools` 不暴露 `run_subagent`）；在 `apps/api/src/routes/tasks.ts`
+   为 `revoke` 补齐取消排队 Run 后的 `deps.events.notify`、为 `reconcile` 补齐
+   `task.effect.reconciled` 审计事件、为 `preview` 补齐 `conversationScopeWhere`；
+   新增 `apps/api/src/routes/tasks.test.ts`。
+本机无 `node_modules`，按约定未安装依赖或运行测试/类型检查，未提交或推送。
+
+2026-11-24（PA-022 项目工作区与项目内会话后端闭环）：核对 `79deaa54d`
+开启 `SYDNEY_PROJECT_CREATE_EXPERIMENT` 与
+`SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT` 后的真实后端链路，发现
+数据库仍保留五张核心会话表的 `CHECK ("projectWorkspaceId" IS NULL)`，且
+项目内文字对话缺少 `rename`、`threadHead`、`messages`、`stop`、`markRead`
+及 `create` 冲突错误映射。本轮新增迁移
+`packages/db/prisma/migrations/20261124120000_enable_project_conversation_scope/migration.sql`
+仅解除 `bots`、`chat_groups`、`threads`、`tasks`、`runs` 五表禁写，继续
+保留 `artifacts`、`cloud_agents`、`purchases` 三张延期表的禁写约束及全部
+既有外键、RLS 和父子一致性触发器；同步更新
+`packages/db/src/project-workspace.postgres.test.ts` 验证开放五表后的隔离
+与触发器行为。DB 新增 `renameProjectWorkspace` 与
+`ProjectWorkspaceConflictError`，`groups.ts` 的 `updateGroup` 与
+`thread-target.ts` 的已读/未读更新补齐显式项目范围；契约与 API 新增
+`projectWorkspaces.rename/threadHead/messages/stop/markRead` 并在
+`create` 将账号删除中与资源冲突映射为 `CONFLICT`。同步补充契约、DB 与
+API 离线测试，并修正 `groups.test.ts` 两处滞后的 `projectWorkspaceId: null`
+断言。因本机无 `node_modules` 且按规则不安装依赖或启动服务，未运行测试、
+类型检查或数据库迁移；成员移除/退出组织拦截、非空项目删除及附件/外部操作
+留待后续批次与服务器验证。
 
 2026-11-16（PA-021 手机默认后台地址迁移）：默认侧载地址不再因旧
 会话来源自动回退到生产域名；已验证为旧生产域名的会话作用域会在

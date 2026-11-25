@@ -16,8 +16,14 @@ import {
   SandboxUnavailableError,
   SandboxUnresponsiveError,
 } from "@rakazo/adapter-kit";
+import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import { currentDbContext, getProjectWorkspace, runAsSystem, runAsTenant } from "@rakazo/db";
+import {
+  cancelRunsInTransaction,
+  getProjectWorkspace,
+  runAsSystem,
+  runAsTenant,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { settleCallRequest } from "./call-request.js";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
@@ -35,6 +41,36 @@ import { expireTaughtSkillTeaching } from "./teaching-session.js";
 
 type Tenant = { spaceId: string; userId: string; projectWorkspaceId?: string | null };
 
+type AsOwnerOptions<P> = {
+  /** Skip when the row belongs to a project workspace that has been deleted, claimed for deletion, or revoked. */
+  requireActiveProject?: boolean;
+  onInactiveProject?: (payload: P, tenant: Tenant) => Promise<void>;
+};
+
+async function cancelRevokedProjectRun(
+  prisma: PrismaClient,
+  runId: string,
+  tenant: Tenant,
+): Promise<void> {
+  if (!tenant.projectWorkspaceId || typeof prisma.$transaction !== "function") return;
+  await runAsSystem("cancel run for inaccessible project workspace", () =>
+    prisma.$transaction(async (tx) => {
+      const run = await tx.run.findFirst({
+        where: {
+          id: runId,
+          spaceId: tenant.spaceId,
+          userId: tenant.userId,
+          projectWorkspaceId: tenant.projectWorkspaceId,
+          status: { in: [...ACTIVE_RUN_STATUSES] },
+        },
+        select: { id: true, taskId: true, userId: true, spaceId: true },
+      });
+      if (!run) return;
+      await cancelRunsInTransaction(tx, [run], new Date());
+    }),
+  );
+}
+
 /**
  * A job that acts for one run, routine, computer, skill, thread, cloud agent or purchase runs
  * as that row's tenant, so row-level security keeps it, and every tool it runs, in
@@ -42,20 +78,31 @@ type Tenant = { spaceId: string; userId: string; projectWorkspaceId?: string | n
  * narrow system read; when the row is gone there is nothing left to act on.
  */
 function asOwner<Key, P extends Key>(
+  prisma: PrismaClient,
   owner: (payload: Key) => Promise<Tenant | null>,
   handler: (payload: P, execution?: BackgroundJobExecution) => Promise<void>,
+  options: AsOwnerOptions<P> = {},
 ): (payload: P, execution?: BackgroundJobExecution) => Promise<void> {
   return async (payload, execution) => {
     const tenant = await runAsSystem("find the tenant a background job acts for", () =>
       owner(payload),
     );
-    if (tenant) {
-      await runAsTenant({
+    if (!tenant) return;
+    if (options.requireActiveProject && tenant.projectWorkspaceId) {
+      const workspace = await getProjectWorkspace(prisma, tenant, tenant.projectWorkspaceId);
+      if (!workspace) {
+        await options.onInactiveProject?.(payload, tenant);
+        return;
+      }
+    }
+    await runAsTenant(
+      {
         spaceId: tenant.spaceId,
         userId: tenant.userId,
         projectWorkspaceId: tenant.projectWorkspaceId ?? null,
-      }, () => handler(payload, execution));
-    }
+      },
+      () => handler(payload, execution),
+    );
   };
 }
 
@@ -143,26 +190,35 @@ export function createBackgroundJobHandlers(deps: {
       })
     )?.computer ?? null;
 
+  const scoped = <Key, P extends Key>(
+    owner: (payload: Key) => Promise<Tenant | null>,
+    handler: (payload: P, execution?: BackgroundJobExecution) => Promise<void>,
+    options?: AsOwnerOptions<P>,
+  ) => asOwner(deps.prisma, owner, handler, options);
+
   return {
-    "run.continue": asOwner(run, async (payload, execution) => {
-      const context = currentDbContext();
-      if (context?.kind === "tenant" && context.projectWorkspaceId) {
-        const workspace = await getProjectWorkspace(deps.prisma, context, context.projectWorkspaceId);
-        if (!workspace) return;
-      }
-      if (execution)
-        await deps.executor.continueRun(payload.runId, deps.workerId, execution.onRunStarted);
-      else await deps.executor.continueRun(payload.runId, deps.workerId);
-      // Automatic messaging mirror: once the run's bot messages are durable,
-      // copy them into the outbox. Never let mirror failures fail the run.
-      if (messagingDeps) {
-        await mirrorMessagingOutbound(messagingDeps, payload.runId);
-        await deps.jobs.enqueue(messagingDeliverJob()).catch(async (error) => {
-          getLogger().error("messaging.deliver enqueue error", error);
-          await drainMessaging();
-        });
-      }
-    }),
+    "run.continue": scoped(
+      run,
+      async (payload, execution) => {
+        if (execution)
+          await deps.executor.continueRun(payload.runId, deps.workerId, execution.onRunStarted);
+        else await deps.executor.continueRun(payload.runId, deps.workerId);
+        // Automatic messaging mirror: once the run's bot messages are durable,
+        // copy them into the outbox. Never let mirror failures fail the run.
+        if (messagingDeps) {
+          await mirrorMessagingOutbound(messagingDeps, payload.runId);
+          await deps.jobs.enqueue(messagingDeliverJob()).catch(async (error) => {
+            getLogger().error("messaging.deliver enqueue error", error);
+            await drainMessaging();
+          });
+        }
+      },
+      {
+        requireActiveProject: true,
+        onInactiveProject: (payload, tenant) =>
+          cancelRevokedProjectRun(deps.prisma, payload.runId, tenant),
+      },
+    ),
     "messaging.credential-cleanup": async ({ installationId, ref }) => {
       await runAsSystem("clean up a retired messaging credential", async () => {
         const installation = await deps.prisma.messagingInstallation.findUnique({
@@ -178,23 +234,33 @@ export function createBackgroundJobHandlers(deps: {
     },
     "messaging.deliver": async ({ runId }) => {
       if (runId && messagingDeps) {
-        await asOwner(run, () => mirrorMessagingOutbound(messagingDeps, runId))({ runId });
+        await scoped(run, () => mirrorMessagingOutbound(messagingDeps, runId), {
+          requireActiveProject: true,
+        })({ runId });
       }
       await drainMessaging();
     },
-    "routine.wakeup": asOwner(routine, async (payload) => {
-      await deps.executor.wakeRoutine(payload.routineId, payload.scheduledFor);
-    }),
-    "routine.retry": asOwner(run, async (payload) => {
-      await deps.executor.retryRoutineRun(payload.runId);
-    }),
-    "computer.update": asOwner(updatedComputer, async ({ updateId }) => {
+    "routine.wakeup": scoped(
+      routine,
+      async (payload) => {
+        await deps.executor.wakeRoutine(payload.routineId, payload.scheduledFor);
+      },
+      { requireActiveProject: true },
+    ),
+    "routine.retry": scoped(
+      run,
+      async (payload) => {
+        await deps.executor.retryRoutineRun(payload.runId);
+      },
+      { requireActiveProject: true },
+    ),
+    "computer.update": scoped(updatedComputer, async ({ updateId }) => {
       await performComputerUpdate(deps, updateId);
     }),
-    "computer.sleep": asOwner(computer, async (payload) => {
+    "computer.sleep": scoped(computer, async (payload) => {
       await sleepComputerIfIdle(deps, payload.computerId);
     }),
-    "computer.control-expire": asOwner(computer, async ({ computerId, leaseId }) => {
+    "computer.control-expire": scoped(computer, async ({ computerId, leaseId }) => {
       try {
         if (await expireComputerControl(deps, computerId, leaseId)) {
           scheduleComputerSleep(deps.jobs, computerId);
@@ -216,19 +282,27 @@ export function createBackgroundJobHandlers(deps: {
         );
       }
     }),
-    "skill.teaching-expire": asOwner(skill, async (payload) => {
-      await expireTaughtSkillTeaching(deps, payload.skillId);
-    }),
-    "call.expire": asOwner(thread, async (payload) => {
-      await settleCallRequest(deps, { ...payload, from: ["ringing"], status: "missed" });
-    }),
-    "cloud_agent.poll": asOwner(cloudAgent, async (payload) => {
+    "skill.teaching-expire": scoped(
+      skill,
+      async (payload) => {
+        await expireTaughtSkillTeaching(deps, payload.skillId);
+      },
+      { requireActiveProject: true },
+    ),
+    "call.expire": scoped(
+      thread,
+      async (payload) => {
+        await settleCallRequest(deps, { ...payload, from: ["ringing"], status: "missed" });
+      },
+      { requireActiveProject: true },
+    ),
+    "cloud_agent.poll": scoped(cloudAgent, async (payload) => {
       await pollCloudAgent(
         { prisma: deps.prisma, jobs: deps.jobs, events: deps.events, cloudAgent: deps.cloudAgent },
         payload,
       );
     }),
-    "purchase.poll": asOwner(purchase, async (payload) => {
+    "purchase.poll": scoped(purchase, async (payload) => {
       await pollPurchase(
         {
           prisma: deps.prisma,
@@ -243,22 +317,26 @@ export function createBackgroundJobHandlers(deps: {
     "push.receipt": async (payload) => {
       await runAsSystem("check a push receipt", () => deps.notifications?.checkReceipt(payload));
     },
-    "history.compact": asOwner(thread, async (payload) => {
-      // Retrieval policies use stored context without paid message-count compaction.
-      // Skip legacy backlog work after a policy change.
-      if (deps.executor.contextStrategy && deps.executor.contextStrategy !== "current") return;
-      await compactHistory(
-        {
-          prisma: deps.prisma,
-          runtime: deps.runtime,
-          jobs: deps.jobs,
-          memoryProviders: deps.memoryProviders,
-          deploymentModelKey: deps.deploymentModelKey,
-          deploymentModelConfigured: deps.deploymentModelConfigured,
-          ...(deps.executor.resolveModel ? { resolveModel: deps.executor.resolveModel } : {}),
-        },
-        payload.threadId,
-      );
-    }),
+    "history.compact": scoped(
+      thread,
+      async (payload) => {
+        // Retrieval policies use stored context without paid message-count compaction.
+        // Skip legacy backlog work after a policy change.
+        if (deps.executor.contextStrategy && deps.executor.contextStrategy !== "current") return;
+        await compactHistory(
+          {
+            prisma: deps.prisma,
+            runtime: deps.runtime,
+            jobs: deps.jobs,
+            memoryProviders: deps.memoryProviders,
+            deploymentModelKey: deps.deploymentModelKey,
+            deploymentModelConfigured: deps.deploymentModelConfigured,
+            ...(deps.executor.resolveModel ? { resolveModel: deps.executor.resolveModel } : {}),
+          },
+          payload.threadId,
+        );
+      },
+      { requireActiveProject: true },
+    ),
   };
 }

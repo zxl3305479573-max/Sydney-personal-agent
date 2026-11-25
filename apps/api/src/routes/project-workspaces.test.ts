@@ -3,54 +3,129 @@ import { currentDbContext } from "@rakazo/db";
 import type { RouterContext } from "./context.js";
 import { projectWorkspaceRoutes } from "./project-workspaces.js";
 
+function authedProjectWorkspaces() {
+  const handler = (callback: unknown) => callback;
+  return {
+    projectWorkspaces: {
+      directoryCapability: { handler },
+      directory: { handler },
+      unbindDirectory: { handler },
+      cloudDirectory: { handler },
+      bindCloudDirectory: { handler },
+      unbindCloudDirectory: { handler },
+      capabilities: { handler },
+      conversationCapabilities: { handler },
+      groupCreationCapability: { handler },
+      list: { handler },
+      get: { handler },
+      roster: { handler },
+      create: { handler },
+      rename: { handler },
+      removeEmpty: { handler },
+      remove: { handler },
+      createBot: { handler },
+      createGroup: { handler },
+      getBot: { handler },
+      updateBot: { handler },
+      conversations: { handler },
+      botContext: { handler },
+      botContextAction: { handler },
+      conversationAction: { handler },
+      updateGroup: { handler },
+      restoreBotInstructions: { handler },
+      exportBot: { handler },
+      threadHead: { handler },
+      threadSnapshot: { handler },
+      messages: { handler },
+      sendText: { handler },
+      stop: { handler },
+      markRead: { handler },
+      cancelRun: { handler },
+      answerApproval: { handler },
+      getArtifact: { handler },
+      subscribe: { handler },
+      consentStatus: { handler },
+      consentAllow: { handler },
+    },
+  };
+}
+
 describe("project workspace creation gate", () => {
   it.each([false, true])("reports creation availability as %s", async (enabled) => {
-    const handler = (callback: unknown) => callback;
     const routes = projectWorkspaceRoutes({
       deps: { env: { projectWorkspaceCreateExperiment: enabled } },
-      authed: { projectWorkspaces: {
-        directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
-        cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-        getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
-        capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
-      } },
+      authed: authedProjectWorkspaces(),
     } as unknown as RouterContext);
     const capabilities = routes.projectWorkspaces.capabilities as unknown as () => Promise<unknown>;
-    await expect(capabilities()).resolves.toEqual({ create: enabled, removeEmpty: enabled });
+    await expect(capabilities()).resolves.toEqual({ create: enabled, removeEmpty: enabled, remove: enabled });
+  });
+
+  it("gates non-empty project removal behind the experiment flag and maps lifecycle errors", async () => {
+    const query = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const tx = {
+      $queryRaw: query,
+      spaceMember: { findUnique: vi.fn().mockResolvedValue({ organizationId: "org-a", space: { deletingAt: null } }) },
+    };
+    const disabledRoutes = projectWorkspaceRoutes({
+      deps: { env: { projectWorkspaceCreateExperiment: false }, prisma: { $queryRaw: query } },
+      authed: authedProjectWorkspaces(),
+    } as unknown as RouterContext);
+    const removeDisabled = disabledRoutes.projectWorkspaces.remove as unknown as (args: unknown) => Promise<unknown>;
+    await expect(removeDisabled({ context: {}, input: {} })).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+    });
+    expect(query).not.toHaveBeenCalled();
+
+    const enabledRoutes = projectWorkspaceRoutes({
+      deps: {
+        env: { projectWorkspaceCreateExperiment: true },
+        prisma: { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) },
+      },
+      authed: authedProjectWorkspaces(),
+    } as unknown as RouterContext);
+    const remove = enabledRoutes.projectWorkspaces.remove as unknown as (args: unknown) => Promise<unknown>;
+    await expect(
+      remove({
+        context: { actor: { userId: "user-a", spaceId: "space-a" } },
+        input: { id: "project-missing", confirmRemoveAppData: true },
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const deletingSpaceTx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([]),
+      spaceMember: {
+        findUnique: vi.fn().mockResolvedValue({
+          organizationId: "org-a",
+          space: { deletingAt: new Date() },
+        }),
+      },
+    };
+    const deletingSpaceRoutes = projectWorkspaceRoutes({
+      deps: {
+        env: { projectWorkspaceCreateExperiment: true },
+        prisma: {
+          $transaction: async (callback: (client: typeof deletingSpaceTx) => unknown) =>
+            callback(deletingSpaceTx),
+        },
+      },
+      authed: authedProjectWorkspaces(),
+    } as unknown as RouterContext);
+    const removeDuringSpaceDelete = deletingSpaceRoutes.projectWorkspaces.remove as unknown as (
+      args: unknown,
+    ) => Promise<unknown>;
+    await expect(
+      removeDuringSpaceDelete({
+        context: { actor: { userId: "user-a", spaceId: "space-a" } },
+        input: { id: "project-a", confirmRemoveAppData: true },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
   it("rejects creation without accessing the database", async () => {
     const query = vi.fn();
-    const handler = (callback: unknown) => callback;
     const context = {
       deps: { prisma: { $queryRaw: query } },
-      authed: {
-        projectWorkspaces: {
-          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
-          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-          capabilities: { handler },
-          conversationCapabilities: { handler },
-          groupCreationCapability: { handler },
-          list: { handler },
-          get: { handler },
-          roster: { handler },
-          create: { handler },
-          removeEmpty: { handler },
-          createBot: { handler },
-          getBot: { handler },
-          updateBot: { handler },
-          conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
-          createGroup: { handler },
-          threadSnapshot: { handler },
-          sendText: { handler },
-          cancelRun: { handler },
-          answerApproval: { handler },
-          getArtifact: { handler },
-          subscribe: { handler },
-          consentStatus: { handler },
-          consentAllow: { handler },
-        },
-      },
+      authed: authedProjectWorkspaces(),
     } as unknown as RouterContext;
     const routes = projectWorkspaceRoutes(context);
     const create = routes.projectWorkspaces.create as unknown as (args: unknown) => Promise<unknown>;
@@ -73,20 +148,12 @@ describe("project workspace creation gate", () => {
         organizationId: "org-a", space: { deletingAt: null },
       }) },
     };
-    const handler = (callback: unknown) => callback;
     const routes = projectWorkspaceRoutes({
       deps: {
         env: { projectWorkspaceCreateExperiment: true },
         prisma: { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) },
       },
-      authed: {
-        projectWorkspaces: {
-          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
-          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-          getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
-          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
-        },
-      },
+      authed: authedProjectWorkspaces(),
     } as unknown as RouterContext);
     const create = routes.projectWorkspaces.create as unknown as (args: unknown) => Promise<unknown>;
     await expect(create({
@@ -95,6 +162,77 @@ describe("project workspace creation gate", () => {
     })).resolves.toMatchObject({ id, name: "Project" });
     expect(query).toHaveBeenCalledTimes(3);
   });
+
+  it("maps account deletion and id conflict errors to CONFLICT on create", async () => {
+    const id = "a374627e-87a5-4f8d-a619-1c662ae431b7";
+    const makeRoutes = (query: ReturnType<typeof vi.fn>) => {
+      const tx = {
+        $queryRaw: query,
+        spaceMember: { findUnique: vi.fn().mockResolvedValue({
+          organizationId: "org-a", space: { deletingAt: null },
+        }) },
+      };
+      return projectWorkspaceRoutes({
+        deps: {
+          env: { projectWorkspaceCreateExperiment: true },
+          prisma: { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) },
+        },
+        authed: authedProjectWorkspaces(),
+      } as unknown as RouterContext);
+    };
+    const actor = { userId: "user-a", spaceId: "space-a" };
+    const deletingRoutes = makeRoutes(vi.fn().mockResolvedValueOnce([{ projectDeletionClaimedAt: new Date(0) }]));
+    const createDeleting = deletingRoutes.projectWorkspaces.create as unknown as (args: unknown) => Promise<unknown>;
+    await expect(createDeleting({ context: { actor }, input: { id, name: "Project" } })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+
+    const conflictQuery = vi.fn()
+      .mockResolvedValueOnce([{ projectDeletionClaimedAt: null }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id, name: "Existing", createdAt: new Date(0), updatedAt: new Date(0) }]);
+    const conflictRoutes = makeRoutes(conflictQuery);
+    const createConflict = conflictRoutes.projectWorkspaces.create as unknown as (args: unknown) => Promise<unknown>;
+    await expect(createConflict({ context: { actor }, input: { id, name: "Other" } })).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+  });
+
+  it("gates rename and returns NOT_FOUND when the workspace is unavailable", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "project-a", name: "Renamed", createdAt: new Date(0), updatedAt: new Date(0) }]);
+    const tx = {
+      $queryRaw: query,
+      spaceMember: { findUnique: vi.fn().mockResolvedValue({
+        organizationId: "org-a", space: { deletingAt: null },
+      }) },
+    };
+    const disabledRoutes = projectWorkspaceRoutes({
+      deps: { env: { projectWorkspaceCreateExperiment: false }, prisma: { $queryRaw: query } },
+      authed: authedProjectWorkspaces(),
+    } as unknown as RouterContext);
+    const renameDisabled = disabledRoutes.projectWorkspaces.rename as unknown as (args: unknown) => Promise<unknown>;
+    await expect(renameDisabled({ context: {}, input: {} })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+    expect(query).not.toHaveBeenCalled();
+
+    const enabledRoutes = projectWorkspaceRoutes({
+      deps: {
+        env: { projectWorkspaceCreateExperiment: true },
+        prisma: { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) },
+      },
+      authed: authedProjectWorkspaces(),
+    } as unknown as RouterContext);
+    const rename = enabledRoutes.projectWorkspaces.rename as unknown as (args: unknown) => Promise<unknown>;
+    const actor = { userId: "user-a", spaceId: "space-a" };
+    await expect(rename({ context: { actor }, input: { id: "project-missing", name: "Renamed" } }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(rename({ context: { actor }, input: { id: "project-a", name: "Renamed" } }))
+      .resolves.toMatchObject({ id: "project-a", name: "Renamed" });
+  });
 });
 
 describe("project workspace roster", () => {
@@ -102,17 +240,9 @@ describe("project workspace roster", () => {
     const query = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([
       { kind: "workspace", id: "project-a", name: "" },
     ]);
-    const handler = (callback: unknown) => callback;
     const routes = projectWorkspaceRoutes({
       deps: { prisma: { $queryRaw: query } },
-      authed: {
-        projectWorkspaces: {
-          directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
-          cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-          getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
-          capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler }, create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
-        },
-      },
+      authed: authedProjectWorkspaces(),
     } as unknown as RouterContext);
     const roster = routes.projectWorkspaces.roster as unknown as (args: unknown) => Promise<unknown>;
     const request = {
@@ -130,7 +260,6 @@ describe("project workspace roster", () => {
 
 describe("project conversation creation experiment", () => {
   function routesFor(enabled: boolean, rows: unknown[]) {
-    const handler = (callback: unknown) => callback;
     const query = vi.fn().mockResolvedValue(rows);
     const createBot = vi.fn(async () => currentDbContext());
     const createGroup = vi.fn(async () => currentDbContext());
@@ -138,13 +267,7 @@ describe("project conversation creation experiment", () => {
       deps: { env: { projectConversationCreateExperiment: enabled }, prisma: { $queryRaw: query } },
       repos: { createBot },
       groupRepos: { createGroup },
-      authed: { projectWorkspaces: {
-        directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
-        cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
-        getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
-        capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler }, list: { handler }, get: { handler }, roster: { handler },
-        create: { handler }, removeEmpty: { handler }, createBot: { handler }, createGroup: { handler }, threadSnapshot: { handler }, sendText: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
-      } },
+      authed: authedProjectWorkspaces(),
     } as unknown as RouterContext);
     return { routes, query, createBot, createGroup };
   }
