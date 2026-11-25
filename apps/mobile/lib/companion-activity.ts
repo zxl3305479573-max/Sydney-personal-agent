@@ -96,6 +96,7 @@ export function activeCompanionIdentity(): {
   id: string;
   botId: string;
   spaceId: string | null;
+  showReply?: boolean;
   linkToken?: string;
 } | null {
   if (!native || !companionAvailable()) return null;
@@ -105,6 +106,7 @@ export function activeCompanionIdentity(): {
         id: activity.id,
         botId: activity.botId,
         spaceId: activity.spaceId || null,
+        showReply: activity.showReply,
         linkToken: activity.linkToken || undefined,
       }
     : null;

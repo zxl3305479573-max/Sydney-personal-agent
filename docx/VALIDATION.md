@@ -1,5 +1,24 @@
 # 验证记录
 
+## 手机 App 后台陪伴完善与首页地图／高德导航组件（2026-11-25）
+
+关联 PA-021。专项评测见 [COMPANION_MAP_EVALUATION.md](COMPANION_MAP_EVALUATION.md)。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/app/companion.tsx` 初版误用 `rpc("inbox/get", {})` 且 `offScreen` 未显式标注 `() => void`，导致 `tsc` 报错；已更正为 `rpc("spaces/list")` 读取 `result.current.bots` 并显式标注类型。
+  - `apps/mobile/lib/companion-thread-watch.test.tsx` 新增用例遗留一条未消费的 `mockResolvedValueOnce`，串入下一条断连恢复用例；清理后通过。
+  - `apps/mobile/lib/map-screen.test.tsx` 未替身 `react-native-webview` 导致 Vitest 加载其 Flow 语法失败；补充 `vi.mock("react-native-webview")` 后通过。
+  - `apps/mobile/lib/map-location.ts` 常量 `EE` 触发 Biome `noPrecisionLoss`，收窄至 IEEE-754 精确字面量 `0.006693421622965943` 后清零。
+- **终轮已执行并通过**：
+  - **定向与全仓守卫 Vitest 回归（21 个文件、199 项测试全部通过、0 失败）**：
+    - 后台陪伴核心与 UI：`companion-session.test.ts`（5）、`companion-thread-watch.test.tsx`（11）、`companion-activity.test.ts`（10）、`companion-presentation.test.ts`（3）、`companion-snapshot.test.ts`（4）、`companion-screen-auto.test.ts`（13）、`companion-screen-send.test.ts`（6）、`companion-voice-guard.test.ts`（3）、`home-companion-card.test.tsx`（2）、`companion-floating-bar.test.tsx`（2）、`companion-console.test.tsx`（1）、`bot-profile.test.tsx`（74）。
+    - 地图定位、导航与首页：`map-location.test.ts`（4）、`amap-navigation.test.ts`（3）、`map-search.test.ts`（4）、`map-screen.test.tsx`（2）、`home-hub.test.tsx`（6）。
+    - 配置、主题与原生界面守卫：`scroll-hygiene.test.ts`（1，全仓隐藏滚动条 AST 检查）、`screen-theme-coverage.test.ts`（6，含新页面 `companion.tsx`/`map.tsx`）、`app-config.test.ts`（34）、`theme-pack.test.ts`（5）。
+  - **全包 TypeScript 类型检查**：`.\node_modules\.bin\tsc --noEmit -p apps/mobile/tsconfig.json`：**0 错误通过**。
+  - **增量 Biome 严检**：覆盖全部 30 个新增与修改的源码／测试／配置文件：**30/30 文件 0 错误、0 警告**。
+  - **差异空白检查**：`git diff --check`：**0 警告通过**。
+- **未执行项（不以离线测试替代）**：未执行提交、推送、OTA 发布、原生 IPA 重编与真实 iPhone 验收；真机悬浮胶囊触控、本地通知点击直达、本机语音播报、高德底图瓦片加载与手势缩放、`iosamap://` 拉起已安装高德地图 App／未安装回退网页、新 IPA 系统 GPS 弹窗与实验构建灵动岛扩展均记为待真机验收（`DEV-01`）。
+
 ## iPhone 1.0.27 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。

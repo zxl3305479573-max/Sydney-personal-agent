@@ -60,6 +60,30 @@ vi.mock("./companion-screen-auto", () => ({
   useCompanionScreenAuto: () => ({ phase: "idle" }),
   stopCompanionScreenAuto: vi.fn(),
 }));
+vi.mock("./companion-session", async () => {
+  const stateMod = await import("./companion-session-state");
+  return {
+    useCompanionSession: () => stateMod.getCompanionSessionState(),
+    startUnifiedCompanion: vi.fn(),
+    switchUnifiedCompanionBot: vi.fn(),
+    stopUnifiedCompanion: vi.fn(),
+    companionStatusDisplay: () => ({ label: "我一直都在", tone: "active" }),
+  };
+});
+vi.mock("./map-location", () => ({
+  useCachedUserLocation: () => ({
+    latitude: 39.9042,
+    longitude: 116.4074,
+    city: "北京市",
+    label: "北京市",
+    source: "ip",
+    updatedAt: 1,
+  }),
+  loadSavedMapLocation: vi.fn(async () => null),
+  resolveApproxIpLocation: vi.fn(async () => null),
+  locationSummaryText: (loc: { label?: string } | null) => loc?.label ?? "点击查看当前位置",
+  locationSourceLabel: () => "网络大致定位",
+}));
 vi.mock("react-native", () => {
   const flatten = (style: unknown): CSSProperties =>
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
@@ -302,6 +326,9 @@ describe("HomeHub personal hub", () => {
 
     tap("home-hub-appearance-chip");
     expect(state.push).toHaveBeenLastCalledWith("/ui-mode");
+
+    tap("home-hub-map-card");
+    expect(state.push).toHaveBeenLastCalledWith("/map");
   });
 
   it("renders English greeting and invites creating a bot when inbox is empty", () => {

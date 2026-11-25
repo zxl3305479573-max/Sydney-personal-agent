@@ -1,5 +1,7 @@
 # Sydney 开发文档入口
 
+手机 App 后台陪伴双模式（应用内跨页悬浮胶囊／断连重连／本地通知／可选播报／`/companion` 控制中心＋实验灵动岛兼容）与首页地图组件／`/map` 交互式定位导航（支持跳转高德地图 App 与网页回退）已完成源码实现与 21 文件 199 项离线验证，未提交或推送；真机与新 IPA 项待验。[专项评测](COMPANION_MAP_EVALUATION.md) · [阶段计划](PLAN.md#手机-app-后台陪伴完善与首页地图高德导航组件pa-0212026-11-25) · [本批验证](VALIDATION.md#手机-app-后台陪伴完善与首页地图高德导航组件2026-11-25)
+
 2026-11-25 已提交推送当前 CI 清理，并通过 [PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 将完整集成分支合入 `main`（`6c47e8836`）。[iPhone OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 已成功从该提交重新发布 `1.0.24`，线上启动包与 55 项资源全部校验通过；整仓 CI 与 macOS 截图未通过，真机生效待验。[本批验证](VALIDATION.md#工作区提交主分支合并与-iphone-ota2026-11-25) · [手机更新与回退](OPERATIONS.md#main-合并后的-iphone-1024-ota2026-11-25)
 
 手机 App 个人中枢首页（Personal Home Hub）、底部「首页 · 聊天 · 项目」文字导航栏及全 App 70+ 路由／组件的清透奶白 × 暖瓷卡片统一视觉升级已于 2026-11-24 在 `ui` 分支落盘源码并合入主分支（PC 端保持零改动；**100% 保留原有字体不变**）。[设计方案](design/DUAL_SURFACE_UI_DESIGN_PLAN.md) · [阶段计划](PLAN.md#手机-app-个人中枢首页与全界面浅柔暖瓷风格统一pa-019pa-020pa-021pa-022pa-023pa-0242026-11-24) · [本批验证](VALIDATION.md#手机-app-个人中枢首页与全界面风格统一离线校验2026-11-24)

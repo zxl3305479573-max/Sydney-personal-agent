@@ -450,6 +450,7 @@ export function themeScopeForRoute(routeName: string): ThemeScope {
       "billing",
       "change-password",
       "chat-appearance",
+      "companion",
       "devices",
       "language",
       "messaging",

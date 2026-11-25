@@ -49,9 +49,21 @@ vi.mock("./api", () => ({
     };
   },
   subscribeThread: fixture.subscribeThread,
-  applyMobileThreadEvent: (snapshot: { messages: unknown[] } | null, event: { text?: string }) =>
+  applyMobileThreadEvent: (
+    snapshot: { messages: unknown[] } | null,
+    event: { text?: string; seq?: number },
+  ) =>
     snapshot && event.text
-      ? { ...snapshot, messages: [{ role: "bot", blocks: [{ kind: "text", text: event.text }] }] }
+      ? {
+          ...snapshot,
+          messages: [
+            {
+              id: `msg-${event.seq ?? "next"}`,
+              role: "bot",
+              blocks: [{ kind: "text", text: event.text }],
+            },
+          ],
+        }
       : snapshot,
 }));
 vi.mock("./app-foreground", () => ({ useAppForeground: () => fixture.foreground }));
@@ -92,6 +104,13 @@ vi.mock("./session", () => ({
   },
 }));
 
+import {
+  getCompanionSessionState,
+  resetCompanionSessionStateForTest,
+  setActiveCompanionSessionState,
+  setCompanionOpenThreadBotId,
+  setCompanionPreferencesState,
+} from "./companion-session-state";
 import { useCompanionThreadWatch, watchCompanionThread } from "./companion-thread-watch";
 
 let root: Root;
@@ -114,6 +133,7 @@ beforeEach(() => {
   fixture.call = null;
   fixture.listener = undefined;
   fixture.signal = undefined;
+  resetCompanionSessionStateForTest();
   fixture.rpc.mockResolvedValue({
     botId: "bot",
     cursor: 7,
@@ -367,5 +387,115 @@ describe("independent companion thread updates", () => {
       ),
     );
     stop();
+  });
+
+  it("watches an in-app companion session without native ActivityKit, reports disconnect, and alerts only on new replies (CMP-02)", async () => {
+    fixture.active = null;
+    setCompanionPreferencesState({
+      preferredBotId: "bot",
+      showReply: true,
+      showFloatingBar: true,
+      notifyOnReply: true,
+      speakReplies: true,
+    });
+    setActiveCompanionSessionState({
+      id: "in-app-1",
+      botId: "bot",
+      botName: "Sydney",
+      botColor: "#4F7CAC",
+      spaceId: "space",
+      mode: "in-app",
+      showReply: true,
+      startedAt: 1,
+    });
+    const notify = vi.fn(async () => undefined);
+    const speak = vi.fn(async () => undefined);
+    const stopSpeaking = vi.fn();
+
+    fixture.rpc.mockResolvedValueOnce({
+      botId: "bot",
+      cursor: 7,
+      run: null,
+      messages: [{ id: "m-1", role: "bot", blocks: [{ kind: "text", text: "历史消息" }] }],
+    });
+
+    const stop = watchCompanionThread({
+      botId: "bot",
+      botName: "Sydney",
+      spaceId: "space",
+      activityId: "in-app-1",
+      mode: "in-app",
+      isCurrent: () => true,
+      effects: { notify, speak, stopSpeaking },
+    });
+
+    await vi.waitFor(() => expect(fixture.listener).toBeDefined());
+    // Historical baseline does not trigger notification or speech.
+    expect(notify).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
+    expect(getCompanionSessionState().runtime.latestReply).toBe("历史消息");
+    expect(fixture.update).not.toHaveBeenCalled();
+
+    // New incoming reply triggers local alert and optional speech when user is on another screen.
+    fixture.listener?.({ type: "thread.message.created", seq: 8, text: "新的陪伴回复" });
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "message",
+        botId: "bot",
+        botName: "Sydney",
+        body: "新的陪伴回复",
+      }),
+    );
+    expect(speak).toHaveBeenCalledWith("bot", "新的陪伴回复", expect.any(Symbol));
+
+    // When user is already viewing this bot's thread, suppress local alert.
+    notify.mockClear();
+    setCompanionOpenThreadBotId("bot");
+    fixture.listener?.({ type: "thread.message.created", seq: 9, text: "正在查看时的回复" });
+    expect(notify).not.toHaveBeenCalled();
+
+    // Starting a call stops companion speech immediately.
+    fixture.call = { botId: "bot", phase: "listening", muted: false };
+    fixture.callListener?.();
+    expect(stopSpeaking).toHaveBeenCalled();
+
+    stop();
+  });
+
+  it("publishes disconnected status on retryable failure and recovers when connection returns (CMP-02)", async () => {
+    vi.useFakeTimers();
+    try {
+      fixture.rpc
+        .mockRejectedValueOnce(Object.assign(new Error("offline"), { status: 503 }))
+        .mockResolvedValueOnce({
+          botId: "bot",
+          cursor: 12,
+          run: null,
+          messages: [{ id: "m-10", role: "bot", blocks: [{ kind: "text", text: "重连成功" }] }],
+        });
+
+      const stop = watchCompanionThread({
+        botId: "bot",
+        spaceId: "space",
+        activityId: "activity",
+        mode: "live-activity",
+        isCurrent: () => true,
+      });
+
+      await vi.advanceTimersByTimeAsync(10);
+      expect(fixture.update).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "disconnected", latestReply: null }),
+      );
+      expect(getCompanionSessionState().runtime.detailStatus).toBe("disconnected");
+
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(fixture.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "present", latestReply: "重连成功" }),
+      );
+      expect(getCompanionSessionState().runtime.detailStatus).toBe("present");
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

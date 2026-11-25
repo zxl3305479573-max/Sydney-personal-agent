@@ -33,6 +33,7 @@ import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { BotAvatar } from "./bot-avatar";
 import { HomeCompanionCard } from "./home-companion-card";
+import { HomeMapCard } from "./home-map-card";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
@@ -689,6 +690,9 @@ export function HomeHub({
         cardStyle={cardSurface("lavender")}
         onOpenBot={openBotThread}
       />
+
+      {/* Map & Amap Navigation Widget Card */}
+      <HomeMapCard cardStyle={cardSurface("sage")} />
 
       {/* Full-Width Card 1: Chats & Companions Hub */}
       <View style={[cardSurface("champagne"), { padding: 20, overflow: "hidden" }]}>

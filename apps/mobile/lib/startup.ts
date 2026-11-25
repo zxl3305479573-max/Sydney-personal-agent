@@ -7,6 +7,7 @@ type StartupStep =
   | "streaming"
   | "images"
   | "notifications"
+  | "companion"
   | "inbox"
   | "language";
 

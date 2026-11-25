@@ -1,5 +1,22 @@
 # Sydney 开发总计划
 
+## 手机 App 后台陪伴完善与首页地图／高德导航组件（PA-021，2026-11-25）
+
+状态：源码实现、Stop That Shit 专项评测与本机定向离线验证已完成（真实 iPhone 悬浮胶囊触控、本地通知、高德底图瓦片加载、`iosamap://` 拉起高德地图 App 及新 IPA 原生 GPS／灵动岛扩展待真机验收；未提交或推送）。
+
+范围与交付物：
+- 专项评测文档：[COMPANION_MAP_EVALUATION.md](COMPANION_MAP_EVALUATION.md)（覆盖 `CMP-01`–`CMP-03`、`MAP-01`–`MAP-03` 与 `DEV-01` 真机边界）。
+- **后台陪伴功能完善**：
+  - 核心协调层：`apps/mobile/lib/companion-lifecycle.ts`（多清理回调集合）、`apps/mobile/lib/companion-activity.ts`（透出 `showReply`）、`apps/mobile/lib/companion-session-state.ts`、`apps/mobile/lib/companion-session.ts`（原生 `live-activity` + 应用内 `in-app` 双模式会话、运行中无缝切换伙伴、`SecureStore` 偏好持久化与账号/空间切换自动清理）、`apps/mobile/lib/companion-voice-launch.ts`（按需懒加载语音通话启动器）。
+  - 跨页实时监听：`apps/mobile/lib/companion-thread-watch.ts` 同时支持双模式监听，补齐重试断连状态（`disconnected`）与恢复同步、区分 `waiting_input`/`speaking`、首次基线防历史重复通知、非当前会话本地通知提醒与可选本机语音播报（通话/停止立即打断）。
+  - 界面与入口：升级 `apps/mobile/components/home-companion-card.tsx`（常规侧载包可直接启停、实时状态与受隐私控制的短回复、快捷语音通话、运行中切换伙伴、隐藏不支持设备的屏幕陪伴按钮、右上入口进控制页）；新增全 App 跨页悬浮胶囊 `apps/mobile/components/companion-floating-bar.tsx` 与独立控制中心 `apps/mobile/app/companion.tsx`；同步 `apps/mobile/app/_layout.tsx`、`apps/mobile/lib/startup.ts` 与 `apps/mobile/lib/theme-pack.ts`。
+- **首页地图组件与高德地图导航**：
+  - 定位与导航核心：`apps/mobile/lib/map-location.ts`（中国大陆 WGS-84 ↔ GCJ-02 转换、距离与耗时估算、`geojs.io`/`ipwho.is` IP 大致定位与 `SecureStore` 位置缓存）、`apps/mobile/lib/amap-navigation.ts`（驾车/公交/步行/骑行 4 模式 `iosamap://path`、`amapuri://route/plan/` 与 `https://uri.amap.com/navigation` 跳转及未安装网页回退）、`apps/mobile/lib/map-search.ts`（可选高德 Key / 默认 Nominatim 地名搜索、逆地理编码、OSRM 道路路径预估及直线降级、最近目的地缓存）。
+  - 地图界面与首页入口：新增零外部 CDN 瓦片地图画布 `apps/mobile/components/map-canvas.tsx`（默认高德中文瓦片 GCJ-02 对齐 + OSM 备选瓦片、平移/双指缩放/点选、`navigator.geolocation` 定位与严格 URL／消息校验）、首页轻量地图卡片 `apps/mobile/components/home-map-card.tsx`（接入 `home-hub.tsx`）、独立地图与导航界面 `apps/mobile/app/map.tsx`；在 `apps/mobile/app.json` 预配 `NSLocationWhenInUseUsageDescription` 与 `LSApplicationQueriesSchemes: ["iosamap", "amapuri"]`。
+- 验证结果：21 个定向与守卫 Vitest 文件（199 项）全部通过（含 `scroll-hygiene`、`screen-theme-coverage`、`bot-profile` 74 项、`home-hub` 6 项），`@rakazo/mobile` 全包 `tsc --noEmit` 0 错误，全部 30 个代码／配置／测试文件 Biome check 0 错误，`git diff --check` 0 警告。详见 [验证记录](VALIDATION.md#手机-app-后台陪伴完善与首页地图高德导航组件2026-11-25)。
+
+依赖与验收条件：零新增第三方依赖，不修改 PC 端、后端或数据库，不执行提交或推送；真机交互、高德 App 拉起与新 IPA 原生 GPS／灵动岛扩展单列 `DEV-01` 待设备实测。
+
 ## iPhone 1.0.27 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：源码提交推送、GitHub Actions `sideload` OTA 发布与线上清单／启动包／56 项静态资源核验均已完成；真实 iPhone 下载重启与交互验收待执行。

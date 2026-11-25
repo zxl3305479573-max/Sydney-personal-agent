@@ -100,6 +100,8 @@
         "NSCameraUsageDescription": "Sydney uses the camera so you can attach photos to a bot message.",
         "NSPhotoLibraryUsageDescription": "Sydney uses your photo library so you can attach images to a bot message.",
         "NSLocalNetworkUsageDescription": "Sydney connects to a self-hosted Sydney server on your local network.",
+        "NSLocationWhenInUseUsageDescription": "Sydney uses your location to show where you are on the map and plan navigation routes.",
+        "LSApplicationQueriesSchemes": ["iosamap", "amapuri"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }

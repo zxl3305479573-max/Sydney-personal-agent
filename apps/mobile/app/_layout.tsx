@@ -28,6 +28,7 @@ import { AppErrorBoundary } from "../components/app-error-boundary";
 import { CallCard } from "../components/CallCard";
 import { chatRouteHeader } from "../components/chat-route-header";
 import { CodeCopyButton } from "../components/code-copy-button";
+import { CompanionFloatingBar } from "../components/companion-floating-bar";
 import { ComputerUpdateProgress } from "../components/computer-update-progress";
 import { floatingHeaderOptions, glassHeaderOptions } from "../components/glass-title";
 import { MermaidDiagram } from "../components/mermaid-diagram";
@@ -59,6 +60,7 @@ import { loadUiMode } from "../lib/ui-mode";
 import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
 import { InboxPane } from "../components/inbox-screens";
+import { loadCompanionPreferences, setCompanionOpenThreadBotId } from "../lib/companion-session";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
@@ -126,7 +128,14 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const DIVIDER_GRAB_WIDTH = 24;
 // Screens that take the whole window even when it is wide enough for the chat list beside them.
-const FULL_WINDOW_ROUTES = new Set(["/sign-in", "/server", "/image", "/computer", "/share"]);
+const FULL_WINDOW_ROUTES = new Set([
+  "/sign-in",
+  "/server",
+  "/image",
+  "/computer",
+  "/share",
+  "/map",
+]);
 
 /** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
 function SplitFrame({ children }: { children: ReactNode }) {
@@ -303,6 +312,11 @@ function LayoutContent() {
   const [startupError, setStartupError] = useState(false);
   useNotificationResponses(ready);
   const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<{ botId?: string | string[] }>();
+  useEffect(() => {
+    const rawBot = Array.isArray(globalParams.botId) ? globalParams.botId[0] : globalParams.botId;
+    setCompanionOpenThreadBotId(pathname === "/thread" && rawBot ? rawBot : null);
+  }, [pathname, globalParams.botId]);
   useCompanionThreadWatch(ready);
   const navigationHidden = useMainNavigationHidden();
   const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
@@ -384,6 +398,7 @@ function LayoutContent() {
       trackMobileStartup("streaming", loadResponseStreamingPreference()),
       trackMobileStartup("images", loadRemoteImagesPreference()),
       trackMobileStartup("notifications", loadNotificationPreferences()),
+      trackMobileStartup("companion", loadCompanionPreferences()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])
@@ -567,6 +582,18 @@ function LayoutContent() {
                       <Stack.Screen name="routines" options={glassHeaderOptions(t("Routines"))} />
                       <Stack.Screen name="routine" options={glassHeaderOptions(t("Routine"))} />
                       <Stack.Screen name="board" options={glassHeaderOptions(t("Board"))} />
+                      <Stack.Screen
+                        name="companion"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh") ? "后台陪伴" : "Background Companion",
+                        )}
+                      />
+                      <Stack.Screen
+                        name="map"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh") ? "地图与导航" : "Map & Navigation",
+                        )}
+                      />
                       <Stack.Screen name="computer" options={{ title: t("Computer") }} />
                       <Stack.Screen
                         name="image"
@@ -580,6 +607,12 @@ function LayoutContent() {
                     </Stack>
                   </SplitFrame>
                 </BottomSafeAreaClaimedContext.Provider>
+                <CompanionFloatingBar
+                  style={{
+                    marginTop: 6,
+                    marginBottom: voicePlaying ? 0 : showMainNavigation ? 8 : insets.bottom + 8,
+                  }}
+                />
                 <VoicePlayerBar
                   style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
                 />

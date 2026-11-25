@@ -5,28 +5,32 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MobileBot } from "./api";
+import {
+  publishCompanionRuntimeState,
+  resetCompanionSessionStateForTest,
+  setActiveCompanionSessionState,
+  setCompanionPreferencesState,
+} from "./companion-session-state";
 
 const fixture = vi.hoisted(() => ({
+  push: vi.fn(),
   available: true,
-  active: null as null | { id: string; botId: string; spaceId: string | null },
+  active: null as null | { id: string; botId: string; spaceId: string | null; showReply?: boolean },
   revision: 0,
   listeners: new Set<() => void>(),
   screenState: "idle" as "unsupported" | "idle" | "capturing",
-  startCompanion: vi.fn(async (botId: string, _name: string, spaceId: string | null) => {
-    fixture.active = { id: "act-1", botId, spaceId };
-    fixture.revision += 1;
-    for (const listener of fixture.listeners) listener();
-  }),
-  stopCompanion: vi.fn(async () => {
-    fixture.active = null;
-    fixture.revision += 1;
-    for (const listener of fixture.listeners) listener();
-  }),
+  startUnified: vi.fn(),
+  switchUnified: vi.fn(),
+  stopUnified: vi.fn(),
   presentCompanionScreen: vi.fn(async () => undefined),
   stopCompanionScreen: vi.fn(async () => undefined),
   stopCompanionScreenAuto: vi.fn(),
+  confirmVoice: vi.fn(),
 }));
 
+vi.mock("expo-router", () => ({
+  useRouter: () => ({ push: fixture.push }),
+}));
 vi.mock("./companion-activity", () => ({
   companionAvailable: () => fixture.available,
   activeCompanionIdentity: () => fixture.active,
@@ -37,10 +41,35 @@ vi.mock("./companion-activity", () => ({
   },
   companionScreenState: vi.fn(async () => fixture.screenState),
   subscribeCompanionScreenState: () => () => undefined,
-  startCompanion: fixture.startCompanion,
-  stopCompanion: fixture.stopCompanion,
   presentCompanionScreen: fixture.presentCompanionScreen,
   stopCompanionScreen: fixture.stopCompanionScreen,
+}));
+vi.mock("./companion-session", async () => {
+  const stateMod = await import("./companion-session-state");
+  const { useSyncExternalStore } = await import("react");
+  return {
+    useCompanionSession: () =>
+      useSyncExternalStore(
+        stateMod.subscribeCompanionSessionState,
+        stateMod.getCompanionSessionState,
+        stateMod.getCompanionSessionState,
+      ),
+    startUnifiedCompanion: fixture.startUnified,
+    switchUnifiedCompanionBot: fixture.switchUnified,
+    stopUnifiedCompanion: fixture.stopUnified,
+    companionStatusDisplay: (status: string) => ({
+      label:
+        status === "thinking"
+          ? "思考中…"
+          : status === "disconnected"
+            ? "连接已断开 · 重连中"
+            : "我一直都在",
+      tone: status === "disconnected" ? "error" : status === "thinking" ? "busy" : "active",
+    }),
+  };
+});
+vi.mock("./companion-voice-launch", () => ({
+  confirmAndLaunchCompanionVoiceCall: fixture.confirmVoice,
 }));
 vi.mock("./companion-screen-auto", () => ({
   useCompanionScreenAuto: () => ({ phase: "idle" }),
@@ -131,11 +160,69 @@ let root: Root;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  resetCompanionSessionStateForTest();
   fixture.available = true;
   fixture.active = null;
   fixture.revision = 0;
   fixture.screenState = "idle";
   fixture.listeners.clear();
+  fixture.startUnified.mockImplementation(
+    async (input: {
+      botId: string;
+      botName: string;
+      botColor: string;
+      spaceId?: string | null;
+      showReply?: boolean;
+    }) => {
+      const mode = fixture.available ? "live-activity" : "in-app";
+      if (fixture.available) {
+        fixture.active = {
+          id: "act-1",
+          botId: input.botId,
+          spaceId: input.spaceId ?? null,
+          showReply: input.showReply ?? true,
+        };
+        fixture.revision += 1;
+        for (const listener of fixture.listeners) listener();
+      }
+      setActiveCompanionSessionState({
+        id: fixture.available ? "act-1" : "in-app-1",
+        botId: input.botId,
+        botName: input.botName,
+        botColor: input.botColor,
+        spaceId: input.spaceId ?? null,
+        mode,
+        showReply: input.showReply ?? true,
+        startedAt: 1,
+      });
+    },
+  );
+  fixture.switchUnified.mockImplementation(
+    async (input: {
+      botId: string;
+      botName: string;
+      botColor: string;
+      spaceId?: string | null;
+      showReply?: boolean;
+    }) => {
+      setActiveCompanionSessionState({
+        id: "in-app-2",
+        botId: input.botId,
+        botName: input.botName,
+        botColor: input.botColor,
+        spaceId: input.spaceId ?? null,
+        mode: fixture.available ? "live-activity" : "in-app",
+        showReply: input.showReply ?? true,
+        startedAt: 2,
+      });
+    },
+  );
+  fixture.stopUnified.mockImplementation(async () => {
+    fixture.active = null;
+    fixture.revision += 1;
+    for (const listener of fixture.listeners) listener();
+    setActiveCompanionSessionState(null, { resetRuntime: true });
+  });
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -147,8 +234,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("HomeCompanionCard", () => {
-  it("switches bots, starts background companion, toggles screen sharing, and stops companion", async () => {
+describe("HomeCompanionCard (CMP-03)", () => {
+  it("switches bots, starts native companion, toggles screen sharing, and stops companion", async () => {
     const onOpenBot = vi.fn();
     await act(async () =>
       root.render(
@@ -164,7 +251,7 @@ describe("HomeCompanionCard", () => {
     expect(container.textContent).toContain("后台陪伴");
     expect(container.textContent).toContain("Sydney");
 
-    // Switch target bot to Claude
+    // Switch target bot to Claude before starting
     const switchBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="home-hub-companion-switch-bot"]',
     );
@@ -176,33 +263,29 @@ describe("HomeCompanionCard", () => {
       '[data-testid="home-hub-companion-toggle"]',
     );
     await act(async () => toggleBtn?.click());
-    expect(fixture.startCompanion).toHaveBeenCalledWith(
-      "bot-2",
-      "Claude",
-      "space-1",
-      true,
-      expect.objectContaining({ color: "#8B5CF6" }),
-      expect.any(Function),
-      expect.any(Function),
+    expect(fixture.startUnified).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: "bot-2", botName: "Claude", spaceId: "space-1" }),
     );
-    expect(container.textContent).toContain("后台陪伴中");
+    expect(container.textContent).toContain("灵动岛陪伴中");
 
-    // Trigger screen companion
+    // Screen companion button visible because screenState === "idle"
     const screenBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="home-hub-companion-screen-toggle"]',
     );
+    expect(screenBtn).not.toBeNull();
     await act(async () => screenBtn?.click());
     expect(fixture.presentCompanionScreen).toHaveBeenCalledWith("bot-2", "space-1");
 
     // Stop companion
     await act(async () => toggleBtn?.click());
     expect(fixture.stopCompanionScreenAuto).toHaveBeenCalledOnce();
-    expect(fixture.stopCompanion).toHaveBeenCalledOnce();
+    expect(fixture.stopUnified).toHaveBeenCalledOnce();
     expect(container.textContent).toContain("未开启");
   });
 
-  it("shows fallback status and opens chat when native companion extension is unavailable", async () => {
+  it("supports full in-app companion mode on standard sideload builds, shows live reply/privacy, switches active bot, and hides unsupported screen button", async () => {
     fixture.available = false;
+    fixture.screenState = "unsupported";
     const onOpenBot = vi.fn();
     await act(async () =>
       root.render(
@@ -215,12 +298,55 @@ describe("HomeCompanionCard", () => {
         }),
       ),
     );
-    expect(container.textContent).toContain("当前版本未启扩展");
+
+    // Can start directly in in-app mode even when Live Activity extension is absent
     const toggleBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="home-hub-companion-toggle"]',
     );
     await act(async () => toggleBtn?.click());
-    expect(onOpenBot).toHaveBeenCalledWith(bots[0]);
-    expect(fixture.startCompanion).not.toHaveBeenCalled();
+    expect(fixture.startUnified).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("后台陪伴中");
+    expect(container.querySelector('[data-testid="home-hub-companion-screen-toggle"]')).toBeNull();
+
+    // Publishes live short reply when showReply is enabled
+    await act(async () => {
+      publishCompanionRuntimeState({
+        activityId: "in-app-1",
+        botId: "bot-1",
+        status: "present",
+        detailStatus: "present",
+        latestReply: "刚刚整理好今日日程",
+      });
+    });
+    expect(container.textContent).toContain("刚刚整理好今日日程");
+
+    // Hides reply text in privacy mode
+    await act(async () => {
+      setCompanionPreferencesState({
+        preferredBotId: "bot-1",
+        showReply: false,
+        showFloatingBar: true,
+        notifyOnReply: true,
+        speakReplies: false,
+      });
+    });
+    expect(container.textContent).toContain("回复内容已隐藏");
+    expect(container.textContent).not.toContain("刚刚整理好今日日程");
+
+    // Switching bot works while companion is already active
+    const switchBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-switch-bot"]',
+    );
+    await act(async () => switchBtn?.click());
+    expect(fixture.switchUnified).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: "bot-2", botName: "Claude" }),
+    );
+
+    // Opens dedicated /companion console
+    const consoleBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-console"]',
+    );
+    await act(async () => consoleBtn?.click());
+    expect(fixture.push).toHaveBeenCalledWith("/companion");
   });
 });
