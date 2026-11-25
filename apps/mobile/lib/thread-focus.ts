@@ -24,7 +24,7 @@ export function useThreadFocus({
   readOnly: boolean;
   notificationThreadId?: string;
   refreshMentionBots: () => Promise<unknown>;
-  markReadIfVisible: () => void;
+  markReadIfVisible: (options?: { force?: boolean }) => void;
   speakFinishedReplyRef: RefObject<() => void>;
 }) {
   const navigation = useNavigation();

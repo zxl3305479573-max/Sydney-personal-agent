@@ -1,5 +1,18 @@
 # Sydney 开发总计划
 
+## 移动端未读状态、对话状态显示与退出对话持续态修复（PA-018／PA-021／PA-022，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（iPhone 真机往返退页、切前后台、旧后台实测与 OTA 待真机验收）。
+
+范围与交付物：
+- 统一状态语义与共享缓存：`apps/mobile/lib/conversation-status.ts`、`apps/mobile/lib/thread-session-cache.ts`、`apps/mobile/lib/poll-cadence.ts`、`apps/mobile/lib/foreground-poll.ts`、`apps/mobile/lib/thread-feedback.ts`、`apps/mobile/lib/unsent-sends.ts`：统一状态优先级（`waiting_takeover > waiting_input > running > leased > queued > failed > idle`）与中英本地化文案，把 `completed`/`cancelled` 归并回 `idle`；在 `threadSessionCache` 中新增发送中待回执态（`markSendPending`/`clearSendPending`）、兼容无 `activity` 旧服务端的 `applyAcceptedSend`、跨页共享名单态（修复 `/` 与 `/chats` 互相清空 `overrideStatus` 导致退页丢态）、群聊聚合状态（`groupStatus`）、项目作用域隔离（`projectThreadSessionScope`）以及带 token 防竞态的跨页未读覆盖（`beginUnreadWrite`/`finishUnreadWrite`/`abortUnreadWrite`/`unreadState`）；有活跃对话时前台轮询自动从 15s 收紧至 3s 并在全部空闲后回落。
+- 对话已读／未读同步闭环：`apps/mobile/lib/thread-read.ts`、`apps/mobile/lib/use-open-notification-thread.ts`、`apps/mobile/lib/thread-focus.ts`、`apps/mobile/lib/thread-sync.ts`、`apps/mobile/lib/thread-history.ts`、`apps/mobile/lib/use-inbox-chat-actions.ts`：修复后台切回前台时不触发 `threads/markRead`（新增 `{ force: true }`）、`refresh()` 拉取的新 Bot 回复未标记已读、退页与 `markRead`/`markUnreadFrom` 竞态、次级空间漏套未读覆盖与 `setSpaces` 同步，以及分屏切换目标时未重读缓存的问题。
+- 对话状态与未读展示接线：`apps/mobile/components/bot-avatar.tsx`、`group-avatar.tsx`、`chat-title-label.tsx`、`chat-title-content.tsx`、`chat-header-title.tsx`、`thread-header-styles.ts`、`components/thread/thread-screen.tsx`、`thread-header.tsx`、`inbox-rows.tsx`、`home-styles.ts`、`home-hub.tsx`、`lib/inbox-spaces.ts`、`app/index.tsx`：修复标题栏静态头像在 `composing` 时状态点消失、为单聊／群聊标题栏新增紧凑对话状态副标题、补齐 `waiting_input`/`waiting_takeover`/`failed` 头像语义点与群聊统一角标、为 `BotRow`/`GroupRow` 补齐状态着色与群聊状态显示、在 `HomeHub` 与 `/chats` 双屏同步 Bot／群聊状态与未读状态。
+- 项目会话状态与未读闭环：`apps/mobile/lib/use-project-thread.ts`、`apps/mobile/app/projects/[workspaceId].tsx`、`apps/mobile/app/projects/[workspaceId]/chat.tsx`：接入 `projectWorkspaces/markRead`（进入、Bot SSE 回复及切回前台）、发送中／旧回执／实时快照同步 `threadSessionCache`、项目详情页列表展示未读／状态／预览／时间与 3s 活跃轮询、项目聊天页标题栏与状态胶囊本地化并接线 `working`/`stop`。
+- 19 个移动端定向 Vitest 文件（266 项）全部通过，详见 [验证记录](VALIDATION.md#移动端未读状态对话状态显示与退出对话持续态修复2026-11-25)。
+
+依赖与验收条件：仅改动 `apps/mobile` 客户端代码与对应测试，不新增第三方依赖、不修改后台协议或数据库（兼容无 `activity` 字段的旧服务端），保留未读 Bot 头像持续绿点与暖瓷风格零字体覆写。真实 iPhone 退页持续状态、切前后台未读消除与弱网发消息仍待真机验收。
+
 ## 手机 App 首次进入通知弹窗与消息通知设置（PA-021，2026-11-25）
 
 状态：源码实现与本机定向离线验证已完成（iPhone 真机弹窗、系统权限框与横幅/声音留待真机验收）。按用户批准方案实现手机 App 首次进入主界面时的「开启消息通知」一次性引导弹窗、本地通知偏好持久化、前台通知策略消费及 iOS 独立「消息通知」设置页（Android 保留既有 `RakazoNotifications` 链路）。专项评测见 [NOTIFICATION_SETTINGS_EVALUATION.md](NOTIFICATION_SETTINGS_EVALUATION.md)，实际证据见 [验证记录](VALIDATION.md#手机-app-首次进入通知弹窗与消息通知设置2026-11-25)。

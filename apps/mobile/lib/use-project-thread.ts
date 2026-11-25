@@ -13,7 +13,11 @@ import {
 import { ARTIFACT_DOWNLOAD_TIMEOUT_MS } from "./artifacts";
 import { usePageState } from "./page-state";
 import { projectScopeKey } from "./project-scope";
-import { applySendActivity } from "./thread-session-cache";
+import {
+  applyAcceptedSend,
+  projectThreadSessionScope,
+  threadSessionCache,
+} from "./thread-session-cache";
 
 export type ProjectChatTarget = { botId: string } | { groupId: string };
 type Session = ReturnType<typeof createProjectThreadSession<MobileSnapshot>>;
@@ -53,6 +57,7 @@ export function useProjectThread(
     loading: !cachedSnapshot,
   }));
   const sessionRef = useRef<Session | null>(null);
+  const markReadRef = useRef<(() => void) | null>(null);
   const pendingSend = useRef<ProjectThreadPendingSend["current"]>(null);
   const botId = "botId" in target ? target.botId : undefined;
   const groupId = "groupId" in target ? target.groupId : undefined;
@@ -61,19 +66,62 @@ export function useProjectThread(
       if (!enabled || isSpaceSelectionPending()) return;
       let active = true;
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
+      const cacheScope = projectThreadSessionScope(scopeKey, projectId);
+      const cacheTarget = botId ? { botId } : { groupId: groupId! };
+      const rememberSnapshot = (snapshot: MobileSnapshot | null) => {
+        if (!snapshot) return;
+        threadSessionCache.remember(cacheScope, {
+          ...snapshot,
+          ...(botId ? { botId } : {}),
+          ...(groupId ? { groupId } : {}),
+        });
+      };
       const context = captureApiRequestContext();
       const input = { projectId, botId, groupId };
-      const requestOptions = async (signal: AbortSignal) => {
+      const requestOptions = async (signal?: AbortSignal) => {
         const requestContext = await context;
-        if (!current() || signal.aborted) throw new Error("Project scope changed");
-        return { requestContext, signal, skipSpaceAuthRecovery: true };
+        if (!current() || signal?.aborted) throw new Error("Project scope changed");
+        return { requestContext, ...(signal ? { signal } : {}), skipSpaceAuthRecovery: true };
       };
+      let markReadInFlight = false;
+      let markReadQueued = false;
+      const markRead = () => {
+        if (!current()) return;
+        if (markReadInFlight) {
+          markReadQueued = true;
+          return;
+        }
+        markReadInFlight = true;
+        const unreadToken = threadSessionCache.beginUnreadWrite(cacheScope, cacheTarget, false);
+        void (async () => {
+          try {
+            await rpc("projectWorkspaces/markRead", input, await requestOptions());
+            threadSessionCache.finishUnreadWrite(cacheScope, cacheTarget, unreadToken);
+          } catch {
+            threadSessionCache.abortUnreadWrite(cacheScope, cacheTarget, unreadToken);
+          } finally {
+            markReadInFlight = false;
+            if (markReadQueued && current()) {
+              markReadQueued = false;
+              markRead();
+            }
+          }
+        })();
+      };
+      markReadRef.current = markRead;
       const session = createProjectThreadSession<MobileSnapshot>({
         initialSnapshot: snapshotRef.current,
         pendingSend,
         current,
-        load: async (signal) =>
-          rpc("projectWorkspaces/threadSnapshot", input, await requestOptions(signal)),
+        load: async (signal) => {
+          const loaded = await rpc(
+            "projectWorkspaces/threadSnapshot",
+            input,
+            await requestOptions(signal),
+          );
+          if (current()) markRead();
+          return loaded;
+        },
         subscribe: async (cursor, receive, signal) => {
           await requestOptions(signal);
           await subscribeProjectThread(
@@ -81,10 +129,18 @@ export function useProjectThread(
             botId ? { botId } : { groupId: groupId! },
             cursor,
             (event) => {
-              if (event.threadId && typeof event.seq === "number")
+              if (event.threadId && typeof event.seq === "number") {
                 receive({ ...event, payload: event.payload ?? {} } as Parameters<
                   typeof receive
                 >[0]);
+                if (
+                  event.type === "thread.message.created" &&
+                  event.payload?.role === "bot" &&
+                  current()
+                ) {
+                  markRead();
+                }
+              }
             },
             signal,
             current,
@@ -106,16 +162,23 @@ export function useProjectThread(
             },
             await requestOptions(signal),
           ),
-        send: async (text, clientNonce, signal) =>
-          rpc(
-            "projectWorkspaces/sendText",
-            { ...input, text, clientNonce },
-            { ...(await requestOptions(signal)), allowConsentPrompt: false },
-          ),
-        onSendAccepted: (snapshot, result) =>
-          result.activity
-            ? applySendActivity(snapshot, target, result.activity)
-            : snapshot,
+        send: async (text, clientNonce, signal) => {
+          threadSessionCache.markSendPending(cacheScope, cacheTarget, clientNonce);
+          try {
+            return await rpc(
+              "projectWorkspaces/sendText",
+              { ...input, text, clientNonce },
+              { ...(await requestOptions(signal)), allowConsentPrompt: false },
+            );
+          } finally {
+            threadSessionCache.clearSendPending(cacheScope, cacheTarget, clientNonce);
+          }
+        },
+        onSendAccepted: (snapshot, result) => {
+          const next = applyAcceptedSend(snapshot, target, result);
+          rememberSnapshot(next);
+          return next;
+        },
         cancelRun: async (runId, signal) =>
           rpc("projectWorkspaces/cancelRun", { ...input, runId }, await requestOptions(signal)),
         answerApproval: async (answer, signal) =>
@@ -140,6 +203,7 @@ export function useProjectThread(
       setState(session.getSnapshot());
       const unsubscribe = session.subscribe(() => {
         const next = session.getSnapshot();
+        rememberSnapshot(next.snapshot);
         setCachedSnapshot(next.snapshot);
         setState(next);
       });
@@ -149,11 +213,13 @@ export function useProjectThread(
         unsubscribe();
         session.stop();
         if (sessionRef.current === session) sessionRef.current = null;
+        if (markReadRef.current === markRead) markReadRef.current = null;
       };
     }, [projectId, botId, groupId, scopeKey, enabled]),
   );
   return {
     ...state,
+    markRead: () => markReadRef.current?.(),
     retry: () => void sessionRef.current?.reconnect(),
     refresh: () => sessionRef.current?.refresh(),
     send: (text: string) => sessionRef.current?.send(text) ?? Promise.resolve(false),

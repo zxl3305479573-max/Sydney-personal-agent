@@ -23,8 +23,16 @@ vi.mock("react-native", () => ({
   },
 }));
 
-function Harness({ run, enabled }: { run: () => Promise<unknown>; enabled: boolean }) {
-  useForegroundPoll(run, 1_000, enabled);
+function Harness({
+  run,
+  enabled,
+  intervalMs = 1_000,
+}: {
+  run: () => Promise<unknown>;
+  enabled: boolean;
+  intervalMs?: number;
+}) {
+  useForegroundPoll(run, intervalMs, enabled);
   return null;
 }
 
@@ -157,5 +165,35 @@ describe("useForegroundPoll", () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("tightens and relaxes the waiting timer when intervalMs changes without firing immediately", async () => {
+    const run = vi.fn(async () => undefined);
+    act(() => root.render(<Harness enabled run={run} intervalMs={15_000} />));
+    await act(async () => {});
+    expect(run).toHaveBeenCalledOnce();
+
+    // Advance 1s, then tighten to 3s: should fire 2s later, not immediately.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    act(() => root.render(<Harness enabled run={run} intervalMs={3_000} />));
+    expect(run).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_999);
+    });
+    expect(run).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(run).toHaveBeenCalledTimes(2);
+
+    // Relax back to 15s right after finishing: no immediate poll.
+    act(() => root.render(<Harness enabled run={run} intervalMs={15_000} />));
+    expect(run).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });

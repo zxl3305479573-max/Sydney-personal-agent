@@ -28,6 +28,7 @@ import { afterChatNotifyChange, dismissThreadNotifications } from "./live-notifi
 import { removeFromSearchInbox } from "./search-inbox";
 import { promptSectionName } from "./section-name-prompt";
 import { currentSessionGeneration } from "./session";
+import { threadSessionCache } from "./thread-session-cache";
 import { errorText } from "./user-error";
 
 /** Sends a request about a chat to that chat's space without switching to it. */
@@ -59,12 +60,14 @@ export function useInboxChatActions({
   setGroups,
   setSpaces,
   botSections,
+  userId,
 }: {
   loadBots: () => Promise<unknown>;
   setBots: ListUpdate<MobileBot>;
   setGroups: ListUpdate<MobileGroup>;
   setSpaces: ListUpdate<MobileSpace>;
   botSections: MobileBotSection[];
+  userId?: string;
 }) {
   const { t } = useI18n();
   const [unreadOverrides, setUnreadOverrides] = useState<ReadonlyMap<string, boolean>>(
@@ -175,6 +178,13 @@ export function useInboxChatActions({
         // Queued changes belong to the session and the chat's own Space.
         const spaceId = chat.spaceId ?? selectedSpaceId();
         const session = currentSessionGeneration();
+        const apiBase = currentApiBase();
+        const target = chatTarget(kind, chat.id);
+        const cacheScope =
+          userId && spaceId ? { apiBase, sessionGeneration: session, userId, spaceId } : null;
+        const unreadToken = cacheScope
+          ? threadSessionCache.beginUnreadWrite(cacheScope, target, action === "unread")
+          : null;
         setUnreadOverrides((current) => new Map(current).set(key, action === "unread"));
         if (action === "read") {
           void dismissThreadNotifications(
@@ -194,15 +204,29 @@ export function useInboxChatActions({
             const headers = { ...context.headers };
             if (spaceId) headers["x-rakazo-space-id"] = spaceId;
             else delete headers["x-rakazo-space-id"];
-            await rpc(
-              unread ? "threads/markUnread" : "threads/markRead",
-              chatTarget(kind, chat.id),
-              { requestContext: { ...context, headers } },
-            );
+            await rpc(unread ? "threads/markUnread" : "threads/markRead", target, {
+              requestContext: { ...context, headers },
+            });
             const mark = <T extends { id: string; unread: boolean }>(chats: T[]) =>
               chats.map((item) => (item.id === chat.id ? { ...item, unread } : item));
-            if (kind === "bot") setBots(mark);
-            else setGroups(mark);
+            if (!spaceId || selectedSpaceId() === spaceId) {
+              if (kind === "bot") setBots(mark);
+              else setGroups(mark);
+            }
+            if (spaceId) {
+              setSpaces((current) =>
+                current.map((space) =>
+                  space.id !== spaceId
+                    ? space
+                    : kind === "bot"
+                      ? { ...space, bots: mark(space.bots) }
+                      : { ...space, groups: mark(space.groups) },
+                ),
+              );
+            }
+            if (cacheScope && unreadToken !== null) {
+              threadSessionCache.finishUnreadWrite(cacheScope, target, unreadToken);
+            }
             await loadBots();
           },
           // The override stays until the last queued change for this chat is done.
@@ -213,6 +237,9 @@ export function useInboxChatActions({
               return next;
             }),
         ).catch((err) => {
+          if (cacheScope && unreadToken !== null) {
+            threadSessionCache.abortUnreadWrite(cacheScope, target, unreadToken);
+          }
           // A change from a session that has since ended is dropped quietly.
           if (session !== currentSessionGeneration()) return;
           Alert.alert(t("Could not update chat"), errorText(err, t("Try again.")));
@@ -273,7 +300,7 @@ export function useInboxChatActions({
         Alert.alert(t("Could not update chat"), errorText(err, t("Try again."))),
       );
     },
-    [loadBots, sendReadState, t, updateChat],
+    [loadBots, sendReadState, setBots, setGroups, setSpaces, t, updateChat, userId],
   );
   const botAction = useCallback(
     (action: InboxRowAction, bot: MobileBot | SpaceBot) => void runRowAction("bot", bot, action),

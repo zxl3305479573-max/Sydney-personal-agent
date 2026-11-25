@@ -47,8 +47,20 @@ vi.mock("../components/group-seats", () => ({
     }),
 }));
 vi.mock("../components/chat-title-label", () => ({
-  ChatTitleLabel: ({ label, placeholder }: { label: string; placeholder: boolean }) =>
-    createElement("b", { "data-placeholder": String(placeholder) }, label),
+  ChatTitleLabel: ({
+    label,
+    placeholder,
+    statusLabel,
+  }: {
+    label: string;
+    placeholder: boolean;
+    statusLabel?: string;
+  }) =>
+    createElement(
+      "b",
+      { "data-placeholder": String(placeholder), "data-status-label": statusLabel ?? "" },
+      label,
+    ),
 }));
 vi.mock("../components/thread-header-styles", () => ({ createThreadHeaderStyles: () => ({}) }));
 vi.mock("./native", () => ({ useThemedStyles: () => ({}) }));
@@ -246,4 +258,24 @@ it("shows a group identity even with no roster, and never on a one-to-one chat",
   act(() => setSearchInbox(inbox([helper], [{ id: "group-1", members: [member("b1")] }])));
   render({ botId: "bot-1" });
   expect(seats()).toBeNull();
+});
+
+it("shows localized conversation status in the header title for bots and groups", () => {
+  setSearchInbox(
+    inbox(
+      [helper],
+      [
+        {
+          id: "group-1",
+          name: "Team",
+          members: [{ ...member("b1"), status: "waiting_input" }],
+        },
+      ],
+    ),
+  );
+  render({ botId: "bot-1" }, "thread-status-bot");
+  expect(name()?.getAttribute("data-status-label")).toBe("Working…");
+
+  render({ groupId: "group-1", name: "Team" }, "thread-status-group");
+  expect(name()?.getAttribute("data-status-label")).toBe("Needs input");
 });

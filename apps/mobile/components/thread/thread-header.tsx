@@ -64,7 +64,9 @@ export function useThreadHeader({
   const [restoring, setRestoring] = useState(false);
 
   // The route draws the title from the screen's first frame; the chat feeds it its own data.
-  const titleComposing = Boolean(botId) && composingBots.split(",").includes(botId ?? "");
+  const titleComposing = inGroup
+    ? composingBots.length > 0
+    : Boolean(botId) && composingBots.split(",").includes(botId ?? "");
   useLayoutEffect(
     () =>
       publishChatTitle(route.key, {

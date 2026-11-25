@@ -131,6 +131,8 @@ type Config = {
   disk: UnsentDisk;
   errorText(error: unknown): string;
   notDelivered(attempt: SendAttempt): void;
+  sending?(attempt: SendAttempt): void;
+  settled?(attempt: SendAttempt): void;
   accepted?(attempt: SendAttempt, result: RpcOutput<"threads/send">): void;
 };
 let config: Config | undefined;
@@ -220,6 +222,7 @@ function requeue(attempt: SendAttempt) {
   changed();
 }
 function remove(attempt: SendAttempt) {
+  config?.settled?.(attempt);
   unsentSends = unsentSends.filter((a) => a !== attempt);
   // A saved index may still list the message, so its files go only after the index drops it.
   removed.add(attempt);
@@ -300,6 +303,7 @@ export function sendWaitingMessages(force = false): Promise<void> {
         const attempt = unsentSends.find((a) => a.state === "queued" && inScope(a));
         if (!attempt) break;
         attempt.state = "pending";
+        if (attempt.payload.plan.shouldSend) config.sending?.(attempt);
         changed();
         // A result from before a session change is stale even once the new scope is ready.
         const dispatched = config.scope();
@@ -313,12 +317,14 @@ export function sendWaitingMessages(force = false): Promise<void> {
           const result = await deliverSend(attempt.payload, attempt, request);
           // The retry under the new session gets the same seq back for the same nonce.
           if (stale()) {
+            config.settled?.(attempt);
             requeue(attempt);
             continue;
           }
           const seq = result?.seq;
           attempt.acceptedSeq = seq;
           if (result) config.accepted?.(attempt, result);
+          config.settled?.(attempt);
           for (const listener of deliveredListeners) listener(attempt);
           if (
             !screens.has(attempt.payload.originThreadKey) ||
@@ -329,6 +335,7 @@ export function sendWaitingMessages(force = false): Promise<void> {
             remove(attempt);
           else changed();
         } catch (error) {
+          config.settled?.(attempt);
           if (stale()) {
             requeue(attempt);
             continue;
@@ -457,8 +464,12 @@ export function useThreadFeedback(
         return false;
       if (!unsentSends.includes(attempt)) unsentSends.push(attempt);
       attempt.state = "queued";
+      if (attempt.payload.plan.shouldSend && (force || config?.serverReachable())) {
+        config?.sending?.(attempt);
+      }
       changed();
       await sendWaitingMessages(force);
+      if ((attempt.state as SendAttempt["state"]) !== "pending") config?.settled?.(attempt);
       return inScope(attempt) && attempt.acceptedSeq !== undefined;
     },
     discard(attempt: SendAttempt) {

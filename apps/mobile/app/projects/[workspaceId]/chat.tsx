@@ -1,14 +1,23 @@
 import { AI_DATA_DISCLOSURES, ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import {
   DEFAULT_BOT_AVATAR_COLOR,
+  liveMessageComposing,
   pendingProjectApproval,
   projectActiveRuns,
   projectMemberName,
 } from "@rakazo/core";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useRef, useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, I18nManager, Platform, ScrollView, Text, View } from "react-native";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  ActivityIndicator,
+  AppState,
+  I18nManager,
+  Platform,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotActionsModal } from "../../../components/bot-actions-modal";
 import { BotAvatar } from "../../../components/bot-avatar";
@@ -20,6 +29,11 @@ import { ThreadComposerDock } from "../../../components/thread/thread-composer-d
 import type { ThreadComposerHandle } from "../../../components/thread-composer";
 import { ThreadComposer } from "../../../components/thread-composer";
 import { threadHeaderRight } from "../../../components/thread-header-right";
+import {
+  conversationStatusColor,
+  conversationStatusLabel,
+  isConversationActiveStatus,
+} from "../../../lib/conversation-status";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
 import { projectScopeKey, subscribeProjectScope } from "../../../lib/project-scope";
@@ -32,6 +46,7 @@ import {
   threadHeaderFloats,
 } from "../../../lib/thread-edges";
 import { threadKeyboardAvoidance } from "../../../lib/thread-keyboard-offset";
+import { threadSnapshotStatus } from "../../../lib/thread-session-cache";
 import { useProjectChatActions } from "../../../lib/use-project-chat-actions";
 import { useProjectChatDetails } from "../../../lib/use-project-chat-details";
 import { useProjectReplyVoice } from "../../../lib/use-project-reply-voice";
@@ -107,6 +122,30 @@ function ProjectChat({
   const displayName = botIdentity?.name ?? groupIdentity?.name ?? (botId ? t("Bot") : t("Group"));
   const identity = botIdentity ?? groupIdentity;
   const archived = Boolean(identity?.archivedAt);
+  const activeRuns = projectActiveRuns(chat.snapshot);
+  const rawConversationStatus = chat.snapshot ? threadSnapshotStatus(chat.snapshot) : undefined;
+  const headerStatus =
+    chat.sending && !isConversationActiveStatus(rawConversationStatus)
+      ? "queued"
+      : rawConversationStatus;
+  const composing = (chat.snapshot?.messages ?? []).some(
+    (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
+  );
+  const runStatusLabel = chat.snapshot?.run
+    ? conversationStatusLabel(chat.snapshot.run.status, t, { includeTerminal: true }) ||
+      chat.snapshot.run.status
+    : "";
+  const runStatusColor = chat.snapshot?.run
+    ? conversationStatusColor(chat.snapshot.run.status, tokens ?? {})
+    : undefined;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") chat.markRead?.();
+    });
+    return () => subscription.remove();
+  }, [enabled, chat.markRead]);
   const actionMenu = useProjectChatActions({
     projectId,
     scope,
@@ -196,6 +235,8 @@ function ProjectChat({
                 members={
                   groupId ? (groupIdentity?.members ?? chat.snapshot?.members ?? []) : undefined
                 }
+                status={enabled ? headerStatus : undefined}
+                composing={enabled && composing}
                 accessibilityLabel={canEditBot ? t("Settings") : displayName}
                 onPress={
                   enabled && botId && canEditBot
@@ -375,7 +416,7 @@ function ProjectChat({
               )}
             </Text>
           ) : null}
-          {enabled && chat.snapshot?.run ? (
+          {enabled && chat.snapshot?.run && runStatusLabel ? (
             <View
               style={{
                 alignSelf: "flex-start",
@@ -387,14 +428,19 @@ function ProjectChat({
                 paddingVertical: 5,
               }}
             >
-              <Text style={mutedStyle}>
+              <Text
+                style={[
+                  mutedStyle,
+                  runStatusColor ? { color: runStatusColor, fontWeight: "500" } : null,
+                ]}
+              >
                 {text("任务状态：", "Run status: ")}
-                {chat.snapshot.run.status}
+                {runStatusLabel}
               </Text>
             </View>
           ) : null}
           {enabled
-            ? projectActiveRuns(chat.snapshot).map((run) => {
+            ? activeRuns.map((run) => {
                 const memberName = projectMemberName(chat.snapshot?.members, run.botId);
                 return (
                   <NativeActionButton
@@ -504,7 +550,7 @@ function ProjectChat({
             replyQuote={null}
             attachmentIds={[]}
             onCall={false}
-            working={false}
+            working={activeRuns.length > 0}
             sending={chat.sending}
             actionLabel={text("更多操作", "More actions")}
             attachActions={canEditBot && botId ? [{ id: "settings", title: t("Settings") }] : []}
@@ -513,7 +559,10 @@ function ProjectChat({
             modelActions={details.modelActions}
             onModelSelect={(key) => void details.selectModel(key)}
             send={send}
-            stop={async () => {}}
+            stop={async () => {
+              const run = activeRuns[0];
+              if (run) await chat.cancelRun(run.id);
+            }}
             startVoiceCall={async () => {}}
             onSlashAction={() => {}}
           />

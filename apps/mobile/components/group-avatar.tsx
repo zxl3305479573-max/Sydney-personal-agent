@@ -1,7 +1,10 @@
 import type { BotAvatarSet } from "@rakazo/contracts";
+import { avatarWorkingDot, isRunWorking } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { memo } from "react";
 import type { ViewStyle } from "react-native";
 import { StyleSheet, Text, View } from "react-native";
+import { aggregateConversationStatus, conversationStatusTone } from "../lib/conversation-status";
 import { native, useThemedStyles } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
 import { NativeSymbol } from "./native-symbol";
@@ -17,32 +20,69 @@ export interface GroupAvatarMember {
 export const GroupAvatar = memo(function GroupAvatar({
   members,
   size = 54,
+  status,
+  unread = false,
 }: {
   members: GroupAvatarMember[];
   size?: number;
+  status?: string;
+  unread?: boolean;
 }) {
   const styles = useThemedStyles(createGroupAvatarStyles);
+  const effectiveStatus = status ?? aggregateConversationStatus(members.map((m) => m.status));
+  const statusTone = conversationStatusTone(effectiveStatus);
+  const dot = avatarWorkingDot(size);
+  const markerStyle =
+    statusTone === "waiting"
+      ? styles.waitingDot
+      : statusTone === "failed" && !unread
+        ? styles.failedDot
+        : unread || isRunWorking(effectiveStatus)
+          ? styles.workingDot
+          : null;
+  const groupDot = markerStyle ? (
+    <View
+      accessibilityElementsHidden
+      style={[
+        markerStyle,
+        {
+          position: "absolute",
+          right: dot.inset - dot.ring,
+          bottom: dot.inset - dot.ring,
+          zIndex: 5,
+          width: dot.diameter + dot.ring * 2,
+          height: dot.diameter + dot.ring * 2,
+          borderRadius: size,
+          borderWidth: dot.ring,
+        },
+      ]}
+    />
+  ) : null;
+
   const firstMember = members[0];
   if (!firstMember) {
     return (
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={[
-          styles.fallback,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-          },
-        ]}
-      >
-        <NativeSymbol
-          ios="person.2.fill"
-          android="people"
-          size={Math.round(size * 0.45)}
-          color={native.secondaryLabel}
-        />
+      <View style={{ width: size, height: size, position: "relative" }}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[
+            styles.fallback,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+            },
+          ]}
+        >
+          <NativeSymbol
+            ios="person.2.fill"
+            android="people"
+            size={Math.round(size * 0.45)}
+            color={native.secondaryLabel}
+          />
+        </View>
+        {groupDot}
       </View>
     );
   }
@@ -54,7 +94,8 @@ export const GroupAvatar = memo(function GroupAvatar({
         avatarSet={firstMember.avatarSet}
         identity={firstMember.botId ?? firstMember.name}
         size={size}
-        status={firstMember.status}
+        status={effectiveStatus}
+        unread={unread}
       />
     );
   }
@@ -89,7 +130,6 @@ export const GroupAvatar = memo(function GroupAvatar({
             avatarSet={member.avatarSet}
             identity={member.botId ?? member.name}
             size={miniSize}
-            status={member.status}
           />
         </View>
       ))}
@@ -113,16 +153,30 @@ export const GroupAvatar = memo(function GroupAvatar({
           </Text>
         </View>
       ) : null}
+      {groupDot}
     </View>
   );
 });
 
-function createGroupAvatarStyles() {
+function createGroupAvatarStyles(tokens?: Partial<ColorTokens>) {
+  const borderColor = tokens?.background ?? "#F3F1EC";
   return StyleSheet.create({
     fallback: {
       backgroundColor: native.fillPressed,
       alignItems: "center",
       justifyContent: "center",
+    },
+    workingDot: {
+      borderColor,
+      backgroundColor: tokens?.workingDot ?? "#3FA266",
+    },
+    waitingDot: {
+      borderColor,
+      backgroundColor: tokens?.warning ?? "#E89E30",
+    },
+    failedDot: {
+      borderColor,
+      backgroundColor: tokens?.destructive ?? "#E5484D",
     },
   });
 }

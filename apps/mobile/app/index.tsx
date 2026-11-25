@@ -1,5 +1,5 @@
 import type { RunActivityRow, SpaceBot, SpaceGroup } from "@rakazo/contracts";
-import { accountDisplay, isRetryableError, isRunWorking, reportUiLocale } from "@rakazo/core";
+import { accountDisplay, isRetryableError, reportUiLocale } from "@rakazo/core";
 import type { Href } from "expo-router";
 import {
   Redirect,
@@ -54,6 +54,7 @@ import {
 } from "../lib/app-badge";
 import { AvatarViewportScope, createAvatarViewport } from "../lib/avatar-life";
 import { isPaywallShown } from "../lib/billing";
+import { isConversationActiveStatus } from "../lib/conversation-status";
 import type { CreateAction } from "../lib/create-chooser";
 import type { InboxBotIdentity } from "../lib/create-inbox-bot";
 import { createInboxBot } from "../lib/create-inbox-bot";
@@ -80,7 +81,11 @@ import { iosAtLeast } from "../lib/native-controls";
 import type { OrganizeTarget } from "../lib/organize-target";
 import { findOrganizeTarget } from "../lib/organize-target";
 import { offerPasskeyOnce } from "../lib/passkey";
-import { ACTIVITY_POLL_INTERVAL_MS, INBOX_POLL_INTERVAL_MS } from "../lib/poll-cadence";
+import {
+  ACTIVE_INBOX_POLL_INTERVAL_MS,
+  ACTIVITY_POLL_INTERVAL_MS,
+  INBOX_POLL_INTERVAL_MS,
+} from "../lib/poll-cadence";
 import { registerPushToken } from "../lib/push";
 import { queryClient, rpcQuery } from "../lib/query";
 import { loadSavedInbox, saveInbox } from "../lib/saved-chats";
@@ -254,6 +259,7 @@ function PersonalHomeHubScreen() {
         threadSessionCache.reconcileRoster(
           { apiBase, sessionGeneration: currentGen, userId: nextMe.userId, spaceId: space.id },
           requestThreadRevision,
+          { bots: space.bots, groups: space.groups },
         );
       }
       threadSessionCache.reconcileRoster(
@@ -264,6 +270,7 @@ function PersonalHomeHubScreen() {
           spaceId: navigation.current.id,
         },
         requestThreadRevision,
+        { bots: navigation.current.bots, groups: navigation.current.groups },
       );
       if (nextMe.spaceId === selectedSpaceId()) {
         queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
@@ -358,33 +365,76 @@ function PersonalHomeHubScreen() {
     }
   }, [loadHub]);
 
-  useForegroundPoll(loadHub, INBOX_POLL_INTERVAL_MS, hasSession && isFocused);
-
   const liveBots = useMemo(
     () =>
       bots.map((bot) => {
         if (!userId || !me) return bot;
-        const status = threadSessionCache.botStatus(
-          {
-            apiBase: currentApiBase(),
-            sessionGeneration: generation,
-            userId,
-            spaceId: me.spaceId,
-          },
-          bot.id,
-          bot.status,
-        );
-        return status === bot.status ? bot : { ...bot, status };
+        const scope = {
+          apiBase: currentApiBase(),
+          sessionGeneration: generation,
+          userId,
+          spaceId: bot.spaceId ?? me.spaceId,
+        };
+        const status = threadSessionCache.botStatus(scope, bot.id, bot.status);
+        const unread = threadSessionCache.unreadState(scope, { botId: bot.id }, bot.unread);
+        return status === bot.status && unread === bot.unread ? bot : { ...bot, status, unread };
       }),
     [bots, userId, me, generation, threadRevision],
+  );
+
+  const liveGroups = useMemo(
+    () =>
+      groups.map((group) => {
+        if (!userId || !me) return group;
+        const scope = {
+          apiBase: currentApiBase(),
+          sessionGeneration: generation,
+          userId,
+          spaceId: group.spaceId ?? me.spaceId,
+        };
+        const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+        const unread = threadSessionCache.unreadState(scope, { groupId: group.id }, group.unread);
+        return status === "idle" && unread === group.unread ? group : { ...group, status, unread };
+      }),
+    [groups, userId, me, generation, threadRevision],
   );
 
   const hubSpaces = useMemo<InboxSpace[]>(
     () =>
       spaces.length > 0
-        ? spaces.map((space) =>
-            space.id === me?.spaceId ? { ...space, bots: liveBots, groups, botSections } : space,
-          )
+        ? spaces.map((space) => {
+            if (space.id === me?.spaceId) {
+              return { ...space, bots: liveBots, groups: liveGroups, botSections };
+            }
+            if (!userId) return space;
+            const scope = {
+              apiBase: currentApiBase(),
+              sessionGeneration: generation,
+              userId,
+              spaceId: space.id,
+            };
+            return {
+              ...space,
+              bots: space.bots.map((bot) => {
+                const status = threadSessionCache.botStatus(scope, bot.id, bot.status);
+                const unread = threadSessionCache.unreadState(scope, { botId: bot.id }, bot.unread);
+                return status === bot.status && unread === bot.unread
+                  ? bot
+                  : { ...bot, status, unread };
+              }),
+              groups: space.groups.map((group) => {
+                const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+                const unread = threadSessionCache.unreadState(
+                  scope,
+                  { groupId: group.id },
+                  group.unread,
+                );
+                return status === "idle" && unread === group.unread
+                  ? group
+                  : { ...group, status, unread };
+              }),
+            };
+          })
         : me
           ? [
               {
@@ -393,12 +443,39 @@ function PersonalHomeHubScreen() {
                 isDefault: true,
                 hasContent: true,
                 bots: liveBots,
-                groups,
+                groups: liveGroups,
                 botSections,
               },
             ]
           : [],
-    [spaces, me, liveBots, groups, botSections, spaceName, t],
+    [
+      spaces,
+      me,
+      userId,
+      generation,
+      threadRevision,
+      liveBots,
+      liveGroups,
+      botSections,
+      spaceName,
+      t,
+    ],
+  );
+
+  const hubHasActiveWork = useMemo(
+    () =>
+      hubSpaces.some(
+        (space) =>
+          space.bots.some((bot) => isConversationActiveStatus(bot.status)) ||
+          space.groups.some((group) => isConversationActiveStatus(group.status)),
+      ),
+    [hubSpaces],
+  );
+
+  useForegroundPoll(
+    loadHub,
+    hubHasActiveWork ? ACTIVE_INBOX_POLL_INTERVAL_MS : INBOX_POLL_INTERVAL_MS,
+    hasSession && isFocused,
   );
 
   usePublishSearchInbox(hubSpaces, me !== null);
@@ -467,7 +544,11 @@ function PersonalHomeHubScreen() {
     );
   }
 
-  const workingCount = liveBots.filter((bot) => isRunWorking(bot.status)).length;
+  const workingCount =
+    liveBots.filter((bot) => isConversationActiveStatus(bot.status)).length +
+    liveGroups.filter((group) =>
+      isConversationActiveStatus("status" in group ? group.status : undefined),
+    ).length;
 
   return (
     <View style={styles.screen}>
@@ -475,7 +556,7 @@ function PersonalHomeHubScreen() {
         me={me}
         spaceName={spaceName}
         bots={liveBots}
-        groups={groups}
+        groups={liveGroups}
         activeRunsCount={Math.max(activeRunsCount, workingCount)}
         projectCount={projectCount}
         githubConnected={githubConnected}
@@ -662,6 +743,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         threadSessionCache.reconcileRoster(
           { apiBase, sessionGeneration: generation, userId: nextMe.userId, spaceId: space.id },
           requestThreadRevision,
+          { bots: space.bots, groups: space.groups },
         );
       }
       threadSessionCache.reconcileRoster(
@@ -672,6 +754,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           spaceId: navigation.current.id,
         },
         requestThreadRevision,
+        { bots: navigation.current.bots, groups: navigation.current.groups },
       );
       if (nextMe.spaceId === selectedSpaceId()) {
         queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
@@ -758,10 +841,6 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     };
   }, [hasSession]);
 
-  // The embedded pane is visible beside the chat, so it keeps polling even when
-  // the chat route owns focus.
-  useForegroundPoll(loadBots, INBOX_POLL_INTERVAL_MS, hasSession && (embedded || isFocused));
-
   const archivedCount = useArchivedCount(me?.spaceId, hasSession);
   const {
     unreadOverrides,
@@ -775,7 +854,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     organizeFromMenu,
     editSectionFromMenu,
     deleteSection,
-  } = useInboxChatActions({ loadBots, setBots, setGroups, setSpaces, botSections });
+  } = useInboxChatActions({ loadBots, setBots, setGroups, setSpaces, botSections, userId });
 
   const loadActivity = useCallback(async () => {
     if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
@@ -843,30 +922,40 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   );
   const shownSpaces = useMemo(
     () =>
-      archiving.size === 0 && pinOverrides.size === 0
+      archiving.size === 0 && pinOverrides.size === 0 && unreadOverrides.size === 0
         ? spaces
         : spaces.map((space) => ({
             ...space,
             bots: withoutArchiving(
               "bot",
-              applyPinOverrides("bot", space.bots, pinOverrides, {
-                generation,
-                apiBase: currentApiBase(),
-                spaceId: space.id,
-              }),
+              applyPinOverrides(
+                "bot",
+                applyUnreadOverrides("bot", space.bots, unreadOverrides),
+                pinOverrides,
+                {
+                  generation,
+                  apiBase: currentApiBase(),
+                  spaceId: space.id,
+                },
+              ),
               archiving,
             ),
             groups: withoutArchiving(
               "group",
-              applyPinOverrides("group", space.groups, pinOverrides, {
-                generation,
-                apiBase: currentApiBase(),
-                spaceId: space.id,
-              }),
+              applyPinOverrides(
+                "group",
+                applyUnreadOverrides("group", space.groups, unreadOverrides),
+                pinOverrides,
+                {
+                  generation,
+                  apiBase: currentApiBase(),
+                  spaceId: space.id,
+                },
+              ),
               archiving,
             ),
           })),
-    [spaces, archiving, pinOverrides, generation],
+    [spaces, archiving, pinOverrides, unreadOverrides, generation],
   );
   const rosterSpaces = useMemo<InboxSpace[]>(
     () =>
@@ -893,24 +982,53 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   );
   const inboxSpaces = useMemo(
     () =>
-      rosterSpaces.map((space) => ({
-        ...space,
-        bots: space.bots.map((bot) => {
-          if (!userId) return bot;
-          const status = threadSessionCache.botStatus(
-            {
-              apiBase: currentApiBase(),
-              sessionGeneration: generation,
-              userId,
-              spaceId: space.id,
-            },
-            bot.id,
-            bot.status,
-          );
-          return status === bot.status ? bot : { ...bot, status };
-        }),
-      })),
-    [rosterSpaces, userId, generation, threadRevision],
+      rosterSpaces.map((space) => {
+        if (!userId) return space;
+        const scope = {
+          apiBase: currentApiBase(),
+          sessionGeneration: generation,
+          userId,
+          spaceId: space.id,
+        };
+        return {
+          ...space,
+          bots: space.bots.map((bot) => {
+            const status = threadSessionCache.botStatus(scope, bot.id, bot.status);
+            const unread = unreadOverrides.has(`bot:${bot.id}`)
+              ? bot.unread
+              : threadSessionCache.unreadState(scope, { botId: bot.id }, bot.unread);
+            return status === bot.status && unread === bot.unread
+              ? bot
+              : { ...bot, status, unread };
+          }),
+          groups: space.groups.map((group) => {
+            const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+            const unread = unreadOverrides.has(`group:${group.id}`)
+              ? group.unread
+              : threadSessionCache.unreadState(scope, { groupId: group.id }, group.unread);
+            return status === "idle" && unread === group.unread
+              ? group
+              : { ...group, status, unread };
+          }),
+        };
+      }),
+    [rosterSpaces, userId, generation, threadRevision, unreadOverrides],
+  );
+  const inboxHasActiveWork = useMemo(
+    () =>
+      inboxSpaces.some(
+        (space) =>
+          space.bots.some((bot) => isConversationActiveStatus(bot.status)) ||
+          space.groups.some((group) => isConversationActiveStatus(group.status)),
+      ),
+    [inboxSpaces],
+  );
+  // The embedded pane is visible beside the chat, so it keeps polling even when
+  // the chat route owns focus. Poll faster while any visible conversation is active.
+  useForegroundPoll(
+    loadBots,
+    inboxHasActiveWork ? ACTIVE_INBOX_POLL_INTERVAL_MS : INBOX_POLL_INTERVAL_MS,
+    hasSession && (embedded || isFocused),
   );
   usePublishSearchInbox(inboxSpaces, me !== null);
   const listData = useMemo((): InboxItem[] => {

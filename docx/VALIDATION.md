@@ -1,5 +1,21 @@
 # 验证记录
 
+## 移动端未读状态、对话状态显示与退出对话持续态修复（2026-11-25）
+
+关联 PA-018／PA-021／PA-022。
+
+- **首轮发现与修复**：
+  - `group-avatar.tsx` 首次引入 `mobileTokens` 触发 `expo-modules-core` 导入链路导致 `group-avatar.test.tsx` 在 jsdom 导入失败；改为仅通过 `useThemedStyles` 接收可选 `tokens` 参数后通过。
+  - `projects/[workspaceId].tsx` 中 `previewSnippet(item.preview, 40)` 在无预览字段的 roster 项上抛出 `undefined.replace` 与 `TS2345`；改为 `item.preview ? previewSnippet(item.preview, 40) : ""` 后通过。
+  - `thread-feedback.ts` 中 `attempt.state !== "pending"` 因 TS 流分析收窄报 `TS2367`，以及新增测试 `chat-header-title.test.tsx`（复用前序未清理的 `thread-1` 标题键）与 `thread-read.test.tsx`（未先 flush 队列微任务）均已修正。
+- **最终已执行并通过（`origin/main` `54556e275` 干净隔离工作树复验）**：
+  - `@rakazo/mobile` 全包 TypeScript 类型检查（`npx tsc --noEmit -p apps/mobile/tsconfig.json`）：**0 错误通过**。
+  - 移动端定向 Vitest（19 个文件、266 项测试，全部通过、0 失败）：`conversation-status.test.ts`（2）、`thread-session-cache.test.tsx`（17）、`thread-read.test.tsx`（5）、`bot-avatar-render.test.tsx`（18）、`group-avatar.test.tsx`（4）、`chat-header-title.test.tsx`（12）、`chat-title-label.test.tsx`（4）、`chat-title-avatar.test.tsx`（13）、`thread-header.test.ts`（6）、`home-hub.test.tsx`（4）、`use-open-notification-thread.test.tsx`（4）、`use-inbox-chat-actions.test.tsx`（28）、`foreground-poll.test.tsx`（7）、`thread-feedback.test.tsx`（51）、`use-project-thread.test.tsx`（10）、`project-pages-state.test.tsx`（7）、`inbox-spaces.test.ts`（33）、`inbox-swipe.test.tsx`（16）、`main-navigation.test.tsx`（25）。
+  - Biome lint（40 个变更／测试文件）：**0 错误**（仅保留 2 条未改行既有 warning：`projects/[workspaceId].tsx` `canvasBg`、`projects/[workspaceId]/chat.tsx` `useOptionalChain`，以及 1 条 `index.tsx` 既有无用 Fragment info）；`git diff --check` 全部改动 **0 警告通过**。
+- **附带基线说明（`origin/main` 既有未在本批范围的问题）**：
+  - 附带跑到的 `inbox-render.test.tsx` 有 2 项既有失败（行头像断言 `size === "56"` 与 `origin/main` 当前 `44` 及置顶 `aria-label`），`project-chat-screen.test.tsx` 有 5 项既有失败（`bot-actions-modal.tsx` 未在测试替身中导出 `StyleSheet`），`unsent-sends.test.ts` 在导入 `saved-chats.ts` 时因缺少 `Platform` 替身失败；均早于本批改动存在，未计入本批通过项。
+- **未执行项**：未执行 iPhone 真机退页持续状态、后台回前台自动消未读、弱网发送未落库前退页、旧版后台实机联调、OTA 构建及服务端部署。
+
 ## 全分支整合收口：`backend` 分支合入 `main` 与跨包回归（2026-11-25）
 
 关联 PA-018／PA-021／PA-022／PA-023／P2／P3。将本地 `backend` 分支（`ceac00bb5`，完整覆盖 `butterflyray` 全部有效改动并额外包含 PA-022 非空项目删除、P2/P3 任务执行审计、MCP 原生回调并发修复与 Native Linux 驱动状态持久化）推送至 `origin/backend` 并合入集成分支与 `main`（合并提交 `a121af6f9`）。解决 `infra/native-linux/driver.py` 常量冲突，补齐 5 处合入后类型与真实字段缺陷（含 `packages/db/src/project-workspace-deletion.ts` 补齐 `lease.fence`/`runId`、`packages/adapters/src/native-linux-sandbox.ts` 请求基对象类型窄化、`apps/mobile/lib/startup.ts` 补齐 `"notifications"` 启动步骤等）并修复 18 项测试替身与共享记忆断言差异（含顺手修复 `packages/db/src/groups.test.ts` 的 `query.join is not a function`）。

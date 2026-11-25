@@ -30,6 +30,7 @@ vi.mock("./api", () => ({
 }));
 
 import { queryClient } from "./query-client";
+import { projectThreadSessionScope, threadSessionCache } from "./thread-session-cache";
 import type { ProjectChatTarget } from "./use-project-thread";
 import { useProjectThread } from "./use-project-thread";
 
@@ -256,5 +257,57 @@ describe("mobile project chat transport", () => {
     expect(
       runtime.rpc.mock.calls.some(([procedure]) => procedure === "projectWorkspaces/sendText"),
     ).toBe(false);
+  });
+
+  it("marks project conversations read on open and bot replies, and publishes live status to cache", async () => {
+    threadSessionCache.clear();
+    const cacheScope = projectThreadSessionScope(runtime.scope, projectId);
+    await render();
+    expect(runtime.rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/markRead",
+      { projectId: "project-a", botId: "bot-a", groupId: undefined },
+      expect.objectContaining({ requestContext: context, skipSpaceAuthRecovery: true }),
+    );
+    expect(threadSessionCache.unreadState(cacheScope, { botId: "bot-a" }, true)).toBe(false);
+
+    // Incoming bot reply triggers markRead again.
+    const receive = runtime.subscribe.mock.calls[0]![3];
+    await act(async () =>
+      receive({
+        threadId: "thread-a",
+        seq: 5,
+        type: "thread.message.created",
+        payload: { role: "bot" },
+      }),
+    );
+    const markReadCalls = runtime.rpc.mock.calls.filter(
+      ([proc]) => proc === "projectWorkspaces/markRead",
+    );
+    expect(markReadCalls).toHaveLength(2);
+
+    // Sending updates project cache status immediately while in flight and after a legacy runId receipt.
+    let finishSend!: (value: unknown) => void;
+    runtime.rpc.mockImplementation(async (proc: string) => {
+      if (proc === "projectWorkspaces/consentStatus")
+        return { scope: "scope-a", version: "v1", recipients: [] };
+      if (proc === "projectWorkspaces/sendText") {
+        return new Promise((resolve) => {
+          finishSend = resolve;
+        });
+      }
+      return snapshot;
+    });
+    let sending!: Promise<boolean>;
+    await act(async () => {
+      sending = chat.send("run task");
+    });
+    await vi.waitFor(() => expect(finishSend).toBeTypeOf("function"));
+    expect(threadSessionCache.botStatus(cacheScope, "bot-a", "idle")).toBe("queued");
+    await act(async () => {
+      finishSend({ runId: "run-proj-1" });
+      await sending;
+    });
+    expect(threadSessionCache.botStatus(cacheScope, "bot-a", "idle")).toBe("queued");
+    threadSessionCache.clear();
   });
 });

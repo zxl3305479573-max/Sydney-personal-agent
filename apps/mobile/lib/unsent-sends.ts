@@ -30,7 +30,7 @@ import {
   restoreUnsentSends,
   sendWaitingMessages,
 } from "./thread-feedback";
-import { applySendActivity, threadSessionCache } from "./thread-session-cache";
+import { applyAcceptedSend, threadSessionCache } from "./thread-session-cache";
 import { errorText } from "./user-error";
 
 let activeScope: (OutboxScope & { generation: number }) | null = null;
@@ -86,9 +86,37 @@ configureUnsentSends({
   passwordChanging: passwordChangeInFlight,
   scope,
   disk: outboxDisk,
-  accepted: (attempt, { activity }) => {
+  sending: (attempt) => {
     const current = scope();
-    if (!activity || !current || !attempt.spaceId) return;
+    if (!current || !attempt.spaceId) return;
+    threadSessionCache.markSendPending(
+      {
+        apiBase: attempt.apiBase,
+        sessionGeneration: current.generation,
+        userId: attempt.userId,
+        spaceId: attempt.spaceId,
+      },
+      { botId: attempt.payload.botTarget, groupId: attempt.payload.groupTarget },
+      attempt.clientNonce,
+    );
+  },
+  settled: (attempt) => {
+    const current = scope();
+    if (!current || !attempt.spaceId) return;
+    threadSessionCache.clearSendPending(
+      {
+        apiBase: attempt.apiBase,
+        sessionGeneration: current.generation,
+        userId: attempt.userId,
+        spaceId: attempt.spaceId,
+      },
+      { botId: attempt.payload.botTarget, groupId: attempt.payload.groupTarget },
+      attempt.clientNonce,
+    );
+  },
+  accepted: (attempt, result) => {
+    const current = scope();
+    if (!current || !attempt.spaceId) return;
     const target = { botId: attempt.payload.botTarget, groupId: attempt.payload.groupTarget };
     const acceptedScope = {
       apiBase: attempt.apiBase,
@@ -97,16 +125,23 @@ configureUnsentSends({
       spaceId: attempt.spaceId,
     };
     const previous = threadSessionCache.read(acceptedScope, target);
-    const snapshot = applySendActivity(previous, target, activity);
+    const snapshot = applyAcceptedSend(previous, target, result);
     if (!snapshot || snapshot === previous) return;
     threadSessionCache.remember(acceptedScope, snapshot);
-    void savedChatsScope().then((saved) => {
-      if (saved?.userId !== acceptedScope.userId || saved.spaceId !== acceptedScope.spaceId ||
-        saved.sessionGeneration !== acceptedScope.sessionGeneration || saved.apiBase !== acceptedScope.apiBase)
-        return;
-      if (threadSessionCache.read(acceptedScope, target) === snapshot)
-        writeSavedThread(saved, savedChatTarget(target), snapshot);
-    }).catch(() => undefined);
+    if (!result.activity || !snapshot.threadId) return;
+    void savedChatsScope()
+      .then((saved) => {
+        if (
+          saved?.userId !== acceptedScope.userId ||
+          saved.spaceId !== acceptedScope.spaceId ||
+          saved.sessionGeneration !== acceptedScope.sessionGeneration ||
+          saved.apiBase !== acceptedScope.apiBase
+        )
+          return;
+        if (threadSessionCache.read(acceptedScope, target) === snapshot)
+          writeSavedThread(saved, savedChatTarget(target), snapshot);
+      })
+      .catch(() => undefined);
   },
   errorText: (error) => errorText(error, t("Failed to send message")),
   notDelivered: (attempt) => {

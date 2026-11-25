@@ -31,6 +31,7 @@ import Svg, { Ellipse, G, Path, Rect } from "react-native-svg";
 import type { AvatarLife } from "../lib/avatar-life";
 import { useAvatarOnScreen, useLife, usePoke, useSettling } from "../lib/avatar-life";
 import { mobileBotAvatarPresentation } from "../lib/bot-avatar";
+import { conversationStatusLabel, conversationStatusTone } from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { NativeSymbol } from "./native-symbol";
@@ -120,13 +121,22 @@ export interface BotAvatarProps {
   pokeable?: boolean;
 }
 
-function WorkingDot({ size, muted }: { size: number; muted: boolean }) {
+function WorkingDot({
+  size,
+  muted,
+  color,
+  accessibilityLabel,
+}: {
+  size: number;
+  muted: boolean;
+  color: string;
+  accessibilityLabel: string;
+}) {
   const tokens = useMobileTokens();
-  const { t } = useI18n();
   const dot = avatarWorkingDot(size);
   return (
     <View
-      accessibilityLabel={t("Working")}
+      accessibilityLabel={accessibilityLabel}
       style={{
         position: "absolute",
         right: muted ? undefined : dot.inset - dot.ring,
@@ -137,7 +147,7 @@ function WorkingDot({ size, muted }: { size: number; muted: boolean }) {
         borderRadius: size,
         borderWidth: dot.ring,
         borderColor: tokens.background,
-        backgroundColor: tokens.workingDot,
+        backgroundColor: color,
       }}
     />
   );
@@ -198,9 +208,8 @@ export const BotAvatar = memo(function BotAvatar({
   pokeable = false,
 }: BotAvatarProps) {
   const tokens = useMobileTokens();
+  const { t } = useI18n();
   const state = avatarLifeState(status, composing);
-  // Keep one persistent marker for running work and unread replies.
-  const isWorking = unread || (isRunWorking(status) && !composing && motion !== "running");
   const parsed = mobileBotAvatarPresentation(color);
   const onScreen = useAvatarOnScreen();
   const reducedMotion = useReducedMotion();
@@ -214,6 +223,27 @@ export const BotAvatar = memo(function BotAvatar({
     settling,
     reducedMotion,
   });
+  // Only hide the working dot when the live typing-dots morph is actually animating.
+  const typingDotsActive = parsed.kind !== "image" && clock !== "still" && composing;
+  const statusTone = conversationStatusTone(status);
+  const marker: { color: string; label: string } | null =
+    statusTone === "waiting"
+      ? {
+          color: tokens.warning ?? "#E89E30",
+          label: conversationStatusLabel(status, t) || t("Needs input"),
+        }
+      : statusTone === "failed" && !unread
+        ? {
+            color: tokens.destructive ?? "#E5484D",
+            label: t("Failed"),
+          }
+        : unread ||
+            ((isRunWorking(status) || composing) && !typingDotsActive && motion !== "running")
+          ? {
+              color: tokens.workingDot,
+              label: t("Working"),
+            }
+          : null;
   const life = useLife(state, clock, size, motion);
   const poke = usePoke(life, pokeable && clock === "running");
   const bodyStyle = useBodyStyle(life, size);
@@ -256,7 +286,14 @@ export const BotAvatar = memo(function BotAvatar({
       {parsed.kind !== "image" && clock !== "still" ? (
         <ThinkingDots color={fillColor} size={size} life={life} />
       ) : null}
-      {isWorking ? <WorkingDot size={size} muted={muted} /> : null}
+      {marker ? (
+        <WorkingDot
+          size={size}
+          muted={muted}
+          color={marker.color}
+          accessibilityLabel={marker.label}
+        />
+      ) : null}
       {muted ? <MutedBadge size={size} /> : null}
     </View>
   );

@@ -8,7 +8,10 @@ import { GroupAvatar } from "../components/group-avatar";
 
 vi.mock("react-native", () => ({
   StyleSheet: { create: <T,>(styles: T) => styles },
-  View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+  View: ({ children, style }: { children?: ReactNode; style?: unknown }) => {
+    const flat = Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
+    return createElement("div", { "data-bg": flat.backgroundColor }, children);
+  },
   Text: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
 }));
 vi.mock("./native", () => ({
@@ -16,8 +19,20 @@ vi.mock("./native", () => ({
   useThemedStyles: <T,>(factory: () => T) => factory(),
 }));
 vi.mock("../components/bot-avatar", () => ({
-  BotAvatar: ({ identity }: { identity: string }) =>
-    createElement("i", { "data-member": identity }),
+  BotAvatar: ({
+    identity,
+    status,
+    unread,
+  }: {
+    identity: string;
+    status?: string;
+    unread?: boolean;
+  }) =>
+    createElement("i", {
+      "data-member": identity,
+      "data-status": status,
+      "data-unread": String(Boolean(unread)),
+    }),
 }));
 vi.mock("../components/native-symbol", () => ({
   NativeSymbol: ({ android }: { android: string }) => createElement("i", { "data-icon": android }),
@@ -34,9 +49,15 @@ afterEach(() => {
   act(() => root.unmount());
   vi.unstubAllGlobals();
 });
-const member = (index: number) => ({ botId: `bot-${index}`, color: "#2A92FE" });
-const render = (members: ReturnType<typeof member>[]) =>
-  act(() => root.render(<GroupAvatar members={members} size={54} />));
+const member = (index: number, status?: string) => ({
+  botId: `bot-${index}`,
+  color: "#2A92FE",
+  status,
+});
+const render = (
+  members: ReturnType<typeof member>[],
+  props?: { status?: string; unread?: boolean },
+) => act(() => root.render(<GroupAvatar members={members} size={54} {...props} />));
 
 describe("mobile group avatar", () => {
   it("uses a native group icon rather than an emoji when members are unavailable", () => {
@@ -45,12 +66,21 @@ describe("mobile group avatar", () => {
     expect(container.textContent).not.toContain("👥");
   });
   it("shows the lone member as their existing bot avatar", () => {
-    render([member(0)]);
-    expect(container.querySelector('[data-member="bot-0"]')).not.toBeNull();
+    render([member(0)], { status: "running", unread: true });
+    const bot = container.querySelector('[data-member="bot-0"]');
+    expect(bot).not.toBeNull();
+    expect(bot?.getAttribute("data-status")).toBe("running");
+    expect(bot?.getAttribute("data-unread")).toBe("true");
   });
   it("represents larger rosters with actual members and an overflow count", () => {
     render(Array.from({ length: 6 }, (_, index) => member(index)));
     expect(container.querySelectorAll("[data-member]")).toHaveLength(2);
     expect(container.textContent).toContain("+4");
+  });
+  it("draws one unified status or unread marker for multi-member groups", () => {
+    render([member(0), member(1)], { unread: true });
+    expect(container.querySelectorAll('[data-bg="#3FA266"]')).toHaveLength(1);
+    render([member(0, "waiting_input"), member(1)]);
+    expect(container.querySelectorAll('[data-bg="#E89E30"]')).toHaveLength(1);
   });
 });

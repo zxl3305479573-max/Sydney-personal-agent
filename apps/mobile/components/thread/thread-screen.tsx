@@ -42,12 +42,16 @@ import { chatModelMenuActions } from "../../lib/chat-model-menu";
 import { activeCompanionIdentity } from "../../lib/companion-activity";
 import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/companion-voice-guard";
 import { composerDraftScope } from "../../lib/composer-draft";
+import {
+  aggregateConversationStatus,
+  isConversationActiveStatus,
+} from "../../lib/conversation-status";
 import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
 import { useMobileTokens, useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
 import { useScopedTheme } from "../../lib/scoped-theme-context";
-import { useInboxBot } from "../../lib/search-inbox";
+import { useInboxBot, useInboxGroup } from "../../lib/search-inbox";
 import { currentSessionGeneration } from "../../lib/session";
 import { useSplitView } from "../../lib/split-view";
 import { useIncomingShareImport, useThreadAttachments } from "../../lib/thread-attachments";
@@ -71,6 +75,7 @@ import {
   latestThreadRowKey,
 } from "../../lib/thread-scroll";
 import { useThreadSend } from "../../lib/thread-send";
+import { threadSnapshotStatus } from "../../lib/thread-session-cache";
 import { threadGroupMembers } from "../../lib/thread-snapshot";
 import { useThreadSync } from "../../lib/thread-sync";
 import { useThreadTranscript } from "../../lib/thread-transcript";
@@ -161,6 +166,19 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   activeBotId.current = botId;
   const activeGroupId = useRef(groupId);
   activeGroupId.current = groupId;
+  // Until the chat's own roster arrives, the bot/group as the inbox last loaded it.
+  const inboxBot = useInboxBot(botId);
+  const inboxGroup = useInboxGroup(groupId);
+  const sessionSpaceId = selectedSpaceId() ?? inboxBot?.spaceId ?? inboxGroup?.spaceId ?? "";
+  const sessionScope = useMemo(
+    () => ({
+      apiBase: currentApiBase(),
+      sessionGeneration: currentSessionGeneration(),
+      userId,
+      spaceId: sessionSpaceId,
+    }),
+    [sessionSpaceId, userId, sessionEpoch],
+  );
   const {
     threadKey,
     activeThreadId,
@@ -171,7 +189,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     markedUnreadMessageId,
     markUnreadFrom,
     markReadIfVisible,
-  } = useThreadRead({ botId, groupId, focused, readOnly });
+  } = useThreadRead({ botId, groupId, focused, readOnly, sessionScope });
   const markCaughtUp = () => setReadBoundary({ visit: readVisit.current.visit, seq: null });
   const artifactTarget: MobileArtifactTarget | undefined = groupId
     ? { groupId }
@@ -179,12 +197,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
       ? { botId }
       : undefined;
   const history = useThreadSnapshot({
-    scope: {
-      apiBase: currentApiBase(),
-      sessionGeneration: currentSessionGeneration(),
-      userId,
-      spaceId: selectedSpaceId() ?? "",
-    },
+    scope: sessionScope,
     botId,
     groupId,
     messageId,
@@ -298,8 +311,6 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     [groupId, inGroup, locale, mentionBots, mentionConnectors, mentionGroups, mentionRoutines],
   );
   const currentBot = botId ? mentionBots.find((bot) => bot.id === botId) : undefined;
-  // Until the chat's own roster arrives, the bot as the inbox last loaded it.
-  const inboxBot = useInboxBot(botId);
   const titleBot = currentBot ?? inboxBot;
   const modelLabel = modelBotId
     ? chatModelDisplayName(
@@ -369,10 +380,24 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const composerPrompt = displayName ? t("Message {name}", { name: displayName }) : t("Message…");
   const notificationThreadId = snap?.threadId ?? requestedThreadId ?? currentBot?.threadId;
   activeThreadId.current = notificationThreadId;
-  const currentBotStatus = snap ? snap.run?.status : titleBot?.status;
+  const hasSendingAttempt = feedback.unsentSends.some(
+    (attempt) =>
+      attempt.payload.plan.shouldSend &&
+      (attempt.state === "pending" || attempt.state === "queued"),
+  );
   // The group's members in its order, once the chat or its group list has loaded them; the
   // title seats the inbox's copy until then.
   const groupMembers = threadGroupMembers(groupId, snap, mentionGroups);
+  const rawBotStatus = snap ? threadSnapshotStatus(snap) : titleBot?.status;
+  const currentBotStatus = rawBotStatus;
+  const rawGroupStatus = snap
+    ? threadSnapshotStatus(snap)
+    : aggregateConversationStatus(
+        (groupMembers ?? inboxGroup?.members ?? []).map((member) => member.status),
+      );
+  const rawHeaderStatus = inGroup ? rawGroupStatus : rawBotStatus;
+  const currentConversationStatus =
+    hasSendingAttempt && !isConversationActiveStatus(rawHeaderStatus) ? "queued" : rawHeaderStatus;
   // Only reply text being written replaces the footer; earlier sentences above a tool call don't.
   const hasLiveProgress = visibleMessages.some(
     (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
@@ -436,7 +461,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     titleBot,
     titleName,
     groupMembers,
-    currentBotStatus,
+    currentBotStatus: currentConversationStatus,
     composingBots,
     styles,
     onCleared: history.clear,

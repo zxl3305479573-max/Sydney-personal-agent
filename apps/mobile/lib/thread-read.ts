@@ -7,6 +7,8 @@ import type { MobileMessage } from "./api";
 import { rpc } from "./api";
 import { useI18n } from "./i18n";
 import { dismissThreadNotifications } from "./live-notifications";
+import type { ThreadSessionScope } from "./thread-session-cache";
+import { threadSessionCache } from "./thread-session-cache";
 import { errorText } from "./user-error";
 
 /**
@@ -18,16 +20,20 @@ export function useThreadRead({
   groupId,
   focused,
   readOnly,
+  sessionScope,
 }: {
   botId?: string;
   groupId?: string;
   focused: boolean;
   readOnly: boolean;
+  sessionScope?: ThreadSessionScope;
 }) {
   const { t } = useI18n();
   const navigation = useNavigation();
   const activeThreadId = useRef<string | undefined>(undefined);
   const readVisibleTarget = useRef<string | null>(null);
+  const sessionScopeRef = useRef(sessionScope);
+  sessionScopeRef.current = sessionScope;
   // What the user had read up to when this chat opened; the "New" divider follows it all visit.
   // Each open or return to a chat is a new visit.
   const readVisit = useRef<{ target: string | undefined; visit: number; focused: boolean }>({
@@ -58,6 +64,11 @@ export function useThreadRead({
     const target = groupId ?? botId;
     if (!target) return;
     heldUnread.current = visit;
+    const cacheScope = sessionScopeRef.current;
+    const cacheTarget = groupId ? { groupId } : { botId: botId! };
+    const unreadToken = cacheScope?.spaceId
+      ? threadSessionCache.beginUnreadWrite(cacheScope, cacheTarget, true)
+      : null;
     // Through the chat's read queue, so a read already sent lands first and this one wins.
     void readInOrder(target, () =>
       rpc("threads/markUnread", {
@@ -66,57 +77,80 @@ export function useThreadRead({
       }),
     )
       .then(() => {
+        if (cacheScope && unreadToken !== null) {
+          threadSessionCache.finishUnreadWrite(cacheScope, cacheTarget, unreadToken);
+        }
         if (readVisit.current.visit === visit) {
           setMarkedUnread({ visit, messageId: message.id });
         }
       })
       .catch((err) => {
+        if (cacheScope && unreadToken !== null) {
+          threadSessionCache.abortUnreadWrite(cacheScope, cacheTarget, unreadToken);
+        }
         if (heldUnread.current === visit) heldUnread.current = null;
         Alert.alert(t("Could not update chat"), errorText(err, t("Try again.")));
       });
   };
 
-  const markReadIfVisible = useCallback(() => {
-    if (
-      readOnly ||
-      heldUnread.current === readVisit.current.visit ||
-      AppState.currentState !== "active" ||
-      !navigation.isFocused()
-    )
-      return;
-    const target = groupId ?? botId;
-    if (!target || readVisibleTarget.current === target) return;
-    readVisibleTarget.current = target;
-    const visit = readVisit.current.visit;
-    if (activeThreadId.current) {
-      void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(() => undefined);
-    }
-    // A read that waited in the queue skips once the user has left the chat, or marked it
-    // unread meanwhile.
-    void readInOrder(target, () =>
-      readVisit.current.visit === visit &&
-      heldUnread.current !== visit &&
-      AppState.currentState === "active" &&
-      navigation.isFocused()
-        ? rpc("threads/markRead", groupId ? { groupId } : { botId: botId! })
-        : Promise.resolve(null),
-    )
-      .then((answer) => {
-        if (!answer) {
+  const markReadIfVisible = useCallback(
+    (options?: { force?: boolean }) => {
+      if (
+        readOnly ||
+        heldUnread.current === readVisit.current.visit ||
+        AppState.currentState !== "active" ||
+        !navigation.isFocused()
+      )
+        return;
+      const target = groupId ?? botId;
+      if (!target || (!options?.force && readVisibleTarget.current === target)) return;
+      readVisibleTarget.current = target;
+      const visit = readVisit.current.visit;
+      const cacheScope = sessionScopeRef.current;
+      const cacheTarget = groupId ? { groupId } : { botId: botId! };
+      const unreadToken = cacheScope?.spaceId
+        ? threadSessionCache.beginUnreadWrite(cacheScope, cacheTarget, false)
+        : null;
+      if (activeThreadId.current) {
+        void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(() => undefined);
+      }
+      // A read that waited in the queue skips once the user has left the chat, or marked it
+      // unread meanwhile.
+      void readInOrder(target, () =>
+        readVisit.current.visit === visit &&
+        heldUnread.current !== visit &&
+        AppState.currentState === "active" &&
+        navigation.isFocused()
+          ? rpc("threads/markRead", groupId ? { groupId } : { botId: botId! })
+          : Promise.resolve(null),
+      )
+        .then((answer) => {
+          if (!answer) {
+            if (cacheScope && unreadToken !== null) {
+              threadSessionCache.abortUnreadWrite(cacheScope, cacheTarget, unreadToken);
+            }
+            if (readVisibleTarget.current === target) readVisibleTarget.current = null;
+            return;
+          }
+          if (cacheScope && unreadToken !== null) {
+            threadSessionCache.finishUnreadWrite(cacheScope, cacheTarget, unreadToken);
+          }
+          setReadBoundary((current) =>
+            settleReadBoundary(current, readVisit.current.visit, {
+              visit,
+              seq: answer.unreadAfterSeq ?? null,
+            }),
+          );
+        })
+        .catch(() => {
+          if (cacheScope && unreadToken !== null) {
+            threadSessionCache.abortUnreadWrite(cacheScope, cacheTarget, unreadToken);
+          }
           if (readVisibleTarget.current === target) readVisibleTarget.current = null;
-          return;
-        }
-        setReadBoundary((current) =>
-          settleReadBoundary(current, readVisit.current.visit, {
-            visit,
-            seq: answer.unreadAfterSeq ?? null,
-          }),
-        );
-      })
-      .catch(() => {
-        if (readVisibleTarget.current === target) readVisibleTarget.current = null;
-      });
-  }, [botId, groupId, navigation, readInOrder, readOnly]);
+        });
+    },
+    [botId, groupId, navigation, readInOrder, readOnly],
+  );
 
   return {
     threadKey,

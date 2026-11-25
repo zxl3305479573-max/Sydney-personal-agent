@@ -1,6 +1,8 @@
 import type { GroupMember } from "@rakazo/contracts";
 import type { ComponentProps } from "react";
 import { Pressable } from "react-native";
+import { conversationStatusLabel, conversationStatusTone } from "../lib/conversation-status";
+import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
 import { CHAT_TITLE_AVATAR_SIZE, ChatTitleAvatar } from "./chat-title-avatar";
 import { ChatTitleLabel } from "./chat-title-label";
@@ -28,6 +30,16 @@ export function ChatTitleContent({
   showAvatar?: boolean;
 }) {
   const styles = useThemedStyles(createThreadHeaderStyles);
+  const { t } = useI18n();
+  const statusLabel = name ? conversationStatusLabel(status, t, { composing }) : "";
+  const tone =
+    composing && (!status || status === "idle") ? "working" : conversationStatusTone(status);
+  const statusStyle =
+    tone === "waiting"
+      ? styles.titleStatusWaiting
+      : tone === "failed"
+        ? styles.titleStatusFailed
+        : styles.titleStatusWorking;
   return (
     <Pressable
       accessibilityRole="button"
@@ -41,7 +53,15 @@ export function ChatTitleContent({
         ) : (
           <ChatTitleAvatar bot={bot} status={status} composing={composing} />
         )}
-        <ChatTitleLabel label={name} placeholder={!name} style={styles.title} />
+        <ChatTitleLabel
+          label={name}
+          placeholder={!name}
+          style={styles.title}
+          compactStyle={styles.titleCompact}
+          groupStyle={styles.titleTextGroup}
+          statusLabel={statusLabel || undefined}
+          statusStyle={statusStyle}
+        />
       </GlassSurface>
     </Pressable>
   );

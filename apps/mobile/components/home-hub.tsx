@@ -1,4 +1,4 @@
-import type { SpaceBot, SpaceGroup } from "@rakazo/contracts";
+import type { SpaceBot } from "@rakazo/contracts";
 import { accountDisplay, isRunWorking } from "@rakazo/core";
 import { botColors } from "@rakazo/ui-tokens";
 import { useRouter } from "expo-router";
@@ -15,10 +15,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../lib/adaptive-layout";
-import type { MobileBot, MobileGroup, MobileMe } from "../lib/api";
+import type { MobileBot, MobileMe } from "../lib/api";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient } from "../lib/card-gradient";
+import {
+  aggregateConversationStatus,
+  conversationStatusLabel,
+  isConversationActiveStatus,
+} from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
+import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
@@ -52,7 +58,7 @@ export type HomeHubProps = {
   me: (Pick<MobileMe, "userId" | "spaceId" | "name"> & { email?: MobileMe["email"] }) | null;
   spaceName?: string | null;
   bots: readonly (MobileBot | SpaceBot)[];
-  groups: readonly (MobileGroup | SpaceGroup)[];
+  groups: readonly InboxGroup[];
   activeRunsCount?: number;
   projectCount?: number | null;
   githubConnected?: boolean;
@@ -135,6 +141,8 @@ function pickSpotlightBot(
   if (pinnedWithPreview) return pinnedWithPreview;
   const pinned = bots.find((bot) => bot.pinned);
   if (pinned) return pinned;
+  const active = bots.find((bot) => isConversationActiveStatus(bot.status));
+  if (active) return active;
   const unread = bots.find((bot) => bot.unread);
   if (unread) return unread;
   return [...bots].sort((left, right) => {
@@ -182,11 +190,17 @@ export function HomeHub({
   const syncClock = formatClockTime(lastSyncedAt ?? currentDate);
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
 
-  const workingBotsCount = useMemo(
-    () => bots.filter((bot) => isRunWorking(bot.status)).length,
-    [bots],
+  const activeChatsCount = useMemo(
+    () =>
+      bots.filter((bot) => isConversationActiveStatus(bot.status)).length +
+      groups.filter((group) =>
+        isConversationActiveStatus(
+          group.status ?? aggregateConversationStatus((group.members ?? []).map((m) => m.status)),
+        ),
+      ).length,
+    [bots, groups],
   );
-  const resolvedActiveRuns = Math.max(activeRunsCount ?? 0, workingBotsCount);
+  const resolvedActiveRuns = Math.max(activeRunsCount ?? 0, activeChatsCount);
   const unreadCount = useMemo(
     () => bots.filter((bot) => bot.unread).length + groups.filter((group) => group.unread).length,
     [bots, groups],
@@ -194,7 +208,7 @@ export function HomeHub({
 
   const spotlightBot = useMemo(() => pickSpotlightBot(bots), [bots]);
   const primaryBot = useMemo(
-    () => bots.find((bot) => isRunWorking(bot.status)) ?? spotlightBot ?? bots[0],
+    () => bots.find((bot) => isConversationActiveStatus(bot.status)) ?? spotlightBot ?? bots[0],
     [bots, spotlightBot],
   );
 
@@ -277,6 +291,7 @@ export function HomeHub({
   const greetingText = buildGreeting(currentDate, locale, me, t("You"));
   const resolvedSpaceName = spaceName?.trim() || copy("个人空间", "個人空間", t("Personal"));
 
+  const spotlightStatusLabel = spotlightBot ? conversationStatusLabel(spotlightBot.status, t) : "";
   const spotlightPreview = spotlightBot
     ? previewSnippet(spotlightBot.preview, 96) ||
       (isRunWorking(spotlightBot.status)
@@ -285,11 +300,13 @@ export function HomeHub({
             `${spotlightBot.name} 正在後台處理你的任務…`,
             `${spotlightBot.name} is working on your task…`,
           )
-        : copy(
-            `与 ${spotlightBot.name} 继续对话，随时交办新任务。`,
-            `與 ${spotlightBot.name} 繼續對話，隨時交辦新任務。`,
-            `Continue your conversation with ${spotlightBot.name}.`,
-          ))
+        : spotlightStatusLabel
+          ? `${spotlightBot.name} · ${spotlightStatusLabel}`
+          : copy(
+              `与 ${spotlightBot.name} 继续对话，随时交办新任务。`,
+              `與 ${spotlightBot.name} 繼續對話，隨時交辦新任務。`,
+              `Continue your conversation with ${spotlightBot.name}.`,
+            ))
     : copy(
         "还没有智能伙伴，点击创建你的第一位专属助手。",
         "還沒有智能夥伴，點擊創建你的第一位專屬助手。",
@@ -298,11 +315,12 @@ export function HomeHub({
 
   const spotlightMeta = spotlightBot
     ? `${
-        spotlightBot.pinned
+        spotlightStatusLabel ||
+        (spotlightBot.pinned
           ? copy("置顶", "置頂", "Pinned")
           : spotlightBot.unread
             ? copy("未读", "未讀", "Unread")
-            : copy("最近动态", "最近動態", "Recent")
+            : copy("最近动态", "最近動態", "Recent"))
       } · ${spotlightBot.name} · ${formatIsoDate(spotlightBot.updatedAt, currentDate)} ›`
     : copy("点击开始 · 新建伙伴 ›", "點擊開始 · 新建夥伴 ›", "Get started · New companion ›");
 

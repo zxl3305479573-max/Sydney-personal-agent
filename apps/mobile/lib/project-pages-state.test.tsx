@@ -106,7 +106,19 @@ vi.mock("../components/project-folder-card", () => ({
 }));
 vi.mock("../components/inbox-rows", () => ({
   FALLBACK_COLOR: "blue",
-  ConversationRow: ({ title }: { title: string }) => <span>{title}</span>,
+  ConversationRow: ({
+    title,
+    preview,
+    unread,
+  }: {
+    title: string;
+    preview?: string;
+    unread?: boolean;
+  }) => (
+    <span data-row-title={title} data-preview={preview ?? ""} data-unread={String(Boolean(unread))}>
+      {title}
+    </span>
+  ),
 }));
 vi.mock("../components/bot-avatar", () => ({ BotAvatar: () => null }));
 vi.mock("../components/group-avatar", () => ({ GroupAvatar: () => null }));
@@ -119,6 +131,7 @@ vi.mock("./create-inbox-bot", () => ({ inboxBotInput: vi.fn() }));
 import Projects from "../app/projects";
 import ProjectDetail from "../app/projects/[workspaceId]";
 import { ProjectCloudDirectory } from "../components/project-cloud-directory";
+import { projectThreadSessionScope, threadSessionCache } from "./thread-session-cache";
 
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
@@ -248,4 +261,51 @@ it("restores a cloud directory's status before its next read returns", async () 
   await render(page());
   expect(container.textContent).toContain("专属电脑");
   expect(container.textContent).toContain("docs");
+});
+
+it("displays live conversation status and unread state on project rows after leaving chat", async () => {
+  threadSessionCache.clear();
+  const cacheScope = projectThreadSessionScope(runtime.scope, "project-a");
+  runtime.rpc.mockImplementation(async (method: string) => {
+    if (method === "projectWorkspaces/get") return project;
+    if (method === "projectWorkspaces/conversations")
+      return {
+        bots: [{ id: "bot-a", name: "活跃成员", status: "idle", unread: true, preview: "Old" }],
+        groups: [
+          {
+            id: "group-a",
+            name: "研发群",
+            unread: true,
+            preview: "Hi",
+            members: [{ botId: "bot-a", name: "活跃成员", color: "#123456", status: "idle" }],
+          },
+        ],
+      };
+    return { create: true, createBot: true, createGroup: true, chatManagement: true };
+  });
+
+  await render(<ProjectDetail />);
+  let botRow = container.querySelector('[data-row-title="活跃成员"]');
+  expect(botRow?.getAttribute("data-unread")).toBe("true");
+  expect(botRow?.getAttribute("data-preview")).toBe("Old");
+
+  // Exiting a running project chat updates status and clears unread immediately before next poll.
+  act(() => {
+    threadSessionCache.remember(cacheScope, {
+      botId: "bot-a",
+      threadId: "thread-a",
+      cursor: 8,
+      run: { id: "run-1", botId: "bot-a", status: "running" },
+      activeRuns: [{ id: "run-1", botId: "bot-a", status: "running" }],
+      messages: [],
+      olderCursor: null,
+    });
+    const token = threadSessionCache.beginUnreadWrite(cacheScope, { botId: "bot-a" }, false);
+    threadSessionCache.finishUnreadWrite(cacheScope, { botId: "bot-a" }, token);
+  });
+
+  botRow = container.querySelector('[data-row-title="活跃成员"]');
+  expect(botRow?.getAttribute("data-preview")).toBe("Working…");
+  expect(botRow?.getAttribute("data-unread")).toBe("false");
+  act(() => threadSessionCache.clear());
 });

@@ -3,7 +3,7 @@ import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import { isRetryableError } from "@rakazo/core";
 import type { Href } from "expo-router";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,15 +29,24 @@ import { ProjectDirectory } from "../../components/project-directory";
 import type { ProjectGroupAttempt } from "../../components/project-group-modal";
 import { ProjectGroupModal } from "../../components/project-group-modal";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../../lib/api";
+import {
+  conversationStatusLabel,
+  conversationStatusTone,
+  isConversationActiveStatus,
+} from "../../lib/conversation-status";
 import type { InboxBotIdentity } from "../../lib/create-inbox-bot";
 import { inboxBotInput } from "../../lib/create-inbox-bot";
-import { useI18n } from "../../lib/i18n";
+import { t, useI18n } from "../../lib/i18n";
+import { formatThreadTime } from "../../lib/inbox";
 import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import { clearPageState, usePageScroll, usePageState } from "../../lib/page-state";
+import { ACTIVE_INBOX_POLL_INTERVAL_MS } from "../../lib/poll-cadence";
+import { previewSnippet } from "../../lib/preview";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
 import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { useSideInsets } from "../../lib/side-insets";
+import { projectThreadSessionScope, threadSessionCache } from "../../lib/thread-session-cache";
 import type { ProjectActionTarget } from "../../lib/use-project-chat-actions";
 import { useProjectChatActions } from "../../lib/use-project-chat-actions";
 import { errorText } from "../../lib/user-error";
@@ -108,13 +117,35 @@ function ProjectContents({
     afterGroupId,
   ]);
   type Roster = RpcOutput<"projectWorkspaces/roster">;
+  type RosterBot = Roster["bots"][number] &
+    Partial<ProjectActionTarget> & {
+      status?: string;
+      unread?: boolean;
+      preview?: string;
+      updatedAt?: string;
+    };
+  type RosterGroup = Roster["groups"][number] &
+    Partial<ProjectActionTarget> & {
+      status?: string;
+      unread?: boolean;
+      preview?: string;
+      updatedAt?: string;
+    };
   const [roster, setRoster] = usePageState<
     | (Omit<Roster, "bots" | "groups"> & {
-        bots: (Roster["bots"][number] & Partial<ProjectActionTarget>)[];
-        groups: (Roster["groups"][number] & Partial<ProjectActionTarget>)[];
+        bots: RosterBot[];
+        groups: RosterGroup[];
       })
     | null
   >(scopeKey, ["project", workspaceId, "roster", showArchived, afterBotId, afterGroupId], null);
+  const threadRevision = useSyncExternalStore(
+    threadSessionCache.subscribe,
+    threadSessionCache.getRevision,
+  );
+  const cacheScope = useMemo(
+    () => (workspaceId ? projectThreadSessionScope(scopeKey, workspaceId) : null),
+    [scopeKey, workspaceId],
+  );
   const [canManage, setCanManage] = usePageState(
     scopeKey,
     ["project", workspaceId, "canManage"],
@@ -153,6 +184,50 @@ function ProjectContents({
   const focused = useRef(false);
   const refreshInProgress = useRef(false);
   const [attempt, setAttempt] = useState(0);
+  const liveProjectBots = useMemo<RosterBot[]>(() => {
+    const items = roster?.bots ?? [];
+    if (!cacheScope) return items;
+    return items.map((bot) => {
+      const status = threadSessionCache.botStatus(cacheScope, bot.id, bot.status ?? "idle");
+      const unread = threadSessionCache.unreadState(
+        cacheScope,
+        { botId: bot.id },
+        Boolean(bot.unread),
+      );
+      return status === (bot.status ?? "idle") && unread === Boolean(bot.unread)
+        ? bot
+        : { ...bot, status, unread };
+    });
+  }, [roster?.bots, cacheScope, threadRevision]);
+  const liveProjectGroups = useMemo<RosterGroup[]>(() => {
+    const items = roster?.groups ?? [];
+    if (!cacheScope) return items;
+    return items.map((group) => {
+      const status = threadSessionCache.groupStatus(cacheScope, group.id, group.members ?? []);
+      const unread = threadSessionCache.unreadState(
+        cacheScope,
+        { groupId: group.id },
+        Boolean(group.unread),
+      );
+      return status === (group.status ?? "idle") && unread === Boolean(group.unread)
+        ? group
+        : { ...group, status, unread };
+    });
+  }, [roster?.groups, cacheScope, threadRevision]);
+  const hasActiveProjectWork = useMemo(
+    () =>
+      liveProjectBots.some((bot) => isConversationActiveStatus(bot.status)) ||
+      liveProjectGroups.some((group) => isConversationActiveStatus(group.status)),
+    [liveProjectBots, liveProjectGroups],
+  );
+  const pollIntervalRef = useRef(PROJECT_SYNC_INTERVAL_MS);
+  pollIntervalRef.current = hasActiveProjectWork
+    ? ACTIVE_INBOX_POLL_INTERVAL_MS
+    : PROJECT_SYNC_INTERVAL_MS;
+  const reschedulePollRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    reschedulePollRef.current?.();
+  }, [hasActiveProjectWork]);
   const actionMenu = useProjectChatActions({
     projectId: workspaceId ?? "",
     scope: scopeKey,
@@ -183,6 +258,21 @@ function ProjectContents({
       const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
       refreshInProgress.current = true;
       setFailed(false);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let lastCompletedAt: number | null = null;
+      const schedulePoll = (delayMs: number) => {
+        if (timer !== undefined) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = undefined;
+          if (current() && AppState.currentState !== "background" && !refreshInProgress.current)
+            setAttempt((old) => old + 1);
+        }, delayMs);
+      };
+      reschedulePollRef.current = () => {
+        if (!current() || refreshInProgress.current || lastCompletedAt === null) return;
+        const remaining = Math.max(0, pollIntervalRef.current - (Date.now() - lastCompletedAt));
+        schedulePoll(remaining);
+      };
       void (async () => {
         try {
           const requestContext = await captureApiRequestContext();
@@ -223,6 +313,7 @@ function ProjectContents({
           setCanCreateBot(capabilities?.createBot === true);
           setCanChangeBotSettings(capabilities?.botSettings === true);
           setCanManage(manage);
+          const requestThreadRevision = threadSessionCache.getRequestRevision();
           const projectRoster = manage
             ? {
                 ...(await rpc(
@@ -241,6 +332,12 @@ function ProjectContents({
           if (current()) {
             setProject(result);
             setRoster(projectRoster);
+            if (cacheScope && !showArchived) {
+              threadSessionCache.reconcileRoster(cacheScope, requestThreadRevision, {
+                bots: projectRoster.bots as RosterBot[],
+                groups: projectRoster.groups as RosterGroup[],
+              });
+            }
           }
         } catch (cause) {
           if (current()) {
@@ -253,13 +350,13 @@ function ProjectContents({
           }
         } finally {
           refreshInProgress.current = false;
-          if (current()) setRefreshing(false);
+          if (current()) {
+            setRefreshing(false);
+            lastCompletedAt = Date.now();
+            schedulePoll(pollIntervalRef.current);
+          }
         }
       })();
-      const timer = setInterval(() => {
-        if (current() && AppState.currentState !== "background" && !refreshInProgress.current)
-          setAttempt((old) => old + 1);
-      }, PROJECT_SYNC_INTERVAL_MS);
       const foreground = AppState.addEventListener("change", (state) => {
         if (state !== "background" && current() && !refreshInProgress.current)
           setAttempt((old) => old + 1);
@@ -267,11 +364,21 @@ function ProjectContents({
       return () => {
         active = false;
         focused.current = false;
+        reschedulePollRef.current = null;
         controller.abort();
-        clearInterval(timer);
+        if (timer !== undefined) clearTimeout(timer);
         foreground.remove();
       };
-    }, [workspaceId, scopeKey, scopeChanged, attempt, afterBotId, afterGroupId, showArchived]),
+    }, [
+      workspaceId,
+      scopeKey,
+      scopeChanged,
+      attempt,
+      afterBotId,
+      afterGroupId,
+      showArchived,
+      cacheScope,
+    ]),
   );
 
   async function createProjectBot(identity: InboxBotIdentity) {
@@ -667,7 +774,7 @@ function ProjectContents({
                   }
                   action={text("新建 Bot", "New bot")}
                   kind="bot"
-                  items={roster.bots}
+                  items={liveProjectBots}
                   onSettings={
                     canManage
                       ? (id) => showActions("bot", id)
@@ -696,7 +803,7 @@ function ProjectContents({
                   }
                   action={text("新建群聊", "New group chat")}
                   kind="group"
-                  items={roster.groups}
+                  items={liveProjectGroups}
                   hasPrevious={groupCursors.length > 0}
                   next={roster.nextGroupId}
                   actionEnabled={canCreateGroup && !showArchived}
@@ -821,6 +928,10 @@ function ProjectConversationSection({
     color?: RpcOutput<"projectWorkspaces/roster">["bots"][number]["color"];
     avatarSet?: RpcOutput<"projectWorkspaces/roster">["bots"][number]["avatarSet"];
     members?: RpcOutput<"projectWorkspaces/roster">["groups"][number]["members"];
+    status?: string;
+    unread?: boolean;
+    preview?: string;
+    updatedAt?: string;
   }>;
   hasPrevious: boolean;
   next: string | null;
@@ -833,7 +944,9 @@ function ProjectConversationSection({
 }) {
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
-  const { locale } = useI18n();
+  const i18n = useI18n();
+  const { locale } = i18n;
+  const translate = i18n.t ?? t;
   const isLight = appearance === "light";
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   const cardBg = isLight ? "#FFFEFC" : "#242933";
@@ -915,70 +1028,94 @@ function ProjectConversationSection({
             {emptyLabel}
           </Text>
         ) : (
-          items.map((item, index) => (
-            <View
-              key={item.id}
-              style={{
-                paddingHorizontal: 14,
-                flexDirection: "row",
-                alignItems: "center",
-                borderBottomWidth: index < items.length - 1 ? hairline : 0,
-                borderBottomColor: cardBorder,
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <ConversationRow
-                  wrapTitle
-                  roster
-                  title={item.name}
-                  preview=""
-                  time=""
-                  accessibilityLabel={item.name}
-                  onPress={onOpen ? () => onOpen(item.id) : undefined}
-                  onLongPress={onSettings ? () => onSettings(item.id) : undefined}
-                  avatar={
-                    kind === "group" ? (
-                      <GroupAvatar members={item.members ?? []} size={44} />
-                    ) : (
-                      <BotAvatar
-                        color={item.color || FALLBACK_COLOR}
-                        avatarSet={item.avatarSet}
-                        identity={item.id}
-                        size={44}
-                        motion="lazy"
-                      />
-                    )
-                  }
-                />
-              </View>
-              {onSettings ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    locale.startsWith("zh")
-                      ? `聊天操作 ${item.name}`
-                      : `Chat actions for ${item.name}`
-                  }
-                  onPress={() => onSettings(item.id)}
-                  style={({ pressed }) => ({
-                    width: 40,
-                    minHeight: 40,
-                    borderRadius: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: pressed ? chipBg : undefined,
-                  })}
-                >
-                  <NativeSymbol
-                    ios="ellipsis"
-                    android="ellipsis-horizontal"
-                    size={18}
-                    color={mutedFg}
+          items.map((item, index) => {
+            const statusLabel = conversationStatusLabel(item.status, translate);
+            const statusTone = statusLabel ? conversationStatusTone(item.status) : undefined;
+            const preview =
+              statusLabel || (item.preview ? previewSnippet(item.preview, 40) : "") || "";
+            const time = item.updatedAt ? formatThreadTime(item.updatedAt) : "";
+            const accessibilityLabel = [
+              item.name,
+              item.unread ? translate("unread") : null,
+              time,
+              preview,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            return (
+              <View
+                key={item.id}
+                style={{
+                  paddingHorizontal: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderBottomWidth: index < items.length - 1 ? hairline : 0,
+                  borderBottomColor: cardBorder,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <ConversationRow
+                    wrapTitle
+                    roster
+                    title={item.name}
+                    preview={preview}
+                    previewTone={statusTone}
+                    time={time}
+                    unread={item.unread}
+                    accessibilityLabel={accessibilityLabel}
+                    onPress={onOpen ? () => onOpen(item.id) : undefined}
+                    onLongPress={onSettings ? () => onSettings(item.id) : undefined}
+                    avatar={
+                      kind === "group" ? (
+                        <GroupAvatar
+                          members={item.members ?? []}
+                          size={44}
+                          status={item.status}
+                          unread={item.unread}
+                        />
+                      ) : (
+                        <BotAvatar
+                          color={item.color || FALLBACK_COLOR}
+                          avatarSet={item.avatarSet}
+                          identity={item.id}
+                          size={44}
+                          status={item.status}
+                          unread={item.unread}
+                          motion="lazy"
+                        />
+                      )
+                    }
                   />
-                </Pressable>
-              ) : null}
-            </View>
-          ))
+                </View>
+                {onSettings ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      locale.startsWith("zh")
+                        ? `聊天操作 ${item.name}`
+                        : `Chat actions for ${item.name}`
+                    }
+                    onPress={() => onSettings(item.id)}
+                    style={({ pressed }) => ({
+                      width: 40,
+                      minHeight: 40,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: pressed ? chipBg : undefined,
+                    })}
+                  >
+                    <NativeSymbol
+                      ios="ellipsis"
+                      android="ellipsis-horizontal"
+                      size={18}
+                      color={mutedFg}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })
         )}
       </GlassSurface>
 

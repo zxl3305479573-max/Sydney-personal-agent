@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import type { TextStyle } from "react-native";
+import type { TextStyle, ViewStyle } from "react-native";
+import { Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { HEADER_TITLE_MAX_FONT_SCALE } from "../lib/native-controls";
 
@@ -15,13 +16,21 @@ export function ChatTitleLabel({
   label,
   placeholder,
   style,
+  compactStyle,
+  groupStyle,
+  statusLabel,
+  statusStyle,
 }: {
   label: string;
   placeholder: boolean;
   style: TextStyle;
+  compactStyle?: TextStyle;
+  groupStyle?: ViewStyle;
+  statusLabel?: string;
+  statusStyle?: TextStyle;
 }) {
   const openedWithPlaceholder = useRef(placeholder).current;
-  return (
+  const titleText = (
     <Animated.Text
       key={placeholder ? "placeholder" : "name"}
       entering={
@@ -30,9 +39,22 @@ export function ChatTitleLabel({
       exiting={placeholder ? FadeOut.duration(CHAT_TITLE_FADE_MS) : undefined}
       maxFontSizeMultiplier={HEADER_TITLE_MAX_FONT_SCALE}
       numberOfLines={1}
-      style={style}
+      style={statusLabel && compactStyle ? compactStyle : style}
     >
       {label}
     </Animated.Text>
+  );
+  if (!statusLabel) return titleText;
+  return (
+    <View style={groupStyle}>
+      {titleText}
+      <Text
+        maxFontSizeMultiplier={HEADER_TITLE_MAX_FONT_SCALE}
+        numberOfLines={1}
+        style={statusStyle}
+      >
+        {statusLabel}
+      </Text>
+    </View>
   );
 }

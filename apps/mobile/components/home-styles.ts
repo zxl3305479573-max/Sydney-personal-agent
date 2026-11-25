@@ -351,6 +351,18 @@ export function createHomeStyles(
       color: colors.label,
       fontWeight: "600",
     },
+    statusWorkingPreview: {
+      color: tokens?.statusWorking ?? "#1557C0",
+      fontWeight: "500",
+    },
+    statusWaitingPreview: {
+      color: tokens?.warning ?? "#7D5005",
+      fontWeight: "600",
+    },
+    statusFailedPreview: {
+      color: tokens?.destructive ?? "#C4272D",
+      fontWeight: "500",
+    },
     unreadDot: {
       width: 8,
       height: 8,

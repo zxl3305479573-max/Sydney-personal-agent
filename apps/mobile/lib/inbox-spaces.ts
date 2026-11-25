@@ -9,16 +9,19 @@ import {
   selectedSpaceId,
   selectSpace,
 } from "./api";
+import { aggregateConversationStatus, conversationStatusTone } from "./conversation-status";
 import { t } from "./i18n";
 import { mobileLogoAvatarActivity } from "./logo-avatar-activity";
 import type { InboxSignal } from "./offscreen-unreads";
+
+export type InboxGroup = (MobileGroup | SpaceGroup) & { status?: string };
 
 export type InboxSpace = Pick<
   MobileSpace,
   "id" | "name" | "isDefault" | "hasContent" | "canDelete" | "botCount" | "botSections"
 > & {
   bots: (MobileBot | SpaceBot)[];
-  groups: (MobileGroup | SpaceGroup)[];
+  groups: InboxGroup[];
 };
 
 export type InboxSpaceItem =
@@ -26,7 +29,7 @@ export type InboxSpaceItem =
       type: "bot";
       bot: MobileBot | SpaceBot;
     }
-  | { type: "group"; group: MobileGroup | SpaceGroup }
+  | { type: "group"; group: InboxGroup }
   | {
       type: "heading";
       key: string;
@@ -39,24 +42,32 @@ export type InboxSpaceItem =
 
 export type PinnedChat =
   | { kind: "bot"; bot: MobileBot | SpaceBot }
-  | { kind: "group"; group: MobileGroup | SpaceGroup };
+  | { kind: "group"; group: InboxGroup };
 export type InboxItem = InboxSpaceItem | { type: "pinned"; chats: PinnedChat[] };
 
-/** What a chat adds to the off-screen unread pills: unread, and a bot waiting on you. */
+/** What a chat adds to the off-screen unread pills: unread, and a chat waiting on you. */
 function chatSignal(chat: PinnedChat): InboxSignal {
-  return chat.kind === "bot"
-    ? {
-        unread: chat.bot.unread ? 1 : 0,
-        attention: logoAvatarNeedsAttention(
-          botAvatarActivity(
-            chat.bot,
-            mobileLogoAvatarActivity.getActivity(chat.bot.id, chat.bot.status),
-          ),
-        )
-          ? 1
-          : 0,
-      }
-    : { unread: chat.group.unread ? 1 : 0, attention: 0 };
+  if (chat.kind === "bot") {
+    return {
+      unread: chat.bot.unread ? 1 : 0,
+      attention: logoAvatarNeedsAttention(
+        botAvatarActivity(
+          chat.bot,
+          mobileLogoAvatarActivity.getActivity(chat.bot.id, chat.bot.status),
+        ),
+      )
+        ? 1
+        : 0,
+    };
+  }
+  const groupStatus =
+    chat.group.status ??
+    aggregateConversationStatus((chat.group.members ?? []).map((member) => member.status));
+  const tone = conversationStatusTone(groupStatus);
+  return {
+    unread: chat.group.unread ? 1 : 0,
+    attention: tone === "waiting" || tone === "failed" ? 1 : 0,
+  };
 }
 
 export function inboxItemKey(item: InboxItem): string {

@@ -13,9 +13,15 @@ import Animated, {
 } from "react-native-reanimated";
 import type { MobileBot, MobileBotSection, MobileGroup } from "../lib/api";
 import { AvatarRow } from "../lib/avatar-life";
+import type { ConversationStatusTone } from "../lib/conversation-status";
+import {
+  aggregateConversationStatus,
+  conversationStatusLabel,
+  conversationStatusTone,
+} from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import { formatThreadTime } from "../lib/inbox";
-import type { PinnedChat } from "../lib/inbox-spaces";
+import type { InboxGroup, PinnedChat } from "../lib/inbox-spaces";
 import type { InboxChatKind, InboxRowAction } from "../lib/inbox-swipe";
 import { INBOX_ROW_ACTIONS, inboxRowActionList } from "../lib/inbox-swipe";
 import { native, useThemedStyles } from "../lib/native";
@@ -37,6 +43,7 @@ export function ConversationRow({
   chatId,
   title,
   preview,
+  previewTone,
   time,
   avatar,
   unread,
@@ -52,6 +59,7 @@ export function ConversationRow({
   chatId?: string;
   title: string;
   preview: string;
+  previewTone?: ConversationStatusTone;
   time: string;
   avatar: ReactNode;
   unread?: boolean;
@@ -73,6 +81,14 @@ export function ConversationRow({
     name: action,
     label: t(INBOX_ROW_ACTIONS[action].label),
   }));
+  const statusPreviewStyle =
+    previewTone === "working"
+      ? styles.statusWorkingPreview
+      : previewTone === "waiting"
+        ? styles.statusWaitingPreview
+        : previewTone === "failed"
+          ? styles.statusFailedPreview
+          : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -122,7 +138,10 @@ export function ConversationRow({
           </View>
         </View>
         {preview ? (
-          <Text style={[styles.preview, unread && styles.unreadPreview]} numberOfLines={1}>
+          <Text
+            style={[styles.preview, unread && styles.unreadPreview, statusPreviewStyle]}
+            numberOfLines={1}
+          >
             {preview}
           </Text>
         ) : null}
@@ -216,6 +235,12 @@ export const PinnedTiles = memo(function PinnedTiles({
         const id = chat.kind === "bot" ? chat.bot.id : chat.group.id;
         const name = chat.kind === "bot" ? chat.bot.name : chat.group.name;
         const unread = chat.kind === "bot" ? chat.bot.unread : chat.group.unread;
+        const status =
+          chat.kind === "bot"
+            ? chat.bot.status
+            : (chat.group.status ??
+              aggregateConversationStatus((chat.group.members ?? []).map((m) => m.status)));
+        const statusLabel = conversationStatusLabel(status, t);
         const actions = inboxRowActionList(chat.kind === "bot" ? chat.bot : chat.group);
         const runAction = (action: InboxRowAction) =>
           chat.kind === "bot" ? onBotAction(action, chat.bot) : onGroupAction(action, chat.group);
@@ -225,7 +250,9 @@ export const PinnedTiles = memo(function PinnedTiles({
           <Pressable
             key={`${chat.kind}-${id}`}
             accessibilityRole="button"
-            accessibilityLabel={unread ? `${name}, ${t("unread")}` : name}
+            accessibilityLabel={[name, statusLabel || null, unread ? t("unread") : null]
+              .filter(Boolean)
+              .join(", ")}
             accessibilityState={{ selected: selectedId === id }}
             accessibilityActions={actions.map((action) => ({
               name: action,
@@ -255,7 +282,12 @@ export const PinnedTiles = memo(function PinnedTiles({
                 motion="lazy"
               />
             ) : (
-              <GroupAvatar members={chat.group.members} size={avatarSize} />
+              <GroupAvatar
+                members={chat.group.members}
+                size={avatarSize}
+                status={status}
+                unread={chat.group.unread}
+              />
             )}
             <Text style={[styles.pinnedName, unread && styles.pinnedUnread]} numberOfLines={1}>
               {name}
@@ -299,20 +331,8 @@ export const BotRow = memo(function BotRow({
 } & RowMenuProps) {
   const { t } = useI18n();
   const messagePreview = previewSnippet(bot.preview, 40);
-  const statusLabel =
-    bot.status === "queued"
-      ? t("Queued")
-      : bot.status === "leased"
-        ? t("Starting…")
-        : bot.status === "running"
-          ? t("Working…")
-          : bot.status === "waiting_input"
-            ? t("Needs input")
-            : bot.status === "waiting_takeover"
-              ? t("Needs you")
-              : bot.status === "failed"
-                ? t("Failed")
-                : "";
+  const statusLabel = conversationStatusLabel(bot.status, t);
+  const statusTone = statusLabel ? conversationStatusTone(bot.status) : undefined;
   const preview = statusLabel || messagePreview || (bot.status !== "idle" ? bot.status : "") || "";
   const time = bot.updatedAt ? formatThreadTime(bot.updatedAt, new Date(day)) : "";
   const working = isRunWorking(bot.status);
@@ -334,6 +354,7 @@ export const BotRow = memo(function BotRow({
       roster
       title={bot.name}
       preview={preview}
+      previewTone={statusTone}
       time={time}
       unread={bot.unread}
       accessibilityLabel={label}
@@ -370,13 +391,14 @@ export const BotRow = memo(function BotRow({
       sections={sections}
       preview={{
         title: bot.name,
-        message: bot.preview,
+        message: statusLabel || bot.preview,
         avatar: (
           <BotAvatar
             color={bot.color || FALLBACK_COLOR}
             avatarSet={bot.avatarSet}
             identity={bot.id}
             size={32}
+            status={bot.status}
             unread={bot.unread}
           />
         ),
@@ -402,15 +424,20 @@ export const GroupRow = memo(function GroupRow({
   onOrganize,
   onEditSection,
 }: {
-  group: MobileGroup | SpaceGroup;
+  group: InboxGroup;
   day: number;
   onPress: (group: MobileGroup | SpaceGroup) => void;
   onLongPress?: (group: MobileGroup | SpaceGroup) => void;
   onAction?: (action: InboxRowAction, group: MobileGroup | SpaceGroup) => void;
 } & RowMenuProps) {
   const { t } = useI18n();
+  const groupStatus =
+    group.status ?? aggregateConversationStatus(group.members.map((member) => member.status));
+  const statusLabel = conversationStatusLabel(groupStatus, t);
+  const statusTone = statusLabel ? conversationStatusTone(groupStatus) : undefined;
+  const messagePreview = previewSnippet(group.preview, 40);
   const preview =
-    previewSnippet(group.preview, 40) || group.members.map((member) => member.name).join(", ");
+    statusLabel || messagePreview || group.members.map((member) => member.name).join(", ");
   const time = group.updatedAt ? formatThreadTime(group.updatedAt, new Date(day)) : "";
   const runAction = (action: InboxRowAction) => onAction?.(action, group);
   const row = (
@@ -419,6 +446,7 @@ export const GroupRow = memo(function GroupRow({
       roster
       title={group.name}
       preview={preview}
+      previewTone={statusTone}
       time={time}
       unread={group.unread}
       accessibilityLabel={[group.name, group.unread ? t("unread") : null, time, preview]
@@ -431,7 +459,9 @@ export const GroupRow = memo(function GroupRow({
       onLongPress={onLongPress ? () => onLongPress(group) : undefined}
       actions={onAction ? inboxRowActionList(group) : undefined}
       onAction={runAction}
-      avatar={<GroupAvatar members={group.members} size={44} />}
+      avatar={
+        <GroupAvatar members={group.members} size={44} status={groupStatus} unread={group.unread} />
+      }
     />
   );
   return onAction ? (
@@ -443,8 +473,15 @@ export const GroupRow = memo(function GroupRow({
       sections={sections}
       preview={{
         title: group.name,
-        message: group.preview,
-        avatar: <GroupAvatar members={group.members} size={32} />,
+        message: statusLabel || group.preview,
+        avatar: (
+          <GroupAvatar
+            members={group.members}
+            size={32}
+            status={groupStatus}
+            unread={group.unread}
+          />
+        ),
       }}
       onAction={runAction}
       onOrganize={(update) => onOrganize("group", group, update)}

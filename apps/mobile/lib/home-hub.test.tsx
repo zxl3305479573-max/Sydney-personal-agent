@@ -333,4 +333,27 @@ describe("HomeHub personal hub", () => {
     );
     expect(state.push).toHaveBeenLastCalledWith("/chat-appearance");
   });
+
+  it("surfaces active spotlight status and counts active group conversations", () => {
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Mina", email: "mina@example.com" }}
+          bots={[sampleBot({ status: "waiting_input" })]}
+          groups={[
+            sampleGroup({
+              unread: false,
+              members: [{ botId: "b-1", name: "Ops", color: "#3B82F6", status: "running" }],
+            }),
+          ]}
+          now={fixedEvening}
+          lastSyncedAt={fixedEvening}
+        />,
+      ),
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("2 运行中 · 20:15");
+    expect(text).toContain("Needs input · Claude · 2026-11-24 ›");
+  });
 });

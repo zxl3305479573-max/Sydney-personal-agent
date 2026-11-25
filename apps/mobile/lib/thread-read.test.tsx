@@ -25,9 +25,15 @@ vi.mock("./live-notifications", () => ({ dismissThreadNotifications: vi.fn(async
 vi.mock("./user-error", () => ({ errorText: (_: unknown, fallback: string) => fallback }));
 
 import { useThreadRead } from "./thread-read";
+import { threadSessionCache } from "./thread-session-cache";
 
 type ThreadRead = ReturnType<typeof useThreadRead>;
-type Props = { botId?: string; groupId?: string; focused: boolean };
+type Props = {
+  botId?: string;
+  groupId?: string;
+  focused: boolean;
+  sessionScope?: Parameters<typeof useThreadRead>[0]["sessionScope"];
+};
 
 let root: Root;
 let latest: ThreadRead;
@@ -163,4 +169,45 @@ it("releases the hold and alerts when marking unread fails", async () => {
   act(() => latest.markReadIfVisible());
   await flush();
   expect(calls("threads/markRead")).toBe(1);
+});
+
+it("re-marks read when forced on background return or refresh-delivered reply and syncs cache", async () => {
+  threadSessionCache.clear();
+  const sessionScope = {
+    apiBase: "https://api.example.test",
+    sessionGeneration: 1,
+    userId: "user-1",
+    spaceId: "space-1",
+  };
+  state.rpc.mockResolvedValue({ unreadAfterSeq: null });
+  render({ botId: "bot-1", focused: true, sessionScope });
+  act(() => latest.markReadIfVisible());
+  expect(threadSessionCache.unreadState(sessionScope, { botId: "bot-1" }, true)).toBe(false);
+  await flush();
+  expect(calls("threads/markRead")).toBe(1);
+
+  // Plain repeat call is deduped while same visit stays visible, whereas force re-sends markRead.
+  act(() => latest.markReadIfVisible());
+  await flush();
+  expect(calls("threads/markRead")).toBe(1);
+
+  act(() => latest.markReadIfVisible({ force: true }));
+  await flush();
+  expect(calls("threads/markRead")).toBe(2);
+
+  // Marking unread updates shared cache immediately and rolls back on failure.
+  let finishUnread!: () => void;
+  state.rpc.mockImplementationOnce(
+    () =>
+      new Promise<object>((resolve) => {
+        finishUnread = () => resolve({});
+      }),
+  );
+  act(() => latest.markUnreadFrom(message));
+  expect(threadSessionCache.unreadState(sessionScope, { botId: "bot-1" }, false)).toBe(true);
+  await flush();
+  finishUnread();
+  await flush();
+  expect(threadSessionCache.unreadState(sessionScope, { botId: "bot-1" }, false)).toBe(true);
+  threadSessionCache.clear();
 });

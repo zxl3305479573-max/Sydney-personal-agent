@@ -11,6 +11,7 @@ import type { InboxRowAction } from "./inbox-swipe";
 import { applyPinOverrides, applyUnreadOverrides, withoutArchiving } from "./inbox-swipe";
 import { afterChatNotifyChange, dismissThreadNotifications } from "./live-notifications";
 import { removeFromSearchInbox } from "./search-inbox";
+import { threadSessionCache } from "./thread-session-cache";
 import { useInboxChatActions } from "./use-inbox-chat-actions";
 
 const session = vi.hoisted(() => ({ space: "space-a", generation: 1, alert: vi.fn() }));
@@ -86,6 +87,7 @@ async function handlers(
       setGroups: update("groups"),
       setSpaces: update("spaces"),
       botSections: [],
+      userId: "user-1",
     });
     return null;
   }
@@ -465,3 +467,18 @@ it.each(["bot", "group"] as const)(
     expect(notifyArchivedChatsChanged).toHaveBeenCalledOnce();
   },
 );
+
+it("patches secondary space lists and syncs shared unread cache when toggling read state", async () => {
+  threadSessionCache.clear();
+  const h = await handlers(async () => ({ ok: true }));
+  await h.runRowAction("bot", { id: "x", spaceId: "space-b" }, "unread");
+  expect(h.state.spaces[1]!.bots[0]!.unread).toBe(true);
+  expect(
+    threadSessionCache.unreadState(
+      { apiBase: "", sessionGeneration: 1, userId: "user-1", spaceId: "space-b" },
+      { botId: "x" },
+      false,
+    ),
+  ).toBe(true);
+  threadSessionCache.clear();
+});

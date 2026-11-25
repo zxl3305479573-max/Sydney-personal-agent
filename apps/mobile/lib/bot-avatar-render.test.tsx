@@ -262,4 +262,25 @@ describe("BotAvatar", () => {
     const view = render("#3EC5A8", undefined, { unread: false });
     expect(view.querySelector('[aria-label="Working"]')).toBeNull();
   });
+
+  it("keeps the working marker on a static header avatar while composing", () => {
+    const view = render("#3EC5A8", undefined, {
+      status: "running",
+      composing: true,
+      motion: "static",
+    });
+    expect(view.querySelectorAll('[aria-label="Working"]')).toHaveLength(1);
+  });
+
+  it("shows waiting and failed markers with semantic tokens", () => {
+    const tokens = tokensForAppearance("light");
+    mobileTokens.current = tokens;
+    const waiting = render("#3EC5A8", undefined, { status: "waiting_input" });
+    const waitingDot = waiting.querySelector<HTMLElement>('[aria-label="Needs input"]');
+    expect(waitingDot?.dataset.background).toBe(tokens.warning);
+
+    const failed = render("#3EC5A8", undefined, { status: "failed" });
+    const failedDot = failed.querySelector<HTMLElement>('[aria-label="Failed"]');
+    expect(failedDot?.dataset.background).toBe(tokens.destructive);
+  });
 });

@@ -113,6 +113,28 @@ export function useThreadSnapshot(cache?: {
     commitSnap(snapRef.current);
   }, [streamResponses]);
 
+  const cacheScopeKey = cache
+    ? JSON.stringify([
+        cache.scope.apiBase,
+        cache.scope.sessionGeneration,
+        cache.scope.userId,
+        cache.scope.spaceId,
+        cache.scope.projectId,
+        cache.botId,
+        cache.groupId,
+      ])
+    : "";
+  useEffect(() => {
+    if (!cache || cache.messageId) return;
+    const current = snapRef.current;
+    if (current && current.botId === cache.botId && current.groupId === cache.groupId) return;
+    const cached = threadSessionCache.read(cache.scope, cache);
+    if (cached) {
+      commitSnap(cached);
+      setShowingSaved(false);
+    }
+  }, [cacheScopeKey, cache?.messageId, commitSnap]);
+
   function clear() {
     expandedHistoryThread.current = null;
     pinnedAroundRef.current = null;

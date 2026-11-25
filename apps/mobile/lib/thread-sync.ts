@@ -1,7 +1,8 @@
 import { isRetryableError } from "@rakazo/core";
 import { useFocusEffect } from "expo-router";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import type { MobileSnapshot } from "./api";
 import { mergeMobileSnapshot, mobileThreadRefreshResult, rpc, selectedSpaceId } from "./api";
 import { useI18n } from "./i18n";
 import { isIntegrationsScopeCurrent } from "./integrations-cache";
@@ -65,9 +66,20 @@ export function useThreadSync({
   /** A refresh for the chat on screen finished, committed or not. */
   onRefreshed: (threadKey: string | undefined) => void;
   refreshMentionBots: () => Promise<unknown>;
-  markReadIfVisible: () => void;
+  markReadIfVisible: (options?: { force?: boolean }) => void;
 }) {
   const { t } = useI18n();
+  const seenBotReplyRef = useRef<{ target: string; marker: string } | null>(null);
+  const latestBotReplyMarker = (snapshot: MobileSnapshot | null): string | null => {
+    if (!snapshot) return null;
+    for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
+      const message = snapshot.messages[index]!;
+      if (message.role === "bot" && !message.id.startsWith("progress:")) {
+        return `${message.seq ?? ""}:${message.id}`;
+      }
+    }
+    return null;
+  };
   const {
     snap,
     showingSaved,
@@ -153,17 +165,36 @@ export function useThreadSync({
       activeGroupId: activeGroupId.current,
     });
     if (result.commit) {
+      const targetKey = savedChatTarget(reconciled);
+      const previous = snapRef.current;
+      const previousMarker =
+        previous && savedChatTarget(previous) === targetKey
+          ? latestBotReplyMarker(previous)
+          : seenBotReplyRef.current?.target === targetKey
+            ? seenBotReplyRef.current.marker
+            : null;
+      const nextMarker = latestBotReplyMarker(reconciled);
+      const arrivedWhileOpen =
+        nextMarker !== null && previousMarker !== null && nextMarker !== previousMarker;
+      if (nextMarker !== null) {
+        seenBotReplyRef.current = { target: targetKey, marker: nextMarker };
+      }
       snapshotOrigin.current = scope;
       pendingSave.current = null;
-      writeSavedThread(scope, savedChatTarget(reconciled), reconciled);
+      writeSavedThread(scope, targetKey, reconciled);
       commitSnap(
         mergeMobileSnapshot(
-          snapRef.current,
+          previous,
           reconciled,
           expandedHistoryThread.current === reconciled.threadId,
         ),
       );
       setShowingSaved(false);
+      // Replies fetched via snapshot refresh (reconnect, safety poll, post-send) must mark read too.
+      if (arrivedWhileOpen) {
+        readVisibleTarget.current = null;
+        markReadIfVisible({ force: true });
+      }
     }
     if (isCurrentTarget(targetBotId, targetGroupId)) {
       onRefreshed(targetGroupId ?? targetBotId);

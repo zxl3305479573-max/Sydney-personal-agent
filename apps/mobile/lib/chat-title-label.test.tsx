@@ -6,6 +6,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CHAT_TITLE_FADE_MS, ChatTitleLabel } from "../components/chat-title-label";
 
+vi.mock("react-native", () => ({
+  View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+  Text: ({ children }: { children?: ReactNode }) => createElement("small", null, children),
+}));
 vi.mock("react-native-reanimated", () => ({
   default: {
     Text: ({
@@ -60,4 +64,20 @@ it("changes a known name in place, without a fade", () => {
   render("Helper 2");
   expect(shown()?.textContent).toBe("Helper 2");
   expect(shown()?.hasAttribute("data-fade")).toBe(false);
+});
+
+it("renders a compact status subtitle below the name when conversation status is active", () => {
+  act(() =>
+    root.render(
+      <ChatTitleLabel
+        label="Helper"
+        placeholder={false}
+        style={{}}
+        statusLabel="Working…"
+        statusStyle={{}}
+      />,
+    ),
+  );
+  expect(shown()?.textContent).toBe("Helper");
+  expect(container.querySelector("small")?.textContent).toBe("Working…");
 });

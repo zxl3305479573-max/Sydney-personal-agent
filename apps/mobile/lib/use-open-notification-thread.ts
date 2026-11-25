@@ -16,7 +16,7 @@ export function useOpenNotificationThread({
   botId?: string;
   threadId?: string;
   navigation: { isFocused(): boolean };
-  markReadIfVisible: () => void;
+  markReadIfVisible: (options?: { force?: boolean }) => void;
 }) {
   // Kept apart from the screen's other focus work: its callbacks change with every streamed
   // message, and each re-run would close and reopen the thread, restarting the Android
@@ -37,7 +37,8 @@ export function useOpenNotificationThread({
       if (state === "active") {
         if (!navigation.isFocused() || !threadId) return;
         void setOpenNotificationThread({ botId, threadId }).catch(() => undefined);
-        markReadIfVisible();
+        // Re-mark read on foreground return even though the same thread stayed mounted.
+        markReadIfVisible({ force: true });
         return;
       }
       void setOpenNotificationThread(null).catch(() => undefined);

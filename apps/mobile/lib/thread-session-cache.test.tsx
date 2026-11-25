@@ -6,7 +6,13 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { MobileSnapshot } from "./api";
 import { useThreadSnapshot } from "./thread-history";
 import type { ThreadSessionScope } from "./thread-session-cache";
-import { applySendActivity, retainAcceptedRuns, threadSessionCache } from "./thread-session-cache";
+import {
+  applyAcceptedSend,
+  applySendActivity,
+  projectThreadSessionScope,
+  retainAcceptedRuns,
+  threadSessionCache,
+} from "./thread-session-cache";
 
 vi.mock("./response-streaming", () => ({
   getCachedResponseStreamingEnabled: () => false,
@@ -194,4 +200,88 @@ it("keeps accepted work when an older refresh omits the run", () => {
     activeRuns: [],
   });
   expect(refreshed.activeRuns).toEqual(accepted.activeRuns);
+});
+
+it("keeps status live across separate screens after roster reconciliation and rejects older rosters", () => {
+  threadSessionCache.remember(scope, snapshot("running", 10));
+  const newerReq = threadSessionCache.getRequestRevision();
+  const olderReq = newerReq - 1;
+  threadSessionCache.reconcileRoster(scope, newerReq, {
+    bots: [{ id: "bot-a", status: "running", unread: false }],
+    groups: [
+      { id: "group-a", unread: true, members: [{ status: "waiting_input" }] },
+    ],
+  });
+  // Another mounted tab whose local state still holds an older "idle" / unread: true snapshot reads live truth.
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+  expect(threadSessionCache.groupStatus(scope, "group-a", [])).toBe("waiting_input");
+  expect(threadSessionCache.unreadState(scope, { groupId: "group-a" }, false)).toBe(true);
+
+  // An older roster poll returning late cannot clobber the newer synced roster.
+  threadSessionCache.reconcileRoster(scope, olderReq, {
+    bots: [{ id: "bot-a", status: "idle", unread: true }],
+  });
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+});
+
+it("shows queued status during in-flight sends and handles legacy receipts without activity", () => {
+  threadSessionCache.markSendPending(scope, { botId: "bot-a" }, "nonce-1");
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
+
+  // A roster poll returning idle while the send is still in flight cannot wipe queued status.
+  const reqRev = threadSessionCache.getRequestRevision();
+  threadSessionCache.reconcileRoster(scope, reqRev, {
+    bots: [{ id: "bot-a", status: "idle", unread: false }],
+  });
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
+
+  // Older server replies with runId only (no structured activity): keeps queued status without poisoning read().
+  const accepted = applyAcceptedSend(null, { botId: "bot-a" }, { runId: "run-legacy" });
+  expect(accepted).not.toBeNull();
+  threadSessionCache.remember(scope, accepted!);
+  threadSessionCache.clearSendPending(scope, { botId: "bot-a" }, "nonce-1");
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
+  expect(threadSessionCache.read(scope, { botId: "bot-a" })).toBeNull();
+});
+
+it("syncs unread writes immediately across tabs, survives exit races, and reconciles later replies", () => {
+  const readToken = threadSessionCache.beginUnreadWrite(scope, { botId: "bot-a" }, false);
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+
+  // Poll started while write is pending cannot revert unread back to true.
+  const midWriteRev = threadSessionCache.getRequestRevision();
+  threadSessionCache.reconcileRoster(scope, midWriteRev, {
+    bots: [{ id: "bot-a", status: "running", unread: true }],
+  });
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+
+  threadSessionCache.finishUnreadWrite(scope, { botId: "bot-a" }, readToken);
+  // Poll started BEFORE write finished still cannot revert unread.
+  threadSessionCache.reconcileRoster(scope, midWriteRev, {
+    bots: [{ id: "bot-a", status: "idle", unread: true }],
+  });
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+
+  // A later poll started AFTER the read settled brings in a newly arrived bot reply as unread.
+  const afterReadRev = threadSessionCache.getRequestRevision();
+  threadSessionCache.reconcileRoster(scope, afterReadRev, {
+    bots: [{ id: "bot-a", status: "idle", unread: true }],
+  });
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, false)).toBe(true);
+
+  // Aborting a failed unread write rolls back cleanly.
+  const failedToken = threadSessionCache.beginUnreadWrite(scope, { botId: "bot-a" }, false);
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+  threadSessionCache.abortUnreadWrite(scope, { botId: "bot-a" }, failedToken);
+  expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, false)).toBe(true);
+});
+
+it("isolates project conversations by workspace and account scope", () => {
+  const projectA = projectThreadSessionScope("account-a", "project-1");
+  const projectB = projectThreadSessionScope("account-a", "project-2");
+  threadSessionCache.remember(projectA, snapshot("running", 5));
+  expect(threadSessionCache.botStatus(projectA, "bot-a", "idle")).toBe("running");
+  expect(threadSessionCache.botStatus(projectB, "bot-a", "idle")).toBe("idle");
 });

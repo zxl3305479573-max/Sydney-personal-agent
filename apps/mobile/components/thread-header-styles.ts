@@ -42,6 +42,36 @@ export function createThreadHeaderStyles(tokens: ColorTokens = mobileTokens()) {
       ...typeScale.cardTitle,
       color: tokens.foreground,
     },
+    titleTextGroup: {
+      flexShrink: 1,
+      minWidth: 0,
+      justifyContent: "center",
+    },
+    titleCompact: {
+      flexShrink: 1,
+      fontSize: 15,
+      lineHeight: 18,
+      fontWeight: "500",
+      color: tokens.foreground,
+    },
+    titleStatusWorking: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "500",
+      color: tokens?.statusWorking ?? "#1557C0",
+    },
+    titleStatusWaiting: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "500",
+      color: tokens?.warning ?? "#7D5005",
+    },
+    titleStatusFailed: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "500",
+      color: tokens?.destructive ?? "#C4272D",
+    },
     headerActions: {
       flexDirection: "row",
       alignItems: "center",
