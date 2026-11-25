@@ -1,5 +1,26 @@
 # 验证记录
 
+## iPhone 1.0.27 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **发布前本机复验**：
+  - 本批提交的全部 31 个代码／测试／发布配置文件 Biome 检查：**31/31 文件 0 错误、0 格式差异**（已补齐 `home-weather.ts` / `home-weather.test.ts` 2 处格式）。
+  - 四包 TypeScript 类型检查：`apps/mobile`、`packages/db`、`packages/testkit`、`apps/api` `tsc --noEmit` **全部 0 错误通过**。
+  - 关联 Vitest 回归（**19 个文件、334 项测试全部通过、0 失败**）：`app-version.test.ts`（6）、`app-config.test.ts`（34）、`client-update.test.ts`（16）、`account-screen.test.tsx`（28）、`home-weather.test.ts`（5）、`home-hub.test.tsx`（6）、`project-pages-state.test.tsx`（8）、`inbox-render.test.tsx`（18）、`artifacts-navigation.test.tsx`（8）、`home-route.test.tsx`（5）、`main-navigation.test.tsx`（26）、`home-styles.test.ts`（2）、`i18n.test.ts`（16）、`scroll-hygiene.test.ts`（1）、`screen-theme-coverage.test.ts`（6）、`thread-session-cache.test.tsx`（20）、`packages/db/src/thread-listing.test.ts`（15）、`packages/db/src/repos.test.ts`（17）、`apps/api/src/thread-target.test.ts`（97）。
+  - `git diff --check`（全部 35 个提交文件含 4 份 `docx/`）：**0 警告通过**。
+- **Git 提交与 GitHub Actions OTA 结果**：
+  - 源码提交 `ebe778578700e14b893ef02c29225a1932dd35f8`（位于 `8c6f484a5` 之上；刻意未混入同期并发窗口正在编辑的未完稿 `companion-session*`／`companion-thread-watch.ts` 文件）已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - `mobile-ios-update.yml` [Run 45647370098](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45647370098)（分支 `main`、提交 `ebe778578`、runtime `sydney-ios-ip-1`）：**completed / success**（`15:38:03Z`–`15:39:43Z`）。
+  - 更新组 ID：`0f6c0da3-7075-40d6-86d0-fffd16a912d6`；iOS 更新 ID：`01a2135c-d2b5-7d0a-aa20-cf2a458a6fb7`；发布时间：`2026-11-25T15:39:40.085Z`。
+- **线上 Expo 清单与产物校验**：
+  - `https://u.expo.dev/c33e1434-f7d0-4c40-8839-78b050d41388`（`expo-platform: ios`、`expo-runtime-version: sydney-ios-ip-1`、`expo-channel-name: sideload`）返回 **HTTP `200`**（`multipart/mixed`），`id` 为 `01a2135c-d2b5-7d0a-aa20-cf2a458a6fb7`，`sydneyMobileRelease.version` 为 `1.0.27`、`releasedOn` 为 `2026-11-25`，`zh-CN`/`zh-TW`/`en` 说明各 4 条。
+  - 启动包（`launchAsset`）：**HTTP `200`**，大小 **`10,846,664` 字节**，SHA-256 为 `ffc81fa0f611133df9ea6ef40b1fbd3086b2e542058f2cfd1d7d2cfe299fa485`，与清单摘要完全匹配。
+  - 静态资源：按清单 `extensions.assetRequestHeaders` 逐项拉取，**`56 / 56` 全部 HTTP `200` 且 SHA-256 匹配**（0 失败）。
+- **同期其他 GitHub Actions 观测（不做推定通过）**：
+  - 核验时点 `ci` Run `45647228434`（`main`／`ebe778578`）与 `iOS unsigned sideload build` Run `45647227565`（`ebe778578`）处于 `in_progress`，不提前推定通过。
+- **未执行项**：iPhone 真机在「设置 → 检查更新」下载重启、核对「设置 → 关于」显示 `1.0.27`，并实测首页顶部留白消除、项目／聊天 Tab 边距与中文衬线大标题、实时天气、OTA 悬浮进度重试与任务完成后状态回落仍待真机验收。
+
 ## 手机端首页顶部留白与项目／聊天页排版字体修复（2026-11-25）
 
 关联 PA-021。

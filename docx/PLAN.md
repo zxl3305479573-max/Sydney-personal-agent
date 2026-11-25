@@ -1,5 +1,16 @@
 # Sydney 开发总计划
 
+## iPhone 1.0.27 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
+
+状态：源码提交推送、GitHub Actions `sideload` OTA 发布与线上清单／启动包／56 项静态资源核验均已完成；真实 iPhone 下载重启与交互验收待执行。
+
+范围与交付物：
+- 提交推送：将已完成并验证的 35 个文件（涵盖首页顶部双重安全区留白修复、项目／聊天／首页三 Tab 顶栏基线与 iOS 中文衬线大标题对齐、首页实时天气微标、OTA 下载 3 次自动续传重试与暖瓷悬浮进度提示、任务完成后残留「等待输入」修复、第三批 GitHub CI Postgres 集成修复及 `apps/mobile/sydney-release.json` `1.0.27` 三语说明）提交为 `ebe778578700e14b893ef02c29225a1932dd35f8`（刻意保留同期并发窗口正在编辑的未完稿 `companion-session*`／`companion-thread-watch.ts` 在本地工作区不受干扰），并推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+- iPhone OTA 分发：通过 `.github/workflows/mobile-ios-update.yml` 触发 [Run 45647370098](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45647370098)（分支 `main`、提交 `ebe778578`、runtime `sydney-ios-ip-1`）并执行成功（原生底座仍为 `1.0.12`，无需重签重装 IPA）。更新组 `0f6c0da3-7075-40d6-86d0-fffd16a912d6`，iOS 更新 ID `01a2135c-d2b5-7d0a-aa20-cf2a458a6fb7`。
+- 验证结果：发布前 31 个代码／测试／发布配置文件 Biome 0 错误、四包（`@rakazo/mobile`／`packages/db`／`packages/testkit`／`apps/api`）`tsc --noEmit` 0 错误、19 个关联 Vitest 文件（334 项）全绿、`git diff --check` 0 警告；线上 Expo 清单返回 HTTP `200`（`1.0.27`／三语说明各 4 条），启动包 `10,846,664` 字节（SHA-256 `ffc81fa0f611133df9ea6ef40b1fbd3086b2e542058f2cfd1d7d2cfe299fa485`）及全部 `56/56` 项资源均 HTTP `200` 且 SHA-256 匹配。详细证据见 [验证记录](VALIDATION.md#iphone-1027-侧载-ota-发布2026-11-25)，升级与回退路径见 [运维手册](OPERATIONS.md#iphone-1027-侧载-ota2026-11-25)。
+
+依赖与验收条件：沿用既有 `sideload`／`sydney-ios-ip-1` 通道与仓库凭据，不部署后端 API／Worker 或数据库迁移；iPhone 真机在「设置 → 检查更新」下载重启、核对「关于」显示 `1.0.27` 并实测首页顶部留白消除、项目／聊天顶栏与中文字体、实时天气、OTA 悬浮进度及状态回落仍待真机验收。
+
 ## 手机端首页顶部留白与项目／聊天页排版字体修复（PA-021，2026-11-25）
 
 状态：源码实现与本机定向离线验证已完成（真实 iPhone 视觉与 OTA 生效待用户确认提交并发布新版本后真机验收；未提交或推送）。
