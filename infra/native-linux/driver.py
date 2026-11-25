@@ -24,6 +24,11 @@ PROJECT_FILE_LIMIT = 64 * 1024
 MAX_EXPORT = 24 * 1024 * 1024
 MAX_OUTPUT = 1024 * 1024
 MAX_FILES = 500
+PROJECT_SEARCH_MAX_QUERY = 200
+PROJECT_SEARCH_MAX_MATCHES = 50
+PROJECT_SEARCH_MAX_EXCERPT = 200
+PROJECT_SEARCH_MAX_DEPTH = 6
+PROJECT_SEARCH_MAX_FILES = 200
 PROJECT_COMMAND_OUTPUT_LIMIT = 64 * 1024
 PROJECT_COMMAND_INPUT_LIMIT = PROJECT_FILE_LIMIT * 16
 PROJECT_COMMAND_RUNTIME = "/opt/sydney/project-command-runtime"
@@ -245,13 +250,24 @@ class Driver:
         if not isinstance(folder, dict) or not isinstance(file, dict):
             raise Refused("Project folder and operation are required")
         operation = file.get("operation")
-        if operation == "list":
+        if operation in ("list", "search"):
             parts = self.path_parts(file.get("path", ""), allow_empty=True)
             if any(len(part.encode("utf-8")) > 255 for part in parts):
                 raise Refused("Invalid project path")
         else:
             parts = self.project_path_parts(file.get("path"))
-        if operation == "create":
+        if operation == "search":
+            query = file.get("query")
+            case_sensitive = file.get("caseSensitive", False)
+            if (
+                not isinstance(query, str)
+                or not query
+                or len(query) > PROJECT_SEARCH_MAX_QUERY
+                or any(ord(character) < 32 or ord(character) == 127 for character in query)
+                or not isinstance(case_sensitive, bool)
+            ):
+                raise Refused("Invalid project search query")
+        elif operation == "create":
             text = file.get("text")
             if not isinstance(text, str) or not parts[-1].lower().endswith(".md"):
                 raise Refused("Only new UTF-8 Markdown is supported")
@@ -274,7 +290,7 @@ class Driver:
             identity = os.fstat(root)
             if folder.get("device") != str(identity.st_dev) or folder.get("inode") != str(identity.st_ino):
                 raise Refused("Authorized directory changed")
-            directory_parts = parts if operation == "list" else parts[:-1]
+            directory_parts = parts if operation in ("list", "search") else parts[:-1]
             for part in directory_parts:
                 child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
                 if current != root:
@@ -325,6 +341,81 @@ class Driver:
                             })
                     entries.sort(key=lambda entry: entry["path"])
                     return {"operation": "list", "entries": entries, "truncated": truncated}
+                if operation == "search":
+                    needle = query if case_sensitive else query.lower()
+                    matches = []
+                    truncated = False
+                    scanned_files = 0
+
+                    def walk(dir_fd, prefix_parts, depth):
+                        nonlocal truncated, scanned_files
+                        scanned_entries = 0
+                        items = []
+                        with os.scandir(dir_fd) as contents:
+                            for item in contents:
+                                scanned_entries += 1
+                                if scanned_entries > MAX_FILES:
+                                    truncated = True
+                                    break
+                                items.append(item.name)
+                        items.sort()
+                        for name in items:
+                            if len(matches) >= PROJECT_SEARCH_MAX_MATCHES:
+                                truncated = True
+                                return
+                            try:
+                                metadata = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+                            except OSError:
+                                continue
+                            if metadata.st_dev != identity.st_dev:
+                                continue
+                            entry_path = "/".join([*prefix_parts, name])
+                            try:
+                                self.project_path_parts(entry_path)
+                            except Refused:
+                                continue
+                            if stat.S_ISDIR(metadata.st_mode):
+                                if depth >= PROJECT_SEARCH_MAX_DEPTH:
+                                    truncated = True
+                                    continue
+                                try:
+                                    child_fd = os.open(
+                                        name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dir_fd,
+                                    )
+                                except OSError:
+                                    continue
+                                try:
+                                    if os.fstat(child_fd).st_dev == identity.st_dev:
+                                        walk(child_fd, [*prefix_parts, name], depth + 1)
+                                finally:
+                                    os.close(child_fd)
+                            elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+                                if scanned_files >= PROJECT_SEARCH_MAX_FILES:
+                                    truncated = True
+                                    return
+                                scanned_files += 1
+                                if metadata.st_size > PROJECT_FILE_LIMIT:
+                                    continue
+                                try:
+                                    raw = self.read_regular_file(dir_fd, name, PROJECT_FILE_LIMIT, identity.st_dev)
+                                    text = raw.decode("utf-8")
+                                except (Refused, OSError, UnicodeDecodeError):
+                                    continue
+                                for line_number, line in enumerate(text.splitlines(), start=1):
+                                    haystack = line if case_sensitive else line.lower()
+                                    if needle not in haystack:
+                                        continue
+                                    if len(matches) >= PROJECT_SEARCH_MAX_MATCHES:
+                                        truncated = True
+                                        return
+                                    matches.append({
+                                        "path": entry_path,
+                                        "line": line_number,
+                                        "text": line[:PROJECT_SEARCH_MAX_EXCERPT],
+                                    })
+
+                    walk(current, list(parts), 0)
+                    return {"operation": "search", "matches": matches, "truncated": truncated}
                 if operation == "update":
                     previous = self.read_regular_file(current, parts[-1], PROJECT_FILE_LIMIT, identity.st_dev)
                     previous_hash = hashlib.sha256(previous).hexdigest()

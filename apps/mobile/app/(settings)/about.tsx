@@ -4,16 +4,18 @@ import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { getAppVersionInfo } from "../../lib/app-version";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
+import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { useSideInsets } from "../../lib/side-insets";
 
 export default function About() {
   const { t } = useI18n();
   const insets = useSideInsets();
+  const screenBackground = useScreenBackground(native.groupedPage);
   const { release, nativeLabel } = getAppVersionInfo();
   const currentVersion = release?.version ?? nativeLabel;
 
   return (
-    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: native.groupedPage }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <ScrollView
         style={insets}
         contentInsetAdjustmentBehavior="automatic"

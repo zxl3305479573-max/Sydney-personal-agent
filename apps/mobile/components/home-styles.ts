@@ -1,44 +1,49 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { StyleSheet } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { cardGradient } from "../lib/card-gradient";
+import type { NativeColors } from "../lib/native";
 import { native } from "../lib/native";
-import { effectiveThemeAssignments } from "../lib/theme-manager";
-import { resolveScopedTheme } from "../lib/theme-pack";
-import { themeManager } from "../lib/theme-state";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 
 export const INBOX_ROW = { padding: 20, gap: 12, avatarSize: 62 };
 export const COMPACT_INBOX_ROW = { padding: 12, gap: 10 };
 // Drops the Android create menu below the header pill; the trigger's negative margin keeps the layout.
 export const CREATE_MENU_GAP = 6;
 
-export function createHomeStyles() {
-  const tokens = mobileTokens();
+export function createHomeStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   const bg = tokens?.background;
   const isLight =
     typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
       ? Number.parseInt(bg.slice(1, 3), 16) > 128
       : true;
-  const porcelainCard = isLight ? "#FFFEFC" : "#242933";
-  const porcelainBorder =
-    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
-  const creamChip = isLight ? "#F8F6F2" : "#2A303B";
-  const creamChipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const porcelainCard = scope ? tokens.card : isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder = scope
+    ? tokens.border
+    : (tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)"));
+  const creamChip = scope ? colors.fillPressed : isLight ? "#F8F6F2" : "#2A303B";
+  const creamChipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
-  const snapshot = themeManager.getSnapshot();
-  const scope = themeManager.getActiveScope();
-  const layout =
-    snapshot.hydrated &&
-    (snapshot.assignments.globalPackId !== "classic" || snapshot.assignments.pages[scope])
-      ? resolveScopedTheme(snapshot.packs, effectiveThemeAssignments(snapshot), scope, "dark")
-          .layout
-      : "classic";
-  const cards = layout === "cards";
+  const cards = scope?.layout === "cards";
+  const outlined = scope?.surface === "outlined";
+  const hasBackground = Boolean(scope?.background);
+  const cardRadius = Math.max(10, Math.min(24, scope?.geometry.cardRadius ?? 18));
+  const cardBorderWidth =
+    cards || outlined ? Math.max(hairline, scope?.geometry.borderWidth ?? hairline) : 0;
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: tokens?.background ?? native.page,
+      backgroundColor: hasBackground ? "transparent" : colors.page,
     },
     centered: {
       alignItems: "center",
@@ -78,7 +83,7 @@ export function createHomeStyles() {
       opacity: 0.75,
     },
     emptyPane: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       textAlign: "center",
     },
@@ -96,7 +101,7 @@ export function createHomeStyles() {
       padding: 2,
       gap: 2,
       borderRadius: 999,
-      backgroundColor: porcelainCard,
+      backgroundColor: scope ? colors.fillPressed : porcelainCard,
       borderWidth: hairline,
       borderColor: porcelainBorder,
       shadowColor: "#26231F",
@@ -111,7 +116,7 @@ export function createHomeStyles() {
       borderRadius: 22,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: porcelainCard,
+      backgroundColor: scope ? colors.fillPressed : porcelainCard,
       borderWidth: hairline,
       borderColor: porcelainBorder,
       shadowColor: "#26231F",
@@ -133,18 +138,18 @@ export function createHomeStyles() {
       paddingBottom: CREATE_MENU_GAP,
     },
     headerButtonActive: {
-      backgroundColor: creamChip,
+      backgroundColor: scope ? colors.fill : creamChip,
     },
     headerButtonAccent: {
       backgroundColor: tokens?.primary ?? "#2B2823",
     },
     profileInitials: {
-      color: native.label,
+      color: colors.label,
       fontSize: 15,
       fontWeight: "600",
     },
     error: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       paddingHorizontal: 20,
       paddingBottom: 8,
     },
@@ -164,7 +169,7 @@ export function createHomeStyles() {
       paddingBottom: 16,
     },
     inboxTitle: {
-      color: native.label,
+      color: colors.label,
       fontSize: 32,
       fontWeight: "700",
     },
@@ -176,9 +181,13 @@ export function createHomeStyles() {
       paddingHorizontal: 15,
       paddingVertical: 10,
       borderRadius: 20,
-      backgroundColor: porcelainCard,
-      experimental_backgroundImage: cardGradient(isLight, "pearl"),
-      overflow: "hidden",
+      backgroundColor: scope ? colors.fillPressed : porcelainCard,
+      ...(scope
+        ? {}
+        : {
+            experimental_backgroundImage: cardGradient(isLight, "pearl"),
+            overflow: "hidden" as const,
+          }),
       borderWidth: hairline,
       borderColor: porcelainBorder,
       shadowColor: "#26231F",
@@ -188,12 +197,12 @@ export function createHomeStyles() {
       elevation: 1,
     },
     inboxSearchLabel: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       flexShrink: 1,
       ...typeScale.secondary,
     },
     empty: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 16,
       paddingHorizontal: 20,
       paddingTop: 28,
@@ -205,15 +214,15 @@ export function createHomeStyles() {
       paddingHorizontal: cards ? 14 : INBOX_ROW.padding,
       paddingVertical: cards ? 15 : 14,
       gap: INBOX_ROW.gap,
-      borderRadius: cards ? 18 : 0,
+      borderRadius: cards ? cardRadius : 0,
       backgroundColor: cards ? porcelainCard : "transparent",
-      ...(cards
+      ...(cards && !scope
         ? {
             experimental_backgroundImage: cardGradient(isLight, "champagne"),
             overflow: "hidden" as const,
           }
         : {}),
-      borderWidth: cards ? hairline : 0,
+      borderWidth: cards ? cardBorderWidth : 0,
       borderColor: cards ? porcelainBorder : "transparent",
       marginBottom: cards ? 8 : 0,
     },
@@ -257,16 +266,16 @@ export function createHomeStyles() {
       alignItems: "center",
       paddingVertical: 10,
       paddingHorizontal: 4,
-      borderRadius: 20,
+      borderRadius: cards ? Math.min(24, cardRadius + 2) : 20,
       gap: 6,
       backgroundColor: cards ? porcelainCard : "transparent",
-      ...(cards
+      ...(cards && !scope
         ? {
             experimental_backgroundImage: cardGradient(isLight, "champagne"),
             overflow: "hidden" as const,
           }
         : {}),
-      borderWidth: cards ? hairline : 0,
+      borderWidth: cards ? cardBorderWidth : 0,
       borderColor: cards ? porcelainBorder : "transparent",
     },
     pinnedTileSelected: {
@@ -275,14 +284,14 @@ export function createHomeStyles() {
       borderColor: creamChipBorder,
     },
     pinnedName: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       fontWeight: "500",
       textAlign: "center",
       writingDirection: "auto",
     },
     pinnedUnread: {
-      color: native.label,
+      color: colors.label,
       fontWeight: "700",
     },
     compactRow: {
@@ -320,12 +329,13 @@ export function createHomeStyles() {
     },
     name: {
       flexShrink: 1,
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
     time: {
-      color: native.secondaryLabel,
+      flexShrink: 1,
+      color: colors.secondaryLabel,
       ...typeScale.caption,
       fontVariant: ["tabular-nums"],
     },
@@ -333,12 +343,12 @@ export function createHomeStyles() {
       fontWeight: "700",
     },
     preview: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       writingDirection: "auto",
     },
     unreadPreview: {
-      color: native.label,
+      color: colors.label,
       fontWeight: "600",
     },
     unreadDot: {
@@ -359,7 +369,7 @@ export function createHomeStyles() {
       justifyContent: "center",
     },
     spaceTitle: {
-      color: native.label,
+      color: colors.label,
       fontSize: 14,
       fontWeight: "600",
       writingDirection: "auto",
@@ -390,16 +400,16 @@ export function createHomeStyles() {
     archivedRow: { flex: 0, width: "100%" },
     sectionTitle: {
       flexShrink: 1,
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
     },
     sectionCount: {
-      color: native.tertiaryLabel,
+      color: colors.tertiaryLabel,
       ...typeScale.caption,
       fontVariant: ["tabular-nums"],
     },
     sectionHeading: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       paddingHorizontal: 20,
       paddingTop: 12,
@@ -407,7 +417,7 @@ export function createHomeStyles() {
     },
     activitySection: {
       borderBottomWidth: hairline,
-      borderBottomColor: porcelainBorder,
+      borderBottomColor: scope ? colors.fillPressed : porcelainBorder,
       marginBottom: 4,
       paddingBottom: 4,
     },
@@ -418,14 +428,14 @@ export function createHomeStyles() {
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: creamChip,
+      backgroundColor: scope ? colors.fill : creamChip,
       borderWidth: hairline,
       borderColor: creamChipBorder,
       alignItems: "center",
       justifyContent: "center",
     },
     groupAvatarLabel: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 16,
       fontWeight: "600",
     },

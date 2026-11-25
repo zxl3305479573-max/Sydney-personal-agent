@@ -50,7 +50,8 @@ import {
 } from "../lib/companion-screen-send";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
-import { native, useThemedStyles } from "../lib/native";
+import type { NativeColors } from "../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../lib/native";
 import {
   projectRequestOptions,
   projectScopeKey,
@@ -60,6 +61,7 @@ import { createQueuedSave } from "../lib/queued-save";
 import { useBotRoutines } from "../lib/routine-store";
 import { currentSessionGeneration } from "../lib/session";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 export default function BotProfile() {
@@ -698,12 +700,15 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36, gap: 22 },
     compactContent: { paddingHorizontal: 8 },
     identityCard: {
@@ -724,18 +729,22 @@ function createStyles(passedTokens?: ColorTokens) {
     },
     edit: { alignSelf: "center", marginTop: 2 },
     avatarSpace: { width: 96, height: 96 },
-    name: { color: native.label, fontSize: 22, fontWeight: "600", textAlign: "center" },
+    name: { color: colors.label, fontSize: 22, fontWeight: "600", textAlign: "center" },
     leadingBadge: {
       width: 32,
       height: 32,
       borderRadius: 10,
       borderCurve: "continuous",
-      backgroundColor: isLight ? "#F8F6F2" : "#2A303B",
+      backgroundColor: scope ? colors.fill : isLight ? "#F8F6F2" : "#2A303B",
       borderWidth: hairline,
-      borderColor: isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)",
+      borderColor: scope
+        ? colors.separator
+        : isLight
+          ? "rgba(38, 35, 31, 0.07)"
+          : "rgba(245, 244, 240, 0.10)",
       alignItems: "center",
       justifyContent: "center",
     },
-    leadingIcon: { color: isLight ? "#6E675E" : "#B8B3AA" },
+    leadingIcon: { color: scope ? colors.secondaryLabel : isLight ? "#6E675E" : "#B8B3AA" },
   });
 }

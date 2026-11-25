@@ -81,6 +81,7 @@ import {
 } from "../lib/plugin-marketplace";
 import { queryClient, rpcQuery } from "../lib/query";
 import { useBottomSafeAreaClaimed, useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { useMcpOAuthReturn } from "../lib/use-mcp-oauth-return";
 import { errorText } from "../lib/user-error";
 
@@ -1657,18 +1658,27 @@ function isLightSurface(background?: string): boolean {
 }
 
 function createIntegrationsStyles(
-  scopedTokens?: Partial<ColorTokens>,
-  scopedColors?: Partial<NativeColors>,
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
 ) {
-  const tokens = scopedTokens ?? mobileTokens();
-  const colors = scopedColors ?? native;
   const isLight = isLightSurface(tokens?.background);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
-  const pageBg = colors?.page ?? tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
-  const cardBg = isLight ? "#FFFEFC" : "#242933";
-  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
-  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
-  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const pageBg = scope?.background
+    ? "transparent"
+    : (colors?.page ?? tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C"));
+  const cardBg = scope ? colors.fill : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = scope ? colors.fillPressed : isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   const labelInk = colors?.label ?? tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
   const secondaryInk =
     colors?.secondaryLabel ?? tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
@@ -1681,8 +1691,12 @@ function createIntegrationsStyles(
     card: { padding: 18, borderRadius: 20, gap: 12 },
     cardFallback: {
       backgroundColor: cardBg,
-      experimental_backgroundImage: cardGradient(isLight, "rose"),
-      overflow: "hidden",
+      ...(scope
+        ? {}
+        : {
+            experimental_backgroundImage: cardGradient(isLight, "rose"),
+            overflow: "hidden" as const,
+          }),
       borderRadius: 20,
       borderWidth: hairline,
       borderColor: cardBorder,

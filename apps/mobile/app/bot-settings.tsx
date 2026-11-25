@@ -57,7 +57,7 @@ import {
   subscribeProjectScope,
 } from "../lib/project-scope";
 import { createQueuedSave } from "../lib/queued-save";
-import { useScopedTheme } from "../lib/scoped-theme-context";
+import { useScopedTheme, useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { thinkingLevelLabel } from "../lib/thinking-level";
 import { errorText } from "../lib/user-error";
@@ -124,6 +124,7 @@ function BotSettingsScreen({
   const sideInsets = useSideInsets();
   const tokens = useMobileTokens();
   const themedScope = useScopedTheme();
+  const screenBackground = useScreenBackground(tokens.background);
   const isLight = themedScope ? themedScope.appearance === "light" : isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   const cardBg = themedScope
@@ -635,7 +636,7 @@ function BotSettingsScreen({
       <Stack.Screen options={glassHeaderOptions(t("Chat settings"))} />
       <ScrollView
         ref={scrollRef}
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 24 }}
         automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"

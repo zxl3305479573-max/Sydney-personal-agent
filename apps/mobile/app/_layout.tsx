@@ -34,7 +34,7 @@ import { MermaidDiagram } from "../components/mermaid-diagram";
 import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
-import { ScopedThemeRoute } from "../components/scoped-theme";
+import { ScopedThemeRoute, ScopedThemeScreen } from "../components/scoped-theme";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -183,13 +183,18 @@ function SplitFrame({ children }: { children: ReactNode }) {
             { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: tokens.border },
           ]}
         >
-          <InboxPane
-            onSelectSpace={(spaceId) => {
-              if (pathname !== "/chats" && closesSplitPane(pathname, paneSpace.current, spaceId)) {
-                router.replace("/chats");
-              }
-            }}
-          />
+          <ScopedThemeScreen scope="inbox">
+            <InboxPane
+              onSelectSpace={(spaceId) => {
+                if (
+                  pathname !== "/chats" &&
+                  closesSplitPane(pathname, paneSpace.current, spaceId)
+                ) {
+                  router.replace("/chats");
+                }
+              }}
+            />
+          </ScopedThemeScreen>
         </Animated.View>
       ) : null}
       {/* Keeps its place among the children so the navigation stack survives folding. */}
@@ -409,14 +414,9 @@ function LayoutContent() {
                 <BottomSafeAreaClaimedContext.Provider value={voicePlaying || showMainNavigation}>
                   <SplitFrame>
                     <Stack
-                      screenLayout={({ navigation, options, children }) => (
+                      screenLayout={({ route, navigation, options, children }) => (
                         <AvatarScreenFocus navigation={navigation}>
-                          <ScopedThemeRoute
-                            routeName={
-                              navigation.getState().routes[navigation.getState().index ?? 0]
-                                ?.name ?? "other"
-                            }
-                          >
+                          <ScopedThemeRoute routeName={route.name}>
                             {/* Sheets and modals cover the window, so the chat list is not beside them. */}
                             {options.presentation && options.presentation !== "card" ? (
                               <InboxBesideContext.Provider value={false}>

@@ -9,7 +9,7 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { routineStatusLine } from "../lib/routine";
 import { loadBotRoutines, useBotRoutines } from "../lib/routine-store";
-import { useScopedTheme } from "../lib/scoped-theme-context";
+import { useScopedTheme, useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
@@ -25,6 +25,7 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
 export default function RoutineDetail() {
   const sideInsets = useSideInsets();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const { t } = useI18n();
   const { botId, botName, routineId, origin } = useLocalSearchParams<{
     botId?: string;
@@ -68,7 +69,7 @@ export default function RoutineDetail() {
 
   return (
     <ScrollView
-      style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+      style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
       contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 36 }}
       contentInsetAdjustmentBehavior="automatic"
     >

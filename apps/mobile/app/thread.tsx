@@ -14,6 +14,7 @@ import {
   threadSpaceRequest,
   threadSpaceSwitchResult,
 } from "../lib/notification-open";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
@@ -62,15 +63,24 @@ export default function ThreadRoute() {
     };
   }, [generation, ready]);
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const { t } = useI18n();
   const router = useRouter();
   const focused = useIsFocused();
   const { spaceId, botId, companionLink, companionVoice, companionToken } = useLocalSearchParams<{
-    spaceId?: string | string[]; botId?: string | string[]; companionLink?: string | string[];
-    companionVoice?: string | string[]; companionToken?: string | string[];
+    spaceId?: string | string[];
+    botId?: string | string[];
+    companionLink?: string | string[];
+    companionVoice?: string | string[];
+    companionToken?: string | string[];
   }>();
   const companionAllowed = companionNavigationAllowed({
-    spaceId, botId, companionLink, companionVoice, companionToken, activity: activeCompanionIdentity(),
+    spaceId,
+    botId,
+    companionLink,
+    companionVoice,
+    companionToken,
+    activity: activeCompanionIdentity(),
   });
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() => selectedSpaceId());
   const [switchFailed, setSwitchFailed] = useState(false);
@@ -132,7 +142,7 @@ export default function ThreadRoute() {
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: tokens.background,
+        backgroundColor: screenBackground,
       }}
     >
       {companionAllowed && request.action === "switch" && !focusSync.switchFailed ? (
@@ -140,7 +150,9 @@ export default function ThreadRoute() {
       ) : (
         <View style={{ alignItems: "center", gap: 12 }}>
           <Text style={{ color: tokens.foreground, fontSize: 16 }}>
-            {companionAllowed ? t("Could not switch spaces") : "陪伴已结束或链接已失效，请重新开启陪伴。"}
+            {companionAllowed
+              ? t("Could not switch spaces")
+              : "陪伴已结束或链接已失效，请重新开启陪伴。"}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.replace("/")}>
             <Text style={{ color: tokens.foreground, fontSize: 16 }}>{t("Return to inbox")}</Text>

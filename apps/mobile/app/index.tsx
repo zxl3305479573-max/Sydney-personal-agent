@@ -52,7 +52,6 @@ import {
   syncInboxAppBadge,
   unreadChatCount,
 } from "../lib/app-badge";
-import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import { AvatarViewportScope, createAvatarViewport } from "../lib/avatar-life";
 import { isPaywallShown } from "../lib/billing";
 import type { CreateAction } from "../lib/create-chooser";
@@ -76,7 +75,7 @@ import {
 } from "../lib/inbox-spaces";
 import { applyPinOverrides, applyUnreadOverrides, withoutArchiving } from "../lib/inbox-swipe";
 import { mobileLogoAvatarActivity } from "../lib/logo-avatar-activity";
-import { native, useThemedStyles } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import type { OrganizeTarget } from "../lib/organize-target";
 import { findOrganizeTarget } from "../lib/organize-target";
@@ -534,8 +533,8 @@ export function HomeSession({
 
 function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { embedded: boolean }) {
   const generation = currentSessionGeneration();
-  const tokens = mobileTokens();
-  const appearance = resolveMobileAppearance();
+  const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
   const styles = useThemedStyles(createHomeStyles);
   const { t, locale } = useI18n();
   const isFocused = useIsFocused();

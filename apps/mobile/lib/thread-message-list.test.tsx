@@ -49,8 +49,8 @@ vi.mock("../components/thread/thread-list-controls", () => ({
     createElement("div", { "data-inset-end": String(insetEnd) }),
 }));
 
-vi.mock("./appearance", () => ({
-  mobileTokens: () => ({ mutedForeground: "muted" }),
+vi.mock("./native", () => ({
+  useMobileTokens: () => ({ mutedForeground: "muted" }),
 }));
 
 type ListProps = ComponentProps<typeof ThreadMessageList>;

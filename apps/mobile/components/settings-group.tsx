@@ -14,10 +14,12 @@ import {
 } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import type { CardGradientTone } from "../lib/card-gradient";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { androidRipple } from "../lib/ripple";
 import { useScopedTheme } from "../lib/scoped-theme-context";
 import { stacksAtTextScale } from "../lib/text-scale";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { GlassSurface } from "./glass-surface";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
@@ -66,25 +68,18 @@ export function SettingsGroup({
 }) {
   const styles = useThemedStyles(createSettingsStyles);
   const scope = useScopedTheme();
+  const cardRadius = scope ? Math.max(8, Math.min(24, scope.geometry.cardRadius)) : 20;
   const rows = Children.toArray(children).filter(isValidElement);
   if (rows.length === 0) return null;
-  const scopedCardFill = scope ? (scope.tokens?.card ?? native.groupedCell) : undefined;
   return (
     <View accessibilityLabel={accessibilityLabel} style={styles.group}>
       {label ? <SettingsLabel>{label}</SettingsLabel> : null}
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={20}
+        cornerRadius={cardRadius}
         gradient={scope ? false : gradient}
-        style={[
-          styles.card,
-          scope ? { borderColor: scope.tokens?.border ?? native.separator } : null,
-        ]}
-        fallbackStyle={
-          scopedCardFill
-            ? { backgroundColor: scopedCardFill, borderRadius: 20 }
-            : styles.cardFallback
-        }
+        style={styles.card}
+        fallbackStyle={styles.cardFallback}
       >
         {rows.map((row, index) => (
           <Fragment key={row.key}>
@@ -254,27 +249,37 @@ export function SettingsSwitch({
   );
 }
 
-function createSettingsStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createSettingsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardRadius = scope ? Math.max(8, Math.min(24, scope.geometry.cardRadius)) : 20;
+  const cardBorderWidth =
+    scope?.surface === "outlined" ? Math.max(1, Math.min(2, scope.geometry.borderWidth)) : hairline;
   return StyleSheet.create({
     group: { gap: 10 },
     groupLabel: {
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       paddingStart: 4,
     },
     footer: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.caption,
       paddingHorizontal: 4,
     },
     card: {
-      borderRadius: 20,
+      borderRadius: cardRadius,
       borderCurve: "continuous",
-      borderWidth: hairline,
-      borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
+      borderWidth: cardBorderWidth,
+      borderColor: scope
+        ? colors.separator
+        : isLight
+          ? "rgba(38, 35, 31, 0.055)"
+          : "rgba(245, 244, 240, 0.09)",
       shadowColor: "#26231F",
       shadowOpacity: isLight ? 0.028 : 0.16,
       shadowRadius: 16,
@@ -283,15 +288,14 @@ function createSettingsStyles(passedTokens?: ColorTokens) {
       overflow: "hidden",
     },
     cardFallback: {
-      backgroundColor: isLight ? "#FFFEFC" : "#242933",
-      borderRadius: 20,
+      backgroundColor: scope ? colors.groupedCell : isLight ? "#FFFEFC" : "#242933",
     },
     separator: {
       // iOS draws sheets scaled down slightly, which makes a one-pixel line fall between
       // pixels and vanish at some offsets. Two pixels always leave at least one visible.
       height: hairline * 2,
       marginStart: 16,
-      backgroundColor: native.separator,
+      backgroundColor: colors.separator,
     },
     row: {
       minHeight: 56,
@@ -305,16 +309,16 @@ function createSettingsStyles(passedTokens?: ColorTokens) {
     compactRow: { paddingHorizontal: 12, gap: 8 },
     titleColumn: { flex: 1, minWidth: 0, gap: 4 },
     stackedSwitch: { alignSelf: "flex-start", marginTop: 6 },
-    title: { color: native.label, ...typeScale.body },
+    title: { color: colors.label, ...typeScale.body },
     inputTitle: { fontSize: 17 },
     prominent: { fontSize: 20, fontWeight: "600" },
-    detail: { color: native.secondaryLabel, ...typeScale.caption },
+    detail: { color: colors.secondaryLabel, ...typeScale.caption },
     destructive: { color: tokens.destructive },
     tinted: { color: tokens.link },
-    value: { flexShrink: 1, color: native.secondaryLabel, ...typeScale.secondary },
+    value: { flexShrink: 1, color: colors.secondaryLabel, ...typeScale.secondary },
     // A long value truncates instead of pushing the title out of the row.
     inlineValue: { maxWidth: "45%" },
-    pressed: { backgroundColor: native.fillPressed },
+    pressed: { backgroundColor: colors.fillPressed },
     dimmed: { opacity: 0.45 },
   });
 }

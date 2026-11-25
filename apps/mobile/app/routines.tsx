@@ -7,6 +7,7 @@ import { NativeActionButton } from "../components/native-action-button";
 import { RoutineList } from "../components/routine-list";
 import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { deviceTimeZone } from "../lib/routine";
 import {
@@ -16,6 +17,7 @@ import {
   useBotRoutines,
 } from "../lib/routine-store";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 export default function Routines() {
@@ -107,8 +109,11 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
@@ -117,7 +122,7 @@ function createStyles(passedTokens?: ColorTokens) {
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 20,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
     emptyCard: {
       width: "100%",
@@ -129,16 +134,20 @@ function createStyles(passedTokens?: ColorTokens) {
       gap: 10,
       borderRadius: 22,
       borderCurve: "continuous",
-      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      backgroundColor: scope ? colors.groupedCell : isLight ? "#FFFEFC" : "#242933",
       borderWidth: hairline,
-      borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
+      borderColor: scope
+        ? colors.separator
+        : isLight
+          ? "rgba(38, 35, 31, 0.055)"
+          : "rgba(245, 244, 240, 0.09)",
       shadowColor: "#26231F",
       shadowOpacity: isLight ? 0.028 : 0.16,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 5 },
       elevation: 1,
     },
-    message: { color: native.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
+    message: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
     // The button aligns itself to the start by default.
     retry: { alignSelf: "center" },
   });

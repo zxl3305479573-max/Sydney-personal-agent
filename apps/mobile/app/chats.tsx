@@ -1,8 +1,17 @@
+import { View } from "react-native";
 import { PickChatPane } from "../components/pick-chat-pane";
+import { useMobileTokens } from "../lib/native";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useSplitView } from "../lib/split-view";
 import { HomeSession } from "./index";
 
 export default function ChatsRoute() {
   const { split } = useSplitView();
-  return split ? <PickChatPane /> : <HomeSession />;
+  const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
+  return (
+    <View style={{ flex: 1, backgroundColor: screenBackground }}>
+      {split ? <PickChatPane /> : <HomeSession />}
+    </View>
+  );
 }

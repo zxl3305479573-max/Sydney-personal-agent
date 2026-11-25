@@ -8,6 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NativeActionButton as FallbackButton } from "../components/native-action-button";
 import { NativeActionButton as IosButton } from "../components/native-action-button.ios";
+import { ScopedThemeContext } from "./scoped-theme-context";
+import type { ResolvedScopedTheme } from "./theme-pack";
 
 const platform = vi.hoisted(() => ({ OS: "ios", Version: 26 }));
 const pressable = vi.hoisted(() => vi.fn());
@@ -460,5 +462,108 @@ describe("destructive text actions", () => {
     const expected = document.createElement("span");
     expected.style.color = tokensForAppearance(scheme).destructive;
     expect(host.querySelector("span")!.style.color).toBe(expected.style.color);
+  });
+});
+
+function scopedTheme(
+  controlRadius: number,
+  borderWidth: number,
+  surface: ResolvedScopedTheme["surface"],
+): ResolvedScopedTheme {
+  return {
+    geometry: {
+      cardRadius: 18,
+      controlRadius,
+      pillRadius: 999,
+      borderWidth,
+      cornerShape: "continuous",
+      chamferSize: 0,
+      topSpecularHighlight: null,
+    },
+    surface,
+  } as ResolvedScopedTheme;
+}
+
+describe("scoped theme geometry on action buttons", () => {
+  it("preserves exact default fallback radius and border width when no scoped theme is active", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      <>
+        <FallbackButton label="Secondary" prominence="secondary" onPress={() => {}} />
+        <FallbackButton label="Rect" variant="rectangular" onPress={() => {}} />
+      </>,
+    );
+    const [secondary, rect] = host.querySelectorAll("button");
+    expect(secondary!.style.borderRadius).toBe("12px");
+    expect(secondary!.style.borderWidth).toBe("1px");
+    expect(rect!.style.borderRadius).toBe("9px");
+    expect(rect!.style.borderWidth).toBe("1px");
+  });
+
+  it("clamps scoped controlRadius and outlined borderWidth on fallback buttons", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      <ScopedThemeContext.Provider value={scopedTheme(32, 3, "outlined")}>
+        <FallbackButton label="Secondary" prominence="secondary" onPress={() => {}} />
+        <FallbackButton label="Rect" variant="rectangular" onPress={() => {}} />
+        <FallbackButton label="Primary" prominence="primary" onPress={() => {}} />
+      </ScopedThemeContext.Provider>,
+    );
+    const [secondary, rect, primary] = host.querySelectorAll("button");
+    expect(secondary!.style.borderRadius).toBe("20px");
+    expect(secondary!.style.borderWidth).toBe("2px");
+    expect(rect!.style.borderRadius).toBe("20px");
+    expect(rect!.style.borderWidth).toBe("2px");
+    expect(primary!.style.borderRadius).toBe("20px");
+    expect(primary!.style.borderWidth).toBe("0px");
+
+    host.innerHTML = renderToStaticMarkup(
+      <ScopedThemeContext.Provider value={scopedTheme(0, 3, "flat")}>
+        <FallbackButton label="Secondary" prominence="secondary" onPress={() => {}} />
+      </ScopedThemeContext.Provider>,
+    );
+    const flatSecondary = host.querySelector("button")!;
+    expect(flatSecondary.style.borderRadius).toBe("6px");
+    expect(flatSecondary.style.borderWidth).toBe("1px");
+  });
+
+  it("applies clamped cornerRadius and lineWidth on iOS rectangular buttons while preserving null default", () => {
+    renderToStaticMarkup(<IosButton label="Rect" variant="rectangular" onPress={() => {}} />);
+    expect(swiftText.mock.lastCall?.[0].modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "strokeBorder",
+          value: expect.objectContaining({ cornerRadius: 9, style: { lineWidth: 1 } }),
+        }),
+      ]),
+    );
+
+    renderToStaticMarkup(
+      <ScopedThemeContext.Provider value={scopedTheme(32, 3, "outlined")}>
+        <IosButton label="Rect" variant="rectangular" onPress={() => {}} />
+      </ScopedThemeContext.Provider>,
+    );
+    expect(swiftText.mock.lastCall?.[0].modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "strokeBorder",
+          value: expect.objectContaining({ cornerRadius: 20, style: { lineWidth: 2 } }),
+        }),
+      ]),
+    );
+
+    renderToStaticMarkup(
+      <ScopedThemeContext.Provider value={scopedTheme(2, 0, "flat")}>
+        <IosButton label="Rect" variant="rectangular" onPress={() => {}} />
+      </ScopedThemeContext.Provider>,
+    );
+    expect(swiftText.mock.lastCall?.[0].modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "strokeBorder",
+          value: expect.objectContaining({ cornerRadius: 6, style: { lineWidth: 1 } }),
+        }),
+      ]),
+    );
   });
 });

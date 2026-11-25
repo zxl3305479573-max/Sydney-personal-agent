@@ -45,6 +45,7 @@ import { useI18n } from "../lib/i18n";
 import { hasIncomingShare } from "../lib/incoming-share";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { passkeysAvailable, signInWithPasskey } from "../lib/passkey";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { continueWithSso } from "../lib/sso";
 import { credentialIssueText, errorText } from "../lib/user-error";
 
@@ -53,6 +54,7 @@ const CODE_LENGTH = 6;
 export default function SignIn() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const appearance = useResolvedAppearance();
   const { fontScale } = useWindowDimensions();
   const secondaryText = appearance === "light" ? "#4A453E" : tokens.mutedForeground;
@@ -145,7 +147,7 @@ export default function SignIn() {
       <View
         style={{
           flex: 1,
-          backgroundColor: tokens.background,
+          backgroundColor: screenBackground,
           justifyContent: "center",
           padding: 24,
         }}
@@ -261,7 +263,7 @@ export default function SignIn() {
   const custom = usesCustomApiBase(apiBase);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: tokens.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBackground }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

@@ -303,6 +303,7 @@ export function createProjectDirectoryAccess(deps: {
           grant.directory !== root.directory ||
           (request.file.operation !== "read" &&
             request.file.operation !== "list" &&
+            request.file.operation !== "search" &&
             grant.intent !== "read-write")
         ) {
           throw new Error("The project folder has not authorized this operation");

@@ -94,7 +94,7 @@ describe("UiModeProvider", () => {
       );
     });
     expect(container.querySelector('[data-testid="mode-theme"]')?.textContent).toBe(
-      "classic:#141414",
+      "classic:#15171C",
     );
 
     await act(async () => {

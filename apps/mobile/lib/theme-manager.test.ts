@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createThemeManager, normalizeThemeAssignments } from "./theme-manager";
+import {
+  createThemeManager,
+  effectiveThemeAssignments,
+  listPackUsage,
+  normalizeThemeAssignments,
+} from "./theme-manager";
 import type { ThemePackV1 } from "./theme-pack";
 
 const globalPack: ThemePackV1 = {
@@ -73,5 +78,42 @@ describe("theme manager", () => {
         [globalPack],
       ),
     ).toEqual({ schemaVersion: 1, globalPackId: "classic", pages: { thread: "ocean" } });
+  });
+
+  it("supports previewing and committing follow-global clear and reports pack usage", async () => {
+    const data = new Map<string, string>();
+    const storage = {
+      getItemAsync: async (key: string) => data.get(key) ?? null,
+      setItemAsync: async (key: string, value: string) => {
+        data.set(key, value);
+      },
+    };
+    const repository = memoryRepository();
+    const manager = createThemeManager(storage);
+    await manager.load(repository);
+    await manager.install(globalPack);
+    await manager.install(inboxPack);
+    await manager.assign("all", "ocean");
+    await manager.assign("inbox", "inbox-only");
+    await manager.assign("thread", "ocean");
+
+    expect(listPackUsage(manager.getSnapshot().assignments, "ocean")).toEqual(["all", "thread"]);
+    expect(listPackUsage(manager.getSnapshot().assignments, "inbox-only")).toEqual(["inbox"]);
+
+    manager.preview("inbox", null);
+    expect(manager.getSnapshot().preview).toEqual({ target: "inbox", packId: null });
+    expect(effectiveThemeAssignments(manager.getSnapshot()).pages).toEqual({ thread: "ocean" });
+
+    // Re-selecting the already saved value cancels preview cleanly.
+    manager.preview("inbox", "inbox-only");
+    expect(manager.getSnapshot().preview).toBeNull();
+
+    manager.preview("inbox", null);
+    await manager.commitPreview();
+    expect(manager.getSnapshot().assignments).toEqual({
+      schemaVersion: 1,
+      globalPackId: "ocean",
+      pages: { thread: "ocean" },
+    });
   });
 });

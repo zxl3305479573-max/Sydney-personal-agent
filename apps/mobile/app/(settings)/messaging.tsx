@@ -7,6 +7,7 @@ import type {
   MessagingStatus,
 } from "@rakazo/contracts";
 import { messagingConnectOptions, messagingProviderName } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -19,7 +20,9 @@ import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
 import { installSlackWorkspace } from "../../lib/messaging-install-return";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 export default function MessagingSettings() {
@@ -218,7 +221,11 @@ export default function MessagingSettings() {
   const shownError = error ?? (status ? loadError : null);
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={styles.content}
+    >
       {failure && !status ? (
         <LoadFailure
           message={failure}
@@ -431,11 +438,16 @@ export default function MessagingSettings() {
     </ScrollView>
   );
 }
-function createStyles() {
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { padding: 16, gap: 16 },
     actions: { flexDirection: "row", alignItems: "center", gap: 8 },
-    code: { color: native.label, padding: 12 },
-    error: { color: mobileTokens().destructive, padding: 12 },
+    code: { color: colors.label, padding: 12 },
+    error: { color: tokens.destructive, padding: 12 },
   });
 }

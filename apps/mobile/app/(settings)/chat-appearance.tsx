@@ -15,7 +15,9 @@ import {
   useSavedMobileChatAppearance,
 } from "../../lib/chat-appearance";
 import { useI18n } from "../../lib/i18n";
-import { useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 
 function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   const bg = tokens?.background;
@@ -44,7 +46,7 @@ function matchesBubblePreset(current: AppearanceState["bubble"], candidate: Bubb
 export default function ChatAppearanceScreen() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
   const stacked = useStackedSettings();
   const appearance = useSavedMobileChatAppearance();
@@ -419,7 +421,7 @@ function SliderControl({
   onIncrease: () => void;
   chinese: boolean;
 }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const isLight = isLightPalette(tokens);
   const chipBg = isLight ? "#F8F6F2" : "#2A303B";
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
@@ -564,15 +566,24 @@ function SliderControl({
   );
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
-  const cardBg = isLight ? "#FFFEFC" : "#242933";
-  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const cardBg = scope ? tokens.card : isLight ? "#FFFEFC" : "#242933";
+  const chipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   return {
     screen: {
       flex: 1,
-      backgroundColor: tokens.background ?? (isLight ? "#F3F1EC" : "#15171C"),
+      backgroundColor: scope?.background
+        ? "transparent"
+        : (tokens.background ?? (isLight ? "#F3F1EC" : "#15171C")),
     },
     content: { paddingHorizontal: 16, paddingTop: 18, gap: 22, paddingBottom: 40 },
     preview: { padding: 14, backgroundColor: cardBg },

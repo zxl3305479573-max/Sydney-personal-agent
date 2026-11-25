@@ -29,7 +29,7 @@ import {
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
-import { useScopedTheme } from "../lib/scoped-theme-context";
+import { useScopedTheme, useScreenBackground } from "../lib/scoped-theme-context";
 import { serverHeaders } from "../lib/server-headers";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
@@ -47,6 +47,7 @@ export default function ServerScreen() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const router = useRouter();
   const current = currentApiBase();
   const [draft, setDraft] = useState(current);
@@ -139,7 +140,7 @@ export default function ServerScreen() {
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
 
   return (
-    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: tokens.background }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <Stack.Screen
         options={{
           title: t("Server"),

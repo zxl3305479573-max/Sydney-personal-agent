@@ -1,5 +1,33 @@
 # 验证记录
 
+## 未实现功能分批规划与第 2、3、4 项定向实现（2026-11-25）
+
+关联 PA-004、PA-005、PA-006、PA-010、PA-012、PA-014、PA-021、PA-022；评测矩阵见 [PARTIAL_IMPLEMENTATION_EVALUATION.md](PARTIAL_IMPLEMENTATION_EVALUATION.md)。
+
+- 定向 Vitest（11 个文件，168 项通过、2 项 Linux-only 跳过、0 失败）：
+  - `packages/contracts/src/project-directory.test.ts`（14 项通过，覆盖 `EVAL-A1`）
+  - `packages/adapters/src/windows-project-files.test.ts`（12 项通过，覆盖 `EVAL-A2`）
+  - `packages/adapters/src/run-tools-project-files.test.ts`（22 项通过，覆盖 `EVAL-A4`）
+  - `packages/adapters/src/run-project-policy.test.ts`（34 项通过，首轮因硬编码旧工具列表失败 3 项，同步纳入 `project_search_files` 后复验全过）
+  - `apps/desktop/src/project-directory.test.ts`（28 项通过）
+  - `apps/mobile/lib/companion-thread-watch.test.tsx`（9 项通过，覆盖 `EVAL-B1`／`EVAL-B2`）
+  - `packages/adapters/src/pi-runtime-subagent-budget.test.ts`（4 项通过，覆盖 `EVAL-C1`）
+  - `packages/adapters/src/managed-task-control.test.ts`（4 项通过）、`managed-task-tools.test.ts`（1 项通过）、`native-linux-sandbox.test.ts`（24 项通过、2 项 Linux-only 跳过）、`packages/db/src/task-execution.test.ts`（16 项通过，覆盖 `EVAL-C2`）
+- Python 原生驱动单测：`python -m unittest infra/native-linux/test_driver.py -v` 23 项通过、4 项 Linux-only 跳过（覆盖 `EVAL-A3` 请求校验与 `EVAL-C3`）。
+- TypeScript 类型检查：`@rakazo/contracts`、`@rakazo/adapters`、`@rakazo/desktop` 的 `tsc --noEmit` 均 0 错误通过；`@rakazo/mobile` 全包 `tsc --noEmit` 因工作区既有未修改的 7 个 UI 文件残留合并冲突标记（`TS1185`：`app/(settings)/skills.tsx`、`app/bot-profile.tsx`、`app/bot-settings.tsx`、`app/integrations.tsx`、`components/home-styles.ts`、`components/thread-composer.tsx`、`components/thread/special-message-card.tsx`）而失败，本批未顺带改动无关文件。
+- `git diff --check`（本批全部修改文件）：0 警告通过。
+- 未执行（环境受限）：真实 Linux 主机 `O_NOFOLLOW`/dirfd 目录搜索实跑、真实 PostgreSQL 行锁与 RLS 并发验收、Bubblewrap／WSL 2 隔离客体负向实测、Xcode 原生扩展编译签名与 iPhone 真机后台验证、生产部署与客户端发版。
+
+## 手机端个人中枢首页（`ui`）与换肤插件增强（`ui-plugin`）合入主分支回归（2026-11-25）
+
+关联 PA-019／PA-020／PA-021／PA-022／PA-023／PA-024。在 `ui`（`6ac016e4a`）合入后，继续将 `ui-plugin`（`f408c1c`）合入集成分支与 `main`，完成 41 个页面与文档文件融合（未启用自定义主题时保持清透暖瓷默认风格与个人中枢首页／三项文字底栏；启用自定义主题或页面作用域覆盖时按 `ScopedTheme` 规则接管背景、几何圆角、边框与材质），并为新增的 `apps/mobile/app/chats.tsx` 接入 `useScreenBackground`。
+
+- **已执行并通过**：
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` **0 错误通过**。
+  - 移动端全套定向回归（合并覆盖 `ui` 与 `ui-plugin` 全部核心套件，含 `home-hub`、`main-navigation`、`screen-theme-coverage`、`theme-controls`、`theme-contrast`、`theme-presets`、`theme-pack`、`theme-manager`、`scoped-theme`、`home-styles`、`ui-mode-screen`、`ui-mode`、`ui-mode-store`、`ui-mode-registry`、`ui-mode-provider`、`ui-mode-slots`、`settings-group`、`glass-surface`、`app-error-boundary`、`account-screen`、`chat-appearance-screen`、`github-screen`、`bot-avatar-render`、`native-action-button`、`thread-composer`）：**25 个测试文件共 282 项全部通过**。
+  - 静态与格式检查：101 个改动／新增 `.ts`/`.tsx` 文件 Biome `check` **0 错误通过**；`git diff --check` 通过；PC 端零改动。
+- **未执行项**：未触发新的 iOS OTA／未签名 IPA 发布，未进行 iPhone 真机视觉、换肤导入／卸载与触控实测。
+
 ## 工作区提交、主分支合并与 iPhone OTA（2026-11-25）
 
 关联 PA-021、PA-023、REL-01。本轮按用户授权提交、推送现有工作区改动，将完整集成分支合入 `main`，并从合并提交发布现有 iPhone 侧载版本。
@@ -31,6 +59,34 @@
   - 前序离线对比度与 AST 门禁（`ui` 工作树 2026-11-24）：138 项对比度与令牌同步断言、76 文件 AST 与零字体违规扫描通过。
 - **未执行项（不声称已通过）**：
   - 未执行 iOS OTA／未签名 IPA 打包及 iPhone 真机在全模块页面上的视觉、深浅色切换、Dynamic Type 大字号、分屏与侧滑返回实测。
+
+## iPhone 换肤插件作用域隔离、背景层叠、材质消费与错误本地化（2026-11-24）
+
+关联 PA-019、PA-020、PA-021。工作区为 `ui-plugin` 分支（基于合并提交 `95de23355` 之上续作）。
+
+- 首轮失败与修复记录：
+  - `apps/mobile/lib/theme-controls.test.ts` 首次运行失败 1 项：`localizeThemeError` 中 `/JSON/i` 匹配早于 `.sydney-theme.json`，导致文件后缀错误被误报为 JSON 语法错误；调整分支顺序后通过。
+  - `pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 首次检出新增测试 `apps/mobile/lib/scoped-theme.test.tsx` 的 `vi.hoisted` 缺少 `currentRenderRoute` 属性；补齐后通过。
+- 最终已执行并通过：
+  - 移动端定向回归（两批覆盖全部 19 个相关测试文件、151 项测试，均在最终代码上有效）：
+    - 19 文件首轮通过的 18 个未改文件 140 项：`project-chat-screen.test.tsx`（21）、`account-screen.test.tsx`（28）、`settings-group.test.tsx`（16）、`ui-mode.test.ts`（9）、`ui-mode-slots.test.tsx`（7）、`app-error-boundary.test.tsx`（5）、`glass-surface.test.tsx`（5）、`appearance.test.ts`（6）、`home-route.test.tsx`（5）、`ui-mode-provider.test.tsx`（2）、`ui-mode-store.test.ts`（12）、`chat-appearance.test.ts`（6）、`home-styles.test.ts`（2）、`ui-mode-registry.test.ts`（9）、`theme-manager.test.ts`（3）、`theme-pack.test.ts`（4）——以及修复后重跑通过的 3 个文件 11 项：`theme-controls.test.ts`（4）、`ui-mode-screen.test.tsx`（5）、`scoped-theme.test.tsx`（2），合计 **19 个文件 151 项全部通过**。
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 通过（0 错误）。
+  - 格式与 lint 检查：本批 14 个源码／测试文件执行 Biome `check`，0 错误（`index.tsx:1017` 保留既有未改行的单条无用 Fragment info 提示）；`git diff --check` 通过。
+- 未执行项：
+  - 真实 iPhone 视觉、大字体、VoiceOver、分屏往返、背景共存、导入／替换／卸载实机交互及 OTA 构建：**未执行**，离线回归不能替代真机验收。
+
+## iPhone 换肤插件状态统一与设置页重构（2026-11-24）
+
+关联 PA-019、PA-020、PA-021。工作区为 `ui-plugin` 分支（已先合并对齐 `cursor/integrate-remote-branches-7334` 至 `95de23355`）。
+
+- 已执行并全部通过：
+  - 经用户明确授权执行 `pnpm install --offline --frozen-lockfile` 恢复本工作树离线依赖（2,113 包从本机 store 离线链接完成；可选原生包 `cpu-features` 编译提示失败但不影响安装退出码 0 及移动端离线验证）。
+  - 移动端定向回归：`pnpm exec vitest run --maxWorkers=1` 执行 `apps/mobile/lib/` 下 `theme-pack.test.ts`（4 项）、`theme-manager.test.ts`（3 项）、`theme-controls.test.ts`（3 项）、`ui-mode-screen.test.tsx`（5 项）、`ui-mode.test.ts`（9 项）、`ui-mode-store.test.ts`（12 项）、`ui-mode-registry.test.ts`（9 项）、`ui-mode-provider.test.tsx`（2 项）、`ui-mode-slots.test.tsx`（7 项）、`appearance.test.ts`（6 项）、`app-error-boundary.test.tsx`（5 项）、`glass-surface.test.tsx`（5 项）、`account-screen.test.tsx`（28 项），**13 个文件共 98 项全部通过**。
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` 通过（0 错误）。
+  - 静态格式与 lint 检查：全部 19 个新增／修改源码及测试文件执行 Biome `check`，0 错误。
+  - 空白与补丁检查：`git diff --check` 通过。
+- 未执行项：
+  - 真实 iPhone 视觉、大字体、VoiceOver、导入／替换／卸载实机交互及 OTA 构建：**未执行**，离线回归不能替代真机验收。
 
 ## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
 

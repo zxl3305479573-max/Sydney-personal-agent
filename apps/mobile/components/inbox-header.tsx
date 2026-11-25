@@ -3,11 +3,10 @@ import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
-import { native, useThemedStyles } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { NativeSymbol } from "./native-symbol";
 
@@ -19,8 +18,8 @@ export function InboxRosterHeading({
   onCreateGroup: () => void;
 }) {
   const { t, locale } = useI18n();
-  const tokens = mobileTokens();
-  const isLight = resolveMobileAppearance() === "light";
+  const tokens = useMobileTokens();
+  const isLight = useResolvedAppearance() === "light";
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return (
     <View
@@ -83,7 +82,7 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
   const { t } = useI18n();
   const router = useRouter();
   const styles = useThemedStyles(createHomeStyles);
-  const isLight = resolveMobileAppearance() === "light";
+  const isLight = useResolvedAppearance() === "light";
   return (
     <View style={styles.inboxIntro}>
       <Text accessibilityRole="header" style={styles.inboxTitle}>
@@ -122,8 +121,8 @@ export function InboxHeader({
   runCreateAction: (action: CreateAction) => void;
   columnInsets: { left: number; right: number };
 }) {
-  const tokens = mobileTokens();
-  const appearance = resolveMobileAppearance();
+  const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
   const router = useRouter();

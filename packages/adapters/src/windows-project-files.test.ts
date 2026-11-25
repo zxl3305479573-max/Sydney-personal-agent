@@ -57,6 +57,35 @@ describe.skipIf(process.platform !== "win32")("Windows authorized project files"
     });
   });
 
+  it("searches UTF-8 files in the authorized folder and skips junctions, binary and oversized files", async () => {
+    await writeFile(path.join(directory, "notes", "input.txt"), "First line\nFind Sydney target here\nThird", "utf8");
+    await writeFile(path.join(directory, "notes", "binary.bin"), Buffer.from([0xff, 0xfe, 0x00]));
+    await writeFile(path.join(directory, "notes", "big.txt"), "Sydney".repeat(12_000), "utf8");
+    await symlink(outside, path.join(directory, "outside-link"), "junction");
+    await expect(
+      executeWindowsProjectFile(
+        root,
+        { operation: "search", path: "", query: "sydney", caseSensitive: false },
+        signal,
+      ),
+    ).resolves.toEqual({
+      operation: "search",
+      matches: [{ path: "notes/input.txt", line: 2, text: "Find Sydney target here" }],
+      truncated: false,
+    });
+    await expect(
+      executeWindowsProjectFile(
+        root,
+        { operation: "search", path: "notes", query: "sydney", caseSensitive: true },
+        signal,
+      ),
+    ).resolves.toEqual({
+      operation: "search",
+      matches: [],
+      truncated: false,
+    });
+  });
+
   it("updates only the version that was read and leaves a newer file untouched", async () => {
     const file = path.join(directory, "notes", "input.txt");
     await writeFile(file, "original", "utf8");

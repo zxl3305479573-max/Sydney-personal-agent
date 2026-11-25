@@ -6,6 +6,7 @@ import {
   ProjectCloudCommandResultSchema,
   ProjectCloudCommandSchema,
   ProjectFileRequestSchema,
+  ProjectFileResultSchema,
   WorkspaceGrantRequestSchema,
 } from "./project-directory.js";
 
@@ -74,6 +75,37 @@ describe("project directory contracts", () => {
         file: { operation: "list", path },
       }).success).toBe(false);
     }
+  });
+
+  it("validates bounded project directory search requests and results", () => {
+    const request = { ...input, grantId, method: "projectFile" };
+    expect(ProjectFileRequestSchema.safeParse({
+      ...request,
+      file: { operation: "search", query: "TODO" },
+    }).success).toBe(true);
+    expect(ProjectFileRequestSchema.safeParse({
+      ...request,
+      file: { operation: "search", path: "src", query: "hello", caseSensitive: true },
+    }).success).toBe(true);
+    for (const file of [
+      { operation: "search", query: "" },
+      { operation: "search", query: "a\nb" },
+      { operation: "search", query: "x".repeat(201) },
+      { operation: "search", path: "../private", query: "ok" },
+      { operation: "search", path: "/private", query: "ok" },
+    ]) {
+      expect(ProjectFileRequestSchema.safeParse({ ...request, file }).success).toBe(false);
+    }
+    expect(ProjectFileResultSchema.safeParse({
+      operation: "search",
+      matches: [{ path: "src/app.ts", line: 3, text: "const x = 1;" }],
+      truncated: false,
+    }).success).toBe(true);
+    expect(ProjectFileResultSchema.safeParse({
+      operation: "search",
+      matches: [{ path: "src/app.ts", line: 0, text: "bad line" }],
+      truncated: false,
+    }).success).toBe(false);
   });
 
   it("requires the last-read SHA-256 before replacing an existing text file", () => {

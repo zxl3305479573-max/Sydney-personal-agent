@@ -1,6 +1,7 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type { MessageBlock } from "@rakazo/contracts";
 import { cloudAgentHttpsUrl, displayName as safeDisplayName } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,10 +12,11 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import type { MobileBot, MobileSnapshot } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
 import { cardGradient } from "../../lib/card-gradient";
 import { useI18n } from "../../lib/i18n";
-import { useResolvedAppearance } from "../../lib/native";
+import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
+import { useScopedTheme } from "../../lib/scoped-theme-context";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import type { UserBubble } from "../../lib/user-bubble";
 import { withUserBubble } from "../../lib/user-bubble";
 import { BotMention } from "../bot-mention";
@@ -45,6 +47,18 @@ type SpecialMessageCardProps = {
   userBubble?: UserBubble;
 };
 
+function specialCardFrameStyle(tokens: ColorTokens, scope: ResolvedScopedTheme | null) {
+  const borderRadius = scope ? Math.max(10, Math.min(24, scope.geometry.cardRadius)) : 18;
+  const borderWidth =
+    scope?.surface === "outlined" ? Math.max(1, Math.min(2, scope.geometry.borderWidth)) : 0;
+  return {
+    width: "90%" as const,
+    borderRadius,
+    backgroundColor: tokens.card,
+    ...(borderWidth > 0 ? { borderWidth, borderColor: tokens.border } : null),
+  };
+}
+
 function HelperMessageCard({
   special,
   actionProps,
@@ -54,7 +68,8 @@ function HelperMessageCard({
   special: Extract<MessageBlock, { kind: "subagent" }>;
 }) {
   const colorScheme = useResolvedAppearance();
-  const tokens = withUserBubble(mobileTokens(), userBubble);
+  const tokens = withUserBubble(useMobileTokens(), userBubble);
+  const scope = useScopedTheme();
   const { t } = useI18n();
   const helperHeader = useRef<View>(null);
   const helperCard = useRef<View>(null);
@@ -85,23 +100,27 @@ function HelperMessageCard({
       {...actionProps}
       ref={helperCard}
       collapsable={false}
-      style={{
-        width: "90%",
-        borderRadius: 18,
-        backgroundColor: cardBg,
-        ...(userBubble
-          ? {}
+      style={
+        scope
+          ? specialCardFrameStyle(tokens, scope)
           : {
-              experimental_backgroundImage: cardGradient(isLight, "champagne"),
-              overflow: "hidden" as const,
-            }),
-        borderWidth: hairline,
-        borderColor: cardBorder,
-        shadowColor: "#26231F",
-        shadowOpacity: isLight ? 0.028 : 0.16,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 5 },
-      }}
+              width: "90%",
+              borderRadius: 18,
+              backgroundColor: cardBg,
+              ...(userBubble
+                ? {}
+                : {
+                    experimental_backgroundImage: cardGradient(isLight, "champagne"),
+                    overflow: "hidden" as const,
+                  }),
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              shadowColor: "#26231F",
+              shadowOpacity: isLight ? 0.028 : 0.16,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 5 },
+            }
+      }
     >
       <Pressable
         {...actionProps}
@@ -218,7 +237,8 @@ function HelperMessageCard({
 export function SpecialMessageCard(props: SpecialMessageCardProps) {
   const { special, actionProps, bots, members, onOpenBot, userBubble } = props;
   const colorScheme = useResolvedAppearance();
-  const tokens = withUserBubble(mobileTokens(), userBubble);
+  const tokens = withUserBubble(useMobileTokens(), userBubble);
+  const scope = useScopedTheme();
   const { t } = useI18n();
   if (special.kind === "subagent") return <HelperMessageCard {...props} special={special} />;
   if (special.kind === "cloud_agent") {
@@ -255,11 +275,15 @@ export function SpecialMessageCard(props: SpecialMessageCardProps) {
         accessibilityLabel={`${title}: ${statusLabel}`}
         disabled={!href}
         style={{
-          width: "90%",
-          borderRadius: 18,
-          backgroundColor: cardBg,
-          borderWidth: hairline,
-          borderColor: cardBorder,
+          ...(scope
+            ? specialCardFrameStyle(tokens, scope)
+            : {
+                width: "90%" as const,
+                borderRadius: 18,
+                backgroundColor: cardBg,
+                borderWidth: hairline,
+                borderColor: cardBorder,
+              }),
           paddingHorizontal: 16,
           paddingVertical: 14,
           shadowColor: "#26231F",

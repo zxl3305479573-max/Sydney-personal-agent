@@ -14,6 +14,7 @@ import {
   withRollupHours,
   withSenderMode,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -27,7 +28,9 @@ import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 /** Listening, guidance, and automated-sender handling for one team chat room. */
@@ -75,7 +78,7 @@ export default function TeamConversationSettings() {
 
   if (!loaded) {
     return loadError ? (
-      <View style={styles.content}>
+      <View style={[styles.screen, styles.content]}>
         <LoadFailure
           message={loadError}
           onRetry={() => {
@@ -126,6 +129,7 @@ export default function TeamConversationSettings() {
         options={glassHeaderOptions(conversation.displayName || t("External conversation"))}
       />
       <ScrollView
+        style={styles.screen}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.content}
         automaticallyAdjustKeyboardInsets
@@ -257,8 +261,13 @@ export default function TeamConversationSettings() {
   );
 }
 
-function createStyles() {
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, gap: 20 },
     padded: { padding: 12 },
     labelRow: {
@@ -268,11 +277,11 @@ function createStyles() {
       minHeight: 32,
       paddingHorizontal: 4,
     },
-    label: { color: native.secondaryLabel, fontSize: 13 },
-    hint: { color: native.tertiaryLabel, fontSize: 13 },
+    label: { color: colors.secondaryLabel, fontSize: 13 },
+    hint: { color: colors.tertiaryLabel, fontSize: 13 },
     input: {
       marginTop: 8,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       borderRadius: 11,
       padding: 14,
       fontSize: 16,
@@ -285,10 +294,10 @@ function createStyles() {
       paddingVertical: 4,
       paddingHorizontal: 8,
       borderRadius: 8,
-      backgroundColor: native.fill,
+      backgroundColor: colors.fill,
       textAlign: "right",
       fontSize: 16,
     },
-    error: { color: mobileTokens().destructive, padding: 12 },
+    error: { color: tokens.destructive, padding: 12 },
   });
 }

@@ -70,7 +70,8 @@ import {
   openPromotedNotificationSettings,
   setLiveNotificationSettings,
 } from "../../lib/live-notifications";
-import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../../lib/native";
 import type { MobilePasskey } from "../../lib/passkey";
 import {
   addPasskey,
@@ -97,6 +98,7 @@ import { isSettingsLink, openFromSettingsSheet } from "../../lib/settings-sheet"
 import { ACCOUNT_SETTINGS } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
 import { continueWithSso } from "../../lib/sso";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import {
   loadTrustedLinkSites,
   removeTrustedLinkSite,
@@ -206,6 +208,7 @@ export default function Account() {
     }
   }, [t]);
   const colorScheme = useResolvedAppearance();
+  const themeTokens = useMobileTokens();
   const trustedSites = useTrustedLinkSites();
   const [archivedCount, setArchivedCount] = useState(0);
   // A list that fails to refresh keeps its last count, so a passing error doesn't hide the row.
@@ -840,9 +843,7 @@ export default function Account() {
               disabled={pending}
               onPress={() => void deletion.request()}
               title={t("Delete account")}
-              trailing={
-                pending ? <ActivityIndicator color={mobileTokens().destructive} /> : undefined
-              }
+              trailing={pending ? <ActivityIndicator color={themeTokens.destructive} /> : undefined}
             />
             {deletion.error ? (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -879,14 +880,17 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createAccountStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createAccountStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
     content: {
       flexGrow: 1,
@@ -922,7 +926,7 @@ function createAccountStyles(passedTokens?: ColorTokens) {
       gap: 2,
     },
     versionLine: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       lineHeight: 18,
       textAlign: "center",

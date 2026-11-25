@@ -17,16 +17,29 @@ type ThemeStorage = {
   getItemAsync: (key: string) => Promise<string | null>;
   setItemAsync: (key: string, value: string) => Promise<void>;
 };
+export type ThemePreviewState = {
+  packId: string | null;
+  target: ThemeTarget;
+};
 export type ThemeManagerSnapshot = {
   hydrated: boolean;
   packs: readonly ThemePackV1[];
   assignments: ThemeAssignments;
-  preview: { packId: string; target: ThemeTarget } | null;
+  preview: ThemePreviewState | null;
   warning: string | null;
 };
 
 export function emptyThemeAssignments(): ThemeAssignments {
   return { schemaVersion: 1, globalPackId: "classic", pages: {} };
+}
+
+export function listPackUsage(assignments: ThemeAssignments, packId: string): ThemeTarget[] {
+  const targets: ThemeTarget[] = [];
+  if (assignments.globalPackId === packId) targets.push("all");
+  for (const [scope, assignedId] of Object.entries(assignments.pages)) {
+    if (isThemeScope(scope) && assignedId === packId) targets.push(scope);
+  }
+  return targets;
 }
 
 export function normalizeThemeAssignments(
@@ -62,9 +75,13 @@ export function normalizeThemeAssignments(
 export function effectiveThemeAssignments(snapshot: ThemeManagerSnapshot): ThemeAssignments {
   if (!snapshot.preview) return snapshot.assignments;
   const { target, packId } = snapshot.preview;
-  return target === "all"
-    ? { ...snapshot.assignments, globalPackId: packId }
-    : { ...snapshot.assignments, pages: { ...snapshot.assignments.pages, [target]: packId } };
+  if (target === "all") {
+    return { ...snapshot.assignments, globalPackId: packId ?? "classic" };
+  }
+  const pages = { ...snapshot.assignments.pages };
+  if (packId === null) delete pages[target];
+  else pages[target] = packId;
+  return { ...snapshot.assignments, pages };
 }
 
 export function createThemeManager(storage: ThemeStorage, platform = "ios") {
@@ -165,10 +182,20 @@ export function createThemeManager(storage: ThemeStorage, platform = "ios") {
     });
   }
 
-  function preview(target: ThemeTarget, packId: string) {
+  function preview(target: ThemeTarget, packId: string | null) {
     if (!snapshot.hydrated) throw new Error("Theme settings are still loading");
-    checkTarget(packId, target);
-    emit({ preview: { target, packId } });
+    if (platform !== "ios") throw new Error("Theme packs are available on iPhone only");
+    const nextPackId = target === "all" ? (packId ?? "classic") : packId;
+    if (nextPackId !== null) checkTarget(nextPackId, target);
+    const savedPackId =
+      target === "all"
+        ? snapshot.assignments.globalPackId
+        : (snapshot.assignments.pages[target] ?? null);
+    if (savedPackId === nextPackId) {
+      if (snapshot.preview) emit({ preview: null });
+      return;
+    }
+    emit({ preview: { target, packId: nextPackId } });
   }
 
   function install(input: unknown, replace = false): Promise<void> {

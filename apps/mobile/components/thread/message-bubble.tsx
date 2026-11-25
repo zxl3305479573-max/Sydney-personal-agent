@@ -15,7 +15,6 @@ import type { TextProps } from "react-native";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { MobileBot, MobileMessage, MobileSnapshot } from "../../lib/api";
 import { blockText, messagingProviderLabel } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { openMobileArtifact } from "../../lib/artifact-open";
 import { allowsSpace } from "../../lib/ask-action-label";
@@ -30,7 +29,7 @@ import {
   userMentionTargets,
 } from "../../lib/message-mentions";
 import { messagePresentationSegments } from "../../lib/message-presentation";
-import { useResolvedAppearance } from "../../lib/native";
+import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { speakerColorFor } from "../../lib/thread-message-text";
 import type { UserBubble } from "../../lib/user-bubble";
 import { withUserBubble } from "../../lib/user-bubble";
@@ -99,6 +98,7 @@ function MessageBubbleWithMentions({
   mentions,
   ...props
 }: ComponentProps<typeof MessageBubbleContent> & { mentions?: readonly ChildBotBlock[] }) {
+  const tokens = useMobileTokens();
   if (!mentions?.length) return <MessageBubbleBody {...props} />;
   return (
     <MessageMentions
@@ -111,7 +111,7 @@ function MessageBubbleWithMentions({
         props.bots.find((bot) => bot.id === id)?.avatarSet ??
         props.members?.find((member) => member.botId === id)?.avatarSet
       }
-      tokens={mobileTokens()}
+      tokens={tokens}
       onOpenBot={props.onOpenBot}
     >
       <MessageBubbleBody
@@ -221,7 +221,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
 }) {
   const colorScheme = useResolvedAppearance();
   const chatAppearance = useMobileChatAppearance();
-  const baseTokens = withUserBubble(mobileTokens(), userBubble);
+  const baseTokens = withUserBubble(useMobileTokens(), userBubble);
   const tokens = chatAppearance.bubble
     ? {
         ...baseTokens,
@@ -764,7 +764,7 @@ export function MessageTextCard({
 }) {
   const colorScheme = useResolvedAppearance();
   const chatAppearance = useMobileChatAppearance();
-  const baseTokens = withUserBubble(mobileTokens(), userBubble);
+  const baseTokens = withUserBubble(useMobileTokens(), userBubble);
   const tokens = chatAppearance.bubble
     ? {
         ...baseTokens,
@@ -883,7 +883,7 @@ function AgentEventLabel({
   actionProps: MessageActionProps;
 }) {
   const colorScheme = useResolvedAppearance();
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { t } = useI18n();
   return (
     <Pressable

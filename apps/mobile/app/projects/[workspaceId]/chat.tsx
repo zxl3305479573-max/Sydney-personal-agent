@@ -10,8 +10,8 @@ import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, I18nManager, Platform, ScrollView, Text, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { BotAvatar } from "../../../components/bot-avatar";
 import { BotActionsModal } from "../../../components/bot-actions-modal";
+import { BotAvatar } from "../../../components/bot-avatar";
 import { ChatTitleContent } from "../../../components/chat-title-content";
 import { glassHeaderOptions } from "../../../components/glass-title";
 import { NativeActionButton } from "../../../components/native-action-button";
@@ -22,10 +22,8 @@ import { ThreadComposer } from "../../../components/thread-composer";
 import { threadHeaderRight } from "../../../components/thread-header-right";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
-import {
-  projectScopeKey,
-  subscribeProjectScope,
-} from "../../../lib/project-scope";
+import { projectScopeKey, subscribeProjectScope } from "../../../lib/project-scope";
+import { useScopedTheme } from "../../../lib/scoped-theme-context";
 import { useSideInsets } from "../../../lib/side-insets";
 import {
   threadColumnPadding,
@@ -34,8 +32,8 @@ import {
   threadHeaderFloats,
 } from "../../../lib/thread-edges";
 import { threadKeyboardAvoidance } from "../../../lib/thread-keyboard-offset";
-import { useProjectChatDetails } from "../../../lib/use-project-chat-details";
 import { useProjectChatActions } from "../../../lib/use-project-chat-actions";
+import { useProjectChatDetails } from "../../../lib/use-project-chat-details";
 import { useProjectReplyVoice } from "../../../lib/use-project-reply-voice";
 import type { ProjectChatTarget } from "../../../lib/use-project-thread";
 import { useProjectThread } from "../../../lib/use-project-thread";
@@ -87,6 +85,7 @@ function ProjectChat({
   const chat = useProjectThread(projectId, target, scope, enabled);
   const router = useRouter();
   const tokens = useMobileTokens();
+  const scopedTheme = useScopedTheme();
   const sideInsets = useSideInsets();
   const nativeHeaderHeight = useHeaderHeight();
   const floatingHeader = threadHeaderFloats();
@@ -109,12 +108,23 @@ function ProjectChat({
   const identity = botIdentity ?? groupIdentity;
   const archived = Boolean(identity?.archivedAt);
   const actionMenu = useProjectChatActions({
-    projectId, scope, enabled: enabled && details.canManage,
-    target: { kind: botId ? "bot" : "group", id: botId ?? groupId!, name: displayName,
-      pinned: identity?.pinned, notifyOnFinish: botIdentity?.notifyOnFinish, archivedAt: identity?.archivedAt },
+    projectId,
+    scope,
+    enabled: enabled && details.canManage,
+    target: {
+      kind: botId ? "bot" : "group",
+      id: botId ?? groupId!,
+      name: displayName,
+      pinned: identity?.pinned,
+      notifyOnFinish: botIdentity?.notifyOnFinish,
+      archivedAt: identity?.archivedAt,
+    },
     onChanged: (action) => {
       if (action === "archive" || action === "remove")
-        router.dismissTo({ pathname: "/projects/[workspaceId]", params: { workspaceId: projectId, scope } });
+        router.dismissTo({
+          pathname: "/projects/[workspaceId]",
+          params: { workspaceId: projectId, scope },
+        });
       else {
         void details.refresh();
         if (action === "clear" || action === "restore") chat.retry();
@@ -163,7 +173,10 @@ function ProjectChat({
     <KeyboardAvoidingView
       behavior="padding"
       {...threadKeyboardAvoidance({ os: Platform.OS, floatingHeader, nativeHeaderHeight })}
-      style={{ flex: 1, backgroundColor: canvasBg }}
+      style={{
+        flex: 1,
+        backgroundColor: scopedTheme?.background ? "transparent" : canvasBg,
+      }}
     >
       <View style={{ flex: 1 }}>
         <Stack.Screen
@@ -184,7 +197,13 @@ function ProjectChat({
                   groupId ? (groupIdentity?.members ?? chat.snapshot?.members ?? []) : undefined
                 }
                 accessibilityLabel={canEditBot ? t("Settings") : displayName}
-                onPress={enabled && botId && canEditBot ? details.canManage ? actionMenu.openProfile : openBotSettings : undefined}
+                onPress={
+                  enabled && botId && canEditBot
+                    ? details.canManage
+                      ? actionMenu.openProfile
+                      : openBotSettings
+                    : undefined
+                }
               />
             ),
             ...(enabled && (details.canManage || (botId && canEditBot))
@@ -195,8 +214,11 @@ function ProjectChat({
                   t,
                   color: fg,
                   onGroupSettings: openBotSettings,
-                  onBotActions: () => details.canManage ? setActionsOpen(true) : openBotSettings(),
-                  menuActions: details.canManage ? actionMenu.actions : [{ text: t("Settings"), onPress: openBotSettings }],
+                  onBotActions: () =>
+                    details.canManage ? setActionsOpen(true) : openBotSettings(),
+                  menuActions: details.canManage
+                    ? actionMenu.actions
+                    : [{ text: t("Settings"), onPress: openBotSettings }],
                 })
               : {}),
           }}
@@ -212,7 +234,14 @@ function ProjectChat({
             gap: 14,
           }}
         >
-          {archived ? <NativeActionButton label={t("Restore")} onPress={() => actionMenu.actions.find((action) => action.text === t("Restore"))?.onPress()} /> : null}
+          {archived ? (
+            <NativeActionButton
+              label={t("Restore")}
+              onPress={() =>
+                actionMenu.actions.find((action) => action.text === t("Restore"))?.onPress()
+              }
+            />
+          ) : null}
           {!enabled ? (
             <View style={{ ...porcelainCardStyle, gap: 8 }}>
               <Text accessibilityRole="alert" style={errorStyle}>
@@ -489,7 +518,9 @@ function ProjectChat({
             onSlashAction={() => {}}
           />
         </ThreadComposerDock>
-        {actionsOpen ? <BotActionsModal actions={actionMenu.actions} onClose={() => setActionsOpen(false)} /> : null}
+        {actionsOpen ? (
+          <BotActionsModal actions={actionMenu.actions} onClose={() => setActionsOpen(false)} />
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );

@@ -36,6 +36,7 @@ import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native
 import { iosAtLeast } from "../../lib/native-controls";
 import { clearPageState, usePageScroll, usePageState } from "../../lib/page-state";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
+import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { useSideInsets } from "../../lib/side-insets";
 import type { ProjectActionTarget } from "../../lib/use-project-chat-actions";
 import { useProjectChatActions } from "../../lib/use-project-chat-actions";
@@ -69,6 +70,7 @@ function ProjectContents({
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const appearance = useResolvedAppearance();
   const insets = useSafeAreaInsets();
   const sideInsets = useSideInsets();
@@ -444,7 +446,7 @@ function ProjectContents({
       <ScrollView
         {...scroll}
         contentInsetAdjustmentBehavior="automatic"
-        style={[{ flex: 1, backgroundColor: canvasBg }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{
           padding: 20,
           paddingBottom: Math.max(insets.bottom, 28),

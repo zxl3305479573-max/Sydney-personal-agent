@@ -21,10 +21,12 @@ import type { ModelConnectionRequest } from "../../lib/model-connection-request"
 import { closeModelConnection, openModelConnection } from "../../lib/model-connection-request";
 import type { ModelPickerRequest } from "../../lib/model-picker-selection";
 import { closeModelPicker, openModelPicker } from "../../lib/model-picker-selection";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
 import { settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 const noModels: MobileModel[] = [];
@@ -278,14 +280,17 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createModelsStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createModelsStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.groupedPage,
+      backgroundColor: scope?.background ? "transparent" : colors.groupedPage,
     },
     centered: {
       alignItems: "center",

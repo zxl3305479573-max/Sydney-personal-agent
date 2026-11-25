@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { botColors, typeScale } from "@rakazo/ui-tokens";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -25,11 +26,13 @@ import { currentApiBase, selectedSpaceId, selectSpace, spaceSelectionSeq } from 
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
-import { native, useThemedStyles } from "../lib/native";
+import type { NativeColors } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { getSearchInbox, subscribeSearchInbox } from "../lib/search-inbox";
 import type { SearchSheetRow } from "../lib/search-sheet";
 import { searchSheetRows } from "../lib/search-sheet";
 import { currentSessionGeneration } from "../lib/session";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { useSearch } from "../lib/use-search";
 
 const kindIcons = {
@@ -45,8 +48,8 @@ export default function SearchSheet() {
   const router = useRouter();
   const navigation = useNavigation();
   const styles = useThemedStyles(createStyles);
-  const tokens = mobileTokens();
-  const appearance = resolveMobileAppearance();
+  const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
   const insets = useSafeAreaInsets();
   const gutters = readableGutters(useWindowDimensions().width, insets);
   const field = useRef<TextInput>(null);
@@ -292,17 +295,32 @@ export default function SearchSheet() {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
-  const isLight = resolveMobileAppearance() === "light";
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && bg.startsWith("#") && bg.length >= 7
+      ? Number.parseInt(bg.slice(1, 3), 16) >= 128
+      : true;
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
-  const porcelainCard = isLight ? "#FFFEFC" : "#242933";
-  const porcelainBorder =
-    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
-  const creamChip = isLight ? "#F8F6F2" : "#2A303B";
-  const creamChipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const porcelainCard = scope ? colors.fill : isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder = scope
+    ? colors.separator
+    : (tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)"));
+  const creamChip = scope ? colors.fillPressed : isLight ? "#F8F6F2" : "#2A303B";
+  const creamChipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: tokens?.background ?? native.page },
+    screen: {
+      flex: 1,
+      backgroundColor: scope?.background ? "transparent" : (tokens?.background ?? colors.page),
+    },
     top: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
     fieldPill: {
       flex: 1,
@@ -321,7 +339,7 @@ function createStyles() {
       flex: 1,
       minHeight: 44,
       paddingVertical: 10,
-      color: native.label,
+      color: colors.label,
       fontSize: 17,
       writingDirection: "auto",
     },
@@ -366,17 +384,17 @@ function createStyles() {
     // Result rows match the inbox rows.
     name: {
       flex: 1,
-      color: native.label,
+      color: colors.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
-    time: { color: native.secondaryLabel, ...typeScale.caption },
+    time: { color: colors.secondaryLabel, ...typeScale.caption },
     preview: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       ...typeScale.secondary,
       writingDirection: "auto",
     },
-    empty: { color: native.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
+    empty: { color: colors.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
     failure: { alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 28 },
     error: { color: tokens?.destructive ?? "#C4272D", fontSize: 14 },
   });

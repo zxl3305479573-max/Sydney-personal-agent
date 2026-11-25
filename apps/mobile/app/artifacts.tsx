@@ -30,8 +30,10 @@ import {
 } from "../lib/artifacts";
 import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
+import type { NativeColors } from "../lib/native";
 import { native, useThemedStyles } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 const PAGE_SIZE = 30;
@@ -446,16 +448,27 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
-  const cardBg = isLight ? "#FFFEFC" : "#242933";
-  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
-  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
-  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const cardBg = scope ? colors.fill : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = scope ? colors.fill : isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     centered: { alignItems: "center", justifyContent: "center", paddingTop: 40 },
     chipsScroll: { flexGrow: 0, flexShrink: 0 },
     chipsRow: {
@@ -481,11 +494,15 @@ function createStyles(passedTokens?: ColorTokens) {
       borderColor: chipBorder,
     },
     chipActive: {
-      backgroundColor: isLight ? "#5E584F" : "#353C4A",
-      borderColor: isLight ? "#5E584F" : "rgba(245, 244, 240, 0.16)",
+      backgroundColor: scope ? tokens.primary : isLight ? "#5E584F" : "#353C4A",
+      borderColor: scope ? tokens.primary : isLight ? "#5E584F" : "rgba(245, 244, 240, 0.16)",
     },
-    chipLabel: { color: isLight ? "#5E584F" : native.label, fontSize: 13, fontWeight: "600" },
-    chipLabelActive: { color: "#FFFEFC" },
+    chipLabel: {
+      color: scope ? colors.label : isLight ? "#5E584F" : colors.label,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    chipLabelActive: { color: scope ? tokens.primaryForeground : "#FFFEFC" },
     listView: { flex: 1 },
     list: { paddingBottom: 32 },
     emptyCard: {
@@ -506,7 +523,7 @@ function createStyles(passedTokens?: ColorTokens) {
       alignItems: "center",
     },
     empty: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 15,
       textAlign: "center",
       paddingHorizontal: 12,
@@ -548,9 +565,9 @@ function createStyles(passedTokens?: ColorTokens) {
     rowIconTint: { color: isLight ? "#6E675E" : "#B8B3AA" },
     rowBody: { flex: 1, minWidth: 0, gap: 4 },
     rowTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-    rowName: { flex: 1, minWidth: 0, color: native.label, fontSize: 15, fontWeight: "600" },
+    rowName: { flex: 1, minWidth: 0, color: colors.label, fontSize: 15, fontWeight: "600" },
     badge: {
-      color: isLight ? "#6E675E" : "#B8B3AA",
+      color: scope ? colors.secondaryLabel : isLight ? "#6E675E" : "#B8B3AA",
       fontSize: 10.5,
       fontWeight: "700",
       backgroundColor: chipBg,
@@ -561,9 +578,9 @@ function createStyles(passedTokens?: ColorTokens) {
       paddingVertical: 2,
       overflow: "hidden",
     },
-    rowDescription: { color: native.secondaryLabel, fontSize: 12.5 },
+    rowDescription: { color: colors.secondaryLabel, fontSize: 12.5 },
     rowFooter: { flexDirection: "row", alignItems: "center", gap: 6 },
-    rowBotName: { flexShrink: 1, color: native.secondaryLabel, fontSize: 11.5 },
-    rowMeta: { color: native.secondaryLabel, fontSize: 11.5 },
+    rowBotName: { flexShrink: 1, color: colors.secondaryLabel, fontSize: 11.5 },
+    rowMeta: { color: colors.secondaryLabel, fontSize: 11.5 },
   });
 }

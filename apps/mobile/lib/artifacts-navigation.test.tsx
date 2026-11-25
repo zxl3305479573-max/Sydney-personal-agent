@@ -107,6 +107,7 @@ vi.mock("./i18n", () => {
 vi.mock("./native", () => ({
   native: {},
   useMobileTokens: () => ({}),
+  useResolvedAppearance: () => "light",
   useThemedStyles: () => ({}),
 }));
 

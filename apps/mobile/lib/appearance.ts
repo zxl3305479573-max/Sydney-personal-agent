@@ -66,6 +66,7 @@ export function resolveMobileAppearance(
         resolveUserMobileAppearance(preference, scheme),
       ).appearance;
     }
+    if (assignments.globalPackId === "midnight") return "dark";
   }
   const lock = getActiveUiMode().colorSchemeLock;
   if (lock !== "none") return lock;
@@ -95,7 +96,8 @@ export function mobileTokens(
         resolveUserMobileAppearance(preference, scheme),
       ).tokens;
     }
-    return resolveUiModeTheme(getActiveUiMode().id, {
+    const modeId = assignments.globalPackId === "midnight" ? "midnight" : getActiveUiMode().id;
+    return resolveUiModeTheme(modeId, {
       platform: Platform.OS,
       userAppearance: resolveUserMobileAppearance(preference, scheme),
     }).tokens;
@@ -140,7 +142,7 @@ function applyNativeColorScheme(preference: AppearancePreference) {
   const installed = themeManager.getSnapshot();
   const lock =
     Platform.OS === "ios" && installed.hydrated
-      ? installed.assignments.globalPackId === "midnight"
+      ? effectiveThemeAssignments(installed).globalPackId === "midnight"
         ? "dark"
         : "none"
       : getActiveUiMode().colorSchemeLock;

@@ -17,9 +17,11 @@ import { NativeActionButton } from "../../components/native-action-button";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
-import { native, useThemedStyles } from "../../lib/native";
+import type { NativeColors } from "../../lib/native";
+import { native, useMobileTokens, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 const NEW_SKILL_TEMPLATE = `---
@@ -36,6 +38,7 @@ export default function SkillScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const sideInsets = useSideInsets();
+  const tokens = useMobileTokens();
   const styles = useThemedStyles(createStyles);
   const { t } = useI18n();
   const [skill, setSkill] = useState<AgentSkill | null>(null);
@@ -129,7 +132,7 @@ export default function SkillScreen() {
                   hidesSharedBackground: true,
                   label: t("Save"),
                   variant: "prominent" as const,
-                  tintColor: mobileTokens().primary,
+                  tintColor: tokens.primary,
                   disabled: !canSave,
                   onPress: () => void saveRef.current(),
                 },
@@ -146,7 +149,7 @@ export default function SkillScreen() {
               ),
             }),
     } satisfies NativeStackNavigationOptions);
-  }, [navigation, skill?.name, params.id, readOnly, canSave, t]);
+  }, [navigation, skill?.name, params.id, readOnly, canSave, t, tokens.primary]);
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
@@ -208,26 +211,33 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, paddingBottom: 36, gap: 14 },
     editor: {
       minHeight: 320,
       borderRadius: 20,
       borderCurve: "continuous",
-      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      backgroundColor: scope ? colors.fill : isLight ? "#FFFEFC" : "#242933",
       borderWidth: hairline,
-      borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
+      borderColor: scope
+        ? colors.separator
+        : isLight
+          ? "rgba(38, 35, 31, 0.06)"
+          : "rgba(245, 244, 240, 0.09)",
       shadowColor: "#26231F",
       shadowOpacity: isLight ? 0.028 : 0.16,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 5 },
       elevation: 1,
-      color: native.label,
+      color: colors.label,
       padding: 16,
       fontSize: 14,
       lineHeight: 20,

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { NativeLinuxSandbox, NativeProjectFileDispatchError } from "./native-linux-sandbox.js";
 import type { RunContext } from "./run-context.js";
-import { PROJECT_FILE_CREATE, PROJECT_FILE_LIST, PROJECT_FILE_READ, PROJECT_FILE_UPDATE } from "./run-project-policy.js";
+import { PROJECT_FILE_CREATE, PROJECT_FILE_LIST, PROJECT_FILE_READ, PROJECT_FILE_SEARCH, PROJECT_FILE_UPDATE } from "./run-project-policy.js";
 import type { ToolCall } from "./run-tool-gate.js";
 import type { ToolRequest } from "./run-tool-request.js";
 import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
@@ -121,6 +121,54 @@ describe("Windows project file tools", () => {
       error: "The bound computer did not complete the project directory request.",
     });
     expect(persistEffectResult).not.toHaveBeenCalled();
+  });
+
+  it("searches an approved directory, records a summary, and rejects escaped match paths", async () => {
+    const { ctx, call, request, persistEffectResult } = fixture([{
+      operation: "search",
+      matches: [{ path: "src/index.ts", line: 4, text: "export const token = true;" }],
+      truncated: false,
+    }]);
+    const prepared = {
+      name: PROJECT_FILE_SEARCH,
+      args: { path: "src", query: "token" },
+      executionId: "search-a",
+    } as unknown as ToolRequest;
+    await expect(prepareProjectFile(ctx, prepared)).resolves.toBeUndefined();
+    expect(prepared.fleetSummary).toMatchObject({
+      title: "Search this project folder?",
+      lines: expect.arrayContaining(["Folder: src", "Query: token"]),
+      onceOnly: true,
+    });
+    const searchCall = {
+      ...call,
+      name: PROJECT_FILE_SEARCH,
+      args: { path: "src", query: "token", caseSensitive: false, projectDirectory: binding },
+    };
+    await expect(projectFileHandlers[PROJECT_FILE_SEARCH]!(ctx, searchCall as unknown as ToolCall)).resolves.toEqual({
+      searched: true,
+      matches: [{ path: "src/index.ts", line: 4, text: "export const token = true;" }],
+      truncated: false,
+    });
+    expect(request).toHaveBeenCalledWith("owner-a", expect.objectContaining({
+      file: { operation: "search", path: "src", query: "token", caseSensitive: false },
+    }), expect.any(AbortSignal), binding.deviceId);
+    expect(persistEffectResult).toHaveBeenCalledWith({ searched: true, matches: 1, truncated: false });
+
+    const escaped = fixture([{
+      operation: "search",
+      matches: [{ path: "other/secret.ts", line: 1, text: "token" }],
+      truncated: false,
+    }]);
+    const escapedCall = {
+      ...escaped.call,
+      name: PROJECT_FILE_SEARCH,
+      args: { path: "src", query: "token", caseSensitive: false, projectDirectory: binding },
+    };
+    await expect(projectFileHandlers[PROJECT_FILE_SEARCH]!(escaped.ctx, escapedCall as unknown as ToolCall)).resolves.toEqual({
+      error: "The bound computer did not complete the project directory request.",
+    });
+    expect(escaped.persistEffectResult).not.toHaveBeenCalled();
   });
 
   it("pins the approved device and directory without accepting model-provided identifiers", async () => {

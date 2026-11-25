@@ -10,6 +10,8 @@ import {
 } from "./appearance";
 import { translucentColor } from "./color";
 import { useScopedTheme } from "./scoped-theme-context";
+import { effectiveThemeAssignments } from "./theme-manager";
+import type { ResolvedScopedTheme } from "./theme-pack";
 import { themeManager } from "./theme-state";
 import { getActiveUiMode, getUiModeRevision } from "./ui-mode";
 
@@ -49,7 +51,7 @@ function globalNativeColors() {
   const installed = themeManager.getSnapshot();
   const policy =
     Platform.OS === "ios" && installed.hydrated
-      ? installed.assignments.globalPackId === "classic"
+      ? effectiveThemeAssignments(installed).globalPackId === "classic"
         ? "platform"
         : "tokens"
       : getActiveUiMode().systemColorPolicy;
@@ -107,7 +109,9 @@ export function useResolvedAppearance(): ResolvedAppearance {
   return useScopedTheme()?.appearance ?? resolveMobileAppearance();
 }
 
-export function useThemedStyles<T>(factory: (tokens: ColorTokens, colors: NativeColors) => T): T {
+export function useThemedStyles<T>(
+  factory: (tokens: ColorTokens, colors: NativeColors, scope: ResolvedScopedTheme | null) => T,
+): T {
   const resolved = useResolvedAppearance();
   const preference = getCachedAppearancePreference();
   const modeRevision = getUiModeRevision();
@@ -118,7 +122,7 @@ export function useThemedStyles<T>(factory: (tokens: ColorTokens, colors: Native
     const colors = scope
       ? nativeColors(tokens, resolved, usesSystemColors(scope.systemColorPolicy))
       : native;
-    return factory(tokens, colors);
+    return factory(tokens, colors, scope);
   }, [factory, scope, resolved, preference, modeRevision, revision]);
 }
 

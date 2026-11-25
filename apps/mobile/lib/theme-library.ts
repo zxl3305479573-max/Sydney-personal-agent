@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { Image } from "react-native";
+import { reconcileUiModeAfterThemeLoad } from "./theme-controls";
 import type { ThemeRepository } from "./theme-manager";
 import type { ThemePackV1 } from "./theme-pack";
 import {
@@ -97,6 +98,7 @@ export const themeRepository: ThemeRepository = {
 
 export async function loadInstalledThemes() {
   await themeManager.load(themeRepository);
+  await reconcileUiModeAfterThemeLoad();
 }
 
 export async function pickThemePack(): Promise<ThemePackV1 | null> {

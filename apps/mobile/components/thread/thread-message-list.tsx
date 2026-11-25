@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { ListRenderItem } from "react-native";
 import { ActivityIndicator, FlatList, Platform, ScrollView, StyleSheet, View } from "react-native";
 import type { MobileMessage } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
+import { useMobileTokens } from "../../lib/native";
 import type { ThreadColumnPadding } from "../../lib/thread-edges";
 import type { ThreadListScroll } from "../../lib/thread-list-scroll";
 import type { useThreadPaging } from "../../lib/thread-paging";
@@ -67,7 +67,7 @@ export function ThreadMessageList({
   loadingNewer: boolean;
   showLatest: () => void;
 }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { showPinnedPage, pinnedTarget, pinnedNewerCursor, behavior, state } = scroll;
   const { jumpTarget } = scroll;
   const listContentStyle = useMemo(

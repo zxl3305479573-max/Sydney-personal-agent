@@ -1,6 +1,7 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type { PeerConversation } from "@rakazo/core";
 import { displayName, loadPeerHistory, peerConversations } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,8 +23,10 @@ import { mobileTokens } from "../lib/appearance";
 import { openMobileArtifact } from "../lib/artifact-open";
 import { useI18n } from "../lib/i18n";
 import { isInlineImageBlock } from "../lib/inline-image";
-import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
+import type { NativeColors } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { errorText } from "../lib/user-error";
 
 /** View-only bot-to-bot exchange, opened from a Messaged / Message from chip in a bot's chat. */
@@ -33,7 +36,7 @@ export default function PeerChat() {
   const { t } = useI18n();
   const styles = useThemedStyles(createStyles);
   const colorScheme = useResolvedAppearance();
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const params = useLocalSearchParams<{
     botId?: string;
     botName?: string;
@@ -218,8 +221,11 @@ export default function PeerChat() {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
     pill: {
       alignSelf: "center",
@@ -232,7 +238,7 @@ function createStyles() {
       paddingVertical: 8,
     },
     name: { ...typeScale.footnote, fontWeight: "600", flexShrink: 1 },
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 16, gap: 10 },
     center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
     muted: { color: tokens.mutedForeground, ...typeScale.body, textAlign: "center" },

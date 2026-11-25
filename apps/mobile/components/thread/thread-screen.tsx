@@ -30,7 +30,6 @@ import {
   spaceSelectionSeq,
 } from "../../lib/api";
 import { useAppForeground } from "../../lib/app-foreground";
-import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useCallSession } from "../../lib/call-session";
 import { useMobileChatAppearance } from "../../lib/chat-appearance";
@@ -45,7 +44,7 @@ import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/com
 import { composerDraftScope } from "../../lib/composer-draft";
 import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
-import { useThemedStyles } from "../../lib/native";
+import { useMobileTokens, useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
 import { useScopedTheme } from "../../lib/scoped-theme-context";
 import { useInboxBot } from "../../lib/search-inbox";
@@ -105,7 +104,7 @@ function isActiveStatus(status: string | undefined): boolean {
  * effects at the positions the screen ran them before they were split out.
  */
 export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const scopedTheme = useScopedTheme();
   const cardLayout = scopedTheme?.layout === "cards";
   const chatAppearance = useMobileChatAppearance();
@@ -748,15 +747,17 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     openBot,
     openComputer,
   };
+  const hasUserBackground = Boolean(chatAppearance.backgroundUri);
+  const hasThemeBackground = Boolean(scopedTheme?.background);
   const classicContent = (
     <View style={[{ flex: 1 }, cardLayout ? { paddingHorizontal: 8, paddingTop: 8 } : null]}>
       <ImageBackground
         source={chatAppearance.backgroundUri ? { uri: chatAppearance.backgroundUri } : undefined}
         resizeMode={chatAppearance.backgroundFit}
         imageStyle={{ opacity: chatAppearance.backgroundOpacity }}
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: hasUserBackground ? tokens.background : "transparent" }}
       >
-        {chatAppearance.backgroundUri ? (
+        {hasUserBackground ? (
           <View
             pointerEvents="none"
             style={{
@@ -777,12 +778,13 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           })}
           style={{
             flex: 1,
-            backgroundColor: tokens.background,
+            backgroundColor:
+              hasUserBackground || hasThemeBackground ? "transparent" : tokens.background,
             ...(cardLayout
               ? {
                   borderRadius: scopedTheme.geometry.cardRadius,
                   overflow: "hidden" as const,
-                  borderWidth: scopedTheme.geometry.borderWidth,
+                  borderWidth: Math.max(1, scopedTheme.geometry.borderWidth),
                   borderColor: tokens.border,
                 }
               : null),

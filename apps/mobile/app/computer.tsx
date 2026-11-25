@@ -91,6 +91,7 @@ import {
   nativeScreenGeometryScript,
 } from "../lib/native-computer-control";
 import { iosAtLeast } from "../lib/native-controls";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { isAllowedScreenNavigation } from "../lib/screen-navigation";
 import { currentSessionGeneration } from "../lib/session";
 import { useSideInsets } from "../lib/side-insets";
@@ -111,6 +112,7 @@ export default function Computer() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const navigation = useNavigation();
   const windowSize = useWindowDimensions();
   const stacked = stacksAtTextScale(windowSize.fontScale);
@@ -765,7 +767,7 @@ export default function Computer() {
     // The full window's Modal is a child of this scroll view. A tap there, on Close or on the
     // native keyboard bar, must never just dismiss the computer keyboard; only the bar closes it.
     <ScrollView
-      style={[{ flex: 1, backgroundColor: canvasBg }, sideInsets]}
+      style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
       contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="always"

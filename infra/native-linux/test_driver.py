@@ -331,6 +331,23 @@ print(sample.read_text())
             self.assertEqual(outside.read_text(encoding="utf-8"), "private")
 
     @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_project_search_rejects_invalid_queries(self, _clock):
+        base = {
+            "method": "project_file", "botId": "bot", "generation": "generation",
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "folder": {"path": "project", "device": "1", "inode": "2"},
+        }
+        for file_payload in (
+            {"operation": "search", "path": "", "query": ""},
+            {"operation": "search", "path": "", "query": "a\nb"},
+            {"operation": "search", "path": "", "query": "x" * 201},
+            {"operation": "search", "path": "../outside", "query": "ok"},
+            {"operation": "search", "path": "", "query": "ok", "caseSensitive": "yes"},
+        ):
+            with self.subTest(file_payload=file_payload), self.assertRaises(MODULE.Refused):
+                self.driver.dispatch({**base, "file": file_payload}, None)
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
     def test_file_operations_reject_stale_fences(self, _clock):
         self.driver.authorize_run({"botId": "bot", "run": {"id": "run", "fence": 2, "expiresAt": 2000}})
         for method in ("list", "read", "write", "export"):

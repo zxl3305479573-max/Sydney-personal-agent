@@ -21,6 +21,7 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { addToSearchInbox, searchInboxSession } from "../lib/search-inbox";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
@@ -29,6 +30,7 @@ export default function NewGroup() {
   const sideInsets = useSideInsets();
   const { t, locale } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const [bots, setBots] = useState<MobileBot[]>([]);
@@ -204,7 +206,7 @@ export default function NewGroup() {
       <KeyboardAvoidingView
         behavior="padding"
         automaticOffset
-        style={{ flex: 1, backgroundColor: tokens?.background ?? "#F3F1EC" }}
+        style={{ flex: 1, backgroundColor: screenBackground }}
       >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"

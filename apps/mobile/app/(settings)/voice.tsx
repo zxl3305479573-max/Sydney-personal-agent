@@ -5,6 +5,7 @@ import {
   OPENAI_COMPATIBLE_PROVIDER_ID,
 } from "@rakazo/contracts";
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { isCancelledError } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -32,11 +33,13 @@ import {
 } from "../../lib/call-sounds";
 import { loadDeviceVoiceEnabled, saveDeviceVoiceEnabled } from "../../lib/device-voice";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { queryClient, rpcQuery } from "../../lib/query";
 import type { SettingsTarget } from "../../lib/settings-target";
 import { settingsRpc, settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 import { speakText } from "../../lib/voice";
 
@@ -688,13 +691,16 @@ export default function VoiceSettings() {
   );
 }
 
-function createVoiceStyles() {
-  const tokens = mobileTokens();
+function createVoiceStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, gap: 16 },
     error: { color: tokens.destructive, marginBottom: 8 },
-    group: { borderRadius: 14, backgroundColor: native.fill, overflow: "hidden" },
+    group: { borderRadius: 14, backgroundColor: colors.fill, overflow: "hidden" },
     groupRow: {
       minHeight: 56,
       paddingHorizontal: 16,
@@ -705,16 +711,16 @@ function createVoiceStyles() {
     },
     groupDivider: {
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: native.separator,
+      borderTopColor: colors.separator,
     },
     rowCopy: { flex: 1, minWidth: 0 },
-    cardTitle: { color: native.label, fontSize: 17, lineHeight: 22 },
-    fieldLabel: { color: native.label, marginTop: 16 },
+    cardTitle: { color: colors.label, fontSize: 17, lineHeight: 22 },
+    fieldLabel: { color: colors.label, marginTop: 16 },
     input: {
       marginTop: 8,
       borderRadius: 12,
-      backgroundColor: native.fill,
-      color: native.label,
+      backgroundColor: colors.fill,
+      color: colors.label,
       paddingHorizontal: 14,
       paddingVertical: 12,
       minHeight: 48,
@@ -723,6 +729,6 @@ function createVoiceStyles() {
     disabled: { opacity: 0.4 },
     pressed: { opacity: 0.7 },
     voices: { marginTop: 12 },
-    voiceLabel: { flex: 1, color: native.label, fontSize: 17, lineHeight: 22 },
+    voiceLabel: { flex: 1, color: colors.label, fontSize: 17, lineHeight: 22 },
   });
 }

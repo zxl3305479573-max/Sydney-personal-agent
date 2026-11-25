@@ -1,11 +1,11 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { StyleSheet } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { transparentColor } from "../lib/color";
 import { HEADER_CONTROL_SIZE } from "../lib/native-controls";
 
-export function createThreadHeaderStyles() {
-  const tokens = mobileTokens();
+export function createThreadHeaderStyles(tokens: ColorTokens = mobileTokens()) {
   const bg = tokens?.background ?? "#F3F1EC";
   const isLight =
     typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)

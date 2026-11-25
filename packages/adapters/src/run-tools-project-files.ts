@@ -22,6 +22,7 @@ import {
   PROJECT_FILE_CREATE,
   PROJECT_FILE_LIST,
   PROJECT_FILE_READ,
+  PROJECT_FILE_SEARCH,
   PROJECT_FILE_UPDATE,
   projectFileToolAllowed,
 } from "./run-project-policy.js";
@@ -83,9 +84,11 @@ function parseFile(name: string, args: Record<string, unknown>) {
     ? "read"
     : name === PROJECT_FILE_LIST
       ? "list"
-      : name === PROJECT_FILE_CREATE
-        ? "create"
-        : "update";
+      : name === PROJECT_FILE_SEARCH
+        ? "search"
+        : name === PROJECT_FILE_CREATE
+          ? "create"
+          : "update";
   return ProjectFileOperationSchema.safeParse({ ...args, operation });
 }
 
@@ -112,22 +115,27 @@ export async function prepareProjectFile(ctx: RunContext, request: ToolRequest) 
   request.fleetSummary = {
     title: operation === "list"
       ? "List this project folder?"
-      : operation === "read"
-        ? "Read this project file?"
-        : operation === "create"
-          ? "Create this project file?"
-          : "Update this project file?",
+      : operation === "search"
+        ? "Search this project folder?"
+        : operation === "read"
+          ? "Read this project file?"
+          : operation === "create"
+            ? "Create this project file?"
+            : "Update this project file?",
     lines: [
       `Execution location: ${windows ? "Windows" : "Cloud computer"}`,
       `Authorized folder: ${windows ? binding.directoryName : binding.folder.path}`,
-      `${operation === "list" ? "Folder" : "File"}: ${file.data.path || "."}`,
+      `${operation === "list" || operation === "search" ? "Folder" : "File"}: ${file.data.path || "."}`,
+      ...(file.data.operation === "search" ? [`Query: ${file.data.query}`] : []),
       operation === "list"
         ? "Lists immediate file and folder names from this authorized directory and shares the paths with this conversation's AI model."
-        : operation === "read"
-          ? "The file text will be shared with this conversation's AI model."
-        : operation === "create"
-          ? "Creates a new Markdown file and saves a downloadable copy in this project chat."
-          : "Replaces the existing file only if it still matches the last-read SHA-256; saves a downloadable copy in this project chat.",
+        : operation === "search"
+          ? "Searches bounded UTF-8 text files inside this authorized directory and shares matching file paths and line excerpts with this conversation's AI model."
+          : operation === "read"
+            ? "The file text will be shared with this conversation's AI model."
+            : operation === "create"
+              ? "Creates a new Markdown file and saves a downloadable copy in this project chat."
+              : "Replaces the existing file only if it still matches the last-read SHA-256; saves a downloadable copy in this project chat.",
     ],
     onceOnly: true,
   };
@@ -225,6 +233,20 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
     return durable
       ? { ...completed, entries: result.entries }
       : { error: "Directory listing could not be recorded. Request a new approval before retrying." };
+  }
+  if (result.operation === "search") {
+    const completed = {
+      searched: true,
+      matches: result.matches.length,
+      truncated: result.truncated,
+    };
+    const durable = await call.persistEffectResult(completed);
+    const current = await liveBinding(ctx);
+    signal.throwIfAborted();
+    if (!matchesBinding(projectDirectory, current)) return { error: DIRECTORY_UNAVAILABLE };
+    return durable
+      ? { ...completed, matches: result.matches }
+      : { error: "Directory search could not be recorded. Request a new approval before retrying." };
   }
   const completed = {
     read: true,
@@ -358,16 +380,21 @@ function matchesOperation(
         return entry.path.startsWith(prefix) && !relative.includes("/") &&
           result.entries.findIndex((candidate) => candidate.path === entry.path) === index;
       })
-    : file.operation === "read"
-    ? result.operation === "read" &&
-      (result.sha256 === undefined || result.sha256 === textSha256(result.text))
-    : file.operation === "create"
-      ? result.operation === "create" && result.bytes === Buffer.byteLength(file.text, "utf8")
-      : result.operation === "conflict"
-        ? /^[a-f0-9]{64}$/u.test(result.sha256)
-        : result.operation === "update" &&
-          result.bytes === Buffer.byteLength(file.text, "utf8") &&
-          result.sha256 === textSha256(file.text);
+    : file.operation === "search"
+      ? result.operation === "search" && result.matches.length <= 50 && result.matches.every((match) => {
+          const prefix = file.path ? `${file.path}/` : "";
+          return match.path.startsWith(prefix) && match.path.length > prefix.length;
+        })
+      : file.operation === "read"
+        ? result.operation === "read" &&
+          (result.sha256 === undefined || result.sha256 === textSha256(result.text))
+        : file.operation === "create"
+          ? result.operation === "create" && result.bytes === Buffer.byteLength(file.text, "utf8")
+          : result.operation === "conflict"
+            ? /^[a-f0-9]{64}$/u.test(result.sha256)
+            : result.operation === "update" &&
+              result.bytes === Buffer.byteLength(file.text, "utf8") &&
+              result.sha256 === textSha256(file.text);
 }
 
 async function publishProjectFile(
@@ -427,6 +454,7 @@ async function publishProjectFile(
 
 export const projectFileHandlers: ToolHandlers = {
   [PROJECT_FILE_LIST]: runProjectFile,
+  [PROJECT_FILE_SEARCH]: runProjectFile,
   [PROJECT_FILE_READ]: runProjectFile,
   [PROJECT_FILE_CREATE]: runProjectFile,
   [PROJECT_FILE_UPDATE]: runProjectFile,

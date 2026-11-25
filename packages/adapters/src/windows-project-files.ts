@@ -4,7 +4,12 @@ import { open } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ProjectFileOperation, ProjectFileResult } from "@rakazo/contracts";
-import { PROJECT_FILE_MAX_BYTES, ProjectFileOperationSchema } from "@rakazo/contracts";
+import {
+  PROJECT_FILE_MAX_BYTES,
+  PROJECT_SEARCH_MAX_EXCERPT,
+  PROJECT_SEARCH_MAX_MATCHES,
+  ProjectFileOperationSchema,
+} from "@rakazo/contracts";
 import { normalizeDesktopWorkspacePath } from "./desktop-sandbox-paths.js";
 import {
   assertPlainWindowsHandle,
@@ -16,8 +21,105 @@ import {
 
 const read = promisify(readCb);
 const write = promisify(writeCb);
+const MAX_SEARCH_DEPTH = 6;
+const MAX_SEARCH_FILES = 200;
 type DirectoryHandle = Awaited<ReturnType<typeof open>> | ReturnType<typeof openProjectChildWin32>;
 export type WindowsProjectRoot = { directory: string; dev: bigint; ino: bigint };
+
+async function searchDirectoryWin32(
+  rootHandle: DirectoryHandle,
+  baseParts: string[],
+  query: string,
+  caseSensitive: boolean,
+  signal: AbortSignal,
+): Promise<{ matches: { path: string; line: number; text: string }[]; truncated: boolean }> {
+  const needle = caseSensitive ? query : query.toLowerCase();
+  const matches: { path: string; line: number; text: string }[] = [];
+  let truncated = false;
+  let scannedFiles = 0;
+
+  async function walk(dirHandle: DirectoryHandle, currentParts: string[], depth: number) {
+    signal.throwIfAborted();
+    const listing = listProjectDirectoryWin32(dirHandle.fd, 500);
+    if (listing.truncated) truncated = true;
+    const sorted = [...listing.entries].sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of sorted) {
+      signal.throwIfAborted();
+      if (matches.length >= PROJECT_SEARCH_MAX_MATCHES) {
+        truncated = true;
+        return;
+      }
+      const childParts = [...currentParts, entry.name];
+      const childPath = childParts.join("/");
+      try {
+        normalizeDesktopWorkspacePath(childPath, "win32");
+      } catch {
+        continue;
+      }
+      if (entry.kind === "directory") {
+        if (depth >= MAX_SEARCH_DEPTH) {
+          truncated = true;
+          continue;
+        }
+        let childDir: ReturnType<typeof openProjectChildWin32> | undefined;
+        try {
+          childDir = openProjectChildWin32(dirHandle.fd, entry.name, "directory");
+          await walk(childDir, childParts, depth + 1);
+        } catch (error) {
+          if (signal.aborted) throw error;
+        } finally {
+          await childDir?.close().catch(() => undefined);
+        }
+        continue;
+      }
+      if (scannedFiles >= MAX_SEARCH_FILES) {
+        truncated = true;
+        return;
+      }
+      scannedFiles += 1;
+      let fileHandle: ReturnType<typeof openProjectChildWin32> | undefined;
+      try {
+        fileHandle = openProjectChildWin32(dirHandle.fd, entry.name, "read");
+        const info = await fileHandle.stat({ bigint: true });
+        if (!info.isFile() || BigInt(info.nlink) !== 1n || BigInt(info.size) > BigInt(PROJECT_FILE_MAX_BYTES)) {
+          continue;
+        }
+        const buffer = Buffer.alloc(PROJECT_FILE_MAX_BYTES + 1);
+        let offset = 0;
+        while (offset < buffer.length) {
+          signal.throwIfAborted();
+          const { bytesRead } = await read(fileHandle.fd, buffer, offset, buffer.length - offset, offset);
+          if (bytesRead === 0) break;
+          offset += bytesRead;
+        }
+        if (offset > PROJECT_FILE_MAX_BYTES) continue;
+        const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, offset));
+        const lines = text.split(/\r?\n/u);
+        for (let index = 0; index < lines.length; index += 1) {
+          const line = lines[index]!;
+          const haystack = caseSensitive ? line : line.toLowerCase();
+          if (!haystack.includes(needle)) continue;
+          if (matches.length >= PROJECT_SEARCH_MAX_MATCHES) {
+            truncated = true;
+            return;
+          }
+          matches.push({
+            path: childPath,
+            line: index + 1,
+            text: line.slice(0, PROJECT_SEARCH_MAX_EXCERPT),
+          });
+        }
+      } catch (error) {
+        if (signal.aborted) throw error;
+      } finally {
+        await fileHandle?.close().catch(() => undefined);
+      }
+    }
+  }
+
+  await walk(rootHandle, baseParts, 0);
+  return { matches, truncated };
+}
 
 async function withDirectory<T>(
   directory: string,
@@ -69,7 +171,8 @@ export function executeWindowsProjectFile(
   const request = ProjectFileOperationSchema.parse(input);
   normalizeDesktopWorkspacePath(request.path, "win32");
   const parts = request.path ? request.path.split("/") : [];
-  const directoryParts = request.operation === "list" ? parts : parts.slice(0, -1);
+  const directoryParts =
+    request.operation === "list" || request.operation === "search" ? parts : parts.slice(0, -1);
   const leaf = parts.at(-1)!;
   return withDirectory(root.directory, async (directory) => {
     const info = await directory.stat({ bigint: true });
@@ -98,6 +201,17 @@ export function executeWindowsProjectFile(
           }
         });
         return { operation: "list", entries, truncated: listing.truncated };
+      }
+      if (request.operation === "search") {
+        const found = await searchDirectoryWin32(
+          parent,
+          parts,
+          request.query,
+          request.caseSensitive,
+          signal,
+        );
+        signal.throwIfAborted();
+        return { operation: "search", matches: found.matches, truncated: found.truncated };
       }
       const file = openProjectChildWin32(parent.fd, leaf, request.operation);
       try {

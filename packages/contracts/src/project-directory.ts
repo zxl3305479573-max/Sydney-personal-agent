@@ -3,6 +3,9 @@ import { ProjectWorkspaceIdInput } from "./project-workspace.js";
 
 export const PROJECT_DIRECTORY_PATH = "/api/devices/project-directory";
 export const PROJECT_FILE_MAX_BYTES = 64 * 1024;
+export const PROJECT_SEARCH_MAX_QUERY = 200;
+export const PROJECT_SEARCH_MAX_MATCHES = 50;
+export const PROJECT_SEARCH_MAX_EXCERPT = 200;
 
 const ScopedId = z
   .string()
@@ -148,8 +151,25 @@ const ProjectDirectoryPath = z
   .string()
   .max(1024)
   .refine((value) => value === "" || ProjectFilePath.safeParse(value).success);
+const ProjectSearchQuery = z
+  .string()
+  .min(1)
+  .max(PROJECT_SEARCH_MAX_QUERY)
+  .refine((value) =>
+    Array.from(value).every(
+      (character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
+    ),
+  );
 export const ProjectFileOperationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("list"), path: ProjectDirectoryPath.default("") }).strict(),
+  z
+    .object({
+      operation: z.literal("search"),
+      path: ProjectDirectoryPath.default(""),
+      query: ProjectSearchQuery,
+      caseSensitive: z.boolean().default(false),
+    })
+    .strict(),
   z.object({ operation: z.literal("read"), path: ProjectFilePath }).strict(),
   z
     .object({
@@ -183,6 +203,23 @@ export const ProjectFileResultSchema = z.discriminatedUnion("operation", [
       entries: z
         .array(z.object({ path: ProjectFilePath, kind: z.enum(["directory", "file"]) }).strict())
         .max(500),
+      truncated: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("search"),
+      matches: z
+        .array(
+          z
+            .object({
+              path: ProjectFilePath,
+              line: z.number().int().min(1),
+              text: z.string().max(PROJECT_SEARCH_MAX_EXCERPT),
+            })
+            .strict(),
+        )
+        .max(PROJECT_SEARCH_MAX_MATCHES),
       truncated: z.boolean(),
     })
     .strict(),

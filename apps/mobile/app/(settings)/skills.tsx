@@ -23,6 +23,7 @@ import { SkillSymbol } from "../../components/skill-symbol";
 import { rpc } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
 import type { PluginParams } from "../../lib/plugin-marketplace";
@@ -34,6 +35,7 @@ import {
   skillPacks,
 } from "../../lib/plugin-marketplace";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 
 const LOGO_SIZE = 32;
 
@@ -301,16 +303,27 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens?: ColorTokens,
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
-  const cardBg = isLight ? "#FFFEFC" : "#242933";
-  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
-  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
-  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const cardBg = scope ? colors.fill : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = scope ? colors.fillPressed : isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = scope
+    ? colors.separator
+    : isLight
+      ? "rgba(38, 35, 31, 0.07)"
+      : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 16, paddingBottom: 36, gap: 14 },
     card: {
       gap: 12,
@@ -334,7 +347,7 @@ function createStyles(passedTokens?: ColorTokens) {
       backgroundColor: cardBg,
       borderWidth: hairline,
       borderColor: chipBorder,
-      color: native.label,
+      color: colors.label,
       paddingHorizontal: 14,
       fontSize: 17,
       shadowColor: "#26231F",
@@ -350,7 +363,7 @@ function createStyles(passedTokens?: ColorTokens) {
       backgroundColor: chipBg,
       borderWidth: hairline,
       borderColor: chipBorder,
-      color: native.label,
+      color: colors.label,
       paddingHorizontal: 14,
       fontSize: 17,
     },
@@ -374,7 +387,7 @@ function createStyles(passedTokens?: ColorTokens) {
     },
     pressed: { opacity: 0.76 },
     section: {
-      color: native.secondaryLabel,
+      color: colors.secondaryLabel,
       fontSize: 13,
       fontWeight: "600",
       marginTop: 6,
@@ -392,7 +405,7 @@ function createStyles(passedTokens?: ColorTokens) {
       justifyContent: "center",
     },
     grow: { flex: 1, gap: 2, minWidth: 0 },
-    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
-    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    title: { color: colors.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
+    secondary: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
   });
 }

@@ -5,6 +5,7 @@ import { StyleSheet, View } from "react-native";
 import { cardGradient, inferLightFromStyle } from "../lib/card-gradient";
 import { useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { getActiveUiMode } from "../lib/ui-mode";
 import type { GlassSurfaceProps } from "./glass-surface";
 
@@ -20,7 +21,7 @@ export function GlassSurface({
   ...viewProps
 }: GlassSurfaceProps) {
   const scheme = useResolvedAppearance();
-  const policy = getActiveUiMode().glassPolicy;
+  const policy = useScopedTheme()?.glassPolicy ?? getActiveUiMode().glassPolicy;
   const radius = cornerRadius ?? policy.defaultCornerRadius ?? 22;
   const resolvedTint = tint ?? (policy.mode === "tinted-liquid" ? policy.defaultTint : undefined);
   if (!chatTitle || !iosAtLeast(26) || policy.mode === "solid-fallback") {

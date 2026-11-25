@@ -10,9 +10,11 @@ import { LoadFailure } from "../../components/load-failure";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useResolvedAppearance, useThemedStyles } from "../../lib/native";
 import { settingsRpc, settingsTarget } from "../../lib/settings-target";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 type RuleAction = "always_allow" | "deny" | "remove";
@@ -180,12 +182,15 @@ function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
   return true;
 }
 
-function createStyles(passedTokens?: ColorTokens) {
-  const tokens = passedTokens ?? mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   const isLight = isLightPalette(tokens);
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.groupedPage },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.groupedPage },
     content: { width: "100%", paddingHorizontal: 16, paddingTop: 18, gap: 22, paddingBottom: 40 },
     error: {
       color: tokens.destructive,
@@ -193,9 +198,13 @@ function createStyles(passedTokens?: ColorTokens) {
       paddingHorizontal: 14,
       paddingVertical: 12,
       borderRadius: 16,
-      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      backgroundColor: scope ? colors.groupedCell : isLight ? "#FFFEFC" : "#242933",
       borderWidth: hairline,
-      borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
+      borderColor: scope
+        ? colors.separator
+        : isLight
+          ? "rgba(38, 35, 31, 0.06)"
+          : "rgba(245, 244, 240, 0.09)",
       overflow: "hidden",
     },
   });

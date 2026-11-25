@@ -1,4 +1,4 @@
-import { usePathname } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { DarkTheme, ThemeProvider } from "expo-router/react-navigation";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
@@ -46,19 +46,30 @@ export function useThemeForScope(scope: ThemeScope, preview = true): ResolvedSco
 }
 
 export function ScopedThemeBackground({ children }: PropsWithChildren) {
-  const background = useScopedTheme()?.background;
+  const theme = useScopedTheme();
+  const background = theme?.background;
   return (
     <>
-      {background ? (
-        <Image
-          source={{ uri: background.uri }}
-          resizeMode={background.fit}
-          accessible={false}
-          style={[
-            StyleSheet.absoluteFill,
-            { width: "100%", height: "100%", opacity: background.opacity },
-          ]}
-        />
+      {theme && background ? (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Image
+            source={{ uri: background.uri }}
+            resizeMode={background.fit}
+            accessible={false}
+            style={{ width: "100%", height: "100%", opacity: background.opacity }}
+          />
+          {background.overlayOpacity > 0 ? (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: theme.appearance === "dark" ? "#000000" : "#FFFFFF",
+                  opacity: background.overlayOpacity,
+                },
+              ]}
+            />
+          ) : null}
+        </View>
       ) : null}
       {children}
     </>
@@ -130,10 +141,10 @@ export function ScopedThemeRoute({
   routeName,
   children,
 }: PropsWithChildren<{ routeName: string }>) {
-  const pathname = usePathname();
-  const scope = themeScopeForRoute(pathname || routeName);
+  const focused = useIsFocused();
+  const scope = themeScopeForRoute(routeName);
   useEffect(() => {
-    themeManager.setActiveScope(scope);
-  }, [scope]);
+    if (focused) themeManager.setActiveScope(scope);
+  }, [focused, scope]);
   return <ScopedThemeScreen scope={scope}>{children}</ScopedThemeScreen>;
 }

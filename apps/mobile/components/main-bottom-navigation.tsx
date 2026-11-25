@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
 import { openMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 
 export function MainBottomNavigation() {
   const pathname = usePathname();
@@ -12,6 +13,12 @@ export function MainBottomNavigation() {
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
   const isLight = appearance === "light";
+  const scope = useScopedTheme();
+  const indicatorRadius = scope ? Math.max(6, Math.min(18, scope.geometry.controlRadius)) : 1;
+  const topBorderWidth =
+    scope?.surface === "outlined"
+      ? Math.max(1, Math.min(2, scope.geometry.borderWidth))
+      : StyleSheet.hairlineWidth;
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
@@ -36,9 +43,9 @@ export function MainBottomNavigation() {
         flexShrink: 0,
         flexDirection: "row",
         minHeight: 52 + insets.bottom,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: isLight ? "rgba(38, 35, 31, 0.06)" : tokens.border,
-        backgroundColor: isLight ? "#FAF8F4" : tokens.card,
+        borderTopWidth: topBorderWidth,
+        borderTopColor: scope ? tokens.border : isLight ? "rgba(38, 35, 31, 0.06)" : tokens.border,
+        backgroundColor: scope ? tokens.background : isLight ? "#FAF8F4" : tokens.card,
         paddingLeft: insets.left + 8,
         paddingRight: insets.right + 8,
         paddingBottom: insets.bottom,
@@ -85,7 +92,7 @@ export function MainBottomNavigation() {
               style={{
                 width: 18,
                 height: 2,
-                borderRadius: 1,
+                borderRadius: indicatorRadius,
                 backgroundColor: selected
                   ? isLight
                     ? "#5E584F"

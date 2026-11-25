@@ -35,7 +35,13 @@ export type ThemeAppearance = {
   >;
   layout?: ThemeLayout;
   surface?: "flat" | "outlined" | "glass";
-  background?: { light?: string; dark?: string; fit?: "cover" | "contain"; opacity?: number };
+  background?: {
+    light?: string;
+    dark?: string;
+    fit?: "cover" | "contain";
+    opacity?: number;
+    overlayOpacity?: number;
+  };
 };
 export type ThemePackV1 = {
   schemaVersion: 1;
@@ -57,7 +63,12 @@ export type ResolvedScopedTheme = ResolvedUiModeTheme & {
   scope: ThemeScope;
   layout: ThemeLayout;
   surface: "flat" | "outlined" | "glass";
-  background: { uri: string; fit: "cover" | "contain"; opacity: number } | null;
+  background: {
+    uri: string;
+    fit: "cover" | "contain";
+    opacity: number;
+    overlayOpacity: number;
+  } | null;
 };
 
 const COLOR_KEYS = new Set(Object.keys(darkTokens));
@@ -133,7 +144,7 @@ function validateAppearance(input: unknown, assets: Record<string, unknown>, lab
     throw new Error(`${label}: invalid surface`);
   if (appearance.background !== undefined) {
     const background = record(appearance.background, `${label}.background`);
-    keys(background, ["light", "dark", "fit", "opacity"], `${label}.background`);
+    keys(background, ["light", "dark", "fit", "opacity", "overlayOpacity"], `${label}.background`);
     for (const variant of ["light", "dark"] as const) {
       if (
         background[variant] !== undefined &&
@@ -147,6 +158,8 @@ function validateAppearance(input: unknown, assets: Record<string, unknown>, lab
       throw new Error(`${label}: invalid background fit`);
     if (background.opacity !== undefined)
       bounded(background.opacity, 0, 0.6, `${label}.background.opacity`);
+    if (background.overlayOpacity !== undefined)
+      bounded(background.overlayOpacity, 0, 0.6, `${label}.background.overlayOpacity`);
   }
 }
 
@@ -309,9 +322,7 @@ export function hasCustomThemeForScope(
   const localId = assignments.pages[scope];
   const globalId = assignments.globalPackId;
   return Boolean(
-    (localId &&
-      !isBuiltInTheme(localId) &&
-      packs.some((pack) => pack.id === localId && themeCovers(pack, scope))) ||
+    (localId && packs.some((pack) => pack.id === localId && themeCovers(pack, scope))) ||
       (globalId &&
         !isBuiltInTheme(globalId) &&
         packs.some((pack) => pack.id === globalId && pack.coverage === "all")),
@@ -342,7 +353,8 @@ export function resolveScopedTheme(
   let layout: ThemeLayout = "classic";
   let surface: ResolvedScopedTheme["surface"] = "flat";
   let background: ResolvedScopedTheme["background"] = null;
-  for (const pack of [global, local]) {
+  const layers = local?.id === "classic" ? [local] : [global, local];
+  for (const pack of layers) {
     if (!pack) continue;
     for (const patch of [pack.defaults, pack.pages?.[scope]]) {
       if (!patch) continue;
@@ -360,6 +372,7 @@ export function resolveScopedTheme(
             uri: pack.assets[asset],
             fit: patch.background.fit ?? "cover",
             opacity: patch.background.opacity ?? 0.18,
+            overlayOpacity: patch.background.overlayOpacity ?? 0,
           };
       }
     }

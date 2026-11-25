@@ -68,12 +68,18 @@ describe("project text tool policy", () => {
   });
 
   it.each([
-    ["user", "project-a", "read-only", ["project_list_files", "project_read_file"]],
+    ["user", "project-a", "read-only", ["project_list_files", "project_read_file", "project_search_files"]],
     [
       "user",
       "project-a",
       "read-write",
-      ["project_create_file", "project_list_files", "project_read_file", "project_update_file"],
+      [
+        "project_create_file",
+        "project_list_files",
+        "project_read_file",
+        "project_search_files",
+        "project_update_file",
+      ],
     ],
     ["routine", "project-a", "read-write", []],
     ["user", null, "read-write", []],
@@ -142,6 +148,7 @@ describe("project text tool policy", () => {
     const names = tools.map((tool) => tool.name);
     expect(names.filter((name) => name.startsWith("project_"))).toEqual([
       "project_list_files",
+      "project_search_files",
       "project_read_file",
       "project_create_file",
       "project_update_file",

@@ -12,6 +12,7 @@ import {
   subscribeIncomingShare,
 } from "../lib/incoming-share";
 import { useMobileTokens } from "../lib/native";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { sharePreview } from "../lib/share-preview";
 import { HomeSession } from "./index";
 
@@ -22,6 +23,7 @@ export default function ShareRoute() {
   const selected = useRef(false);
   const closing = useRef(false);
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const insets = useSafeAreaInsets();
   const { t } = useI18n();
   const close = useCallback(() => {
@@ -70,7 +72,7 @@ export default function ShareRoute() {
     <View
       style={{
         flex: 1,
-        backgroundColor: tokens.background,
+        backgroundColor: screenBackground,
         paddingTop: Platform.OS === "ios" ? 16 : insets.top + 8,
       }}
     >

@@ -67,7 +67,11 @@ vi.mock("../components/settings-group", () => ({
 vi.mock("./appearance", () => ({
   mobileTokens: () => ({ foreground: "black", border: "gray", card: "white" }),
 }));
-vi.mock("./native", () => ({ useThemedStyles: (factory: () => unknown) => factory() }));
+vi.mock("./native", () => ({
+  native: {},
+  useMobileTokens: () => ({ foreground: "black", border: "gray", card: "white" }),
+  useThemedStyles: (factory: () => unknown) => factory(),
+}));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text, locale: "zh-CN" }) }));
 vi.mock("./chat-appearance", () => ({
   getMobileChatAppearance: () => store.current,

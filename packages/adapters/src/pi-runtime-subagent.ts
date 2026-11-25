@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { Agent } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { ModelCallObserver } from "@rakazo/adapter-kit";
 import { isTerminatingReplyResult, terminatingReplyText } from "./approval-effect.js";
 import { withAutomatedLabels } from "./automated-messages.js";
 import { DELEGATION_TOOL_NAMES } from "./builtin-tools.js";
@@ -29,6 +31,57 @@ import { createRuntimeContextPolicy } from "./runtime-context.js";
 import { deliverFinishedShells } from "./shell-command-stream.js";
 
 export const MAX_PARALLEL_SUBAGENTS = 4;
+
+/**
+ * Ensures a subagent's per-model observer can never bypass the parent run's
+ * call observer (such as a managed task token-budget gate).
+ */
+export function composeSubagentCallObserver(
+  hostObserver: ModelCallObserver | undefined,
+  modelObserver: ModelCallObserver | undefined,
+): ModelCallObserver | undefined {
+  if (!hostObserver) return modelObserver;
+  if (!modelObserver || modelObserver === hostObserver) return hostObserver;
+  const reservations = new Map<string, { hostId: string; modelId: string }>();
+  return {
+    async beforeCall(call) {
+      const hostId = await hostObserver.beforeCall(call);
+      let modelId: string;
+      try {
+        modelId = await modelObserver.beforeCall(call);
+      } catch (error) {
+        await Promise.resolve(hostObserver.afterCall(hostId, null)).catch(() => undefined);
+        throw error;
+      }
+      const key = randomUUID();
+      reservations.set(key, { hostId, modelId });
+      return key;
+    },
+    async onRequestId(reservationId, providerRequestId) {
+      const pair = reservations.get(reservationId);
+      if (!pair) return;
+      await hostObserver.onRequestId?.(pair.hostId, providerRequestId);
+      await modelObserver.onRequestId?.(pair.modelId, providerRequestId);
+    },
+    async afterCall(reservationId, usage) {
+      const pair = reservations.get(reservationId);
+      reservations.delete(reservationId);
+      if (!pair) return;
+      let firstError: unknown;
+      try {
+        await modelObserver.afterCall(pair.modelId, usage);
+      } catch (error) {
+        firstError = error;
+      }
+      try {
+        await hostObserver.afterCall(pair.hostId, usage);
+      } catch (error) {
+        if (firstError === undefined) firstError = error;
+      }
+      if (firstError !== undefined) throw firstError;
+    },
+  };
+}
 
 /**
  * A helper's result within `limit` characters. A stop text (the spent-budget message or a
@@ -199,7 +252,7 @@ export async function executeSubagent(
             ctx,
             preparedOptions,
             (event) => host.queue.push(event),
-            target.config.callObserver ?? host.modelCallObserver,
+            composeSubagentCallObserver(host.modelCallObserver, target.config.callObserver),
             {
               operationKind: "subagent",
               agentId,

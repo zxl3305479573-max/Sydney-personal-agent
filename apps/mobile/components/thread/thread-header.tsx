@@ -3,12 +3,11 @@ import { useLayoutEffect, useState } from "react";
 import { Alert } from "react-native";
 import type { MobileBot } from "../../lib/api";
 import { rpc } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
 import { notifyArchivedChatsChanged } from "../../lib/archived-chats";
 import { confirmDeleteBot, restoreArchivedBot } from "../../lib/bot-lifecycle";
 import { chatTitleRoute } from "../../lib/chat-settings-route";
 import { useI18n } from "../../lib/i18n";
-import { useResolvedAppearance } from "../../lib/native";
+import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { removeFromSearchInbox } from "../../lib/search-inbox";
 import { threadEdgeOptions } from "../../lib/thread-edges";
 import { errorText } from "../../lib/user-error";
@@ -55,7 +54,7 @@ export function useThreadHeader({
   onCleared: () => void;
 }) {
   const colorScheme = useResolvedAppearance();
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { t } = useI18n();
   const navigation = useNavigation();
   // This screen's own route: its header title reads what this screen publishes, by key.

@@ -12,9 +12,9 @@ import { rpc } from "../lib/api";
 import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import { confirmDeleteGroup } from "../lib/bot-lifecycle";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
+import { native, useMobileTokens } from "../lib/native";
 import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
-import { useScopedTheme } from "../lib/scoped-theme-context";
+import { useScopedTheme, useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 
@@ -31,6 +31,7 @@ export default function GroupSettingsScreen() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const router = useRouter();
   const { groupId, projectId, scope } = useLocalSearchParams<{
     groupId: string;
@@ -193,7 +194,7 @@ export default function GroupSettingsScreen() {
     <>
       <Stack.Screen options={glassHeaderOptions(t("Group settings"))} />
       <ScrollView
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 20, paddingBottom: 36 }}
         automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"

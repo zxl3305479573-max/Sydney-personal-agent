@@ -1,4 +1,5 @@
 import { MAX_PASSWORD_LENGTH, PASSWORD_RULES } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,8 +17,10 @@ import { NativeActionButton } from "../../components/native-action-button";
 import { changePassword } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
+import type { NativeColors } from "../../lib/native";
 import { native, useThemedStyles } from "../../lib/native";
 import { useSideInsets } from "../../lib/side-insets";
+import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import { errorText } from "../../lib/user-error";
 
 export default function ChangePassword() {
@@ -142,18 +145,21 @@ export default function ChangePassword() {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(
+  tokens: ColorTokens = mobileTokens(),
+  colors: NativeColors = native,
+  scope: ResolvedScopedTheme | null = null,
+) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
+    screen: { flex: 1, backgroundColor: scope?.background ? "transparent" : colors.page },
     content: { padding: 20, gap: 16 },
     field: { gap: 8 },
-    fieldLabel: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    inputFallback: { borderRadius: 12, backgroundColor: native.fill },
+    fieldLabel: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    inputFallback: { borderRadius: 12, backgroundColor: colors.fill },
     input: {
       minHeight: 48,
       borderRadius: 12,
-      color: native.label,
+      color: colors.label,
       paddingHorizontal: 14,
       paddingVertical: 12,
       fontSize: 17,

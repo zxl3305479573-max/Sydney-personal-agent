@@ -1,19 +1,41 @@
-import { abortableDelay, isRetryableError, isRunWaitingOnUser, isRunWorking, retryDelayMs } from "@rakazo/core";
+import {
+  abortableDelay,
+  isRetryableError,
+  isRunWaitingOnUser,
+  isRunWorking,
+  retryDelayMs,
+} from "@rakazo/core";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import type { MobileSnapshot } from "./api";
 import {
-  applyMobileThreadEvent, currentApiBase, isSpaceSelectionPending, rpc, selectedSpaceId,
-  spaceSelectionSeq, subscribeSpaceSelection, subscribeThread, type MobileSnapshot,
+  applyMobileThreadEvent,
+  currentApiBase,
+  isSpaceSelectionPending,
+  rpc,
+  selectedSpaceId,
+  spaceSelectionSeq,
+  subscribeSpaceSelection,
+  subscribeThread,
 } from "./api";
 import { useAppForeground } from "./app-foreground";
 import { getSnapshot as getCallSnapshot, subscribe as subscribeCall } from "./call-session";
+import type { CompanionScreenState } from "./companion-activity";
 import {
-  activeCompanionIdentity, companionActivityRevision, companionScreenState,
-  subscribeCompanionActivity, subscribeCompanionScreenState, updateCompanion, type CompanionScreenState,
+  activeCompanionIdentity,
+  companionActivityRevision,
+  companionScreenState,
+  subscribeCompanionActivity,
+  subscribeCompanionScreenState,
+  updateCompanion,
 } from "./companion-activity";
 import { companionScreenAutoSnapshot, useCompanionScreenAuto } from "./companion-screen-auto";
 import { companionSnapshot } from "./companion-snapshot";
-import { currentReadySessionGeneration, currentSessionGeneration, subscribeSessionGeneration } from "./session";
+import {
+  currentReadySessionGeneration,
+  currentSessionGeneration,
+  subscribeSessionGeneration,
+} from "./session";
 
 const sessionVersion = () => `${currentSessionGeneration()}:${currentReadySessionGeneration()}`;
 const selectionVersion = () => `${spaceSelectionSeq()}:${isSpaceSelectionPending()}`;
@@ -28,11 +50,14 @@ export function watchCompanionThread(input: {
   const current = () => !abort.signal.aborted && input.isCurrent();
   let snapshot: MobileSnapshot | null = null;
   const publish = () => {
-    if (!current() || !snapshot) return;
-    const status = snapshot.run?.status;
+    if (!current()) return;
+    const call = getCallSnapshot();
+    const activeCall = call?.botId === input.botId ? call : null;
+    if (!snapshot && !activeCall) return;
+    const status = snapshot?.run?.status;
     const presentation = companionSnapshot({
       botId: input.botId,
-      snapshotBotId: snapshot.botId,
+      snapshotBotId: snapshot ? snapshot.botId : input.botId,
       inGroup: false,
       readOnly: false,
       showingSaved: false,
@@ -42,17 +67,21 @@ export function watchCompanionThread(input: {
       currentScope: true,
       screenAutoActive: false,
       working: isRunWorking(status) || isRunWaitingOnUser(status),
-      call: getCallSnapshot(),
-      messages: snapshot.messages,
+      call: activeCall,
+      messages: snapshot?.messages ?? [],
     });
     if (presentation) {
       void updateCompanion({
-        botId: input.botId, spaceId: input.spaceId, activityId: input.activityId,
-        ...presentation, isCurrent: current,
+        botId: input.botId,
+        spaceId: input.spaceId,
+        activityId: input.activityId,
+        ...presentation,
+        isCurrent: current,
       }).catch(() => undefined);
     }
   };
   const offCall = subscribeCall(publish);
+  publish();
   void (async () => {
     let delay = 1_000;
     while (current()) {
@@ -63,12 +92,17 @@ export function watchCompanionThread(input: {
         snapshot = next;
         publish();
         let cursor = next.cursor ?? -1;
-        await subscribeThread({ botId: input.botId }, cursor, (event) => {
-          if (!current()) return;
-          cursor = Math.max(cursor, event.seq ?? -1);
-          snapshot = applyMobileThreadEvent(snapshot, event);
-          publish();
-        }, abort.signal);
+        await subscribeThread(
+          { botId: input.botId },
+          cursor,
+          (event) => {
+            if (!current()) return;
+            cursor = Math.max(cursor, event.seq ?? -1);
+            snapshot = applyMobileThreadEvent(snapshot, event);
+            publish();
+          },
+          abort.signal,
+        );
         if (!current()) break;
         delay = 1_000;
       } catch (error) {
@@ -91,13 +125,19 @@ export function useCompanionThreadWatch(ready: boolean): void {
   const [screenState, setScreenState] = useState<CompanionScreenState>("unsupported");
   const screenStateRef = useRef<CompanionScreenState>("unsupported");
   const revision = useSyncExternalStore(
-    subscribeCompanionActivity, companionActivityRevision, companionActivityRevision,
+    subscribeCompanionActivity,
+    companionActivityRevision,
+    companionActivityRevision,
   );
   const sessionState = useSyncExternalStore(
-    subscribeSessionGeneration, sessionVersion, sessionVersion,
+    subscribeSessionGeneration,
+    sessionVersion,
+    sessionVersion,
   );
   const selectionState = useSyncExternalStore(
-    subscribeSpaceSelection, selectionVersion, selectionVersion,
+    subscribeSpaceSelection,
+    selectionVersion,
+    selectionVersion,
   );
   const screenAuto = useCompanionScreenAuto();
   const canRun = foreground || screenState === "capturing";
@@ -113,11 +153,13 @@ export function useCompanionThreadWatch(ready: boolean): void {
       changes += 1;
       apply(state);
     });
-    void companionScreenState().then((state) => {
-      if (changes === 0) apply(state);
-    }).catch(() => {
-      if (changes === 0) apply("unsupported");
-    });
+    void companionScreenState()
+      .then((state) => {
+        if (changes === 0) apply(state);
+      })
+      .catch(() => {
+        if (changes === 0) apply("unsupported");
+      });
     return () => {
       active = false;
       screenStateRef.current = "unsupported";
@@ -125,21 +167,36 @@ export function useCompanionThreadWatch(ready: boolean): void {
     };
   }, []);
   useEffect(() => {
-    if (!ready || !canRun || isSpaceSelectionPending() ||
+    if (
+      !ready ||
+      !canRun ||
+      isSpaceSelectionPending() ||
       currentSessionGeneration() !== currentReadySessionGeneration() ||
-      screenAuto.phase === "starting" || screenAuto.phase === "active") return;
+      screenAuto.phase === "starting" ||
+      screenAuto.phase === "active"
+    )
+      return;
     const session = currentSessionGeneration();
     const selection = spaceSelectionSeq();
     const activity = activeCompanionIdentity();
     const spaceId = selectedSpaceId();
     if (!activity || activity.spaceId !== spaceId) return;
     const apiBase = currentApiBase();
-    const isCurrent = () => (AppState.currentState !== "background" || screenStateRef.current === "capturing") &&
-      session === currentSessionGeneration() && selection === spaceSelectionSeq() &&
-      revision === companionActivityRevision() && !isSpaceSelectionPending() &&
-      apiBase === currentApiBase() && selectedSpaceId() === spaceId &&
+    const isCurrent = () =>
+      (AppState.currentState !== "background" || screenStateRef.current === "capturing") &&
+      session === currentSessionGeneration() &&
+      selection === spaceSelectionSeq() &&
+      revision === companionActivityRevision() &&
+      !isSpaceSelectionPending() &&
+      apiBase === currentApiBase() &&
+      selectedSpaceId() === spaceId &&
       activeCompanionIdentity()?.id === activity.id &&
       !["starting", "active"].includes(companionScreenAutoSnapshot().phase);
-    return watchCompanionThread({ botId: activity.botId, spaceId, activityId: activity.id, isCurrent });
+    return watchCompanionThread({
+      botId: activity.botId,
+      spaceId,
+      activityId: activity.id,
+      isCurrent,
+    });
   }, [ready, foreground, canRun, revision, sessionState, selectionState, screenAuto.phase]);
 }

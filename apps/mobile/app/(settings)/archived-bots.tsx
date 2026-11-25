@@ -13,7 +13,7 @@ import { confirmDeleteBot } from "../../lib/bot-lifecycle";
 import { useFloatingHeaderInset } from "../../lib/floating-header";
 import { useI18n } from "../../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
-import { useScopedTheme } from "../../lib/scoped-theme-context";
+import { useScopedTheme, useScreenBackground } from "../../lib/scoped-theme-context";
 import { addToSearchInbox, searchInboxSession } from "../../lib/search-inbox";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
@@ -34,6 +34,7 @@ export default function ArchivedBots() {
     : isLight
       ? "rgba(38, 35, 31, 0.055)"
       : "rgba(245, 244, 240, 0.09)";
+  const screenBackground = useScreenBackground(pageBg);
   const headerInset = useFloatingHeaderInset();
   const listRequest = useRef<AbortController | null>(null);
   const focusGeneration = useRef(0);
@@ -216,7 +217,7 @@ export default function ArchivedBots() {
   if (!bots?.length && !groups.length)
     return (
       <ScrollView
-        style={[{ flex: 1, backgroundColor: pageBg }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: 20, gap: 12 }}
       >

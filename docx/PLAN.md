@@ -1,5 +1,19 @@
 # Sydney 开发总计划
 
+## 未实现功能总规划与部分实现项（第 2、3、4 项）专项实施（2026-11-25）
+
+关联需求：PA-004、PA-005、PA-006、PA-010、PA-012、PA-014、PA-021、PA-022。
+
+状态：源码实现与本机定向离线验证已完成（真实 Linux/PostgreSQL 服务器、WSL 2 客体、Xcode 原生编译与真机项继续单列待验）。按用户要求先完成全部未实现功能的分批规划与 Stop That Shit 专项评测，随后优先实施部分实现内容中的第 2 项（PA-022 授权目录内容搜索）、第 3 项（PA-021 iPhone 陪伴跨页面通话与状态连续性）和第 4 项（P2–P4 受管任务 helper 模型预算全覆盖与审计回归闭环）。实际结果见 [验证记录](VALIDATION.md#未实现功能分批规划与第-234-项定向实现2026-11-25)。
+
+范围与交付物：
+- 专项评测与总规划文档：[PARTIAL_IMPLEMENTATION_EVALUATION.md](PARTIAL_IMPLEMENTATION_EVALUATION.md)。
+- 第 2 项（PA-022）：在 `packages/contracts`、`apps/desktop`、`infra/native-linux/driver.py` 与 `packages/adapters` 补齐受限的授权目录文本内容搜索（`search` / `project_search_files`），复用逐次项目审批、固定绑定校验、路径越界/符号链接防护与离线排队续接。
+- 第 3 项（PA-021）：修复 `apps/mobile/lib/companion-thread-watch.ts` 中语音通话状态依赖首帧快照、切页/重连期间丢失通话状态推送的缺口，并补齐定向回归测试。
+- 第 4 项（P2–P4）：修复 `packages/adapters/src/pi-runtime-subagent.ts` 中子代理模型调用优先使用 `target.config.callObserver` 从而绕过父级 `host.modelCallObserver`（Task token 预算门禁）的审计阻塞项；实际运行 `managed-task-control`、`managed-task-tools`、`native-linux-sandbox`、`task-execution` 与 `driver.py` 定向回归。
+
+依赖与验收条件：不新增第三方依赖，不启动本机 Docker/数据库/桌面服务，不提交或推送。验收以 [专项评测](PARTIAL_IMPLEMENTATION_EVALUATION.md) 的 `EVAL-A1`–`EVAL-A4`、`EVAL-B1`–`EVAL-B2`、`EVAL-C1`–`EVAL-C3` 实跑结果及受影响包 `tsc` 为准；真实 Linux/PostgreSQL 服务器、WSL 2 客体、Xcode 编译签名与真机项继续单列待验，不以离线测试替代。
+
 ## 工作区提交、主分支合并与 iPhone OTA（2026-11-25）
 
 关联需求：PA-021、PA-023、REL-01。范围为提交现有退役 Web E2E CI 清理、将当前集成分支合入 `main`，并沿用 iPhone `sideload`／`sydney-ios-ip-1` 发布通道。没有新的手机客户端产品改动，保留可见版本 `1.0.24` 和原生底座版本 `1.0.12`。
@@ -25,6 +39,14 @@
 范围与交付物：在最新集成分支 `cursor/integrate-remote-branches-7334`（`148a4f5af`）上，按用户确认边界（**PC 端零改动、仅实施手机 App 端、保留底部导航栏、组件颜色整体调浅、其余所有界面统一风格、原有字体 100% 不变**），升级 `@rakazo/ui-tokens` 清透奶白（`#F3F1EC`）／柔和深灰（`#15171C`）语义令牌并同步 `tokens.css`；新增手机个人中枢首页 `/`（`home-hub.tsx`）、独立聊天列表页 `/chats`（`chats.tsx`）与底部三项文字导航栏「首页 · 聊天 · 项目」；并将聊天列表、全局搜索、对话内交互卡片、项目工作区、GitHub、连接应用、云电脑、生成产物、例行任务、登录／服务器配置、Bot／群聊资料及 `(settings)/*` 全部设置子页统一升级为 `#FFFEFC / #242933` 暖瓷圆角卡片与 `#F8F6F2 / #2A303B` 柔和胶囊。详细清单见 [手机端个人中枢首页与全界面视觉方案](design/DUAL_SURFACE_UI_DESIGN_PLAN.md)。
 
 依赖与验收条件：不安装新依赖，不修改 PC 端代码或后端接口／数据库。验收要求共享令牌与 `tokens.css` 同步、WCAG AA 对比度门禁通过、全量 73 个修改与新增 `.ts/.tsx` 语法无误且零字体覆写，随后在完整依赖环境补跑 Vitest／`tsc`／Biome 并在 iPhone 真机完成全页面视觉与触控验收。离线校验结果见 [验证记录](VALIDATION.md#手机-app-个人中枢首页与全界面风格统一离线校验2026-11-24)。
+
+## iPhone 换肤插件双轨状态统一、设置页重构与作用域渲染修复（PA-019、PA-020、PA-021，2026-11-24）
+
+- **当前范围**：在将 `ui-plugin` 分支合并对齐 `cursor/integrate-remote-branches-7334`（`95de23355`）后，完成（1）旧 `ui-mode` 存储与 `themeManager` 双轨状态统一及设置页重构；（2）按 Stop That Shit 原则修复四项具体运行时缺陷：页面作用域隔离防串页与分屏独立作用域、对话/首页/项目会话背景层防遮挡与用户聊天背景优先级、首页与设置分组消费 scoped `tokens`/`geometry`/`surface`，以及主题包报错与警告三语本地化。
+- **交付物**：[iPhone 声明式换肤评测](THEME_PLUGIN_EVALUATION.md)、统一状态与本地化协调层 `apps/mobile/lib/theme-controls.ts`、实时预览卡片 `apps/mobile/components/theme-preview-card.tsx`、重构后的 `ui-mode.tsx` 与 `settings-home.tsx`、`scoped-theme.tsx` / `_layout.tsx` 路由隔离修复、`thread-screen.tsx` / `index.tsx` / `projects/[workspaceId]/chat.tsx` 背景层叠与令牌修复、`native.ts` / `home-styles.ts` / `settings-group.tsx` 作用域样式消费、对应定向测试，以及计划/开发/验证/分工文档。
+- **依赖**：既有 `@rakazo/ui-tokens`、`theme-pack.ts`、`theme-manager.ts`、`ui-mode` 注册与持久化契约；不引入新依赖、不改动后台与生产部署。
+- **验收条件**：全局内置模式与自定义主题包双轨一致；后台保活页与分屏左右栏不串页；用户聊天背景覆盖主题背景不叠加发花，无用户背景时透出主题背景；首页卡片与设置分组安全消费 scoped 几何与材质；非法文件/格式提示三语本地化；离线定向测试、类型检查及真机交互通过。
+- **状态**：源码合入主分支与离线全套验证完成（真实 iPhone 视觉、大字体、VoiceOver、导入/卸载实机交互与 OTA 待验）。
 
 ## Bot 状态恢复与持久记忆共享（PA-018、PA-021、PA-022）
 

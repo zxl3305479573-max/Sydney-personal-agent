@@ -6,9 +6,9 @@ import { KeyboardController, useKeyboardHandler } from "react-native-keyboard-co
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MobileMessage } from "../../lib/api";
-import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useI18n } from "../../lib/i18n";
+import { useMobileTokens } from "../../lib/native";
 import { useBottomSafeAreaClaimed } from "../../lib/side-insets";
 import type { PendingAttachment } from "../../lib/thread-attachments";
 import type { ThreadColumnPadding } from "../../lib/thread-edges";
@@ -53,7 +53,7 @@ export function ThreadComposerDock({
   onRemoveAttachment: (id: string) => void;
   children: ReactNode;
 }) {
-  const tokens = mobileTokens();
+  const tokens = useMobileTokens();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const bottomClaimed = useBottomSafeAreaClaimed();

@@ -1,9 +1,10 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { ActivityIndicator, Platform, Pressable, Text } from "react-native";
-import type { mobileTokens } from "../lib/appearance";
 import { native, useMobileTokens } from "../lib/native";
 import type { ActionProminence, NativeActionButtonProps } from "../lib/native-controls";
 import { actionAccessibilityState, actionFills, actionProminence } from "../lib/native-controls";
 import { androidRipple, withAlpha } from "../lib/ripple";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { NativeSymbol } from "./native-symbol";
 
 /** Android (and non-iOS) form buttons. iOS uses the SwiftUI button in the platform file. */
@@ -24,6 +25,7 @@ export function NativeActionButton({
   selected,
 }: NativeActionButtonProps) {
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
   const inactive = disabled || busy;
   const stretches = actionFills(prominence, fill);
   const small = size === "compact";
@@ -43,6 +45,16 @@ export function NativeActionButton({
             border: effectiveProminence === "primary" ? tokens.primary : tokens.foreground,
           }
         : buttonColors(effectiveProminence, stretches, tokens);
+  const borderRadius = scope
+    ? Math.max(6, Math.min(20, scope.geometry.controlRadius))
+    : variant === "rectangular"
+      ? 9
+      : 12;
+  const borderWidth = colors.border
+    ? scope?.surface === "outlined"
+      ? Math.max(1, Math.min(2, scope.geometry.borderWidth))
+      : 1
+    : 0;
   return (
     <Pressable
       accessibilityActions={accessibilityActions}
@@ -59,7 +71,7 @@ export function NativeActionButton({
           flexDirection: "row",
           gap: icon && label ? 6 : undefined,
           minHeight: variant ? 44 : small || compact ? undefined : 48,
-          borderRadius: variant === "rectangular" ? 9 : 12,
+          borderRadius,
           alignItems: "center",
           justifyContent: "center",
           alignSelf: stretches ? "stretch" : "flex-start",
@@ -68,7 +80,7 @@ export function NativeActionButton({
           paddingVertical:
             variant === "rectangular" ? 12 : variant === "text" ? 8 : small ? 6 : compact ? 8 : 12,
           backgroundColor: colors.background,
-          borderWidth: colors.border ? 1 : 0,
+          borderWidth,
           borderColor: colors.border,
           opacity: inactive ? 0.45 : pressed && Platform.OS !== "android" ? 0.7 : 1,
         },
@@ -118,11 +130,7 @@ export function NativeActionButton({
   );
 }
 
-function buttonColors(
-  prominence: ActionProminence,
-  fill: boolean,
-  tokens: ReturnType<typeof mobileTokens>,
-) {
+function buttonColors(prominence: ActionProminence, fill: boolean, tokens: ColorTokens) {
   if (prominence === "primary") {
     return { background: tokens.primary, label: tokens.primaryForeground, border: undefined };
   }
