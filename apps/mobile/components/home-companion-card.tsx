@@ -102,7 +102,7 @@ export function HomeCompanionCard({
   const isLight = appearance === "light";
   const chipBackground = isLight ? "#F8F6F2" : "#2A303B";
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
-  const accentColor = isLight ? "#5E5672" : "#C5BCDB";
+  const accentColor = isLight ? "#6E675E" : "#B8B3AA";
   const activeBadgeBg = isLight ? "rgba(63, 134, 98, 0.12)" : "rgba(104, 196, 146, 0.18)";
   const activeBadgeInk = isLight ? "#2E6F4E" : "#8ADBA9";
   const isActive = Boolean(activeIdentity);
@@ -361,7 +361,7 @@ export function HomeCompanionCard({
             paddingHorizontal: 14,
             paddingVertical: 9,
             borderRadius: 999,
-            backgroundColor: isActive ? chipBackground : isLight ? "#364556" : "#E7E4DD",
+            backgroundColor: isActive ? chipBackground : isLight ? "#2E2B27" : "#E7E4DD",
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: isActive ? chipBorder : "transparent",
             opacity: busy || !targetBot ? 0.45 : 1,

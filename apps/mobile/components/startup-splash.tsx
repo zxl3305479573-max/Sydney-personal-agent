@@ -69,8 +69,8 @@ export function StartupSplash({ ready, onFinished }: StartupSplashProps) {
   const strokeColor = isLight ? "#26231F" : "#F3F1EC";
   const titleColor = isLight ? "#26231F" : "#F5F4F0";
   const subtitleColor = isLight ? "#6E675E" : "#A6A199";
-  const haloOuterColor = isLight ? "rgba(197, 163, 103, 0.16)" : "rgba(168, 188, 218, 0.14)";
-  const haloInnerColor = isLight ? "rgba(54, 69, 86, 0.08)" : "rgba(245, 244, 240, 0.08)";
+  const haloOuterColor = isLight ? "rgba(140, 133, 122, 0.14)" : "rgba(214, 210, 202, 0.10)";
+  const haloInnerColor = isLight ? "rgba(110, 103, 94, 0.08)" : "rgba(245, 244, 240, 0.06)";
   const logoSize = resolveSplashLogoSize(width);
 
   useEffect(() => {

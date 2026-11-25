@@ -376,7 +376,7 @@ export function ThreadComposer({
   const toolButton = {
     width: 44,
     height: 44,
-    borderRadius: controlRadius,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   } as const;
@@ -387,6 +387,7 @@ export function ThreadComposer({
     <>
       {mentionOptions.length ? (
         <ScrollView
+          showsVerticalScrollIndicator={false}
           testID="mention-picker"
           keyboardShouldPersistTaps="handled"
           style={{
@@ -451,6 +452,7 @@ export function ThreadComposer({
       ) : null}
       {slashSkillOptions.length || slashActionOptions.length ? (
         <ScrollView
+          showsVerticalScrollIndicator={false}
           testID="slash-picker"
           keyboardShouldPersistTaps="handled"
           style={{
@@ -736,9 +738,8 @@ export function ThreadComposer({
                   accessibilityLabel={actionLabel ?? t("Attach file")}
                   style={{
                     ...toolButton,
-                    borderWidth: 1,
-                    borderColor: strokeColor,
-                    backgroundColor: tokens.muted,
+                    borderRadius: 999,
+                    backgroundColor: "transparent",
                   }}
                 >
                   <NativeSymbol ios="plus" android="add" size={20} color={tokens.foreground} />
@@ -767,17 +768,15 @@ export function ThreadComposer({
                       maxWidth: "100%",
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingHorizontal: 12,
-                      gap: 6,
-                      borderRadius: controlRadius,
-                      borderWidth: 1,
-                      borderColor: scope ? tokens.border : strokeColor,
-                      backgroundColor: tokens.muted,
+                      paddingHorizontal: 8,
+                      gap: 5,
+                      borderRadius: 999,
+                      backgroundColor: "transparent",
                     }}
                   >
                     <Text
                       numberOfLines={1}
-                      style={{ color: tokens.foreground, fontSize: 13, flexShrink: 1 }}
+                      style={{ color: tokens.mutedForeground, fontSize: 13.5, flexShrink: 1 }}
                     >
                       {modelLabel || t("Model")}
                     </Text>

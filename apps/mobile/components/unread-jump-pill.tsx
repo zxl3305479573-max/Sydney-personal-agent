@@ -1,6 +1,6 @@
 import { fontWeight, typeScale } from "@rakazo/ui-tokens";
 import { StyleSheet, Text } from "react-native";
-import { useMobileTokens } from "../lib/native";
+import { useResolvedAppearance } from "../lib/native";
 import type { JumpDirection } from "../lib/offscreen-unreads";
 import { GlassSurface } from "./glass-surface";
 import { MotionPressable } from "./motion-pressable";
@@ -8,7 +8,7 @@ import { NativeSymbol } from "./native-symbol";
 
 export const UNREAD_JUMP_PILL_HEIGHT = 38;
 
-/** An unread-blue glass capsule with a directional chevron and label. */
+/** A warm-charcoal capsule matching the unified porcelain palette. */
 export function UnreadJumpPill({
   direction,
   label,
@@ -20,9 +20,10 @@ export function UnreadJumpPill({
   accessibilityLabel: string;
   onPress: () => void;
 }) {
-  const tokens = useMobileTokens();
-  // White on the tinted glass in both themes, like the user bubble's text.
-  const onFill = tokens.chatUserForeground;
+  const appearance = useResolvedAppearance();
+  const isLight = appearance === "light";
+  const fill = isLight ? "#2E2B27" : "#2F333C";
+  const onFill = isLight ? "#FAF8F4" : "#F5F4F0";
   return (
     <MotionPressable
       preset="control"
@@ -31,11 +32,15 @@ export function UnreadJumpPill({
       onPress={onPress}
     >
       <GlassSurface
-        tint={tokens.unread}
+        tint={fill}
         style={styles.pill}
         fallbackStyle={{
-          backgroundColor: tokens.unread,
-          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.22)",
+          backgroundColor: fill,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: isLight ? "rgba(250, 248, 244, 0.14)" : "rgba(245, 244, 240, 0.14)",
+          boxShadow: isLight
+            ? "0 4px 12px rgba(38, 35, 31, 0.18)"
+            : "0 4px 14px rgba(0, 0, 0, 0.34)",
         }}
       >
         <NativeSymbol
