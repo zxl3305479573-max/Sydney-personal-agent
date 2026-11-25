@@ -1,10 +1,11 @@
 import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN } from "@rakazo/contracts";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { MobileBot } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSwitch } from "./native-switch";
 
@@ -87,15 +88,16 @@ export function BotMemberPicker({
           return (
             <View key={bot.id} style={styles.row}>
               {onOpenBot ? (
-                <Pressable
+                <MotionPressable
+                  preset="row"
                   accessibilityRole="button"
                   accessibilityLabel={bot.name}
                   disabled={disabled}
                   onPress={() => onOpenBot(bot)}
-                  style={({ pressed }) => [styles.identity, { opacity: pressed ? 0.6 : 1 }]}
+                  style={styles.identity}
                 >
                   {identity}
-                </Pressable>
+                </MotionPressable>
               ) : (
                 identity
               )}

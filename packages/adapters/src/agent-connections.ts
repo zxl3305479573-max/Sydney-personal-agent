@@ -404,8 +404,10 @@ async function deliverToConnectedAgent(
         lease: runLeaseFor(deps, run.id),
       });
       const executionScope = await resolveConversationExecutionScope(tx, {
-        spaceId: targetIdentity.spaceId, userId: targetIdentity.userId,
-        botId: target.id, threadId: targetThreadId,
+        spaceId: targetIdentity.spaceId,
+        userId: targetIdentity.userId,
+        botId: target.id,
+        threadId: targetThreadId,
       });
       const task = await tx.task.create({
         data: {

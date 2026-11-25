@@ -55,7 +55,13 @@ describe("cross-space bot communication", () => {
       name: "same project and owner",
       bots: [
         { ...sender, projectWorkspaceId: "project-a", crossSpaceCommunication: false },
-        { ...recipient, spaceId: sender.spaceId, userId: sender.userId, projectWorkspaceId: "project-a", crossSpaceCommunication: false },
+        {
+          ...recipient,
+          spaceId: sender.spaceId,
+          userId: sender.userId,
+          projectWorkspaceId: "project-a",
+          crossSpaceCommunication: false,
+        },
       ],
       allowed: true,
     },
@@ -63,7 +69,12 @@ describe("cross-space bot communication", () => {
       name: "different projects in the same space",
       bots: [
         { ...sender, projectWorkspaceId: "project-a" },
-        { ...recipient, spaceId: sender.spaceId, userId: sender.userId, projectWorkspaceId: "project-b" },
+        {
+          ...recipient,
+          spaceId: sender.spaceId,
+          userId: sender.userId,
+          projectWorkspaceId: "project-b",
+        },
       ],
       allowed: false,
     },

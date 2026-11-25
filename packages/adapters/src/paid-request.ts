@@ -67,9 +67,20 @@ export async function executePaidRequest(
   const existing = await deps.prisma.purchase.findUnique({
     where: { operationKey: context.operationId },
   });
-  if (existing) return plain(purchaseView(assertPurchaseOperationScope(existing, {
-    ...conversationScopeWhere(context), botId: context.botId, threadId: run.threadId,
-  }, provider.describe().id)));
+  if (existing)
+    return plain(
+      purchaseView(
+        assertPurchaseOperationScope(
+          existing,
+          {
+            ...conversationScopeWhere(context),
+            botId: context.botId,
+            threadId: run.threadId,
+          },
+          provider.describe().id,
+        ),
+      ),
+    );
   let response: SafeHttpResponse;
   try {
     response = await send(deps, request, context.signal);

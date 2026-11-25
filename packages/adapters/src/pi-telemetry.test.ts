@@ -15,9 +15,9 @@ import { MISSING_TOOL_FINAL_RESPONSE_ERROR, PiAgentRuntime } from "./pi-runtime.
 import {
   recordPiTelemetryContent,
   shutdownPiTelemetry,
+  withoutPiTelemetry,
   withPiTelemetry,
   withPiTelemetrySpan,
-  withoutPiTelemetry,
 } from "./pi-telemetry.js";
 import { otelPiContext } from "./pi-telemetry-otel.js";
 import { observedPiStream } from "./pi-usage.js";
@@ -52,15 +52,20 @@ describe("Pi OpenTelemetry", () => {
     const { output, provider } = setup(true);
     vi.stubEnv("OTEL_CAPTURE_CONTENT", "true");
     await withPiTelemetry(ids, async () => {
-      await withoutPiTelemetry(() => withPiTelemetry(ids, () =>
-        withPiTelemetrySpan("private", {}, async (span) => {
-          expect(span).toBeUndefined();
-        }),
-      ));
+      await withoutPiTelemetry(() =>
+        withPiTelemetry(ids, () =>
+          withPiTelemetrySpan("private", {}, async (span) => {
+            expect(span).toBeUndefined();
+          }),
+        ),
+      );
       await withPiTelemetrySpan("normal", {}, async (span) => expect(span).toBeDefined());
     });
     await provider.forceFlush();
-    expect(output.getFinishedSpans().map((span) => span.name)).toEqual(["normal", "rakazo.agent.run"]);
+    expect(output.getFinishedSpans().map((span) => span.name)).toEqual([
+      "normal",
+      "rakazo.agent.run",
+    ]);
   });
 
   it("continues the request/job trace instead of starting an unrelated trace", async () => {

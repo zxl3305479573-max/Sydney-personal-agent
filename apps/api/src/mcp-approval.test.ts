@@ -1,4 +1,5 @@
 import type * as db from "@rakazo/db";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import {
   dismissMcpServerApprovals,
@@ -337,6 +338,13 @@ describe("queueMcpConnectedRun", () => {
 
   function connectedFixture(state: { thread?: boolean; busy?: boolean; archived?: boolean } = {}) {
     const tx = {
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        if (sql.includes('FROM "threads"')) {
+          return [{ spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: null }];
+        }
+        return [];
+      }),
       bot: { findFirst: vi.fn(async () => (state.archived ? null : { id: "bot" })) },
       thread: { findFirst: vi.fn(async () => (state.thread === false ? null : { id: "thread" })) },
       run: {
@@ -351,7 +359,11 @@ describe("queueMcpConnectedRun", () => {
 
   it("queues a turn for the bot in the card's chat", async () => {
     const tx = connectedFixture();
-    await expect(queueMcpConnectedRun(tx, actor, input)).resolves.toBe("run");
+    await expect(
+      runAsTenant({ spaceId: actor.spaceId, userId: actor.userId }, () =>
+        queueMcpConnectedRun(tx, actor, input),
+      ),
+    ).resolves.toBe("run");
     expect(tx.task.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         botId: "bot",

@@ -6,7 +6,13 @@ import type {
   SecretStore,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import { createDb, currentDbContext, describeRowSecurity, runAsSystem, runAsTenant } from "@rakazo/db";
+import {
+  createDb,
+  currentDbContext,
+  describeRowSecurity,
+  runAsSystem,
+  runAsTenant,
+} from "@rakazo/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createBackgroundJobHandlers } from "./background-job-handlers.js";
 import type { createRunExecutor } from "./executor.js";
@@ -140,7 +146,9 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
             where: { id: { in: projects.map((project) => project.projectWorkspaceId) } },
           });
           await owner.prisma.organization.deleteMany({ where: { id: organizationId } });
-          await owner.prisma.user.deleteMany({ where: { id: { in: tenants.map((t) => t.userId) } } });
+          await owner.prisma.user.deleteMany({
+            where: { id: { in: tenants.map((t) => t.userId) } },
+          });
         });
       }
     } finally {
@@ -327,7 +335,10 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
         }
       }),
     );
-    const fixtures = [...tenants.map((tenant) => ({ ...tenant, projectWorkspaceId: null })), ...projects];
+    const fixtures = [
+      ...tenants.map((tenant) => ({ ...tenant, projectWorkspaceId: null })),
+      ...projects,
+    ];
     const observed = new Map<string, unknown>();
     const continueRun = vi.fn(async (runId: string) => {
       const fixture = fixtures.find((row) => row.runId === runId);
@@ -340,46 +351,75 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
       });
       const messages = await app.prisma.message.findMany({ select: { threadId: true } });
       const foreignIds = fixtures.filter((row) => row !== fixture).map((row) => row.runId);
-      expect(await app.prisma.run.updateMany({
-        where: { id: { in: foreignIds } }, data: { status: "cancelled" },
-      })).toEqual({ count: 0 });
-      observed.set(runId, messages.map((message) => message.threadId).filter((threadId) =>
-        fixtures.some((row) => row.threadId === threadId)));
+      expect(
+        await app.prisma.run.updateMany({
+          where: { id: { in: foreignIds } },
+          data: { status: "cancelled" },
+        }),
+      ).toEqual({ count: 0 });
+      observed.set(
+        runId,
+        messages
+          .map((message) => message.threadId)
+          .filter((threadId) => fixtures.some((row) => row.threadId === threadId)),
+      );
     });
     const handlers = createBackgroundJobHandlers({
       executor: { continueRun } as unknown as ReturnType<typeof createRunExecutor>,
-      prisma: app.prisma, sandbox: {} as SandboxProvider, home: {} as AgentHomeStore,
-      artifacts: {} as ArtifactStore, events: {} as ThreadEvents,
+      prisma: app.prisma,
+      sandbox: {} as SandboxProvider,
+      home: {} as AgentHomeStore,
+      artifacts: {} as ArtifactStore,
+      events: {} as ThreadEvents,
       jobs: { enqueue: vi.fn(async () => undefined) } as never,
-      workerId: "project-jobs", runtime: {} as AgentRuntime, secretStore: {} as SecretStore,
+      workerId: "project-jobs",
+      runtime: {} as AgentRuntime,
+      secretStore: {} as SecretStore,
       memoryProviders: { resolve: vi.fn(async () => null) },
     });
     const publisher = new GraphileJobPublisher(app.pool, app.prisma);
-    const host = createReservedGraphileJobWorkerHost(app.pool, { concurrency: 2, pollInterval: 25 });
+    const host = createReservedGraphileJobWorkerHost(app.pool, {
+      concurrency: 2,
+      pollInterval: 25,
+    });
     try {
       await host.start(handlers);
       for (const fixture of fixtures) {
-        await runAsTenant(fixture, () => publisher.enqueue({ name: "run.continue", payload: { runId: fixture.runId } }));
+        await runAsTenant(fixture, () =>
+          publisher.enqueue({ name: "run.continue", payload: { runId: fixture.runId } }),
+        );
       }
-      await vi.waitFor(() => {
-        expect(observed.size).toBe(fixtures.length);
-        for (const fixture of fixtures) expect(observed.get(fixture.runId)).toEqual([fixture.threadId]);
-        expect(continueRun.mock.settledResults.every((result) => result.type === "fulfilled")).toBe(true);
-      }, { timeout: 10_000, interval: 25 });
+      await vi.waitFor(
+        () => {
+          expect(observed.size).toBe(fixtures.length);
+          for (const fixture of fixtures)
+            expect(observed.get(fixture.runId)).toEqual([fixture.threadId]);
+          expect(
+            continueRun.mock.settledResults.every((result) => result.type === "fulfilled"),
+          ).toBe(true);
+        },
+        { timeout: 10_000, interval: 25 },
+      );
       const [revoked] = projects;
       if (!revoked) throw new Error("Missing project fixture");
-      await runAsSystem("revoke synthetic project", () => owner.prisma.projectWorkspace.update({
-        where: { id: revoked.projectWorkspaceId }, data: { deletingAt: new Date() },
-      }));
+      await runAsSystem("revoke synthetic project", () =>
+        owner.prisma.projectWorkspace.update({
+          where: { id: revoked.projectWorkspaceId },
+          data: { deletingAt: new Date() },
+        }),
+      );
       continueRun.mockClear();
       await runAsTenant(b, () => handlers["run.continue"]({ runId: revoked.runId }));
       expect(continueRun).not.toHaveBeenCalled();
     } finally {
       await host.stop();
       await publisher.close();
-      await runAsSystem("restore synthetic project", () => owner.prisma.projectWorkspace.updateMany({
-        where: { id: { in: projects.map((project) => project.projectWorkspaceId) } }, data: { deletingAt: null },
-      }));
+      await runAsSystem("restore synthetic project", () =>
+        owner.prisma.projectWorkspace.updateMany({
+          where: { id: { in: projects.map((project) => project.projectWorkspaceId) } },
+          data: { deletingAt: null },
+        }),
+      );
     }
   });
 });

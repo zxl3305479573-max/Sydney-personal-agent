@@ -5,7 +5,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useRouter } from "expo-router";
 import type { ComponentProps } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rpc } from "../lib/api";
@@ -24,6 +24,7 @@ import { setVoiceBackgroundPlayback } from "../lib/voice";
 import { BotAvatar } from "./bot-avatar";
 import { GlassIconButton } from "./glass-icon-button";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import type { NativeSymbol } from "./native-symbol";
 
 const BARS = [9, 15, 21, 15, 9];
@@ -146,7 +147,8 @@ export function CallCard() {
           size={28}
           motion="live"
         />
-        <Pressable
+        <MotionPressable
+          preset="inline"
           accessibilityRole="button"
           accessibilityLabel={t("On a call with {name}", { name: call.botName })}
           onPress={() =>
@@ -156,7 +158,7 @@ export function CallCard() {
           <Text numberOfLines={1} style={[styles.name, { color: tokens.foreground }]}>
             {call.botName}
           </Text>
-        </Pressable>
+        </MotionPressable>
         <Waveform phase={call.phase} />
         <View style={[styles.initial, { backgroundColor: tokens.muted }]}>
           <Text style={[styles.initialText, { color: tokens.mutedForeground }]}>{initial}</Text>

@@ -318,7 +318,10 @@ export async function queueMcpConnectedRun(
   ]);
   if (!bot || busy || !server) return null;
   const executionScope = await resolveConversationExecutionScope(tx, {
-    spaceId: actor.spaceId, userId: actor.userId, botId: input.botId, threadId: thread.id,
+    spaceId: actor.spaceId,
+    userId: actor.userId,
+    botId: input.botId,
+    threadId: thread.id,
   });
   const task = await tx.task.create({
     data: {

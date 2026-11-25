@@ -18,7 +18,12 @@ import {
   validateAttachmentMimeType,
 } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { assertHomeArtifactWriteScope, IsolationError, Prisma, withResolvedArtifactVersion } from "@rakazo/db";
+import {
+  assertHomeArtifactWriteScope,
+  IsolationError,
+  Prisma,
+  withResolvedArtifactVersion,
+} from "@rakazo/db";
 
 export async function createOwnedArtifact(
   deps: {
@@ -175,7 +180,12 @@ async function findReplayedArtifact(
 ) {
   if (!input.clientNonce) return null;
   const row = await db.artifact.findFirst({
-    where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: null, clientNonce: input.clientNonce },
+    where: {
+      spaceId: actor.spaceId,
+      userId: actor.userId,
+      projectWorkspaceId: null,
+      clientNonce: input.clientNonce,
+    },
   });
   if (!row) return null;
   // A group upload is stored under whichever member bot was first, which can change between retries.
@@ -276,10 +286,14 @@ export async function getProjectThreadArtifact(
     projectWorkspaceId: input.projectId,
   };
   const row = await deps.prisma.artifact.findFirst({ where: { id: input.artifactId, ...scope } });
-  if (!row?.runId || !await deps.prisma.run.findFirst({
-    where: { id: row.runId, threadId: input.threadId, ...scope },
-    select: { id: true },
-  })) throw new IsolationError();
+  if (
+    !row?.runId ||
+    !(await deps.prisma.run.findFirst({
+      where: { id: row.runId, threadId: input.threadId, ...scope },
+      select: { id: true },
+    }))
+  )
+    throw new IsolationError();
   return readArtifact(deps.artifacts, actor, row, row.botId ?? row.id, input.projectId);
 }
 
@@ -302,13 +316,10 @@ async function readArtifact(
   contextBotId: string,
   projectWorkspaceId?: string,
 ) {
-  const bytes = await artifacts.get(
-    row.storageKey,
-    {
-      ...createAdapterContext(actor, contextBotId, `artifact-get:${row.id}`),
-      ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
-    },
-  );
+  const bytes = await artifacts.get(row.storageKey, {
+    ...createAdapterContext(actor, contextBotId, `artifact-get:${row.id}`),
+    ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+  });
   return {
     id: row.id,
     botId: row.botId,

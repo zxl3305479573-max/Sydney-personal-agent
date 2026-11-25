@@ -1369,6 +1369,10 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Updates are unavailable in this build.": "此建置版本不支援線上更新。",
   "Waiting for screen dimensions…": "正在等待電腦畫面尺寸…",
   "Your app is up to date.": "目前已是最新版本。",
+  Duplicate: "建立副本",
+  Project: "專案",
+  "Space changed. Please try again.": "空間已變更，請重試。",
+  "The project changed. Reopen the project and try again.": "專案已變更，請重新開啟專案後再試。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

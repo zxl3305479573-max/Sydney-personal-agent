@@ -56,7 +56,12 @@ const {
     takeText: vi.fn(async () => null as string | null),
   },
   screenSend: {
-    capture: vi.fn(() => ({ activityId: "activity", botId: "bot-fixture", spaceId: "space-a", session: {} })),
+    capture: vi.fn(() => ({
+      activityId: "activity",
+      botId: "bot-fixture",
+      spaceId: "space-a",
+      session: {},
+    })),
     send: vi.fn(async () => undefined),
     current: vi.fn(() => true),
   },
@@ -135,10 +140,16 @@ vi.mock("react-native", () => {
   const view = ({ children }: { children?: ReactNode }) => createElement("div", null, children);
   return {
     Platform: { OS: "ios" },
-    AppState: { addEventListener: (_event: string, listener: (state: string) => void) => {
-      lifecycle.listener = listener;
-      return { remove: () => { lifecycle.listener = undefined; } };
-    } },
+    AppState: {
+      addEventListener: (_event: string, listener: (state: string) => void) => {
+        lifecycle.listener = listener;
+        return {
+          remove: () => {
+            lifecycle.listener = undefined;
+          },
+        };
+      },
+    },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     useWindowDimensions: () => ({ fontScale: 1, width: 390 }),
     ActivityIndicator: () => createElement("progress"),
@@ -345,25 +356,47 @@ const routinesRow = () => button("Routines");
 
 describe("bot profile", () => {
   it("reuses the Bot profile with project-scoped identity, notifications and edit navigation", async () => {
-    params.current = { botId: "bot-fixture", projectId: "project-fixture", scope: `project-scope-${session.generation}` };
+    params.current = {
+      botId: "bot-fixture",
+      projectId: "project-fixture",
+      scope: `project-scope-${session.generation}`,
+    };
     rpc.mockImplementation(async (method: string) => {
       if (method === "projectWorkspaces/getBot") return fixtureBot;
       if (method === "projectWorkspaces/updateBot") return { ...fixtureBot, notifyOnFinish: false };
       throw new Error(`unexpected ${method}`);
     });
     await render(createElement(BotProfile));
-    expect(rpc).toHaveBeenCalledWith("projectWorkspaces/getBot", {
-      projectId: "project-fixture", botId: "bot-fixture", includeArchived: true,
-    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    expect(rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/getBot",
+      {
+        projectId: "project-fixture",
+        botId: "bot-fixture",
+        includeArchived: true,
+      },
+      expect.objectContaining({ skipSpaceAuthRecovery: true }),
+    );
     await act(async () => button("Edit").click());
-    expect(push).toHaveBeenCalledWith({ pathname: "/bot-settings", params: {
-      botId: "bot-fixture", projectId: "project-fixture", scope: `project-scope-${session.generation}`,
-    } });
-    const checkbox = container.querySelector<HTMLInputElement>('input[aria-label="Notifications"]')!;
+    expect(push).toHaveBeenCalledWith({
+      pathname: "/bot-settings",
+      params: {
+        botId: "bot-fixture",
+        projectId: "project-fixture",
+        scope: `project-scope-${session.generation}`,
+      },
+    });
+    const checkbox = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Notifications"]',
+    )!;
     await act(async () => checkbox.click());
-    expect(rpc).toHaveBeenCalledWith("projectWorkspaces/updateBot", {
-      projectId: "project-fixture", bot: { botId: "bot-fixture", notifyOnFinish: false },
-    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    expect(rpc).toHaveBeenCalledWith(
+      "projectWorkspaces/updateBot",
+      {
+        projectId: "project-fixture",
+        bot: { botId: "bot-fixture", notifyOnFinish: false },
+      },
+      expect.objectContaining({ skipSpaceAuthRecovery: true }),
+    );
     expect(rpc.mock.calls.every(([method]) => method.startsWith("projectWorkspaces/"))).toBe(true);
   });
 
@@ -377,12 +410,21 @@ describe("bot profile", () => {
     companion.available.mockReturnValue(true);
     companion.active.mockReturnValue("bot-fixture");
     companion.screenState.mockResolvedValue("capturing");
-    screenSend.capture.mockReturnValue({ activityId: "activity-1", botId: "bot-fixture", spaceId: "space-a", session: {} });
+    screenSend.capture.mockReturnValue({
+      activityId: "activity-1",
+      botId: "bot-fixture",
+      spaceId: "space-a",
+      session: {},
+    });
     profileRpc(async () => []);
     await render(createElement(BotProfile));
     await act(async () => button("开启屏幕自动回应").click());
     expect(screenAuto.start).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenLastCalledWith("开启屏幕自动回应（实验功能）", expect.stringContaining("模型服务"), expect.any(Array));
+    expect(alert).toHaveBeenLastCalledWith(
+      "开启屏幕自动回应（实验功能）",
+      expect.stringContaining("模型服务"),
+      expect.any(Array),
+    );
     const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
     companion.activityId = "activity-2";
     screenSend.current.mockReturnValue(false);
@@ -454,11 +496,18 @@ describe("bot profile", () => {
     profileRpc(async () => []);
     await render(createElement(BotProfile));
     await act(async () => button("查看本机识别预览").click());
-    expect(alert).toHaveBeenLastCalledWith("确认分享屏幕文字", expect.stringContaining("示例文字"), expect.any(Array));
+    expect(alert).toHaveBeenLastCalledWith(
+      "确认分享屏幕文字",
+      expect.stringContaining("示例文字"),
+      expect.any(Array),
+    );
     expect(screenSend.send).not.toHaveBeenCalled();
     const choices = alert.mock.calls.at(-1)?.[2] as { onPress?: () => void }[];
     await act(async () => choices[1]?.onPress?.());
-    expect(screenSend.send).toHaveBeenCalledWith(expect.objectContaining({ botId: "bot-fixture" }), "示例文字");
+    expect(screenSend.send).toHaveBeenCalledWith(
+      expect.objectContaining({ botId: "bot-fixture" }),
+      "示例文字",
+    );
     await act(async () => button("停止屏幕识别").click());
     expect(companion.stopScreen).toHaveBeenCalledOnce();
   });
@@ -481,7 +530,12 @@ describe("bot profile", () => {
     companion.available.mockReturnValue(true);
     companion.active.mockReturnValue("bot-fixture");
     let finishOld!: (state: string) => void;
-    companion.screenState.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    companion.screenState.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+    );
     profileRpc(async () => []);
     await render(createElement(BotProfile));
     companion.screenState.mockResolvedValue("failed");
@@ -491,18 +545,21 @@ describe("bot profile", () => {
     expect(container.textContent).not.toContain("开启屏幕识别（本机预览）");
   });
 
-  it.each(["capturing", "failed"])("keeps the stop entry when the activity disappears and screen state is %s", async (screenState) => {
-    companion.available.mockReturnValue(true);
-    companion.active.mockReturnValue(null);
-    companion.screenState.mockResolvedValue(screenState);
-    profileRpc(async () => []);
-    await render(createElement(BotProfile));
-    expect(container.textContent).not.toContain("查看本机识别预览");
-    expect(container.textContent).not.toContain("开启屏幕自动回应");
-    await act(async () => button("停止屏幕识别").click());
-    expect(screenAuto.stop).toHaveBeenCalledOnce();
-    expect(companion.stopScreen).toHaveBeenCalledOnce();
-  });
+  it.each(["capturing", "failed"])(
+    "keeps the stop entry when the activity disappears and screen state is %s",
+    async (screenState) => {
+      companion.available.mockReturnValue(true);
+      companion.active.mockReturnValue(null);
+      companion.screenState.mockResolvedValue(screenState);
+      profileRpc(async () => []);
+      await render(createElement(BotProfile));
+      expect(container.textContent).not.toContain("查看本机识别预览");
+      expect(container.textContent).not.toContain("开启屏幕自动回应");
+      await act(async () => button("停止屏幕识别").click());
+      expect(screenAuto.stop).toHaveBeenCalledOnce();
+      expect(companion.stopScreen).toHaveBeenCalledOnce();
+    },
+  );
 
   it("shows that automatic response sends recognized text to a model", async () => {
     companion.available.mockReturnValue(true);
@@ -537,10 +594,18 @@ describe("bot profile", () => {
     const choices = alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => void }[];
     expect(choices.map((choice) => choice.text)).toEqual(["取消", "仅显示状态", "显示回复"]);
     await act(async () => choices[1]?.onPress?.());
-    expect(companion.start).toHaveBeenCalledWith("bot-fixture", "Fixture", "space-a", false, {
-      color: "c",
-      avatarSet: undefined,
-    }, expect.any(Function), expect.any(Function));
+    expect(companion.start).toHaveBeenCalledWith(
+      "bot-fixture",
+      "Fixture",
+      "space-a",
+      false,
+      {
+        color: "c",
+        avatarSet: undefined,
+      },
+      expect.any(Function),
+      expect.any(Function),
+    );
     const startCall = companion.start.mock.calls.at(-1) as unknown as unknown[];
     const isCurrent = startCall[5] as () => boolean;
     expect(isCurrent()).toBe(true);

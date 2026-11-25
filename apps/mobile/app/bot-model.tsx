@@ -10,7 +10,12 @@ import { errorText } from "../lib/user-error";
 export default function BotModelScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { botId, value = "", projectId, scope } = useLocalSearchParams<{
+  const {
+    botId,
+    value = "",
+    projectId,
+    scope,
+  } = useLocalSearchParams<{
     botId: string;
     value?: string;
     projectId?: string;

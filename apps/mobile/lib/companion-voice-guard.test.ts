@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { canStartCompanionVoice, companionNavigationAllowed, companionVoiceLinkMatches } from "./companion-voice-guard";
+import {
+  canStartCompanionVoice,
+  companionNavigationAllowed,
+  companionVoiceLinkMatches,
+} from "./companion-voice-guard";
 
 it("validates companion links before a workspace switch while leaving ordinary links alone", () => {
   const input = {
@@ -15,8 +19,12 @@ it("validates companion links before a workspace switch while leaving ordinary l
   expect(companionNavigationAllowed({ ...input, spaceId: "other" })).toBe(false);
   expect(companionNavigationAllowed({ ...input, botId: "other" })).toBe(false);
   expect(companionNavigationAllowed({ ...input, activity: null })).toBe(false);
-  expect(companionNavigationAllowed({ ...input, companionLink: undefined, companionVoice: "1" })).toBe(true);
-  expect(companionNavigationAllowed({ ...input, companionLink: undefined, companionVoice: undefined })).toBe(true);
+  expect(
+    companionNavigationAllowed({ ...input, companionLink: undefined, companionVoice: "1" }),
+  ).toBe(true);
+  expect(
+    companionNavigationAllowed({ ...input, companionLink: undefined, companionVoice: undefined }),
+  ).toBe(true);
   expect(companionNavigationAllowed({ ...input, spaceId: ["space", "other"] })).toBe(false);
 });
 
@@ -51,9 +59,24 @@ it("only starts an approved voice session in its original visible account and ch
   expect(canStartCompanionVoice({ ...scope, currentGeneration: 4 })).toBe(false);
   expect(canStartCompanionVoice({ ...scope, currentSpace: "space-2" })).toBe(false);
   expect(canStartCompanionVoice({ ...scope, activeActivity: null })).toBe(false);
-  expect(canStartCompanionVoice({ ...scope, activeActivity: { ...scope.activeActivity, id: "activity-2" } })).toBe(false);
-  expect(canStartCompanionVoice({ ...scope, activeActivity: { ...scope.activeActivity, botId: "bot-2" } })).toBe(false);
-  expect(canStartCompanionVoice({ ...scope, activeActivity: { ...scope.activeActivity, spaceId: "space-2" } })).toBe(false);
+  expect(
+    canStartCompanionVoice({
+      ...scope,
+      activeActivity: { ...scope.activeActivity, id: "activity-2" },
+    }),
+  ).toBe(false);
+  expect(
+    canStartCompanionVoice({
+      ...scope,
+      activeActivity: { ...scope.activeActivity, botId: "bot-2" },
+    }),
+  ).toBe(false);
+  expect(
+    canStartCompanionVoice({
+      ...scope,
+      activeActivity: { ...scope.activeActivity, spaceId: "space-2" },
+    }),
+  ).toBe(false);
   expect(canStartCompanionVoice({ ...scope, currentSpaceSelection: 4 })).toBe(false);
   expect(canStartCompanionVoice({ ...scope, spaceSelectionPending: true })).toBe(false);
 });

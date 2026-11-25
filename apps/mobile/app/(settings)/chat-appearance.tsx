@@ -1,7 +1,8 @@
 import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Image, ScrollView, Text, View } from "react-native";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { SettingsGroup, SettingsRow, useStackedSettings } from "../../components/settings-group";
 import { mobileTokens } from "../../lib/appearance";
@@ -456,7 +457,8 @@ function SliderControl({
         </Text>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable
+        <MotionPressable
+          preset="icon"
           accessibilityRole="button"
           accessibilityLabel={`${chinese ? "降低" : "Decrease "}${label}`}
           disabled={disabled || value <= 0}
@@ -474,7 +476,7 @@ function SliderControl({
           }}
         >
           <Text style={{ color: tokens.foreground, fontSize: 20, lineHeight: 22 }}>−</Text>
-        </Pressable>
+        </MotionPressable>
         <View
           accessible
           accessibilityRole="adjustable"
@@ -542,7 +544,8 @@ function SliderControl({
             }}
           />
         </View>
-        <Pressable
+        <MotionPressable
+          preset="icon"
           accessibilityRole="button"
           accessibilityLabel={`${chinese ? "提高" : "Increase "}${label}`}
           disabled={disabled || value >= max}
@@ -560,7 +563,7 @@ function SliderControl({
           }}
         >
           <Text style={{ color: tokens.foreground, fontSize: 20, lineHeight: 22 }}>+</Text>
-        </Pressable>
+        </MotionPressable>
       </View>
     </View>
   );

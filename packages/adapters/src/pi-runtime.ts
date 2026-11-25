@@ -74,7 +74,7 @@ import {
 } from "./pi-runtime-tools.js";
 import type { PiSessionHandle, PiSessionRecorder } from "./pi-session.js";
 import { PiJsonlSessionRecorder } from "./pi-session.js";
-import { withPiTelemetry, withoutPiTelemetry } from "./pi-telemetry.js";
+import { withoutPiTelemetry, withPiTelemetry } from "./pi-telemetry.js";
 import { withPiThinkingActivity } from "./pi-thinking-activity.js";
 import { observedPiStream } from "./pi-usage.js";
 import type { RuntimeContextDecision } from "./runtime-context.js";
@@ -183,19 +183,29 @@ export class PiAgentRuntime implements AgentRuntime {
     context?: Partial<AdapterContext>,
   ): AsyncIterableIterator<AgentRuntimeEvent> {
     if (
-      request.claimSteering || request.turnCheckpoint || request.resumeFromCheckpoint ||
-      request.resumeToolResult || request.onCheckpoint || request.script || this.sessionRecorder
+      request.claimSteering ||
+      request.turnCheckpoint ||
+      request.resumeFromCheckpoint ||
+      request.resumeToolResult ||
+      request.onCheckpoint ||
+      request.script ||
+      this.sessionRecorder
     ) {
       throw new Error("A tool-free run cannot resume, claim steering, or use a script.");
     }
-    const events = this.run({
-      ...request,
-      tools: [],
-      executeTool: undefined,
-      toolIntentCandidate: undefined,
-    }, context);
+    const events = this.run(
+      {
+        ...request,
+        tools: [],
+        executeTool: undefined,
+        toolIntentCandidate: undefined,
+      },
+      context,
+    );
     return {
-      [Symbol.asyncIterator]() { return this; },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
       next: () => withoutPiTelemetry(() => events.next()),
       return: () => withoutPiTelemetry(() => events.return!()),
       throw: (error) => withoutPiTelemetry(() => events.throw!(error)),

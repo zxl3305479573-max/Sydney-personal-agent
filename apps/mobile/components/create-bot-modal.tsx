@@ -36,6 +36,7 @@ import { useMobileTokens } from "../lib/native";
 import { currentSessionGeneration } from "../lib/session";
 import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 import { PersonalPersonalityLibrary } from "./personal-personality-library";
@@ -321,7 +322,8 @@ export function CreateBotModal({
                 {text("赋予你的助手独特的身份", "Give your assistant a unique identity")}
               </Text>
             </View>
-            <Pressable
+            <MotionPressable
+              preset="control"
               accessibilityRole="button"
               accessibilityLabel={text("关闭", "Close")}
               disabled={disabled}
@@ -341,7 +343,7 @@ export function CreateBotModal({
               <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}>
                 {text("关闭", "Close")}
               </Text>
-            </Pressable>
+            </MotionPressable>
           </View>
 
           <ScrollView
@@ -430,8 +432,9 @@ export function CreateBotModal({
                     {row.map((item) => {
                       const selected = !personal && personality === item.id;
                       return (
-                        <Pressable
+                        <MotionPressable
                           key={item.id}
+                          preset="card"
                           accessibilityRole="button"
                           accessibilityState={{ selected }}
                           accessibilityLabel={`${text(...labels[item.id])}，${text(...descriptions[item.id])}`}
@@ -451,7 +454,7 @@ export function CreateBotModal({
                           >
                             {text(...descriptions[item.id])}
                           </Text>
-                        </Pressable>
+                        </MotionPressable>
                       );
                     })}
                   </View>
@@ -468,7 +471,9 @@ export function CreateBotModal({
                   borderColor: personal ? selectedRing : tokens.border,
                 }}
               >
-                <Pressable
+                <MotionPressable
+                  preset="row"
+                  highlightColor={tokens.muted}
                   accessibilityRole="button"
                   disabled={disabled}
                   onPress={() => {
@@ -506,7 +511,7 @@ export function CreateBotModal({
                     size={15}
                     color={tokens.mutedForeground}
                   />
-                </Pressable>
+                </MotionPressable>
               </GlassSurface>
 
               {libraryOpen ? (
@@ -531,8 +536,9 @@ export function CreateBotModal({
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {BUILT_IN_BOT_AVATARS.map((item, index) => (
-                  <Pressable
+                  <MotionPressable
                     key={item.id}
+                    preset="control"
                     accessibilityRole="button"
                     accessibilityLabel={item.name}
                     accessibilityState={{ selected: !photo && avatarIndex === index }}
@@ -547,11 +553,12 @@ export function CreateBotModal({
                       source={item.source}
                       style={{ width: 48, height: 48, borderRadius: 24 }}
                     />
-                  </Pressable>
+                  </MotionPressable>
                 ))}
                 {savedAvatars.map((avatar) => (
                   <View key={avatar.id}>
-                    <Pressable
+                    <MotionPressable
+                      preset="control"
                       accessibilityRole="button"
                       accessibilityLabel={text("选择已保存头像", "Select saved avatar")}
                       accessibilityState={{ selected: photo === avatar.dataUrl }}
@@ -563,8 +570,9 @@ export function CreateBotModal({
                         source={{ uri: avatar.dataUrl }}
                         style={{ width: 48, height: 48, borderRadius: 24 }}
                       />
-                    </Pressable>
-                    <Pressable
+                    </MotionPressable>
+                    <MotionPressable
+                      preset="icon"
                       accessibilityRole="button"
                       accessibilityLabel={text("移除已保存头像", "Remove saved avatar")}
                       disabled={disabled}
@@ -590,10 +598,11 @@ export function CreateBotModal({
                         size={11}
                         color={tokens.mutedForeground}
                       />
-                    </Pressable>
+                    </MotionPressable>
                   </View>
                 ))}
-                <Pressable
+                <MotionPressable
+                  preset="control"
                   accessibilityRole="button"
                   accessibilityLabel={text("上传头像", "Choose photo")}
                   disabled={disabled || avatarsLoading}
@@ -604,7 +613,7 @@ export function CreateBotModal({
                   <Text style={{ color: tokens.mutedForeground, fontSize: 11 }}>
                     {text("上传", "Upload")}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               </View>
               <Text style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 17 }}>
                 {text(

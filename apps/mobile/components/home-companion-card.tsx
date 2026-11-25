@@ -1,13 +1,14 @@
 import type { SpaceBot } from "@rakazo/contracts";
 import { botColors } from "@rakazo/ui-tokens";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import type { ViewStyle } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { MobileBot } from "../lib/api";
+import type { CompanionScreenState } from "../lib/companion-activity";
 import {
   activeCompanionIdentity,
   companionActivityRevision,
   companionAvailable,
-  type CompanionScreenState,
   companionScreenState,
   presentCompanionScreen,
   startCompanion,
@@ -20,6 +21,7 @@ import { stopCompanionScreenAuto, useCompanionScreenAuto } from "../lib/companio
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 const FALLBACK_COLOR = botColors[3];
@@ -138,7 +140,11 @@ export function HomeCompanionCard({
             "開啟後將在動態島與鎖屏持續顯示夥伴狀態與最新短回覆。",
             "Show status and short replies in Live Activity while multitasking.",
           )
-        : copy("先创建一个伙伴即可开启后台陪伴。", "先建立一個夥伴即可開啟背景陪伴。", "Create a bot to start background companion.");
+        : copy(
+            "先创建一个伙伴即可开启后台陪伴。",
+            "先建立一個夥伴即可開啟背景陪伴。",
+            "Create a bot to start background companion.",
+          );
 
   const handleToggleCompanion = async () => {
     if (busy || !targetBot) return;
@@ -164,7 +170,11 @@ export function HomeCompanionCard({
         );
       }
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : copy("操作失败，请重试。", "操作失敗，請重試。", "Action failed. Try again."));
+      setErrorText(
+        error instanceof Error
+          ? error.message
+          : copy("操作失败，请重试。", "操作失敗，請重試。", "Action failed. Try again."),
+      );
     } finally {
       setBusy(false);
     }
@@ -204,10 +214,19 @@ export function HomeCompanionCard({
 
   return (
     <View testID="home-hub-companion-card" style={[cardStyle, { padding: 18, gap: 14 }]}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <NativeSymbol ios="sparkles" android="sparkles-outline" size={16} color={accentColor} />
-          <Text style={{ color: tokens.foreground, fontSize: 15.5, lineHeight: 20, fontWeight: "600" }}>
+          <Text
+            style={{ color: tokens.foreground, fontSize: 15.5, lineHeight: 20, fontWeight: "600" }}
+          >
             {copy("后台陪伴", "背景陪伴", "Background Companion")}
           </Text>
         </View>
@@ -247,23 +266,27 @@ export function HomeCompanionCard({
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable
+        <MotionPressable
+          preset="card"
           accessibilityRole="button"
           accessibilityLabel={
             targetBot
-              ? copy(`打开 ${targetBot.name} 对话`, `開啟 ${targetBot.name} 對話`, `Open ${targetBot.name}`)
+              ? copy(
+                  `打开 ${targetBot.name} 对话`,
+                  `開啟 ${targetBot.name} 對話`,
+                  `Open ${targetBot.name}`,
+                )
               : copy("后台陪伴", "背景陪伴", "Background Companion")
           }
           disabled={!targetBot}
           onPress={() => targetBot && onOpenBot(targetBot)}
-          style={({ pressed }) => ({
+          style={{
             flex: 1,
             minWidth: 0,
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
-            opacity: pressed ? 0.72 : 1,
-          })}
+          }}
         >
           {targetBot ? (
             <BotAvatar
@@ -286,7 +309,12 @@ export function HomeCompanionCard({
                 justifyContent: "center",
               }}
             >
-              <NativeSymbol ios="person.crop.circle" android="person-circle-outline" size={20} color={tokens.mutedForeground} />
+              <NativeSymbol
+                ios="person.crop.circle"
+                android="person-circle-outline"
+                size={20}
+                color={tokens.mutedForeground}
+              />
             </View>
           )}
           <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
@@ -303,7 +331,7 @@ export function HomeCompanionCard({
               {subtitle}
             </Text>
           </View>
-        </Pressable>
+        </MotionPressable>
       </View>
 
       {errorText ? (
@@ -316,7 +344,8 @@ export function HomeCompanionCard({
       ) : null}
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Pressable
+        <MotionPressable
+          preset="control"
           testID="home-hub-companion-toggle"
           accessibilityRole="button"
           accessibilityLabel={
@@ -328,27 +357,19 @@ export function HomeCompanionCard({
           }
           disabled={busy || !targetBot}
           onPress={() => void handleToggleCompanion()}
-          style={({ pressed }) => ({
+          style={{
             paddingHorizontal: 14,
             paddingVertical: 9,
             borderRadius: 999,
-            backgroundColor: isActive
-              ? chipBackground
-              : isLight
-                ? "#364556"
-                : "#E7E4DD",
+            backgroundColor: isActive ? chipBackground : isLight ? "#364556" : "#E7E4DD",
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: isActive ? chipBorder : "transparent",
-            opacity: busy || !targetBot ? 0.45 : pressed ? 0.78 : 1,
-          })}
+            opacity: busy || !targetBot ? 0.45 : 1,
+          }}
         >
           <Text
             style={{
-              color: isActive
-                ? tokens.foreground
-                : isLight
-                  ? "#FAF8F4"
-                  : "#15171C",
+              color: isActive ? tokens.foreground : isLight ? "#FAF8F4" : "#15171C",
               fontSize: 13.5,
               lineHeight: 18,
               fontWeight: "600",
@@ -360,10 +381,11 @@ export function HomeCompanionCard({
                 ? copy("停止陪伴", "停止陪伴", "Stop companion")
                 : copy("开启陪伴", "開啟陪伴", "Start companion")}
           </Text>
-        </Pressable>
+        </MotionPressable>
 
         {available && isActive ? (
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-companion-screen-toggle"
             accessibilityRole="button"
             accessibilityLabel={
@@ -373,44 +395,53 @@ export function HomeCompanionCard({
             }
             disabled={busy}
             onPress={() => void handleToggleScreen()}
-            style={({ pressed }) => ({
+            style={{
               paddingHorizontal: 12,
               paddingVertical: 9,
               borderRadius: 999,
               backgroundColor: chipBackground,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: chipBorder,
-              opacity: busy ? 0.45 : pressed ? 0.78 : 1,
-            })}
+              opacity: busy ? 0.45 : 1,
+            }}
           >
-            <Text style={{ color: tokens.foreground, fontSize: 13, lineHeight: 18, fontWeight: "500" }}>
+            <Text
+              style={{ color: tokens.foreground, fontSize: 13, lineHeight: 18, fontWeight: "500" }}
+            >
               {isScreenCapturing
                 ? copy("停止屏幕共享", "停止螢幕共享", "Stop screen")
                 : copy("屏幕陪伴", "螢幕陪伴", "Share screen")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         ) : null}
 
         {!isActive && bots.length > 1 ? (
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-companion-switch-bot"
             accessibilityRole="button"
             accessibilityLabel={copy("切换伙伴", "切換夥伴", "Switch bot")}
             onPress={handleCycleBot}
-            style={({ pressed }) => ({
+            style={{
               paddingHorizontal: 12,
               paddingVertical: 9,
               borderRadius: 999,
               backgroundColor: chipBackground,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: chipBorder,
-              opacity: pressed ? 0.78 : 1,
-            })}
+            }}
           >
-            <Text style={{ color: tokens.mutedForeground, fontSize: 13, lineHeight: 18, fontWeight: "500" }}>
+            <Text
+              style={{
+                color: tokens.mutedForeground,
+                fontSize: 13,
+                lineHeight: 18,
+                fontWeight: "500",
+              }}
+            >
               {copy("切换伙伴", "切換夥伴", "Switch bot")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         ) : null}
       </View>
     </View>

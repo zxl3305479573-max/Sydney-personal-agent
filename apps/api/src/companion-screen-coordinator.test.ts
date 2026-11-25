@@ -13,29 +13,48 @@ function fixture() {
   const runWithoutTools = vi.fn(async function* () {
     yield { type: "done" as const, text: "我在" };
   });
-  return { authorize, resolveModel, resolvePersonality, runWithoutTools, coordinator: createCompanionScreenCoordinator({
-    authorize, resolveModel, resolvePersonality, recordUsage, runWithoutTools,
-  }) };
+  return {
+    authorize,
+    resolveModel,
+    resolvePersonality,
+    runWithoutTools,
+    coordinator: createCompanionScreenCoordinator({
+      authorize,
+      resolveModel,
+      resolvePersonality,
+      recordUsage,
+      runWithoutTools,
+    }),
+  };
 }
 
 describe("companion screen coordinator", () => {
   it("requires authorization before starting and on every response", async () => {
     const test = fixture();
-    await expect(test.coordinator.start(actor, "bot", "login", false, authorized)).rejects.toThrow();
+    await expect(
+      test.coordinator.start(actor, "bot", "login", false, authorized),
+    ).rejects.toThrow();
     const session = await test.coordinator.start(actor, "bot", "login", true, authorized);
-    await expect(test.coordinator.respond(actor, "bot", "login", session.id, "screen", authorized)).resolves.toBe("我在");
+    await expect(
+      test.coordinator.respond(actor, "bot", "login", session.id, "screen", authorized),
+    ).resolves.toBe("我在");
     expect(test.runWithoutTools).toHaveBeenCalledOnce();
     expect(test.authorize).toHaveBeenCalledWith(
-      { userId: "user", spaceId: "space", botId: "bot", sessionId: "login" }, actor,
+      { userId: "user", spaceId: "space", botId: "bot", sessionId: "login" },
+      actor,
     );
   });
 
   it("rejects another login or revoked authorization without calling the model", async () => {
     const test = fixture();
     const session = await test.coordinator.start(actor, "bot", "login", true, authorized);
-    await expect(test.coordinator.respond(actor, "bot", "other", session.id, "screen", authorized)).rejects.toThrow();
+    await expect(
+      test.coordinator.respond(actor, "bot", "other", session.id, "screen", authorized),
+    ).rejects.toThrow();
     test.authorize.mockResolvedValue(false);
-    await expect(test.coordinator.respond(actor, "bot", "login", session.id, "screen", authorized)).rejects.toThrow();
+    await expect(
+      test.coordinator.respond(actor, "bot", "login", session.id, "screen", authorized),
+    ).rejects.toThrow();
     expect(test.runWithoutTools).not.toHaveBeenCalled();
   });
 
@@ -44,24 +63,39 @@ describe("companion screen coordinator", () => {
     const first = await test.coordinator.start(actor, "bot", "login", true, authorized);
     let finish!: (authorized: boolean) => void;
     let entered!: () => void;
-    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+    const enteredPromise = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
     test.authorize.mockImplementationOnce(() => {
       entered();
-      return new Promise<boolean>((resolve) => { finish = resolve; });
+      return new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
     });
     const controller = new AbortController();
-    const pending = test.coordinator.start(actor, "bot", "login", true, authorized, controller.signal);
+    const pending = test.coordinator.start(
+      actor,
+      "bot",
+      "login",
+      true,
+      authorized,
+      controller.signal,
+    );
     await enteredPromise;
     controller.abort();
     await expect(pending).rejects.toThrow();
     finish(true);
-    await expect(test.coordinator.respond(actor, "bot", "login", first.id, "screen", authorized)).resolves.toBe("我在");
+    await expect(
+      test.coordinator.respond(actor, "bot", "login", first.id, "screen", authorized),
+    ).resolves.toBe("我在");
   });
 
   it("stops an ongoing response and never returns its late result", async () => {
     const test = fixture();
     let started!: () => void;
-    const startedPromise = new Promise<void>((resolve) => { started = resolve; });
+    const startedPromise = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const coordinator = createCompanionScreenCoordinator({
       authorize: test.authorize,
       resolveModel: test.resolveModel,
@@ -89,7 +123,8 @@ describe("companion screen coordinator", () => {
       live = false;
       yield { type: "done", text: "should not return" };
     });
-    await expect(test.coordinator.respond(actor, "bot", "login", session.id, "screen", check))
-      .rejects.toThrow();
+    await expect(
+      test.coordinator.respond(actor, "bot", "login", session.id, "screen", check),
+    ).rejects.toThrow();
   });
 });

@@ -2,7 +2,7 @@
 
 import { GROUP_MEMBER_MAX } from "@rakazo/contracts";
 import type { ReactNode } from "react";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -16,17 +16,37 @@ const { rpc, back, push, replace } = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
 }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+  setItemAsync: vi.fn(async () => undefined),
+  deleteItemAsync: vi.fn(async () => undefined),
+}));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./api", () => ({ rpc }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => "scope",
+  projectRequestOptions: async () => ({
+    requestContext: { headers: {} },
+    skipSpaceAuthRecovery: true,
+  }),
+}));
+vi.mock("../components/glass-surface", () => ({
+  GlassSurface: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+}));
 vi.mock("./search-inbox", () => ({ removeFromSearchInbox: vi.fn() }));
 vi.mock("expo-router", () => ({
   Stack: { Screen: () => null },
+  useFocusEffect: (effect: () => (() => void) | undefined) => useEffect(effect, [effect]),
   useRouter: () => ({ back, push, replace }),
   useLocalSearchParams: () => ({ groupId: "group-1" }),
 }));
 vi.mock("react-native", () => {
   const View = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return {
+    Platform: {
+      OS: "ios",
+      select: <T,>(options: Record<string, T>) => options.ios ?? options.default,
+    },
     View,
     ScrollView: View,
     Pressable: ({
@@ -68,12 +88,11 @@ vi.mock("react-native", () => {
   };
 });
 vi.mock("./native", () => ({ native: {}, useMobileTokens: () => ({}) }));
-vi.mock("./i18n", () => ({
-  useI18n: () => ({
-    t: (text: string, values: Record<string, string | number> = {}) =>
-      text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key])),
-  }),
-}));
+vi.mock("./i18n", () => {
+  const t = (text: string, values: Record<string, string | number> = {}) =>
+    text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key]));
+  return { useI18n: () => ({ t }) };
+});
 vi.mock("../components/glass-title", () => ({ glassHeaderOptions: () => ({}) }));
 vi.mock("../components/bot-avatar", () => ({ BotAvatar: () => null }));
 vi.mock("../components/native-action-button", () => ({

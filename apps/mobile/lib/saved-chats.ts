@@ -41,7 +41,10 @@ export const SAVED_CHAT_MAX_BYTES = 1024 * 1024;
 export const SAVED_CHATS_MAX_BYTES = 20 * 1024 * 1024;
 const SAVED_INBOX_ROWS = 200;
 
-export function savedChatTarget(target: { botId?: string; groupId?: string }, projectId?: string): string {
+export function savedChatTarget(
+  target: { botId?: string; groupId?: string },
+  projectId?: string,
+): string {
   const chat = target.groupId ? `group:${target.groupId}` : `bot:${target.botId}`;
   return projectId ? `project:${encodeURIComponent(projectId)}:${chat}` : chat;
 }
@@ -243,7 +246,11 @@ export function savedThreadSnapshot(snapshot: MobileSnapshot): MobileSnapshot {
   };
 }
 
-export function readSavedThread(scope: SavedChatsScope, target: string, projectId?: string): MobileSnapshot | null {
+export function readSavedThread(
+  scope: SavedChatsScope,
+  target: string,
+  projectId?: string,
+): MobileSnapshot | null {
   if (!isIntegrationsScopeCurrent(scope)) return null;
   try {
     const data = readJson(spaceFile(scope, target), scopeKey(scope, target));

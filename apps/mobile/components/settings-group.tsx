@@ -3,15 +3,7 @@ import { typeScale } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { Children, Fragment, isValidElement } from "react";
 import type { PressableProps, TextInputProps } from "react-native";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import type { CardGradientTone } from "../lib/card-gradient";
 import type { NativeColors } from "../lib/native";
@@ -21,6 +13,7 @@ import { useScopedTheme } from "../lib/scoped-theme-context";
 import { stacksAtTextScale } from "../lib/text-scale";
 import type { ResolvedScopedTheme } from "../lib/theme-pack";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
 
@@ -191,21 +184,18 @@ export function SettingsRow({
     );
   }
   return (
-    <Pressable
+    <MotionPressable
+      preset="row"
+      highlightColor={styles.pressed.backgroundColor}
       accessibilityRole="button"
       accessibilityLabel={[title, detail, value].filter(Boolean).join(". ")}
       accessibilityState={{ disabled: props.disabled === true }}
       {...props}
       android_ripple={androidRipple()}
-      style={({ pressed }) => [
-        styles.row,
-        largeText && styles.compactRow,
-        pressed && Platform.OS !== "android" && styles.pressed,
-        dimmed && styles.dimmed,
-      ]}
+      style={[styles.row, largeText && styles.compactRow, dimmed && styles.dimmed]}
     >
       {content}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

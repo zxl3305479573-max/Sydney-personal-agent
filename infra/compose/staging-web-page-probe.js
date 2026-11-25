@@ -1,8 +1,12 @@
 const { spawn } = require("node:child_process");
 
-const server = spawn("node_modules/.bin/vite", ["preview", "--host", "127.0.0.1", "--port", "5173"], {
-  stdio: "ignore",
-});
+const server = spawn(
+  "node_modules/.bin/vite",
+  ["preview", "--host", "127.0.0.1", "--port", "5173"],
+  {
+    stdio: "ignore",
+  },
+);
 
 async function run() {
   const base = "http://127.0.0.1:5173";
@@ -40,7 +44,8 @@ async function run() {
       signal: AbortSignal.timeout(5000),
       redirect: "error",
     });
-    if (!asset.ok || !(await asset.text()).length) throw new Error(`page ${path} entry unavailable`);
+    if (!asset.ok || !(await asset.text()).length)
+      throw new Error(`page ${path} entry unavailable`);
   }
   console.log("ip-host-web-pages-and-entry-available");
 }

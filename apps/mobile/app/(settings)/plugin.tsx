@@ -21,7 +21,6 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +28,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { McpOAuthReturn } from "../../components/mcp-oauth-return";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
 import { PluginIcon } from "../../components/plugin-icon";
@@ -391,7 +391,8 @@ export default function PluginScreen() {
               <Text numberOfLines={2} style={styles.name}>
                 {params.name}
               </Text>
-              <Pressable
+              <MotionPressable
+                preset="inline"
                 accessibilityRole="link"
                 hitSlop={8}
                 onPress={() =>
@@ -406,7 +407,7 @@ export default function PluginScreen() {
                   ios="arrow.up.right"
                   size={11}
                 />
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
           {description ? <Text style={styles.description}>{description}</Text> : null}
@@ -576,7 +577,9 @@ export default function PluginScreen() {
                 </View>
               ))}
               {skills.length > shownSkills.length ? (
-                <Pressable
+                <MotionPressable
+                  preset="row"
+                  highlightColor={native.fillPressed}
                   accessibilityRole="button"
                   onPress={() => setAllSkills(true)}
                   style={[styles.item, styles.divider]}
@@ -584,7 +587,7 @@ export default function PluginScreen() {
                   <Text style={styles.more}>
                     {t("{count} more", { count: skills.length - shownSkills.length })}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               ) : null}
             </View>
           </View>

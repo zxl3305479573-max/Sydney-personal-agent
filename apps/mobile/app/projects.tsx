@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
 import { MainNavigationHeader } from "../components/main-navigation-header";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { ProjectFolderCard } from "../components/project-folder-card";
@@ -249,12 +250,13 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                 }
               : {
                   headerRight: () => (
-                    <Pressable
+                    <MotionPressable
+                      preset="icon"
                       accessibilityRole="button"
                       accessibilityLabel={newProjectLabel}
                       onPress={openCreateModal}
                       hitSlop={8}
-                      style={({ pressed }) => ({
+                      style={{
                         width: 36,
                         height: 36,
                         borderRadius: 18,
@@ -263,11 +265,10 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                         borderColor: cardBorder,
                         alignItems: "center",
                         justifyContent: "center",
-                        opacity: pressed ? 0.72 : 1,
-                      })}
+                      }}
                     >
                       <NativeSymbol ios="plus" android="add" size={20} color={fg} />
-                    </Pressable>
+                    </MotionPressable>
                   ),
                 }
             : { headerRight: undefined, unstable_headerRightItems: undefined }),
@@ -507,12 +508,13 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                 >
                   {newProjectLabel}
                 </Text>
-                <Pressable
+                <MotionPressable
+                  preset="icon"
                   accessibilityRole="button"
                   accessibilityLabel={text("关闭", "Close")}
                   disabled={creating}
                   onPress={closeCreateModal}
-                  style={({ pressed }) => ({
+                  style={{
                     width: 36,
                     height: 36,
                     borderRadius: 18,
@@ -521,11 +523,10 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                     borderColor: chipBorder,
                     alignItems: "center",
                     justifyContent: "center",
-                    opacity: pressed ? 0.72 : 1,
-                  })}
+                  }}
                 >
                   <NativeSymbol ios="xmark" android="close" size={16} color={fg} />
-                </Pressable>
+                </MotionPressable>
               </View>
               <GlassSurface
                 shape="roundedRectangle"

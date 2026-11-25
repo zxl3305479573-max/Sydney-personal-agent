@@ -112,7 +112,8 @@ export function fakePurchasePrisma(fixture: {
   projectWorkspaceId?: string | null;
 }) {
   const scope = {
-    spaceId: fixture.spaceId, userId: fixture.userId,
+    spaceId: fixture.spaceId,
+    userId: fixture.userId,
     projectWorkspaceId: fixture.projectWorkspaceId ?? null,
   };
   const purchases: Purchase[] = [];
@@ -121,17 +122,32 @@ export function fakePurchasePrisma(fixture: {
   const live = { thread: true, member: true, bot: true, threadGeneration: 0 };
   const visible = (row: Row) => {
     const context = currentDbContext();
-    return context?.kind === "system" || Boolean(
-      context && context.spaceId === scope.spaceId && context.userId === scope.userId &&
-      (context.kind !== "tenant" || (context.projectWorkspaceId ?? null) === scope.projectWorkspaceId)
-    ) && row.spaceId === scope.spaceId && row.userId === scope.userId &&
-      (row.projectWorkspaceId ?? null) === scope.projectWorkspaceId;
+    return (
+      context?.kind === "system" ||
+      (Boolean(
+        context &&
+          context.spaceId === scope.spaceId &&
+          context.userId === scope.userId &&
+          (context.kind !== "tenant" ||
+            (context.projectWorkspaceId ?? null) === scope.projectWorkspaceId),
+      ) &&
+        row.spaceId === scope.spaceId &&
+        row.userId === scope.userId &&
+        (row.projectWorkspaceId ?? null) === scope.projectWorkspaceId)
+    );
+  };
+  const sameTenant = (row: Row) => {
+    const context = currentDbContext();
+    return (
+      context?.kind === "system" ||
+      Boolean(context && context.spaceId === row.spaceId && context.userId === row.userId)
+    );
   };
   let clock = 0;
   const stamp = () => new Date(Date.UTC(2026, 0, 1) + ++clock);
   const purchase = {
     findUnique: async ({ where }: { where: Row }) =>
-      purchases.find((row) => visible(row) && matches(row, where)) ?? null,
+      purchases.find((row) => sameTenant(row) && matches(row, where)) ?? null,
     findFirst: async ({ where }: { where: Row }) =>
       purchases.find((row) => visible(row) && matches(row, where)) ?? null,
     findMany: async ({ where, select }: { where: Row; select?: Record<string, boolean> }) =>
@@ -143,7 +159,7 @@ export function fakePurchasePrisma(fixture: {
           ),
         ),
     upsert: async ({ where, create }: { where: Row; create: Row }) => {
-      const existing = purchases.find((row) => visible(row) && matches(row, where));
+      const existing = purchases.find((row) => sameTenant(row) && matches(row, where));
       if (existing) return existing;
       const row = {
         id: `purchase-${purchases.length + 1}`,
@@ -175,24 +191,34 @@ export function fakePurchasePrisma(fixture: {
       if (!statement.text.includes('FROM "threads" t')) throw new Error("Unexpected fixture query");
       const context = currentDbContext();
       if (
-        !context || !live.thread || !live.bot || !live.member ||
-        ![fixture.spaceId, fixture.userId, fixture.botId, fixture.threadId]
-          .every((value) => statement.values.includes(value)) ||
-        (context.kind === "tenant" && (
-          context.spaceId !== scope.spaceId || context.userId !== scope.userId ||
-          (context.projectWorkspaceId ?? null) !== scope.projectWorkspaceId
-        ))
-      ) return [];
+        !context ||
+        !live.thread ||
+        !live.bot ||
+        !live.member ||
+        ![fixture.spaceId, fixture.userId, fixture.botId, fixture.threadId].every((value) =>
+          statement.values.includes(value),
+        ) ||
+        (context.kind === "tenant" &&
+          (context.spaceId !== scope.spaceId ||
+            context.userId !== scope.userId ||
+            (context.projectWorkspaceId ?? null) !== scope.projectWorkspaceId))
+      )
+        return [];
       return [scope];
     },
     purchase,
     thread: {
       updateMany: async ({ where }: { where: Row }) => ({
         count:
-          live.thread && matches({
-            id: fixture.threadId, ...scope,
-            historyCompactionGeneration: live.threadGeneration,
-          }, where)
+          live.thread &&
+          matches(
+            {
+              id: fixture.threadId,
+              ...scope,
+              historyCompactionGeneration: live.threadGeneration,
+            },
+            where,
+          )
             ? 1
             : 0,
       }),
@@ -203,10 +229,12 @@ export function fakePurchasePrisma(fixture: {
       },
     },
     spaceMember: { findUnique: async () => (live.member ? { id: "member" } : null) },
-    bot: { findFirst: async ({ where }: { where: Row }) => (
-      live.bot && matches({ id: fixture.botId, ...scope, archivedAt: null }, where)
-        ? { id: fixture.botId } : null
-    ) },
+    bot: {
+      findFirst: async ({ where }: { where: Row }) =>
+        live.bot && matches({ id: fixture.botId, ...scope, archivedAt: null }, where)
+          ? { id: fixture.botId }
+          : null,
+    },
     task: {
       create: async ({ data }: { data: Row }) => {
         const row = { id: `task-${tasks.length + 1}`, ...data };

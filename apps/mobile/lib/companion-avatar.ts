@@ -1,4 +1,8 @@
-import { BOT_AVATAR_VALUE_MAX_LENGTH, isBotAvatarValue, parseBotAvatarValue } from "@rakazo/contracts";
+import {
+  BOT_AVATAR_VALUE_MAX_LENGTH,
+  isBotAvatarValue,
+  parseBotAvatarValue,
+} from "@rakazo/contracts";
 import { avatarIdentitySeed, organicAvatarPath } from "@rakazo/core";
 import { mobileBotAvatarPresentation } from "./bot-avatar";
 
@@ -54,17 +58,16 @@ export function companionAvatar(input: {
 
 function normalizeColor(value: string): string | null {
   const raw = value.startsWith("#") ? value.slice(1) : "";
-  const expanded = raw.length === 3
-    ? Array.from(raw, (character) => character + character).join("")
-    : raw;
+  const expanded =
+    raw.length === 3 ? Array.from(raw, (character) => character + character).join("") : raw;
   return /^[0-9a-f]{6}$/i.test(expanded) ? expanded.toUpperCase() : null;
 }
 
 function sampledShape(path: string): string | null {
   const tokens = path.match(/[MLCQHZ]|-?\d+(?:\.\d+)?/g);
   if (!tokens || tokens.join("") !== path.replace(/[\s,]+/g, "") || tokens[0] !== "M") return null;
-  const segmentCount = tokens.filter((token) =>
-    token === "C" || token === "Q" || token === "L" || token === "H",
+  const segmentCount = tokens.filter(
+    (token) => token === "C" || token === "Q" || token === "L" || token === "H",
   ).length;
   if (!segmentCount) return null;
   const steps = Math.max(1, Math.min(8, Math.floor(160 / segmentCount)));
@@ -73,7 +76,8 @@ function sampledShape(path: string): string | null {
   const points = [current];
   while (cursor < tokens.length && tokens[cursor] !== "Z") {
     const command = tokens[cursor++];
-    const count = command === "C" ? 6 : command === "Q" ? 4 : command === "L" ? 2 : command === "H" ? 1 : 0;
+    const count =
+      command === "C" ? 6 : command === "Q" ? 4 : command === "L" ? 2 : command === "H" ? 1 : 0;
     if (!count || cursor + count > tokens.length) return null;
     const values = tokens.slice(cursor, cursor + count).map(Number);
     cursor += count;
@@ -83,21 +87,31 @@ function sampledShape(path: string): string | null {
     for (let step = 1; step <= (line ? 1 : steps); step++) {
       const fraction = step / (line ? 1 : steps);
       const inverse = 1 - fraction;
-      const position = [0, 1].map((axis) => command === "C"
-        ? inverse ** 3 * current[axis]! + 3 * inverse ** 2 * fraction * values[axis]!
-          + 3 * inverse * fraction ** 2 * values[axis + 2]! + fraction ** 3 * end[axis]!
-        : command === "Q"
-          ? inverse ** 2 * current[axis]! + 2 * inverse * fraction * values[axis]!
-            + fraction ** 2 * end[axis]!
-          : end[axis]!);
+      const position = [0, 1].map((axis) =>
+        command === "C"
+          ? inverse ** 3 * current[axis]! +
+            3 * inverse ** 2 * fraction * values[axis]! +
+            3 * inverse * fraction ** 2 * values[axis + 2]! +
+            fraction ** 3 * end[axis]!
+          : command === "Q"
+            ? inverse ** 2 * current[axis]! +
+              2 * inverse * fraction * values[axis]! +
+              fraction ** 2 * end[axis]!
+            : end[axis]!,
+      );
       points.push(position);
     }
     current = end;
   }
   if (tokens[cursor] !== "Z" || cursor !== tokens.length - 1) return null;
-  const encoded = points.flatMap((point) => point.map((coordinate) =>
-    Math.max(0, Math.min(255, Math.round((coordinate + 15) * 255 / 259)))
-      .toString(16).padStart(2, "0"),
-  )).join("");
+  const encoded = points
+    .flatMap((point) =>
+      point.map((coordinate) =>
+        Math.max(0, Math.min(255, Math.round(((coordinate + 15) * 255) / 259)))
+          .toString(16)
+          .padStart(2, "0"),
+      ),
+    )
+    .join("");
   return encoded.length <= MAX_PATH_LENGTH ? encoded : null;
 }

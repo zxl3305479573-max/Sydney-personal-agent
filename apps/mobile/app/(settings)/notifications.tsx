@@ -5,16 +5,18 @@ import { NativeSwitch } from "../../components/native-switch";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
+import type {
+  NotificationPreferences,
+  SystemNotificationPermission,
+} from "../../lib/notification-preferences";
 import {
   enableNotificationsWithPrompt,
   getCachedNotificationPreferences,
   getSystemNotificationPermissionStatus,
   isSideloadBuild,
   loadNotificationPreferences,
-  type NotificationPreferences,
   sendTestLocalNotification,
   subscribeNotificationPreferences,
-  type SystemNotificationPermission,
   updateNotificationPreferences,
 } from "../../lib/notification-preferences";
 import { useScreenBackground } from "../../lib/scoped-theme-context";

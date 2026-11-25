@@ -15,7 +15,8 @@ describe("companion organic avatar", () => {
       expect(path!.length).toBeLessThanOrEqual(2200);
       const values = path!.match(/../g)!.map((pair) => (parseInt(pair, 16) - 128) / 2);
       const source = organicAvatarPath(avatarIdentitySeed(botId))
-        .match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+        .match(/-?\d+(?:\.\d+)?/g)!
+        .map(Number);
       expect(values).toHaveLength(source.length);
       for (let index = 0; index < values.length; index++) {
         expect(Math.abs(values[index]! - source[index]!)).toBeLessThanOrEqual(0.25);
@@ -54,15 +55,19 @@ describe("companion organic avatar", () => {
   });
 
   it("only passes valid bounded photo data to the native thumbnailer", () => {
-    expect(companionAvatar({ botId: "bot", color: "data:image/png;base64,YWJj" }))
-      .toBe("r|data:image/png;base64,YWJj");
+    expect(companionAvatar({ botId: "bot", color: "data:image/png;base64,YWJj" })).toBe(
+      "r|data:image/png;base64,YWJj",
+    );
     expect(companionAvatar({ botId: "bot", color: "data:image/png;base64,?invalid" })).toBeNull();
     expect(companionAvatar({ botId: "bot", color: "https://example.com/avatar.png" })).toBeNull();
-    expect(companionAvatar({ botId: "bot", color: `data:image/png;base64,${"A".repeat(200_001)}` })).toBeNull();
+    expect(
+      companionAvatar({ botId: "bot", color: `data:image/png;base64,${"A".repeat(200_001)}` }),
+    ).toBeNull();
   });
 
   it("encodes a retired logo selection as the default avatar", () => {
-    expect(companionAvatar({ botId: "bot", color: "#123456", avatarSet: "rakazo" }))
-      .toBe(companionAvatar({ botId: "bot", color: "#123456" }));
+    expect(companionAvatar({ botId: "bot", color: "#123456", avatarSet: "rakazo" })).toBe(
+      companionAvatar({ botId: "bot", color: "#123456" }),
+    );
   });
 });

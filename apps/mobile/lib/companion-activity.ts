@@ -1,25 +1,55 @@
-import { requireOptionalNativeModule, type EventSubscription } from "expo-modules-core";
-import { registerCompanionStop } from "./companion-lifecycle";
+import type { EventSubscription } from "expo-modules-core";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { companionAvatar } from "./companion-avatar";
-import { companionPresentation, type CompanionStatus } from "./companion-presentation";
+import { registerCompanionStop } from "./companion-lifecycle";
+import type { CompanionStatus } from "./companion-presentation";
+import { companionPresentation } from "./companion-presentation";
 
-type ActiveCompanion = { id: string; botId: string; spaceId: string; showReply: boolean; linkToken?: string };
+type ActiveCompanion = {
+  id: string;
+  botId: string;
+  spaceId: string;
+  showReply: boolean;
+  linkToken?: string;
+};
 export type CompanionScreenState =
-  | "unsupported" | "idle" | "choosing" | "starting" | "capturing" | "paused" | "stopping" | "failed";
+  | "unsupported"
+  | "idle"
+  | "choosing"
+  | "starting"
+  | "capturing"
+  | "paused"
+  | "stopping"
+  | "failed";
 
 type CompanionNativeModule = {
   isAvailable(): boolean;
   activeBotId(): string | null;
   activeActivity(): ActiveCompanion | null;
-  start(botId: string, botName: string, spaceId: string | null, showReply: boolean, avatar: string | null): Promise<string>;
+  start(
+    botId: string,
+    botName: string,
+    spaceId: string | null,
+    showReply: boolean,
+    avatar: string | null,
+  ): Promise<string>;
   stopActivity(id: string): Promise<void>;
   stop(): Promise<void>;
-  update(id: string, botId: string, spaceId: string | null, status: string, reply: string | null): Promise<void>;
+  update(
+    id: string,
+    botId: string,
+    spaceId: string | null,
+    status: string,
+    reply: string | null,
+  ): Promise<void>;
   screenState(): Promise<string>;
   presentScreen(botId: string, spaceId: string | null): Promise<void>;
   stopScreen(): Promise<void>;
   takeScreenText(): Promise<string | null>;
-  addListener(event: "onScreenState", listener: (event: { state: string }) => void): EventSubscription;
+  addListener(
+    event: "onScreenState",
+    listener: (event: { state: string }) => void,
+  ): EventSubscription;
 };
 
 const native = requireOptionalNativeModule<CompanionNativeModule>("SydneyCompanion");
@@ -34,7 +64,9 @@ export function companionActivityRevision(): number {
 
 export function subscribeCompanionActivity(listener: () => void): () => void {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function activityChanged() {
@@ -42,9 +74,7 @@ function activityChanged() {
   for (const listener of listeners) {
     try {
       listener();
-    } catch {
-      continue;
-    }
+    } catch {}
   }
 }
 
@@ -59,14 +89,24 @@ export function companionAvailable(): boolean {
 }
 
 export function activeCompanionBotId(): string | null {
-  return companionAvailable() ? native?.activeBotId() ?? null : null;
+  return companionAvailable() ? (native?.activeBotId() ?? null) : null;
 }
 
-export function activeCompanionIdentity(): { id: string; botId: string; spaceId: string | null; linkToken?: string } | null {
+export function activeCompanionIdentity(): {
+  id: string;
+  botId: string;
+  spaceId: string | null;
+  linkToken?: string;
+} | null {
   if (!native || !companionAvailable()) return null;
   const activity = native.activeActivity();
   return activity
-    ? { id: activity.id, botId: activity.botId, spaceId: activity.spaceId || null, linkToken: activity.linkToken || undefined }
+    ? {
+        id: activity.id,
+        botId: activity.botId,
+        spaceId: activity.spaceId || null,
+        linkToken: activity.linkToken || undefined,
+      }
     : null;
 }
 
@@ -119,8 +159,10 @@ export async function stopCompanionIfAvailable() {
 registerCompanionStop(stopCompanionIfAvailable);
 
 function validScreenState(value: string): CompanionScreenState {
-  return ["idle", "choosing", "starting", "capturing", "paused", "stopping", "failed"].includes(value)
-    ? value as CompanionScreenState
+  return ["idle", "choosing", "starting", "capturing", "paused", "stopping", "failed"].includes(
+    value,
+  )
+    ? (value as CompanionScreenState)
     : "unsupported";
 }
 
@@ -129,9 +171,13 @@ export async function companionScreenState(): Promise<CompanionScreenState> {
   return validScreenState(await native.screenState());
 }
 
-export function subscribeCompanionScreenState(listener: (state: CompanionScreenState) => void): () => void {
+export function subscribeCompanionScreenState(
+  listener: (state: CompanionScreenState) => void,
+): () => void {
   if (!native || !companionAvailable()) return () => undefined;
-  const subscription = native.addListener("onScreenState", (event) => listener(validScreenState(event.state)));
+  const subscription = native.addListener("onScreenState", (event) =>
+    listener(validScreenState(event.state)),
+  );
   return () => subscription.remove();
 }
 
@@ -160,8 +206,12 @@ export function updateCompanion(input: {
 }): Promise<void> {
   if (!native || !companionAvailable()) return Promise.resolve();
   const active = native.activeActivity();
-  if (!active || active.botId !== input.botId || active.spaceId !== (input.spaceId ?? "") ||
-    (input.activityId && active.id !== input.activityId)) {
+  if (
+    !active ||
+    active.botId !== input.botId ||
+    active.spaceId !== (input.spaceId ?? "") ||
+    (input.activityId && active.id !== input.activityId)
+  ) {
     return Promise.resolve();
   }
   const presentation = companionPresentation({
@@ -178,7 +228,13 @@ export function updateCompanion(input: {
       if (lastUpdate === key) lastUpdate = "";
       return;
     }
-    await native.update(active.id, input.botId, input.spaceId, presentation.status, presentation.reply);
+    await native.update(
+      active.id,
+      input.botId,
+      input.spaceId,
+      presentation.status,
+      presentation.reply,
+    );
   }).catch((error) => {
     if (lastUpdate === key) lastUpdate = "";
     throw error;

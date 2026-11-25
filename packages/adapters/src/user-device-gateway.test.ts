@@ -222,14 +222,24 @@ describe("user device gateway in the holding process", () => {
     const { hub, devices } = setup();
     const socket = new FakeSocket();
     await hub.attach(device, socket);
-    const request = { method: "workspaceGrant" as const, operation: "status" as const, spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
-    const result = collect(devices.request(device.userId, request, new AbortController().signal, device.id));
+    const request = {
+      method: "workspaceGrant" as const,
+      operation: "status" as const,
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+    };
+    const result = collect(
+      devices.request(device.userId, request, new AbortController().signal, device.id),
+    );
     const message = await socket.nextRequest();
     expect(message.request).toEqual(request);
     socket.reply(message.id, { value: { state: "authorized" } });
     socket.reply(message.id, { done: true });
     await expect(result).resolves.toEqual([{ state: "authorized" }]);
-    await expect(collect(devices.request("other-user", request, new AbortController().signal, device.id))).rejects.toThrow(USER_DEVICE_OFFLINE_MESSAGE);
+    await expect(
+      collect(devices.request("other-user", request, new AbortController().signal, device.id)),
+    ).rejects.toThrow(USER_DEVICE_OFFLINE_MESSAGE);
   });
 
   it("streams values, skipping heartbeats, until done", async () => {
@@ -392,9 +402,21 @@ describe("user device gateway from another process", () => {
     const { hub, prisma } = setup();
     const socket = new FakeSocket();
     await hub.attach(device, socket);
-    const worker = new UserDevices({ prisma, forwardSecret: secret, fetch: forwarding(hub).fetcher });
-    const request = { method: "workspaceGrant" as const, operation: "revoke" as const, spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
-    const result = collect(worker.request(device.userId, request, new AbortController().signal, device.id));
+    const worker = new UserDevices({
+      prisma,
+      forwardSecret: secret,
+      fetch: forwarding(hub).fetcher,
+    });
+    const request = {
+      method: "workspaceGrant" as const,
+      operation: "revoke" as const,
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+    };
+    const result = collect(
+      worker.request(device.userId, request, new AbortController().signal, device.id),
+    );
     const message = await socket.nextRequest();
     expect(message.request).toEqual(request);
     socket.reply(message.id, { value: { state: "unauthorized" } });

@@ -8,7 +8,13 @@ import path from "node:path";
 import { getRequestListener } from "@hono/node-server";
 import { startUserDeviceClient } from "@rakazo/adapters/user-device-client";
 import type { createApp } from "@rakazo/api/app";
-import type { ProductEvent, RpcInput, RpcOutput, RpcPath, UserDevicePairResponse } from "@rakazo/contracts";
+import type {
+  ProductEvent,
+  RpcInput,
+  RpcOutput,
+  RpcPath,
+  UserDevicePairResponse,
+} from "@rakazo/contracts";
 import { PROJECT_DIRECTORY_PATH, USER_DEVICE_PAIR_PATH } from "@rakazo/contracts";
 import { resolveEncryptionKey } from "@rakazo/core";
 import { asSystem, describeRowSecurity } from "@rakazo/db";
@@ -130,8 +136,15 @@ it.skipIf(!enabled)(
       expect((await rpc("projectWorkspaces/list", {})).items.map(({ id }) => id)).toEqual(
         expect.arrayContaining([first.projectId, second.projectId]),
       );
-      const projectBotProfile = { name: "Project A Bot", color: "#4361ee", avatarSet: "rakazo" } as const;
-      const settings = { projectId: first.projectId, bot: { botId: first.botId, ...projectBotProfile } };
+      const projectBotProfile = {
+        name: "Project A Bot",
+        color: "#4361ee",
+        avatarSet: "rakazo",
+      } as const;
+      const settings = {
+        projectId: first.projectId,
+        bot: { botId: first.botId, ...projectBotProfile },
+      };
       expect(await rpc("projectWorkspaces/updateBot", settings)).toMatchObject(projectBotProfile);
       expect(await rpc("projectWorkspaces/getBot", first)).toMatchObject(projectBotProfile);
       const teammate = await rpc("projectWorkspaces/createBot", {
@@ -145,11 +158,16 @@ it.skipIf(!enabled)(
       });
       const roster = await rpc("projectWorkspaces/roster", { id: first.projectId });
       expect(roster.bots).toContainEqual({ id: first.botId, ...projectBotProfile });
-      expect(roster.groups).toContainEqual(expect.objectContaining({
-        id: group.id,
-        members: expect.arrayContaining([{ botId: first.botId, ...projectBotProfile }]),
-      }));
-      expect((await raw("projectWorkspaces/updateBot", { ...settings, projectId: second.projectId })).status).toBe(404);
+      expect(roster.groups).toContainEqual(
+        expect.objectContaining({
+          id: group.id,
+          members: expect.arrayContaining([{ botId: first.botId, ...projectBotProfile }]),
+        }),
+      );
+      expect(
+        (await raw("projectWorkspaces/updateBot", { ...settings, projectId: second.projectId }))
+          .status,
+      ).toBe(404);
       expect((await raw("projectWorkspaces/updateBot", settings, otherToken)).status).toBe(404);
       expect((await raw("bots/get", { botId: first.botId })).status).toBe(404);
       const send = { ...first, text: prompt, clientNonce: randomUUID() };
@@ -277,15 +295,20 @@ it.skipIf(!enabled)(
       steps: [
         {
           expect(request) {
-            expect(request.tools).toContainEqual(expect.objectContaining({
-              function: expect.objectContaining({
-                name: "find_tool",
-                description: expect.stringContaining(tool),
+            expect(request.tools).toContainEqual(
+              expect.objectContaining({
+                function: expect.objectContaining({
+                  name: "find_tool",
+                  description: expect.stringContaining(tool),
+                }),
               }),
-            }));
+            );
           },
           response: {
-            type: "tool", id: findToolCallId, name: "find_tool", arguments: { names: [tool] },
+            type: "tool",
+            id: findToolCallId,
+            name: "find_tool",
+            arguments: { names: [tool] },
           },
         },
         {
@@ -297,7 +320,9 @@ it.skipIf(!enabled)(
             });
           },
           response: {
-            type: "tool", id: toolCallId, name: "use_tool",
+            type: "tool",
+            id: toolCallId,
+            name: "use_tool",
             arguments: { name: tool, arguments: args },
           },
         },
@@ -374,7 +399,10 @@ it.skipIf(!enabled)(
       const { spaceId } = await db.bot.findUniqueOrThrow({ where: { id: bot.id } });
       const grantId = randomUUID();
       const directoryPin = {
-        kind: "windows", targetId: pairing.deviceId, grantId, intent: "read-only",
+        kind: "windows",
+        targetId: pairing.deviceId,
+        grantId,
+        intent: "read-only",
       };
       const bound = await backend.app.request(`${PROJECT_DIRECTORY_PATH}/bind`, {
         method: "POST",
@@ -415,11 +443,13 @@ it.skipIf(!enabled)(
         select: { id: true, botId: true, projectDirectoryPin: true },
       });
       expect(groupRuns).toHaveLength(2);
-      expect(groupRuns).toEqual(expect.arrayContaining(
-        [bot.id, teammate.id].map((botId) =>
-          expect.objectContaining({ botId, projectDirectoryPin: directoryPin }),
+      expect(groupRuns).toEqual(
+        expect.arrayContaining(
+          [bot.id, teammate.id].map((botId) =>
+            expect.objectContaining({ botId, projectDirectoryPin: directoryPin }),
+          ),
         ),
-      ));
+      );
       for (const { id: runId } of groupRuns)
         await rpc("projectWorkspaces/cancelRun", { ...groupTarget, runId });
       const consent = await rpc("projectWorkspaces/consentStatus", target);
@@ -464,10 +494,9 @@ it.skipIf(!enabled)(
         effectId: effect.id,
         decision: "allow",
       });
-      await expect.poll(
-        () => db.externalEffect.findUniqueOrThrow({ where: { id: effect.id } }),
-        poll,
-      ).toMatchObject({ status: "approved", result: { waitingForDevice: true } });
+      await expect
+        .poll(() => db.externalEffect.findUniqueOrThrow({ where: { id: effect.id } }), poll)
+        .toMatchObject({ status: "approved", result: { waitingForDevice: true } });
       const queued = await run();
       expect(queued).toMatchObject({
         status: "queued",
@@ -496,10 +525,12 @@ it.skipIf(!enabled)(
         authorize: async () => true,
         projectFile,
       });
-      await expect.poll(
-        () => db.userDeviceConnection.findUnique({ where: { deviceId: pairing.deviceId } }),
-        poll,
-      ).not.toBeNull();
+      await expect
+        .poll(
+          () => db.userDeviceConnection.findUnique({ where: { deviceId: pairing.deviceId } }),
+          poll,
+        )
+        .not.toBeNull();
       worker = startProjectWorker(databaseUrl!, dataDir, { projectDeviceToolsEnabled: true });
       await worker.waitForStartup();
       await expect
@@ -510,7 +541,13 @@ it.skipIf(!enabled)(
         });
       expect((await run()).leaseFence).toBeGreaterThan(queued.leaseFence);
       expect(projectFile).toHaveBeenCalledExactlyOnceWith(
-        { method: "projectFile", projectId: project.id, spaceId, grantId, file: { ...args, operation: "read" } },
+        {
+          method: "projectFile",
+          projectId: project.id,
+          spaceId,
+          grantId,
+          file: { ...args, operation: "read" },
+        },
         expect.any(AbortSignal),
       );
       expect(await db.externalEffect.findMany({ where: { runId, kind: tool } })).toEqual([
@@ -538,13 +575,18 @@ it.skipIf(!enabled)(
       expect(recovered.filter(({ type }) => type === "run.queued")).toEqual([
         expect.objectContaining({ seq: queuedEvent.seq }),
       ]);
-      expect(recovered.every(({ seq }, index) =>
-        seq > (recovered[index - 1]?.seq ?? beforeApproval.cursor),
-      )).toBe(true);
+      expect(
+        recovered.every(
+          ({ seq }, index) => seq > (recovered[index - 1]?.seq ?? beforeApproval.cursor),
+        ),
+      ).toBe(true);
       expect(recovered.at(-1)?.type).toBe("run.completed");
-      expect(recovered.find(({ type, payload }) =>
-        type === "thread.message.created" && payload.messageId === snapshot.messages.at(-1)?.id,
-      )).toBeDefined();
+      expect(
+        recovered.find(
+          ({ type, payload }) =>
+            type === "thread.message.created" && payload.messageId === snapshot.messages.at(-1)?.id,
+        ),
+      ).toBeDefined();
       model.assertComplete();
     } finally {
       device?.close();
@@ -642,10 +684,12 @@ function startProjectWorker(
       await expect
         .poll(
           async () => {
-            const status = await readFile(healthPath, "utf8").catch((error: NodeJS.ErrnoException) => {
-              if (error.code !== "ENOENT") throw error;
-              return "";
-            });
+            const status = await readFile(healthPath, "utf8").catch(
+              (error: NodeJS.ErrnoException) => {
+                if (error.code !== "ENOENT") throw error;
+                return "";
+              },
+            );
             return status.includes('"heartbeat":');
           },
           { timeout: 40_000, message: "Project Worker did not publish its startup heartbeat" },

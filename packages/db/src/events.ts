@@ -44,8 +44,8 @@ import { saveApprovalRule, storedBatchActions } from "./approval-settings.js";
 import { cancelRunsInTransaction } from "./cancel-runs.js";
 import type { Prisma, PrismaClient } from "./client.js";
 import { expireComputerExecutionLeases } from "./computers.js";
-import { resolveConversationExecutionScope } from "./conversation-execution-scope.js";
 import { contentEncryptionOf } from "./content-encryption.js";
+import { resolveConversationExecutionScope } from "./conversation-execution-scope.js";
 import {
   CrossSpaceCommunicationBlockedError,
   crossSpaceCommunicationAllowed,
@@ -2075,7 +2075,8 @@ export async function createPendingSteeringRun(
   const source = batch.at(-1)!;
   const modelPin = continuationModelPin(batch);
   const executionScope = await resolveConversationExecutionScope(tx, {
-    ...input, userId: batch[0]!.userId,
+    ...input,
+    userId: batch[0]!.userId,
   });
   const task = await tx.task.create({
     data: {

@@ -103,7 +103,11 @@ export function buildApprovalContinuation(
         return `${uniquified ?? effect.kind}: ${formatRequest(bound.args)}`;
       }
       const exposed = options?.exposedToolNames;
-      if (effect.kind === PROJECT_WINDOWS_TERMINAL && effect.request && typeof effect.request === "object") {
+      if (
+        effect.kind === PROJECT_WINDOWS_TERMINAL &&
+        effect.request &&
+        typeof effect.request === "object"
+      ) {
         const { command } = effect.request as { command?: unknown };
         const args = { command };
         return exposed && !exposed.has(effect.kind) && exposed.has(USE_TOOL)

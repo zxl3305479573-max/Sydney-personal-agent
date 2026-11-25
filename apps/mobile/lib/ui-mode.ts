@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import * as ReactNative from "react-native";
 import { midnightUiMode } from "../ui-modes/midnight";
 import { CLASSIC_UI_MODE_ID } from "../ui-modes/types";
 import {
@@ -9,15 +9,23 @@ import {
 } from "./ui-mode-registry";
 import { createUiModeStore } from "./ui-mode-store";
 
+function platformOs(): string {
+  try {
+    return ReactNative.Platform?.OS ?? "ios";
+  } catch {
+    return "ios";
+  }
+}
+
 registerUiMode(midnightUiMode);
 
 const listeners = new Set<() => void>();
 let revision = 0;
 
 const store = createUiModeStore({
-  isModeAvailable: (modeId) => resolveUiModeDefinition(modeId, Platform.OS).id === modeId,
+  isModeAvailable: (modeId) => resolveUiModeDefinition(modeId, platformOs()).id === modeId,
   listAlternateModeIds: () =>
-    listAvailableUiModes(Platform.OS)
+    listAvailableUiModes(platformOs())
       .filter((mode) => mode.id !== CLASSIC_UI_MODE_ID)
       .map((mode) => mode.id),
 });
@@ -43,7 +51,7 @@ export const commitUiModePreview = store.commitPreview;
 export const resetUiModeToClassic = store.resetToClassic;
 
 export function getActiveUiMode() {
-  return resolveUiModeDefinition(store.getSnapshot().activeModeId, Platform.OS);
+  return resolveUiModeDefinition(store.getSnapshot().activeModeId, platformOs());
 }
 
 export function getUiModeRevision(): number {

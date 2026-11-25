@@ -1,5 +1,29 @@
 # Sydney 开发总计划
 
+## 手机 App 全界面点击动效统一（PA-021，2026-11-25）
+
+状态：源码实现与移动端全量离线验证已完成（iPhone 真机触控手感、阴影／圆角裁切、系统「减弱动态效果」与侧载 OTA 生效待真机验收）。
+
+范围与交付物：
+- 统一按压动效原语：`apps/mobile/lib/press-motion.ts`、`apps/mobile/components/motion-pressable.native.tsx`、`apps/mobile/components/motion-pressable.tsx`、`apps/mobile/components/tab-indicator.native.tsx`、`apps/mobile/components/tab-indicator.tsx`：建立 5 档克制暖瓷按压反馈预设（`card` 0.978 轻压回弹、`control` 0.955、`icon` 0.90、`row` 无缩放平滑高亮、`inline` 0.98 轻暗淡）；原生端通过 `Animated.createAnimatedComponent(Pressable)` 在 UI 线程驱动缩放、透明度与兼容 `PlatformColor` 的覆盖层高亮，不额外增加包裹 `View`、保留禁用态原始 `opacity`、在 Android 列表行自动避让原生 `android_ripple` 防止双重反馈，并遵循系统 `useReducedMotion()` 自动降级为无缩放／无弹簧轻暗淡；非原生端提供零 `react-native-reanimated` 依赖的降级实现以兼容既有单元测试替身；底部导航栏指示条升级为 `scaleX` + `opacity` 平滑展开／收起。
+- 全界面交互控件迁移（76 个现有 UI 文件）：覆盖共用底层组件（底栏导航、设置分组、玻璃图标按钮、原生操作按钮、分段胶囊、未读跳转胶囊、代码复制、菜单选择器、弹窗头／关闭、回复条、键盘快捷键栏、语音条等）、个人中枢首页与后台陪伴卡、聊天列表／置顶卡片／归档／标题栏、对话内各类交互卡片与输入栏、项目工作区与目录卡片，以及搜索、GitHub、云电脑、连接应用、产物库、登录、Bot／群聊资料与 `(settings)/*` 设置子页和弹层；有意保留弹窗遮罩、长按菜单容器、聚焦转发壳、`BotAvatar` 既有戳动弹簧及 SwiftUI／Compose 原生控件不变。
+- 新增单测与全包离线验证：`apps/mobile/lib/motion-pressable.test.tsx`（11 项），移动端全量 Vitest（299 文件 / 3,598 项）、全包 `tsc --noEmit`、增量 Biome 检查与 `git diff --check` 全部通过，详见 [验证记录](VALIDATION.md#手机-app-全界面点击动效统一2026-11-25)。
+
+依赖与验收条件：仅改动 `apps/mobile`，不修改 PC 端代码，不新增第三方依赖（复用既有 `react-native-reanimated@4.5.1`，支持 iPhone 侧载 OTA 直接生效），不执行提交或推送。真实 iPhone 各类控件手感、深浅色与自定义主题高亮对比度、快速连点与滑动不误触及开启「减弱动态效果」后的表现待真机验收。
+
+## GitHub CI 全量失败项分批修复（2026-11-25）
+
+状态：源码修复与本机离线全套静态／类型／单测验证已完成；依赖 Linux Runner、PostgreSQL 容器、Electron 打包与 macOS 环境的 CI 任务（`Postgres journeys 1/2–2/2`、`Production builds -> Electron smoke`、`desktop-macos-screenshot` 与 Linux 专属 POSIX／符号链接用例）待用户推送后在 GitHub Actions 实跑验收。未执行提交、推送、依赖重装或本机服务启动。
+
+范围与交付物：
+- 工作流与跨端检查配置：`.github/workflows/desktop-macos-screenshot.yml`（将应用包名与可执行文件路径对齐为 `Sydney-partner.app`／`Contents/MacOS/Sydney-partner`）、`.github/workflows/weekly-dependencies.yml`（移除缺少凭据的定时 `schedule:` 触发，保留 `workflow_dispatch:`）、`apps/desktop/e2e/smoke.spec.ts`（补齐 `projectDirectory` bridge 键）、`apps/mobile/package.json`（`check` 改为 `tsc --noEmit -p tsconfig.json`，原 `expo install --check` 移至 `check:expo`）。
+- 契约、认证、数据库、服务端与前端离线回归：`packages/auth/src/index.ts`（`/organization/delete` 返回 `404 ORGANIZATION_DELETION_DISABLED`）、`packages/contracts/src/builtin-tools.ts`（补齐 5 个项目内置工具名）、`packages/adapters/src/cloud-agent-service.ts` 与 `fake-purchases.ts`、`apps/desktop/src/window-options.ts`、`apps/web/index.html` 与 `apps/web/public/theme.js`（同步最新暗／亮背景令牌）、`apps/web/src/pages/ProjectGroupCreation.tsx`（补齐表单 `htmlFor`/`id` 关联）及对应 `packages/{db,auth,adapters,testkit}`、`apps/{api,web}` 全部离线单元测试修复。
+- 移动端运行时与测试回归：修复 `apps/mobile/app/projects/[workspaceId].tsx` 缺失 `Pressable` 导入、`apps/mobile/components/bot-context-cards.tsx` 独立加载 `scratchpad/list` 与 `memory/list` 防止单接口失败阻塞另一区块、`apps/mobile/components/motion-pressable.tsx` 平台判断与 `onPressOut` 闭包状态、`apps/mobile/components/inbox-header.tsx` 可选链防护、`apps/mobile/lib/settings-sheet.ts` 补齐 `about`/`notifications`、`apps/mobile/lib/{theme-state,ui-mode-store,ui-mode,appearance}.ts` 懒加载 `expo-secure-store`、7 套非英文移动端翻译目录补齐缺失词条，以及 36 个移动端失败单测文件全部转绿。
+- PostgreSQL 集成夹具（待 GitHub Actions Linux+PG 验证）：修复 `packages/db/src/history-retrieval.postgres.test.ts`（临时表补齐 `"projectWorkspaceId"` 列）、`packages/adapters/src/cloud-agent-service.ts`（捕获 `IsolationError` 返回统一错误）、`apps/api/src/{working-bot,typed-reply,takeover-chat}.postgres.test.ts` 与 `packages/adapters/src/run-wakeup.postgres.test.ts`（适配 PA-022 会话／作用域不可变约束），以及 `packages/testkit/src/authorization.test.ts`（补齐 13 条 `projectWorkspaces/*` 路由）。
+- 整仓静态检查与 Web 翻译目录：修复全部 278 项 Biome 报错至 0 error（3,672 文件通过），刷新 `apps/web/src/locales/{en,zh-CN}/messages.po` 并补齐缺失中文词条，20 个 `tsconfig.json` 全部 0 错误通过。详细证据见 [验证记录](VALIDATION.md#github-ci-全量失败项分批修复2026-11-25)。
+
+依赖与验收条件：不新增或重装依赖，不启动本机 Docker／PostgreSQL／桌面服务，不调用子代理，不擅自提交或推送。本机以全仓 `pnpm lint`（0 error）、20 个 `tsconfig.json` 零错误、`intl:extract` 幂等、以及各包离线单测全绿为准；PostgreSQL 集成、Electron smoke、macOS 截图和 Linux 专属 POSIX／符号链接测试以推送后 GitHub Actions 实跑结果为准。
+
 ## 移动端未读状态、对话状态显示与退出对话持续态修复（PA-018／PA-021／PA-022，2026-11-25）
 
 状态：源码实现与本机定向离线验证已完成（iPhone 真机往返退页、切前后台、旧后台实测与 OTA 待真机验收）。

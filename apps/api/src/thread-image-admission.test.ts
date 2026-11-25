@@ -1,5 +1,6 @@
 import type { Actor } from "@rakazo/contracts";
 import type { PrismaClient } from "@rakazo/db";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { ThreadTarget } from "./thread-target.js";
 import { sendThreadMessage } from "./thread-target.js";
@@ -10,7 +11,13 @@ function fixture(group = false) {
   const model = { modelProvider: "openrouter", modelId: "deepseek/deepseek-v4-pro" };
   const tx = {
     secret: { findFirst: vi.fn().mockResolvedValue({ id: "secret-1", ciphertext: "synthetic" }) },
-    $queryRaw: vi.fn().mockResolvedValue([{ id: "group-1" }]),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [{ id: "group-1" }];
+    }),
     chatGroup: {
       findFirst: vi.fn().mockResolvedValue({
         members: [
@@ -71,7 +78,9 @@ function fixture(group = false) {
   };
   const prisma = {
     ...tx,
-    $transaction: vi.fn(async (work: (client: typeof tx) => unknown) => work(tx)),
+    $transaction: vi.fn(async (work: (client: typeof tx) => unknown) =>
+      runAsTenant({ spaceId: "space-1", userId: "user-1" }, () => work(tx)),
+    ),
   } as unknown as PrismaClient;
   const notify = vi.fn().mockResolvedValue(undefined);
   const enqueue = vi.fn().mockResolvedValue(undefined);

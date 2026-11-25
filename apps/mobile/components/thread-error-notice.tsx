@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { RunErrorAction } from "./run-error-actions";
 
@@ -70,7 +71,8 @@ export function ThreadErrorNotice({
           ) : null}
           {action ? <RunErrorAction label={action.label} onPress={action.onPress} /> : null}
           {summary && onDetails ? (
-            <Pressable
+            <MotionPressable
+              preset="inline"
               accessibilityRole="link"
               onPress={onDetails}
               hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
@@ -79,7 +81,7 @@ export function ThreadErrorNotice({
               <Text style={{ color: tokens.link, fontSize: 14, fontWeight: "600" }}>
                 {t("Details")}
               </Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
         </View>
       ) : null}

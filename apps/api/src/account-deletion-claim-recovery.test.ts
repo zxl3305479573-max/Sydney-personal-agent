@@ -103,7 +103,10 @@ describe("account deletion claim recovery", () => {
     ).rejects.toBe(billingError);
 
     expect(dbMocks.release).toHaveBeenCalledWith(prisma, "user-a");
-    expect(logMocks.error).toHaveBeenCalledWith("account deletion claim release failed", releaseError);
+    expect(logMocks.error).toHaveBeenCalledWith(
+      "account deletion claim release failed",
+      releaseError,
+    );
   });
 
   it("keeps the claim when pre-destructive work succeeds and delegates explicit release", async () => {

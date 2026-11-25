@@ -28,6 +28,11 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+  setItemAsync: vi.fn(async () => undefined),
+  deleteItemAsync: vi.fn(async () => undefined),
+}));
 vi.mock("react-native", () => {
   const flatten = (style: unknown): CSSProperties =>
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
@@ -87,6 +92,16 @@ vi.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
 vi.mock("./api", () => ({ rpc: mocks.rpc }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => "scope",
+  projectRequestOptions: async () => ({
+    requestContext: { headers: {} },
+    skipSpaceAuthRecovery: true,
+  }),
+}));
+vi.mock("../components/glass-surface", () => ({
+  GlassSurface: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+}));
 vi.mock("./native", () => ({
   native: { tertiaryLabel: "tertiary" },
   useThemedStyles: (factory: () => unknown) => useMemo(factory, [factory]),

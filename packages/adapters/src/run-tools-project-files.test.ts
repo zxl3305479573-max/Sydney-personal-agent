@@ -2,12 +2,18 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { NativeLinuxSandbox, NativeProjectFileDispatchError } from "./native-linux-sandbox.js";
 import type { RunContext } from "./run-context.js";
-import { PROJECT_FILE_CREATE, PROJECT_FILE_LIST, PROJECT_FILE_READ, PROJECT_FILE_SEARCH, PROJECT_FILE_UPDATE } from "./run-project-policy.js";
+import { persistMessageInTransaction } from "./run-messages.js";
+import {
+  PROJECT_FILE_CREATE,
+  PROJECT_FILE_LIST,
+  PROJECT_FILE_READ,
+  PROJECT_FILE_SEARCH,
+  PROJECT_FILE_UPDATE,
+} from "./run-project-policy.js";
 import type { ToolCall } from "./run-tool-gate.js";
 import type { ToolRequest } from "./run-tool-request.js";
-import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
-import { persistMessageInTransaction } from "./run-messages.js";
 import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
+import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
 
 vi.mock("./run-messages.js", () => ({
   persistMessageInTransaction: vi.fn().mockResolvedValue({ eventSeq: 7 }),
@@ -22,7 +28,12 @@ const binding = {
 
 function fixture(data: unknown[] = []) {
   const query = vi.fn().mockResolvedValue([binding]);
-  const request = vi.fn(async function* (_user: string, _body: unknown, _signal: AbortSignal, _device: string) {
+  const request = vi.fn(async function* (
+    _user: string,
+    _body: unknown,
+    _signal: AbortSignal,
+    _device: string,
+  ) {
     yield* data;
   });
   const updateEffect = vi.fn().mockResolvedValue({ count: 1 });
@@ -50,7 +61,16 @@ function fixture(data: unknown[] = []) {
       jobs: { enqueue },
       events: { notify },
     },
-    run: { id: "run-a", projectWorkspaceId: "project-a", spaceId: "space-a", userId: "owner-a", threadId: "thread-a", taskId: "task-a", botId: "bot-a", trigger: "user" },
+    run: {
+      id: "run-a",
+      projectWorkspaceId: "project-a",
+      spaceId: "space-a",
+      userId: "owner-a",
+      threadId: "thread-a",
+      taskId: "task-a",
+      botId: "bot-a",
+      trigger: "user",
+    },
     attempt: { id: "attempt-a" },
     state: { approval: { pausePending: false }, effects: { pendingTurnCheckpoints: new Map() } },
     runId: "run-a",
@@ -69,16 +89,32 @@ function fixture(data: unknown[] = []) {
     persistEffectResult,
     finish,
   } as unknown as ToolCall;
-  return { ctx, call, args, query, request, updateEffect, updateRun, updateAttempt, enqueue, notify, persistEffectResult, finish, tx };
+  return {
+    ctx,
+    call,
+    args,
+    query,
+    request,
+    updateEffect,
+    updateRun,
+    updateAttempt,
+    enqueue,
+    notify,
+    persistEffectResult,
+    finish,
+    tx,
+  };
 }
 
 describe("Windows project file tools", () => {
   it("lists an approved directory and persists only a bounded summary", async () => {
-    const { ctx, call, request, persistEffectResult } = fixture([{
-      operation: "list",
-      entries: [{ path: "src/index.ts", kind: "file" }],
-      truncated: false,
-    }]);
+    const { ctx, call, request, persistEffectResult } = fixture([
+      {
+        operation: "list",
+        entries: [{ path: "src/index.ts", kind: "file" }],
+        truncated: false,
+      },
+    ]);
     const listCall = {
       ...call,
       name: PROJECT_FILE_LIST,
@@ -95,40 +131,57 @@ describe("Windows project file tools", () => {
       lines: expect.arrayContaining(["Folder: ."]),
       onceOnly: true,
     });
-    await expect(projectFileHandlers[PROJECT_FILE_LIST]!(ctx, listCall as unknown as ToolCall)).resolves.toEqual({
+    await expect(
+      projectFileHandlers[PROJECT_FILE_LIST]!(ctx, listCall as unknown as ToolCall),
+    ).resolves.toEqual({
       listed: true,
       entries: [{ path: "src/index.ts", kind: "file" }],
       truncated: false,
     });
-    expect(request).toHaveBeenCalledWith("owner-a", expect.objectContaining({
-      file: { operation: "list", path: "src" },
-    }), expect.any(AbortSignal), binding.deviceId);
-    expect(persistEffectResult).toHaveBeenCalledWith({ listed: true, entries: 1, truncated: false });
+    expect(request).toHaveBeenCalledWith(
+      "owner-a",
+      expect.objectContaining({
+        file: { operation: "list", path: "src" },
+      }),
+      expect.any(AbortSignal),
+      binding.deviceId,
+    );
+    expect(persistEffectResult).toHaveBeenCalledWith({
+      listed: true,
+      entries: 1,
+      truncated: false,
+    });
   });
 
   it("does not expose a device listing that escapes the requested folder", async () => {
-    const { ctx, call, persistEffectResult } = fixture([{
-      operation: "list",
-      entries: [{ path: "private.txt", kind: "file" }],
-      truncated: false,
-    }]);
+    const { ctx, call, persistEffectResult } = fixture([
+      {
+        operation: "list",
+        entries: [{ path: "private.txt", kind: "file" }],
+        truncated: false,
+      },
+    ]);
     const listCall = {
       ...call,
       name: PROJECT_FILE_LIST,
       args: { path: "src", projectDirectory: binding },
     };
-    await expect(projectFileHandlers[PROJECT_FILE_LIST]!(ctx, listCall as unknown as ToolCall)).resolves.toEqual({
+    await expect(
+      projectFileHandlers[PROJECT_FILE_LIST]!(ctx, listCall as unknown as ToolCall),
+    ).resolves.toEqual({
       error: "The bound computer did not complete the project directory request.",
     });
     expect(persistEffectResult).not.toHaveBeenCalled();
   });
 
   it("searches an approved directory, records a summary, and rejects escaped match paths", async () => {
-    const { ctx, call, request, persistEffectResult } = fixture([{
-      operation: "search",
-      matches: [{ path: "src/index.ts", line: 4, text: "export const token = true;" }],
-      truncated: false,
-    }]);
+    const { ctx, call, request, persistEffectResult } = fixture([
+      {
+        operation: "search",
+        matches: [{ path: "src/index.ts", line: 4, text: "export const token = true;" }],
+        truncated: false,
+      },
+    ]);
     const prepared = {
       name: PROJECT_FILE_SEARCH,
       args: { path: "src", query: "token" },
@@ -145,27 +198,42 @@ describe("Windows project file tools", () => {
       name: PROJECT_FILE_SEARCH,
       args: { path: "src", query: "token", caseSensitive: false, projectDirectory: binding },
     };
-    await expect(projectFileHandlers[PROJECT_FILE_SEARCH]!(ctx, searchCall as unknown as ToolCall)).resolves.toEqual({
+    await expect(
+      projectFileHandlers[PROJECT_FILE_SEARCH]!(ctx, searchCall as unknown as ToolCall),
+    ).resolves.toEqual({
       searched: true,
       matches: [{ path: "src/index.ts", line: 4, text: "export const token = true;" }],
       truncated: false,
     });
-    expect(request).toHaveBeenCalledWith("owner-a", expect.objectContaining({
-      file: { operation: "search", path: "src", query: "token", caseSensitive: false },
-    }), expect.any(AbortSignal), binding.deviceId);
-    expect(persistEffectResult).toHaveBeenCalledWith({ searched: true, matches: 1, truncated: false });
-
-    const escaped = fixture([{
-      operation: "search",
-      matches: [{ path: "other/secret.ts", line: 1, text: "token" }],
+    expect(request).toHaveBeenCalledWith(
+      "owner-a",
+      expect.objectContaining({
+        file: { operation: "search", path: "src", query: "token", caseSensitive: false },
+      }),
+      expect.any(AbortSignal),
+      binding.deviceId,
+    );
+    expect(persistEffectResult).toHaveBeenCalledWith({
+      searched: true,
+      matches: 1,
       truncated: false,
-    }]);
+    });
+
+    const escaped = fixture([
+      {
+        operation: "search",
+        matches: [{ path: "other/secret.ts", line: 1, text: "token" }],
+        truncated: false,
+      },
+    ]);
     const escapedCall = {
       ...escaped.call,
       name: PROJECT_FILE_SEARCH,
       args: { path: "src", query: "token", caseSensitive: false, projectDirectory: binding },
     };
-    await expect(projectFileHandlers[PROJECT_FILE_SEARCH]!(escaped.ctx, escapedCall as unknown as ToolCall)).resolves.toEqual({
+    await expect(
+      projectFileHandlers[PROJECT_FILE_SEARCH]!(escaped.ctx, escapedCall as unknown as ToolCall),
+    ).resolves.toEqual({
       error: "The bound computer did not complete the project directory request.",
     });
     expect(escaped.persistEffectResult).not.toHaveBeenCalled();
@@ -173,35 +241,63 @@ describe("Windows project file tools", () => {
 
   it("pins the approved device and directory without accepting model-provided identifiers", async () => {
     const { ctx, args, query } = fixture();
-    const request = { name: PROJECT_FILE_READ, args, executionId: "call-a" } as unknown as ToolRequest;
+    const request = {
+      name: PROJECT_FILE_READ,
+      args,
+      executionId: "call-a",
+    } as unknown as ToolRequest;
     await expect(prepareProjectFile(ctx, request)).resolves.toBeUndefined();
     expect(request.effectRequest).toEqual({
-      ...args, projectDirectory: { deviceId: binding.deviceId, grantId: binding.grantId },
+      ...args,
+      projectDirectory: { deviceId: binding.deviceId, grantId: binding.grantId },
     });
     expect(request.fleetSummary).toMatchObject({ onceOnly: true });
     expect(query.mock.calls[0]?.[0].values).toEqual([
-      "run-a", "thread-a", "task-a", "project-a", "space-a", "owner-a", "worker-a", 4,
+      "run-a",
+      "thread-a",
+      "task-a",
+      "project-a",
+      "space-a",
+      "owner-a",
+      "worker-a",
+      4,
     ]);
     await expect(prepareProjectFile(ctx, request)).resolves.toHaveProperty("error");
     expect(query).toHaveBeenCalledOnce();
     query.mockResolvedValue([{ ...binding, grantId: "a374627e-87a5-4f8d-a619-1c662ae431b8" }]);
-    await expect(prepareProjectFile(ctx, {
-      ...request, approvedEffectKey: "approved-key",
-    })).resolves.toHaveProperty("error", expect.stringContaining("changed after approval"));
+    await expect(
+      prepareProjectFile(ctx, {
+        ...request,
+        approvedEffectKey: "approved-key",
+      }),
+    ).resolves.toHaveProperty("error", expect.stringContaining("changed after approval"));
   });
 
   it("delivers one finished read from the bound device and persists summary only", async () => {
     const text = "\ufeff样本";
     const bytes = Buffer.byteLength(text);
     const sha256 = createHash("sha256").update(text).digest("hex");
-    const { ctx, call, request, persistEffectResult } = fixture([{ operation: "read", text, sha256 }]);
+    const { ctx, call, request, persistEffectResult } = fixture([
+      { operation: "read", text, sha256 },
+    ]);
     await expect(projectFileHandlers[PROJECT_FILE_READ]!(ctx, call)).resolves.toEqual({
-      read: true, bytes, sha256, text,
+      read: true,
+      bytes,
+      sha256,
+      text,
     });
-    expect(request).toHaveBeenCalledExactlyOnceWith("owner-a", {
-      method: "projectFile", spaceId: "space-a", projectId: "project-a",
-      grantId: binding.grantId, file: { operation: "read", path: "source.txt" },
-    }, expect.any(AbortSignal), binding.deviceId);
+    expect(request).toHaveBeenCalledExactlyOnceWith(
+      "owner-a",
+      {
+        method: "projectFile",
+        spaceId: "space-a",
+        projectId: "project-a",
+        grantId: binding.grantId,
+        file: { operation: "read", path: "source.txt" },
+      },
+      expect.any(AbortSignal),
+      binding.deviceId,
+    );
     expect(persistEffectResult).toHaveBeenCalledExactlyOnceWith({
       read: true,
       bytes,
@@ -220,7 +316,9 @@ describe("Windows project file tools", () => {
   });
 
   it("withholds read content when permission disappears before delivery", async () => {
-    const { ctx, call, query, persistEffectResult } = fixture([{ operation: "read", text: "sample" }]);
+    const { ctx, call, query, persistEffectResult } = fixture([
+      { operation: "read", text: "sample" },
+    ]);
     query.mockResolvedValueOnce([binding]).mockResolvedValueOnce([]);
     await expect(projectFileHandlers[PROJECT_FILE_READ]!(ctx, call)).resolves.toEqual({
       error: "The current project directory authorization is unavailable.",
@@ -231,21 +329,43 @@ describe("Windows project file tools", () => {
   it("routes a cloud grant to its dedicated provider and keeps the project Run in the context", async () => {
     const { ctx, call, query } = fixture();
     const cloud = {
-      computerId: "cloud-a", grantId: binding.grantId, available: true,
-      providerRef: "native:0123456789abcdef", homeKey: "home-bot-a",
-      folder: { path: "project-a", device: "12", inode: "34" }, intent: "read-only",
+      computerId: "cloud-a",
+      grantId: binding.grantId,
+      available: true,
+      providerRef: "native:0123456789abcdef",
+      homeKey: "home-bot-a",
+      folder: { path: "project-a", device: "12", inode: "34" },
+      intent: "read-only",
     };
     const executeProjectFile = vi.fn().mockResolvedValue({ operation: "read", text: "sample" });
     query.mockResolvedValue([cloud]);
-    const target = { ...ctx, context: { ...ctx.context, runId: "run-a" }, deps: {
-      ...ctx.deps, userDevices: undefined, sandbox: { executeProjectFile } as never,
-    } };
-    await expect(projectFileHandlers[PROJECT_FILE_READ]!(target, {
-      ...call, args: { ...call.args, projectDirectory: { computerId: cloud.computerId, grantId: cloud.grantId } },
-    })).resolves.toMatchObject({ read: true, text: "sample" });
+    const target = {
+      ...ctx,
+      context: { ...ctx.context, runId: "run-a" },
+      deps: {
+        ...ctx.deps,
+        userDevices: undefined,
+        sandbox: { executeProjectFile } as never,
+      },
+    };
+    await expect(
+      projectFileHandlers[PROJECT_FILE_READ]!(target, {
+        ...call,
+        args: {
+          ...call.args,
+          projectDirectory: { computerId: cloud.computerId, grantId: cloud.grantId },
+        },
+      }),
+    ).resolves.toMatchObject({ read: true, text: "sample" });
     expect(executeProjectFile).toHaveBeenCalledExactlyOnceWith(
-      { id: cloud.computerId, kind: "native-linux", providerRef: cloud.providerRef, botId: cloud.homeKey },
-      cloud.folder, { operation: "read", path: "source.txt" },
+      {
+        id: cloud.computerId,
+        kind: "native-linux",
+        providerRef: cloud.providerRef,
+        botId: cloud.homeKey,
+      },
+      cloud.folder,
+      { operation: "read", path: "source.txt" },
       expect.objectContaining({ runId: "run-a", botId: cloud.homeKey }),
     );
   });
@@ -256,7 +376,9 @@ describe("Windows project file tools", () => {
       const { ctx, call, query, request } = fixture();
       query.mockResolvedValueOnce([binding]).mockResolvedValueOnce([]);
       request.mockImplementation(async function* (_user, _body, signal) {
-        await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
       });
       const result = projectFileHandlers[PROJECT_FILE_READ]!(ctx, call);
       await vi.advanceTimersByTimeAsync(1_000);
@@ -269,28 +391,53 @@ describe("Windows project file tools", () => {
 
   it("records an interrupted create as uncertain and sends it just once", async () => {
     const { ctx, call, request, updateEffect } = fixture([{ operation: "create", bytes: 2 }]);
-    const create = { ...call, name: PROJECT_FILE_CREATE, args: {
-      path: "result.md", text: "样本", projectDirectory: binding,
-    } };
+    const create = {
+      ...call,
+      name: PROJECT_FILE_CREATE,
+      args: {
+        path: "result.md",
+        text: "样本",
+        projectDirectory: binding,
+      },
+    };
     await expect(projectFileHandlers[PROJECT_FILE_CREATE]!(ctx, create)).resolves.toMatchObject({
       uncertain: true,
     });
     expect(request).toHaveBeenCalledOnce();
-    expect(updateEffect).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      where: { id: "effect-a", status: "executing" },
-      data: expect.objectContaining({ status: "uncertain" }),
-    }));
+    expect(updateEffect).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        where: { id: "effect-a", status: "executing" },
+        data: expect.objectContaining({ status: "uncertain" }),
+      }),
+    );
   });
 
   it("requeues the same run and approval when the fixed device was offline before dispatch", async () => {
     vi.mocked(persistMessageInTransaction).mockClear();
-    const { ctx, call, request, updateEffect, updateRun, updateAttempt, enqueue, notify, finish, tx } = fixture();
+    const {
+      ctx,
+      call,
+      request,
+      updateEffect,
+      updateRun,
+      updateAttempt,
+      enqueue,
+      notify,
+      finish,
+      tx,
+    } = fixture();
     request.mockImplementation(() => {
       throw new UserDeviceNotConnectedError();
     });
-    const create = { ...call, name: PROJECT_FILE_CREATE, args: {
-      path: "result.md", text: "样本", projectDirectory: binding,
-    } };
+    const create = {
+      ...call,
+      name: PROJECT_FILE_CREATE,
+      args: {
+        path: "result.md",
+        text: "样本",
+        projectDirectory: binding,
+      },
+    };
     await expect(projectFileHandlers[PROJECT_FILE_CREATE]!(ctx, create)).resolves.toMatchObject({
       terminate: true,
     });
@@ -299,32 +446,46 @@ describe("Windows project file tools", () => {
     expect(request).toHaveBeenCalledOnce();
     expect(updateRun).toHaveBeenCalledExactlyOnceWith({
       where: {
-        id: "run-a", status: "running", leaseOwner: "worker-a", leaseFence: 4,
+        id: "run-a",
+        status: "running",
+        leaseOwner: "worker-a",
+        leaseFence: 4,
         leaseExpiresAt: { gt: expect.any(Date) },
       },
       data: {
-        status: "queued", wakeAt: expect.any(Date), leaseOwner: null, leaseExpiresAt: null,
+        status: "queued",
+        wakeAt: expect.any(Date),
+        leaseOwner: null,
+        leaseExpiresAt: null,
       },
     });
     expect(updateEffect).toHaveBeenCalledExactlyOnceWith({
       where: { id: "effect-a", runId: "run-a", status: "executing" },
       data: { status: "approved", result: { waitingForDevice: true } },
     });
-    expect(updateAttempt).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "attempt-a", runId: "run-a", fence: 4, status: "running" },
-      data: { status: "interrupted", finishedAt: expect.any(Date) },
-    }));
-    expect(tx.event.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        type: "run.queued",
-        runId: "run-a",
-        payload: expect.objectContaining({ reason: "project_device_offline", trigger: "user" }),
+    expect(updateAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "attempt-a", runId: "run-a", fence: 4, status: "running" },
+        data: { status: "interrupted", finishedAt: expect.any(Date) },
       }),
-    }));
+    );
+    expect(tx.event.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "run.queued",
+          runId: "run-a",
+          payload: expect.objectContaining({ reason: "project_device_offline", trigger: "user" }),
+        }),
+      }),
+    );
     const wakeAt = updateRun.mock.calls[0]?.[0].data.wakeAt;
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      name: "run.continue", payload: { runId: "run-a" }, availableAt: wakeAt,
-    }));
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "run.continue",
+        payload: { runId: "run-a" },
+        availableAt: wakeAt,
+      }),
+    );
     expect(persistMessageInTransaction).toHaveBeenCalledOnce();
     expect(notify).toHaveBeenCalledWith("thread-a", 8, undefined);
   });
@@ -337,7 +498,10 @@ describe("Windows project file tools", () => {
     });
     const replay = {
       ...call,
-      applied: { ...call.applied!, effect: { ...call.applied!.effect, result: { waitingForDevice: true } } },
+      applied: {
+        ...call.applied!,
+        effect: { ...call.applied!.effect, result: { waitingForDevice: true } },
+      },
     };
     await expect(projectFileHandlers[PROJECT_FILE_READ]!(ctx, replay)).resolves.toMatchObject({
       terminate: true,
@@ -371,11 +535,19 @@ describe("Windows project file tools", () => {
 
   it("reports a confirmed Windows create even when there is no download store", async () => {
     const { ctx, call, request, updateEffect } = fixture([{ operation: "create", bytes: 6 }]);
-    const create = { ...call, name: PROJECT_FILE_CREATE, args: {
-      path: "result.md", text: "样本", projectDirectory: binding,
-    } };
+    const create = {
+      ...call,
+      name: PROJECT_FILE_CREATE,
+      args: {
+        path: "result.md",
+        text: "样本",
+        projectDirectory: binding,
+      },
+    };
     await expect(projectFileHandlers[PROJECT_FILE_CREATE]!(ctx, create)).resolves.toEqual({
-      created: true, bytes: 6, downloadAvailable: false,
+      created: true,
+      bytes: 6,
+      downloadAvailable: false,
     });
     expect(request).toHaveBeenCalledOnce();
     expect(updateEffect).not.toHaveBeenCalled();
@@ -387,11 +559,17 @@ describe("Windows project file tools", () => {
       ...call,
       name: PROJECT_FILE_UPDATE,
       args: {
-        path: "source.txt", expectedSha256: "a".repeat(64), text: "replacement",
+        path: "source.txt",
+        expectedSha256: "a".repeat(64),
+        text: "replacement",
         projectDirectory: binding,
       },
     };
-    const prepared = { name: PROJECT_FILE_UPDATE, args: { path: "source.txt", expectedSha256: "a".repeat(64), text: "replacement" }, executionId: "update-a" } as unknown as ToolRequest;
+    const prepared = {
+      name: PROJECT_FILE_UPDATE,
+      args: { path: "source.txt", expectedSha256: "a".repeat(64), text: "replacement" },
+      executionId: "update-a",
+    } as unknown as ToolRequest;
     await expect(prepareProjectFile(ctx, prepared)).resolves.toBeUndefined();
     expect(prepared.fleetSummary?.title).toBe("Update this project file?");
     await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, update)).resolves.toMatchObject({
@@ -458,10 +636,12 @@ describe("cloud project file tools", () => {
       where: { id: "effect-a", runId: "run-a", status: "executing" },
       data: { status: "approved", result: { waitingForDevice: true } },
     });
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
-      name: "run.continue",
-      payload: { runId: "run-a" },
-    }));
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "run.continue",
+        payload: { runId: "run-a" },
+      }),
+    );
     expect(persistMessageInTransaction).toHaveBeenCalledWith(
       expect.anything(),
       ctx.run,
@@ -483,10 +663,20 @@ describe("cloud project file tools", () => {
         "project_file",
         {
           folder: cloud.folder,
-          file: { operation: "update", path: "source.txt", expectedSha256: "a".repeat(64), text: "updated" },
+          file: {
+            operation: "update",
+            path: "source.txt",
+            expectedSha256: "a".repeat(64),
+            text: "updated",
+          },
         },
         expect.objectContaining({ botId: cloud.homeKey }),
-        { id: cloud.computerId, kind: "native-linux", botId: cloud.homeKey, providerRef: cloud.providerRef },
+        {
+          id: cloud.computerId,
+          kind: "native-linux",
+          botId: cloud.homeKey,
+          providerRef: cloud.providerRef,
+        },
       ]);
     }
     expect(request).not.toHaveBeenCalled();
@@ -499,9 +689,11 @@ describe("cloud project file tools", () => {
     await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, call)).resolves.toMatchObject({
       uncertain: true,
     });
-    expect(updateEffect).toHaveBeenCalledWith(expect.objectContaining({
-      data: { status: "uncertain", result: expect.objectContaining({ uncertain: true }) },
-    }));
+    expect(updateEffect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "uncertain", result: expect.objectContaining({ uncertain: true }) },
+      }),
+    );
     expect(finish).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
   });
@@ -534,7 +726,9 @@ describe("cloud project file tools", () => {
   it("does not dispatch an approved write after the cloud directory is rebound", async () => {
     const { ctx, call, cloud, query, transport, enqueue } = cloudFixture();
     query.mockResolvedValue([{ ...cloud, grantId: "new-grant" }]);
-    await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, call)).resolves.toHaveProperty("error");
+    await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, call)).resolves.toHaveProperty(
+      "error",
+    );
     expect(transport).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
   });
@@ -543,7 +737,8 @@ describe("cloud project file tools", () => {
     const { ctx, call, transport, enqueue, updateEffect } = cloudFixture();
     transport.mockRejectedValue(new NativeProjectFileDispatchError("generation_changed"));
     await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, call)).resolves.toEqual({
-      error: "The cloud computer has restarted. Reconnect the project directory and request a new approval.",
+      error:
+        "The cloud computer has restarted. Reconnect the project directory and request a new approval.",
     });
     expect(enqueue).not.toHaveBeenCalled();
     expect(updateEffect).not.toHaveBeenCalled();
@@ -555,9 +750,11 @@ describe("cloud project file tools", () => {
     await expect(projectFileHandlers[PROJECT_FILE_UPDATE]!(ctx, call)).resolves.toMatchObject({
       uncertain: true,
     });
-    expect(updateEffect).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "uncertain" }),
-    }));
+    expect(updateEffect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "uncertain" }),
+      }),
+    );
     expect(transport).toHaveBeenCalledOnce();
     expect(enqueue).not.toHaveBeenCalled();
   });

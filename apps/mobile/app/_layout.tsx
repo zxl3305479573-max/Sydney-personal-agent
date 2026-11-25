@@ -35,6 +35,7 @@ import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
 import { ScopedThemeRoute, ScopedThemeScreen } from "../components/scoped-theme";
+import { StartupSplash } from "../components/startup-splash";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -73,7 +74,6 @@ import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { loadNotificationPreferences } from "../lib/notification-preferences";
 import { useNotificationResponses } from "../lib/open-notification";
-import { useFirstLaunchNotificationPrompt } from "../lib/use-first-launch-notification-prompt";
 import { clearQueries } from "../lib/query";
 import {
   getCachedRemoteImagesEnabled,
@@ -110,6 +110,7 @@ import {
   useTrustedLinkSites,
 } from "../lib/trusted-link-sites";
 import { startUnsentSends } from "../lib/unsent-sends";
+import { useFirstLaunchNotificationPrompt } from "../lib/use-first-launch-notification-prompt";
 import { getVoicePlaybackState, subscribeVoicePlayback } from "../lib/voice";
 import { InboxPane } from "./index";
 
@@ -323,8 +324,9 @@ function LayoutContent() {
   }, [ready, screen]);
   const [appearanceReady, setAppearanceReady] = useState(false);
   const [splashHidden, setSplashHidden] = useState(false);
-  useStartupUpdatePrompt(splashHidden);
-  useFirstLaunchNotificationPrompt(splashHidden && ready, pathname);
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
+  useStartupUpdatePrompt(splashHidden && splashAnimationDone);
+  useFirstLaunchNotificationPrompt(splashHidden && splashAnimationDone && ready, pathname);
   const resolved = useResolvedAppearance();
   const tokens = useMobileTokens();
   const loadRemoteImages = useSyncExternalStore(
@@ -589,6 +591,10 @@ function LayoutContent() {
               <MessageMenuHost />
               <MessageActionSheetHost />
               <CallCard />
+              <StartupSplash
+                ready={splashHidden && ready}
+                onFinished={() => setSplashAnimationDone(true)}
+              />
             </ThemeProvider>
           </ChatContentProviders>
         ) : (

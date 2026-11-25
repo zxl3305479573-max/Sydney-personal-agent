@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { native, useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export type ScrollToBottomButtonProps = {
@@ -13,23 +14,23 @@ export function ScrollToBottomButtonFallback({
 }: ScrollToBottomButtonProps) {
   const tokens = useMobileTokens();
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       android_ripple={{ color: native.fillPressed, borderless: true, radius: 22 }}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         {
           backgroundColor: native.fill,
           borderColor: native.fillPressed,
           shadowColor: tokens.foreground,
-          opacity: pressed ? 0.6 : 1,
         },
       ]}
     >
       <NativeSymbol ios="chevron.down" android="chevron-down" size={20} />
-    </Pressable>
+    </MotionPressable>
   );
 }
 

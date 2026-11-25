@@ -1,8 +1,7 @@
 name: Weekly dependency updates
 
+# Manual-only in this fork because automated Codex subscription secrets are not configured.
 on:
-  schedule:
-    - cron: "43 6 * * 2"
   workflow_dispatch:
 
 permissions: {}

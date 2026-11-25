@@ -1,6 +1,6 @@
 import { isModelRequiredSendError } from "@rakazo/core";
 import { typeScale } from "@rakazo/ui-tokens";
-import { ActionSheetIOS, Alert, Image, Platform, Pressable, Text, View } from "react-native";
+import { ActionSheetIOS, Alert, Image, Platform, Text, View } from "react-native";
 import { mobileBubbleSurfaceStyle, useMobileChatAppearance } from "../lib/chat-appearance";
 import { useI18n } from "../lib/i18n";
 import { openModelSettings } from "../lib/model-settings";
@@ -8,6 +8,7 @@ import { useMobileTokens } from "../lib/native";
 import type { SendAttempt } from "../lib/thread-feedback";
 import type { UserBubble } from "../lib/user-bubble";
 import { withUserBubble } from "../lib/user-bubble";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function FailedSendBubble({
@@ -99,7 +100,8 @@ export function FailedSendBubble({
   }
 
   return (
-    <Pressable
+    <MotionPressable
+      preset="card"
       accessibilityRole="button"
       accessibilityLabel={messageLabel ? `${messageLabel}. ${caption}` : caption}
       accessibilityHint={sending ? undefined : t("Long press to delete")}
@@ -162,6 +164,6 @@ export function FailedSendBubble({
         ) : null}
         <Text style={{ color, fontSize: 13 }}>{caption}</Text>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }

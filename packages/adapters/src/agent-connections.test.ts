@@ -51,7 +51,8 @@ function createDeps(
       id,
       spaceId: id === "bot-1" ? "ws-1" : "ws-2",
       userId: id === "bot-1" ? "user-1" : "user-2",
-      projectWorkspaceId: (id === "bot-1" ? overrides.sourceProject : overrides.targetProject) ?? null,
+      projectWorkspaceId:
+        (id === "bot-1" ? overrides.sourceProject : overrides.targetProject) ?? null,
       crossSpaceCommunication: id !== overrides.blockedBot,
       archivedAt: null,
     }));
@@ -90,8 +91,18 @@ function createDeps(
     thread: { update: vi.fn(async () => ({ nextMessageSeq: 4, nextEventSeq: 9 })) },
     bot: { findFirst: vi.fn(async () => ({ id: "bot-2" })) },
     // What a `SELECT ... FOR UPDATE` on the connection row would see.
-    $queryRaw: vi.fn(async (query: TemplateStringsArray) => {
-      if (query.join("").includes("FROM bots"))
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [
+          {
+            spaceId: targetIdentity.spaceId,
+            userId: targetIdentity.userId,
+            projectWorkspaceId: overrides.targetProject ?? null,
+          },
+        ];
+      }
+      if (sql.includes("FROM bots"))
         return policyRows().map((bot) => ({
           ...bot,
           crossSpaceCommunication: overrides.disabledInsideTx ? false : bot.crossSpaceCommunication,
@@ -190,8 +201,10 @@ function createDeps(
     user: { findUnique: vi.fn(async () => ({ id: "user-1", name: "Alice Owner" })) },
     thread: { findFirst: vi.fn(async () => ({ id: "thread-2" })) },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(txMock)),
-    $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
-      query.join("").includes("FROM bots") ? policyRows() : txMock.$queryRaw(query),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) =>
+      ("strings" in query ? query.strings : query).join("").includes("FROM bots")
+        ? policyRows()
+        : txMock.$queryRaw(query),
     ),
   };
   // connectAgent claim+invite runs on the transaction client.

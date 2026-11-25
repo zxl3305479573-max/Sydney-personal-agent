@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Platform, Text, TextInput, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 
@@ -33,7 +34,8 @@ export function ProfileEditDialog({
   }
   return (
     <>
-      <Pressable
+      <MotionPressable
+        preset={icon ? "icon" : "inline"}
         accessibilityRole="button"
         accessibilityLabel={editLabel}
         style={{
@@ -76,7 +78,7 @@ export function ProfileEditDialog({
             {value}
           </Text>
         )}
-      </Pressable>
+      </MotionPressable>
       {Platform.OS !== "ios" && open ? (
         <Modal transparent animationType="fade" onRequestClose={() => setOpen(false)}>
           <View

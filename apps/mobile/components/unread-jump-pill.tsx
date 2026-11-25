@@ -1,8 +1,9 @@
 import { fontWeight, typeScale } from "@rakazo/ui-tokens";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import type { JumpDirection } from "../lib/offscreen-unreads";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export const UNREAD_JUMP_PILL_HEIGHT = 38;
@@ -23,11 +24,11 @@ export function UnreadJumpPill({
   // White on the tinted glass in both themes, like the user bubble's text.
   const onFill = tokens.chatUserForeground;
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
       <GlassSurface
         tint={tokens.unread}
@@ -46,7 +47,7 @@ export function UnreadJumpPill({
         />
         <Text style={[styles.label, { color: onFill }]}>{label}</Text>
       </GlassSurface>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

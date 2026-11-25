@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
@@ -12,6 +12,7 @@ import {
   subscribeVoicePlayback,
 } from "../lib/voice";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 /**
@@ -78,18 +79,15 @@ function VoiceControlButton({
 }) {
   const styles = useThemedStyles(createStyles);
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        !iosAtLeast(26) && styles.buttonFallback,
-        pressed && { opacity: 0.6 },
-      ]}
+      style={[styles.button, !iosAtLeast(26) && styles.buttonFallback]}
     >
       <NativeSymbol ios={ios} android={android} size={14} color={mobileTokens().foreground} />
-    </Pressable>
+    </MotionPressable>
   );
 }
 

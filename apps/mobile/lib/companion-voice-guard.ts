@@ -4,8 +4,12 @@ export function companionVoiceLinkMatches(
   botId: string,
   spaceId: string | null,
 ): boolean {
-  return Boolean(token && activity?.linkToken === token &&
-    activity.botId === botId && activity.spaceId === spaceId);
+  return Boolean(
+    token &&
+      activity?.linkToken === token &&
+      activity.botId === botId &&
+      activity.spaceId === spaceId,
+  );
 }
 
 export function companionNavigationAllowed(input: {
@@ -17,12 +21,21 @@ export function companionNavigationAllowed(input: {
   activity: { botId: string; spaceId: string | null; linkToken?: string } | null;
 }): boolean {
   if (input.companionLink === undefined && input.companionVoice === undefined) return true;
-  if ((input.companionLink !== "1" && input.companionLink !== undefined) ||
+  if (
+    (input.companionLink !== "1" && input.companionLink !== undefined) ||
     (input.companionVoice !== undefined && input.companionVoice !== "1") ||
-    typeof input.botId !== "string" || !input.botId ||
+    typeof input.botId !== "string" ||
+    !input.botId ||
     (input.spaceId !== undefined && (typeof input.spaceId !== "string" || !input.spaceId)) ||
-    typeof input.companionToken !== "string") return false;
-  return companionVoiceLinkMatches(input.companionToken, input.activity, input.botId, input.spaceId ?? null);
+    typeof input.companionToken !== "string"
+  )
+    return false;
+  return companionVoiceLinkMatches(
+    input.companionToken,
+    input.activity,
+    input.botId,
+    input.spaceId ?? null,
+  );
 }
 
 export function canStartCompanionVoice(input: {
@@ -39,7 +52,8 @@ export function canStartCompanionVoice(input: {
   currentSpaceSelection: number;
   spaceSelectionPending: boolean;
 }): boolean {
-  return input.focused &&
+  return (
+    input.focused &&
     !input.spaceSelectionPending &&
     input.requestSpaceSelection === input.currentSpaceSelection &&
     input.requestedBot === input.activeBot &&
@@ -47,5 +61,6 @@ export function canStartCompanionVoice(input: {
     input.requestSpace === input.currentSpace &&
     input.activeActivity?.id === input.requestActivityId &&
     input.activeActivity.botId === input.requestedBot &&
-    input.activeActivity.spaceId === input.requestSpace;
+    input.activeActivity.spaceId === input.requestSpace
+  );
 }

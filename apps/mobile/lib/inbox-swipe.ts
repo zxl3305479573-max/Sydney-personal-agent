@@ -35,7 +35,12 @@ export function unreadOverrideKey(kind: InboxChatKind, id: string) {
   return `${kind}:${id}`;
 }
 
-export type PinOverride = { pinned: boolean; generation: number; apiBase: string; spaceId?: string };
+export type PinOverride = {
+  pinned: boolean;
+  generation: number;
+  apiBase: string;
+  spaceId?: string;
+};
 
 export function applyPinOverrides<T extends { id: string; pinned?: boolean; spaceId?: string }>(
   kind: InboxChatKind,

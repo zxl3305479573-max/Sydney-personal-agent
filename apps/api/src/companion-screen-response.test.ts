@@ -13,8 +13,18 @@ function fixture() {
     yield { type: "done" as const, text: "我在这里" };
   });
   return {
-    authorize, resolveModel, resolvePersonality, recordUsage, runWithoutTools,
-    respond: createCompanionScreenResponder({ authorize, resolveModel, resolvePersonality, recordUsage, runWithoutTools }),
+    authorize,
+    resolveModel,
+    resolvePersonality,
+    recordUsage,
+    runWithoutTools,
+    respond: createCompanionScreenResponder({
+      authorize,
+      resolveModel,
+      resolvePersonality,
+      recordUsage,
+      runWithoutTools,
+    }),
   };
 }
 
@@ -23,16 +33,36 @@ describe("companion screen response", () => {
     const test = fixture();
     await expect(test.respond(actor, "bot", "  screen text  ")).resolves.toBe("我在这里");
     expect(test.authorize).toHaveBeenCalledTimes(3);
-    expect(test.authorize).toHaveBeenNthCalledWith(2, { userId: "user", spaceId: "space", botId: "bot" }, { provider: "test", id: "model" });
-    expect(test.authorize).toHaveBeenNthCalledWith(3, { userId: "user", spaceId: "space", botId: "bot" }, { provider: "test", id: "model" });
+    expect(test.authorize).toHaveBeenNthCalledWith(
+      2,
+      { userId: "user", spaceId: "space", botId: "bot" },
+      { provider: "test", id: "model" },
+    );
+    expect(test.authorize).toHaveBeenNthCalledWith(
+      3,
+      { userId: "user", spaceId: "space", botId: "bot" },
+      { provider: "test", id: "model" },
+    );
     expect(test.runWithoutTools).toHaveBeenCalledWith(
       expect.objectContaining({
-        botId: "bot", prompt: "screen text", tools: [], history: [],
+        botId: "bot",
+        prompt: "screen text",
+        tools: [],
+        history: [],
         instructions: expect.stringContaining("untrusted data"),
       }),
-      expect.objectContaining({ userId: "user", spaceId: "space", botId: "bot", signal: expect.any(AbortSignal) }),
+      expect.objectContaining({
+        userId: "user",
+        spaceId: "space",
+        botId: "bot",
+        signal: expect.any(AbortSignal),
+      }),
     );
-    expect(test.resolvePersonality).toHaveBeenCalledWith({ userId: "user", spaceId: "space", botId: "bot" });
+    expect(test.resolvePersonality).toHaveBeenCalledWith({
+      userId: "user",
+      spaceId: "space",
+      botId: "bot",
+    });
     expect(test.runWithoutTools).toHaveBeenCalledWith(
       expect.objectContaining({ instructions: expect.stringContaining("说话温柔") }),
       expect.anything(),
@@ -76,8 +106,8 @@ describe("companion screen response", () => {
     const respond = createCompanionScreenResponder({
       ...runtime,
       runWithoutTools: async function* () {
+        yield* [];
         throw new Error(secret);
-        yield { type: "done", text: "" };
       },
     });
     await expect(respond(actor, "bot", secret)).rejects.toThrowError(
@@ -87,7 +117,10 @@ describe("companion screen response", () => {
 
   it("does not return a reply after authorization is revoked or the request is aborted", async () => {
     const revoked = fixture();
-    revoked.authorize.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    revoked.authorize
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
     await expect(revoked.respond(actor, "bot", "text")).rejects.toThrow();
     const cancelled = fixture();
     const controller = new AbortController();
@@ -117,7 +150,9 @@ describe("companion screen response", () => {
   it("returns on cancellation even if the runtime does not settle", async () => {
     const test = fixture();
     let started!: () => void;
-    const startedPromise = new Promise<void>((resolve) => { started = resolve; });
+    const startedPromise = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const respond = createCompanionScreenResponder({
       ...test,
       runWithoutTools: async function* () {

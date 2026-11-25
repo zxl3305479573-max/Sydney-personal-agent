@@ -249,8 +249,14 @@ describe("latest queue", () => {
     const send = createLatestQueue<boolean>();
     const settled = vi.fn();
     let rejectFirst: (error: Error) => void = () => undefined;
-    const request = vi.fn()
-      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectFirst = reject; }))
+    const request = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
       .mockResolvedValue(undefined);
     const pending = send("a", true, request, settled);
     await send("a", false, request, settled);

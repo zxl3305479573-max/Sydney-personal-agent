@@ -24,7 +24,7 @@ postgres("history retrieval (PostgreSQL)", () => {
     prisma = new PrismaClient({ adapter: new PrismaPg(pool, { schema: "pg_temp" }) });
     await pool.query(`
       CREATE TEMP TABLE bots (id text PRIMARY KEY, "spaceId" text, "userId" text, "archivedAt" timestamptz);
-      CREATE TEMP TABLE threads (id text PRIMARY KEY, "spaceId" text, "userId" text, "botId" text, "groupId" text);
+      CREATE TEMP TABLE threads (id text PRIMARY KEY, "spaceId" text, "userId" text, "botId" text, "groupId" text, "projectWorkspaceId" text);
       CREATE TEMP TABLE chat_groups (id text PRIMARY KEY, "spaceId" text, "userId" text, "archivedAt" timestamptz);
       CREATE TEMP TABLE chat_group_members ("groupId" text, "botId" text);
       CREATE TEMP TABLE messages (id text PRIMARY KEY, "threadId" text, seq integer, role text, "runId" text,
@@ -32,9 +32,9 @@ postgres("history retrieval (PostgreSQL)", () => {
       CREATE TEMP TABLE steering_messages ("messageId" text, "botId" text, "runId" text,
         UNIQUE ("messageId", "botId"));
       CREATE TEMP TABLE runs (id text PRIMARY KEY, "spaceId" text, "userId" text, "threadId" text, "botId" text,
-        "sourceMessageId" text, status text, "createdAt" timestamptz, "completedAt" timestamptz);
+        "sourceMessageId" text, status text, "createdAt" timestamptz, "completedAt" timestamptz, "projectWorkspaceId" text);
       CREATE TEMP TABLE artifacts (id text PRIMARY KEY, "spaceId" text, "userId" text, "botId" text, "groupId" text,
-        "runId" text, name text, "mimeType" text, size integer, "createdAt" timestamptz);
+        "runId" text, name text, "mimeType" text, size integer, "createdAt" timestamptz, "projectWorkspaceId" text);
       INSERT INTO bots VALUES ('synthetic-bot','synthetic-space','synthetic-user',NULL);
       INSERT INTO threads VALUES ('synthetic-thread','synthetic-space','synthetic-user','synthetic-bot');
       INSERT INTO messages SELECT 'm-' || n, 'synthetic-thread', n, 'user', NULL, NULL,

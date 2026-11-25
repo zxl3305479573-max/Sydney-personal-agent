@@ -70,6 +70,7 @@ vi.mock("react-native", () => ({
     </button>
   ),
   Platform: { OS: "ios" },
+  StyleSheet: { hairlineWidth: 0.5, create: <T,>(styles: T) => styles },
   I18nManager: { isRTL: false },
   AppState: { currentState: "active", addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
   ActivityIndicator: () => null,

@@ -197,7 +197,10 @@ describe("native directory scope and bind endpoints", () => {
     const writable = { ...binding, intent: "read-write" };
     db.bind.mockResolvedValue(writable);
     const response = await state.request("bind", {
-      ...input, grantId, directoryName: binding.directoryName, intent: writable.intent,
+      ...input,
+      grantId,
+      directoryName: binding.directoryName,
+      intent: writable.intent,
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(writable);
@@ -208,9 +211,11 @@ describe("native directory scope and bind endpoints", () => {
       "session-a",
       writable,
     );
-    expect(db.audit).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: expect.objectContaining({ intent: "read-write" }),
-    }));
+    expect(db.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ intent: "read-write" }),
+      }),
+    );
   });
 });
 

@@ -7,11 +7,7 @@ type UpgradeHandler = (request: IncomingMessage, socket: Duplex, head: Buffer) =
 
 export function createScreenProxyDispatch(options: {
   screen: {
-    handleHttp: (
-      request: IncomingMessage,
-      response: ServerResponse,
-      next: () => void,
-    ) => void;
+    handleHttp: (request: IncomingMessage, response: ServerResponse, next: () => void) => void;
     handleUpgrade: UpgradeHandler;
   };
   http: HttpHandler;

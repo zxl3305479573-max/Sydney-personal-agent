@@ -62,12 +62,12 @@ describe("the production computer provider", () => {
 const interpolated = (name: string, fallback = "") => `\${${name}:-${fallback}}`;
 
 describe("production project feature gates", () => {
-  it.each([
-    "SYDNEY_PROJECT_CREATE_EXPERIMENT",
-    "SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT",
-  ])("requires explicitly enabling %s", (key) => {
-    expect(compose.services.api?.environment?.[key]).toBe(interpolated(key, "false"));
-  });
+  it.each(["SYDNEY_PROJECT_CREATE_EXPERIMENT", "SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT"])(
+    "requires explicitly enabling %s",
+    (key) => {
+      expect(compose.services.api?.environment?.[key]).toBe(interpolated(key, "false"));
+    },
+  );
 
   it.each(["api", "worker"])("keeps project device tools disabled by default in %s", (service) => {
     const key = "SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED";

@@ -2,6 +2,7 @@ import { stuckWorkStatusMessage } from "@rakazo/core";
 import { describe, expect, it, vi } from "vitest";
 import type { Prisma } from "./client.js";
 import { expireStuckRun } from "./expire-stuck-run.js";
+import { runAsSystem } from "./row-security.js";
 
 const updatedAt = new Date("2026-09-27T12:00:00.000Z");
 const now = new Date("2026-09-28T13:00:00.000Z");
@@ -17,7 +18,13 @@ function tx(options?: {
   const messages: Array<Record<string, unknown>> = [];
   const events: Array<Record<string, unknown>> = [];
   const client = {
-    $queryRaw: vi.fn(async () => []),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [];
+    }),
     externalEffect: {
       deleteMany: vi.fn(async () => ({ count: 0 })),
       updateMany: vi.fn(async () => ({ count: 1 })),
@@ -114,13 +121,15 @@ function tx(options?: {
 describe("expireStuckRun", () => {
   it("cancels the wait, leaves the status line, and continues pending steering", async () => {
     const client = tx({ steering: true });
-    const result = await expireStuckRun(client as unknown as Prisma.TransactionClient, {
-      runId: "run-1",
-      threadId: "thread-1",
-      status: "queued",
-      updatedAt,
-      now,
-    });
+    const result = await runAsSystem("test expire stuck run", () =>
+      expireStuckRun(client as unknown as Prisma.TransactionClient, {
+        runId: "run-1",
+        threadId: "thread-1",
+        status: "queued",
+        updatedAt,
+        now,
+      }),
+    );
 
     expect(result).toEqual({ seq: 8, continuationRunId: "run-next" });
     expect(client.run.updateMany).toHaveBeenCalledWith({

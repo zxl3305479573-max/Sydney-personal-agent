@@ -38,8 +38,20 @@ function pick(row: Row, select?: Record<string, boolean>) {
 function botSecretDeps(seed: Row[] = []) {
   const now = new Date("2026-09-01T00:00:00.000Z");
   const bots: Row[] = [
-    { id: "bot-1", userId: "user-1", spaceId: "space-1", archivedAt: null },
-    { id: "bot-other", userId: "user-2", spaceId: "space-1", archivedAt: null },
+    {
+      id: "bot-1",
+      userId: "user-1",
+      spaceId: "space-1",
+      projectWorkspaceId: null,
+      archivedAt: null,
+    },
+    {
+      id: "bot-other",
+      userId: "user-2",
+      spaceId: "space-1",
+      projectWorkspaceId: null,
+      archivedAt: null,
+    },
   ];
   const rows: Row[] = seed.map((row) => ({ ...row }));
   const botSecret = {

@@ -265,14 +265,12 @@ function fixture({
       if (where?.kind === "runtime_checkpoint") turnCheckpoints.length = 0;
       return { count: 0 };
     }),
-    findUnique: vi.fn(
-      async ({ where }: { where: { id?: string; idempotencyKey?: string } }) => {
-        const effect = effects.find((effect) =>
-          where.id ? effect.id === where.id : effect.idempotencyKey === where.idempotencyKey,
-        );
-        return effect ? { ...effect } : null;
-      },
-    ),
+    findUnique: vi.fn(async ({ where }: { where: { id?: string; idempotencyKey?: string } }) => {
+      const effect = effects.find((effect) =>
+        where.id ? effect.id === where.id : effect.idempotencyKey === where.idempotencyKey,
+      );
+      return effect ? { ...effect } : null;
+    }),
     create: vi.fn(async ({ data }: { data: Omit<Effect, "id"> }) => {
       const effect = { ...data, id: `effect-${effects.length + 1}` };
       createdAt.set(effect.id, new Date());
@@ -749,10 +747,14 @@ it.each([
     const connected = vi.fn(async () => ({ platform: "win32" }));
     const state = fixture({
       projectWorkspaceId: "project-1",
-      projectDirectoryPin: pinned ? {
-        kind: "windows", targetId: "windows-a",
-        grantId: "a374627e-87a5-4f8d-a619-1c662ae431b7", intent: "read-only",
-      } : null,
+      projectDirectoryPin: pinned
+        ? {
+            kind: "windows",
+            targetId: "windows-a",
+            grantId: "a374627e-87a5-4f8d-a619-1c662ae431b7",
+            intent: "read-only",
+          }
+        : null,
       projectDeviceToolsEnabled: enabled,
       sourceRole: "user",
       userDevices: { connected } as unknown as UserDeviceGateway,
@@ -781,23 +783,31 @@ it("resumes an offline project update under the original approval and fixed devi
     intent: "read-write",
   };
   const replacementHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-  const request = vi.fn()
-    .mockImplementationOnce(() => { throw new UserDeviceNotConnectedError(); })
+  const request = vi
+    .fn()
+    .mockImplementationOnce(() => {
+      throw new UserDeviceNotConnectedError();
+    })
     .mockImplementation(async function* () {
       yield { operation: "update", bytes: 5, sha256: replacementHash };
     });
   const state = fixture({
     projectWorkspaceId: "project-1",
     projectDirectoryPin: {
-      kind: "windows", targetId: binding.deviceId, grantId: binding.grantId, intent: binding.intent,
+      kind: "windows",
+      targetId: binding.deviceId,
+      grantId: binding.grantId,
+      intent: binding.intent,
     },
     projectDeviceToolsEnabled: true,
     sourceRole: "user",
     userDevices: { connected: async () => null, request } as unknown as UserDeviceGateway,
   });
-  state.prisma.$queryRaw.mockImplementation(async (...values: unknown[]) =>
-    (String((values[0] as { text?: string })?.text).includes("project_directory_bindings")
-      ? [binding] : []) as never[],
+  state.prisma.$queryRaw.mockImplementation(
+    async (...values: unknown[]) =>
+      (String((values[0] as { text?: string })?.text).includes("project_directory_bindings")
+        ? [binding]
+        : []) as never[],
   );
   const args = { path: "result.md", text: "hello", expectedSha256: "a".repeat(64) };
   state.setCalls([{ name: "project_update_file", args, executionId: "project-update" }]);
@@ -809,20 +819,38 @@ it("resumes an offline project update under the original approval and fixed devi
   state.effects[0]!.status = "approved";
 
   await state.run();
-  expect(state.effects[0]).toMatchObject({ status: "approved", result: { waitingForDevice: true } });
-  expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-    name: "run.continue", payload: { runId: "run-1" }, availableAt: expect.any(Date),
-  }));
+  expect(state.effects[0]).toMatchObject({
+    status: "approved",
+    result: { waitingForDevice: true },
+  });
+  expect(state.enqueue).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "run.continue",
+      payload: { runId: "run-1" },
+      availableAt: expect.any(Date),
+    }),
+  );
 
   await state.run();
   expect(state.effects).toHaveLength(1);
   expect(state.pauseRunForInput).toHaveBeenCalledOnce();
   expect(request).toHaveBeenCalledTimes(2);
-  expect(request).toHaveBeenLastCalledWith("user-1", {
-    method: "projectFile", spaceId: "space-1", projectId: "project-1",
-    grantId: binding.grantId, file: { operation: "update", ...args },
-  }, expect.any(AbortSignal), binding.deviceId);
-  expect(state.effects[0]).toMatchObject({ status: "completed", result: { updated: true, bytes: 5 } });
+  expect(request).toHaveBeenLastCalledWith(
+    "user-1",
+    {
+      method: "projectFile",
+      spaceId: "space-1",
+      projectId: "project-1",
+      grantId: binding.grantId,
+      file: { operation: "update", ...args },
+    },
+    expect.any(AbortSignal),
+    binding.deviceId,
+  );
+  expect(state.effects[0]).toMatchObject({
+    status: "completed",
+    result: { updated: true, bytes: 5 },
+  });
 });
 
 it("enqueues pending work when an approval pauses its current run", async () => {

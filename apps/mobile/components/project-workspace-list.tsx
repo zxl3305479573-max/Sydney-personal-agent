@@ -1,8 +1,9 @@
 import type { ProjectWorkspaceConnectionStatus } from "@rakazo/contracts";
 import { typeScale } from "@rakazo/ui-tokens";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { native, useResolvedAppearance } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 
 export type ProjectWorkspaceListItem = {
   id: string;
@@ -98,13 +99,15 @@ export function ProjectWorkspaceList({
                   borderBottomColor: cardBorder,
                 }}
               >
-                <Pressable
+                <MotionPressable
+                  preset="row"
+                  highlightColor={native.fillPressed}
                   accessibilityRole="button"
                   accessibilityLabel={labels.selectWorkspace(workspace.name, status)}
                   accessibilityState={{ selected, disabled: pending }}
                   disabled={pending}
                   onPress={() => onSelect(workspace.id)}
-                  style={({ pressed }) => ({
+                  style={{
                     flex: 1,
                     minWidth: 0,
                     minHeight: 66,
@@ -112,8 +115,8 @@ export function ProjectWorkspaceList({
                     paddingHorizontal: 18,
                     paddingVertical: 12,
                     gap: 4,
-                    opacity: pending ? 0.5 : pressed ? 0.65 : 1,
-                  })}
+                    opacity: pending ? 0.5 : 1,
+                  }}
                 >
                   <Text style={{ color: labelColor, ...typeScale.cardTitle }}>
                     {workspace.name}
@@ -122,25 +125,26 @@ export function ProjectWorkspaceList({
                     {status}
                     {selected ? ` · ${labels.selected}` : null}
                   </Text>
-                </Pressable>
-                <Pressable
+                </MotionPressable>
+                <MotionPressable
+                  preset="control"
                   accessibilityRole="button"
                   accessibilityLabel={labels.removeWorkspace(workspace.name)}
                   accessibilityState={{ disabled: pending }}
                   disabled={pending}
                   onPress={() => onRemove(workspace.id)}
-                  style={({ pressed }) => ({
+                  style={{
                     minHeight: 44,
                     minWidth: 44,
                     maxWidth: "40%",
                     flexShrink: 1,
                     justifyContent: "center",
                     paddingHorizontal: 12,
-                    opacity: pending ? 0.5 : pressed ? 0.65 : 1,
-                  })}
+                    opacity: pending ? 0.5 : 1,
+                  }}
                 >
                   <Text style={{ color: labelColor }}>{labels.remove}</Text>
-                </Pressable>
+                </MotionPressable>
               </View>
             );
           })
@@ -158,20 +162,22 @@ export function ProjectWorkspaceList({
           ...surfaceShadow,
         }}
       >
-        <Pressable
+        <MotionPressable
+          preset="row"
+          highlightColor={native.fillPressed}
           accessibilityRole="button"
           accessibilityState={{ disabled: pending }}
           disabled={pending}
           onPress={onAdd}
-          style={({ pressed }) => ({
+          style={{
             minHeight: 52,
             justifyContent: "center",
             paddingHorizontal: 18,
-            opacity: pending ? 0.5 : pressed ? 0.65 : 1,
-          })}
+            opacity: pending ? 0.5 : 1,
+          }}
         >
           <Text style={{ color: labelColor, ...typeScale.cardTitle }}>{labels.add}</Text>
-        </Pressable>
+        </MotionPressable>
       </GlassSurface>
     </View>
   );

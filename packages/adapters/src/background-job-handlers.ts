@@ -18,12 +18,7 @@ import {
 } from "@rakazo/adapter-kit";
 import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import {
-  cancelRunsInTransaction,
-  getProjectWorkspace,
-  runAsSystem,
-  runAsTenant,
-} from "@rakazo/db";
+import { cancelRunsInTransaction, getProjectWorkspace, runAsSystem, runAsTenant } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { settleCallRequest } from "./call-request.js";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
@@ -167,17 +162,23 @@ export function createBackgroundJobHandlers(deps: {
   const run = ({ runId }: { runId: string }) =>
     deps.prisma.run.findUnique({ where: { id: runId }, select: CONVERSATION_OWNER });
   const routine = async ({ routineId }: { routineId: string }) =>
-    ownerWithBotProject(await deps.prisma.routine.findUnique({
-      where: { id: routineId }, select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
-    }));
+    ownerWithBotProject(
+      await deps.prisma.routine.findUnique({
+        where: { id: routineId },
+        select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
+      }),
+    );
   const computer = ({ computerId }: { computerId: string }) =>
     deps.prisma.computer.findUnique({ where: { id: computerId }, select: OWNER });
   const thread = ({ threadId }: { threadId: string }) =>
     deps.prisma.thread.findUnique({ where: { id: threadId }, select: CONVERSATION_OWNER });
   const skill = async ({ skillId }: { skillId: string }) =>
-    ownerWithBotProject(await deps.prisma.taughtSkill.findUnique({
-      where: { id: skillId }, select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
-    }));
+    ownerWithBotProject(
+      await deps.prisma.taughtSkill.findUnique({
+        where: { id: skillId },
+        select: { ...OWNER, bot: { select: CONVERSATION_OWNER } },
+      }),
+    );
   const cloudAgent = ({ agentId }: { agentId: string }) =>
     deps.prisma.cloudAgent.findUnique({ where: { id: agentId }, select: CONVERSATION_OWNER });
   const purchase = ({ purchaseId }: { purchaseId: string }) =>

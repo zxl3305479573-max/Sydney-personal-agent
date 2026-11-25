@@ -217,7 +217,9 @@ describe("createBackgroundJobHandlers", () => {
     };
     const handlers = createBackgroundJobHandlers({
       prisma: {
-        run: { findUnique: vi.fn().mockResolvedValue({ ...owner, projectWorkspaceId: "project-a" }) },
+        run: {
+          findUnique: vi.fn().mockResolvedValue({ ...owner, projectWorkspaceId: "project-a" }),
+        },
         $queryRaw: query,
         $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
       },
@@ -251,8 +253,12 @@ describe("createBackgroundJobHandlers", () => {
             bot: { ...owner, projectWorkspaceId: "project-deleting" },
           })),
         },
-        run: { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })) },
-        thread: { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })) },
+        run: {
+          findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })),
+        },
+        thread: {
+          findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId: "project-deleting" })),
+        },
         $queryRaw: query,
       },
       executor: { wakeRoutine, retryRoutineRun, contextStrategy: "current" },
@@ -271,83 +277,126 @@ describe("createBackgroundJobHandlers", () => {
     expect(compactHistory).not.toHaveBeenCalled();
   });
 
-  it.each([null, "project-original"])("restores a Run's stored project (%s) instead of the caller's", async (projectWorkspaceId) => {
-    const seen: unknown[] = [];
-    const lookups = { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId })) };
-    const handlers = createBackgroundJobHandlers({
-      executor: { continueRun: vi.fn(async () => { seen.push(currentDbContext()); }) } as unknown as ReturnType<typeof createRunExecutor>,
-      prisma: {
-        run: lookups,
-        $queryRaw: vi.fn(async () => [{
-          id: projectWorkspaceId, name: "Project", createdAt: new Date(0), updatedAt: new Date(0),
-        }]),
-      } as unknown as PrismaClient,
-      sandbox: {} as unknown as SandboxProvider,
-      home: {} as unknown as AgentHomeStore,
-      artifacts: {} as unknown as ArtifactStore,
-      jobs: {} as unknown as JobPublisher,
-      events: {} as unknown as ThreadEvents,
-      workerId: "worker-1",
-      runtime: {} as unknown as AgentRuntime,
-      secretStore: {} as unknown as EncryptedSecretStore,
-      memoryProviders: { resolve: vi.fn(async () => null) },
-    });
-    const caller = { ...owner, projectWorkspaceId: "project-current" };
-    await runAsTenant(caller, async () => {
-      const payload = { runId: "run-1", projectWorkspaceId: "project-forged" };
-      await handlers["run.continue"](payload);
-      expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
-    });
-    expect(seen).toEqual([{
-      kind: "tenant", ...owner, ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
-    }]);
-  });
+  it.each([null, "project-original"])(
+    "restores a Run's stored project (%s) instead of the caller's",
+    async (projectWorkspaceId) => {
+      const seen: unknown[] = [];
+      const lookups = { findUnique: vi.fn(async () => ({ ...owner, projectWorkspaceId })) };
+      const handlers = createBackgroundJobHandlers({
+        executor: {
+          continueRun: vi.fn(async () => {
+            seen.push(currentDbContext());
+          }),
+        } as unknown as ReturnType<typeof createRunExecutor>,
+        prisma: {
+          run: lookups,
+          $queryRaw: vi.fn(async () => [
+            {
+              id: projectWorkspaceId,
+              name: "Project",
+              createdAt: new Date(0),
+              updatedAt: new Date(0),
+            },
+          ]),
+        } as unknown as PrismaClient,
+        sandbox: {} as unknown as SandboxProvider,
+        home: {} as unknown as AgentHomeStore,
+        artifacts: {} as unknown as ArtifactStore,
+        jobs: {} as unknown as JobPublisher,
+        events: {} as unknown as ThreadEvents,
+        workerId: "worker-1",
+        runtime: {} as unknown as AgentRuntime,
+        secretStore: {} as unknown as EncryptedSecretStore,
+        memoryProviders: { resolve: vi.fn(async () => null) },
+      });
+      const caller = { ...owner, projectWorkspaceId: "project-current" };
+      await runAsTenant(caller, async () => {
+        const payload = { runId: "run-1", projectWorkspaceId: "project-forged" };
+        await handlers["run.continue"](payload);
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
+      });
+      expect(seen).toEqual([
+        {
+          kind: "tenant",
+          ...owner,
+          ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+        },
+      ]);
+    },
+  );
 
-  it.each([null, "project-original"])("restores a routine's Bot project (%s) before waking it", async (projectWorkspaceId) => {
-    const seen: unknown[] = [];
-    const findUnique = vi.fn(async () => ({
-      ...owner,
-      bot: { ...owner, projectWorkspaceId },
-    }));
-    const wakeRoutine = vi.fn(async () => { seen.push(currentDbContext()); });
-    const handlers = createBackgroundJobHandlers({
-      prisma: {
-        routine: { findUnique },
-        $queryRaw: vi.fn(async () =>
-          projectWorkspaceId
-            ? [{ id: projectWorkspaceId, name: "Project", createdAt: new Date(0), updatedAt: new Date(0) }]
-            : [],
-        ),
-      },
-      executor: { wakeRoutine },
-    } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
-    const caller = { ...owner, projectWorkspaceId: "project-current" };
-    await runAsTenant(caller, async () => {
-      await handlers["routine.wakeup"]({ routineId: "routine-fixture", scheduledFor: "2026-11-13T00:00:00.000Z" });
-      expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
-    });
-    expect(findUnique).toHaveBeenCalledWith({
-      where: { id: "routine-fixture" },
-      select: {
-        spaceId: true, userId: true,
-        bot: { select: { spaceId: true, userId: true, projectWorkspaceId: true } },
-      },
-    });
-    expect(seen).toEqual([{
-      kind: "tenant", ...owner, ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
-    }]);
-  });
+  it.each([null, "project-original"])(
+    "restores a routine's Bot project (%s) before waking it",
+    async (projectWorkspaceId) => {
+      const seen: unknown[] = [];
+      const findUnique = vi.fn(async () => ({
+        ...owner,
+        bot: { ...owner, projectWorkspaceId },
+      }));
+      const wakeRoutine = vi.fn(async () => {
+        seen.push(currentDbContext());
+      });
+      const handlers = createBackgroundJobHandlers({
+        prisma: {
+          routine: { findUnique },
+          $queryRaw: vi.fn(async () =>
+            projectWorkspaceId
+              ? [
+                  {
+                    id: projectWorkspaceId,
+                    name: "Project",
+                    createdAt: new Date(0),
+                    updatedAt: new Date(0),
+                  },
+                ]
+              : [],
+          ),
+        },
+        executor: { wakeRoutine },
+      } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
+      const caller = { ...owner, projectWorkspaceId: "project-current" };
+      await runAsTenant(caller, async () => {
+        await handlers["routine.wakeup"]({
+          routineId: "routine-fixture",
+          scheduledFor: "2026-11-13T00:00:00.000Z",
+        });
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
+      });
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { id: "routine-fixture" },
+        select: {
+          spaceId: true,
+          userId: true,
+          bot: { select: { spaceId: true, userId: true, projectWorkspaceId: true } },
+        },
+      });
+      expect(seen).toEqual([
+        {
+          kind: "tenant",
+          ...owner,
+          ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+        },
+      ]);
+    },
+  );
 
   it("does not wake a routine whose Bot belongs to a different owner", async () => {
     const wakeRoutine = vi.fn();
     const handlers = createBackgroundJobHandlers({
-      prisma: { routine: { findUnique: vi.fn(async () => ({
-        ...owner,
-        bot: { ...owner, userId: "other-user", projectWorkspaceId: "project-other" },
-      })) } },
+      prisma: {
+        routine: {
+          findUnique: vi.fn(async () => ({
+            ...owner,
+            bot: { ...owner, userId: "other-user", projectWorkspaceId: "project-other" },
+          })),
+        },
+      },
       executor: { wakeRoutine },
     } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
-    await handlers["routine.wakeup"]({ routineId: "routine-fixture", scheduledFor: "2026-11-13T00:00:00.000Z" });
+    await handlers["routine.wakeup"]({
+      routineId: "routine-fixture",
+      scheduledFor: "2026-11-13T00:00:00.000Z",
+    });
     expect(wakeRoutine).not.toHaveBeenCalled();
   });
 
@@ -356,35 +405,44 @@ describe("createBackgroundJobHandlers", () => {
     { kind: "cloud" as const, projectWorkspaceId: "project-original" },
     { kind: "purchase" as const, projectWorkspaceId: null },
     { kind: "purchase" as const, projectWorkspaceId: "project-original" },
-  ])("restores $kind's durable scope without querying a deleted Bot or thread", async ({ kind, projectWorkspaceId }) => {
-    const seen: unknown[] = [];
-    const findUnique = vi.fn(async () => ({ ...owner, projectWorkspaceId }));
-    const observe = async () => { seen.push(currentDbContext()); };
-    if (kind === "cloud") vi.mocked(pollCloudAgent).mockImplementationOnce(observe);
-    else vi.mocked(pollPurchase).mockImplementationOnce(observe);
-    const handlers = createBackgroundJobHandlers({
-      prisma: kind === "cloud" ? { cloudAgent: { findUnique } } : { purchase: { findUnique } },
-      executor: {},
-    } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
-    const caller = { ...owner, projectWorkspaceId: "project-current" };
-    await runAsTenant(caller, async () => {
-      if (kind === "cloud") {
-        const payload = { agentId: "operation-fixture", projectWorkspaceId: "project-forged" };
-        await handlers["cloud_agent.poll"](payload);
-      } else {
-        const payload = { purchaseId: "operation-fixture", projectWorkspaceId: "project-forged" };
-        await handlers["purchase.poll"](payload);
-      }
-      expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
-    });
-    expect(findUnique).toHaveBeenCalledWith({
-      where: { id: "operation-fixture" },
-      select: { spaceId: true, userId: true, projectWorkspaceId: true },
-    });
-    expect(seen).toEqual([{
-      kind: "tenant", ...owner, ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
-    }]);
-  });
+  ])(
+    "restores $kind's durable scope without querying a deleted Bot or thread",
+    async ({ kind, projectWorkspaceId }) => {
+      const seen: unknown[] = [];
+      const findUnique = vi.fn(async () => ({ ...owner, projectWorkspaceId }));
+      const observe = async () => {
+        seen.push(currentDbContext());
+      };
+      if (kind === "cloud") vi.mocked(pollCloudAgent).mockImplementationOnce(observe);
+      else vi.mocked(pollPurchase).mockImplementationOnce(observe);
+      const handlers = createBackgroundJobHandlers({
+        prisma: kind === "cloud" ? { cloudAgent: { findUnique } } : { purchase: { findUnique } },
+        executor: {},
+      } as unknown as Parameters<typeof createBackgroundJobHandlers>[0]);
+      const caller = { ...owner, projectWorkspaceId: "project-current" };
+      await runAsTenant(caller, async () => {
+        if (kind === "cloud") {
+          const payload = { agentId: "operation-fixture", projectWorkspaceId: "project-forged" };
+          await handlers["cloud_agent.poll"](payload);
+        } else {
+          const payload = { purchaseId: "operation-fixture", projectWorkspaceId: "project-forged" };
+          await handlers["purchase.poll"](payload);
+        }
+        expect(currentDbContext()).toEqual({ kind: "tenant", ...caller });
+      });
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { id: "operation-fixture" },
+        select: { spaceId: true, userId: true, projectWorkspaceId: true },
+      });
+      expect(seen).toEqual([
+        {
+          kind: "tenant",
+          ...owner,
+          ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+        },
+      ]);
+    },
+  );
 
   it("tries a control release again later when the computer provider is unreachable", async () => {
     const sink = createTestSink();

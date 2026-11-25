@@ -57,9 +57,15 @@ function grantFile(userDataDir: string, scope: WorkspaceGrantScope, id: string):
   validateScope(scope);
   if (!UUID.test(id)) throw new Error("Invalid workspace grant identifier");
   const digest = createHash("sha256")
-    .update(JSON.stringify([
-      scope.origin, scope.userId, scope.deviceId, scope.spaceId, scope.projectWorkspaceId,
-    ]))
+    .update(
+      JSON.stringify([
+        scope.origin,
+        scope.userId,
+        scope.deviceId,
+        scope.spaceId,
+        scope.projectWorkspaceId,
+      ]),
+    )
     .digest("hex");
   return path.resolve(userDataDir, "workspace-grants", digest, `${id}.json`);
 }

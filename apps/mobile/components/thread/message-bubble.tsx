@@ -47,6 +47,7 @@ import { InlineImageAttachment } from "../inline-image-attachment";
 import { McpApprovalCard } from "../McpApprovalCard";
 import type { MarkdownArtifactPreviewTarget } from "../markdown-artifact-preview";
 import { MessageCaption } from "../message-caption";
+import { MotionPressable } from "../motion-pressable";
 import { NativeSymbol } from "../native-symbol";
 import { PeerReceiptLine } from "../peer-receipt-line";
 import { AskBlock } from "./ask-block";
@@ -577,7 +578,8 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
                   }
                 />
               ) : (
-                <Pressable
+                <MotionPressable
+                  preset="card"
                   {...actionProps}
                   onPress={() =>
                     attachment.artifactId
@@ -601,7 +603,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
                   >
                     🖼 {attachment.name ?? t("Image")}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               )
             ) : attachment.artifactId && isAttachmentAudioMimeType(attachment.mimeType ?? "") ? (
               <AudioAttachment
@@ -613,7 +615,8 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
                 labelColor={message.role === "user" ? tokens.chatUserForeground : undefined}
               />
             ) : (
-              <Pressable
+              <MotionPressable
+                preset="card"
                 {...actionProps}
                 onPress={() =>
                   attachment.artifactId
@@ -656,7 +659,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
                     {formatFileSize(attachment.size)}
                   </Text>
                 ) : null}
-              </Pressable>
+              </MotionPressable>
             )}
           </View>
         ))}
@@ -886,7 +889,8 @@ function AgentEventLabel({
   const tokens = useMobileTokens();
   const { t } = useI18n();
   return (
-    <Pressable
+    <MotionPressable
+      preset="inline"
       {...actionProps}
       onPress={onToggle}
       accessibilityRole="button"
@@ -920,6 +924,6 @@ function AgentEventLabel({
           </ChatMarkdown>
         </View>
       ) : null}
-    </Pressable>
+    </MotionPressable>
   );
 }

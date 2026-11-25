@@ -33,11 +33,11 @@ import {
 } from "../thread-target.js";
 import { updateBotSettings } from "./bots.js";
 import type { RouterContext } from "./context.js";
+import { projectChatManagementRoutes } from "./project-chat-management.js";
+import { projectCloudDirectoryRoutes } from "./project-cloud-directories.js";
+import { projectDirectoryRoutes } from "./project-directories.js";
 import { THREAD_MESSAGE_PAGE_SIZE } from "./shared.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
-import { projectDirectoryRoutes } from "./project-directories.js";
-import { projectCloudDirectoryRoutes } from "./project-cloud-directories.js";
-import { projectChatManagementRoutes } from "./project-chat-management.js";
 
 export function projectWorkspaceRoutes(routerContext: RouterContext) {
   const { deps, authed, repos, groupRepos } = routerContext;
@@ -52,19 +52,25 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
         removeEmpty: deps.env?.projectWorkspaceCreateExperiment === true,
         remove: deps.env?.projectWorkspaceCreateExperiment === true,
       })),
-      conversationCapabilities: authed.projectWorkspaces.conversationCapabilities.handler(async () => ({
-        createBot: deps.env?.projectConversationCreateExperiment === true,
-        botSettings: deps.env?.projectConversationCreateExperiment === true,
-        chatManagement: deps.env?.projectConversationCreateExperiment === true,
-      })),
-      groupCreationCapability: authed.projectWorkspaces.groupCreationCapability.handler(async () => ({
-        createGroup: deps.env?.projectConversationCreateExperiment === true,
-      })),
+      conversationCapabilities: authed.projectWorkspaces.conversationCapabilities.handler(
+        async () => ({
+          createBot: deps.env?.projectConversationCreateExperiment === true,
+          botSettings: deps.env?.projectConversationCreateExperiment === true,
+          chatManagement: deps.env?.projectConversationCreateExperiment === true,
+        }),
+      ),
+      groupCreationCapability: authed.projectWorkspaces.groupCreationCapability.handler(
+        async () => ({
+          createGroup: deps.env?.projectConversationCreateExperiment === true,
+        }),
+      ),
       list: authed.projectWorkspaces.list.handler(async ({ context, input }) => {
         const page = await listProjectWorkspaces(
           deps.prisma,
           context.actor,
-          input.after ? { id: input.after.id, createdAt: new Date(input.after.createdAt) } : undefined,
+          input.after
+            ? { id: input.after.id, createdAt: new Date(input.after.createdAt) }
+            : undefined,
         );
         return {
           items: page.items,
@@ -114,14 +120,18 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       removeEmpty: authed.projectWorkspaces.removeEmpty.handler(async ({ context, input }) => {
         if (!deps.env?.projectWorkspaceCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project removal is not available yet" });
-        if (!await removeEmptyProjectWorkspace(deps.prisma, context.actor, input))
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project removal is not available yet",
+          });
+        if (!(await removeEmptyProjectWorkspace(deps.prisma, context.actor, input)))
           throw new ORPCError("CONFLICT", { message: "Project is unavailable or contains data" });
         return { ok: true as const };
       }),
       remove: authed.projectWorkspaces.remove.handler(async ({ context, input }) => {
         if (!deps.env?.projectWorkspaceCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project removal is not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project removal is not available yet",
+          });
         try {
           const deleted = await deleteProjectWorkspaceWithContent(
             deps,
@@ -152,7 +162,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       createBot: authed.projectWorkspaces.createBot.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         try {
           return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
             repos.createBot(context.actor, input.bot),
@@ -166,7 +178,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       createGroup: authed.projectWorkspaces.createGroup.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         try {
           return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
             groupRepos.createGroup(context.actor, { ...input.group, id: input.requestId }),
@@ -180,7 +194,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       threadHead: authed.projectWorkspaces.threadHead.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
           const target = await resolveThreadTarget(deps.prisma, context.actor, input);
           return threadHead(deps.prisma, target);
@@ -188,11 +204,16 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       getBot: authed.projectWorkspaces.getBot.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const bot = (await repos.listBots(context.actor)).find(({ id }) => id === input.botId)
-            ?? (input.includeArchived
-              ? (await repos.listBots(context.actor, { archived: true })).find(({ id }) => id === input.botId)
+          const bot =
+            (await repos.listBots(context.actor)).find(({ id }) => id === input.botId) ??
+            (input.includeArchived
+              ? (await repos.listBots(context.actor, { archived: true })).find(
+                  ({ id }) => id === input.botId,
+                )
               : undefined);
           if (!bot) throw new IsolationError();
           return bot;
@@ -200,24 +221,36 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       updateBot: authed.projectWorkspaces.updateBot.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
           updateBotSettings(routerContext, context.actor, input.bot),
         );
       }),
-      threadSnapshot: authed.projectWorkspaces.threadSnapshot.handler(async ({ context, input }) => {
-        if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const target = await resolveThreadTarget(deps.prisma, context.actor, input, { includeArchived: true });
-          return threadSnapshot(deps, target);
-        });
-      }),
+      threadSnapshot: authed.projectWorkspaces.threadSnapshot.handler(
+        async ({ context, input }) => {
+          if (!deps.env?.projectConversationCreateExperiment)
+            throw new ORPCError("SERVICE_UNAVAILABLE", {
+              message: "Project conversations are not available yet",
+            });
+          return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+            const target = await resolveThreadTarget(deps.prisma, context.actor, input, {
+              includeArchived: true,
+            });
+            return threadSnapshot(deps, target);
+          });
+        },
+      ),
       messages: authed.projectWorkspaces.messages.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const target = await resolveThreadTarget(deps.prisma, context.actor, input, { includeArchived: true });
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input, {
+            includeArchived: true,
+          });
           return loadMessagePage(
             deps.prisma,
             target.threadId,
@@ -231,7 +264,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       consentStatus: authed.projectWorkspaces.consentStatus.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
           aiConsentStatus(deps, context.actor, {
             botId: input.botId,
@@ -242,7 +277,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       consentAllow: authed.projectWorkspaces.consentAllow.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
           allowAiConsent(deps, context.actor, input, {
             botId: input.botId,
@@ -253,18 +290,25 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       sendText: authed.projectWorkspaces.sendText.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        try {
-          return await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-            const status = await aiConsentStatus(deps, context.actor, {
-              botId: input.botId,
-              groupId: input.groupId,
-              uses: ["model"],
-            });
-            if (status.recipients.some((recipient) => !recipient.allowed))
-              throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });
-            return send(context.actor, input);
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
           });
+        try {
+          return await runInProjectWorkspace(
+            deps.prisma,
+            context.actor,
+            input.projectId,
+            async () => {
+              const status = await aiConsentStatus(deps, context.actor, {
+                botId: input.botId,
+                groupId: input.groupId,
+                uses: ["model"],
+              });
+              if (status.recipients.some((recipient) => !recipient.allowed))
+                throw new ORPCError("FORBIDDEN", { message: AI_CONSENT_REQUIRED });
+              return send(context.actor, input);
+            },
+          );
         } catch (error) {
           if (error instanceof ProjectWorkspaceDeletionInProgressError) {
             throw new ORPCError("CONFLICT", { message: error.message });
@@ -274,7 +318,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       stop: authed.projectWorkspaces.stop.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
           const target = await resolveThreadTarget(deps.prisma, context.actor, input);
           await stopThreadRuns(deps, context.actor, target);
@@ -283,7 +329,9 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       markRead: authed.projectWorkspaces.markRead.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
           const target = await resolveThreadTarget(deps.prisma, context.actor, input);
           const unreadAfterSeq = await markThreadRead(deps.prisma, context.actor, target);
@@ -292,61 +340,82 @@ export function projectWorkspaceRoutes(routerContext: RouterContext) {
       }),
       cancelRun: authed.projectWorkspaces.cancelRun.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
           const target = await resolveThreadTarget(deps.prisma, context.actor, input);
           await stopThreadRuns(deps, context.actor, target, input.runId);
           return { ok: true as const };
         });
       }),
-      answerApproval: authed.projectWorkspaces.answerApproval.handler(async ({ context, input }) => {
-        if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
-        await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const target = await resolveThreadTarget(deps.prisma, context.actor, input);
-          const answered = await deps.events.answerRunInput({
-            spaceId: context.actor.spaceId,
-            threadId: target.threadId,
-            runId: input.runId,
-            messageId: input.messageId,
-            answeredByUserId: context.actor.userId,
-            answer: input.decision,
-            projectApproval: { projectId: input.projectId, effectId: input.effectId },
+      answerApproval: authed.projectWorkspaces.answerApproval.handler(
+        async ({ context, input }) => {
+          if (!deps.env?.projectConversationCreateExperiment)
+            throw new ORPCError("SERVICE_UNAVAILABLE", {
+              message: "Project conversations are not available yet",
+            });
+          await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
+            const target = await resolveThreadTarget(deps.prisma, context.actor, input);
+            const answered = await deps.events.answerRunInput({
+              spaceId: context.actor.spaceId,
+              threadId: target.threadId,
+              runId: input.runId,
+              messageId: input.messageId,
+              answeredByUserId: context.actor.userId,
+              answer: input.decision,
+              projectApproval: { projectId: input.projectId, effectId: input.effectId },
+            });
+            if (!answered)
+              throw new ORPCError("CONFLICT", { message: "This approval is no longer pending" });
           });
-          if (!answered)
-            throw new ORPCError("CONFLICT", { message: "This approval is no longer pending" });
-        });
-        await deps.jobs.enqueue(runContinueJob(input.runId)).catch((error) => {
-          getLogger().error("project approval enqueue", error);
-        });
-        return { ok: true as const };
-      }),
+          await deps.jobs.enqueue(runContinueJob(input.runId)).catch((error) => {
+            getLogger().error("project approval enqueue", error);
+          });
+          return { ok: true as const };
+        },
+      ),
       getArtifact: authed.projectWorkspaces.getArtifact.handler(async ({ context, input }) => {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         return runInProjectWorkspace(deps.prisma, context.actor, input.projectId, async () => {
-          const target = await resolveThreadTarget(deps.prisma, context.actor, input, { includeArchived: true });
-          return getProjectThreadArtifact(deps, context.actor, { ...input, threadId: target.threadId });
+          const target = await resolveThreadTarget(deps.prisma, context.actor, input, {
+            includeArchived: true,
+          });
+          return getProjectThreadArtifact(deps, context.actor, {
+            ...input,
+            threadId: target.threadId,
+          });
         });
       }),
       subscribe: authed.projectWorkspaces.subscribe.handler(async function* ({ context, input }) {
         if (!deps.env?.projectConversationCreateExperiment)
-          throw new ORPCError("SERVICE_UNAVAILABLE", { message: "Project conversations are not available yet" });
+          throw new ORPCError("SERVICE_UNAVAILABLE", {
+            message: "Project conversations are not available yet",
+          });
         const iterator = subscribeThread(routerContext, context, input);
         try {
           while (!context.signal?.aborted) {
-            const next = await runInProjectWorkspace(deps.prisma, context.actor, input.projectId, () =>
-              iterator.next(),
+            const next = await runInProjectWorkspace(
+              deps.prisma,
+              context.actor,
+              input.projectId,
+              () => iterator.next(),
             );
             if (next.done) return;
             yield next.value;
           }
         } finally {
-          void runAsTenant({
-            spaceId: context.actor.spaceId,
-            userId: context.actor.userId,
-            projectWorkspaceId: input.projectId,
-          }, () => iterator.return(undefined)).catch(() => {});
+          void runAsTenant(
+            {
+              spaceId: context.actor.spaceId,
+              userId: context.actor.userId,
+              projectWorkspaceId: input.projectId,
+            },
+            () => iterator.return(undefined),
+          ).catch(() => {});
         }
       }),
     },

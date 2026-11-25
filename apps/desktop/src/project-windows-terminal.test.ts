@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { ProjectWindowsTerminalRequest } from "@rakazo/contracts";
+import { describe, expect, it, vi } from "vitest";
 import { createProjectWindowsTerminal } from "./project-windows-terminal.js";
 
 const request: ProjectWindowsTerminalRequest = {
@@ -16,16 +16,20 @@ describe.skipIf(process.platform !== "win32")("Windows project diagnostics", () 
   it.each([
     ["ver", /^\d+(?:\.\d+){2,3}$/],
     ["chcp", /^\d+$/],
-  ] as const)("runs real %s only after the native confirmation callback", async (command, pattern) => {
-    const confirm = vi.fn().mockResolvedValue(true);
-    const execute = createProjectWindowsTerminal(confirm);
-    const signal = new AbortController().signal;
-    const task = { ...request, command };
-    await expect(execute(origin, task, signal)).resolves.toEqual({
-      status: "completed", stdout: expect.stringMatching(pattern),
-    });
-    expect(confirm).toHaveBeenCalledExactlyOnceWith(origin, task, signal);
-  });
+  ] as const)(
+    "runs real %s only after the native confirmation callback",
+    async (command, pattern) => {
+      const confirm = vi.fn().mockResolvedValue(true);
+      const execute = createProjectWindowsTerminal(confirm);
+      const signal = new AbortController().signal;
+      const task = { ...request, command };
+      await expect(execute(origin, task, signal)).resolves.toEqual({
+        status: "completed",
+        stdout: expect.stringMatching(pattern),
+      });
+      expect(confirm).toHaveBeenCalledExactlyOnceWith(origin, task, signal);
+    },
+  );
 
   it("rejects injected parameters before prompting and reports a native refusal", async () => {
     const confirm = vi.fn().mockResolvedValue(false);
@@ -44,6 +48,9 @@ describe.skipIf(process.platform !== "win32")("Windows project diagnostics", () 
       return true;
     });
     const execute = createProjectWindowsTerminal(confirm);
-    await expect(execute(origin, request, controller.signal)).rejects.toHaveProperty("name", "AbortError");
+    await expect(execute(origin, request, controller.signal)).rejects.toHaveProperty(
+      "name",
+      "AbortError",
+    );
   });
 });

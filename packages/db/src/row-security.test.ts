@@ -1,7 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
+import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "./generated/prisma/client.js";
-import { currentDbContext, installDbContext, rlsBypassKey, runAsSystem, runAsTenant, withRowLevelSecurity } from "./row-security.js";
+import {
+  currentDbContext,
+  installDbContext,
+  rlsBypassKey,
+  runAsSystem,
+  runAsTenant,
+  withRowLevelSecurity,
+} from "./row-security.js";
 
 describe("tenant project context", () => {
   const actor = { userId: "user-fixture", spaceId: "space-fixture" };
@@ -9,7 +16,11 @@ describe("tenant project context", () => {
   it("inherits a project only for the same tenant and restores it after nested work", async () => {
     await runAsTenant({ ...actor, projectWorkspaceId: "project-a" }, async () => {
       await runAsTenant(actor, () => {
-        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+        expect(currentDbContext()).toEqual({
+          kind: "tenant",
+          ...actor,
+          projectWorkspaceId: "project-a",
+        });
       });
       await runAsTenant({ ...actor, projectWorkspaceId: null }, () => {
         expect(currentDbContext()).toEqual({ kind: "tenant", ...actor });
@@ -17,24 +28,32 @@ describe("tenant project context", () => {
       await runAsTenant({ ...actor, userId: "other-user" }, () => {
         expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, userId: "other-user" });
       });
-      expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+      expect(currentDbContext()).toEqual({
+        kind: "tenant",
+        ...actor,
+        projectWorkspaceId: "project-a",
+      });
     });
     expect(currentDbContext()).toBeUndefined();
   });
 
   it("keeps concurrent projects apart", async () => {
-    await Promise.all(["project-a", "project-b"].map((projectWorkspaceId) =>
-      runAsTenant({ ...actor, projectWorkspaceId }, async () => {
-        await Promise.resolve();
-        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId });
-      }),
-    ));
+    await Promise.all(
+      ["project-a", "project-b"].map((projectWorkspaceId) =>
+        runAsTenant({ ...actor, projectWorkspaceId }, async () => {
+          await Promise.resolve();
+          expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId });
+        }),
+      ),
+    );
     expect(currentDbContext()).toBeUndefined();
   });
 
   it("rejects an invalid project selection before invoking the callback", async () => {
     const callback = vi.fn();
-    await expect(runAsTenant({ ...actor, projectWorkspaceId: "../other" }, callback)).rejects.toThrow();
+    await expect(
+      runAsTenant({ ...actor, projectWorkspaceId: "../other" }, callback),
+    ).rejects.toThrow();
     expect(callback).not.toHaveBeenCalled();
   });
 
@@ -52,7 +71,10 @@ describe("tenant project context", () => {
     await runAsSystem("synthetic context test", () => pool.connect());
     await pool.connect();
     expect(query.mock.calls).toEqual([
-      [expect.stringContaining("app.project_workspace_id"), [actor.spaceId, actor.userId, "off", "", "project-a"]],
+      [
+        expect.stringContaining("app.project_workspace_id"),
+        [actor.spaceId, actor.userId, "off", "", "project-a"],
+      ],
       [expect.any(String), [actor.spaceId, actor.userId, "off", "", "project-b"]],
       [expect.any(String), [actor.spaceId, actor.userId, "off", "", ""]],
       [expect.any(String), ["", "", "on", expect.stringMatching(/^[a-f0-9]{64}$/), ""]],

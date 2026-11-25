@@ -395,7 +395,9 @@ it("shows pin immediately and serializes a quick unpin behind the first request"
   await vi.waitFor(() => expect(h.state.pins.get("bot:b1")?.pinned).toBe(true));
   expect(h.loadBots).not.toHaveBeenCalled();
   const shown = applyPinOverrides("bot", h.state.bots, h.state.pins, {
-    generation: 1, apiBase: "", spaceId: "space-a",
+    generation: 1,
+    apiBase: "",
+    spaceId: "space-a",
   });
   expect(shown[0]?.pinned).toBe(true);
   await h.updateChat("bot", { id: "b1", spaceId: "space-a" }, { pinned: false });
@@ -416,7 +418,12 @@ it("shows pin immediately and serializes a quick unpin behind the first request"
 
 it("reverts the pending pin and reports an error when saving fails", async () => {
   let rejectSave: (error: Error) => void = () => undefined;
-  const h = await handlers(() => new Promise<void>((_resolve, reject) => { rejectSave = reject; }));
+  const h = await handlers(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+  );
   await h.updateChat("bot", { id: "b1", spaceId: "space-a" }, { pinned: true });
   await vi.waitFor(() => expect(h.state.pins.get("bot:b1")?.pinned).toBe(true));
   rejectSave(new Error("offline"));
@@ -431,12 +438,20 @@ it("does not apply a pending pin to a different session or space", () => {
     ["bot:b1", { pinned: true, generation: 1, apiBase: "server", spaceId: "space-a" }],
   ]);
   const bots = [{ id: "b1", pinned: false }];
-  expect(applyPinOverrides("bot", bots, overrides, {
-    generation: 2, apiBase: "server", spaceId: "space-a",
-  })[0]?.pinned).toBe(false);
-  expect(applyPinOverrides("bot", bots, overrides, {
-    generation: 1, apiBase: "server", spaceId: "space-b",
-  })[0]?.pinned).toBe(false);
+  expect(
+    applyPinOverrides("bot", bots, overrides, {
+      generation: 2,
+      apiBase: "server",
+      spaceId: "space-a",
+    })[0]?.pinned,
+  ).toBe(false);
+  expect(
+    applyPinOverrides("bot", bots, overrides, {
+      generation: 1,
+      apiBase: "server",
+      spaceId: "space-b",
+    })[0]?.pinned,
+  ).toBe(false);
 });
 
 it("names the archive failure for bots", async () => {

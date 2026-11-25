@@ -242,8 +242,10 @@ export async function messageBot(
           markUnread: options?.forceUnread === true,
         });
         const executionScope = await resolveConversationExecutionScope(tx, {
-          spaceId: run.spaceId, userId: run.userId,
-          botId: target.id, threadId: targetThreadId,
+          spaceId: run.spaceId,
+          userId: run.userId,
+          botId: target.id,
+          threadId: targetThreadId,
         });
         const task = await tx.task.create({
           data: {

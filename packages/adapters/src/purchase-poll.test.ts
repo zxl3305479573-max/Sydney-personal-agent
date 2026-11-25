@@ -1,5 +1,5 @@
 import { PaymentWalletRequestRejected } from "@rakazo/adapter-kit";
-import { runAsTenant } from "@rakazo/db";
+import { runAsSystem, runAsTenant } from "@rakazo/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakePaymentWallet, fakeJobs, fakePurchasePrisma } from "./fake-purchases.js";
 import { PURCHASE_POLL_DEADLINE_MS, pollPurchase, reconcilePurchases } from "./purchase-poll.js";
@@ -25,34 +25,41 @@ async function setup(projectWorkspaceId: string | null = null) {
     jobs: queue.jobs,
     paymentWallet: wallet,
   };
-  await runAsTenant(fixture, () => executePurchaseTool(
-    deps,
-    {
-      operationId: "op-1",
-      traceId: "op-1",
-      spaceId: fixture.spaceId,
-      userId: fixture.userId,
-      botId: fixture.botId,
-      signal: new AbortController().signal,
-    },
-    { threadId: fixture.threadId },
-    "request_purchase",
-    {
-      merchantName: "Example Store",
-      merchantUrl: "https://shop.example.test/checkout",
-      amount: 1999,
-      currency: "usd",
-      reason: "Two boxes of printer paper for the office, as the user asked this morning. ".repeat(
-        2,
-      ),
-    },
-  ));
+  await runAsTenant({ ...fixture, projectWorkspaceId }, () =>
+    executePurchaseTool(
+      deps,
+      {
+        operationId: "op-1",
+        traceId: "op-1",
+        spaceId: fixture.spaceId,
+        userId: fixture.userId,
+        botId: fixture.botId,
+        signal: new AbortController().signal,
+      },
+      { threadId: fixture.threadId },
+      "request_purchase",
+      {
+        merchantName: "Example Store",
+        merchantUrl: "https://shop.example.test/checkout",
+        amount: 1999,
+        currency: "usd",
+        reason:
+          "Two boxes of printer paper for the office, as the user asked this morning. ".repeat(2),
+      },
+    ),
+  );
   queue.enqueued.length = 0;
   const approve = () =>
     wallet.snapshots.set("remote-op-1", { id: "remote-op-1", status: "approved" });
   const poll = () => runAsTenant(fixture, () => pollPurchase(deps, { purchaseId: "purchase-1" }));
   return {
-    ...db, ...queue, wallet, deps, approve, poll, row: () => db.purchases[0]!,
+    ...db,
+    ...queue,
+    wallet,
+    deps,
+    approve,
+    poll,
+    row: () => db.purchases[0]!,
     pollIn: (scope: { spaceId: string; userId: string; projectWorkspaceId?: string | null }) =>
       runAsTenant(scope, () => pollPurchase(deps, { purchaseId: "purchase-1" })),
   };
@@ -167,12 +174,14 @@ describe("reconcilePurchases", () => {
   it("re-enqueues due polls for the configured wallet", async () => {
     const env = await setup();
     env.row().nextPollAt = new Date(Date.now() - 1);
-    await reconcilePurchases(env.deps);
+    await runAsSystem("reconcile purchases", () => reconcilePurchases(env.deps));
     expect(env.enqueued).toEqual([
       expect.objectContaining({ name: "purchase.poll", payload: { purchaseId: "purchase-1" } }),
     ]);
     env.enqueued.length = 0;
-    await reconcilePurchases({ ...env.deps, paymentWallet: null });
+    await runAsSystem("reconcile purchases", () =>
+      reconcilePurchases({ ...env.deps, paymentWallet: null }),
+    );
     expect(env.enqueued).toHaveLength(0);
   });
 });

@@ -33,9 +33,10 @@ export function inboxBotInput(identity?: InboxBotIdentity) {
 
 const EXISTING_BOTS_TIMEOUT_MS = 2_000;
 
-async function loadExistingBots(
-  options: { requestContext: ApiRequestContext; skipSpaceAuthRecovery: true },
-) {
+async function loadExistingBots(options: {
+  requestContext: ApiRequestContext;
+  skipSpaceAuthRecovery: true;
+}) {
   const controller = new AbortController();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -81,11 +82,7 @@ export async function createInboxBot({
   const options = { requestContext, skipSpaceAuthRecovery: true as const };
   const existingPromise = loadExistingBots(options);
   if (!isCurrent()) throw new Error("Space changed. Please try again.");
-  const bot = await rpc(
-    "bots/create",
-    inboxBotInput(identity),
-    options,
-  );
+  const bot = await rpc("bots/create", inboxBotInput(identity), options);
   if (!isCurrent()) return;
   void refreshBots().catch(() => undefined);
   allowFocusPrompt(bot.id);

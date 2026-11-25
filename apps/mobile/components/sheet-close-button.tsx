@@ -1,12 +1,13 @@
-import { Pressable } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { native } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function SheetCloseButton({ onPress }: { onPress: () => void }) {
   const { t } = useI18n();
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
       accessibilityRole="button"
       accessibilityLabel={t("Close")}
       onPress={onPress}
@@ -21,6 +22,6 @@ export function SheetCloseButton({ onPress }: { onPress: () => void }) {
       }}
     >
       <NativeSymbol ios="xmark" android="close" size={13} color={native.secondaryLabel} />
-    </Pressable>
+    </MotionPressable>
   );
 }

@@ -58,6 +58,7 @@ test("launches with a narrow preload bridge and an isolated renderer", async () 
       "oauth",
       "passkeys",
       "platform",
+      "projectDirectory",
       "settings",
       "update",
       "window",

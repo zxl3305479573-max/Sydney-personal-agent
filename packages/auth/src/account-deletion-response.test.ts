@@ -17,7 +17,9 @@ async function fixture(workspaceResult: "present" | "failure") {
     };
   });
   const { accountHasProjectWorkspacesAuthError, createAuth } = await import("./index.js");
-  const { claimProjectAccountDeletion, ProjectAccountHasWorkspacesError } = await import("@rakazo/db");
+  const { claimProjectAccountDeletion, ProjectAccountHasWorkspacesError } = await import(
+    "@rakazo/db"
+  );
   const assertAccountDeletionAllowed = async (client: unknown, userId: string) => {
     try {
       await claimProjectAccountDeletion(client as never, userId);
@@ -142,10 +144,14 @@ describe("account deletion workspace authentication response", () => {
     expect(result.cancelBilling).not.toHaveBeenCalled();
     expect(result.cleanup).not.toHaveBeenCalled();
     await expect(
-      result.assertAccountDeletionAllowed({
-        $transaction: async (callback: (tx: { $queryRaw: typeof result.query }) => Promise<void>) =>
-          callback({ $queryRaw: result.query }),
-      } as never, "user-1"),
+      result.assertAccountDeletionAllowed(
+        {
+          $transaction: async (
+            callback: (tx: { $queryRaw: typeof result.query }) => Promise<void>,
+          ) => callback({ $queryRaw: result.query }),
+        } as never,
+        "user-1",
+      ),
     ).rejects.toBe(result.failure);
   });
 

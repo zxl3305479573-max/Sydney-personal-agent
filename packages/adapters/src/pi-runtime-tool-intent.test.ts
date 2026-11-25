@@ -115,9 +115,15 @@ describe("Pi tool intent routing", () => {
     });
     const runtime = new PiAgentRuntime();
     const events = [];
-    for await (const event of runtime.runWithoutTools({
-      ...request, executeTool, toolIntentCandidate: { message: "hello" },
-    }, context)) events.push(event);
+    for await (const event of runtime.runWithoutTools(
+      {
+        ...request,
+        executeTool,
+        toolIntentCandidate: { message: "hello" },
+      },
+      context,
+    ))
+      events.push(event);
     expect(seen).toHaveLength(1);
     expect(declaredTools(seen[0]!)).toEqual([]);
     expect(executeTool).not.toHaveBeenCalled();
@@ -126,14 +132,19 @@ describe("Pi tool intent routing", () => {
 
   it("refuses steering, checkpoints, and scripts in the tool-free entry", () => {
     const runtime = new PiAgentRuntime();
-    expect(() => runtime.runWithoutTools({ ...request, claimSteering: async () => [] }))
-      .toThrow("tool-free");
-    expect(() => runtime.runWithoutTools({ ...request, turnCheckpoint: "checkpoint" }))
-      .toThrow("tool-free");
-    expect(() => runtime.runWithoutTools({ ...request, resumeFromCheckpoint: "checkpoint" }))
-      .toThrow("tool-free");
+    expect(() => runtime.runWithoutTools({ ...request, claimSteering: async () => [] })).toThrow(
+      "tool-free",
+    );
+    expect(() => runtime.runWithoutTools({ ...request, turnCheckpoint: "checkpoint" })).toThrow(
+      "tool-free",
+    );
+    expect(() =>
+      runtime.runWithoutTools({ ...request, resumeFromCheckpoint: "checkpoint" }),
+    ).toThrow("tool-free");
     expect(() => runtime.runWithoutTools({ ...request, script: [] })).toThrow("tool-free");
-    expect(() => new PiAgentRuntime({ sessionRoot: "unused" }).runWithoutTools(request)).toThrow("tool-free");
+    expect(() => new PiAgentRuntime({ sessionRoot: "unused" }).runWithoutTools(request)).toThrow(
+      "tool-free",
+    );
   });
 
   it("does not execute an unsolicited tool call returned by the model", async () => {

@@ -28,6 +28,7 @@ vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({}) }));
 vi.mock("./native", () => ({
   native: {},
+  useMobileTokens: () => ({}),
   useResolvedAppearance: () => "light",
   useThemedStyles: (createStyles: () => unknown) => createStyles(),
 }));
@@ -60,6 +61,7 @@ vi.mock("expo-router", () => ({
 vi.mock("react-native", () => {
   const view = ({ children }: { children?: ReactNode }) => createElement("div", null, children);
   return {
+    Platform: { OS: "ios", Version: 18 },
     StyleSheet: { create: (styles: unknown) => styles },
     ActivityIndicator: () => createElement("progress"),
     Pressable: ({
@@ -164,7 +166,7 @@ it("names both bots in the header and closes the read-only chat", async () => {
   const close = screen.querySelector<HTMLButtonElement>('header button[aria-label="Close"]');
   expect(close).not.toBeNull();
   expect(close?.getAttribute("role")).toBe("button");
-  expect(close?.textContent).toBe("");
+  expect(close?.textContent).toBe("Close");
   act(() => close?.click());
   expect(back).toHaveBeenCalledOnce();
 });

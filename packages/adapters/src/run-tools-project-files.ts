@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { runContinueJob } from "@rakazo/adapter-kit";
-import type { ProjectDirectoryBinding, ProjectFileOperation, ProjectFileResult } from "@rakazo/contracts";
+import type {
+  ProjectDirectoryBinding,
+  ProjectFileOperation,
+  ProjectFileResult,
+} from "@rakazo/contracts";
 import { ProjectFileOperationSchema, ProjectFileResultSchema } from "@rakazo/contracts";
 import { messageBlockForArtifact } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
@@ -16,7 +20,6 @@ import { NativeProjectFileDispatchError } from "./native-linux-sandbox.js";
 import type { RunContext } from "./run-context.js";
 import { pauseForApproval, persistTurnCheckpoint } from "./run-context.js";
 import { isSubagentToolExecution } from "./run-effects.js";
-import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
 import { persistMessageInTransaction } from "./run-messages.js";
 import {
   PROJECT_FILE_CREATE,
@@ -29,6 +32,7 @@ import {
 import type { ToolCall, ToolHandlers } from "./run-tool-gate.js";
 import type { ToolRequest } from "./run-tool-request.js";
 import { attachWorkspaceFileToThread } from "./thread-artifacts.js";
+import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
 
 const DIRECTORY_UNAVAILABLE = "The current project directory authorization is unavailable.";
 const BINDING_CHECK_INTERVAL_MS = 1_000;
@@ -42,7 +46,10 @@ function textSha256(text: string) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-async function liveBinding(ctx: RunContext, prisma: Pick<PrismaClient, "$queryRaw"> = ctx.deps.prisma) {
+async function liveBinding(
+  ctx: RunContext,
+  prisma: Pick<PrismaClient, "$queryRaw"> = ctx.deps.prisma,
+) {
   const { run, runId, workerId, fence } = ctx;
   const projectId = run.projectWorkspaceId;
   if (!projectId || ctx.context.signal.aborted) return null;
@@ -60,7 +67,11 @@ async function liveBinding(ctx: RunContext, prisma: Pick<PrismaClient, "$queryRa
   if (local) return local;
   if (!ctx.deps.sandbox?.executeProjectFile) return null;
   const cloud = await getProjectCloudDirectory(prisma, run, projectId, {
-    id: runId, threadId: run.threadId, taskId: run.taskId, workerId, fence,
+    id: runId,
+    threadId: run.threadId,
+    taskId: run.taskId,
+    workerId,
+    fence,
   });
   return cloud?.available ? cloud : null;
 }
@@ -80,15 +91,16 @@ function matchesBinding(reference: unknown, binding: BoundDirectory | null) {
 
 function parseFile(name: string, args: Record<string, unknown>) {
   if ("operation" in args) return ProjectFileOperationSchema.safeParse(null);
-  const operation = name === PROJECT_FILE_READ
-    ? "read"
-    : name === PROJECT_FILE_LIST
-      ? "list"
-      : name === PROJECT_FILE_SEARCH
-        ? "search"
-        : name === PROJECT_FILE_CREATE
-          ? "create"
-          : "update";
+  const operation =
+    name === PROJECT_FILE_READ
+      ? "read"
+      : name === PROJECT_FILE_LIST
+        ? "list"
+        : name === PROJECT_FILE_SEARCH
+          ? "search"
+          : name === PROJECT_FILE_CREATE
+            ? "create"
+            : "update";
   return ProjectFileOperationSchema.safeParse({ ...args, operation });
 }
 
@@ -98,13 +110,18 @@ export async function prepareProjectFile(ctx: RunContext, request: ToolRequest) 
   const { projectDirectory, ...savedArgs } = request.args;
   const file = parseFile(request.name, request.approvedEffectKey ? savedArgs : request.args);
   if (!file.success)
-    return { error: "Use a valid project-relative path and UTF-8 text; updates must include the SHA-256 from the last read." };
+    return {
+      error:
+        "Use a valid project-relative path and UTF-8 text; updates must include the SHA-256 from the last read.",
+    };
   const binding = await liveBinding(ctx);
   ctx.context.signal.throwIfAborted();
   if (!binding || !projectFileToolAllowed(request.name, binding.intent))
     return { error: DIRECTORY_UNAVAILABLE };
   if (request.approvedEffectKey && !matchesBinding(projectDirectory, binding))
-    return { error: "The project directory changed after approval. Ask the owner to review a new request." };
+    return {
+      error: "The project directory changed after approval. Ask the owner to review a new request.",
+    };
   const { operation, ...fileArgs } = file.data;
   request.args = {
     ...fileArgs,
@@ -113,15 +130,16 @@ export async function prepareProjectFile(ctx: RunContext, request: ToolRequest) 
   request.effectRequest = request.args;
   const windows = "deviceId" in binding;
   request.fleetSummary = {
-    title: operation === "list"
-      ? "List this project folder?"
-      : operation === "search"
-        ? "Search this project folder?"
-        : operation === "read"
-          ? "Read this project file?"
-          : operation === "create"
-            ? "Create this project file?"
-            : "Update this project file?",
+    title:
+      operation === "list"
+        ? "List this project folder?"
+        : operation === "search"
+          ? "Search this project folder?"
+          : operation === "read"
+            ? "Read this project file?"
+            : operation === "create"
+              ? "Create this project file?"
+              : "Update this project file?",
     lines: [
       `Execution location: ${windows ? "Windows" : "Cloud computer"}`,
       `Authorized folder: ${windows ? binding.directoryName : binding.folder.path}`,
@@ -149,11 +167,16 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
   signal.throwIfAborted();
   const projectId = ctx.run.projectWorkspaceId;
   if (
-    !file.success || !projectId || !binding ||
+    !file.success ||
+    !projectId ||
+    !binding ||
     !matchesBinding(projectDirectory, binding) ||
     !projectFileToolAllowed(call.name, binding.intent) ||
-    !call.applied || !call.claimedEffect || call.bypassApproval
-  ) return call.finish({ error: DIRECTORY_UNAVAILABLE });
+    !call.applied ||
+    !call.claimedEffect ||
+    call.bypassApproval
+  )
+    return call.finish({ error: DIRECTORY_UNAVAILABLE });
 
   const effect = call.applied.effect;
   const inFlight = new AbortController();
@@ -162,14 +185,16 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
   const check = setInterval(() => {
     if (checking || requestSignal.aborted) return;
     checking = true;
-    void liveBinding(ctx).then(
-      (current) => {
-        if (!matchesBinding(projectDirectory, current)) inFlight.abort();
-      },
-      () => inFlight.abort(),
-    ).finally(() => {
-      checking = false;
-    });
+    void liveBinding(ctx)
+      .then(
+        (current) => {
+          if (!matchesBinding(projectDirectory, current)) inFlight.abort();
+        },
+        () => inFlight.abort(),
+      )
+      .finally(() => {
+        checking = false;
+      });
   }, BINDING_CHECK_INTERVAL_MS);
   let result: ProjectFileResult;
   try {
@@ -201,7 +226,9 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
       return uncertain;
     }
     signal.throwIfAborted();
-    return call.finish({ error: "The bound computer did not complete the project directory request." });
+    return call.finish({
+      error: "The bound computer did not complete the project directory request.",
+    });
   } finally {
     clearInterval(check);
   }
@@ -210,13 +237,18 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
     const completed = await call.persistEffectResult({ conflict: true, sha256: result.sha256 });
     signal.throwIfAborted();
     return completed
-      ? { conflict: true, sha256: result.sha256, message: "The project file changed after it was read. Read it again before updating." }
+      ? {
+          conflict: true,
+          sha256: result.sha256,
+          message: "The project file changed after it was read. Read it again before updating.",
+        }
       : { error: "The file conflict could not be recorded. Read the file again before retrying." };
   }
   if (result.operation === "create" || result.operation === "update") {
-    const completed = file.data.operation === "create" || file.data.operation === "update"
-      ? await publishProjectFile(ctx, call, binding, file.data, result.bytes)
-      : await call.finish({ error: "The bound computer returned a mismatched result." });
+    const completed =
+      file.data.operation === "create" || file.data.operation === "update"
+        ? await publishProjectFile(ctx, call, binding, file.data, result.bytes)
+        : await call.finish({ error: "The bound computer returned a mismatched result." });
     signal.throwIfAborted();
     return completed;
   }
@@ -232,7 +264,9 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
     if (!matchesBinding(projectDirectory, current)) return { error: DIRECTORY_UNAVAILABLE };
     return durable
       ? { ...completed, entries: result.entries }
-      : { error: "Directory listing could not be recorded. Request a new approval before retrying." };
+      : {
+          error: "Directory listing could not be recorded. Request a new approval before retrying.",
+        };
   }
   if (result.operation === "search") {
     const completed = {
@@ -246,7 +280,9 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
     if (!matchesBinding(projectDirectory, current)) return { error: DIRECTORY_UNAVAILABLE };
     return durable
       ? { ...completed, matches: result.matches }
-      : { error: "Directory search could not be recorded. Request a new approval before retrying." };
+      : {
+          error: "Directory search could not be recorded. Request a new approval before retrying.",
+        };
   }
   const completed = {
     read: true,
@@ -257,7 +293,8 @@ async function runProjectFile(ctx: RunContext, call: ToolCall) {
   const current = await liveBinding(ctx);
   signal.throwIfAborted();
   if (!matchesBinding(projectDirectory, current)) return { error: DIRECTORY_UNAVAILABLE };
-  if (!durable) return { error: "File read could not be recorded. Request a new approval to read it again." };
+  if (!durable)
+    return { error: "File read could not be recorded. Request a new approval to read it again." };
   return { ...completed, text: result.text };
 }
 
@@ -299,16 +336,23 @@ export async function waitForProjectDevice(
         throw new Error("Could not save the project device wait");
       }
       const notified = (effect.result as { waitingForDevice?: boolean } | null)?.waitingForDevice;
-      const notice = notified ? undefined : await persistMessageInTransaction(
-        tx,
-        run,
-        "bot",
-        [{ kind: "text", text: `正在等待绑定的${deviceName}上线。原目录授权有效时，连接恢复后将继续。` }],
-        false,
-        undefined,
-        false,
-        { owner: workerId, fence },
-      );
+      const notice = notified
+        ? undefined
+        : await persistMessageInTransaction(
+            tx,
+            run,
+            "bot",
+            [
+              {
+                kind: "text",
+                text: `正在等待绑定的${deviceName}上线。原目录授权有效时，连接恢复后将继续。`,
+              },
+            ],
+            false,
+            undefined,
+            false,
+            { owner: workerId, fence },
+          );
       const waiting = await appendEventInTransaction(tx, {
         type: "run.queued",
         runId,
@@ -330,7 +374,8 @@ export async function waitForProjectDevice(
   await deps.jobs
     .enqueue({ ...runContinueJob(runId), availableAt: committed.wakeAt })
     .catch((error) => getLogger().error("project device continuation enqueue", error));
-  await deps.events.notify(run.threadId, committed.seq, committed.firstResponseRunId)
+  await deps.events
+    .notify(run.threadId, committed.seq, committed.firstResponseRunId)
     .catch((error) => getLogger().error("project device wait notification", error));
   return paused;
 }
@@ -345,13 +390,19 @@ async function dispatchProjectFile(
   if (!("deviceId" in binding)) {
     const sandbox = ctx.deps.sandbox;
     if (!sandbox.executeProjectFile) throw new Error(DIRECTORY_UNAVAILABLE);
-    return ProjectFileResultSchema.parse(await sandbox.executeProjectFile(
-      {
-        id: binding.computerId, kind: "native-linux", botId: binding.homeKey,
-        providerRef: binding.providerRef,
-      },
-      binding.folder, file, { ...ctx.context, botId: binding.homeKey, signal },
-    ));
+    return ProjectFileResultSchema.parse(
+      await sandbox.executeProjectFile(
+        {
+          id: binding.computerId,
+          kind: "native-linux",
+          botId: binding.homeKey,
+          providerRef: binding.providerRef,
+        },
+        binding.folder,
+        file,
+        { ...ctx.context, botId: binding.homeKey, signal },
+      ),
+    );
   }
 
   const devices = ctx.deps.userDevices;
@@ -360,7 +411,8 @@ async function dispatchProjectFile(
   for await (const raw of devices.request<unknown>(
     ctx.run.userId,
     { method: "projectFile", projectId, spaceId: ctx.run.spaceId, grantId: binding.grantId, file },
-    signal, binding.deviceId,
+    signal,
+    binding.deviceId,
   )) {
     if (result) throw new Error("Multiple project file results");
     result = ProjectFileResultSchema.parse(raw);
@@ -369,19 +421,23 @@ async function dispatchProjectFile(
   return result;
 }
 
-function matchesOperation(
-  file: ProjectFileOperation,
-    result: ProjectFileResult,
-) {
+function matchesOperation(file: ProjectFileOperation, result: ProjectFileResult) {
   return file.operation === "list"
-    ? result.operation === "list" && result.entries.length <= 500 && result.entries.every((entry, index) => {
-        const prefix = file.path ? `${file.path}/` : "";
-        const relative = entry.path.slice(prefix.length);
-        return entry.path.startsWith(prefix) && !relative.includes("/") &&
-          result.entries.findIndex((candidate) => candidate.path === entry.path) === index;
-      })
+    ? result.operation === "list" &&
+        result.entries.length <= 500 &&
+        result.entries.every((entry, index) => {
+          const prefix = file.path ? `${file.path}/` : "";
+          const relative = entry.path.slice(prefix.length);
+          return (
+            entry.path.startsWith(prefix) &&
+            !relative.includes("/") &&
+            result.entries.findIndex((candidate) => candidate.path === entry.path) === index
+          );
+        })
     : file.operation === "search"
-      ? result.operation === "search" && result.matches.length <= 50 && result.matches.every((match) => {
+      ? result.operation === "search" &&
+        result.matches.length <= 50 &&
+        result.matches.every((match) => {
           const prefix = file.path ? `${file.path}/` : "";
           return match.path.startsWith(prefix) && match.path.length > prefix.length;
         })
@@ -406,9 +462,10 @@ async function publishProjectFile(
 ) {
   const { deps, run, thread, workerId, fence } = ctx;
   const { signal } = ctx.context;
-  const completed = file.operation === "create"
-    ? { created: true as const, bytes }
-    : { updated: true as const, bytes, sha256: textSha256(file.text) };
+  const completed =
+    file.operation === "create"
+      ? { created: true as const, bytes }
+      : { updated: true as const, bytes, sha256: textSha256(file.text) };
   const projectWorkspaceId = run.projectWorkspaceId;
   const effectId = call.applied?.effect.id;
   if (!deps.artifacts || !projectWorkspaceId || !effectId)
@@ -420,20 +477,36 @@ async function publishProjectFile(
     signal.throwIfAborted();
     const attached = await runAsTenant(scope, () =>
       attachWorkspaceFileToThread(
-        { prisma: deps.prisma, artifacts: deps.artifacts!, maxUploadSizeBytes: deps.maxUploadSizeBytes },
         {
-          ...scope, runId: run.id, botId: run.botId, groupId: thread.groupId ?? undefined,
-          filePath: file.path, bytes: Buffer.from(file.text, "utf8"), operationId: call.effectKey,
+          prisma: deps.prisma,
+          artifacts: deps.artifacts!,
+          maxUploadSizeBytes: deps.maxUploadSizeBytes,
+        },
+        {
+          ...scope,
+          runId: run.id,
+          botId: run.botId,
+          groupId: thread.groupId ?? undefined,
+          filePath: file.path,
+          bytes: Buffer.from(file.text, "utf8"),
+          operationId: call.effectKey,
           signal,
           async onAttached(tx, artifact) {
             signal.throwIfAborted();
             notification = await persistMessageInTransaction(
-              tx, run, "bot", [messageBlockForArtifact(artifact)], undefined, undefined,
-              false, { owner: workerId, fence },
+              tx,
+              run,
+              "bot",
+              [messageBlockForArtifact(artifact)],
+              undefined,
+              undefined,
+              false,
+              { owner: workerId, fence },
             );
             const current = await liveBinding(ctx, tx);
             signal.throwIfAborted();
-            if (!matchesBinding(bindingReference(binding), current)) throw new Error(DIRECTORY_UNAVAILABLE);
+            if (!matchesBinding(bindingReference(binding), current))
+              throw new Error(DIRECTORY_UNAVAILABLE);
             const effect = await tx.externalEffect.updateMany({
               where: { id: effectId, runId: run.id, status: "executing" },
               data: { status: "completed", result: { ...completed, artifactId: artifact.id } },
@@ -444,8 +517,11 @@ async function publishProjectFile(
       ),
     );
     if (notification)
-      await deps.events.notify(thread.id, notification.eventSeq, notification.firstResponseRunId)
-        .catch(() => getLogger().warn("project file artifact notification failed", { runId: run.id }));
+      await deps.events
+        .notify(thread.id, notification.eventSeq, notification.firstResponseRunId)
+        .catch(() =>
+          getLogger().warn("project file artifact notification failed", { runId: run.id }),
+        );
     return { ...completed, artifactId: attached.artifactId };
   } catch {
     return call.finish({ ...completed, downloadAvailable: false });

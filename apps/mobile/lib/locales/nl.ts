@@ -1355,6 +1355,24 @@ export const NL_MESSAGES: Record<string, string> = {
     "Opgeslagen niet-verzonden berichten konden niet worden geladen. Nieuwe niet-afgeleverde berichten kunnen verloren gaan wanneer de app sluit.",
   "Server settings or the saved session could not be verified.":
     "Serverinstellingen of de opgeslagen sessie konden niet worden geverifieerd.",
+  Duplicate: "Dupliceren",
+  Project: "Project",
+  "Space changed. Please try again.": "De space is gewijzigd. Probeer het opnieuw.",
+  "The project changed. Reopen the project and try again.":
+    "Het project is gewijzigd. Open het project opnieuw en probeer het nog eens.",
+  About: "Over",
+  "Could not download the update. Try again later.":
+    "Kan de update niet downloaden. Probeer het later opnieuw.",
+  "Current version": "Huidige versie",
+  "Downloading update…": "Update downloaden…",
+  "Install and restart": "Installeren en opnieuw starten",
+  "Installed build {build}": "Geïnstalleerde build {build}",
+  "Release notes": "Releaseopmerkingen",
+  "Software update": "Software-update",
+  "Update available": "Update beschikbaar",
+  "Version {version}": "Versie {version}",
+  "Version {version} available": "Versie {version} beschikbaar",
+  "Version {version} downloaded": "Versie {version} gedownload",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

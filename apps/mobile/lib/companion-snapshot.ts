@@ -27,7 +27,8 @@ export function companionSnapshot(input: {
     !input.foreground ||
     !input.currentScope ||
     input.screenAutoActive
-  ) return null;
+  )
+    return null;
   const call = input.call?.botId === input.botId ? input.call : null;
   if (input.working || call?.phase === "thinking") return { status: "thinking", latestReply: null };
   const lastBotMessage = [...input.messages].reverse().find((message) => message.role === "bot");

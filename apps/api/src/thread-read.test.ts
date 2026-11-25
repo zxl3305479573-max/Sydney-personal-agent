@@ -64,8 +64,9 @@ describe("markThreadRead", () => {
   it("propagates the active project workspace scope when marking a project thread read", async () => {
     const store = threadStore({ unread: true, lastReadSeq: 3, nextMessageSeq: 7 });
     await expect(
-      runAsTenant({ spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-1" }, () =>
-        markThreadRead(store.prisma, actor, target),
+      runAsTenant(
+        { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-1" },
+        () => markThreadRead(store.prisma, actor, target),
       ),
     ).resolves.toBe(3);
     expect(store.updateMany).toHaveBeenCalledWith({

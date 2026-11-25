@@ -1368,6 +1368,10 @@ export const ZH_MESSAGES: Record<string, string> = {
   "The image could not be saved on this device.": "无法在此设备上保存该图片。",
   "Use the default background.": "使用默认背景。",
   "Use the default bubbles.": "使用默认气泡。",
+  Duplicate: "创建副本",
+  Project: "项目",
+  "Space changed. Please try again.": "空间已切换，请重试。",
+  "The project changed. Reopen the project and try again.": "项目已切换，请重新打开项目后重试。",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

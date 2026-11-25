@@ -15,7 +15,6 @@ import {
   AppState,
   BackHandler,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAccountDeletion } from "../components/account-deletion";
 import { BotAvatar } from "../components/bot-avatar";
 import { GlassIconButton } from "../components/glass-icon-button";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSegmentedControl } from "../components/native-segmented-control";
 import { NativeSymbol } from "../components/native-symbol";
@@ -536,7 +536,8 @@ function PlanCard({
 }) {
   const tokens = useMobileTokens();
   return (
-    <Pressable
+    <MotionPressable
+      preset="card"
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       accessibilityLabel={title}
@@ -577,7 +578,7 @@ function PlanCard({
         <Text style={[styles.planDetail, { color: tokens.mutedForeground }]}>{detail}</Text>
         {accessory ? <View style={styles.planAccessory}>{accessory}</View> : null}
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -622,9 +623,14 @@ function TimelineStep({
 function LegalLink({ label, url }: { label: string; url: string }) {
   const tokens = useMobileTokens();
   return (
-    <Pressable accessibilityRole="link" hitSlop={8} onPress={() => void Linking.openURL(url)}>
+    <MotionPressable
+      preset="inline"
+      accessibilityRole="link"
+      hitSlop={8}
+      onPress={() => void Linking.openURL(url)}
+    >
       <Text style={[styles.legalLabel, { color: tokens.mutedForeground }]}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

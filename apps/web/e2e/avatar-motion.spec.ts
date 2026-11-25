@@ -41,7 +41,10 @@ test("photo working avatars show a visible ring while idle avatars stay plain", 
   const idle = page.locator(".avatar-idle");
   await expect(idle).toHaveAttribute("data-working", "false");
   await expect(idle.locator(".sydney-bot-avatar-image-ring")).toHaveCount(0);
-  await expect(idle.locator(".sydney-bot-avatar-image-picture")).toHaveCSS("animation-name", "none");
+  await expect(idle.locator(".sydney-bot-avatar-image-picture")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
   await captureScreenshot(page, testInfo, "avatar-photo-working-and-idle");
 });
 

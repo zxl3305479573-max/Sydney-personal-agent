@@ -31,7 +31,9 @@ export function listProjectCloudComputers(prisma: Pick<PrismaClient, "computer">
     const rows = await prisma.computer.findMany({
       where: { spaceId, userId, ...cloudComputer },
       select: {
-        id: true, homeKey: true, providerRef: true,
+        id: true,
+        homeKey: true,
+        providerRef: true,
         bots: {
           where: { spaceId, userId, projectWorkspaceId: null, archivedAt: null },
           select: { id: true, name: true },
@@ -53,7 +55,8 @@ export async function getProjectCloudDirectory(
   projectId: string,
   run?: { id: string; threadId: string; taskId: string; workerId: string; fence: number },
 ): Promise<CloudBinding | null> {
-  const runCheck = run ? Prisma.sql`AND EXISTS (
+  const runCheck = run
+    ? Prisma.sql`AND EXISTS (
     SELECT 1 FROM "runs" r WHERE r."id" = ${run.id} AND r."threadId" = ${run.threadId}
       AND r."taskId" = ${run.taskId} AND r."projectWorkspaceId" = b."projectId"
       AND r."userId" = b."userId" AND r."spaceId" = b."spaceId" AND r."status" = 'running'
@@ -66,7 +69,8 @@ export async function getProjectCloudDirectory(
     AND c."executionRunId" IS NULL AND NOT EXISTS (
       SELECT 1 FROM "computer_execution_leases" l
       WHERE l."computerId" = c."id" AND l."expiresAt" > CURRENT_TIMESTAMP
-    )` : Prisma.empty;
+    )`
+    : Prisma.empty;
   const rows = await runAsTenant({ ...owner, projectWorkspaceId: projectId }, () =>
     prisma.$queryRaw<CloudBinding[]>(Prisma.sql`
       SELECT b."computerId", b."grantId", b."providerRef", c."homeKey", b."folder", b."intent",
@@ -89,7 +93,12 @@ export async function bindProjectCloudDirectory(
   prisma: Pick<PrismaClient, "$transaction">,
   owner: Owner,
   projectId: string,
-  input: { computerId: string; providerRef: string; folder: ProjectCloudFolder; intent: ProjectDirectoryIntent },
+  input: {
+    computerId: string;
+    providerRef: string;
+    folder: ProjectCloudFolder;
+    intent: ProjectDirectoryIntent;
+  },
 ): Promise<boolean> {
   const folder = ProjectCloudFolderSchema.parse(input.folder);
   return runAsTenant({ ...owner, projectWorkspaceId: projectId }, () =>

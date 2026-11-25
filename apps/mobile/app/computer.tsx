@@ -16,7 +16,6 @@ import {
   ActivityIndicator,
   AppState,
   Modal,
-  Pressable,
   ScrollView,
   Text,
   useWindowDimensions,
@@ -34,6 +33,7 @@ import { ComputerMaintenanceActions } from "../components/computer-maintenance-a
 import { ComputerModePicker } from "../components/computer-mode-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
 import { GlassSurface } from "../components/glass-surface";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { ComputerVirtualMouse, NativeComputerControl } from "../components/native-computer-control";
 import {
@@ -879,13 +879,14 @@ export default function Computer() {
             <Text style={{ color: mutedFg, textAlign: "center" }}>{placeholder}</Text>
           </View>
         )}
-        <Pressable
+        <MotionPressable
+          preset="control"
           accessibilityRole="button"
           accessibilityLabel={bootPending ? placeholder : t("Open computer")}
           accessibilityState={{ disabled: bootPending, busy: bootPending }}
           disabled={bootPending}
           onPress={() => void openComputer({ takeControl: false })}
-          style={({ pressed }) => ({
+          style={{
             position: "absolute",
             bottom: 14,
             end: 14,
@@ -894,8 +895,8 @@ export default function Computer() {
             paddingHorizontal: 16,
             borderRadius: 999,
             backgroundColor: tokens?.primary ?? (isLight ? "#2B2823" : "#F5F4F0"),
-            opacity: bootPending ? 0.55 : pressed ? 0.78 : 1,
-          })}
+            opacity: bootPending ? 0.55 : 1,
+          }}
         >
           <Text
             style={{
@@ -906,7 +907,7 @@ export default function Computer() {
           >
             {t("Open computer")}
           </Text>
-        </Pressable>
+        </MotionPressable>
       </View>
       <View
         style={{

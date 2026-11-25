@@ -17,7 +17,9 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
       response.end('{"ok":true}');
     } else {
       response.setHeader("content-type", "text/html; charset=utf-8");
-      response.end(`<html><body>${requestPath === "/main" ? "REMOTE_MAIN" : requestPath}</body></html>`);
+      response.end(
+        `<html><body>${requestPath === "/main" ? "REMOTE_MAIN" : requestPath}</body></html>`,
+      );
     }
   });
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
@@ -27,7 +29,10 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
     if (!address || typeof address === "string") throw new Error("Missing fixture port");
     const origin = `http://127.0.0.1:${address.port}`;
     app = await electron.launch({
-      args: [path.join(import.meta.dirname, "fixtures", "renderer-isolation-main.cjs"), `--user-data-dir=${userData}`],
+      args: [
+        path.join(import.meta.dirname, "fixtures", "renderer-isolation-main.cjs"),
+        `--user-data-dir=${userData}`,
+      ],
     });
     const page = await app.firstWindow();
     await app.evaluate(async ({ BrowserWindow }, fixtureOrigin) => {
@@ -36,7 +41,9 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
       const session = window.webContents.debugger;
       session.attach("1.3");
       await session.sendCommand("Page.enable");
-      const tree = await session.sendCommand("Page.getFrameTree") as { frameTree: { frame: { id: string } } };
+      const tree = (await session.sendCommand("Page.getFrameTree")) as {
+        frameTree: { frame: { id: string } };
+      };
       const mainFrame = tree.frameTree.frame.id;
       session.on("message", (_event, method, params) => {
         if (method !== "Fetch.requestPaused") return;
@@ -47,13 +54,15 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
           request: { url: string; method: string };
         };
         const url = new URL(request.request.url);
-        const intercept = request.frameId === mainFrame &&
+        const intercept =
+          request.frameId === mainFrame &&
           request.resourceType === "Document" &&
           request.request.method === "GET" &&
           url.origin === fixtureOrigin &&
           url.pathname === "/main";
         if (intercept) {
-          const html = '<html><body>LOCAL_MAIN<iframe src="/iframe"></iframe><button onclick="window.open(\'/popup\')">open</button></body></html>';
+          const html =
+            '<html><body>LOCAL_MAIN<iframe src="/iframe"></iframe><button onclick="window.open(\'/popup\')">open</button></body></html>';
           void session.sendCommand("Fetch.fulfillRequest", {
             requestId: request.requestId,
             responseCode: 200,
@@ -64,13 +73,17 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
           void session.sendCommand("Fetch.continueRequest", { requestId: request.requestId });
         }
       });
-      await session.sendCommand("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+      await session.sendCommand("Fetch.enable", {
+        patterns: [{ urlPattern: "*", requestStage: "Request" }],
+      });
     }, origin);
     await page.goto(`${origin}/main`);
     await expect(page.locator("body")).toContainText("LOCAL_MAIN");
     await expect(page.frameLocator("iframe").locator("body")).toContainText("/iframe");
     expect(requests).not.toContain("/main");
-    expect(await page.evaluate(async () => (await fetch("/api/check")).json())).toEqual({ ok: true });
+    expect(await page.evaluate(async () => (await fetch("/api/check")).json())).toEqual({
+      ok: true,
+    });
     const popupPromise = page.waitForEvent("popup");
     await page.getByRole("button", { name: "open" }).click();
     const popup = await popupPromise;
@@ -78,14 +91,16 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
     expect(requests).toContain("/iframe");
     expect(requests).toContain("/api/check");
     expect(requests).toContain("/popup");
-    expect(await popup.evaluate(() => {
-      if (!window.opener) return false;
-      const marker = window.opener.document.createElement("div");
-      marker.id = "popup-opener-marker";
-      marker.textContent = "POPUP_CHANGED_MAIN";
-      window.opener.document.body.appendChild(marker);
-      return true;
-    })).toBe(true);
+    expect(
+      await popup.evaluate(() => {
+        if (!window.opener) return false;
+        const marker = window.opener.document.createElement("div");
+        marker.id = "popup-opener-marker";
+        marker.textContent = "POPUP_CHANGED_MAIN";
+        window.opener.document.body.appendChild(marker);
+        return true;
+      }),
+    ).toBe(true);
     await expect(page.locator("#popup-opener-marker")).toHaveText("POPUP_CHANGED_MAIN");
     await popup.close();
     await app.evaluate(({ BrowserWindow }) => {
@@ -100,7 +115,9 @@ test("isolated debugger experiment checks frames, popup access and debugger deta
     await app?.close();
     if (server.listening) {
       server.closeAllConnections();
-      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
     }
     await rm(userData, { recursive: true, force: true });
   }

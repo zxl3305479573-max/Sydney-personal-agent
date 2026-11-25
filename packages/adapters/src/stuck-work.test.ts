@@ -1,6 +1,7 @@
 import type { JobPublisher, NotificationProvider } from "@rakazo/adapter-kit";
 import { STUCK_WORK_NOTICE, stuckWorkStatusMessage } from "@rakazo/core";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
+import { runAsSystem } from "@rakazo/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExpoPushProvider } from "./expo-push.js";
 import { createJobReconciler } from "./job-reconciler.js";
@@ -684,9 +685,17 @@ function expireClient(run: ReturnType<typeof candidate>, options?: { cancelled?:
         },
       ]),
     },
-    $queryRaw: vi.fn(async () => []),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: run.spaceId, userId: run.userId, projectWorkspaceId: null }];
+      }
+      return [];
+    }),
   };
   return Object.assign(client, {
-    $transaction: vi.fn(async (fn: (tx: typeof client) => Promise<unknown>) => fn(client)),
+    $transaction: vi.fn(async (fn: (tx: typeof client) => Promise<unknown>) =>
+      runAsSystem("stuck work test", () => fn(client)),
+    ),
   });
 }

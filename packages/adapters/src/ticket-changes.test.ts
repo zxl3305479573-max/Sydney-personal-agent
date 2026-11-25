@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@rakazo/db";
+import { runAsSystem } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { TicketChange } from "./ticket-changes.js";
 import { createTicketChangeNotifier } from "./ticket-changes.js";
@@ -16,6 +17,13 @@ function setup(ticketBoardEnabled: boolean, status = "todo") {
   const createRun = vi.fn(async () => ({ id: "run-1" }));
   const createTask = vi.fn(async () => ({ id: "task-1" }));
   const tx = {
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [];
+    }),
     ticket: {
       findFirst: vi.fn(async () => ({
         id: "ticket-1",
@@ -30,7 +38,9 @@ function setup(ticketBoardEnabled: boolean, status = "todo") {
     task: { create: createTask },
     run: { create: createRun },
   };
-  const transaction = vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx));
+  const transaction = vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) =>
+    runAsSystem("ticket wake test", () => fn(tx)),
+  );
   const changes = createTicketChangeNotifier({
     ticketBoardEnabled,
     prisma: { $transaction: transaction } as unknown as PrismaClient,

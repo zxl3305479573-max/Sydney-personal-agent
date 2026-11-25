@@ -1,6 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import type { ThreadHeaderAction } from "./thread-header-right";
 
 export function BotActionsModal({
@@ -70,20 +71,22 @@ export function BotActionsModal({
           />
           <ScrollView bounces={false}>
             {actions.map((action) => (
-              <Pressable
+              <MotionPressable
                 key={action.text}
+                preset="row"
+                highlightColor={creamPressed}
                 accessibilityRole="button"
                 onPress={() => {
                   onClose();
                   action.onPress();
                 }}
-                style={({ pressed }) => ({
+                style={{
                   minHeight: 52,
                   borderRadius: 16,
                   justifyContent: "center",
                   paddingHorizontal: 18,
-                  backgroundColor: pressed ? creamPressed : "transparent",
-                })}
+                  backgroundColor: "transparent",
+                }}
               >
                 <Text
                   style={{
@@ -95,7 +98,7 @@ export function BotActionsModal({
                 >
                   {action.text}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             ))}
           </ScrollView>
         </View>

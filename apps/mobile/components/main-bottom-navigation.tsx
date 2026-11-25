@@ -1,10 +1,12 @@
 import { usePathname, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
 import { openMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useScopedTheme } from "../lib/scoped-theme-context";
+import { MotionPressable } from "./motion-pressable";
+import { TabIndicator } from "./tab-indicator";
 
 export function MainBottomNavigation() {
   const pathname = usePathname();
@@ -55,13 +57,14 @@ export function MainBottomNavigation() {
         const selected = pathname === item.route;
         const color = selected ? tokens.foreground : tokens.mutedForeground;
         return (
-          <Pressable
+          <MotionPressable
             key={item.route}
+            preset="control"
             accessibilityRole="tab"
             accessibilityLabel={item.label}
             accessibilityState={{ selected }}
             onPress={() => openMainNavigation(router, pathname, item.route)}
-            style={({ pressed }) => ({
+            style={{
               flex: 1,
               minWidth: 0,
               minHeight: 52,
@@ -72,8 +75,7 @@ export function MainBottomNavigation() {
               gap: 5,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.65 : 1,
-            })}
+            }}
           >
             <Text
               numberOfLines={1}
@@ -87,20 +89,12 @@ export function MainBottomNavigation() {
             >
               {item.label}
             </Text>
-            <View
-              accessibilityElementsHidden
-              style={{
-                width: 18,
-                height: 2,
-                borderRadius: indicatorRadius,
-                backgroundColor: selected
-                  ? isLight
-                    ? "#5E584F"
-                    : tokens.foreground
-                  : "transparent",
-              }}
+            <TabIndicator
+              selected={selected}
+              borderRadius={indicatorRadius}
+              color={isLight ? "#5E584F" : tokens.foreground}
             />
-          </Pressable>
+          </MotionPressable>
         );
       })}
     </View>

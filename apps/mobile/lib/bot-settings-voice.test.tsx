@@ -196,7 +196,9 @@ vi.mock("react-native", () => {
       createElement(
         "span",
         {
-          "data-style": JSON.stringify(style),
+          "data-style": JSON.stringify(
+            typeof style === "function" ? style({ pressed: false }) : style,
+          ),
           role: accessibilityRole,
           "data-font-scaling": allowFontScaling ?? true,
         },
@@ -259,7 +261,9 @@ vi.mock("react-native", () => {
           role: accessibilityRole,
           "aria-expanded": accessibilityState?.expanded,
           "aria-checked": accessibilityState?.checked,
-          "data-style": JSON.stringify(style),
+          "data-style": JSON.stringify(
+            typeof style === "function" ? style({ pressed: false }) : style,
+          ),
           "data-hit-slop": hitSlop,
         },
         children,

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import type { CSSProperties, ReactNode } from "react";
 import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import type { Root } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MobileBot } from "./api";
 
@@ -54,7 +55,8 @@ vi.mock("./native", () => ({
   }),
 }));
 vi.mock("../components/bot-avatar", () => ({
-  BotAvatar: ({ identity }: { identity: string }) => createElement("span", { "data-avatar": identity }),
+  BotAvatar: ({ identity }: { identity: string }) =>
+    createElement("span", { "data-avatar": identity }),
 }));
 vi.mock("../components/native-symbol", () => ({
   NativeSymbol: ({ ios }: { ios: string }) => createElement("i", { "data-symbol": ios }),
@@ -64,8 +66,15 @@ vi.mock("react-native", () => {
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
   return {
     StyleSheet: { hairlineWidth: 1 },
-    View: ({ children, style, testID }: { children?: ReactNode; style?: unknown; testID?: string }) =>
-      createElement("div", { "data-testid": testID, style: flatten(style) }, children),
+    View: ({
+      children,
+      style,
+      testID,
+    }: {
+      children?: ReactNode;
+      style?: unknown;
+      testID?: string;
+    }) => createElement("div", { "data-testid": testID, style: flatten(style) }, children),
     Text: ({ children, style }: { children?: ReactNode; style?: unknown }) =>
       createElement("span", { style: flatten(style) }, children),
     Pressable: ({
@@ -98,8 +107,22 @@ vi.mock("react-native", () => {
 import { HomeCompanionCard } from "../components/home-companion-card";
 
 const bots: MobileBot[] = [
-  { id: "bot-1", name: "Sydney", color: "#4F7CAC", status: "idle", unread: false, pinned: true } as MobileBot,
-  { id: "bot-2", name: "Claude", color: "#8B5CF6", status: "idle", unread: false, pinned: false } as MobileBot,
+  {
+    id: "bot-1",
+    name: "Sydney",
+    color: "#4F7CAC",
+    status: "idle",
+    unread: false,
+    pinned: true,
+  } as MobileBot,
+  {
+    id: "bot-2",
+    name: "Claude",
+    color: "#8B5CF6",
+    status: "idle",
+    unread: false,
+    pinned: false,
+  } as MobileBot,
 ];
 
 let container: HTMLDivElement;
@@ -142,12 +165,16 @@ describe("HomeCompanionCard", () => {
     expect(container.textContent).toContain("Sydney");
 
     // Switch target bot to Claude
-    const switchBtn = container.querySelector<HTMLButtonElement>('[data-testid="home-hub-companion-switch-bot"]');
+    const switchBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-switch-bot"]',
+    );
     await act(async () => switchBtn?.click());
     expect(container.textContent).toContain("Claude");
 
     // Start companion
-    const toggleBtn = container.querySelector<HTMLButtonElement>('[data-testid="home-hub-companion-toggle"]');
+    const toggleBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-toggle"]',
+    );
     await act(async () => toggleBtn?.click());
     expect(fixture.startCompanion).toHaveBeenCalledWith(
       "bot-2",
@@ -161,7 +188,9 @@ describe("HomeCompanionCard", () => {
     expect(container.textContent).toContain("后台陪伴中");
 
     // Trigger screen companion
-    const screenBtn = container.querySelector<HTMLButtonElement>('[data-testid="home-hub-companion-screen-toggle"]');
+    const screenBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-screen-toggle"]',
+    );
     await act(async () => screenBtn?.click());
     expect(fixture.presentCompanionScreen).toHaveBeenCalledWith("bot-2", "space-1");
 
@@ -187,7 +216,9 @@ describe("HomeCompanionCard", () => {
       ),
     );
     expect(container.textContent).toContain("当前版本未启扩展");
-    const toggleBtn = container.querySelector<HTMLButtonElement>('[data-testid="home-hub-companion-toggle"]');
+    const toggleBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-toggle"]',
+    );
     await act(async () => toggleBtn?.click());
     expect(onOpenBot).toHaveBeenCalledWith(bots[0]);
     expect(fixture.startCompanion).not.toHaveBeenCalled();

@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { NativeSegmentedControlProps } from "../lib/native-controls";
 import { useScopedTheme } from "../lib/scoped-theme-context";
+import { MotionPressable } from "./motion-pressable";
 
 /** The pre-native segmented control, kept for Android and for an empty selection. */
 export function SegmentedPills<T extends string>({
@@ -39,13 +40,15 @@ export function SegmentedPills<T extends string>({
       {options.map((option) => {
         const selected = value === option.value;
         return (
-          <Pressable
+          <MotionPressable
             key={option.value}
+            preset="control"
+            motionDisabled={selected}
             accessibilityRole="button"
             accessibilityState={{ selected, disabled }}
             disabled={disabled}
             onPress={() => onChange(option.value)}
-            style={({ pressed }) => ({
+            style={{
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
@@ -63,8 +66,8 @@ export function SegmentedPills<T extends string>({
               shadowOpacity: selected ? (isLight ? 0.04 : 0.2) : 0,
               shadowRadius: selected ? 8 : 0,
               shadowOffset: { width: 0, height: selected ? 2 : 0 },
-              opacity: disabled ? 0.5 : pressed && !selected ? 0.72 : 1,
-            })}
+              opacity: disabled ? 0.5 : 1,
+            }}
           >
             <Text
               style={{
@@ -74,7 +77,7 @@ export function SegmentedPills<T extends string>({
             >
               {option.label}
             </Text>
-          </Pressable>
+          </MotionPressable>
         );
       })}
     </View>

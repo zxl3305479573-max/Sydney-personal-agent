@@ -27,15 +27,22 @@ async function check() {
       failedResponses.push({ path: new URL(result.url()).pathname, status: result.status() });
     }
   });
-  const response = await page.goto(`${base}/sign-up`, { waitUntil: "domcontentloaded", timeout: 15000 });
+  const response = await page.goto(`${base}/sign-up`, {
+    waitUntil: "domcontentloaded",
+    timeout: 15000,
+  });
   if (response?.status() !== 200) throw new Error("signup page unavailable");
-  await page.getByRole("heading", { name: /Create your Sydney|创建你的 Sydney/ }).waitFor({ timeout: 15000 });
+  await page
+    .getByRole("heading", { name: /Create your Sydney|创建你的 Sydney/ })
+    .waitFor({ timeout: 15000 });
   await page.locator("#name").fill("Staging Browser");
   await page.locator("#email").fill(email);
   await page.locator('input[type="password"]').nth(0).fill(password);
   await page.locator('input[type="password"]').nth(1).fill(password);
-  const signup = page.waitForResponse((result) =>
-    result.url().endsWith("/api/auth/sign-up/email") && result.request().method() === "POST");
+  const signup = page.waitForResponse(
+    (result) =>
+      result.url().endsWith("/api/auth/sign-up/email") && result.request().method() === "POST",
+  );
   await page.locator('form button[type="submit"]').click();
   if (!(await signup).ok()) throw new Error("browser signup failed");
   await page.waitForURL(/\/(?:onboarding|app)/, { timeout: 15000 });
@@ -60,8 +67,10 @@ async function check() {
   await page.goto(`${base}/sign-in`, { waitUntil: "domcontentloaded", timeout: 15000 });
   await page.locator("#email").fill(email);
   await page.locator('input[type="password"]').fill(password);
-  const signin = page.waitForResponse((result) =>
-    result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST");
+  const signin = page.waitForResponse(
+    (result) =>
+      result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST",
+  );
   await page.locator('form button[type="submit"]').click();
   if (!(await signin).ok()) throw new Error("browser signin failed");
   await page.waitForURL(/\/(?:onboarding|app)/, { timeout: 15000 });
@@ -87,16 +96,20 @@ Promise.race([
   .catch(async (error) => {
     console.error(error.message);
     if (page && !page.isClosed()) {
-      const state = await page.evaluate(() => ({
-        path: location.pathname,
-        title: document.title,
-        headings: [...document.querySelectorAll("h1,h2")].map((node) => node.textContent?.trim().slice(0, 80)),
-        inputs: [...document.querySelectorAll("input")].map((node) => ({
-          type: node.type,
-          placeholder: node.placeholder,
-        })),
-        rootTextLength: document.querySelector("#root")?.textContent?.trim().length ?? 0,
-      })).catch(() => null);
+      const state = await page
+        .evaluate(() => ({
+          path: location.pathname,
+          title: document.title,
+          headings: [...document.querySelectorAll("h1,h2")].map((node) =>
+            node.textContent?.trim().slice(0, 80),
+          ),
+          inputs: [...document.querySelectorAll("input")].map((node) => ({
+            type: node.type,
+            placeholder: node.placeholder,
+          })),
+          rootTextLength: document.querySelector("#root")?.textContent?.trim().length ?? 0,
+        }))
+        .catch(() => null);
       console.error(JSON.stringify({ state, pageErrors: errors.length, failedResponses }));
     }
     process.exitCode = 1;

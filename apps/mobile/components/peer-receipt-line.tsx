@@ -1,11 +1,12 @@
 import type { BotAvatarSet } from "@rakazo/contracts";
 import { splitPeerLabel } from "@rakazo/core";
 import type { PressableProps } from "react-native";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { peerExchangeLabel, useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
+import { MotionPressable } from "./motion-pressable";
 
 export function PeerReceiptLine({
   peerBotId,
@@ -34,7 +35,8 @@ export function PeerReceiptLine({
   const label = peerExchangeLabel(count, direction, peerBotName);
   const parts = splitPeerLabel(label, peerBotName);
   return (
-    <Pressable
+    <MotionPressable
+      preset="inline"
       {...actionProps}
       testID="peer-receipt-line"
       accessible
@@ -42,7 +44,7 @@ export function PeerReceiptLine({
       disabled={!onPress}
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.line, { opacity: pressed ? 0.6 : 1 }]}
+      style={styles.line}
     >
       {parts.before ? <Text style={styles.label}>{parts.before}</Text> : null}
       <BotAvatar avatarSet={avatarSet} color={color} identity={peerBotId} size={16} />
@@ -52,7 +54,7 @@ export function PeerReceiptLine({
         </Text>
       ) : null}
       {parts.after ? <Text style={styles.label}>{parts.after}</Text> : null}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

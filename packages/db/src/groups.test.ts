@@ -448,13 +448,21 @@ describe("archiveGroup", () => {
 describe("createGroup", () => {
   it("reuses a matching request id and rejects a changed group", async () => {
     const actor = {
-      spaceId: "workspace-1", userId: "user-1",
-      email: "user@example.com", isDeploymentOwner: false,
+      spaceId: "workspace-1",
+      userId: "user-1",
+      email: "user@example.com",
+      isDeploymentOwner: false,
     };
     const groupRow = {
-      id: "request-1", spaceId: actor.spaceId, userId: actor.userId,
-      name: "Support crew", pinned: false, sectionId: null, archivedAt: null,
-      createdAt: new Date(0), updatedAt: new Date(0),
+      id: "request-1",
+      spaceId: actor.spaceId,
+      userId: actor.userId,
+      name: "Support crew",
+      pinned: false,
+      sectionId: null,
+      archivedAt: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
       thread: { id: "thread-1", unread: false, messages: [] },
       members: [
         { bot: { id: "lead", name: "Lead", color: "#111", runs: [] } },
@@ -463,16 +471,17 @@ describe("createGroup", () => {
     };
     const create = vi.fn();
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
-        (Array.isArray(query) ? query : (query?.strings ?? []))
-          .join("")
-          .includes("FROM chat_groups")
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) =>
+        ("strings" in query ? query.strings : query).join("").includes("FROM chat_groups")
           ? [{ id: "request-1" }]
           : [],
       ),
-      spaceMember: { findUnique: vi.fn(async () => ({
-        organizationId: "org-1", space: { deletingAt: null },
-      })) },
+      spaceMember: {
+        findUnique: vi.fn(async () => ({
+          organizationId: "org-1",
+          space: { deletingAt: null },
+        })),
+      },
       chatGroup: { findFirst: vi.fn(async () => groupRow), create },
       message: { findMany: vi.fn(async () => []) },
     };
@@ -480,22 +489,28 @@ describe("createGroup", () => {
       $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     } as unknown as PrismaClient;
     const repos = createGroupRepos(prisma);
-    await expect(repos.createGroup(actor, {
-      id: "request-1", name: "Support crew", botIds: ["lead", "build"],
-    })).resolves.toMatchObject({ id: "request-1", threadId: "thread-1" });
-    await expect(repos.createGroup(actor, {
-      id: "request-1", name: "Support crew", botIds: ["build", "lead"],
-    })).rejects.toBeInstanceOf(IsolationError);
+    await expect(
+      repos.createGroup(actor, {
+        id: "request-1",
+        name: "Support crew",
+        botIds: ["lead", "build"],
+      }),
+    ).resolves.toMatchObject({ id: "request-1", threadId: "thread-1" });
+    await expect(
+      repos.createGroup(actor, {
+        id: "request-1",
+        name: "Support crew",
+        botIds: ["build", "lead"],
+      }),
+    ).rejects.toBeInstanceOf(IsolationError);
     expect(create).not.toHaveBeenCalled();
   });
 
   it("does not create a group when a candidate bot cannot be locked in scope", async () => {
     const create = vi.fn();
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
-        (Array.isArray(query) ? query : (query?.strings ?? []))
-          .join("")
-          .includes('FROM "bots"')
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) =>
+        ("strings" in query ? query.strings : query).join("").includes('FROM "bots"')
           ? [{ id: "lead" }]
           : [],
       ),
@@ -517,10 +532,12 @@ describe("createGroup", () => {
       isDeploymentOwner: false,
     };
 
-    await expect(createGroupRepos(prisma).createGroup(actor, {
-      name: "Support crew",
-      botIds: ["lead", "elsewhere"],
-    })).rejects.toBeInstanceOf(IsolationError);
+    await expect(
+      createGroupRepos(prisma).createGroup(actor, {
+        name: "Support crew",
+        botIds: ["lead", "elsewhere"],
+      }),
+    ).rejects.toBeInstanceOf(IsolationError);
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -543,10 +560,8 @@ describe("createGroup", () => {
       ],
     };
     const tx = {
-      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings?: readonly string[] }) =>
-        (Array.isArray(query) ? query : (query?.strings ?? []))
-          .join("")
-          .includes('FROM "bots"')
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) =>
+        ("strings" in query ? query.strings : query).join("").includes('FROM "bots"')
           ? [{ id: "build" }, { id: "lead" }]
           : [],
       ),
@@ -620,10 +635,12 @@ describe("updateGroup project members", () => {
       isDeploymentOwner: false,
     };
 
-    await expect(createGroupRepos(prisma).updateGroup(actor, {
-      groupId: "group-1",
-      botIds: ["lead", "other"],
-    })).rejects.toBeInstanceOf(IsolationError);
+    await expect(
+      createGroupRepos(prisma).updateGroup(actor, {
+        groupId: "group-1",
+        botIds: ["lead", "other"],
+      }),
+    ).rejects.toBeInstanceOf(IsolationError);
     expect(groupUpdate).not.toHaveBeenCalled();
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
   });
@@ -662,8 +679,9 @@ describe("restoreGroup member consistency", () => {
       isDeploymentOwner: false,
     };
 
-    await expect(createGroupRepos(prisma).restoreGroup(actor, "group-1"))
-      .rejects.toThrow("Group members changed");
+    await expect(createGroupRepos(prisma).restoreGroup(actor, "group-1")).rejects.toThrow(
+      "Group members changed",
+    );
     expect(tx.bot.update).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });

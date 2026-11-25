@@ -302,10 +302,7 @@ type ProviderOptions = {
  * callback URI (e.g. from web callback to API native callback), an incompatible or legacy
  * unbound dynamic client must not be reused; the session registers a fresh client instead.
  */
-function dynamicClientMatchesRedirect(
-  oauth: OAuthState | undefined,
-  redirectUri: string,
-): boolean {
+function dynamicClientMatchesRedirect(oauth: OAuthState | undefined, redirectUri: string): boolean {
   const client = oauth?.clientInformation;
   if (!client) return true;
   if (oauth?.clientRedirectUri) return oauth.clientRedirectUri === redirectUri;

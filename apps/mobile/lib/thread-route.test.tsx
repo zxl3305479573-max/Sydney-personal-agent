@@ -10,7 +10,13 @@ const state = vi.hoisted(() => ({
   selected: "space-1" as string | null,
   selectSpace: vi.fn(),
   replace: vi.fn(),
-  params: {} as { spaceId?: string; botId?: string; companionLink?: string; companionVoice?: string; companionToken?: string },
+  params: {} as {
+    spaceId?: string;
+    botId?: string;
+    companionLink?: string;
+    companionVoice?: string;
+    companionToken?: string;
+  },
   activity: null as null | { id: string; botId: string; spaceId: string | null; linkToken: string },
 }));
 

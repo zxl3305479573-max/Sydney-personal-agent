@@ -2,7 +2,7 @@ import { MenuView } from "@expo/ui/community/menu";
 import type { SpaceBot, SpaceGroup } from "@rakazo/contracts";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import type { MobileBot, MobileBotSection, MobileGroup } from "../lib/api";
 import type { ResolvedAppearance } from "../lib/appearance";
 import { AvatarRow } from "../lib/avatar-life";
@@ -13,6 +13,7 @@ import { useThemedStyles } from "../lib/native";
 import type { useInboxChatActions } from "../lib/use-inbox-chat-actions";
 import { createHomeStyles } from "./home-styles";
 import { ArchivedChatsRow, BotRow, GroupRow, PinnedTiles, SectionChevron } from "./inbox-rows";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 // Swipe actions and the context menu are iOS list behaviour; other platforms keep the long-press
@@ -103,7 +104,8 @@ export function useInboxRenderItem({
       ) : item.type === "heading" ? (
         item.space ? (
           <View style={styles.spaceHeading}>
-            <Pressable
+            <MotionPressable
+              preset="row"
               accessibilityRole="button"
               accessibilityLabel={item.title}
               accessibilityState={{
@@ -114,10 +116,10 @@ export function useInboxRenderItem({
               onPress={() => {
                 if (item.space) void chooseInboxSpace(item.space.id);
               }}
-              style={({ pressed }) => [styles.spaceSelect, pressed && styles.rowPressed]}
+              style={styles.spaceSelect}
             >
               <Text style={styles.spaceTitle}>{item.title}</Text>
-            </Pressable>
+            </MotionPressable>
             {sharing ? null : (
               <MenuView
                 actions={[
@@ -159,7 +161,8 @@ export function useInboxRenderItem({
           </View>
         ) : (
           <View style={styles.sectionHeadingRow}>
-            <Pressable
+            <MotionPressable
+              preset="row"
               accessibilityRole="button"
               accessibilityLabel={
                 item.collapsed
@@ -169,16 +172,17 @@ export function useInboxRenderItem({
               accessibilityState={{ expanded: !item.collapsed }}
               accessibilityValue={item.collapsed ? { text: String(item.count ?? 0) } : undefined}
               onPress={() => toggleCollapsed(item.key)}
-              style={({ pressed }) => [styles.sectionToggle, pressed && styles.rowPressed]}
+              style={styles.sectionToggle}
             >
               <Text style={styles.sectionTitle}>{item.title}</Text>
               {item.collapsed ? <Text style={styles.sectionCount}>{item.count ?? 0}</Text> : null}
               <SectionChevron collapsed={item.collapsed === true} />
-            </Pressable>
+            </MotionPressable>
             {sharing || !item.sectionId ? null : Platform.OS === "android" ? (
               // A plain button, like the create control: the Android menu trigger can collapse to
               // zero width on an older binary, which would hide the only way to delete an empty section.
-              <Pressable
+              <MotionPressable
+                preset="icon"
                 accessibilityLabel={t("Delete section")}
                 accessibilityRole="button"
                 onPress={() => {
@@ -187,7 +191,7 @@ export function useInboxRenderItem({
                 style={styles.spaceActions}
               >
                 <NativeSymbol ios="ellipsis" android="ellipsis-horizontal" size={20} />
-              </Pressable>
+              </MotionPressable>
             ) : (
               <MenuView
                 actions={[

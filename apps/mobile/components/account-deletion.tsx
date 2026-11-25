@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ServerSessionScope } from "../lib/api";
 import {
   captureServerSessionScope,
   deleteAccount,
@@ -19,7 +20,6 @@ import {
   isServerSessionScopeCurrent,
   requestAccountDeletionCode,
 } from "../lib/api";
-import type { ServerSessionScope } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { promptAccountDeletion } from "../lib/delete-account-prompt";
@@ -27,6 +27,7 @@ import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
 import { continueWithSso } from "../lib/sso";
 import { errorText } from "../lib/user-error";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 
 /**
@@ -148,8 +149,10 @@ export function useAccountDeletion({
         Alert.alert(
           t("Account deleted"),
           (result.status === "session-changed" && result.cleanupFailed) ||
-          result.status === "cleanup-failed"
-            ? t("The original account was deleted, but local cleanup failed and your session has changed.")
+            result.status === "cleanup-failed"
+            ? t(
+                "The original account was deleted, but local cleanup failed and your session has changed.",
+              )
             : t("The original account was deleted. Your current session has changed."),
         );
         return;
@@ -157,7 +160,9 @@ export function useAccountDeletion({
       if (result.status === "cleanup-failed") {
         Alert.alert(
           t("Account deleted"),
-          t("The account was deleted, but local session cleanup failed. Restart the app and try signing out."),
+          t(
+            "The account was deleted, but local session cleanup failed. Restart the app and try signing out.",
+          ),
         );
         return;
       }
@@ -262,17 +267,23 @@ export function useAccountDeletion({
             </Text>
           ) : null}
           <View style={styles.dialogActions}>
-            <Pressable accessibilityRole="button" onPress={close} style={styles.dialogAction}>
+            <MotionPressable
+              preset="control"
+              accessibilityRole="button"
+              onPress={close}
+              style={styles.dialogAction}
+            >
               <Text style={styles.dialogCancel}>{t("Cancel")}</Text>
-            </Pressable>
-            <Pressable
+            </MotionPressable>
+            <MotionPressable
+              preset="control"
               accessibilityRole="button"
               disabled={disabled}
               onPress={() => void submit(password)}
               style={styles.dialogAction}
             >
               <Text style={[styles.dialogDelete, disabled && styles.disabled]}>{t("Delete")}</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

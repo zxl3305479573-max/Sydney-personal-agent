@@ -4,9 +4,8 @@ import {
   resolveAppearance,
   UI_APPEARANCE_STORAGE_KEY,
 } from "@rakazo/ui-tokens";
-import * as SecureStore from "expo-secure-store";
 import type { ColorSchemeName } from "react-native";
-import { Appearance, Platform } from "react-native";
+import * as ReactNative from "react-native";
 import { effectiveThemeAssignments } from "./theme-manager";
 import { hasCustomThemeForScope, resolveScopedTheme } from "./theme-pack";
 import { themeManager } from "./theme-state";
@@ -19,8 +18,24 @@ let memoryPreference: AppearancePreference | null = null;
 let writeGeneration = 0;
 const listeners = new Set<() => void>();
 
+function platformOs(): string {
+  try {
+    return ReactNative.Platform?.OS ?? "ios";
+  } catch {
+    return "ios";
+  }
+}
+
+function getAppearance() {
+  try {
+    return ReactNative.Appearance;
+  } catch {
+    return undefined;
+  }
+}
+
 function systemAppearance(scheme?: ColorSchemeName | null): ResolvedAppearance {
-  return (scheme ?? Appearance.getColorScheme()) === "light" ? "light" : "dark";
+  return (scheme ?? getAppearance()?.getColorScheme?.()) === "light" ? "light" : "dark";
 }
 
 export function getCachedAppearancePreference(): AppearancePreference {
@@ -29,6 +44,7 @@ export function getCachedAppearancePreference(): AppearancePreference {
 
 export async function loadAppearancePreference(): Promise<AppearancePreference> {
   try {
+    const SecureStore = await import("expo-secure-store");
     const stored = await SecureStore.getItemAsync(UI_APPEARANCE_STORAGE_KEY);
     memoryPreference = normalizeAppearancePreference(stored);
   } catch {
@@ -55,7 +71,7 @@ export function resolveMobileAppearance(
   scheme?: ColorSchemeName | null,
 ): ResolvedAppearance {
   const installed = themeManager.getSnapshot();
-  if (Platform.OS === "ios" && installed.hydrated) {
+  if (platformOs() === "ios" && installed.hydrated) {
     const assignments = effectiveThemeAssignments(installed);
     const scope = themeManager.getActiveScope();
     if (hasCustomThemeForScope(installed.packs, assignments, scope)) {
@@ -84,8 +100,9 @@ export function mobileTokens(
   preference: AppearancePreference = getCachedAppearancePreference(),
   scheme?: ColorSchemeName | null,
 ) {
+  const os = platformOs();
   const installed = themeManager.getSnapshot();
-  if (Platform.OS === "ios" && installed.hydrated) {
+  if (os === "ios" && installed.hydrated) {
     const assignments = effectiveThemeAssignments(installed);
     const scope = themeManager.getActiveScope();
     if (hasCustomThemeForScope(installed.packs, assignments, scope)) {
@@ -98,13 +115,13 @@ export function mobileTokens(
     }
     const modeId = assignments.globalPackId === "midnight" ? "midnight" : getActiveUiMode().id;
     return resolveUiModeTheme(modeId, {
-      platform: Platform.OS,
+      platform: os,
       userAppearance: resolveUserMobileAppearance(preference, scheme),
     }).tokens;
   }
   const mode = getActiveUiMode();
   return resolveUiModeTheme(mode.id, {
-    platform: Platform.OS,
+    platform: os,
     userAppearance: resolveMobileAppearance(preference, scheme),
   }).tokens;
 }
@@ -125,6 +142,7 @@ async function persistAppearancePreference(
   generation: number,
 ): Promise<void> {
   try {
+    const SecureStore = await import("expo-secure-store");
     await SecureStore.setItemAsync(UI_APPEARANCE_STORAGE_KEY, preference);
   } catch {
     // Keep the in-memory preference when SecureStore is unavailable.
@@ -141,12 +159,12 @@ async function persistAppearancePreference(
 function applyNativeColorScheme(preference: AppearancePreference) {
   const installed = themeManager.getSnapshot();
   const lock =
-    Platform.OS === "ios" && installed.hydrated
+    platformOs() === "ios" && installed.hydrated
       ? effectiveThemeAssignments(installed).globalPackId === "midnight"
         ? "dark"
         : "none"
       : getActiveUiMode().colorSchemeLock;
-  Appearance.setColorScheme(
+  getAppearance()?.setColorScheme?.(
     lock !== "none" ? lock : preference === "system" ? "unspecified" : preference,
   );
 }
@@ -161,6 +179,6 @@ themeManager.subscribe(() => {
   notify();
 });
 
-Appearance.addChangeListener(() => {
+getAppearance()?.addChangeListener?.(() => {
   if (getCachedAppearancePreference() === "system") notify();
 });

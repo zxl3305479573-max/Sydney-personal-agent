@@ -4,8 +4,8 @@ import { ACTIVE_RUN_STATUSES, escapePromptData, truncatePlainText } from "@rakaz
 import type { Prisma, PrismaClient } from "@rakazo/db";
 import {
   resolveConversationExecutionScope,
-  spaceHasModelAccess,
   STRATEGIC_INITIATIVE_NONCE_PREFIX,
+  spaceHasModelAccess,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { isUniqueViolation } from "./run-messages.js";
@@ -234,7 +234,10 @@ async function queueStrategicInitiativeRun(
       });
       if (existing) return null;
       const executionScope = await resolveConversationExecutionScope(tx, {
-        spaceId: bot.spaceId, userId: bot.userId, botId: bot.id, threadId: bot.thread!.id,
+        spaceId: bot.spaceId,
+        userId: bot.userId,
+        botId: bot.id,
+        threadId: bot.thread!.id,
       });
       const task = await tx.task.create({
         data: {

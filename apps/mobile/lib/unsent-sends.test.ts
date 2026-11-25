@@ -7,9 +7,23 @@ import { configureUnsentSends, hasUnsentSends, sendWaitingMessages } from "./thr
 import { startUnsentSends } from "./unsent-sends";
 
 const session = vi.hoisted(() => ({ generation: 1, ready: 1, listener: () => {} }));
+vi.mock("expo-file-system", () => ({
+  Directory: class {},
+  File: class {},
+  Paths: { document: "file://documents", cache: "file://cache" },
+}));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+  setItemAsync: vi.fn(async () => undefined),
+  deleteItemAsync: vi.fn(async () => undefined),
+}));
 vi.mock("react-native", () => ({
   Alert: { alert: vi.fn() },
   AppState: { addEventListener: () => ({ remove: () => {} }) },
+  Platform: {
+    OS: "ios",
+    select: <T>(options: Record<string, T>) => options.ios ?? options.default,
+  },
 }));
 vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
 vi.mock("./api", () => ({

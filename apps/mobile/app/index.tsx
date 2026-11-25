@@ -16,7 +16,6 @@ import {
   Alert,
   AppState,
   FlatList,
-  Pressable,
   RefreshControl,
   Text,
   useWindowDimensions,
@@ -32,6 +31,7 @@ import { ActivitySection } from "../components/inbox-activity";
 import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
+import { MotionPressable } from "../components/motion-pressable";
 import { useUnreadJumpPills } from "../components/unread-jump-overlay";
 import { fetchSpaceActivity } from "../lib/activity";
 import { loadActivityMode, saveActivityMode } from "../lib/activity-mode";
@@ -1485,14 +1485,15 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                     {!onShareSelect ? <InboxIntro activityMode={activityMode} /> : null}
                     {inlineError ? <Text style={styles.error}>{inlineError}</Text> : null}
                     {spaceRecoveryId ? (
-                      <Pressable
+                      <MotionPressable
+                        preset="row"
                         accessibilityRole="button"
                         disabled={spaceBusy}
                         onPress={() => void chooseInboxSpace(spaceRecoveryId)}
                         style={styles.recoveryAction}
                       >
                         <Text style={styles.spaceTitle}>{t("Try again.")}</Text>
-                      </Pressable>
+                      </MotionPressable>
                     ) : null}
                     {!onShareSelect &&
                     activityMode &&

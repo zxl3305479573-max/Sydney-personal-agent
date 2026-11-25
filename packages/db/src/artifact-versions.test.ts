@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertHomeArtifactWriteScope, resolveNextArtifactVersion, withResolvedArtifactVersion } from "./artifact-versions.js";
+import {
+  assertHomeArtifactWriteScope,
+  resolveNextArtifactVersion,
+  withResolvedArtifactVersion,
+} from "./artifact-versions.js";
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./client.js";
 import { runAsSystem, runAsTenant } from "./row-security.js";
@@ -22,16 +26,25 @@ const params = {
 describe("home artifact write scope", () => {
   it("accepts the matching home tenant and rejects project or mismatched tenants", async () => {
     const owner = { spaceId: "space-1", userId: "user-1" };
-    await expect(runAsTenant(owner, () => assertHomeArtifactWriteScope(owner))).resolves.toBeUndefined();
-    await expect(runAsTenant({ ...owner, projectWorkspaceId: "project-1" }, () =>
-      assertHomeArtifactWriteScope(owner))).rejects.toThrow();
-    await expect(runAsTenant({ ...owner, spaceId: "space-2" }, () =>
-      assertHomeArtifactWriteScope(owner))).rejects.toThrow();
+    await expect(
+      runAsTenant(owner, () => assertHomeArtifactWriteScope(owner)),
+    ).resolves.toBeUndefined();
+    await expect(
+      runAsTenant({ ...owner, projectWorkspaceId: "project-1" }, () =>
+        assertHomeArtifactWriteScope(owner),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      runAsTenant({ ...owner, spaceId: "space-2" }, () => assertHomeArtifactWriteScope(owner)),
+    ).rejects.toThrow();
   });
 
   it("does not infer a project from system context", async () => {
-    await expect(runAsSystem("artifact scope test", () =>
-      assertHomeArtifactWriteScope({ spaceId: "space-1", userId: "user-1" }))).resolves.toBeUndefined();
+    await expect(
+      runAsSystem("artifact scope test", () =>
+        assertHomeArtifactWriteScope({ spaceId: "space-1", userId: "user-1" }),
+      ),
+    ).resolves.toBeUndefined();
   });
 });
 

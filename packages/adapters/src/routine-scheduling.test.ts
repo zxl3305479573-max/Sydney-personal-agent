@@ -1,4 +1,5 @@
 import type { BackgroundJob, JobPublisher } from "@rakazo/adapter-kit";
+import { runAsSystem } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import { createRunExecutor } from "./executor.js";
 import { deferFutureRoutine } from "./run-routines.js";
@@ -45,6 +46,13 @@ function pendingTimerFixture(reuse = true) {
     updatedAt: scheduledAt,
   };
   const tx = {
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [];
+    }),
     computerExecutionLease: { findMany: vi.fn(async () => []) },
     computer: { findMany: vi.fn(async () => []) },
     routine: {
@@ -67,7 +75,9 @@ function pendingTimerFixture(reuse = true) {
     routine: { findUnique: vi.fn(async () => routine) },
     bot: { findUnique: vi.fn(async () => ({ id: "bot-1", thread: { id: "thread-1" } })) },
     agentSkill: { findMany: vi.fn(async () => []) },
-    $transaction: vi.fn(async (callback: (client: unknown) => Promise<unknown>) => callback(tx)),
+    $transaction: vi.fn(async (callback: (client: unknown) => Promise<unknown>) =>
+      runAsSystem("routine scheduling test", () => callback(tx)),
+    ),
   };
   const enqueue = vi.fn(async (_job: BackgroundJob) => undefined);
   const append = vi.fn();

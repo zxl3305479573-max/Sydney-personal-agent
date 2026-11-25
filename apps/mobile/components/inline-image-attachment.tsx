@@ -3,7 +3,6 @@ import type { PressableProps } from "react-native";
 import {
   ActivityIndicator,
   Image,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -15,6 +14,7 @@ import { imageArtifactPreview } from "../lib/artifact-open";
 import { useI18n } from "../lib/i18n";
 import type { ImageSize } from "../lib/inline-image";
 import { fitImageSize } from "../lib/inline-image";
+import { MotionPressable } from "./motion-pressable";
 
 const MAX_INLINE_HEIGHT = 360;
 
@@ -70,7 +70,8 @@ export function InlineImageAttachment({
   if (state.status === "ready") {
     const size = fitImageSize(state.size, maxWidth, MAX_INLINE_HEIGHT);
     return (
-      <Pressable
+      <MotionPressable
+        preset="card"
         {...pressableProps}
         accessibilityRole="imagebutton"
         accessibilityLabel={t("Open image {name}", { name })}
@@ -81,11 +82,16 @@ export function InlineImageAttachment({
           style={[styles.image, size, { backgroundColor: tokens.muted }]}
           accessibilityIgnoresInvertColors
         />
-      </Pressable>
+      </MotionPressable>
     );
   }
   return (
-    <Pressable {...pressableProps} onPress={state.status === "error" ? onOpen : undefined}>
+    <MotionPressable
+      preset="card"
+      motionDisabled={state.status !== "error"}
+      {...pressableProps}
+      onPress={state.status === "error" ? onOpen : undefined}
+    >
       <View style={[styles.placeholder, { backgroundColor: tokens.muted }]}>
         <Text style={[styles.label, { color: labelColor }]}>🖼 {name}</Text>
         {state.status === "loading" ? (
@@ -97,7 +103,7 @@ export function InlineImageAttachment({
           <Text style={[styles.hint, { color: tokens.mutedForeground }]}>{t("Tap to open")}</Text>
         )}
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

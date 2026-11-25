@@ -1,7 +1,8 @@
 import { typeScale } from "@rakazo/ui-tokens";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 function isLightSurface(background?: string): boolean {
@@ -31,13 +32,14 @@ export function ProjectFolderCard({
   const mutedFg = tokens?.mutedForeground ?? accentTaupe;
 
   return (
-    <Pressable
+    <MotionPressable
+      preset="card"
       accessibilityRole="button"
       accessibilityLabel={subtitle ? `${label} · ${subtitle}` : label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({ opacity: disabled ? 0.5 : pressed ? 0.72 : 1 })}
+      style={{ opacity: disabled ? 0.5 : 1 }}
     >
       <GlassSurface
         shape="roundedRectangle"
@@ -86,6 +88,6 @@ export function ProjectFolderCard({
         </View>
         <NativeSymbol ios="chevron.right" android="chevron-forward" size={16} color={mutedFg} />
       </GlassSurface>
-    </Pressable>
+    </MotionPressable>
   );
 }

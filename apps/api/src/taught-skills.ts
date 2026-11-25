@@ -496,7 +496,10 @@ export function createTaughtSkillsService(deps: TaughtSkillsDeps) {
       const threadId = bot.thread.id;
       const run = await deps.prisma.$transaction(async (tx) => {
         const executionScope = await resolveConversationExecutionScope(tx, {
-          spaceId: actor.spaceId, userId: actor.userId, botId: bot.id, threadId,
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+          botId: bot.id,
+          threadId,
         });
         const task = await tx.task.create({
           data: {

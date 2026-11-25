@@ -1,13 +1,14 @@
 import { MenuView } from "@expo/ui/community/menu";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function InboxRosterHeading({
@@ -48,12 +49,13 @@ export function InboxRosterHeading({
           : t(kind === "bot" ? "Bots" : "Group")}
       </Text>
       {kind === "group" ? (
-        <Pressable
+        <MotionPressable
+          preset="icon"
           accessibilityRole="button"
           accessibilityLabel={t("New group chat")}
           onPress={onCreateGroup}
           hitSlop={6}
-          style={({ pressed }) => ({
+          style={{
             width: 34,
             height: 34,
             borderRadius: 17,
@@ -63,8 +65,7 @@ export function InboxRosterHeading({
             borderWidth: hairline,
             borderColor:
               tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)"),
-            opacity: pressed ? 0.68 : 1,
-          })}
+          }}
         >
           <NativeSymbol
             ios="plus"
@@ -72,7 +73,7 @@ export function InboxRosterHeading({
             size={18}
             color={tokens?.foreground ?? native.label}
           />
-        </Pressable>
+        </MotionPressable>
       ) : null}
     </View>
   );
@@ -88,12 +89,13 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
       <Text accessibilityRole="header" style={styles.inboxTitle}>
         {t(activityMode ? "Activity" : "Chats")}
       </Text>
-      <Pressable
+      <MotionPressable
+        preset="control"
         testID="home-search-button"
         accessibilityRole="button"
         accessibilityLabel={t("Search")}
         onPress={() => router.push("/search")}
-        style={({ pressed }) => [styles.inboxSearch, pressed && styles.rowPressed]}
+        style={styles.inboxSearch}
       >
         <NativeSymbol
           ios="magnifyingglass"
@@ -102,7 +104,7 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
           color={isLight ? "#6E675E" : "#B8B3AA"}
         />
         <Text style={styles.inboxSearchLabel}>{t("Search")}</Text>
-      </Pressable>
+      </MotionPressable>
     </View>
   );
 }
@@ -201,20 +203,20 @@ function HeaderButton({
 }) {
   const styles = useThemedStyles(createHomeStyles);
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
+      highlightColor={accent && active ? undefined : styles.headerButtonActive?.backgroundColor}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       hitSlop={4}
-      style={({ pressed }) => [
+      style={[
         styles.headerButton,
-        accent && active
-          ? styles.headerButtonAccent
-          : (active || pressed) && styles.headerButtonActive,
+        accent && active ? styles.headerButtonAccent : active && styles.headerButtonActive,
       ]}
     >
       {children}
-    </Pressable>
+    </MotionPressable>
   );
 }

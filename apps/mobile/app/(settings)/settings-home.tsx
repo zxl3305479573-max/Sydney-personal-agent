@@ -20,7 +20,7 @@ import {
   getCachedNotificationPreferences,
   notificationSummaryLabel,
   subscribeNotificationPreferences,
-} from "../../lib/notification-preferences";
+} from "../../lib/notification-preferences-state";
 import { accountRpcQuery, queryClient } from "../../lib/query";
 import { useScreenBackground } from "../../lib/scoped-theme-context";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";

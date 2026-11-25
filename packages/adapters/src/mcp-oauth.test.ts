@@ -3049,15 +3049,22 @@ describe("MCP setup with an existing access token", () => {
     const tables = {
       mcpServer: {
         findFirst: vi.fn(async () => ({ ...server })),
-        update: vi.fn(async ({ data }: { data: { secretId?: string | null; revision?: { increment: number } } }) => {
-          if ("secretId" in data) server.secretId = data.secretId ?? null;
-          if (data.revision?.increment) server.revision += data.revision.increment;
-          return { ...server };
-        }),
+        update: vi.fn(
+          async ({
+            data,
+          }: {
+            data: { secretId?: string | null; revision?: { increment: number } };
+          }) => {
+            if ("secretId" in data) server.secretId = data.secretId ?? null;
+            if (data.revision?.increment) server.revision += data.revision.increment;
+            return { ...server };
+          },
+        ),
       },
       secret: {
-        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
-          secretRows.find((row) => row.id === where.id) ?? null,
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) =>
+            secretRows.find((row) => row.id === where.id) ?? null,
         ),
         create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
           secretRows.push({ id: data.id, ciphertext: data.ciphertext });
@@ -3080,7 +3087,9 @@ describe("MCP setup with an existing access token", () => {
           storedSessions.set(data.id, row);
           return row;
         }),
-        findFirst: vi.fn(async ({ where }: { where: { id: string } }) => storedSessions.get(where.id) ?? null),
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) => storedSessions.get(where.id) ?? null,
+        ),
         deleteMany: vi.fn(async ({ where }: { where: { id?: string; serverId?: string } }) => {
           if (where.id) {
             const existed = storedSessions.delete(where.id);
@@ -3103,7 +3112,11 @@ describe("MCP setup with an existing access token", () => {
     const prisma = {
       ...tables,
       $transaction: async <T>(callback: (tx: unknown) => Promise<T>) =>
-        callback({ ...tables, $queryRaw: vi.fn(async () => []), $executeRaw: vi.fn(async () => 1) }),
+        callback({
+          ...tables,
+          $queryRaw: vi.fn(async () => []),
+          $executeRaw: vi.fn(async () => 1),
+        }),
     };
     vi.stubGlobal(
       "fetch",
@@ -3167,7 +3180,8 @@ describe("MCP setup with an existing access token", () => {
       redirectUri: apiCallback,
     });
     expect(started.status).toBe("authorization_required");
-    if (started.status !== "authorization_required") throw new Error("expected authorization_required");
+    if (started.status !== "authorization_required")
+      throw new Error("expected authorization_required");
     expect(registeredRequests).toEqual([expect.objectContaining({ redirect_uris: [apiCallback] })]);
     // Before completion, live credentials keep the original working grant and web client.
     expect(await readLive()).toEqual(initialMaterial);
@@ -3179,7 +3193,8 @@ describe("MCP setup with an existing access token", () => {
       redirectUri: apiCallback,
     });
     expect(overlapping.status).toBe("authorization_required");
-    if (overlapping.status !== "authorization_required") throw new Error("expected authorization_required");
+    if (overlapping.status !== "authorization_required")
+      throw new Error("expected authorization_required");
 
     await broker.complete({
       sessionId: started.sessionId,
@@ -3216,7 +3231,8 @@ describe("MCP setup with an existing access token", () => {
       redirectUri: apiCallback,
     });
     expect(third.status).toBe("authorization_required");
-    if (third.status !== "authorization_required") throw new Error("expected authorization_required");
+    if (third.status !== "authorization_required")
+      throw new Error("expected authorization_required");
     await broker.disconnect({ serverId: "server-1", spaceId: "workspace-1", userId: "user-1" });
     expect(storedSessions.size).toBe(0);
     await expect(
@@ -3287,8 +3303,9 @@ describe("MCP setup with an existing access token", () => {
         ),
       },
       secret: {
-        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
-          secretRows.find((row) => row.id === where.id) ?? null,
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) =>
+            secretRows.find((row) => row.id === where.id) ?? null,
         ),
         create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
           secretRows.push({ id: data.id, ciphertext: data.ciphertext });
@@ -3388,7 +3405,10 @@ describe("MCP setup with an existing access token", () => {
         }
         if (url === "https://auth.example.test/register" && request.method === "POST") {
           const payload = (await request.json()) as Record<string, unknown>;
-          return Response.json({ client_id: "native-client", redirect_uris: payload.redirect_uris });
+          return Response.json({
+            client_id: "native-client",
+            redirect_uris: payload.redirect_uris,
+          });
         }
         if (url === "https://auth.example.test/token" && request.method === "POST") {
           const form = new URLSearchParams(await request.text());
@@ -3510,8 +3530,9 @@ describe("MCP setup with an existing access token", () => {
         ),
       },
       secret: {
-        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
-          secretRows.find((row) => row.id === where.id) ?? null,
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) =>
+            secretRows.find((row) => row.id === where.id) ?? null,
         ),
         create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
           secretRows.push({ id: data.id, ciphertext: data.ciphertext });
@@ -3556,7 +3577,11 @@ describe("MCP setup with an existing access token", () => {
     const prisma = {
       ...tables,
       $transaction: async <T>(callback: (tx: unknown) => Promise<T>) =>
-        callback({ ...tables, $queryRaw: vi.fn(async () => []), $executeRaw: vi.fn(async () => 1) }),
+        callback({
+          ...tables,
+          $queryRaw: vi.fn(async () => []),
+          $executeRaw: vi.fn(async () => 1),
+        }),
     };
 
     let markTokenExchangeStarted!: () => void;
@@ -3600,7 +3625,10 @@ describe("MCP setup with an existing access token", () => {
         }
         if (url === "https://auth.example.test/register" && request.method === "POST") {
           const payload = (await request.json()) as Record<string, unknown>;
-          return Response.json({ client_id: "native-client", redirect_uris: payload.redirect_uris });
+          return Response.json({
+            client_id: "native-client",
+            redirect_uris: payload.redirect_uris,
+          });
         }
         if (url === "https://auth.example.test/token" && request.method === "POST") {
           markTokenExchangeStarted();

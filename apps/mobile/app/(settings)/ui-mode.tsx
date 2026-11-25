@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, Text, View } from "react-native";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import type { ThemePreviewCardLabels } from "../../components/theme-preview-card";
@@ -693,7 +694,8 @@ export default function UiModeScreen() {
                     }}
                   >
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <Pressable
+                      <MotionPressable
+                        preset="control"
                         accessibilityRole="button"
                         accessibilityState={{ selected: effectiveId === undefined }}
                         disabled={busy}
@@ -719,14 +721,15 @@ export default function UiModeScreen() {
                         >
                           {labels.followGlobal}
                         </Text>
-                      </Pressable>
+                      </MotionPressable>
 
                       {eligiblePacks.map((pack) => {
                         const selected = effectiveId === pack.id;
                         const swatch = packSwatch(pack, userAppearance);
                         return (
-                          <Pressable
+                          <MotionPressable
                             key={`${scope}-${pack.id}`}
+                            preset="control"
                             accessibilityRole="button"
                             accessibilityState={{ selected }}
                             disabled={busy}
@@ -763,7 +766,7 @@ export default function UiModeScreen() {
                             >
                               {themePackDisplayName(unified.packs, pack.id, locale)}
                             </Text>
-                          </Pressable>
+                          </MotionPressable>
                         );
                       })}
                     </View>

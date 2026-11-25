@@ -12,10 +12,7 @@ export type ThreadSessionScope = {
 };
 
 /** Builds an isolated session cache scope for a project workspace conversation. */
-export function projectThreadSessionScope(
-  scopeKey: string,
-  projectId: string,
-): ThreadSessionScope {
+export function projectThreadSessionScope(scopeKey: string, projectId: string): ThreadSessionScope {
   return {
     apiBase: scopeKey,
     sessionGeneration: 0,
@@ -283,7 +280,11 @@ export const threadSessionCache = {
     if (!target.botId && !target.groupId) return false;
     return (pendingSends.get(threadKey(scope, target))?.size ?? 0) > 0;
   },
-  beginUnreadWrite(scope: ThreadSessionScope, target: ThreadSessionTarget, unread: boolean): number {
+  beginUnreadWrite(
+    scope: ThreadSessionScope,
+    target: ThreadSessionTarget,
+    unread: boolean,
+  ): number {
     const token = ++nextUnreadToken;
     if (!target.botId && !target.groupId) return token;
     const key = threadKey(scope, target);

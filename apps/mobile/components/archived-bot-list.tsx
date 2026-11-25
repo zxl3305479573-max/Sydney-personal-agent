@@ -1,11 +1,12 @@
 import { MenuView } from "@expo/ui/community/menu";
 import { typeScale } from "@rakazo/ui-tokens";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import type { MobileBot, MobileGroup } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useResolvedAppearance } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { Chevron } from "./row-accessories";
 
@@ -60,7 +61,9 @@ export function ArchivedBotList({
               nativeEvent.event === "restore" ? onRestore(bot) : onDelete(bot)
             }
           >
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               disabled={pending}
               onPress={() => onOpen(bot)}
               accessibilityRole="button"
@@ -76,7 +79,7 @@ export function ArchivedBotList({
                 {bot.name}
               </Text>
               <Chevron />
-            </Pressable>
+            </MotionPressable>
           </MenuView>
         ))}
         {groups.map((group) => (

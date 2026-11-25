@@ -266,11 +266,10 @@ export async function allowAiConsent(
   target: AiConsentQuery = {},
 ) {
   // Checked against the same settings copy the member reviewed.
-  const current = await aiConsentStatus(
-    deps,
-    actor,
-    { ...target, ...(input.settingsScope ? { settingsScope: input.settingsScope } : {}) },
-  );
+  const current = await aiConsentStatus(deps, actor, {
+    ...target,
+    ...(input.settingsScope ? { settingsScope: input.settingsScope } : {}),
+  });
   const known = new Set(current.recipients.map((recipient) => recipient.key));
   if (
     input.scope !== current.scope ||

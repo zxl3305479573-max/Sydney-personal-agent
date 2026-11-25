@@ -6,7 +6,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -17,6 +16,7 @@ import { GithubBotAnalysis } from "../components/github-bot-analysis";
 import { GlassSurface } from "../components/glass-surface";
 import { MainNavigationHeader } from "../components/main-navigation-header";
 import { MenuPicker } from "../components/menu-picker";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
@@ -129,8 +129,9 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
         .filter(Boolean)
         .join(" · ");
       return (
-        <Pressable
+        <MotionPressable
           key={repo.id}
+          preset="card"
           accessibilityRole="button"
           accessibilityLabel={[repo.fullName, repo.description, metadata]
             .filter(Boolean)
@@ -138,7 +139,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
           accessibilityState={{ disabled: github.busy }}
           onPress={() => github.selectRepo(repo)}
           disabled={github.busy}
-          style={({ pressed }) => ({ opacity: github.busy ? 0.5 : pressed ? 0.72 : 1 })}
+          style={{ opacity: github.busy ? 0.5 : 1 }}
         >
           <GlassSurface
             shape="roundedRectangle"
@@ -179,7 +180,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             </View>
             <NativeSymbol ios="chevron.right" android="chevron-forward" size={15} color={mutedFg} />
           </GlassSurface>
-        </Pressable>
+        </MotionPressable>
       );
     });
   const result = github.section === "explore" ? github.search : github.repositories;
@@ -227,25 +228,33 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             borderColor: chipBorder,
           }}
         >
-          {sections.map((section) => (
-            <Pressable
-              key={section.id}
-              accessibilityRole="tab"
-              accessibilityLabel={section.label}
-              accessibilityState={{
-                selected: github.section === section.id,
-                disabled: github.busy,
-              }}
-              disabled={github.busy}
-              onPress={() => {
-                setQuery("");
-                setLanguage("");
-                setTopic("");
-                github.selectSection(section.id);
-              }}
-              style={({ pressed }) => {
-                const selected = github.section === section.id;
-                return {
+          {sections.map((section) => {
+            const selected = github.section === section.id;
+            return (
+              <MotionPressable
+                key={section.id}
+                preset="control"
+                highlightColor={
+                  selected
+                    ? undefined
+                    : isLight
+                      ? "rgba(38, 35, 31, 0.05)"
+                      : "rgba(245, 244, 240, 0.06)"
+                }
+                accessibilityRole="tab"
+                accessibilityLabel={section.label}
+                accessibilityState={{
+                  selected,
+                  disabled: github.busy,
+                }}
+                disabled={github.busy}
+                onPress={() => {
+                  setQuery("");
+                  setLanguage("");
+                  setTopic("");
+                  github.selectSection(section.id);
+                }}
+                style={{
                   flex: 1,
                   minWidth: 0,
                   minHeight: 44,
@@ -256,32 +265,23 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                   paddingVertical: 8,
                   borderWidth: 0.5,
                   borderColor: selected ? cardBorder : "transparent",
-                  backgroundColor: selected
-                    ? isLight
-                      ? "#FFFEFC"
-                      : "#2D3340"
-                    : pressed
-                      ? isLight
-                        ? "rgba(38, 35, 31, 0.05)"
-                        : "rgba(245, 244, 240, 0.06)"
-                      : "transparent",
-                  opacity: github.busy ? 0.45 : pressed ? 0.72 : 1,
-                };
-              }}
-            >
-              <Text
-                style={{
-                  color:
-                    github.section === section.id ? (isLight ? "#26231F" : "#F5F4F0") : mutedFg,
-                  fontSize: 15.5,
-                  fontWeight: github.section === section.id ? "600" : "500",
-                  textAlign: "center",
+                  backgroundColor: selected ? (isLight ? "#FFFEFC" : "#2D3340") : "transparent",
+                  opacity: github.busy ? 0.45 : 1,
                 }}
               >
-                {section.label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={{
+                    color: selected ? (isLight ? "#26231F" : "#F5F4F0") : mutedFg,
+                    fontSize: 15.5,
+                    fontWeight: selected ? "600" : "500",
+                    textAlign: "center",
+                  }}
+                >
+                  {section.label}
+                </Text>
+              </MotionPressable>
+            );
+          })}
         </View>
         {github.error ? (
           <GlassSurface

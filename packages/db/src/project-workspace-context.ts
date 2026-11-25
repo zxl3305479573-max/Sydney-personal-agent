@@ -12,8 +12,10 @@ export async function runInProjectWorkspace<T>(
 ): Promise<T> {
   const tenant = { spaceId: actor.spaceId, userId: actor.userId };
   const parent = currentDbContext();
-  if (parent?.kind === "tenant" &&
-    (parent.spaceId !== tenant.spaceId || parent.userId !== tenant.userId)) {
+  if (
+    parent?.kind === "tenant" &&
+    (parent.spaceId !== tenant.spaceId || parent.userId !== tenant.userId)
+  ) {
     throw new IsolationError();
   }
   const workspace = await getProjectWorkspace(prisma, tenant, projectWorkspaceId);

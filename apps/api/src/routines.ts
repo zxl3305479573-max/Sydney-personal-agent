@@ -190,7 +190,10 @@ export async function createRoutineTestRun(
 ) {
   const { routine, botId, threadId } = target;
   const executionScope = await resolveConversationExecutionScope(tx, {
-    spaceId: actor.spaceId, userId: actor.userId, botId, threadId,
+    spaceId: actor.spaceId,
+    userId: actor.userId,
+    botId,
+    threadId,
   });
   const task = await tx.task.create({
     data: {

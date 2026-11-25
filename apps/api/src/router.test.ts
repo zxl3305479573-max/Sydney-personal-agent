@@ -2764,38 +2764,44 @@ describe("MCP server health", () => {
       [undefined, true, "http://127.0.0.1:5173/mcp/oauth/callback"],
       ["https://api.example.test", false, "http://127.0.0.1:5173/mcp/oauth/callback"],
       ["https://api.example.test", true, "https://api.example.test/api/mcp/oauth/callback"],
-    ])("selects the native callback only when configured and requested", async (origin, native, expected) => {
-      const h = harness({
-        row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
-      });
-      h.deps.env.mcpNativeCallbackOrigin = origin;
-      const begin = vi.fn(async () => ({
-        status: "authorization_required" as const,
-        sessionId: "synthetic-session",
-        authorizationUrl: "https://provider.example.test/authorize",
-      }));
-      Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
-      const client = createRouterClient(createRouter(h.deps), {
-        context: {
-          actor: {
-            spaceId: "workspace-1",
-            userId: "owner-1",
-            email: "owner@rakazo.test",
-            isDeploymentOwner: true,
-          },
-        } as never,
-      });
-      const result = await client.mcp.oauth.begin({ serverId: "server-1", nativeCallback: native });
-      expect(result).toMatchObject({ callbackUri: expected });
-      expect(begin).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: expected }));
-      await expect(
-        client.mcp.oauth.begin({
+    ])(
+      "selects the native callback only when configured and requested",
+      async (origin, native, expected) => {
+        const h = harness({
+          row: baseRow({ transport: "streamable_http", endpoint: "https://mcp.example.test/mcp" }),
+        });
+        h.deps.env.mcpNativeCallbackOrigin = origin;
+        const begin = vi.fn(async () => ({
+          status: "authorization_required" as const,
+          sessionId: "synthetic-session",
+          authorizationUrl: "https://provider.example.test/authorize",
+        }));
+        Object.assign(h.deps, { mcpOAuth: { ...(h.deps.mcpOAuth as object), begin } });
+        const client = createRouterClient(createRouter(h.deps), {
+          context: {
+            actor: {
+              spaceId: "workspace-1",
+              userId: "owner-1",
+              email: "owner@rakazo.test",
+              isDeploymentOwner: true,
+            },
+          } as never,
+        });
+        const result = await client.mcp.oauth.begin({
           serverId: "server-1",
-          nativeCallback: true,
-          redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback",
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    });
+          nativeCallback: native,
+        });
+        expect(result).toMatchObject({ callbackUri: expected });
+        expect(begin).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: expected }));
+        await expect(
+          client.mcp.oauth.begin({
+            serverId: "server-1",
+            nativeCallback: true,
+            redirectUri: "http://127.0.0.1:5173/mcp/oauth/callback",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      },
+    );
 
     it("probes the server once its OAuth session completes", async () => {
       const h = harness({ row: baseRow() });
@@ -5763,7 +5769,13 @@ describe("bot intro run", () => {
     });
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const tx = {
-      $queryRaw: vi.fn().mockResolvedValue([]),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        if (sql.includes('FROM "threads"')) {
+          return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+        }
+        return [];
+      }),
       task: { create },
       run: {
         create,
@@ -5777,7 +5789,9 @@ describe("bot intro run", () => {
     const userModelPreference = { findFirst: vi.fn().mockResolvedValue(preference) };
     const deps = {
       prisma: {
-        $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+        $transaction: vi.fn(async (fn: (client: typeof tx) => unknown) =>
+          runAsTenant({ spaceId: "space-1", userId: "user-1" }, () => fn(tx)),
+        ),
         userModelPreference,
         deploymentSettings: { findUnique: vi.fn().mockResolvedValue(null) },
         user: { findUnique: vi.fn().mockResolvedValue({ name: "Ada Lovelace" }) },
@@ -7247,15 +7261,31 @@ describe("bot restore computer quota", () => {
 describe("group restore with archived bots", () => {
   function fixture(archivedBots: Array<{ id: string; computerId: string | null }>, inUse = 0) {
     const bot = { update: vi.fn(async () => ({})) };
-    const chatGroup = { update: vi.fn(async () => ({})) };
+    const chatGroup = {
+      findFirst: vi.fn(async () => ({
+        members: archivedBots.map((item) => ({ botId: item.id })),
+      })),
+      update: vi.fn(async () => ({})),
+    };
     const tx = {
       bot,
       chatGroup,
-      chatGroupMember: { findMany: vi.fn(async () => archivedBots.map((item) => ({ bot: item }))) },
+      chatGroupMember: {
+        findMany: vi.fn(async () =>
+          archivedBots.map((item) => ({
+            botId: item.id,
+            bot: { ...item, archivedAt: new Date() },
+          })),
+        ),
+      },
       computer: {
         count: vi.fn(async (args: { where: { id?: string } }) => (args.where.id ? 0 : inUse)),
       },
-      $queryRaw: vi.fn(async () => [{ id: "group-1", lock: "1" }]),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        if (sql.includes('FROM "bots"')) return archivedBots.map((item) => ({ id: item.id }));
+        return [{ id: "group-1", lock: "1" }];
+      }),
     };
     const prisma = {
       $transaction: vi.fn(async (callback: (client: unknown) => Promise<unknown>) => callback(tx)),
@@ -8837,7 +8867,13 @@ describe("threads.endCall", () => {
     const created: { blocks?: unknown; clientNonce?: string }[] = [];
     const events: { type: string; payload: Record<string, unknown> }[] = [];
     const tx = {
-      $queryRaw: vi.fn(async () => []),
+      $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        if (sql.includes('FROM "threads"')) {
+          return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+        }
+        return [];
+      }),
       thread: { update: vi.fn().mockResolvedValue({ nextMessageSeq: 3, nextEventSeq: 5 }) },
       message: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -8870,7 +8906,9 @@ describe("threads.endCall", () => {
       // No bot-placed call behind this one: only the caller's own hang-up runs.
       message: { findUnique: vi.fn().mockResolvedValue(null) },
       taughtSkill: { findFirst: vi.fn().mockResolvedValue(null) },
-      $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
+      $transaction: vi.fn(async (run: (client: typeof tx) => unknown) =>
+        runAsTenant({ spaceId: "space-1", userId: "user-1" }, () => run(tx)),
+      ),
     } as unknown as PrismaClient;
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const deps = {

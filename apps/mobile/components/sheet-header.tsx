@@ -1,6 +1,7 @@
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { native } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { MotionPressable } from "./motion-pressable";
 
 /**
  * iOS 26 wraps a custom header view in a Liquid Glass capsule and lays the
@@ -22,21 +23,22 @@ function HeaderTextButton({
   edge: "leading" | "trailing";
 }) {
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={disabled ? { disabled: true } : undefined}
       disabled={disabled}
       hitSlop={8}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         backgroundColor: "transparent",
         paddingVertical: 8,
         paddingStart: edge === "trailing" ? 20 : 0,
         paddingEnd: edge === "leading" ? 20 : 0,
         justifyContent: "center",
-        opacity: disabled ? 0.4 : pressed ? 0.65 : 1,
-      })}
+        opacity: disabled ? 0.4 : 1,
+      }}
     >
       <Text
         style={{
@@ -47,7 +49,7 @@ function HeaderTextButton({
       >
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

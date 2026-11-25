@@ -25,7 +25,10 @@ export async function wakeTicketAssignee(
     });
     if (!bot?.thread) return null;
     const executionScope = await resolveConversationExecutionScope(tx, {
-      spaceId: input.spaceId, userId: bot.userId, botId: bot.id, threadId: bot.thread.id,
+      spaceId: input.spaceId,
+      userId: bot.userId,
+      botId: bot.id,
+      threadId: bot.thread.id,
     });
     const task = await tx.task.create({
       data: {

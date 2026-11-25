@@ -81,7 +81,10 @@ export async function assertProjectStreamAccess(
   actor: Actor,
   projectWorkspaceId: string | null,
 ): Promise<void> {
-  if (projectWorkspaceId !== null && !(await getProjectWorkspace(prisma, actor, projectWorkspaceId)))
+  if (
+    projectWorkspaceId !== null &&
+    !(await getProjectWorkspace(prisma, actor, projectWorkspaceId))
+  )
     throw new ORPCError("NOT_FOUND");
 }
 
@@ -228,31 +231,64 @@ export function threadsRoutes(ctx: RouterContext) {
         )?.botId ?? target.memberBotIds[0]!);
   return {
     threads: {
-      companionScreenStart: authed.threads.companionScreenStart.handler(async ({ context, input }) => {
-        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
-          !(await context.stillSessionAuthorized())) {
-          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
-        }
-        return deps.companionScreen.start(
-          context.actor, input.botId, context.sessionId, input.confirmed, context.stillSessionAuthorized, context.signal,
-        );
-      }),
-      companionScreenRespond: authed.threads.companionScreenRespond.handler(async ({ context, input }) => {
-        if (!deps.companionScreen || !context.sessionId || !context.stillSessionAuthorized ||
-          !(await context.stillSessionAuthorized())) {
-          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
-        }
-        return { reply: await deps.companionScreen.respond(
-          context.actor, input.botId, context.sessionId, input.id, input.text,
-          context.stillSessionAuthorized, context.signal,
-        ) };
-      }),
-      companionScreenStop: authed.threads.companionScreenStop.handler(async ({ context, input }) => {
-        if (!deps.companionScreen || !context.sessionId) {
-          throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
-        }
-        return { stopped: deps.companionScreen.stop(context.actor, input.botId, context.sessionId, input.id) };
-      }),
+      companionScreenStart: authed.threads.companionScreenStart.handler(
+        async ({ context, input }) => {
+          if (
+            !deps.companionScreen ||
+            !context.sessionId ||
+            !context.stillSessionAuthorized ||
+            !(await context.stillSessionAuthorized())
+          ) {
+            throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+          }
+          return deps.companionScreen.start(
+            context.actor,
+            input.botId,
+            context.sessionId,
+            input.confirmed,
+            context.stillSessionAuthorized,
+            context.signal,
+          );
+        },
+      ),
+      companionScreenRespond: authed.threads.companionScreenRespond.handler(
+        async ({ context, input }) => {
+          if (
+            !deps.companionScreen ||
+            !context.sessionId ||
+            !context.stillSessionAuthorized ||
+            !(await context.stillSessionAuthorized())
+          ) {
+            throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+          }
+          return {
+            reply: await deps.companionScreen.respond(
+              context.actor,
+              input.botId,
+              context.sessionId,
+              input.id,
+              input.text,
+              context.stillSessionAuthorized,
+              context.signal,
+            ),
+          };
+        },
+      ),
+      companionScreenStop: authed.threads.companionScreenStop.handler(
+        async ({ context, input }) => {
+          if (!deps.companionScreen || !context.sessionId) {
+            throw new ORPCError("FORBIDDEN", { message: "Screen companion is unavailable." });
+          }
+          return {
+            stopped: deps.companionScreen.stop(
+              context.actor,
+              input.botId,
+              context.sessionId,
+              input.id,
+            ),
+          };
+        },
+      ),
       head: authed.threads.head.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
         return threadHead(deps.prisma, target);
@@ -485,8 +521,10 @@ export function threadsRoutes(ctx: RouterContext) {
           let run: { id: string } | null = null;
           if (!active) {
             const executionScope = await resolveConversationExecutionScope(tx, {
-              spaceId: context.actor.spaceId, userId: context.actor.userId,
-              botId, threadId: target.threadId,
+              spaceId: context.actor.spaceId,
+              userId: context.actor.userId,
+              botId,
+              threadId: target.threadId,
             });
             const task = await tx.task.create({
               data: {
@@ -632,7 +670,10 @@ export function threadsRoutes(ctx: RouterContext) {
               payload: { messageId: message.id, role: "bot", blocks, callId: input.callId },
             });
             const executionScope = await resolveConversationExecutionScope(tx, {
-              spaceId: context.actor.spaceId, userId: context.actor.userId, botId, threadId,
+              spaceId: context.actor.spaceId,
+              userId: context.actor.userId,
+              botId,
+              threadId,
             });
             const task = await tx.task.create({
               data: {

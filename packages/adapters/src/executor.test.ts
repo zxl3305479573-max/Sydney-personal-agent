@@ -9,7 +9,7 @@ import {
 } from "@rakazo/contracts";
 import { ONCE_ROUTINE_CRON } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { runAsTenant, RunHistoryWriteError } from "@rakazo/db";
+import { RunHistoryWriteError, runAsTenant } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { describe, expect, it, vi } from "vitest";
 import { builtinAgentTools } from "./builtin-tools.js";
@@ -58,7 +58,9 @@ const routineOwner = { spaceId: "ws-1", userId: "user-1", projectWorkspaceId: nu
 const readRoutineOwner = async () => [routineOwner];
 
 function wakeRoutineAsOwner(executor: ReturnType<typeof createExecutor>, scheduledAt: Date) {
-  return runAsTenant(routineOwner, () => executor.wakeRoutine("routine-1", scheduledAt.toISOString()));
+  return runAsTenant(routineOwner, () =>
+    executor.wakeRoutine("routine-1", scheduledAt.toISOString()),
+  );
 }
 
 describe("bot tool permissions", () => {
@@ -973,20 +975,31 @@ describe("steering attachment hydration", () => {
     ).rejects.toBe(cancellation);
   });
 
-  it.each([null, "project-1"])("filters image hydration by project scope %s", async (projectWorkspaceId) => {
-    const findMany = vi.fn().mockResolvedValue([]);
-    await loadCurrentTurnImages(
-      { artifacts: {}, prisma: { artifact: { findMany } } } as never,
-      [{ kind: "image", artifactId: "image-1", name: "one.png", mimeType: "image/png" }],
-      {
-        operationId: "run-1", traceId: "run-1", spaceId: "space-1", userId: "user-1",
-        botId: "bot-1", runId: "run-1", projectWorkspaceId, signal: new AbortController().signal,
-      },
-    );
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ projectWorkspaceId }),
-    }));
-  });
+  it.each([null, "project-1"])(
+    "filters image hydration by project scope %s",
+    async (projectWorkspaceId) => {
+      const findMany = vi.fn().mockResolvedValue([]);
+      await loadCurrentTurnImages(
+        { artifacts: {}, prisma: { artifact: { findMany } } } as never,
+        [{ kind: "image", artifactId: "image-1", name: "one.png", mimeType: "image/png" }],
+        {
+          operationId: "run-1",
+          traceId: "run-1",
+          spaceId: "space-1",
+          userId: "user-1",
+          botId: "bot-1",
+          runId: "run-1",
+          projectWorkspaceId,
+          signal: new AbortController().signal,
+        },
+      );
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ projectWorkspaceId }),
+        }),
+      );
+    },
+  );
 
   it("treats unreadable image bytes as missing instead of failing hydration", async () => {
     const blocks: MessageBlock[] = [
@@ -4496,7 +4509,10 @@ describe("managed task control and model budget", () => {
               maxOutputTokens: number;
             }) => Promise<string | undefined>;
             afterCall: (reservationId: string, usage: Record<string, unknown>) => Promise<void>;
-            onRequestId?: (reservationId: string, providerRequestId: string) => void | Promise<void>;
+            onRequestId?: (
+              reservationId: string,
+              providerRequestId: string,
+            ) => void | Promise<void>;
           };
         }
       | undefined;
@@ -5100,7 +5116,12 @@ describe("managed task control and model budget", () => {
                   disabledBuiltinTools: [],
                   fleetManagement: false,
                   crossSpaceCommunication: false,
-                  computer: { id: "computer-1", scope: "dedicated", kind: "e2b", homeKey: "home-1" },
+                  computer: {
+                    id: "computer-1",
+                    scope: "dedicated",
+                    kind: "e2b",
+                    homeKey: "home-1",
+                  },
                 },
           ),
           findMany: vi.fn(async () => []),

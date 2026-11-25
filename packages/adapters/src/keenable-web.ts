@@ -14,7 +14,8 @@ import { clampMaxChars, clampMaxResults, clampOffset, pageWindow } from "./web-l
 import { assertSafeWebUrl, withAbort } from "./web-ssrf.js";
 
 const ENDPOINT = "https://api.keenable.ai/mcp";
-const USER_AGENT = "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
+const USER_AGENT =
+  "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
 const MAX_SNIPPET_CHARS = 8_000;
 // Even escaped multibyte text stays inside the transport's 1 MB result limit.
 const KEENABLE_MAX_READ_CHARS = 100_000;

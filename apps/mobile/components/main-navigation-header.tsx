@@ -1,7 +1,7 @@
 import { Stack, useRouter } from "expo-router";
-import { Pressable } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { iosAtLeast } from "../lib/native-controls";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function MainNavigationHeader({ onBack }: { onBack?: () => void }) {
@@ -26,7 +26,8 @@ export function MainNavigationHeader({ onBack }: { onBack?: () => void }) {
             }
           : {}),
         headerLeft: () => (
-          <Pressable
+          <MotionPressable
+            preset="icon"
             accessibilityRole="button"
             accessibilityLabel={t("Back")}
             onPress={onBack ?? (() => router.dismissTo("/"))}
@@ -34,7 +35,7 @@ export function MainNavigationHeader({ onBack }: { onBack?: () => void }) {
             style={{ minWidth: 44, minHeight: 44, justifyContent: "center" }}
           >
             <NativeSymbol ios="chevron.left" android="chevron-back" size={22} />
-          </Pressable>
+          </MotionPressable>
         ),
       }}
     />

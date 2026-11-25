@@ -36,9 +36,9 @@ import {
   mobileThreadRefreshResult,
   passwordResetCapabilities,
   prependMobileMessagePage,
+  replaceMobileSession,
   requestAccountDeletionCode,
   requestPasswordReset,
-  replaceMobileSession,
   resetApiBase,
   rpc,
   saveApiBase,
@@ -52,10 +52,10 @@ import {
   signOut,
   signUp,
   spaceSelectionSeq,
+  subscribeProjectThread,
   subscribeServerReachable,
   subscribeSessionRejected,
   subscribeSpaceSelection,
-  subscribeProjectThread,
   subscribeThread,
   updateAccountName,
 } from "./api.js";
@@ -231,7 +231,10 @@ describe("mobile API authentication", () => {
           await save?.(key, value, options);
         });
       }
-      vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ token: "login-token" })));
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => jsonResponse({ token: "login-token" })),
+      );
       try {
         const login = signIn("ada@example.com", "password");
         await write.started;
@@ -280,7 +283,10 @@ describe("mobile API authentication", () => {
     const store = new Map<string, string>();
     mockSecureStore(store);
     const write = deferSecureStoreWrite(store, "rakazo.session_token");
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ token: "login-token" })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ token: "login-token" })),
+    );
     try {
       const login = signIn("ada@example.com", "password");
       const rejected = expect(login).rejects.toThrow();
@@ -326,7 +332,10 @@ describe("mobile API authentication", () => {
       if (key === "rakazo.api_base" && value === "https://second-server.example")
         throw new Error("device locked");
     });
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ json: null })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ json: null })),
+    );
     try {
       const switching = saveApiBase("https://second-server.example");
       await write.started;
@@ -350,7 +359,11 @@ describe("mobile API authentication", () => {
     try {
       const switching = saveApiBase("https://second-server.example");
       await write.started;
-      const staleScope = { apiBase: currentApiBase(), endpointGeneration: -1, sessionGeneration: -1 };
+      const staleScope = {
+        apiBase: currentApiBase(),
+        endpointGeneration: -1,
+        sessionGeneration: -1,
+      };
       await expect(adoptDeletedSpaceFallback("old-space", staleScope)).resolves.toBe(false);
       write.release();
       await expect(switching).resolves.toMatchObject({ ok: true });
@@ -515,34 +528,43 @@ describe("mobile API authentication", () => {
     ["empty response", () => new Response(null, { status: 204 })],
     ["empty object", () => jsonResponse({})],
     ["missing message", () => jsonResponse({ success: true })],
-    ["verification only", () => jsonResponse({ success: true, message: "Verification email sent" })],
+    [
+      "verification only",
+      () => jsonResponse({ success: true, message: "Verification email sent" }),
+    ],
     ["false success", () => jsonResponse({ success: false, message: "User deleted" })],
     ["null", () => jsonResponse(null)],
-  ])("does not clear the local session for an unconfirmed deletion: %s", async (_name, response) => {
-    const store = new Map<string, string>();
-    mockSecureStore(store);
-    await saveSessionToken("account-token");
-    await selectSpace("account-space");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) =>
-        String(url).endsWith("/api/auth/delete-user") ? response() : jsonResponse({ json: null }),
-      ),
-    );
-    await expect(deleteAccount("password", undefined, captureServerSessionScope())).rejects.toThrow(
-      "Could not confirm account deletion",
-    );
-    expect(store.get("rakazo.session_token")).toBe("account-token");
-    expect(store.get("rakazo.space_id")).toBe("account-space");
-    expect(selectedSpaceId()).toBe("account-space");
-  });
+  ])(
+    "does not clear the local session for an unconfirmed deletion: %s",
+    async (_name, response) => {
+      const store = new Map<string, string>();
+      mockSecureStore(store);
+      await saveSessionToken("account-token");
+      await selectSpace("account-space");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          String(url).endsWith("/api/auth/delete-user") ? response() : jsonResponse({ json: null }),
+        ),
+      );
+      await expect(
+        deleteAccount("password", undefined, captureServerSessionScope()),
+      ).rejects.toThrow("Could not confirm account deletion");
+      expect(store.get("rakazo.session_token")).toBe("account-token");
+      expect(store.get("rakazo.space_id")).toBe("account-space");
+      expect(selectedSpaceId()).toBe("account-space");
+    },
+  );
 
   it("does not report session replacement success after sign-out starts during the save", async () => {
     const store = new Map<string, string>();
     mockSecureStore(store);
     const scope = captureServerSessionScope();
     const write = deferSecureStoreWrite(store, "rakazo.session_token");
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ json: null })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ json: null })),
+    );
     try {
       const replacement = replaceMobileSession(scope, "new-token", true);
       await write.started;
@@ -1897,15 +1919,26 @@ describe("mobile API authentication", () => {
           scope: "account-space",
           version: "2026-09-14",
           recipients: [
-            { key: "project-provider", name: "Example AI", use: "model", detail: "", allowed: false },
+            {
+              key: "project-provider",
+              name: "Example AI",
+              use: "model",
+              detail: "",
+              allowed: false,
+            },
           ],
         },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(rpc("projectWorkspaces/sendText", {
-      projectId: "project-a", botId: "bot-a", text: "private content", clientNonce: "nonce-a",
-    })).rejects.toThrow("AI data sharing");
+    await expect(
+      rpc("projectWorkspaces/sendText", {
+        projectId: "project-a",
+        botId: "bot-a",
+        text: "private content",
+        clientNonce: "nonce-a",
+      }),
+    ).rejects.toThrow("AI data sharing");
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain("/rpc/projectWorkspaces/consentStatus");
@@ -1917,23 +1950,42 @@ describe("mobile API authentication", () => {
   it("does not grant project consent or send text after cancelling its consent prompt", async () => {
     let resolvePrompt!: (accepted: boolean) => void;
     let promptOpened!: () => void;
-    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    const opened = new Promise<void>((resolve) => {
+      promptOpened = resolve;
+    });
     vi.mocked(promptAiConsent).mockImplementation(() => {
       promptOpened();
-      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+      return new Promise<boolean>((resolve) => {
+        resolvePrompt = resolve;
+      });
     });
     const paths: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
-      paths.push(new URL(String(url)).pathname);
-      return jsonResponse({ json: {
-        scope: "account-space", version: "2026-09-14",
-        recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
-      } });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL | Request) => {
+        paths.push(new URL(String(url)).pathname);
+        return jsonResponse({
+          json: {
+            scope: "account-space",
+            version: "2026-09-14",
+            recipients: [
+              { key: "provider", name: "Example AI", use: "model", detail: "", allowed: false },
+            ],
+          },
+        });
+      }),
+    );
     const controller = new AbortController();
-    const send = rpc("projectWorkspaces/sendText", {
-      projectId: "project-a", botId: "bot-a", text: "private", clientNonce: "nonce-a",
-    }, { signal: controller.signal });
+    const send = rpc(
+      "projectWorkspaces/sendText",
+      {
+        projectId: "project-a",
+        botId: "bot-a",
+        text: "private",
+        clientNonce: "nonce-a",
+      },
+      { signal: controller.signal },
+    );
     const rejected = expect(send).rejects.toThrow();
     await opened;
     controller.abort();
@@ -1944,17 +1996,25 @@ describe("mobile API authentication", () => {
 
   it("does not prompt or send screen text when automatic model consent is missing", async () => {
     vi.mocked(promptAiConsent).mockClear();
-    const fetchMock = vi.fn(async (_url: string | URL | Request) => jsonResponse({
-      json: {
-        scope: "account-space",
-        version: "2026-09-14",
-        recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
-      },
-    }));
+    const fetchMock = vi.fn(async (_url: string | URL | Request) =>
+      jsonResponse({
+        json: {
+          scope: "account-space",
+          version: "2026-09-14",
+          recipients: [
+            { key: "provider", name: "Example AI", use: "model", detail: "", allowed: false },
+          ],
+        },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(rpc("threads/companionScreenRespond",
-      { botId: "bot-1", id: "session-1", text: "private screen text" },
-      { allowConsentPrompt: false })).rejects.toThrow();
+    await expect(
+      rpc(
+        "threads/companionScreenRespond",
+        { botId: "bot-1", id: "session-1", text: "private screen text" },
+        { allowConsentPrompt: false },
+      ),
+    ).rejects.toThrow();
     expect(promptAiConsent).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/rpc/aiConsent/status");
@@ -1963,24 +2023,37 @@ describe("mobile API authentication", () => {
   it("does not grant model consent or start a screen session after cancellation during the prompt", async () => {
     let resolvePrompt!: (accepted: boolean) => void;
     let promptOpened!: () => void;
-    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    const opened = new Promise<void>((resolve) => {
+      promptOpened = resolve;
+    });
     vi.mocked(promptAiConsent).mockImplementation(() => {
       promptOpened();
-      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+      return new Promise<boolean>((resolve) => {
+        resolvePrompt = resolve;
+      });
     });
     const paths: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
-      paths.push(new URL(String(url)).pathname);
-      return jsonResponse({
-        json: {
-          scope: "account-space",
-          version: "2026-09-14",
-          recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
-        },
-      });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL | Request) => {
+        paths.push(new URL(String(url)).pathname);
+        return jsonResponse({
+          json: {
+            scope: "account-space",
+            version: "2026-09-14",
+            recipients: [
+              { key: "provider", name: "Example AI", use: "model", detail: "", allowed: false },
+            ],
+          },
+        });
+      }),
+    );
     const controller = new AbortController();
-    const start = rpc("threads/companionScreenStart", { botId: "bot-1", confirmed: true }, { signal: controller.signal });
+    const start = rpc(
+      "threads/companionScreenStart",
+      { botId: "bot-1", confirmed: true },
+      { signal: controller.signal },
+    );
     const rejected = expect(start).rejects.toThrow();
     await opened;
     controller.abort();
@@ -1992,28 +2065,41 @@ describe("mobile API authentication", () => {
   it("does not reuse another request's foreground consent prompt for automatic screen text", async () => {
     let resolvePrompt!: (accepted: boolean) => void;
     let promptOpened!: () => void;
-    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    const opened = new Promise<void>((resolve) => {
+      promptOpened = resolve;
+    });
     vi.mocked(promptAiConsent).mockImplementation(() => {
       promptOpened();
-      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+      return new Promise<boolean>((resolve) => {
+        resolvePrompt = resolve;
+      });
     });
     const paths: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
-      paths.push(new URL(String(url)).pathname);
-      return jsonResponse({
-        json: {
-          scope: "account-space",
-          version: "2026-09-14",
-          recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
-        },
-      });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL | Request) => {
+        paths.push(new URL(String(url)).pathname);
+        return jsonResponse({
+          json: {
+            scope: "account-space",
+            version: "2026-09-14",
+            recipients: [
+              { key: "provider", name: "Example AI", use: "model", detail: "", allowed: false },
+            ],
+          },
+        });
+      }),
+    );
     const foreground = rpc("threads/send", { botId: "bot-1", text: "hello" });
     const foregroundRejected = expect(foreground).rejects.toThrow();
     await opened;
-    await expect(rpc("threads/companionScreenRespond",
-      { botId: "bot-1", id: "session-1", text: "screen" },
-      { allowConsentPrompt: false })).rejects.toThrow();
+    await expect(
+      rpc(
+        "threads/companionScreenRespond",
+        { botId: "bot-1", id: "session-1", text: "screen" },
+        { allowConsentPrompt: false },
+      ),
+    ).rejects.toThrow();
     resolvePrompt(false);
     await foregroundRejected;
     expect(paths).toEqual(["/rpc/aiConsent/status", "/rpc/aiConsent/status"]);
@@ -2495,7 +2581,9 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
+    await expect(
+      adoptDeletedSpaceFallback("space-personal", captureServerSessionScope()),
+    ).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     // Stale deleted id is cleared even while the replacement write stays locked.
     expect(storage.has("rakazo.space_id")).toBe(false);
@@ -2526,7 +2614,9 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
+    await expect(
+      adoptDeletedSpaceFallback("space-personal", captureServerSessionScope()),
+    ).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.has("rakazo.space_id")).toBe(false);
     expect(storage.has("rakazo.space_rollback")).toBe(false);
@@ -2582,7 +2672,9 @@ describe("mobile API authentication", () => {
     await loadApiBase();
 
     await expect(selectSpace("space-personal")).resolves.toBe(false);
-    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(false);
+    await expect(
+      adoptDeletedSpaceFallback("space-personal", captureServerSessionScope()),
+    ).resolves.toBe(false);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.get("rakazo.space_id")).toBe("space-deleted");
 
@@ -2623,7 +2715,9 @@ describe("mobile API authentication", () => {
     });
     await loadApiBase();
 
-    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(true);
+    await expect(
+      adoptDeletedSpaceFallback("space-personal", captureServerSessionScope()),
+    ).resolves.toBe(true);
     expect(selectedSpaceId()).toBe("space-personal");
     expect(storage.get("rakazo.space_id")).toBe("space-personal");
     // Neutralization overwrote the stale rollback; best-effort clear may leave
@@ -2661,7 +2755,9 @@ describe("mobile API authentication", () => {
     });
     await loadApiBase();
 
-    await expect(adoptDeletedSpaceFallback("space-personal", captureServerSessionScope())).resolves.toBe(false);
+    await expect(
+      adoptDeletedSpaceFallback("space-personal", captureServerSessionScope()),
+    ).resolves.toBe(false);
     expect(selectedSpaceId()).toBe("space-personal");
     // Must not leave the new selection durable beside the stale rollback.
     expect(storage.get("rakazo.space_id")).toBe("space-deleted");
@@ -3324,7 +3420,8 @@ describe("mobile API authentication", () => {
     await loadApiBase();
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(rpcErrorResponse(401, "UNAUTHORIZED", "Unauthorized"))
         .mockResolvedValueOnce(jsonResponse({ json: { spaces: [] } })),
     );
@@ -3528,21 +3625,38 @@ describe("mobile thread subscription", () => {
     const fetchMock = vi.fn(async () => new Response(stream, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const onEvent = vi.fn();
-    await subscribeProjectThread("project-a", { botId: "bot-a" }, 3, onEvent, new AbortController().signal, () => true);
+    await subscribeProjectThread(
+      "project-a",
+      { botId: "bot-a" },
+      3,
+      onEvent,
+      new AbortController().signal,
+      () => true,
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:3100/rpc/projectWorkspaces/subscribe",
       expect.objectContaining({
         body: JSON.stringify({ json: { botId: "bot-a", cursor: 3, projectId: "project-a" } }),
       }),
     );
-    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "thread.progress", seq: 4 }));
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "thread.progress", seq: 4 }),
+    );
   });
 
   it("does not start a project stream after its scope becomes stale", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    await expect(subscribeProjectThread("project-a", { botId: "bot-a" }, -1,
-      vi.fn(), new AbortController().signal, () => false)).rejects.toThrow("Project scope changed");
+    await expect(
+      subscribeProjectThread(
+        "project-a",
+        { botId: "bot-a" },
+        -1,
+        vi.fn(),
+        new AbortController().signal,
+        () => false,
+      ),
+    ).rejects.toThrow("Project scope changed");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -4310,7 +4424,10 @@ describe("mobile thread event reduction", () => {
       messages: [
         mobileMessage("progress:run-a", [{ kind: "progress", text: "Working" }]),
         mobileMessage("keep", [{ kind: "text", text: "Keep me" }]),
-      ].map((message) => ({ ...message, runId: message.id.startsWith("progress:") ? "run-a" : undefined })),
+      ].map((message) => ({
+        ...message,
+        runId: message.id.startsWith("progress:") ? "run-a" : undefined,
+      })),
       members: [
         { botId: "bot-1", name: "Writer", color: "blue", status: "running" },
         { botId: "bot-2", name: "Researcher", color: "green", status: "running" },
@@ -4326,10 +4443,7 @@ describe("mobile thread event reduction", () => {
     });
 
     expect(next?.run).toMatchObject({ id: target.id, status: "queued" });
-    expect(next?.activeRuns).toEqual([
-      { ...target, status: "queued", error: null },
-      sibling,
-    ]);
+    expect(next?.activeRuns).toEqual([{ ...target, status: "queued", error: null }, sibling]);
     expect(next?.members?.map((member) => member.status)).toEqual(["queued", "running"]);
     expect(next?.messages.map((message) => message.id)).toEqual(["keep"]);
   });

@@ -65,7 +65,8 @@ export class KeylessHttpWebProvider implements WebProvider {
     this.fetchTimeoutMs = options.fetchTimeoutMs ?? 15_000;
     this.maxBufferBytes = options.maxBufferBytes ?? 5 * 1024 * 1024;
     this.userAgent =
-      options.userAgent ?? "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
+      options.userAgent ??
+      "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
   }
 
   describe() {

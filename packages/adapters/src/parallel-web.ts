@@ -16,7 +16,8 @@ import { clampMaxChars, clampMaxResults, clampOffset, pageWindow } from "./web-l
 import { assertSafeWebUrl, withAbort } from "./web-ssrf.js";
 
 const ENDPOINT = "https://search.parallel.ai/mcp";
-const USER_AGENT = "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
+const USER_AGENT =
+  "Sydney/0.1 (+https://github.com/zxl3305479573-max/Sydney-personal-agent; web tools)";
 const MAX_SNIPPET_CHARS = 8_000;
 const pageSchema = z.object({
   url: z.string().max(8_192),

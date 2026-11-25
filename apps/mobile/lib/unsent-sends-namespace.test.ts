@@ -12,6 +12,11 @@ const state = vi.hoisted(() => ({
   keychain: new Map<string, string>(),
   saved: [] as SendAttempt[],
 }));
+vi.mock("expo-file-system", () => ({
+  Directory: class {},
+  File: class {},
+  Paths: { document: "file://documents", cache: "file://cache" },
+}));
 vi.mock("expo-secure-store", () => ({
   getItemAsync: vi.fn(async (key: string) => state.keychain.get(key) ?? null),
   setItemAsync: vi.fn(async (key: string, value: string) => {
@@ -24,6 +29,10 @@ vi.mock("expo-secure-store", () => ({
 vi.mock("react-native", () => ({
   Alert: { alert: vi.fn() },
   AppState: { addEventListener: () => ({ remove: () => {} }) },
+  Platform: {
+    OS: "ios",
+    select: <T>(options: Record<string, T>) => options.ios ?? options.default,
+  },
 }));
 vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
 vi.mock("./api", () => ({

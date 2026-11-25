@@ -1,10 +1,11 @@
 import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN } from "@rakazo/contracts";
 import { useState } from "react";
-import { AccessibilityInfo, Pressable, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, Text, TextInput, View } from "react-native";
 import type { MobileBot } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function BotChipPicker({
@@ -44,28 +45,28 @@ export function BotChipPicker({
         {selected.map((id) => {
           const bot = bots.find((item) => item.id === id);
           return bot ? (
-            <Pressable
+            <MotionPressable
               key={id}
+              preset="control"
               accessibilityRole="button"
               accessibilityLabel={t("Remove {name}", { name: bot.name })}
               onPress={() => remove(id)}
-              style={({ pressed }) => ({
+              style={{
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 6,
                 padding: 5,
                 borderRadius: 16,
                 backgroundColor: native.fillPressed,
-                opacity: pressed ? 0.6 : 1,
                 maxWidth: "100%",
-              })}
+              }}
             >
               <BotAvatar color={bot.color} avatarSet={bot.avatarSet} identity={id} size={20} />
               <Text numberOfLines={1} style={{ color: tokens.foreground, flexShrink: 1 }}>
                 {bot.name}
               </Text>
               <NativeSymbol ios="xmark" android="close" size={12} color={tokens.mutedForeground} />
-            </Pressable>
+            </MotionPressable>
           ) : null;
         })}
         <TextInput
@@ -96,8 +97,10 @@ export function BotChipPicker({
       </View>
       <View style={{ marginTop: 12 }}>
         {available.map((bot) => (
-          <Pressable
+          <MotionPressable
             key={bot.id}
+            preset="row"
+            highlightColor={native.fillPressed}
             accessibilityRole="button"
             accessibilityLabel={bot.name}
             onPress={() => {
@@ -110,13 +113,12 @@ export function BotChipPicker({
               onChange([...selected, bot.id]);
               setQuery("");
             }}
-            style={({ pressed }) => ({
+            style={{
               flexDirection: "row",
               alignItems: "center",
               gap: 12,
               paddingVertical: 12,
-              opacity: pressed ? 0.6 : 1,
-            })}
+            }}
           >
             <BotAvatar
               color={bot.color}
@@ -126,7 +128,7 @@ export function BotChipPicker({
               status={bot.status}
             />
             <Text style={{ color: tokens.foreground, fontSize: 16, flex: 1 }}>{bot.name}</Text>
-          </Pressable>
+          </MotionPressable>
         ))}
       </View>
     </View>

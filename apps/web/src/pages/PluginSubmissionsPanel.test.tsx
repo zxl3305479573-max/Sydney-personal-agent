@@ -155,16 +155,13 @@ it("shows the page a claim is for", async () => {
     );
   });
   await vi.waitFor(() => {
-    if (!container.querySelector('a[href="https://rakazo.com/integrations/notes/"]'))
-      throw new Error("Loading");
+    const row = container.querySelector('[data-testid="plugin-submission"]');
+    if (!row?.textContent?.includes("owner@notes.example.test")) throw new Error("Loading");
   });
   const row = container.querySelector('[data-testid="plugin-submission"]');
   const links = [...(row?.querySelectorAll("a") ?? [])].map((link) => link.getAttribute("href"));
-  expect(links).toEqual([
-    "https://rakazo.com/integrations/notes/",
-    submission.website,
-    "mailto:owner@notes.example.test",
-  ]);
+  expect(links).toEqual([submission.website, "mailto:owner@notes.example.test"]);
+  expect(row?.textContent).toContain("notes");
   expect(row?.textContent).not.toContain("Testing");
 });
 

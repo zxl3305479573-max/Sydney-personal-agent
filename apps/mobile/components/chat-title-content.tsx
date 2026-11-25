@@ -1,6 +1,5 @@
 import type { GroupMember } from "@rakazo/contracts";
 import type { ComponentProps } from "react";
-import { Pressable } from "react-native";
 import { conversationStatusLabel, conversationStatusTone } from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
@@ -8,6 +7,7 @@ import { CHAT_TITLE_AVATAR_SIZE, ChatTitleAvatar } from "./chat-title-avatar";
 import { ChatTitleLabel } from "./chat-title-label";
 import { GlassSurface } from "./glass-surface";
 import { GroupSeats } from "./group-seats";
+import { MotionPressable } from "./motion-pressable";
 import { createThreadHeaderStyles } from "./thread-header-styles";
 
 export function ChatTitleContent({
@@ -41,7 +41,8 @@ export function ChatTitleContent({
         ? styles.titleStatusFailed
         : styles.titleStatusWorking;
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={!onPress}
@@ -63,6 +64,6 @@ export function ChatTitleContent({
           statusStyle={statusStyle}
         />
       </GlassSurface>
-    </Pressable>
+    </MotionPressable>
   );
 }

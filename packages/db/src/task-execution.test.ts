@@ -368,7 +368,13 @@ describe("managed task state transitions", () => {
     });
     expect(db.tx.run.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "run-1", taskId: "task-1", ...actor, projectWorkspaceId: null, status: "running" },
+        where: {
+          id: "run-1",
+          taskId: "task-1",
+          ...actor,
+          projectWorkspaceId: null,
+          status: "running",
+        },
       }),
     );
     expect(db.tx.task.update).not.toHaveBeenCalled();

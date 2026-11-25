@@ -303,7 +303,8 @@ export function assertPlainWindowsHandle(fd: number) {
   const handle = api.getOsFhandle(fd) as number | bigint;
   const info = Buffer.alloc(8);
   if (
-    handle === -1 || handle === -1n ||
+    handle === -1 ||
+    handle === -1n ||
     !api.GetFileInformationByHandleEx(handle, FILE_ATTRIBUTE_TAG_INFO, info, info.length) ||
     (info.readUInt32LE(0) & FILE_ATTRIBUTE_REPARSE_POINT) !== 0
   ) {
@@ -332,7 +333,8 @@ export function listProjectDirectoryWin32(fd: number, maxEntries: number) {
   const noMoreFiles = -2147483642;
   const bufferOverflow = -2147483643;
   if (status === noMoreFiles) return { entries: [], truncated: false };
-  if (status !== 0 && status !== bufferOverflow) throw new Error("Project folder could not be listed");
+  if (status !== 0 && status !== bufferOverflow)
+    throw new Error("Project folder could not be listed");
   const entries: { name: string; kind: "directory" | "file" }[] = [];
   let truncated = status === bufferOverflow;
   let offset = 0;

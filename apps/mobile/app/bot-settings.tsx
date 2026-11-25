@@ -20,7 +20,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { BotAvatar } from "../components/bot-avatar";
 import { BotContextCards } from "../components/bot-context-cards";
 import { ComputerModePicker } from "../components/computer-mode-picker";
@@ -29,6 +29,7 @@ import { glassHeaderOptions } from "../components/glass-title";
 import { GrowingTextInput } from "../components/growing-text-input";
 import type { MenuPickerChoice } from "../components/menu-picker";
 import { MenuPicker, MenuPickerMenu } from "../components/menu-picker";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
@@ -645,7 +646,8 @@ function BotSettingsScreen({
       >
         {bot ? (
           <View style={{ alignItems: "center", marginBottom: 24 }}>
-            <Pressable
+            <MotionPressable
+              preset="icon"
               accessibilityRole="button"
               accessibilityLabel={t("Edit avatar")}
               onPress={() => {
@@ -675,7 +677,7 @@ function BotSettingsScreen({
               >
                 <NativeSymbol ios="pencil" android="pencil" size={12} color={tokens.foreground} />
               </View>
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : null}
         <View style={{ alignItems: "center", gap: 4, marginTop: -16, marginBottom: -8 }}>
@@ -707,7 +709,8 @@ function BotSettingsScreen({
         {botId ? (
           <BotContextCards key={botId} botId={botId} projectId={projectId} scope={scope} />
         ) : null}
-        <Pressable
+        <MotionPressable
+          preset="row"
           accessibilityRole="button"
           accessibilityLabel={t("Advanced")}
           accessibilityState={{ expanded: advancedOpen }}
@@ -724,7 +727,7 @@ function BotSettingsScreen({
             {t("Advanced")}
           </Text>
           <Chevron expanded={advancedOpen} />
-        </Pressable>
+        </MotionPressable>
         {advancedOpen ? (
           <View
             style={{ gap: 24, marginTop: 24 }}
@@ -786,14 +789,15 @@ function BotSettingsScreen({
               </View>
               {deviceVoiceEnabled ? (
                 voiceError ? (
-                  <Pressable
+                  <MotionPressable
+                    preset="row"
                     accessibilityRole="button"
                     accessibilityLabel={t("Device voice")}
                     accessibilityValue={{ text: voiceError }}
                     onPress={() => void retryDeviceVoices()}
                   >
                     {voiceRow}
-                  </Pressable>
+                  </MotionPressable>
                 ) : (
                   voiceRow
                 )
@@ -978,7 +982,9 @@ function BotSettingsScreen({
               }}
               fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
             >
-              <Pressable
+              <MotionPressable
+                preset="row"
+                highlightColor={native.fillPressed}
                 accessibilityRole="button"
                 accessibilityLabel={t("Export")}
                 style={styles.row}
@@ -1001,8 +1007,10 @@ function BotSettingsScreen({
                   size={18}
                   color={tokens.mutedForeground}
                 />
-              </Pressable>
-              <Pressable
+              </MotionPressable>
+              <MotionPressable
+                preset="row"
+                highlightColor={native.fillPressed}
                 accessibilityRole="button"
                 accessibilityLabel={t("Clear conversation")}
                 style={[
@@ -1037,7 +1045,7 @@ function BotSettingsScreen({
                 <Text style={{ color: tokens.destructive, fontSize: 14 }}>
                   {t("Clear conversation")}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </GlassSurface>
           </View>
         ) : null}
@@ -1081,7 +1089,8 @@ function BotSettingsScreen({
               </Text>
             ) : null}
             {bot && isAvatarPhoto(color) ? (
-              <Pressable
+              <MotionPressable
+                preset="inline"
                 accessibilityRole="button"
                 onPress={() => setColor(avatarColor(bot.color))}
                 style={{ marginTop: 12 }}
@@ -1089,7 +1098,7 @@ function BotSettingsScreen({
                 <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
                   {t("Remove photo")}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
             <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
               {t("Color")}
@@ -1101,8 +1110,9 @@ function BotSettingsScreen({
               accessibilityRole="radiogroup"
             >
               {BOT_COLORS.map((option, index) => (
-                <Pressable
+                <MotionPressable
                   key={option}
+                  preset="icon"
                   accessibilityRole="radio"
                   accessibilityLabel={t("Color {number}", { number: index + 1 })}
                   accessibilityState={{ checked: avatarColor(color) === option }}
@@ -1129,7 +1139,8 @@ function BotSettingsScreen({
                   contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
                   accessibilityRole="radiogroup"
                 >
-                  <Pressable
+                  <MotionPressable
+                    preset="control"
                     accessibilityRole="radio"
                     accessibilityLabel={t("Default")}
                     accessibilityState={{
@@ -1148,10 +1159,11 @@ function BotSettingsScreen({
                     }}
                   >
                     <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
-                  </Pressable>
+                  </MotionPressable>
                   {Array.from({ length: BOT_AVATAR_SHAPE_COUNT }, (_, shape) => (
-                    <Pressable
+                    <MotionPressable
                       key={shape}
+                      preset="control"
                       accessibilityRole="radio"
                       accessibilityLabel={t("Shape {number}", { number: shape + 1 })}
                       accessibilityState={{ checked: avatarShape(color) === shape }}
@@ -1172,7 +1184,7 @@ function BotSettingsScreen({
                         identity={bot.id}
                         size={36}
                       />
-                    </Pressable>
+                    </MotionPressable>
                   ))}
                 </ScrollView>
               </>

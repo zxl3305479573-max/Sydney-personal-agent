@@ -71,11 +71,21 @@ function setup(paidRequestFetch?: typeof fetch, projectWorkspaceId: string | nul
     signal: new AbortController().signal,
   });
   const call = (name: string, args: Record<string, unknown>, operationId?: string) =>
-    runAsTenant(tenant, () => executePurchaseTool(deps, context(operationId), { threadId: fixture.threadId }, name, args));
+    runAsTenant(tenant, () =>
+      executePurchaseTool(deps, context(operationId), { threadId: fixture.threadId }, name, args),
+    );
   const paid = (args: Record<string, unknown>, operationId?: string) =>
-    runAsTenant(tenant, () => executePaidRequest(deps, context(operationId), { threadId: fixture.threadId }, args));
+    runAsTenant(tenant, () =>
+      executePaidRequest(deps, context(operationId), { threadId: fixture.threadId }, args),
+    );
   return {
-    ...db, ...queue, wallet, deps, call, paid, secrets,
+    ...db,
+    ...queue,
+    wallet,
+    deps,
+    call,
+    paid,
+    secrets,
     scoped: <T>(fn: () => Promise<T>) => runAsTenant(tenant, fn),
   };
 }
@@ -122,7 +132,9 @@ describe("request_purchase", () => {
     await scoped.call("request_purchase", request);
     expect(scoped.purchases[0]).toMatchObject({ projectWorkspaceId: "project-fixture" });
     scoped.purchases[0]!.projectWorkspaceId = "project-other";
-    await expect(scoped.call("request_purchase", request)).rejects.toThrow("Purchase operation scope changed");
+    await expect(scoped.call("request_purchase", request)).rejects.toThrow(
+      "Purchase operation scope changed",
+    );
     expect(scoped.wallet.created).toHaveLength(1);
   });
 
@@ -231,31 +243,43 @@ describe("resolvePurchaseCardFill", () => {
     const env = setup();
     await env.call("request_purchase", request);
     const scope = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number")),
+    ).toEqual({
       error: expect.stringContaining("not approved"),
     });
     env.purchases[0]!.status = "approved";
-    const number = await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"));
+    const number = await env.scoped(() =>
+      resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"),
+    );
     expect(number).toEqual({
       text: "4242424242424242",
       origin: "https://shop.example.test",
       redactions: ["4242424242424242", "4242 4242 4242 4242", "4242-4242-4242-4242"],
     });
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "cvc"))).toMatchObject({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "cvc")),
+    ).toMatchObject({
       text: "123",
       origin: "https://shop.example.test",
     });
     expect(
-      await env.scoped(() => resolvePurchaseCardFill(
-        env.deps,
-        { ...scope, userId: "someone-else" },
-        "purchase-1",
-        "cvc",
-      )),
+      await runAsTenant(
+        { spaceId: fixture.spaceId, userId: "someone-else", projectWorkspaceId: null },
+        () =>
+          resolvePurchaseCardFill(
+            env.deps,
+            { ...scope, userId: "someone-else" },
+            "purchase-1",
+            "cvc",
+          ),
+      ),
     ).toEqual({ error: "Unknown purchase." });
     // Another bot of the same user can't type it: its runs would not keep hiding the card.
     expect(
-      await env.scoped(() => resolvePurchaseCardFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1", "cvc")),
+      await env.scoped(() =>
+        resolvePurchaseCardFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1", "cvc"),
+      ),
     ).toEqual({ error: "Unknown purchase." });
   });
 
@@ -264,7 +288,9 @@ describe("resolvePurchaseCardFill", () => {
     await env.call("request_purchase", request);
     const scope = { spaceId: fixture.spaceId, userId: fixture.userId, botId: fixture.botId };
     env.purchases[0]!.status = "approved";
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry")),
+    ).toEqual({
       error: expect.stringContaining("not approved"),
     });
     const summary = { brand: "visa", last4: "4242", expMonth: 3, expYear: 2034 };
@@ -273,12 +299,16 @@ describe("resolvePurchaseCardFill", () => {
       status: "approved",
       card: summary,
     });
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "expiry")),
+    ).toEqual({
       text: "03/34",
       origin: "https://shop.example.test",
       redactions: [],
     });
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "postal_code")),
+    ).toEqual({
       error: "This card has no billing postal code.",
     });
     env.wallet.snapshots.set("remote-op-1", {
@@ -316,7 +346,9 @@ describe("resolvePurchaseCardFill", () => {
       "4242 4242 4242 4242",
       "4242-4242-4242-4242",
     ]);
-    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, { ...run, botId: "bot-2" }))).toEqual([]);
+    expect(
+      await env.scoped(() => loadPurchaseRedactions(env.deps, { ...run, botId: "bot-2" })),
+    ).toEqual([]);
   });
 
   it("deletes a sealed card that two first fills raced to save", async () => {
@@ -351,7 +383,9 @@ describe("pay token purchases", () => {
       credentialType: "pay_token",
       merchantAccountId: "acct_fake123",
     });
-    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")),
+    ).toEqual({
       error: expect.stringContaining("not approved"),
     });
 
@@ -362,26 +396,36 @@ describe("pay token purchases", () => {
       next: expect.stringContaining("fill_pay_token"),
     });
     expect(JSON.stringify(status)).not.toContain(FAKE_PAY_TOKEN);
-    expect(await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchaseCardFill(env.deps, scope, "purchase-1", "number")),
+    ).toEqual({
       error: expect.stringContaining("without a card"),
     });
     expect(
-      await env.scoped(() => resolvePurchasePayTokenFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1")),
+      await env.scoped(() =>
+        resolvePurchasePayTokenFill(env.deps, { ...scope, botId: "bot-2" }, "purchase-1"),
+      ),
     ).toEqual({ error: "Unknown purchase." });
-    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")),
+    ).toEqual({
       text: FAKE_PAY_TOKEN,
       origin: "https://shop.example.test",
       merchantAccountId: "acct_fake123",
       redactions: [FAKE_PAY_TOKEN],
     });
-    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, scope))).toEqual([FAKE_PAY_TOKEN]);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, scope))).toEqual([
+      FAKE_PAY_TOKEN,
+    ]);
   });
 
   it("refuses a pay token fill for a card purchase", async () => {
     const env = setup();
     await env.call("request_purchase", request);
     env.purchases[0]!.status = "approved";
-    expect(await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1"))).toEqual({
+    expect(
+      await env.scoped(() => resolvePurchasePayTokenFill(env.deps, scope, "purchase-1")),
+    ).toEqual({
       error: expect.stringContaining("no pay token"),
     });
   });
@@ -505,7 +549,9 @@ describe("paid_request", () => {
     expect(api.seen.at(-1)!.authorization).toMatch(/^Payment /);
     expect(paid.redactions).toContain(FAKE_SHARED_PAYMENT_TOKEN);
     expect(env.purchases[0]).toMatchObject({ status: "completed", nextPollAt: null });
-    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, fixture))).toContain(FAKE_SHARED_PAYMENT_TOKEN);
+    expect(await env.scoped(() => loadPurchaseRedactions(env.deps, fixture))).toContain(
+      FAKE_SHARED_PAYMENT_TOKEN,
+    );
     expect((await env.paid({ purchase: "purchase-1" }, "op-3")).result).toEqual({
       error: expect.stringContaining("already used"),
     });

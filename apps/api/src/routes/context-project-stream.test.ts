@@ -25,7 +25,9 @@ function fixture() {
       seen.push(currentDbContext());
       return { done: true, value: undefined };
     },
-    [Symbol.asyncIterator]() { return this; },
+    [Symbol.asyncIterator]() {
+      return this;
+    },
   };
   return { output, seen };
 }
@@ -41,9 +43,14 @@ describe("streamed tenant scope", () => {
       await result.output.return?.();
       await result.output.throw?.(new Error("stop"));
     });
-    expect(stream.seen).toEqual(Array.from({ length: 3 }, () => ({
-      kind: "tenant", spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-a",
-    })));
+    expect(stream.seen).toEqual(
+      Array.from({ length: 3 }, () => ({
+        kind: "tenant",
+        spaceId: actor.spaceId,
+        userId: actor.userId,
+        projectWorkspaceId: "project-a",
+      })),
+    );
   });
 
   it("keeps a home stream in home when it is consumed inside a project", async () => {

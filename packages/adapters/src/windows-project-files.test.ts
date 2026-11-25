@@ -31,26 +31,33 @@ describe.skipIf(process.platform !== "win32")("Windows authorized project files"
   it("reads UTF-8 content and creates a new Markdown file without overwriting it", async () => {
     await writeFile(path.join(directory, "notes", "input.txt"), "样本");
     const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
-    await expect(executeWindowsProjectFile(root, { operation: "read", path: "notes/input.txt" }, signal))
-      .resolves.toEqual({ operation: "read", text: "样本", sha256: sampleHash });
+    await expect(
+      executeWindowsProjectFile(root, { operation: "read", path: "notes/input.txt" }, signal),
+    ).resolves.toEqual({ operation: "read", text: "样本", sha256: sampleHash });
     const create = { operation: "create", path: "notes/output.md", text: "结果" } as const;
-    await expect(executeWindowsProjectFile(root, create, signal)).resolves.toEqual({ operation: "create", bytes: 6 });
-    await expect(executeWindowsProjectFile(root, { ...create, text: "replacement" }, signal))
-      .rejects.toThrow("Output already exists");
+    await expect(executeWindowsProjectFile(root, create, signal)).resolves.toEqual({
+      operation: "create",
+      bytes: 6,
+    });
+    await expect(
+      executeWindowsProjectFile(root, { ...create, text: "replacement" }, signal),
+    ).rejects.toThrow("Output already exists");
     expect(await readFile(path.join(directory, "notes", "output.md"), "utf8")).toBe("结果");
   });
 
   it("lists names from the authorized folder and skips reparse points", async () => {
     await writeFile(path.join(directory, "notes", "input.txt"), "样本");
     await symlink(outside, path.join(directory, "outside-link"), "junction");
-    await expect(executeWindowsProjectFile(root, { operation: "list", path: "" }, signal)).resolves.toEqual({
+    await expect(
+      executeWindowsProjectFile(root, { operation: "list", path: "" }, signal),
+    ).resolves.toEqual({
       operation: "list",
-      entries: [
-        { path: "notes", kind: "directory" },
-      ],
+      entries: [{ path: "notes", kind: "directory" }],
       truncated: false,
     });
-    await expect(executeWindowsProjectFile(root, { operation: "list", path: "notes" }, signal)).resolves.toEqual({
+    await expect(
+      executeWindowsProjectFile(root, { operation: "list", path: "notes" }, signal),
+    ).resolves.toEqual({
       operation: "list",
       entries: [{ path: "notes/input.txt", kind: "file" }],
       truncated: false,
@@ -58,7 +65,11 @@ describe.skipIf(process.platform !== "win32")("Windows authorized project files"
   });
 
   it("searches UTF-8 files in the authorized folder and skips junctions, binary and oversized files", async () => {
-    await writeFile(path.join(directory, "notes", "input.txt"), "First line\nFind Sydney target here\nThird", "utf8");
+    await writeFile(
+      path.join(directory, "notes", "input.txt"),
+      "First line\nFind Sydney target here\nThird",
+      "utf8",
+    );
     await writeFile(path.join(directory, "notes", "binary.bin"), Buffer.from([0xff, 0xfe, 0x00]));
     await writeFile(path.join(directory, "notes", "big.txt"), "Sydney".repeat(12_000), "utf8");
     await symlink(outside, path.join(directory, "outside-link"), "junction");
@@ -113,41 +124,70 @@ describe.skipIf(process.platform !== "win32")("Windows authorized project files"
   it("rejects directory junctions and multiply linked files", async () => {
     await symlink(outside, path.join(directory, "junction"), "junction");
     await link(path.join(outside, "private.md"), path.join(directory, "alias.md"));
-    await expect(executeWindowsProjectFile(root, { operation: "read", path: "junction/private.md" }, signal))
-      .rejects.toThrow();
-    await expect(executeWindowsProjectFile(root, { operation: "read", path: "alias.md" }, signal))
-      .rejects.toThrow();
-    await expect(executeWindowsProjectFile(root, { operation: "create", path: "junction/output.md", text: "no" }, signal))
-      .rejects.toThrow();
-    await expect(readFile(path.join(outside, "output.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      executeWindowsProjectFile(root, { operation: "read", path: "junction/private.md" }, signal),
+    ).rejects.toThrow();
+    await expect(
+      executeWindowsProjectFile(root, { operation: "read", path: "alias.md" }, signal),
+    ).rejects.toThrow();
+    await expect(
+      executeWindowsProjectFile(
+        root,
+        { operation: "create", path: "junction/output.md", text: "no" },
+        signal,
+      ),
+    ).rejects.toThrow();
+    await expect(readFile(path.join(outside, "output.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("rejects a replacement directory after it was authorized", async () => {
     await rename(directory, path.join(temp, "former"));
     await mkdir(directory);
-    await expect(executeWindowsProjectFile(root, { operation: "create", path: "output.md", text: "no" }, signal))
-      .rejects.toThrow("authorized project folder changed");
-    await expect(readFile(path.join(directory, "output.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      executeWindowsProjectFile(
+        root,
+        { operation: "create", path: "output.md", text: "no" },
+        signal,
+      ),
+    ).rejects.toThrow("authorized project folder changed");
+    await expect(readFile(path.join(directory, "output.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("rejects oversized, invalid UTF-8 and pre-cancelled work", async () => {
     await writeFile(path.join(directory, "big.txt"), Buffer.alloc(PROJECT_FILE_MAX_BYTES + 1));
     await writeFile(path.join(directory, "binary"), Buffer.from([0xff]));
     for (const file of ["big.txt", "binary"]) {
-      await expect(executeWindowsProjectFile(root, { operation: "read", path: file }, signal)).rejects.toThrow();
+      await expect(
+        executeWindowsProjectFile(root, { operation: "read", path: file }, signal),
+      ).rejects.toThrow();
     }
     const controller = new AbortController();
     controller.abort(new Error("Cancelled by test"));
-    await expect(executeWindowsProjectFile(root, { operation: "create", path: "cancelled.md", text: "no" }, controller.signal))
-      .rejects.toThrow("Cancelled by test");
-    await expect(readFile(path.join(directory, "cancelled.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      executeWindowsProjectFile(
+        root,
+        { operation: "create", path: "cancelled.md", text: "no" },
+        controller.signal,
+      ),
+    ).rejects.toThrow("Cancelled by test");
+    await expect(readFile(path.join(directory, "cancelled.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
-  it.each(["../outside/private.md", "/outside/private.md", "notes\\input.txt", "a.md:stream", "NUL.txt"])(
-    "rejects the invalid Windows path %s",
-    async (relative) => {
-      await expect(async () => executeWindowsProjectFile(root, { operation: "read", path: relative }, signal))
-        .rejects.toThrow();
-    },
-  );
+  it.each([
+    "../outside/private.md",
+    "/outside/private.md",
+    "notes\\input.txt",
+    "a.md:stream",
+    "NUL.txt",
+  ])("rejects the invalid Windows path %s", async (relative) => {
+    await expect(async () =>
+      executeWindowsProjectFile(root, { operation: "read", path: relative }, signal),
+    ).rejects.toThrow();
+  });
 });

@@ -132,6 +132,8 @@ function messagingDeps(
       ["bot-1", "bot-9"].map((id) => ({
         id,
         spaceId: id,
+        userId: id === "bot-1" ? "user-1" : "user-9",
+        projectWorkspaceId: null,
         crossSpaceCommunication: true,
         archivedAt: null,
       })),
@@ -940,6 +942,8 @@ describe("messaging.connections.respond confirmation atomicity", () => {
             ["bot-1", "bot-9"].map((id) => ({
               id,
               spaceId: id,
+              userId: id === "bot-1" ? "user-1" : "user-9",
+              projectWorkspaceId: null,
               crossSpaceCommunication: true,
               archivedAt: null,
             })),

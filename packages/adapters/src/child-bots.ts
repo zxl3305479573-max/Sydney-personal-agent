@@ -429,7 +429,9 @@ export async function destroyBot(
   await removePiBotSessions(deps.dataDir, bot.userId, bot.id);
   const deletion = await withTransactionRetry(() =>
     deps.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<Array<{ id: string; webhookSecretId: string | null; projectWorkspaceId: string | null }>>`
+      const locked = await tx.$queryRaw<
+        Array<{ id: string; webhookSecretId: string | null; projectWorkspaceId: string | null }>
+      >`
         SELECT id, "webhookSecretId", "projectWorkspaceId"
         FROM bots
         WHERE id = ${bot.id} AND "spaceId" = ${bot.spaceId}
@@ -459,13 +461,18 @@ export async function destroyBot(
       if (!deleteMemories) {
         const directory = archivedMemoryDirectory(bot.name, bot.id);
         if (locked[0]?.projectWorkspaceId) {
-          await runAsSystemInTransaction(tx, "preserve explicitly retained project bot memories on deletion", () => tx.$executeRaw`
+          await runAsSystemInTransaction(
+            tx,
+            "preserve explicitly retained project bot memories on deletion",
+            () => tx.$executeRaw`
             UPDATE "memory_documents"
             SET "botId" = NULL, "scope" = 'user',
                 "path" = ${directory} || '/' || "path", "updatedAt" = CURRENT_TIMESTAMP
             WHERE "botId" = ${bot.id} AND "spaceId" = ${bot.spaceId} AND "userId" = ${bot.userId}
-          `);
-        } else await tx.$executeRaw`
+          `,
+          );
+        } else
+          await tx.$executeRaw`
           UPDATE "memory_documents"
           SET "botId" = NULL,
               "scope" = 'user',

@@ -18,7 +18,7 @@ vi.mock("react-native", () => ({
     accessibilityRole?: string;
     accessibilityLabel?: string;
     onPress?: () => void;
-    style: (state: { pressed: boolean }) => unknown;
+    style: unknown;
     children?: ReactNode;
   }) =>
     createElement(
@@ -27,7 +27,12 @@ vi.mock("react-native", () => ({
         role: accessibilityRole,
         "aria-label": accessibilityLabel,
         onClick: onPress,
-        "data-style": JSON.stringify(Object.assign({}, ...(style({ pressed: false }) as object[]))),
+        "data-style": JSON.stringify(
+          Object.assign(
+            {},
+            ...[typeof style === "function" ? style({ pressed: false }) : style].flat(),
+          ),
+        ),
       },
       children,
     ),

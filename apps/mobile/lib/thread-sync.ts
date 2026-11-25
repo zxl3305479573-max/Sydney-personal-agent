@@ -15,10 +15,10 @@ import {
   writeSavedThread,
 } from "./saved-chats";
 import { currentSessionGeneration } from "./session";
-import { retainAcceptedRuns } from "./thread-session-cache";
 import type { ThreadHistory } from "./thread-history";
 import type { ThreadListScroll } from "./thread-list-scroll";
 import { useThreadLiveSubscription } from "./thread-live";
+import { retainAcceptedRuns } from "./thread-session-cache";
 import type { ThreadJump } from "./thread-window";
 import { applyThreadMessageJump, showLatestThread } from "./thread-window";
 import { errorText } from "./user-error";

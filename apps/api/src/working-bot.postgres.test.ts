@@ -110,10 +110,18 @@ describe.skipIf(!enabled)("working bot visibility (PostgreSQL)", () => {
           expect.objectContaining({ kind: "progress", text: "Inspecting sample files" }),
         );
         // Peer work and failures remain silent in groups.
+        const peerTask = await prisma.task.create({
+          data: {
+            ...scope,
+            threadId: groupTarget.threadId,
+            prompt: "Peer work in group",
+            status: "running",
+          },
+        });
         const peerRun = await prisma.run.create({
           data: {
             ...scope,
-            taskId: task.id,
+            taskId: peerTask.id,
             threadId: groupTarget.threadId,
             status: "running",
             trigger: "bot_message",

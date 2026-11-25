@@ -6,16 +6,8 @@ import type { File } from "expo-file-system";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { SandboxedHtmlPreview } from "../components/sandboxed-html-preview";
@@ -185,15 +177,17 @@ export default function ArtifactDetailScreen() {
       headerRight: () =>
         content.status === "ready" ? (
           <View style={styles.headerActions}>
-            <Pressable
+            <MotionPressable
+              preset="icon"
               accessibilityLabel={t("Share")}
               hitSlop={8}
               onPress={() => void share()}
               style={styles.headerButton}
             >
               <NativeSymbol ios="square.and.arrow.up" android="share-social-outline" size={19} />
-            </Pressable>
-            <Pressable
+            </MotionPressable>
+            <MotionPressable
+              preset="icon"
               accessibilityLabel={t("Delete")}
               hitSlop={8}
               onPress={confirmDelete}
@@ -205,7 +199,7 @@ export default function ArtifactDetailScreen() {
                 size={19}
                 color={tokens.destructive}
               />
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : null,
       ...(iosAtLeast(26)
@@ -239,7 +233,12 @@ export default function ArtifactDetailScreen() {
   const versionPicker =
     content.status === "ready" && versions && versions.length > 1 ? (
       <View style={styles.pillRow}>
-        <Pressable accessibilityRole="button" onPress={pickVersion} style={styles.pill}>
+        <MotionPressable
+          preset="control"
+          accessibilityRole="button"
+          onPress={pickVersion}
+          style={styles.pill}
+        >
           <Text style={styles.pillText}>
             {`v${content.artifact.version} (${formatActivityRelativeTime(content.artifact.createdAt)})`}
           </Text>
@@ -249,7 +248,7 @@ export default function ArtifactDetailScreen() {
             size={12}
             color={native.secondaryLabel}
           />
-        </Pressable>
+        </MotionPressable>
       </View>
     ) : null;
 
@@ -324,7 +323,8 @@ function ArtifactPreview({
   }
   if (preview.kind === "image") {
     return (
-      <Pressable
+      <MotionPressable
+        preset="card"
         accessibilityRole="imagebutton"
         accessibilityLabel={imageLabel}
         disabled={!onOpenImage}
@@ -332,7 +332,7 @@ function ArtifactPreview({
         style={styles.imageWrap}
       >
         <Image source={{ uri: preview.uri }} style={styles.image} resizeMode="contain" />
-      </Pressable>
+      </MotionPressable>
     );
   }
   return (

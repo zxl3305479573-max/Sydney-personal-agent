@@ -231,7 +231,10 @@ export async function enqueueBotIntroRun(deps: RouterDeps, actor: Actor, bot: Bo
     await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
     if (await tx.run.findFirst({ where: { botId: bot.id }, select: { id: true } })) return null;
     const executionScope = await resolveConversationExecutionScope(tx, {
-      spaceId: actor.spaceId, userId: actor.userId, botId: bot.id, threadId,
+      spaceId: actor.spaceId,
+      userId: actor.userId,
+      botId: bot.id,
+      threadId,
     });
     const task = await tx.task.create({
       data: {
@@ -344,8 +347,7 @@ export async function updateBotSettings(
 }
 
 export function botsRoutes(ctx: RouterContext) {
-  const { deps, repos, removeBot, agentImportServices, groupRepos, authed } =
-    ctx;
+  const { deps, repos, removeBot, agentImportServices, groupRepos, authed } = ctx;
   return {
     bots: {
       list: authed.bots.list.handler(async ({ context }) => repos.listBots(context.actor)),

@@ -450,29 +450,22 @@ export function createGroupRepos(prisma: PrismaClient) {
       return group;
     },
 
-    async createGroup(actor: Actor, input: { id?: string; name: string; botIds: string[] }): Promise<Group> {
+    async createGroup(
+      actor: Actor,
+      input: { id?: string; name: string; botIds: string[] },
+    ): Promise<Group> {
       const projectWorkspaceId = conversationProjectId(actor);
-      const created = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
-        await lockSpaceForContentCreation(tx, {
-          spaceId: actor.spaceId,
-          userId: actor.userId,
-        });
-        if (projectWorkspaceId !== null) {
-          await lockProjectWorkspaceForMutation(tx, actor, projectWorkspaceId);
-        }
-        if (input.id) {
-          let existing = await tx.chatGroup.findFirst({
-            where: {
-              id: input.id,
-              spaceId: actor.spaceId,
-              userId: actor.userId,
-              projectWorkspaceId,
-            },
-            include: groupInclude,
+      const created = await withTransactionRetry(() =>
+        prisma.$transaction(async (tx) => {
+          await lockSpaceForContentCreation(tx, {
+            spaceId: actor.spaceId,
+            userId: actor.userId,
           });
-          if (existing) {
-            await lockOwnedGroup(tx, actor, input.id);
-            existing = await tx.chatGroup.findFirst({
+          if (projectWorkspaceId !== null) {
+            await lockProjectWorkspaceForMutation(tx, actor, projectWorkspaceId);
+          }
+          if (input.id) {
+            let existing = await tx.chatGroup.findFirst({
               where: {
                 id: input.id,
                 spaceId: actor.spaceId,
@@ -481,47 +474,64 @@ export function createGroupRepos(prisma: PrismaClient) {
               },
               include: groupInclude,
             });
-            if (!existing) throw new IsolationError();
-            const memberIds = existing.members.map((member) => member.bot.id);
-            if (existing.archivedAt || !existing.thread ||
-              existing.name !== displayName(input.name, "") ||
-              memberIds.length !== input.botIds.length ||
-              memberIds.some((id, index) => id !== input.botIds[index])) {
-              throw new IsolationError("Group creation request conflicts with an existing resource");
+            if (existing) {
+              await lockOwnedGroup(tx, actor, input.id);
+              existing = await tx.chatGroup.findFirst({
+                where: {
+                  id: input.id,
+                  spaceId: actor.spaceId,
+                  userId: actor.userId,
+                  projectWorkspaceId,
+                },
+                include: groupInclude,
+              });
+              if (!existing) throw new IsolationError();
+              const memberIds = existing.members.map((member) => member.bot.id);
+              if (
+                existing.archivedAt ||
+                !existing.thread ||
+                existing.name !== displayName(input.name, "") ||
+                memberIds.length !== input.botIds.length ||
+                memberIds.some((id, index) => id !== input.botIds[index])
+              ) {
+                throw new IsolationError(
+                  "Group creation request conflicts with an existing resource",
+                );
+              }
+              return attachNewestGroupMessage(tx, existing);
             }
-            return attachNewestGroupMessage(tx, existing);
           }
-        }
-        const members = await lockOwnedActiveBots(tx, actor, input.botIds);
-        const group = await tx.chatGroup.create({
-          data: {
-            ...(input.id ? { id: input.id } : {}),
-            spaceId: actor.spaceId,
-            userId: actor.userId,
-            projectWorkspaceId,
-            name: displayName(input.name, ""),
-          },
-        });
-        await tx.chatGroupMember.createMany({
-          data: memberRowsInOrder(
-            group.id,
-            members.map((member) => member.botId),
-          ),
-        });
-        await tx.thread.create({
-          data: {
-            spaceId: actor.spaceId,
-            groupId: group.id,
-            userId: actor.userId,
-            projectWorkspaceId,
-          },
-        });
-        const loaded = await tx.chatGroup.findFirstOrThrow({
-          where: { id: group.id },
-          include: groupInclude,
-        });
-        return attachNewestGroupMessage(tx, loaded);
-      }));
+          const members = await lockOwnedActiveBots(tx, actor, input.botIds);
+          const group = await tx.chatGroup.create({
+            data: {
+              ...(input.id ? { id: input.id } : {}),
+              spaceId: actor.spaceId,
+              userId: actor.userId,
+              projectWorkspaceId,
+              name: displayName(input.name, ""),
+            },
+          });
+          await tx.chatGroupMember.createMany({
+            data: memberRowsInOrder(
+              group.id,
+              members.map((member) => member.botId),
+            ),
+          });
+          await tx.thread.create({
+            data: {
+              spaceId: actor.spaceId,
+              groupId: group.id,
+              userId: actor.userId,
+              projectWorkspaceId,
+            },
+          });
+          const loaded = await tx.chatGroup.findFirstOrThrow({
+            where: { id: group.id },
+            include: groupInclude,
+          });
+          return attachNewestGroupMessage(tx, loaded);
+        }),
+      );
       return mapGroup(created as GroupRecord);
     },
 
@@ -536,98 +546,102 @@ export function createGroupRepos(prisma: PrismaClient) {
         sectionId?: string | null;
       },
     ): Promise<{ group: Group; cancelledRunIds: string[]; computers: RunTeardownTarget[] }> {
-      const updated = await withTransactionRetry(() => prisma.$transaction(async (tx) => {
-        const members = input.botIds ? await lockOwnedActiveBots(tx, actor, input.botIds) : undefined;
-        await lockOwnedGroup(tx, actor, input.groupId);
-        const current = await tx.chatGroup.findFirst({
-          where: {
-            id: input.groupId,
-            spaceId: actor.spaceId,
-            userId: actor.userId,
-            projectWorkspaceId: conversationProjectId(actor),
-            archivedAt: null,
-          },
-          include: {
-            members: { select: { botId: true, bot: { select: { archivedAt: true } } } },
-            thread: { select: { id: true } },
-          },
-        });
-        if (!current?.thread) throw new IsolationError();
-        if (input.expectedBotIds) {
-          const expected = new Set(input.expectedBotIds);
-          const active = current.members.filter((member) => member.bot.archivedAt === null);
-          if (
-            expected.size !== active.length ||
-            active.some((member) => !expected.has(member.botId))
-          ) {
-            throw new IsolationError("Group members changed. Refresh and try again.");
+      const updated = await withTransactionRetry(() =>
+        prisma.$transaction(async (tx) => {
+          const members = input.botIds
+            ? await lockOwnedActiveBots(tx, actor, input.botIds)
+            : undefined;
+          await lockOwnedGroup(tx, actor, input.groupId);
+          const current = await tx.chatGroup.findFirst({
+            where: {
+              id: input.groupId,
+              spaceId: actor.spaceId,
+              userId: actor.userId,
+              projectWorkspaceId: conversationProjectId(actor),
+              archivedAt: null,
+            },
+            include: {
+              members: { select: { botId: true, bot: { select: { archivedAt: true } } } },
+              thread: { select: { id: true } },
+            },
+          });
+          if (!current?.thread) throw new IsolationError();
+          if (input.expectedBotIds) {
+            const expected = new Set(input.expectedBotIds);
+            const active = current.members.filter((member) => member.bot.archivedAt === null);
+            if (
+              expected.size !== active.length ||
+              active.some((member) => !expected.has(member.botId))
+            ) {
+              throw new IsolationError("Group members changed. Refresh and try again.");
+            }
           }
-        }
-        if (
-          !members &&
-          !hasMinimumActiveMembers(
-            current.members.filter((member) => member.bot.archivedAt === null),
-          )
-        ) {
-          throw new IsolationError();
-        }
-        const nextBotIds = new Set(
-          members?.map((member) => member.botId) ?? current.members.map((member) => member.botId),
-        );
-        const removedBotIds = current.members
-          .map((member) => member.botId)
-          .filter((botId) => !nextBotIds.has(botId));
-        const activeRuns = removedBotIds.length
-          ? await tx.run.findMany({
-              where: {
-                threadId: current.thread.id,
-                botId: { in: removedBotIds },
-                status: {
-                  in: ["queued", "leased", "running", "waiting_input", "waiting_takeover"],
+          if (
+            !members &&
+            !hasMinimumActiveMembers(
+              current.members.filter((member) => member.bot.archivedAt === null),
+            )
+          ) {
+            throw new IsolationError();
+          }
+          const nextBotIds = new Set(
+            members?.map((member) => member.botId) ?? current.members.map((member) => member.botId),
+          );
+          const removedBotIds = current.members
+            .map((member) => member.botId)
+            .filter((botId) => !nextBotIds.has(botId));
+          const activeRuns = removedBotIds.length
+            ? await tx.run.findMany({
+                where: {
+                  threadId: current.thread.id,
+                  botId: { in: removedBotIds },
+                  status: {
+                    in: ["queued", "leased", "running", "waiting_input", "waiting_takeover"],
+                  },
                 },
-              },
-              select: { id: true, taskId: true, userId: true, spaceId: true },
-            })
-          : [];
-        const runIds = (await cancelRunsInTransaction(tx, activeRuns, new Date())).map(
-          (run) => run.id,
-        );
-        // After cancelling: its row locks keep these runs from acquiring a computer, so every
-        // lease they hold is in the snapshot.
-        const { targets } = await snapshotRunTeardownTargets(tx, runIds);
-        if (input.name !== undefined) {
+                select: { id: true, taskId: true, userId: true, spaceId: true },
+              })
+            : [];
+          const runIds = (await cancelRunsInTransaction(tx, activeRuns, new Date())).map(
+            (run) => run.id,
+          );
+          // After cancelling: its row locks keep these runs from acquiring a computer, so every
+          // lease they hold is in the snapshot.
+          const { targets } = await snapshotRunTeardownTargets(tx, runIds);
+          if (input.name !== undefined) {
+            await tx.chatGroup.update({
+              where: { id: input.groupId },
+              data: { name: displayName(input.name, "") },
+            });
+          }
+          if (members) {
+            await tx.chatGroupMember.deleteMany({ where: { groupId: input.groupId } });
+            await tx.chatGroupMember.createMany({
+              data: memberRowsInOrder(
+                input.groupId,
+                members.map((member) => member.botId),
+              ),
+            });
+          }
           await tx.chatGroup.update({
             where: { id: input.groupId },
-            data: { name: displayName(input.name, "") },
+            data: {
+              updatedAt: new Date(),
+              pinned: input.pinned,
+              sectionId: input.sectionId,
+            },
           });
-        }
-        if (members) {
-          await tx.chatGroupMember.deleteMany({ where: { groupId: input.groupId } });
-          await tx.chatGroupMember.createMany({
-            data: memberRowsInOrder(
-              input.groupId,
-              members.map((member) => member.botId),
-            ),
+          const loaded = await tx.chatGroup.findFirstOrThrow({
+            where: { id: input.groupId },
+            include: groupInclude,
           });
-        }
-        await tx.chatGroup.update({
-          where: { id: input.groupId },
-          data: {
-            updatedAt: new Date(),
-            pinned: input.pinned,
-            sectionId: input.sectionId,
-          },
-        });
-        const loaded = await tx.chatGroup.findFirstOrThrow({
-          where: { id: input.groupId },
-          include: groupInclude,
-        });
-        return {
-          group: await attachNewestGroupMessage(tx, loaded),
-          cancelledRunIds: runIds,
-          computers: targets,
-        };
-      }));
+          return {
+            group: await attachNewestGroupMessage(tx, loaded),
+            cancelledRunIds: runIds,
+            computers: targets,
+          };
+        }),
+      );
       if (!updated.group.thread) throw new IsolationError();
       return {
         group: mapGroup(updated.group as GroupRecord),
@@ -729,11 +743,17 @@ export function createGroupRepos(prisma: PrismaClient) {
           await lockOwnedGroup(tx, actor, groupId);
           const members = await tx.chatGroupMember.findMany({
             where: { groupId },
-            select: { botId: true, bot: { select: { id: true, computerId: true, archivedAt: true } } },
+            select: {
+              botId: true,
+              bot: { select: { id: true, computerId: true, archivedAt: true } },
+            },
             orderBy: groupMemberOrder,
           });
           const currentIds = members.map((member) => member.botId).sort();
-          if (currentIds.length !== botIds.length || currentIds.some((id, index) => id !== botIds[index])) {
+          if (
+            currentIds.length !== botIds.length ||
+            currentIds.some((id, index) => id !== botIds[index])
+          ) {
             throw new IsolationError("Group members changed. Refresh and try again.");
           }
           for (const { bot } of members) {

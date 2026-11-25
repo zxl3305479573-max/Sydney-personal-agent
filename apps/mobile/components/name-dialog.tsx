@@ -15,6 +15,7 @@ import { useI18n } from "../lib/i18n";
 import { isNameDialogAvailable } from "../lib/name-dialog-available";
 import { useThemedStyles } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 
 const ComposeNameDialog = lazy(() => import("./name-dialog-compose"));
 
@@ -126,16 +127,18 @@ export function TextFieldDialog({
             </Text>
           ) : null}
           <View style={styles.actions}>
-            <Pressable
+            <MotionPressable
+              preset="control"
               accessibilityRole="button"
               disabled={saving}
               onPress={onClose}
               style={styles.action}
             >
               <Text style={[styles.actionText, saving && styles.disabled]}>{t("Cancel")}</Text>
-            </Pressable>
+            </MotionPressable>
             {extraAction ? (
-              <Pressable
+              <MotionPressable
+                preset="control"
                 accessibilityRole="button"
                 disabled={saving}
                 onPress={extraAction.onPress}
@@ -144,16 +147,17 @@ export function TextFieldDialog({
                 <Text style={[styles.actionText, saving && styles.disabled]}>
                   {extraAction.label}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
-            <Pressable
+            <MotionPressable
+              preset="control"
               accessibilityRole="button"
               disabled={disabled}
               onPress={() => onSubmit(value)}
               style={styles.action}
             >
               <Text style={[styles.actionText, disabled && styles.disabled]}>{submitLabel}</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         </GlassSurface>
       </KeyboardAvoidingView>

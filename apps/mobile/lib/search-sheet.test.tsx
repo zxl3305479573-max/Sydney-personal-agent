@@ -83,7 +83,12 @@ vi.mock("./appearance", () => ({
   mobileTokens: () => ({}),
   resolveMobileAppearance: () => "dark",
 }));
-vi.mock("./native", () => ({ native: {}, useThemedStyles: (factory: () => unknown) => factory() }));
+vi.mock("./native", () => ({
+  native: {},
+  useMobileTokens: () => ({}),
+  useResolvedAppearance: () => "dark",
+  useThemedStyles: (factory: () => unknown) => factory(),
+}));
 vi.mock("./i18n", () => ({
   t: (text: string) => text,
   useI18n: () => ({ t: (text: string) => text, locale: "en" }),

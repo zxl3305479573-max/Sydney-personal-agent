@@ -23,7 +23,10 @@ describe("companion snapshot selection", () => {
 
   it("uses the latest bot text and hides partial output while working", () => {
     expect(companionSnapshot(snapshot)).toEqual({ status: "present", latestReply: "Answer" });
-    expect(companionSnapshot({ ...snapshot, working: true })).toEqual({ status: "thinking", latestReply: null });
+    expect(companionSnapshot({ ...snapshot, working: true })).toEqual({
+      status: "thinking",
+      latestReply: null,
+    });
   });
 
   it("does not forward a stale, saved, history, group, read-only, or out-of-scope snapshot", () => {
@@ -43,10 +46,19 @@ describe("companion snapshot selection", () => {
 
   it("shows listening and thinking only for the current bot's call", () => {
     const call = { botId: "bot-1", phase: "listening" as const, muted: false };
-    expect(companionSnapshot({ ...snapshot, call })).toEqual({ status: "listening", latestReply: "Answer" });
-    expect(companionSnapshot({ ...snapshot, call: { ...call, muted: true } })?.status).toBe("present");
-    expect(companionSnapshot({ ...snapshot, call: { ...call, phase: "thinking" } }))
-      .toEqual({ status: "thinking", latestReply: null });
-    expect(companionSnapshot({ ...snapshot, call: { ...call, botId: "bot-2" } })?.status).toBe("present");
+    expect(companionSnapshot({ ...snapshot, call })).toEqual({
+      status: "listening",
+      latestReply: "Answer",
+    });
+    expect(companionSnapshot({ ...snapshot, call: { ...call, muted: true } })?.status).toBe(
+      "present",
+    );
+    expect(companionSnapshot({ ...snapshot, call: { ...call, phase: "thinking" } })).toEqual({
+      status: "thinking",
+      latestReply: null,
+    });
+    expect(companionSnapshot({ ...snapshot, call: { ...call, botId: "bot-2" } })?.status).toBe(
+      "present",
+    );
   });
 });

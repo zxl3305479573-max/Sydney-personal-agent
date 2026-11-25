@@ -124,9 +124,7 @@ export async function createManagedTask(prisma: PrismaClient, actor: Tenant, raw
     projectWorkspaceId === null
       ? [actor.spaceId, actor.userId, input.clientNonce]
       : [actor.spaceId, actor.userId, projectWorkspaceId, input.clientNonce];
-  const id = `task-${createHash("sha256")
-    .update(JSON.stringify(nonceIdentity))
-    .digest("hex")}`;
+  const id = `task-${createHash("sha256").update(JSON.stringify(nonceIdentity)).digest("hex")}`;
   return withTransactionRetry(() =>
     prisma.$transaction(async (tx) => {
       const thread = await tx.thread.findFirst({

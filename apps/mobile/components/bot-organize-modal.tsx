@@ -24,6 +24,7 @@ import { confirmDeleteSection } from "../lib/confirm-delete-section";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
 import { errorText } from "../lib/user-error";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSheet, useNativeSheet } from "./native-sheet";
 import { NativeSymbol } from "./native-symbol";
@@ -113,11 +114,13 @@ export function BotOrganizeModal({
         {bot.name}
       </Text>
       <View style={Sheet ? styles.nativeCardGroup : styles.cardGroup}>
-        <Pressable
+        <MotionPressable
+          preset="row"
+          highlightColor={styles.pressed.backgroundColor}
           accessibilityRole="button"
           disabled={saving}
           onPress={() => void save(() => onUpdate({ pinned: !bot.pinned }))}
-          style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+          style={styles.action}
         >
           <NativeSymbol
             ios={bot.pinned ? "pin.slash" : "pin"}
@@ -125,13 +128,15 @@ export function BotOrganizeModal({
             size={18}
           />
           <Text style={styles.actionLabel}>{bot.pinned ? t("Unpin") : t("Pin")}</Text>
-        </Pressable>
+        </MotionPressable>
         {typeof bot.notifyOnFinish === "boolean" ? (
-          <Pressable
+          <MotionPressable
+            preset="row"
+            highlightColor={styles.pressed.backgroundColor}
             accessibilityRole="button"
             disabled={saving}
             onPress={() => void save(() => onUpdate({ notifyOnFinish: !bot.notifyOnFinish }))}
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            style={styles.action}
           >
             <NativeSymbol
               ios={bot.notifyOnFinish ? "bell.slash" : "bell"}
@@ -141,7 +146,7 @@ export function BotOrganizeModal({
             <Text style={styles.actionLabel}>
               {bot.notifyOnFinish ? t("Silence notifications") : t("Resume notifications")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         ) : null}
       </View>
       <Text style={styles.sectionLabel}>{t("Move to")}</Text>
@@ -197,30 +202,36 @@ export function BotOrganizeModal({
         </View>
       ) : (
         <View style={[Sheet ? styles.nativeCardGroup : styles.cardGroup, { marginTop: 8 }]}>
-          <Pressable
+          <MotionPressable
+            preset="row"
+            highlightColor={styles.pressed.backgroundColor}
             disabled={saving}
             onPress={startCreate}
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            style={styles.action}
           >
             <NativeSymbol ios="folder.badge.plus" android="folder-outline" size={18} />
             <Text style={styles.actionLabel}>{t("New section")}</Text>
-          </Pressable>
+          </MotionPressable>
           {currentSection ? (
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={styles.pressed.backgroundColor}
               disabled={saving}
               onPress={startRename}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+              style={styles.action}
             >
               <NativeSymbol ios="pencil" android="pencil-outline" size={18} />
               <Text style={styles.actionLabel}>{t("Rename section")}</Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
           {currentSection ? (
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={styles.pressed.backgroundColor}
               accessibilityRole="button"
               disabled={saving}
               onPress={confirmDelete}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+              style={styles.action}
             >
               <NativeSymbol
                 ios="trash"
@@ -229,7 +240,7 @@ export function BotOrganizeModal({
                 color={mobileTokens().destructive}
               />
               <Text style={[styles.actionLabel, styles.destructive]}>{t("Delete section")}</Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
         </View>
       )}
@@ -329,19 +340,21 @@ function SectionOption({
 }) {
   const styles = useThemedStyles(createBotOrganizeStyles);
   return (
-    <Pressable
+    <MotionPressable
+      preset="row"
+      highlightColor={styles.pressed.backgroundColor}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.sectionOption, pressed && styles.pressed]}
+      style={styles.sectionOption}
     >
       <NativeSymbol ios="folder" android="folder-outline" size={18} />
       <Text style={styles.actionLabel} numberOfLines={1}>
         {label}
       </Text>
       {selected ? <NativeSymbol ios="checkmark" android="checkmark" size={17} /> : null}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

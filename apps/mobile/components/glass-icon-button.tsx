@@ -1,9 +1,10 @@
 import type { ComponentProps } from "react";
 import type { ColorValue, StyleProp, ViewStyle } from "react-native";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import { androidRipple, withAlpha } from "../lib/ripple";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function GlassIconButton({
@@ -44,7 +45,8 @@ export function GlassIconButton({
         selected && { backgroundColor: tokens.primary },
       ]}
     >
-      <Pressable
+      <MotionPressable
+        preset="icon"
         testID={testID}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
@@ -52,16 +54,15 @@ export function GlassIconButton({
         hitSlop={4}
         android_ripple={androidRipple(withAlpha(iconColor, 0.14))}
         onPress={onPress}
-        style={({ pressed }) => ({
+        style={{
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
           ...(Platform.OS === "android" ? { borderRadius: size / 2, overflow: "hidden" } : null),
-          opacity: pressed && Platform.OS !== "android" ? 0.6 : 1,
-        })}
+        }}
       >
         <NativeSymbol ios={ios} android={android} size={iconSize} color={iconColor} />
-      </Pressable>
+      </MotionPressable>
     </GlassSurface>
   );
 }

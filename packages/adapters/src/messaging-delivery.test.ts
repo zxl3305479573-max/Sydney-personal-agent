@@ -152,17 +152,31 @@ function createDeps(overrides: {
             : { status: "pending" },
       ),
     },
-    $queryRaw: vi.fn(async (query: TemplateStringsArray) =>
-      query.join("").includes("FROM bots")
-        ? ["bot-1", "bot-2"].map((id) => ({
+    $queryRaw: vi.fn(
+      async (
+        query: TemplateStringsArray | { strings: readonly string[]; values?: readonly unknown[] },
+        ...params: unknown[]
+      ) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        const values: readonly unknown[] = "strings" in query ? (query.values ?? params) : params;
+        if (sql.includes("FROM bots")) {
+          const ids =
+            values.length >= 2 && typeof values[0] === "string" && typeof values[1] === "string"
+              ? [values[0], values[1]]
+              : ["bot-1", "bot-2"];
+          return ids.map((id) => ({
             id,
             spaceId: id,
+            userId: `user-${id}`,
+            projectWorkspaceId: null,
             crossSpaceCommunication: id !== overrides.blockedBot,
             archivedAt: null,
-          }))
-        : overrides.connectionStatus === null
+          }));
+        }
+        return overrides.connectionStatus === null
           ? []
-          : [{ status: overrides.connectionStatus ?? "pending" }],
+          : [{ status: overrides.connectionStatus ?? "pending" }];
+      },
     ),
     messagingOutbound: {
       findUnique: vi.fn(async ({ where }: { where?: { id?: string } } = {}) => {
@@ -793,6 +807,8 @@ function createChannelDeps(
       ["bot-1", "bot-2"].map((id) => ({
         id,
         spaceId: id,
+        userId: `user-${id}`,
+        projectWorkspaceId: null,
         crossSpaceCommunication: id !== overrides.blockedBot,
         archivedAt: null,
       })),

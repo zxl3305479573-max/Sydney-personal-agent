@@ -1,13 +1,14 @@
 import * as SplashScreen from "expo-splash-screen";
 import type { ReactNode } from "react";
 import { Component } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { t } from "../lib/i18n";
 import { reportMobileError } from "../lib/monitoring";
 import { completeMobileStartup, ServerSettingsStartupError } from "../lib/startup";
 import { themeManager } from "../lib/theme-state";
 import { getUiModeSnapshot, resetUiModeToClassic } from "../lib/ui-mode";
+import { MotionPressable } from "./motion-pressable";
 
 type Props = { children: ReactNode };
 type State = { failed: boolean; serverSettingsError: boolean };
@@ -55,18 +56,16 @@ export class AppErrorBoundary extends Component<Props, State> {
             {t("Server settings or the saved session could not be verified.")}
           </Text>
         ) : null}
-        <Pressable
+        <MotionPressable
+          preset="control"
           accessibilityRole="button"
           onPress={() => this.setState({ failed: false, serverSettingsError: false })}
-          style={({ pressed }) => [
-            styles.action,
-            { backgroundColor: tokens.primary, opacity: pressed ? 0.7 : 1 },
-          ]}
+          style={[styles.action, { backgroundColor: tokens.primary }]}
         >
           <Text style={[styles.actionText, { color: tokens.primaryForeground }]}>
             {t("Try again")}
           </Text>
-        </Pressable>
+        </MotionPressable>
       </View>
     );
   }

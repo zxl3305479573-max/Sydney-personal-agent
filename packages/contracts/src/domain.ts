@@ -402,62 +402,61 @@ export const CreateBotInput = z.object({
 });
 export type CreateBotInput = z.infer<typeof CreateBotInput>;
 
-const BotUpdateFields = z
-  .object({
-    botId: Id,
-    name: z.string().trim().min(1).max(BOT_NAME_MAX_LENGTH).optional(),
-    description: z.string().trim().max(BOT_DESCRIPTION_MAX_LENGTH).optional(),
-    instructions: z.string().trim().max(BOT_INSTRUCTIONS_MAX_LENGTH).optional(),
-    expectedInstructions: z.string().max(BOT_INSTRUCTIONS_MAX_LENGTH).optional(),
-    /** Ignored; installed mobile apps may still send it. */
-    selfUpdateInstructions: z.boolean().optional(),
-    notifyOnFinish: z.boolean().optional(),
-    color: BotAvatarValueSchema.optional(),
-    avatarSet: BotAvatarSetSchema.optional(),
-    pinned: z.boolean().optional(),
-    memoryScope: MemoryScopeSchema.nullable().optional(),
-    sectionId: Id.nullable().optional(),
-    voiceId: z.string().max(120).nullable().optional(),
-    autoSpeak: z.boolean().optional(),
-    modelProvider: z.string().trim().min(1).max(80).nullable().optional(),
-    modelId: z.string().trim().min(1).max(200).nullable().optional(),
-    thinkingLevel: ThinkingLevelSchema.nullable().optional(),
-    teamChatAmbientEnabled: z.boolean().optional(),
-    teamChatRules: z.string().max(TEAM_CHAT_RULES_MAX_LENGTH).optional(),
-    crossSpaceCommunication: z.boolean().optional(),
-    dailyCheckIns: z.boolean().optional(),
-    fleetManagement: z.boolean().optional(),
-    disabledBuiltinTools: DisabledBuiltinToolsSchema.optional(),
-    /** Write only while these settings still hold, as an undo does. */
-    expectedSettings: BotSettingsValuesSchema.optional(),
-  });
+const BotUpdateFields = z.object({
+  botId: Id,
+  name: z.string().trim().min(1).max(BOT_NAME_MAX_LENGTH).optional(),
+  description: z.string().trim().max(BOT_DESCRIPTION_MAX_LENGTH).optional(),
+  instructions: z.string().trim().max(BOT_INSTRUCTIONS_MAX_LENGTH).optional(),
+  expectedInstructions: z.string().max(BOT_INSTRUCTIONS_MAX_LENGTH).optional(),
+  /** Ignored; installed mobile apps may still send it. */
+  selfUpdateInstructions: z.boolean().optional(),
+  notifyOnFinish: z.boolean().optional(),
+  color: BotAvatarValueSchema.optional(),
+  avatarSet: BotAvatarSetSchema.optional(),
+  pinned: z.boolean().optional(),
+  memoryScope: MemoryScopeSchema.nullable().optional(),
+  sectionId: Id.nullable().optional(),
+  voiceId: z.string().max(120).nullable().optional(),
+  autoSpeak: z.boolean().optional(),
+  modelProvider: z.string().trim().min(1).max(80).nullable().optional(),
+  modelId: z.string().trim().min(1).max(200).nullable().optional(),
+  thinkingLevel: ThinkingLevelSchema.nullable().optional(),
+  teamChatAmbientEnabled: z.boolean().optional(),
+  teamChatRules: z.string().max(TEAM_CHAT_RULES_MAX_LENGTH).optional(),
+  crossSpaceCommunication: z.boolean().optional(),
+  dailyCheckIns: z.boolean().optional(),
+  fleetManagement: z.boolean().optional(),
+  disabledBuiltinTools: DisabledBuiltinToolsSchema.optional(),
+  /** Write only while these settings still hold, as an undo does. */
+  expectedSettings: BotSettingsValuesSchema.optional(),
+});
 
 function checkBotModelPair(
   value: { modelProvider?: string | null; modelId?: string | null },
   ctx: z.RefinementCtx,
 ) {
-    const providerProvided = value.modelProvider !== undefined;
-    const modelProvided = value.modelId !== undefined;
-    if (!providerProvided && !modelProvided) return;
-    // Reject partial shapes like `{ modelId: null }` (provider omitted) so a
-    // clear cannot succeed without updating both persisted fields.
-    if (providerProvided !== modelProvided) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Model provider and model id must both be set or both cleared",
-        path: ["modelId"],
-      });
-      return;
-    }
-    const bothNull = value.modelProvider === null && value.modelId === null;
-    const bothSet = Boolean(value.modelProvider) && Boolean(value.modelId);
-    if (!bothNull && !bothSet) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Model provider and model id must both be set or both cleared",
-        path: ["modelId"],
-      });
-    }
+  const providerProvided = value.modelProvider !== undefined;
+  const modelProvided = value.modelId !== undefined;
+  if (!providerProvided && !modelProvided) return;
+  // Reject partial shapes like `{ modelId: null }` (provider omitted) so a
+  // clear cannot succeed without updating both persisted fields.
+  if (providerProvided !== modelProvided) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Model provider and model id must both be set or both cleared",
+      path: ["modelId"],
+    });
+    return;
+  }
+  const bothNull = value.modelProvider === null && value.modelId === null;
+  const bothSet = Boolean(value.modelProvider) && Boolean(value.modelId);
+  if (!bothNull && !bothSet) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Model provider and model id must both be set or both cleared",
+      path: ["modelId"],
+    });
+  }
 }
 
 export const UpdateBotInput = BotUpdateFields.superRefine(checkBotModelPair);

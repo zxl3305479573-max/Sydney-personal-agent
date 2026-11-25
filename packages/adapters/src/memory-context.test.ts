@@ -14,9 +14,9 @@ const context: AdapterContext = {
 
 describe("agent memory context", () => {
   it("loads shared bot and account memory for a project conversation", async () => {
-    const read = vi.fn(async ({ scope }: { scope: "bot" | "user" }) => snapshot([
-      document(scope, `${scope}.md`, "project fact", 1, "2026-08-14T12:00:00.000Z"),
-    ]));
+    const read = vi.fn(async ({ scope }: { scope: "bot" | "user" }) =>
+      snapshot([document(scope, `${scope}.md`, "project fact", 1, "2026-08-14T12:00:00.000Z")]),
+    );
     const projectContext = { ...context, projectWorkspaceId: "project-1" };
     const result = await loadAgentMemoryContext(storeWith(read), "bot-1", projectContext);
     expect(read).toHaveBeenCalledTimes(2);

@@ -66,7 +66,7 @@ export async function asTenant<T extends { output: unknown }>(
   const parent = currentDbContext();
   const projectWorkspaceId =
     parent?.kind === "tenant" && parent.spaceId === actor.spaceId && parent.userId === actor.userId
-      ? parent.projectWorkspaceId ?? null
+      ? (parent.projectWorkspaceId ?? null)
       : null;
   const scope = { ...actor, projectWorkspaceId };
   const result = await runAsTenant(scope, next);

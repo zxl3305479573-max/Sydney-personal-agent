@@ -1,7 +1,7 @@
 import {
-  CLIENT_RELEASES_URL,
   buildIdAt,
   CLIENT_BUILD_HEADER,
+  CLIENT_RELEASES_URL,
   formatClientBuild,
   IOS_INSTALL_GUIDE_URL,
 } from "@rakazo/contracts";

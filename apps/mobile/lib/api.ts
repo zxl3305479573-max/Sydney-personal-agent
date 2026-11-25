@@ -976,7 +976,10 @@ export async function updateAccountName(name: string): Promise<void> {
   await updateAccountProfile({ name: nextName }, t("Could not update name"));
 }
 
-export async function updateAccountAvatar(image: string, context: ApiRequestContext): Promise<void> {
+export async function updateAccountAvatar(
+  image: string,
+  context: ApiRequestContext,
+): Promise<void> {
   await updateAccountProfile({ image }, t("Could not save changes"), context);
 }
 
@@ -1018,9 +1021,7 @@ async function updateAccountProfile(
     {},
   );
   if (!response.ok)
-    throw new Error(
-      authResponseErrorText(response.status, body, invalidJson, message),
-    );
+    throw new Error(authResponseErrorText(response.status, body, invalidJson, message));
 }
 
 /** Revoking other sessions also refuses this one until the replacement is saved. */

@@ -177,41 +177,70 @@ describe("remote computer access", () => {
   it("pairs explicitly for a project directory while whole-computer consent remains declined", async () => {
     await saveDeviceConsent(userData, origin, { consent: "declined", userId: "user-a" });
     const confirm = vi.fn(async () => true);
-    const fetch = vi.fn(async () => Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }));
+    const fetch = vi.fn(async () =>
+      Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }),
+    );
     const { access, clients } = setup({ confirm, fetch });
     await access.select(origin);
     expect(fetch).not.toHaveBeenCalled();
     await access.pairForDirectory(origin);
-    expect(access.pairing(origin)).toEqual({ deviceId: "device-a", userId: "user-a", token: "native-token" });
+    expect(access.pairing(origin)).toEqual({
+      deviceId: "device-a",
+      userId: "user-a",
+      token: "native-token",
+    });
     expect(access.state(origin)).toEqual({ deviceId: "device-a", allowed: false });
     expect(await clients[0]!.authorize()).toBe(false);
     expect(confirm).not.toHaveBeenCalled();
   });
 
   it("replaces a legacy pairing without granting whole-computer control", async () => {
-    await savePairedDevice(userData, origin, { deviceId: "legacy-device", userId: null, token: "legacy-token" }, cipher);
+    await savePairedDevice(
+      userData,
+      origin,
+      { deviceId: "legacy-device", userId: null, token: "legacy-token" },
+      cipher,
+    );
     const confirm = vi.fn(async () => true);
-    const fetch = vi.fn(async (_url: string, init: RequestInit) => init.method === "DELETE"
-      ? new Response(null, { status: 204 })
-      : Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }));
+    const fetch = vi.fn(async (_url: string, init: RequestInit) =>
+      init.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }),
+    );
     const { access } = setup({ fetch, confirm });
     await access.select(origin);
     await access.pairForDirectory(origin);
     expect(fetch.mock.calls.map(([, init]) => init.method)).toEqual(["DELETE", "POST"]);
-    expect(access.pairing(origin)).toEqual({ deviceId: "device-a", userId: "user-a", token: "native-token" });
+    expect(access.pairing(origin)).toEqual({
+      deviceId: "device-a",
+      userId: "user-a",
+      token: "native-token",
+    });
     expect(access.state(origin)?.allowed).toBe(false);
     expect(confirm).not.toHaveBeenCalled();
   });
 
   it("uses only the active paired identity for directory device requests", async () => {
     const workspaceGrant = vi.fn(async () => ({ state: "authorized" as const }));
-    const fetch = vi.fn(async () => Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }));
+    const fetch = vi.fn(async () =>
+      Response.json({ deviceId: "device-a", userId: "user-a", token: "native-token" }),
+    );
     const { access, clients } = setup({ fetch, workspaceGrant });
     await access.select(origin);
     await access.pair();
-    const request = { method: "workspaceGrant" as const, operation: "status" as const, spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
+    const request = {
+      method: "workspaceGrant" as const,
+      operation: "status" as const,
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+    };
     await expect(clients[0]!.workspaceGrant!(request)).resolves.toEqual({ state: "authorized" });
-    expect(workspaceGrant).toHaveBeenCalledWith(origin, { deviceId: "device-a", userId: "user-a", token: "native-token" }, request);
+    expect(workspaceGrant).toHaveBeenCalledWith(
+      origin,
+      { deviceId: "device-a", userId: "user-a", token: "native-token" },
+      request,
+    );
     await access.select(null);
     await expect(clients[0]!.workspaceGrant!(request)).resolves.toEqual({ state: "unauthorized" });
     expect(access.pairing(origin)).toBeNull();

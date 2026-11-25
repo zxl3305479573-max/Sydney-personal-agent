@@ -1,4 +1,3 @@
-import * as SecureStore from "expo-secure-store";
 import type { PersistedUiModeState, UiModeSnapshot } from "../ui-modes/types";
 import { CLASSIC_UI_MODE_ID, UI_MODE_SCHEMA_VERSION, UI_MODE_STORAGE_KEY } from "../ui-modes/types";
 
@@ -32,8 +31,8 @@ export type UiModeStore = {
 };
 
 const defaultStorageAdapter: UiModeStorageAdapter = {
-  getItemAsync: (key) => SecureStore.getItemAsync(key),
-  setItemAsync: (key, value) => SecureStore.setItemAsync(key, value),
+  getItemAsync: async (key) => (await import("expo-secure-store")).getItemAsync(key),
+  setItemAsync: async (key, value) => (await import("expo-secure-store")).setItemAsync(key, value),
 };
 
 function createDefaultPersistedState(): PersistedUiModeState {

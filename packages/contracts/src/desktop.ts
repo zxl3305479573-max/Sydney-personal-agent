@@ -73,9 +73,9 @@ export function isDesktopMenuCommand(value: unknown): value is DesktopMenuComman
 
 export interface RakazoDesktop {
   projectDirectory?: {
-    choose: (input: import("./project-directory.js").ProjectDirectoryInput) => Promise<
-      import("./project-directory.js").ProjectDirectoryBinding | null
-    >;
+    choose: (
+      input: import("./project-directory.js").ProjectDirectoryInput,
+    ) => Promise<import("./project-directory.js").ProjectDirectoryBinding | null>;
   };
   /** Optional for compatibility with older desktop releases. */
   badge?: {

@@ -1,12 +1,12 @@
 import type { NativeStackNavigationOptions } from "expo-router";
 import { router } from "expo-router";
-import { Pressable } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { iosAtLeast } from "../lib/native-controls";
 import { setInboxHidden } from "../lib/split-view";
 import { threadEdgeOptions } from "../lib/thread-edges";
 import type { ChatTitleParams } from "./chat-header-title";
 import { ChatHeaderTitle } from "./chat-header-title";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { trailingHeaderOptions } from "./sheet-header";
 import { threadHeaderRight } from "./thread-header-right";
@@ -124,7 +124,8 @@ export function threadHeaderLeft({
         }
       : {}),
     headerLeft: () => (
-      <Pressable
+      <MotionPressable
+        preset="icon"
         accessibilityRole="button"
         accessibilityLabel={label}
         hitSlop={8}
@@ -137,7 +138,7 @@ export function threadHeaderLeft({
           size={19}
           color={color}
         />
-      </Pressable>
+      </MotionPressable>
     ),
   };
 }

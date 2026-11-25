@@ -68,3 +68,12 @@ export function resetNotificationPreferencesStateForTest(): void {
   loaded = false;
   listeners.clear();
 }
+
+export function notificationSummaryLabel(prefs: NotificationPreferences, locale: string): string {
+  const traditional = locale === "zh-TW";
+  const chinese = locale.startsWith("zh");
+  if (prefs.enabled) {
+    return chinese ? (traditional ? "已開啟" : "已开启") : "On";
+  }
+  return chinese ? (traditional ? "已關閉" : "已关闭") : "Off";
+}

@@ -228,7 +228,10 @@ export async function wakeRoutine(deps: ExecutorDeps, routineId: string, schedul
       if (fired) return "fired" as const;
     }
     const executionScope = await resolveConversationExecutionScope(tx, {
-      spaceId: routine.spaceId, userId: routine.userId, botId: bot.id, threadId: thread.id,
+      spaceId: routine.spaceId,
+      userId: routine.userId,
+      botId: bot.id,
+      threadId: thread.id,
     });
     const task = await tx.task.create({
       data: {

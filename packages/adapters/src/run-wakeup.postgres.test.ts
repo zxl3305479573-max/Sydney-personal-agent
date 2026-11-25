@@ -53,9 +53,18 @@ describePostgres("direct run dispatch (PostgreSQL)", () => {
     }
   });
   async function createRun(
-    data: { status?: string; wakeAt?: Date; leaseExpiresAt?: Date; trigger?: string } = {},
+    data: {
+      status?: string;
+      wakeAt?: Date;
+      leaseExpiresAt?: Date;
+      trigger?: string;
+      botId?: string;
+      threadId?: string;
+    } = {},
   ) {
-    const { userId, spaceId, botId, threadId } = identity;
+    const { userId, spaceId } = identity;
+    const botId = data.botId ?? identity.botId;
+    const threadId = data.threadId ?? identity.threadId;
     const task = await system.task.create({
       data: { userId, spaceId, botId, threadId, prompt: "fixture", status: "queued" },
     });
@@ -322,12 +331,16 @@ describePostgres("direct run dispatch (PostgreSQL)", () => {
     const reply = await createRun();
     // Another bot's run shares the reply's scan; once it starts, that scan has decided the wait.
     const other = await system.bot.create({
-      data: { spaceId: identity.spaceId, userId: identity.userId, name: "Other", color: "test" },
+      data: {
+        spaceId: identity.spaceId,
+        userId: identity.userId,
+        name: "Other",
+        color: "test",
+        thread: { create: { spaceId: identity.spaceId, userId: identity.userId } },
+      },
+      include: { thread: true },
     });
-    const sentinel = await system.run.update({
-      where: { id: (await createRun()).id },
-      data: { botId: other.id },
-    });
+    const sentinel = await createRun({ botId: other.id, threadId: other.thread!.id });
     const fanout = new InMemoryRealtimeFanout();
     const host = new RunWorkerHost(db.prisma, fanout, new RunStarter(fanout), { intervalMs: 25 });
     const entered: string[] = [];
@@ -375,13 +388,16 @@ describePostgres("direct run dispatch (PostgreSQL)", () => {
           name,
           color: "test",
           computerId: computer.id,
+          thread: { create: { spaceId: identity.spaceId, userId: identity.userId } },
         },
+        include: { thread: true },
       });
     const ended = await otherBot("Ended");
     const booting = await otherBot("Booting");
-    const cancelled = await system.run.update({
-      where: { id: (await createRun({ status: "cancelled" })).id },
-      data: { botId: ended.id },
+    const cancelled = await createRun({
+      status: "cancelled",
+      botId: ended.id,
+      threadId: ended.thread!.id,
     });
     const day = new Date(Date.now() + 24 * 60 * 60_000);
     // Leases name their run without a relation, so deleting the run leaves the hold behind.
@@ -407,14 +423,8 @@ describePostgres("direct run dispatch (PostgreSQL)", () => {
       },
     });
     const reply = await createRun();
-    const endedReply = await system.run.update({
-      where: { id: (await createRun()).id },
-      data: { botId: ended.id },
-    });
-    const bootingReply = await system.run.update({
-      where: { id: (await createRun()).id },
-      data: { botId: booting.id },
-    });
+    const endedReply = await createRun({ botId: ended.id, threadId: ended.thread!.id });
+    const bootingReply = await createRun({ botId: booting.id, threadId: booting.thread!.id });
     const fanout = new InMemoryRealtimeFanout();
     const host = new RunWorkerHost(db.prisma, fanout, new RunStarter(fanout), { intervalMs: 25 });
     const entered: string[] = [];

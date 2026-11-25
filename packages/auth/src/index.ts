@@ -463,7 +463,15 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     ],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (isBlockedAuthPath(ctx.path)) throw new APIError("NOT_FOUND");
+        if (isBlockedAuthPath(ctx.path)) {
+          if (ctx.path === "/organization/delete") {
+            throw new APIError("NOT_FOUND", {
+              code: "ORGANIZATION_DELETION_DISABLED",
+              message: "Organization deletion is disabled",
+            });
+          }
+          throw new APIError("NOT_FOUND");
+        }
         if (
           ctx.path === "/sign-in/social" &&
           ctx.body?.provider === "oidc" &&

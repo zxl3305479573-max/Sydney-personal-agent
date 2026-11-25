@@ -1,8 +1,9 @@
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 const COPIED_MS = 2000;
@@ -26,11 +27,12 @@ export function CodeCopyButton({ code }: { code: string }) {
   };
 
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
       accessibilityRole="button"
       accessibilityLabel={copied ? t("Copied") : t("Copy code")}
       onPress={copy}
-      style={({ pressed }) => [styles.button, { opacity: pressed ? 0.6 : 1 }]}
+      style={styles.button}
     >
       <NativeSymbol
         ios={copied ? "checkmark" : "doc.on.doc"}
@@ -38,7 +40,7 @@ export function CodeCopyButton({ code }: { code: string }) {
         size={15}
         color={tokens.mutedForeground}
       />
-    </Pressable>
+    </MotionPressable>
   );
 }
 

@@ -1,7 +1,7 @@
 import { replyAttachment } from "@rakazo/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import { Image, Platform, Pressable, Text, View } from "react-native";
+import { Image, Platform, Text, View } from "react-native";
 import { KeyboardController, useKeyboardHandler } from "react-native-keyboard-controller";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import type { ThreadColumnPadding } from "../../lib/thread-edges";
 import { previewMessageText } from "../../lib/thread-message-text";
 import { ComposerReplyPreview } from "../composer-reply-preview";
 import { GlassSurface } from "../glass-surface";
+import { MotionPressable } from "../motion-pressable";
 import { NativeSymbol } from "../native-symbol";
 import { ReplyDismissButton } from "../reply-dismiss-button";
 
@@ -201,7 +202,8 @@ export function ThreadComposerDock({
                   <Text style={{ color: tokens.foreground, maxWidth: 140 }} numberOfLines={1}>
                     {attachment.name}
                   </Text>
-                  <Pressable
+                  <MotionPressable
+                    preset="icon"
                     accessibilityLabel={t("Remove {name}", { name: attachment.name })}
                     onPress={() => onRemoveAttachment(attachment.id)}
                   >
@@ -211,7 +213,7 @@ export function ThreadComposerDock({
                       size={14}
                       color={tokens.mutedForeground}
                     />
-                  </Pressable>
+                  </MotionPressable>
                 </GlassSurface>
               ))}
             </View>

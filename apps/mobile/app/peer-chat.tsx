@@ -5,17 +5,10 @@ import type { ColorTokens } from "@rakazo/ui-tokens";
 import { typeScale } from "@rakazo/ui-tokens";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { glassHeaderOptions } from "../components/glass-title";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { cancelHeaderOptions } from "../components/sheet-header";
 import { rpc } from "../lib/api";
@@ -128,9 +121,9 @@ export default function PeerChat() {
         ) : state.kind === "failed" ? (
           <View style={styles.center}>
             <Text style={styles.muted}>{t("Could not load this chat.")}</Text>
-            <Pressable accessibilityRole="button" onPress={retry} hitSlop={8}>
+            <MotionPressable preset="inline" accessibilityRole="button" onPress={retry} hitSlop={8}>
               <Text style={styles.retry}>{t("Try again")}</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : !chat?.messages.length ? (
           <View style={styles.center}>

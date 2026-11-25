@@ -1,12 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getProjectCloudDirectory } from "@rakazo/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunContext } from "./run-context.js";
 import type { ToolCall } from "./run-tool-gate.js";
 import type { ToolRequest } from "./run-tool-request.js";
-import {
-  prepareProjectCloudCommand,
-  runProjectCloudCommand,
-} from "./run-tools-project-command.js";
+import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
 
 vi.mock("@rakazo/db", async () => {
   const actual = await vi.importActual<typeof import("@rakazo/db")>("@rakazo/db");

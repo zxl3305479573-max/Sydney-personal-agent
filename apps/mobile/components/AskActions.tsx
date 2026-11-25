@@ -1,13 +1,14 @@
 import { BOT_INSTRUCTIONS_MAX_LENGTH } from "@rakazo/contracts";
 import { useState } from "react";
 import type { ViewProps } from "react-native";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Text, TextInput, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import type { AskAction } from "../lib/ask-action-label";
 import { askActionLabel } from "../lib/ask-action-label";
 import { useI18n } from "../lib/i18n";
 import { native } from "../lib/native";
 import { errorText } from "../lib/user-error";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 
 export function AskActions({
@@ -98,8 +99,9 @@ export function AskActions({
               />
             );
           return (
-            <Pressable
+            <MotionPressable
               key={action.id}
+              preset="control"
               accessibilityActions={accessibilityActions}
               onAccessibilityAction={onAccessibilityAction}
               disabled={disabled || submitting}
@@ -125,7 +127,7 @@ export function AskActions({
                   ? t("Sending…")
                   : askActionLabel(action, { approval, site }, t)}
               </Text>
-            </Pressable>
+            </MotionPressable>
           );
         })}
       </View>

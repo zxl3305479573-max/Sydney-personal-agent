@@ -1,9 +1,10 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 import { afterEach, describe, expect, it } from "vitest";
+
 const withCompanionWidget = require("../plugins/with-companion-widget");
 
 const temporaryDirectories: string[] = [];
@@ -22,22 +23,57 @@ describe("isolated companion widget plugin", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "sydney-companion-real-"));
     temporaryDirectories.push(root);
     const project = xcode.project(path.join(root, "project.pbxproj"));
-    project.hash = { project: { rootObject: "ROOT", objects: {
-      PBXProject: { ROOT: { mainGroup: "MAIN", targets: [{ value: "HOST", comment: "Sydney" }] } },
-      PBXNativeTarget: { HOST: { name: "Sydney", buildPhases: [{ value: "OLD", comment: "Copy Files" }], dependencies: [] }, HOST_comment: "Sydney" },
-      PBXGroup: { MAIN: { children: [] }, MAIN_comment: "Main", PRODUCTS: { children: [] }, PRODUCTS_comment: "Products" },
-      PBXCopyFilesBuildPhase: { OLD: { files: [], dstSubfolderSpec: 7 }, OLD_comment: "Copy Files" },
-      PBXBuildFile: { EXISTING_BUILD: { fileRef: "EXISTING_SWIFT" }, EXISTING_BUILD_comment: "CompanionWidget.swift in Sources" },
-      PBXFileReference: {
-        EXISTING_SWIFT: { path: '"CompanionWidget.swift"' }, EXISTING_SWIFT_comment: "CompanionWidget.swift",
-        EXISTING_PLIST: { path: '"Info.plist"' }, EXISTING_PLIST_comment: "Info.plist",
+    project.hash = {
+      project: {
+        rootObject: "ROOT",
+        objects: {
+          PBXProject: {
+            ROOT: { mainGroup: "MAIN", targets: [{ value: "HOST", comment: "Sydney" }] },
+          },
+          PBXNativeTarget: {
+            HOST: {
+              name: "Sydney",
+              buildPhases: [{ value: "OLD", comment: "Copy Files" }],
+              dependencies: [],
+            },
+            HOST_comment: "Sydney",
+          },
+          PBXGroup: {
+            MAIN: { children: [] },
+            MAIN_comment: "Main",
+            PRODUCTS: { children: [] },
+            PRODUCTS_comment: "Products",
+          },
+          PBXCopyFilesBuildPhase: {
+            OLD: { files: [], dstSubfolderSpec: 7 },
+            OLD_comment: "Copy Files",
+          },
+          PBXBuildFile: {
+            EXISTING_BUILD: { fileRef: "EXISTING_SWIFT" },
+            EXISTING_BUILD_comment: "CompanionWidget.swift in Sources",
+          },
+          PBXFileReference: {
+            EXISTING_SWIFT: { path: '"CompanionWidget.swift"' },
+            EXISTING_SWIFT_comment: "CompanionWidget.swift",
+            EXISTING_PLIST: { path: '"Info.plist"' },
+            EXISTING_PLIST_comment: "Info.plist",
+          },
+          XCBuildConfiguration: {},
+          XCConfigurationList: {},
+        },
       },
-      XCBuildConfiguration: {}, XCConfigurationList: {},
-    } } };
+    };
     const config = withCompanionWidget({
-      name: "Sydney", slug: "sydney", ios: { bundleIdentifier: "xin.example.companion" }, version: "1.0",
+      name: "Sydney",
+      slug: "sydney",
+      ios: { bundleIdentifier: "xin.example.companion" },
+      version: "1.0",
     });
-    await config.mods.ios.xcodeproj({ ...config, modResults: project, modRequest: { platformProjectRoot: root } });
+    await config.mods.ios.xcodeproj({
+      ...config,
+      modResults: project,
+      modRequest: { platformProjectRoot: root },
+    });
     const objects = project.hash.project.objects;
     const extension = Object.values(objects.PBXNativeTarget).find(
       (entry: any) => entry?.name?.replaceAll('"', "") === "SydneyCompanionWidget",
@@ -47,47 +83,75 @@ describe("isolated companion widget plugin", () => {
       .map((entry: { value: string }) => objects.PBXCopyFilesBuildPhase[entry.value])
       .filter(Boolean);
     const containing = phases.filter((phase: { files: { value: string }[] }) =>
-      phase.files.some((entry) => objects.PBXBuildFile[entry.value]?.fileRef === product));
+      phase.files.some((entry) => objects.PBXBuildFile[entry.value]?.fileRef === product),
+    );
     expect(containing).toHaveLength(1);
     expect(Number(containing[0].dstSubfolderSpec)).toBe(13);
     expect(objects.PBXCopyFilesBuildPhase.OLD.files).toHaveLength(0);
     expect(objects.PBXNativeTarget.HOST.dependencies).toHaveLength(1);
-    const sourcesPhase = objects.PBXSourcesBuildPhase[extension.buildPhases.find((phase) => phase.comment === "Sources")!.value];
+    const sourcesPhase =
+      objects.PBXSourcesBuildPhase[
+        extension.buildPhases.find((phase) => phase.comment === "Sources")!.value
+      ];
     const sourcePaths = sourcesPhase.files.map((file: { value: string }) =>
-      objects.PBXFileReference[objects.PBXBuildFile[file.value].fileRef].path.replaceAll('"', ""));
+      objects.PBXFileReference[objects.PBXBuildFile[file.value].fileRef].path.replaceAll('"', ""),
+    );
     expect(sourcePaths.sort()).toEqual([
       "SydneyCompanionWidget/CompanionActivityAttributes.swift",
       "SydneyCompanionWidget/CompanionWidget.swift",
     ]);
-    const group = Object.values(objects.PBXGroup).find((entry: any) => entry?.name === "SydneyCompanionWidget") as { children: { value: string }[] };
-    const groupPaths = group.children.map((entry) => objects.PBXFileReference[entry.value].path.replaceAll('"', ""));
+    const group = Object.values(objects.PBXGroup).find(
+      (entry: any) => entry?.name === "SydneyCompanionWidget",
+    ) as { children: { value: string }[] };
+    const groupPaths = group.children.map((entry) =>
+      objects.PBXFileReference[entry.value].path.replaceAll('"', ""),
+    );
     expect(groupPaths).toContain("SydneyCompanionWidget/Info.plist");
     expect(groupPaths).not.toContain("Info.plist");
-    await config.mods.ios.xcodeproj({ ...config, modResults: project, modRequest: { platformProjectRoot: root } });
+    await config.mods.ios.xcodeproj({
+      ...config,
+      modResults: project,
+      modRequest: { platformProjectRoot: root },
+    });
     expect(objects.PBXNativeTarget.HOST.dependencies).toHaveLength(1);
   });
 
   it("adds an extension once and copies matching attributes into its target", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "sydney-companion-"));
     temporaryDirectories.push(root);
-    const targets: { uuid: string; name: string; type: string; folder: string; bundle: string }[] = [];
+    const targets: { uuid: string; name: string; type: string; folder: string; bundle: string }[] =
+      [];
     const phases: unknown[][] = [];
     const settings: { buildSettings: Record<string, string> } = {
       buildSettings: { PRODUCT_NAME: '"SydneyCompanionWidget"' },
     };
     const objects = {
-      PBXCopyFilesBuildPhase: {} as Record<string, { files: { value: string }[]; dstSubfolderSpec: number }>,
+      PBXCopyFilesBuildPhase: {} as Record<
+        string,
+        { files: { value: string }[]; dstSubfolderSpec: number }
+      >,
       PBXBuildFile: { product: { fileRef: "product-ref" } },
     };
     const host = { buildPhases: [] as { value: string }[] };
     const project = {
       hash: { project: { objects } },
       pbxTargetByName: (name: string) => targets.find((target) => target.name === name),
-      pbxNativeTargetSection: () => Object.fromEntries(targets.map((target) => [target.uuid, target])),
+      pbxNativeTargetSection: () =>
+        Object.fromEntries(targets.map((target) => [target.uuid, target])),
       addTarget: (name: string, type: string, folder: string, bundle: string) => {
-        const target = { uuid: "target", name, type, folder, bundle, pbxNativeTarget: { productReference: "product-ref" } };
+        const target = {
+          uuid: "target",
+          name,
+          type,
+          folder,
+          bundle,
+          pbxNativeTarget: { productReference: "product-ref" },
+        };
         targets.push(target);
-        objects.PBXCopyFilesBuildPhase.copy = { files: [{ value: "product" }], dstSubfolderSpec: 13 };
+        objects.PBXCopyFilesBuildPhase.copy = {
+          files: [{ value: "product" }],
+          dstSubfolderSpec: 13,
+        };
         host.buildPhases.push({ value: "copy" });
         return target;
       },
@@ -110,11 +174,12 @@ describe("isolated companion widget plugin", () => {
       SydneyCompanionEnabled: true,
       UIBackgroundModes: ["screen-capture"],
     });
-    const run = () => config.mods.ios.xcodeproj({
-      ...config,
-      modResults: project,
-      modRequest: { platformProjectRoot: root },
-    });
+    const run = () =>
+      config.mods.ios.xcodeproj({
+        ...config,
+        modResults: project,
+        modRequest: { platformProjectRoot: root },
+      });
     await run();
     await run();
     expect(targets).toHaveLength(1);
@@ -122,7 +187,19 @@ describe("isolated companion widget plugin", () => {
     expect(phases).toHaveLength(2);
     expect(settings.buildSettings.INFOPLIST_FILE).toBe("SydneyCompanionWidget/Info.plist");
     expect(settings.buildSettings.CURRENT_PROJECT_VERSION).toBe("5");
-    expect(fs.readFileSync(path.join(root, "SydneyCompanionWidget", "CompanionActivityAttributes.swift"), "utf8"))
-      .toBe(fs.readFileSync(path.join(currentDirectory, "../modules/sydney-companion/ios/CompanionActivityAttributes.swift"), "utf8"));
+    expect(
+      fs.readFileSync(
+        path.join(root, "SydneyCompanionWidget", "CompanionActivityAttributes.swift"),
+        "utf8",
+      ),
+    ).toBe(
+      fs.readFileSync(
+        path.join(
+          currentDirectory,
+          "../modules/sydney-companion/ios/CompanionActivityAttributes.swift",
+        ),
+        "utf8",
+      ),
+    );
   });
 });

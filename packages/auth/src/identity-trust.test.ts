@@ -1240,7 +1240,7 @@ describe("passkeys", () => {
     expect((await f.register(token)).status).toBe(200);
     const signedIn = await f.signInWithPasskey();
     expect(signedIn.status).toBe(200);
-    expect((await signedIn.json()).user.id).toBe(f.data.user![0]!.id);
+    expect(((await signedIn.json()) as { user: { id: string } }).user.id).toBe(f.data.user![0]!.id);
   });
 
   it("registers only from a fresh session of the account", async () => {

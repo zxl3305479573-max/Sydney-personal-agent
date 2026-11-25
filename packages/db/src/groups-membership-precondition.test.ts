@@ -24,12 +24,16 @@ function fixture(activeIds: string[]) {
     thread: { id: "thread-1", unread: false, messages: [] },
     members: owned.map((bot) => ({ bot: { ...bot, runs: [] } })),
   };
-  const lock = vi.fn().mockResolvedValue([{ id: "group-1" }]);
+  const lock = vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+    const sql = ("strings" in query ? query.strings : query).join("");
+    if (sql.includes('FROM "bots"')) return owned.map(({ id }) => ({ id }));
+    return [{ id: "group-1" }];
+  });
   const write = vi.fn().mockResolvedValue({});
   const remove = vi.fn().mockResolvedValue({ count: 2 });
   const create = vi.fn().mockResolvedValue({ count: 3 });
   const read = vi.fn(async () => {
-    expect(lock).toHaveBeenCalledOnce();
+    expect(lock).toHaveBeenCalledTimes(2);
     return {
       thread: record.thread,
       members: activeIds.map((botId) => ({ botId, bot: { archivedAt: null } })),
@@ -37,6 +41,7 @@ function fixture(activeIds: string[]) {
   });
   const tx = {
     $queryRaw: lock,
+    bot: { findMany: vi.fn().mockResolvedValue(owned) },
     chatGroup: {
       findFirst: read,
       update: write,

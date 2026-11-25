@@ -191,8 +191,12 @@ describe.skipIf(!enabled)("typed replies to waiting cards (PostgreSQL)", () => {
         { kind: "ask", text: "Any preference?", status: "pending" },
         target.threadId,
       );
-      const peer = await waitingCard(question, target.threadId, peerBotId);
-      const otherThread = await waitingCard(question, peerThreadId);
+      const peer = await waitingCard(
+        question,
+        kind === "group" ? target.threadId : groupTarget.threadId,
+        peerBotId,
+      );
+      const otherThread = await waitingCard(question, peerThreadId, peerBotId);
       const nonce = randomUUID();
       const result = await send(target, "Paris", nonce);
       expect(result.runIds).toEqual([result.runId]);
@@ -255,7 +259,11 @@ describe.skipIf(!enabled)("typed replies to waiting cards (PostgreSQL)", () => {
     async (kind) => {
       const target = kind === "bot" ? privateTarget() : groupTarget;
       const old = await waitingCard(question, target.threadId);
-      const peer = await waitingCard(question, target.threadId, peerBotId);
+      const peer = await waitingCard(
+        question,
+        kind === "group" ? target.threadId : groupTarget.threadId,
+        peerBotId,
+      );
       const latest = await waitingCard(question, target.threadId);
       const result = await send(target);
       expect(result).toMatchObject({ runId: latest.run.id, runIds: [latest.run.id] });

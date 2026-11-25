@@ -6,8 +6,8 @@ import { projectTask } from "@rakazo/core";
 import type { ManagedTaskStopEvidence } from "@rakazo/db";
 import {
   confirmManagedTaskStopped,
-  conversationScopeWhere,
   controlManagedTask,
+  conversationScopeWhere,
   createManagedTask,
   dispatchManagedTask,
   expireComputerExecutionLeases,
@@ -303,13 +303,7 @@ export function tasksRoutes(ctx: RouterContext) {
             "cancel",
             input.expectedVersion,
           );
-          await applyManagedTaskControlSideEffects(
-            deps,
-            context.actor,
-            "cancel",
-            result,
-            "revoke",
-          );
+          await applyManagedTaskControlSideEffects(deps, context.actor, "cancel", result, "revoke");
           await recordAuditEvent({
             action: "task.mandate.revoked",
             actor: { type: "user", id: context.actor.userId },

@@ -3403,6 +3403,10 @@ msgstr "Input"
 msgid "Inputs"
 msgstr "Inputs"
 
+#: src/lib/client-update.ts
+msgid "Install a newer version of the desktop app to continue."
+msgstr "Install a newer version of the desktop app to continue."
+
 #: src/components/SidebarFooter.tsx
 msgid "Install update"
 msgstr "Install update"
@@ -4752,10 +4756,6 @@ msgstr "Pull request"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/components/ModelCredits.tsx
-msgid "Sydney credits"
-msgstr "Sydney credits"
-
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "rakazo-shared and IDs starting with bot- are reserved for Sydney."
 msgstr "rakazo-shared and IDs starting with bot- are reserved for Sydney."
@@ -5852,10 +5852,6 @@ msgstr "subagent"
 msgid "Submit"
 msgstr "Submit"
 
-#: src/pages/PluginsOverlay.tsx
-msgid "Submit a plugin"
-msgstr "Submit a plugin"
-
 #: src/components/ModelCredits.tsx
 #: src/pages/Paywall.tsx
 msgid "Subscribe"
@@ -5911,6 +5907,10 @@ msgstr "Switch to yearly?"
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "Switching…"
 msgstr "Switching…"
+
+#: src/components/ModelCredits.tsx
+msgid "Sydney credits"
+msgstr "Sydney credits"
 
 #: src/components/integrations/theme-plugin-entry.tsx
 #: src/pages/AccountSettingsOverlay.tsx
@@ -6495,13 +6495,13 @@ msgstr "Use my subscription or API key"
 msgid "Use Protected input for passwords."
 msgstr "Use Protected input for passwords."
 
-#: src/components/ModelCredits.tsx
-msgid "Use Sydney credits"
-msgstr "Use Sydney credits"
-
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "Use space default"
 msgstr "Use space default"
+
+#: src/components/ModelCredits.tsx
+msgid "Use Sydney credits"
+msgstr "Use Sydney credits"
 
 #: src/components/PersonalityPicker.tsx
 msgid "Use the instructions below"

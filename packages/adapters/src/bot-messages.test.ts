@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@rakazo/db";
-import { RunHistoryWriteError } from "@rakazo/db";
+import { RunHistoryWriteError, runAsSystem } from "@rakazo/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   currentBotMessageHop,
@@ -42,7 +42,13 @@ function deps(
         : { blocks: options.hopBlocks ?? [] },
     );
   const tx = {
-    $queryRaw: vi.fn().mockResolvedValue([{ id: "thread" }]),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: run.spaceId, userId: run.userId, projectWorkspaceId: null }];
+      }
+      return [{ id: "thread" }];
+    }),
     run: {
       findFirst: vi
         .fn()
@@ -84,7 +90,7 @@ function deps(
       if (options.uniqueConflictOnCommit) {
         throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
       }
-      return fn(tx);
+      return runAsSystem("test bot message", () => fn(tx));
     }),
   } as unknown as PrismaClient;
   return {
@@ -288,7 +294,7 @@ describe("messaging another bot", () => {
       { allowTerminalSource: true },
     );
     expect(sent.ok).toBe(true);
-    expect(harness.tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(harness.tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(harness.tx.message.create).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

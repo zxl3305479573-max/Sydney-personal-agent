@@ -207,9 +207,9 @@ describe("avatar motion on mobile", () => {
     expect(motion.springs.at(-1)).toEqual([0, MORPH_SPRING]);
   });
 
-  it("drops the chat header's working dot while the bot writes, and keeps it a still picture", () => {
+  it("keeps the chat header's working dot while the bot writes on a still picture", () => {
     render(<BotAvatar color={SHAPE} identity="bot-1" size={28} status="running" composing />);
-    expect(workingDot()).toBeNull();
+    expect(workingDot()).not.toBeNull();
     expect(clockStarted()).toBe(false);
     expect(motion.springs.at(-1)?.[0]).toBe(0);
   });

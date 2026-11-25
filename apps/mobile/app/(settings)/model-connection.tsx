@@ -44,7 +44,6 @@ import {
   Alert,
   Keyboard,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -55,6 +54,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { HeaderRowsEditor } from "../../components/header-rows-editor";
 import { ListSearchInput } from "../../components/list-search-input";
 import { MenuPickerMenu } from "../../components/menu-picker";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSwitch } from "../../components/native-switch";
 import { Checkmark } from "../../components/row-accessories";
@@ -718,20 +718,18 @@ export default function ModelConnection() {
             // The switch sits beside the radio, not inside it: an accessible
             // Pressable would merge it into the row and hide it from VoiceOver.
             <View key={entry} style={styles.modelRow}>
-              <Pressable
+              <MotionPressable
+                preset="row"
+                highlightColor={native.fillPressed}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: entry === modelId }}
                 disabled={probing}
                 onPress={() => stageCompatibleModelId(entry)}
-                style={({ pressed }) => [
-                  styles.modelRowChoice,
-                  probing && styles.disabled,
-                  pressed && styles.pressed,
-                ]}
+                style={[styles.modelRowChoice, probing && styles.disabled]}
               >
                 <Text style={styles.modelLabel}>{entry}</Text>
                 {entry === modelId ? <Checkmark /> : null}
-              </Pressable>
+              </MotionPressable>
               <NativeSwitch
                 accessibilityLabel={entry}
                 value={entry === modelId || enabledModelIds.includes(entry)}
@@ -743,19 +741,17 @@ export default function ModelConnection() {
             </View>
           ))}
           {compatibleRows.includes(modelId) ? (
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               accessibilityRole="radio"
               accessibilityState={{ selected: false }}
               disabled={probing}
               onPress={() => stageCompatibleModelId("")}
-              style={({ pressed }) => [
-                styles.modelRow,
-                probing && styles.disabled,
-                pressed && styles.pressed,
-              ]}
+              style={[styles.modelRow, probing && styles.disabled]}
             >
               <Text style={styles.modelLabel}>{t("Other model…")}</Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
         </View>
       ) : null}
@@ -773,13 +769,13 @@ export default function ModelConnection() {
             value={modelId}
           />
           {probeModels.length ? (
-            <Pressable
+            <MotionPressable
+              preset="inline"
               accessibilityRole="button"
               onPress={() => stageCompatibleModelId(probeModels[0] ?? "")}
-              style={({ pressed }) => [pressed && styles.pressed]}
             >
               <Text style={styles.textAction}>{t("Use a found model")}</Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
         </>
       )}
@@ -976,9 +972,12 @@ export default function ModelConnection() {
               {oauth.mode === "auth-url" ? (
                 <>
                   <Text style={styles.secondary}>{t("Finish signing in in your browser:")}</Text>
-                  <Pressable onPress={() => void Linking.openURL(oauth.verificationUri)}>
+                  <MotionPressable
+                    preset="inline"
+                    onPress={() => void Linking.openURL(oauth.verificationUri)}
+                  >
                     <Text style={styles.link}>{oauth.verificationUri}</Text>
-                  </Pressable>
+                  </MotionPressable>
                   <Text style={styles.secondary}>{t("Then paste the code here.")}</Text>
                   <TextInput
                     accessibilityLabel={t("Authorization code")}
@@ -1007,9 +1006,12 @@ export default function ModelConnection() {
                   <Text style={styles.secondary}>
                     {t("A sign-in page opened — enter this code there:")}
                   </Text>
-                  <Pressable onPress={() => void Linking.openURL(oauth.verificationUri)}>
+                  <MotionPressable
+                    preset="inline"
+                    onPress={() => void Linking.openURL(oauth.verificationUri)}
+                  >
                     <Text style={styles.link}>{oauth.verificationUri}</Text>
-                  </Pressable>
+                  </MotionPressable>
                   <Text style={styles.code}>{oauth.userCode}</Text>
                   <NativeActionButton
                     fill

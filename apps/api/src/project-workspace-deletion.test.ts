@@ -76,8 +76,24 @@ describe("deleteProjectWorkspaceWithContent", () => {
       ],
     });
     dbMocks.listBots.mockResolvedValue([
-      { id: "bot-1", userId: actor.userId, spaceId: actor.spaceId, name: "Bot 1", archivedAt: null, computerId: null, webhookSecretId: null },
-      { id: "bot-2", userId: actor.userId, spaceId: actor.spaceId, name: "Bot 2", archivedAt: null, computerId: null, webhookSecretId: null },
+      {
+        id: "bot-1",
+        userId: actor.userId,
+        spaceId: actor.spaceId,
+        name: "Bot 1",
+        archivedAt: null,
+        computerId: null,
+        webhookSecretId: null,
+      },
+      {
+        id: "bot-2",
+        userId: actor.userId,
+        spaceId: actor.spaceId,
+        name: "Bot 2",
+        archivedAt: null,
+        computerId: null,
+        webhookSecretId: null,
+      },
     ]);
     dbMocks.finalize.mockResolvedValue(undefined);
     adapterMocks.destroyBot.mockResolvedValue(undefined);

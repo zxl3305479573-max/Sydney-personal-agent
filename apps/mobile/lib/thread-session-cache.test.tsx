@@ -173,11 +173,15 @@ it("clears active runs together with messages so re-entry cannot resurrect the w
 });
 
 it("seeds a queued run from the send receipt before SSE or roster polling", () => {
-  const next = applySendActivity(null, { botId: "bot-a" }, {
-    threadId: "thread-a",
-    cursor: 12,
-    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
-  });
+  const next = applySendActivity(
+    null,
+    { botId: "bot-a" },
+    {
+      threadId: "thread-a",
+      cursor: 12,
+      runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+    },
+  );
   expect(next).toMatchObject({
     botId: "bot-a",
     threadId: "thread-a",
@@ -188,11 +192,15 @@ it("seeds a queued run from the send receipt before SSE or roster polling", () =
 });
 
 it("keeps accepted work when an older refresh omits the run", () => {
-  const accepted = applySendActivity(null, { botId: "bot-a" }, {
-    threadId: "thread-a",
-    cursor: 12,
-    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
-  })!;
+  const accepted = applySendActivity(
+    null,
+    { botId: "bot-a" },
+    {
+      threadId: "thread-a",
+      cursor: 12,
+      runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+    },
+  )!;
   const refreshed = retainAcceptedRuns(accepted, {
     ...accepted,
     cursor: 11,
@@ -208,9 +216,7 @@ it("keeps status live across separate screens after roster reconciliation and re
   const olderReq = newerReq - 1;
   threadSessionCache.reconcileRoster(scope, newerReq, {
     bots: [{ id: "bot-a", status: "running", unread: false }],
-    groups: [
-      { id: "group-a", unread: true, members: [{ status: "waiting_input" }] },
-    ],
+    groups: [{ id: "group-a", unread: true, members: [{ status: "waiting_input" }] }],
   });
   // Another mounted tab whose local state still holds an older "idle" / unread: true snapshot reads live truth.
   expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");

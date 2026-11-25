@@ -12,11 +12,11 @@ process.stdin.on("end", async () => {
     const base = "http://127.0.0.1:3100";
     const headers = { authorization: `Bearer ${input.bearer}` };
     const signedOut = await fetch(`${base}/api/auth/get-session`);
-    if (!signedOut.ok || await signedOut.json() !== null) throw new Error("signed out");
+    if (!signedOut.ok || (await signedOut.json()) !== null) throw new Error("signed out");
     const invalid = await fetch(`${base}/api/auth/get-session`, {
       headers: { authorization: `Bearer ${input.bearer}invalid` },
     });
-    if (!invalid.ok || await invalid.json() !== null) throw new Error("invalid session");
+    if (!invalid.ok || (await invalid.json()) !== null) throw new Error("invalid session");
     const session = await fetch(`${base}/api/auth/get-session`, { headers });
     if (!session.ok) throw new Error("session status");
     const sessionData = await session.json();
@@ -38,25 +38,38 @@ process.stdin.on("end", async () => {
     };
     if (input.transition?.auth) {
       const { email, password, operation } = input.transition.auth;
-      if (typeof email !== "string" || !/^restore-[a-f0-9]{32}@example\.invalid$/.test(email) ||
-          typeof password !== "string" || password.length < 16 ||
-          !["signup", "signin"].includes(operation)) {
+      if (
+        typeof email !== "string" ||
+        !/^restore-[a-f0-9]{32}@example\.invalid$/.test(email) ||
+        typeof password !== "string" ||
+        password.length < 16 ||
+        !["signup", "signin"].includes(operation)
+      ) {
         throw new Error("invalid synthetic authentication request");
       }
       const path = operation === "signup" ? "sign-up/email" : "sign-in/email";
       const response = await fetch(`${base}/api/auth/${path}`, {
         method: "POST",
         headers: { "content-type": "application/json", origin: "http://127.0.0.1:5173" },
-        body: JSON.stringify({ email, password, ...(operation === "signup" ? { name: "Restore Synthetic" } : {}) }),
+        body: JSON.stringify({
+          email,
+          password,
+          ...(operation === "signup" ? { name: "Restore Synthetic" } : {}),
+        }),
       });
       console.log(`synthetic_password_${operation}_http=${response.status}`);
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         const code = body?.code;
-        console.log(`synthetic_auth_error_code=${typeof code === "string" && /^[A-Z_]{1,64}$/.test(code) ? code : "unavailable"}`);
+        console.log(
+          `synthetic_auth_error_code=${typeof code === "string" && /^[A-Z_]{1,64}$/.test(code) ? code : "unavailable"}`,
+        );
         throw new Error("synthetic password authentication failed");
       }
-      const cookie = response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+      const cookie = response.headers
+        .getSetCookie()
+        .map((value) => value.split(";")[0])
+        .join("; ");
       console.log(`synthetic_password_cookie_present=${cookie ? 1 : 0}`);
       if (!cookie) throw new Error("synthetic session cookie missing");
       const syntheticSession = await fetch(`${base}/api/auth/get-session`, { headers: { cookie } });
@@ -84,8 +97,12 @@ process.stdin.on("end", async () => {
     console.log(`restored_bots_visible=${bots.length}`);
     if (input.transition?.personality === true) {
       const personalities = await rpc("personalities/list", null);
-      if (!Array.isArray(personalities) || !personalities.length ||
-          typeof personalities[0].instructions !== "string" || !personalities[0].instructions) {
+      if (
+        !Array.isArray(personalities) ||
+        !personalities.length ||
+        typeof personalities[0].instructions !== "string" ||
+        !personalities[0].instructions
+      ) {
         throw new Error("restored personality unavailable");
       }
       const created = await rpc("bots/create", {
@@ -102,15 +119,23 @@ process.stdin.on("end", async () => {
     if (!Array.isArray(groups)) throw new Error("groups response");
     console.log(`restored_groups_visible=${groups.length}`);
     if (input.transition?.verify) {
-      const botIds = bots.map((bot) => bot.id).sort().slice(0, 2);
-      if (botIds.length !== 2 || botIds[0] === botIds[1] ||
-          !Array.isArray(input.transition.verify) ||
-          input.transition.verify.length > 2) {
+      const botIds = bots
+        .map((bot) => bot.id)
+        .sort()
+        .slice(0, 2);
+      if (
+        botIds.length !== 2 ||
+        botIds[0] === botIds[1] ||
+        !Array.isArray(input.transition.verify) ||
+        input.transition.verify.length > 2
+      ) {
         throw new Error("invalid transition");
       }
       const matches = (group, name) =>
-        group.name === name && Array.isArray(group.members) &&
-        JSON.stringify(group.members.map((member) => member.botId).sort()) === JSON.stringify(botIds);
+        group.name === name &&
+        Array.isArray(group.members) &&
+        JSON.stringify(group.members.map((member) => member.botId).sort()) ===
+          JSON.stringify(botIds);
       for (const name of input.transition.verify) {
         if (groups.filter((group) => matches(group, name)).length !== 1) {
           throw new Error("cross-version group missing");
@@ -124,15 +149,20 @@ process.stdin.on("end", async () => {
         const created = await rpc("groups/create", { name: input.transition.create, botIds });
         if (!matches(created, input.transition.create)) throw new Error("group create mismatch");
         const after = await rpc("groups/list", null);
-        if (!Array.isArray(after) || after.filter((group) => matches(group, input.transition.create)).length !== 1) {
+        if (
+          !Array.isArray(after) ||
+          after.filter((group) => matches(group, input.transition.create)).length !== 1
+        ) {
           throw new Error("created group not visible");
         }
         console.log("synthetic_group_created=1");
       }
     }
     if (input.transition?.artifactVerify) {
-      if (!Array.isArray(input.transition.artifactVerify) ||
-          input.transition.artifactVerify.length > 2) {
+      if (
+        !Array.isArray(input.transition.artifactVerify) ||
+        input.transition.artifactVerify.length > 2
+      ) {
         throw new Error("invalid artifact transition");
       }
       const verifyArtifact = async (name) => {
@@ -158,7 +188,8 @@ process.stdin.on("end", async () => {
       }
     }
     const page = await rpc("threads/messages", {
-      botId: input.botId, around: { messageId: input.messageId },
+      botId: input.botId,
+      around: { messageId: input.messageId },
     });
     if (!Array.isArray(page?.messages) || page.messages.length === 0) {
       throw new Error("restored messages missing");
@@ -167,8 +198,13 @@ process.stdin.on("end", async () => {
     if (!selected || !Array.isArray(selected.blocks) || selected.blocks.length === 0) {
       throw new Error("selected encrypted message missing");
     }
-    const blocks = page.messages.flatMap((message) => Array.isArray(message.blocks) ? message.blocks : []);
-    if (!blocks.length || blocks.some((block) => block && typeof block === "object" && "$sealed" in block)) {
+    const blocks = page.messages.flatMap((message) =>
+      Array.isArray(message.blocks) ? message.blocks : [],
+    );
+    if (
+      !blocks.length ||
+      blocks.some((block) => block && typeof block === "object" && "$sealed" in block)
+    ) {
       throw new Error("message blocks not opened");
     }
     console.log(`restored_messages_visible=${page.messages.length}`);
@@ -178,12 +214,18 @@ process.stdin.on("end", async () => {
     for (const artifact of input.artifacts) {
       const result = await rpc("artifacts/getById", { artifactId: artifact.id });
       const encoded = result?.contentBase64;
-      if (typeof encoded !== "string" || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      if (
+        typeof encoded !== "string" ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)
+      ) {
         throw new Error("invalid artifact encoding");
       }
       const content = Buffer.from(encoded, "base64");
-      if (content.toString("base64") !== encoded || content.length !== artifact.size ||
-          createHash("sha256").update(content).digest("hex") !== artifact.hash) {
+      if (
+        content.toString("base64") !== encoded ||
+        content.length !== artifact.size ||
+        createHash("sha256").update(content).digest("hex") !== artifact.hash
+      ) {
         throw new Error("artifact mismatch");
       }
     }
@@ -192,7 +234,9 @@ process.stdin.on("end", async () => {
       throw new Error("missing synthetic outsider");
     }
     const outsiderHeaders = { authorization: `Bearer ${input.outsider.bearer}` };
-    const outsiderSession = await fetch(`${base}/api/auth/get-session`, { headers: outsiderHeaders });
+    const outsiderSession = await fetch(`${base}/api/auth/get-session`, {
+      headers: outsiderHeaders,
+    });
     if (!outsiderSession.ok || (await outsiderSession.json())?.user?.id !== input.outsider.userId) {
       throw new Error("synthetic outsider session invalid");
     }

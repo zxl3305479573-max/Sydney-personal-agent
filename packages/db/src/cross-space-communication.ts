@@ -27,19 +27,21 @@ export async function crossSpaceCommunicationAllowed(
     !sender ||
     !target ||
     sender.id === target.id ||
-    bots.some((bot) =>
-      !bot.spaceId || !bot.userId ||
-      (bot.projectWorkspaceId !== null &&
-        (typeof bot.projectWorkspaceId !== "string" || !bot.projectWorkspaceId))
+    bots.some(
+      (bot) =>
+        !bot.spaceId ||
+        !bot.userId ||
+        (bot.projectWorkspaceId !== null &&
+          (typeof bot.projectWorkspaceId !== "string" || !bot.projectWorkspaceId)),
     ) ||
     sender.projectWorkspaceId !== target.projectWorkspaceId
-  ) return false;
+  )
+    return false;
   if (sender.projectWorkspaceId !== null) {
     return sender.spaceId === target.spaceId && sender.userId === target.userId;
   }
   return (
-    sender.spaceId === target.spaceId ||
-    bots.every((bot) => bot.crossSpaceCommunication === true)
+    sender.spaceId === target.spaceId || bots.every((bot) => bot.crossSpaceCommunication === true)
   );
 }
 

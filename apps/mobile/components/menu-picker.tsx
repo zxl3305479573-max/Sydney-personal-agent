@@ -3,8 +3,9 @@ import { typeScale } from "@rakazo/ui-tokens";
 import type { ReactElement } from "react";
 import { cloneElement, useState } from "react";
 import type { ViewProps } from "react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { Chevron } from "./row-accessories";
 
@@ -126,13 +127,15 @@ export function MenuPicker({
   );
   if (onPress) {
     return (
-      <Pressable
+      <MotionPressable
+        preset="row"
+        highlightColor={styles.pressed.backgroundColor}
         {...row}
         onPress={onPress}
-        style={({ pressed }) => [rowStyle, divider && styles.divider, pressed && styles.pressed]}
+        style={[rowStyle, divider && styles.divider]}
       >
         {content}
-      </Pressable>
+      </MotionPressable>
     );
   }
   const menu = (

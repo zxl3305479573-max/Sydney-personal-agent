@@ -22,10 +22,12 @@ vi.mock("./api", () => ({
     (scope: ServerSessionScope) =>
       scope.apiBase === currentApiBase() && scope.sessionGeneration === currentSessionGeneration(),
   ),
-  replaceMobileSession: vi.fn(async (scope: ServerSessionScope, token: string, clearSelectedSpace: boolean) => {
-    if (clearSelectedSpace && !(await clearSpace())) throw new Error("storage unavailable");
-    return replaceSessionTokenIfCurrent(scope.sessionGeneration, token);
-  }),
+  replaceMobileSession: vi.fn(
+    async (scope: ServerSessionScope, token: string, clearSelectedSpace: boolean) => {
+      if (clearSelectedSpace && !(await clearSpace())) throw new Error("storage unavailable");
+      return replaceSessionTokenIfCurrent(scope.sessionGeneration, token);
+    },
+  ),
   fetchMobileJson: vi.fn(),
 }));
 vi.mock("./session", () => ({

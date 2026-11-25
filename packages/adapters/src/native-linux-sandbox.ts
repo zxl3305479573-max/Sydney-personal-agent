@@ -356,7 +356,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
     const checkedFile = ProjectFileOperationSchema.parse(file);
     const guarded = await this.guard(context, computer);
     const result = ProjectFileResultSchema.parse(
-      await this.transport("project_file", { folder: checkedFolder, file: checkedFile }, guarded, computer),
+      await this.transport(
+        "project_file",
+        { folder: checkedFolder, file: checkedFile },
+        guarded,
+        computer,
+      ),
     );
     if (
       result.operation !== checkedFile.operation &&
@@ -372,18 +377,26 @@ export class NativeLinuxSandbox implements SandboxProvider {
     command: ProjectCloudCommand,
     context: AdapterContext,
   ): Promise<ProjectCloudCommandResult> {
-    const teamHome = computerHomeKey({ mode: "team", spaceId: context.spaceId, userId: context.userId });
+    const teamHome = computerHomeKey({
+      mode: "team",
+      spaceId: context.spaceId,
+      userId: context.userId,
+    });
     if (
       computer.botId !== context.botId ||
       computer.botId === teamHome ||
       computer.botId === legacyTeamHomeKey(context.spaceId)
-    ) throw new Error("native_project_command_requires_dedicated_computer");
+    )
+      throw new Error("native_project_command_requires_dedicated_computer");
     const checkedFolder = ProjectCloudFolderSchema.parse(folder);
     const checkedCommand = ProjectCloudCommandSchema.parse(command);
     const guarded = await this.guard(context, computer);
     return ProjectCloudCommandResultSchema.parse(
       await this.transport(
-        "project_command", { folder: checkedFolder, command: checkedCommand }, guarded, computer,
+        "project_command",
+        { folder: checkedFolder, command: checkedCommand },
+        guarded,
+        computer,
       ),
     );
   }
@@ -391,7 +404,12 @@ export class NativeLinuxSandbox implements SandboxProvider {
   async projectCommandAvailable(computer: ComputerRef, context: AdapterContext): Promise<boolean> {
     if (computer.botId !== context.botId) return false;
     const guarded = await this.guard(context, computer);
-    const result = await this.transport("project_command_status", {}, guarded, computer) as unknown;
+    const result = (await this.transport(
+      "project_command_status",
+      {},
+      guarded,
+      computer,
+    )) as unknown;
     if (typeof result !== "object" || result === null || !("available" in result)) return false;
     return (result as { available?: unknown }).available === true;
   }

@@ -94,7 +94,8 @@ export async function loadVerifiedIntegrationsScopeForStartup(): Promise<Verifie
     typeof data.spaceId !== "string" ||
     !data.spaceId ||
     !(data.selectionId === null || typeof data.selectionId === "string")
-  ) throw new Error("Could not verify the saved server session");
+  )
+    throw new Error("Could not verify the saved server session");
   return {
     apiBase: data.apiBase,
     userId: data.userId,

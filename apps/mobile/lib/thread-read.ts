@@ -112,7 +112,9 @@ export function useThreadRead({
         ? threadSessionCache.beginUnreadWrite(cacheScope, cacheTarget, false)
         : null;
       if (activeThreadId.current) {
-        void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(() => undefined);
+        void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(
+          () => undefined,
+        );
       }
       // A read that waited in the queue skips once the user has left the chat, or marked it
       // unread meanwhile.

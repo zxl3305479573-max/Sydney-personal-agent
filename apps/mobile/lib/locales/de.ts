@@ -1362,6 +1362,24 @@ export const DE_MESSAGES: Record<string, string> = {
     "Gespeicherte ungesendete Nachrichten konnten nicht geladen werden. Neue nicht zugestellte Nachrichten können beim Schließen der App verloren gehen.",
   "Server settings or the saved session could not be verified.":
     "Servereinstellungen oder gespeicherte Sitzung konnten nicht überprüft werden.",
+  Duplicate: "Duplizieren",
+  Project: "Projekt",
+  "Space changed. Please try again.": "Der Space wurde geändert. Bitte versuche es erneut.",
+  "The project changed. Reopen the project and try again.":
+    "Das Projekt wurde geändert. Öffne das Projekt erneut und versuche es wieder.",
+  About: "Über",
+  "Could not download the update. Try again later.":
+    "Update konnte nicht heruntergeladen werden. Versuche es später erneut.",
+  "Current version": "Aktuelle Version",
+  "Downloading update…": "Update wird heruntergeladen…",
+  "Install and restart": "Installieren und neu starten",
+  "Installed build {build}": "Installierter Build {build}",
+  "Release notes": "Versionshinweise",
+  "Software update": "Softwareupdate",
+  "Update available": "Update verfügbar",
+  "Version {version}": "Version {version}",
+  "Version {version} available": "Version {version} verfügbar",
+  "Version {version} downloaded": "Version {version} heruntergeladen",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

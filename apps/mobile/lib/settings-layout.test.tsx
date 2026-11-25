@@ -37,7 +37,10 @@ vi.mock("expo-router", () => {
   Stack.Screen = () => null;
   return { Stack, useNavigation: () => sheet };
 });
-vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
+vi.mock("react-native", () => ({
+  Platform: { OS: "ios" },
+  StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1, absoluteFill: {} },
+}));
 vi.mock("../components/glass-title", () => ({
   floatingHeaderOptions: () => ({}),
   glassHeaderOptions: (title: string) => ({ title }),

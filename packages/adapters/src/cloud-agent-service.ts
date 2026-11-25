@@ -5,6 +5,7 @@ import type { CloudAgent, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   appendEventInTransaction,
   createThreadMessageInTransaction,
+  IsolationError,
   resolveConversationExecutionScope,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -48,8 +49,10 @@ export async function executeCloudAgentTool(
         data: { unread: false },
       });
       const scope = await resolveConversationExecutionScope(tx, {
-        spaceId: context.spaceId, userId: context.userId,
-        botId: context.botId, threadId: run.threadId,
+        spaceId: context.spaceId,
+        userId: context.userId,
+        botId: context.botId,
+        threadId: run.threadId,
       });
       const existing = await tx.cloudAgent.findUnique({
         where: { operationKey: context.operationId },
@@ -114,10 +117,18 @@ export async function executeCloudAgentTool(
         .notify(run.threadId, result.seq, result.firstResponseRunId)
         .catch(() => undefined);
   } else {
-    const scope = await resolveConversationExecutionScope(deps.prisma, {
-      spaceId: context.spaceId, userId: context.userId,
-      botId: context.botId, threadId: run.threadId,
-    });
+    let scope: Awaited<ReturnType<typeof resolveConversationExecutionScope>>;
+    try {
+      scope = await resolveConversationExecutionScope(deps.prisma, {
+        spaceId: context.spaceId,
+        userId: context.userId,
+        botId: context.botId,
+        threadId: run.threadId,
+      });
+    } catch (error) {
+      if (error instanceof IsolationError) return { error: "Unknown cloud agent." };
+      throw error;
+    }
     const owned = await deps.prisma.cloudAgent.findFirst({
       where: {
         id: String(args.id).trim(),

@@ -16,7 +16,10 @@ export function mountIntegrationCallback(app: Hono) {
       context.header("Referrer-Policy", "no-referrer");
       context.header("X-Content-Type-Options", "nosniff");
       context.header("X-Frame-Options", "DENY");
-      context.header("Content-Security-Policy", `default-src 'none'; script-src 'sha256-${scriptHash}'; base-uri 'none'; frame-ancestors 'none'`);
+      context.header(
+        "Content-Security-Policy",
+        `default-src 'none'; script-src 'sha256-${scriptHash}'; base-uri 'none'; frame-ancestors 'none'`,
+      );
       return context.html(page);
     });
   }

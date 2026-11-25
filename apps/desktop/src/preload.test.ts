@@ -78,7 +78,10 @@ describe("desktop preload bridge", () => {
     expect(invoke).toHaveBeenCalledWith("desktop.device.setAllowed", true);
     expect(Object.keys(bridge.projectDirectory!)).toEqual(["choose"]);
     await bridge.projectDirectory!.choose({ spaceId: "space-a", projectId: "project-a" });
-    expect(invoke).toHaveBeenCalledWith("desktop.projectDirectory.choose", { spaceId: "space-a", projectId: "project-a" });
+    expect(invoke).toHaveBeenCalledWith("desktop.projectDirectory.choose", {
+      spaceId: "space-a",
+      projectId: "project-a",
+    });
     await bridge.locale?.set("es-CL");
     expect(invoke).toHaveBeenCalledWith("desktop.locale.set", "es-CL");
     await bridge.oauth.open?.("https://provider.example.com/authorize");

@@ -320,10 +320,9 @@ export async function gateToolCall(
         resolved: approvalResolved,
         mode,
         mandatory: requiresMandatoryApproval,
-        steerable:
-          isProjectDeviceTool(name)
-            ? true
-            : guardedInNeverAsk && mode === "never"
+        steerable: isProjectDeviceTool(name)
+          ? true
+          : guardedInNeverAsk && mode === "never"
             ? !ctx.source.ownerStartedRun || (await isRunTainted(ctx))
             : undefined,
         consequential: requiresApprovalByDefault,

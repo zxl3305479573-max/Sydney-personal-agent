@@ -8,15 +8,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BotContextCards } from "../components/bot-context-cards";
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+  setItemAsync: vi.fn(async () => undefined),
+  deleteItemAsync: vi.fn(async () => undefined),
+}));
 vi.mock("./api", () => ({ rpc }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => "scope",
+  projectRequestOptions: async () => ({
+    requestContext: { headers: {} },
+    skipSpaceAuthRecovery: true,
+  }),
+}));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 vi.mock("./native", () => ({ native: {}, useMobileTokens: () => ({}) }));
 vi.mock("./user-error", () => ({ errorText: (error: Error) => error.message }));
+vi.mock("../components/glass-surface", () => ({
+  GlassSurface: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+}));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
 vi.mock("../components/profile-edit-dialog", () => ({ ProfileEditDialog: () => null }));
 vi.mock("react-native", () => {
   const view = ({ children }: { children?: ReactNode }) => createElement("div", null, children);
-  return { Alert: { alert: vi.fn() }, Pressable: view, Text: view, View: view };
+  return {
+    Alert: { alert: vi.fn() },
+    Platform: { OS: "ios" },
+    Pressable: view,
+    Text: view,
+    View: view,
+  };
 });
 
 let container: HTMLDivElement;

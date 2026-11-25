@@ -6,10 +6,7 @@ import { t } from "./i18n";
 
 export const FOREGROUND_FALLBACK_MS = 400;
 
-export function promptAiConsent(
-  recipient: AiRecipient,
-  privacyUrl?: string,
-): Promise<boolean> {
+export function promptAiConsent(recipient: AiRecipient, privacyUrl?: string): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     let dialogOpen = false;

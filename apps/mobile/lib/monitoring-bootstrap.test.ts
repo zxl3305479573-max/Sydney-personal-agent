@@ -66,9 +66,11 @@ describe("early monitoring bootstrap", () => {
   it("does not attach a session while server settings are unresolved or rejected", async () => {
     state.importBroken = false;
     let rejectLoad: (error: Error) => void = () => undefined;
-    state.load.mockReturnValue(new Promise((_resolve, reject) => {
-      rejectLoad = reject;
-    }));
+    state.load.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectLoad = reject;
+      }),
+    );
     const { startMobileMonitoring } = await import("./monitoring-bootstrap");
     startMobileMonitoring();
     await vi.waitFor(() => expect(state.sessionSubscribe).toHaveBeenCalledOnce());

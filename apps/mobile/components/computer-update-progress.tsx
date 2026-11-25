@@ -3,12 +3,13 @@ import { COMPUTER_UPDATE_STAGES } from "@rakazo/contracts";
 import { computerUpdateNeedsAttention, computerUpdateStages } from "@rakazo/core";
 import { usePathname } from "expo-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { computerUpdates } from "../lib/computer-updates";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 
@@ -50,8 +51,9 @@ export function ComputerUpdateProgress() {
     <>
       <View pointerEvents="box-none" style={[styles.pills, { top: insets.top + 8 }]}>
         {updates.map((update) => (
-          <Pressable
+          <MotionPressable
             key={update.id}
+            preset="control"
             accessibilityRole="button"
             onPress={() => {
               setError(false);
@@ -75,7 +77,7 @@ export function ComputerUpdateProgress() {
                 </Text>
               </View>
             </GlassSurface>
-          </Pressable>
+          </MotionPressable>
         ))}
       </View>
       <Modal

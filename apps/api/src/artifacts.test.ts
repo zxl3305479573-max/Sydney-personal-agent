@@ -68,19 +68,27 @@ describe("project artifact downloads", () => {
     const findRun = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "run-a" });
     const get = vi.fn().mockResolvedValue(Buffer.from("sample"));
     const deps = {
-      prisma: { artifact: { findFirst: findArtifact }, run: { findFirst: findRun } } as unknown as PrismaClient,
+      prisma: {
+        artifact: { findFirst: findArtifact },
+        run: { findFirst: findRun },
+      } as unknown as PrismaClient,
       artifacts: { get } as unknown as ArtifactStore,
     };
     const scope = { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-a" };
     const input = { artifactId: "artifact-a", projectId: "project-a", threadId: "thread-a" };
-    await expect(getProjectThreadArtifact(deps, actor, { ...input, threadId: "thread-b" })).rejects.toThrow();
+    await expect(
+      getProjectThreadArtifact(deps, actor, { ...input, threadId: "thread-b" }),
+    ).rejects.toThrow();
     expect(get).not.toHaveBeenCalled();
     await expect(getProjectThreadArtifact(deps, actor, input)).resolves.toMatchObject({
-      id: input.artifactId, name: "result.md", contentBase64: "c2FtcGxl",
+      id: input.artifactId,
+      name: "result.md",
+      contentBase64: "c2FtcGxl",
     });
     expect(findArtifact).toHaveBeenLastCalledWith({ where: { id: input.artifactId, ...scope } });
     expect(findRun).toHaveBeenLastCalledWith({
-      where: { id: "run-a", threadId: input.threadId, ...scope }, select: { id: true },
+      where: { id: "run-a", threadId: input.threadId, ...scope },
+      select: { id: true },
     });
     expect(get).toHaveBeenCalledExactlyOnceWith("fixture-key", expect.objectContaining(scope));
   });
@@ -573,7 +581,12 @@ describe("storeInboundAttachment", () => {
     });
     expect(replayed.bytes).toBeUndefined();
     expect(findFirst).toHaveBeenCalledWith({
-      where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: null, clientNonce: "nonce-1" },
+      where: {
+        spaceId: actor.spaceId,
+        userId: actor.userId,
+        projectWorkspaceId: null,
+        clientNonce: "nonce-1",
+      },
     });
     expect(fetch).not.toHaveBeenCalled();
     expect(put).not.toHaveBeenCalled();

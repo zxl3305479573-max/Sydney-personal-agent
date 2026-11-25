@@ -23,6 +23,7 @@ import { GlassSurface } from "../../components/glass-surface";
 import { glassHeaderOptions } from "../../components/glass-title";
 import { GroupAvatar } from "../../components/group-avatar";
 import { ConversationRow, FALLBACK_COLOR } from "../../components/inbox-rows";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
 import { ProjectDirectory } from "../../components/project-directory";
@@ -472,7 +473,9 @@ function ProjectContents({
     if (!removeMode || removing || !focused.current) return;
     const mode = removeMode;
     Alert.alert(
-      mode === "remove" ? text("删除项目？", "Remove project?") : text("删除空项目？", "Remove empty project?"),
+      mode === "remove"
+        ? text("删除项目？", "Remove project?")
+        : text("删除空项目？", "Remove empty project?"),
       mode === "remove"
         ? text(
             "将永久删除此项目及其中在 Sydney 中的小伙伴、群聊和聊天记录，不会删除你电脑中的本地文件。",
@@ -562,25 +565,25 @@ function ProjectContents({
               }
             : {
                 headerRight: () => (
-                  <Pressable
+                  <MotionPressable
+                    preset="control"
                     accessibilityRole="button"
                     accessibilityLabel={switchLabel}
                     onPress={() => router.dismissTo("/projects")}
                     hitSlop={8}
-                    style={({ pressed }) => ({
+                    style={{
                       backgroundColor: cardBg,
                       borderRadius: 999,
                       borderWidth: hairline,
                       borderColor: cardBorder,
                       paddingHorizontal: 12,
                       paddingVertical: 6,
-                      opacity: pressed ? 0.72 : 1,
-                    })}
+                    }}
                   >
                     <Text style={{ color: fg, fontSize: 13.5, fontWeight: "600" }}>
                       {switchLabel}
                     </Text>
-                  </Pressable>
+                  </MotionPressable>
                 ),
               }),
         }}
@@ -670,9 +673,7 @@ function ProjectContents({
         ) : !project ? (
           <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
             <ActivityIndicator color={mutedFg} />
-            <Text style={{ color: mutedFg }}>
-              {text("正在加载项目…", "Loading project…")}
-            </Text>
+            <Text style={{ color: mutedFg }}>{text("正在加载项目…", "Loading project…")}</Text>
           </View>
         ) : (
           <>
@@ -967,10 +968,7 @@ function ProjectConversationSection({
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text
-            accessibilityRole="header"
-            style={{ color: fg, fontSize: 18, fontWeight: "600" }}
-          >
+          <Text accessibilityRole="header" style={{ color: fg, fontSize: 18, fontWeight: "600" }}>
             {title}
           </Text>
           <View
@@ -983,17 +981,25 @@ function ProjectConversationSection({
               borderColor: chipBorder,
             }}
           >
-            <Text style={{ color: mutedFg, fontSize: 12.5, fontWeight: "600", fontVariant: ["tabular-nums"] }}>
+            <Text
+              style={{
+                color: mutedFg,
+                fontSize: 12.5,
+                fontWeight: "600",
+                fontVariant: ["tabular-nums"],
+              }}
+            >
               {items.length}
             </Text>
           </View>
         </View>
         {actionEnabled ? (
-          <Pressable
+          <MotionPressable
+            preset="control"
             accessibilityRole="button"
             accessibilityLabel={action}
             onPress={() => onAction?.()}
-            style={({ pressed }) => ({
+            style={{
               flexDirection: "row",
               alignItems: "center",
               gap: 4,
@@ -1003,12 +1009,11 @@ function ProjectConversationSection({
               backgroundColor: chipBg,
               borderWidth: hairline,
               borderColor: chipBorder,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <NativeSymbol ios="plus" android="add" size={14} color={fg} />
             <Text style={{ color: fg, fontSize: 13, fontWeight: "600" }}>{action}</Text>
-          </Pressable>
+          </MotionPressable>
         ) : null}
       </View>
 
@@ -1024,9 +1029,7 @@ function ProjectConversationSection({
         }}
       >
         {items.length === 0 ? (
-          <Text style={{ padding: 20, color: mutedFg, fontSize: 14 }}>
-            {emptyLabel}
-          </Text>
+          <Text style={{ padding: 20, color: mutedFg, fontSize: 14 }}>{emptyLabel}</Text>
         ) : (
           items.map((item, index) => {
             const statusLabel = conversationStatusLabel(item.status, translate);
@@ -1088,7 +1091,9 @@ function ProjectConversationSection({
                   />
                 </View>
                 {onSettings ? (
-                  <Pressable
+                  <MotionPressable
+                    preset="icon"
+                    highlightColor={chipBg}
                     accessibilityRole="button"
                     accessibilityLabel={
                       locale.startsWith("zh")
@@ -1096,14 +1101,13 @@ function ProjectConversationSection({
                         : `Chat actions for ${item.name}`
                     }
                     onPress={() => onSettings(item.id)}
-                    style={({ pressed }) => ({
+                    style={{
                       width: 40,
                       minHeight: 40,
                       borderRadius: 12,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: pressed ? chipBg : undefined,
-                    })}
+                    }}
                   >
                     <NativeSymbol
                       ios="ellipsis"
@@ -1111,7 +1115,7 @@ function ProjectConversationSection({
                       size={18}
                       color={mutedFg}
                     />
-                  </Pressable>
+                  </MotionPressable>
                 ) : null}
               </View>
             );

@@ -113,8 +113,7 @@ export function configureForegroundNotifications(): void {
               kind === "attention"
             ? prefs.needsAttention
             : prefs.messages;
-      const show =
-        prefs.enabled && categoryAllowed && !notificationTargetsThread(data, openThread);
+      const show = prefs.enabled && categoryAllowed && !notificationTargetsThread(data, openThread);
       return {
         shouldShowBanner: show,
         shouldShowList: show,

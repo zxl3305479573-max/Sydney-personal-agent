@@ -20,6 +20,7 @@ import type { ResolvedScopedTheme } from "../../lib/theme-pack";
 import type { UserBubble } from "../../lib/user-bubble";
 import { withUserBubble } from "../../lib/user-bubble";
 import { BotMention } from "../bot-mention";
+import { MotionPressable } from "../motion-pressable";
 import { NativeSymbol } from "../native-symbol";
 import type { MessageActionProps } from "./message-bubble";
 import type { MessageRowActions } from "./message-row";
@@ -122,7 +123,9 @@ function HelperMessageCard({
             }
       }
     >
-      <Pressable
+      <MotionPressable
+        preset="row"
+        highlightColor={pillBg}
         {...actionProps}
         onPress={() => {
           const toggle = () => {
@@ -209,7 +212,7 @@ function HelperMessageCard({
             </Text>
           ) : null}
         </View>
-      </Pressable>
+      </MotionPressable>
       {subagentOpen && (special.result || special.progress) ? (
         <View
           style={{
@@ -265,7 +268,8 @@ export function SpecialMessageCard(props: SpecialMessageCardProps) {
     const pillBg = isLight ? "#F8F6F2" : "#2A303B";
     const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
     return (
-      <Pressable
+      <MotionPressable
+        preset="card"
         {...actionProps}
         onPress={() => {
           if (href) Linking.openURL(href).catch(() => undefined);
@@ -332,7 +336,7 @@ export function SpecialMessageCard(props: SpecialMessageCardProps) {
             {special.branch}
           </Text>
         ) : null}
-      </Pressable>
+      </MotionPressable>
     );
   }
   if (special.kind === "child_bot") {

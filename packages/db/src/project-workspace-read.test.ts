@@ -17,7 +17,8 @@ const date = new Date("2026-11-10T00:00:00.000Z");
 describe("createProjectWorkspace", () => {
   it("throws ProjectWorkspaceConflictError when an existing id has a different name", async () => {
     const id = "a374627e-87a5-4f8d-a619-1c662ae431b7";
-    const query = vi.fn()
+    const query = vi
+      .fn()
       .mockResolvedValueOnce([{ projectDeletionClaimedAt: null }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -25,15 +26,17 @@ describe("createProjectWorkspace", () => {
     const tx = {
       $queryRaw: query,
       spaceMember: {
-        findUnique: vi.fn().mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
       },
     };
     const prisma = {
       $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
     } as unknown as PrismaClient;
-    await expect(createProjectWorkspace(prisma, actor, { id, name: "Different" })).rejects.toBeInstanceOf(
-      ProjectWorkspaceConflictError,
-    );
+    await expect(
+      createProjectWorkspace(prisma, actor, { id, name: "Different" }),
+    ).rejects.toBeInstanceOf(ProjectWorkspaceConflictError);
   });
 });
 
@@ -41,10 +44,16 @@ describe("renameProjectWorkspace", () => {
   it("updates only an active owned workspace under the project tenant context", async () => {
     const query = vi.fn(async (statement: { text: string; values: unknown[] }) => {
       if (statement.text.includes('UPDATE "project_workspaces"')) {
-        expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+        expect(currentDbContext()).toEqual({
+          kind: "tenant",
+          ...actor,
+          projectWorkspaceId: "project-a",
+        });
         expect(statement.text).toContain('w."deletingAt" IS NULL');
         expect(statement.text).toContain('s."deletingAt" IS NULL');
-        expect(statement.values).toEqual(expect.arrayContaining(["Renamed", "project-a", actor.spaceId, actor.userId]));
+        expect(statement.values).toEqual(
+          expect.arrayContaining(["Renamed", "project-a", actor.spaceId, actor.userId]),
+        );
         return [{ id: "project-a", name: "Renamed", createdAt: date, updatedAt: date }];
       }
       return [];
@@ -52,13 +61,17 @@ describe("renameProjectWorkspace", () => {
     const tx = {
       $queryRaw: query,
       spaceMember: {
-        findUnique: vi.fn().mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
       },
     };
     const prisma = {
       $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
     } as unknown as PrismaClient;
-    await expect(renameProjectWorkspace(prisma, actor, { id: "project-a", name: "  Renamed  " })).resolves.toEqual({
+    await expect(
+      renameProjectWorkspace(prisma, actor, { id: "project-a", name: "  Renamed  " }),
+    ).resolves.toEqual({
       id: "project-a",
       name: "Renamed",
       locationType: null,
@@ -73,13 +86,17 @@ describe("renameProjectWorkspace", () => {
     const tx = {
       $queryRaw: query,
       spaceMember: {
-        findUnique: vi.fn().mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ organizationId: "org", space: { deletingAt: null } }),
       },
     };
     const prisma = {
       $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
     } as unknown as PrismaClient;
-    await expect(renameProjectWorkspace(prisma, actor, { id: "project-missing", name: "New" })).resolves.toBeNull();
+    await expect(
+      renameProjectWorkspace(prisma, actor, { id: "project-missing", name: "New" }),
+    ).resolves.toBeNull();
   });
 });
 

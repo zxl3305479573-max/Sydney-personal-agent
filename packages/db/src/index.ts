@@ -34,9 +34,6 @@ export * from "./messaging.js";
 export * from "./model-credentials.js";
 export * from "./model-credits.js";
 export * from "./model-roles.js";
-export * from "./provider-transactions.js";
-export * from "./project-directory.js";
-export * from "./project-cloud-directory.js";
 export {
   AccountHasProjectWorkspacesError as ProjectAccountHasWorkspacesError,
   assertMemberHasNoProjectWorkspacesInOrg,
@@ -44,20 +41,14 @@ export {
   ProjectAccountDeletionInProgressError,
   releaseProjectAccountDeletionClaim,
 } from "./project-account-lifecycle.js";
-export {
-  createProjectWorkspace,
-  getProjectWorkspace,
-  listProjectWorkspaceRoster,
-  listProjectWorkspaces,
-  ProjectWorkspaceConflictError,
-  removeEmptyProjectWorkspace,
-  renameProjectWorkspace,
-} from "./project-workspace-read.js";
+export * from "./project-cloud-directory.js";
+export * from "./project-directory.js";
 export {
   conversationProjectId,
   conversationScopeWhere,
   runInProjectWorkspace,
 } from "./project-workspace-context.js";
+export type { ClaimedProjectRunTeardownTarget } from "./project-workspace-deletion.js";
 export {
   cancelClaimedProjectWorkspaceRuns,
   claimProjectWorkspaceDeletion,
@@ -71,7 +62,16 @@ export {
   releaseProjectWorkspaceDeletionClaim,
   renewProjectWorkspaceDeletionClaim,
 } from "./project-workspace-deletion.js";
-export type { ClaimedProjectRunTeardownTarget } from "./project-workspace-deletion.js";
+export {
+  createProjectWorkspace,
+  getProjectWorkspace,
+  listProjectWorkspaceRoster,
+  listProjectWorkspaces,
+  ProjectWorkspaceConflictError,
+  removeEmptyProjectWorkspace,
+  renameProjectWorkspace,
+} from "./project-workspace-read.js";
+export * from "./provider-transactions.js";
 export * from "./repos.js";
 export * from "./row-security.js";
 export * from "./run-secrets.js";

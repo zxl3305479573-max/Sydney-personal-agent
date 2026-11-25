@@ -1388,6 +1388,24 @@ export const JA_MESSAGES: Record<string, string> = {
     "保存された未送信メッセージを読み込めませんでした。未配信の新しいメッセージはアプリ終了時に失われる場合があります。",
   "Server settings or the saved session could not be verified.":
     "サーバー設定または保存されたセッションを確認できませんでした。",
+  Duplicate: "複製",
+  Project: "プロジェクト",
+  "Space changed. Please try again.": "スペースが変更されました。もう一度お試しください。",
+  "The project changed. Reopen the project and try again.":
+    "プロジェクトが変更されました。プロジェクトを開き直してもう一度お試しください。",
+  About: "このアプリについて",
+  "Could not download the update. Try again later.":
+    "アップデートをダウンロードできませんでした。後でもう一度お試しください。",
+  "Current version": "現在のバージョン",
+  "Downloading update…": "アップデートをダウンロード中…",
+  "Install and restart": "インストールして再起動",
+  "Installed build {build}": "インストール済みビルド {build}",
+  "Release notes": "リリースノート",
+  "Software update": "ソフトウェアアップデート",
+  "Update available": "アップデートが利用可能",
+  "Version {version}": "バージョン {version}",
+  "Version {version} available": "バージョン {version} が利用可能",
+  "Version {version} downloaded": "バージョン {version} をダウンロード済み",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };

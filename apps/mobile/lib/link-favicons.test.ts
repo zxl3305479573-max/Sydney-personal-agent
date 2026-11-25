@@ -45,7 +45,7 @@ describe("link favicons on mobile", () => {
     const unsubscribe = subscribeApiBase(changed);
     try {
       const pending = loadLinkFavicon("https://site.example.test", previous);
-      const rejected = expect(pending).rejects.toThrow("Server changed");
+      const rejected = expect(pending).rejects.toThrow(/server changed/i);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
       expect((await saveApiBase("https://new-api.example.test")).ok).toBe(true);
       expect(changed).toHaveBeenCalledTimes(1);

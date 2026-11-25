@@ -1395,6 +1395,24 @@ export const RU_MESSAGES: Record<string, string> = {
     "Не удалось загрузить сохраненные неотправленные сообщения. Новые недоставленные сообщения могут быть потеряны при закрытии приложения.",
   "Server settings or the saved session could not be verified.":
     "Не удалось проверить настройки сервера или сохраненную сессию.",
+  Duplicate: "Дублировать",
+  Project: "Проект",
+  "Space changed. Please try again.": "Пространство изменилось. Попробуйте снова.",
+  "The project changed. Reopen the project and try again.":
+    "Проект изменился. Откройте проект заново и попробуйте снова.",
+  About: "О приложении",
+  "Could not download the update. Try again later.":
+    "Не удалось загрузить обновление. Попробуйте позже.",
+  "Current version": "Текущая версия",
+  "Downloading update…": "Загрузка обновления…",
+  "Install and restart": "Установить и перезапустить",
+  "Installed build {build}": "Установленная сборка {build}",
+  "Release notes": "Примечания к выпуску",
+  "Software update": "Обновление приложения",
+  "Update available": "Доступно обновление",
+  "Version {version}": "Версия {version}",
+  "Version {version} available": "Доступна версия {version}",
+  "Version {version} downloaded": "Загружена версия {version}",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

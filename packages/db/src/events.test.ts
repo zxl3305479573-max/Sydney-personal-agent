@@ -73,7 +73,11 @@ function event(seq: number) {
   };
 }
 
-const homeConversation = (spaceId: string) => ({ spaceId, userId: "user-1", projectWorkspaceId: null });
+const homeConversation = (spaceId: string) => ({
+  spaceId,
+  userId: "user-1",
+  projectWorkspaceId: null,
+});
 
 function homeConversationQuery(spaceId: string, otherRows: unknown[] = []) {
   return vi.fn(async (query: Prisma.Sql | TemplateStringsArray) =>
@@ -1636,10 +1640,14 @@ describe("answerRunInput", () => {
       message: {
         findFirst: vi.fn().mockResolvedValue({
           id: "message-1",
-          blocks: [{
-            kind: "ask", text: "Read this file?", approvalEffectId: "current-effect",
-            actions: [{ id: "allow", label: "Allow once" }],
-          }],
+          blocks: [
+            {
+              kind: "ask",
+              text: "Read this file?",
+              approvalEffectId: "current-effect",
+              actions: [{ id: "allow", label: "Allow once" }],
+            },
+          ],
         }),
       },
       externalEffect: { findFirst: vi.fn() },
@@ -1647,17 +1655,29 @@ describe("answerRunInput", () => {
     const prisma = {
       $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     } as unknown as PrismaClient;
-    await expect(answerRunInput(prisma, {
-      spaceId: "workspace-1", threadId: "thread-1", runId: "run-1", messageId: "message-1",
-      answeredByUserId: "user-1", answer: "allow",
-      projectApproval: { projectId: "project-a", effectId: "old-effect" },
-    })).resolves.toBe(false);
-    expect(tx.run.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        id: "run-1", spaceId: "workspace-1", threadId: "thread-1", status: "waiting_input",
-        userId: "user-1", projectWorkspaceId: "project-a",
-      },
-    }));
+    await expect(
+      answerRunInput(prisma, {
+        spaceId: "workspace-1",
+        threadId: "thread-1",
+        runId: "run-1",
+        messageId: "message-1",
+        answeredByUserId: "user-1",
+        answer: "allow",
+        projectApproval: { projectId: "project-a", effectId: "old-effect" },
+      }),
+    ).resolves.toBe(false);
+    expect(tx.run.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "run-1",
+          spaceId: "workspace-1",
+          threadId: "thread-1",
+          status: "waiting_input",
+          userId: "user-1",
+          projectWorkspaceId: "project-a",
+        },
+      }),
+    );
     expect(tx.externalEffect.findFirst).not.toHaveBeenCalled();
     expect(tx.run.updateMany).not.toHaveBeenCalled();
   });
@@ -2366,14 +2386,20 @@ describe("answerWaitingRunWithTextInTransaction", () => {
       answer: "allow",
       block: {
         approvalEffectId: "effect-1",
-        actions: [{ id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }],
+        actions: [
+          { id: "allow", label: "Allow once" },
+          { id: "deny", label: "Deny" },
+        ],
       },
     },
     {
       answer: "没了",
       block: {
         approvalEffectId: "effect-1",
-        actions: [{ id: "allow", label: "Allow once" }, { id: "deny", label: "Deny" }],
+        actions: [
+          { id: "allow", label: "Allow once" },
+          { id: "deny", label: "Deny" },
+        ],
       },
     },
     { answer: "没了", block: { input: "secret" } },
@@ -5710,8 +5736,22 @@ it("checks cross-space peer permission inside the message transaction before cre
     task: { create: vi.fn() },
     run: { create: vi.fn(), findMany: vi.fn() },
     $queryRaw: vi.fn(async () => [
-      { id: "sender", spaceId: "a", userId: "user-a", projectWorkspaceId: null, crossSpaceCommunication: true, archivedAt: null },
-      { id: "target", spaceId: "b", userId: "user-b", projectWorkspaceId: null, crossSpaceCommunication: false, archivedAt: null },
+      {
+        id: "sender",
+        spaceId: "a",
+        userId: "user-a",
+        projectWorkspaceId: null,
+        crossSpaceCommunication: true,
+        archivedAt: null,
+      },
+      {
+        id: "target",
+        spaceId: "b",
+        userId: "user-b",
+        projectWorkspaceId: null,
+        crossSpaceCommunication: false,
+        archivedAt: null,
+      },
     ]),
   };
   const prisma = {

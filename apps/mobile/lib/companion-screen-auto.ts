@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { captureApiRequestContext, rpc, subscribeSpaceSelection } from "./api";
+import { getSnapshot as getCallSnapshot, subscribe as subscribeCall } from "./call-session";
 import {
   companionScreenState,
   subscribeCompanionScreenState,
@@ -9,8 +10,12 @@ import {
 } from "./companion-activity";
 import { captureScreenSendScope, screenSendScopeCurrent } from "./companion-screen-send";
 import { subscribeSessionGeneration } from "./session";
-import { getSnapshot as getCallSnapshot, subscribe as subscribeCall } from "./call-session";
-import { createSpeechOwner, getVoicePlaybackState, speakWithDeviceVoice, stopSpeaking } from "./voice";
+import {
+  createSpeechOwner,
+  getVoicePlaybackState,
+  speakWithDeviceVoice,
+  stopSpeaking,
+} from "./voice";
 
 type AutoState = {
   phase: "idle" | "starting" | "active" | "failed";
@@ -36,7 +41,9 @@ export function companionScreenAutoSnapshot(): AutoState {
 
 export function subscribeCompanionScreenAuto(listener: () => void): () => void {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function useCompanionScreenAuto(): AutoState {
@@ -64,13 +71,16 @@ export async function startCompanionScreenAuto(botId: string, speakReplies = fal
   const mine = ++generation;
   const controller = new AbortController();
   cancel = controller;
-  const current = () => generation === mine && !controller.signal.aborted && screenSendScopeCurrent(scope);
+  const current = () =>
+    generation === mine && !controller.signal.aborted && screenSendScopeCurrent(scope);
   const ensureCurrent = () => {
     if (current()) return true;
     if (generation === mine) stopCompanionScreenAuto();
     return false;
   };
-  const stopIfChanged = () => { if (!current()) stopCompanionScreenAuto(); };
+  const stopIfChanged = () => {
+    if (!current()) stopCompanionScreenAuto();
+  };
   const offScreen = subscribeCompanionScreenState((value) => {
     if (value !== "capturing") stopCompanionScreenAuto();
   });
@@ -80,7 +90,13 @@ export async function startCompanionScreenAuto(botId: string, speakReplies = fal
   const offCall = subscribeCall(() => {
     if (getCallSnapshot()) stopSpeaking(speechOwner);
   });
-  cleanup = () => { offScreen(); offSession(); offSpace(); offCall(); stopSpeaking(speechOwner); };
+  cleanup = () => {
+    offScreen();
+    offSession();
+    offSpace();
+    offCall();
+    stopSpeaking(speechOwner);
+  };
   publish({ phase: "starting", botId });
   let sessionId: string | undefined;
   let context: Awaited<ReturnType<typeof captureApiRequestContext>> | undefined;
@@ -93,26 +109,46 @@ export async function startCompanionScreenAuto(botId: string, speakReplies = fal
     removeAppState = undefined;
     if (showingThinking && screenSendScopeCurrent(scope)) {
       showingThinking = false;
-      void updateCompanion({ botId, spaceId: scope.spaceId, activityId: scope.activityId, status: "present", latestReply: null }).catch(() => undefined);
+      void updateCompanion({
+        botId,
+        spaceId: scope.spaceId,
+        activityId: scope.activityId,
+        status: "present",
+        latestReply: null,
+      }).catch(() => undefined);
     }
     if (sessionId && context) {
       const id = sessionId;
       sessionId = undefined;
-      void rpc("threads/companionScreenStop", { botId, id }, { requestContext: context }).catch(() => undefined);
+      void rpc("threads/companionScreenStop", { botId, id }, { requestContext: context }).catch(
+        () => undefined,
+      );
     }
     lastText = "";
   };
   const previousCleanup = cleanup;
-  cleanup = () => { previousCleanup(); close(); };
+  cleanup = () => {
+    previousCleanup();
+    close();
+  };
   try {
-    if (await companionScreenState() !== "capturing" || !current()) throw new Error("屏幕共享已停止。");
+    if ((await companionScreenState()) !== "capturing" || !current())
+      throw new Error("屏幕共享已停止。");
     context = await captureApiRequestContext(scope.spaceId);
     if (!ensureCurrent()) return;
-    const started = await rpc("threads/companionScreenStart", { botId, confirmed: true }, {
-      requestContext: context, signal: controller.signal,
-    });
+    const started = await rpc(
+      "threads/companionScreenStart",
+      { botId, confirmed: true },
+      {
+        requestContext: context,
+        signal: controller.signal,
+      },
+    );
     sessionId = started.id;
-    if (!ensureCurrent()) { close(); return; }
+    if (!ensureCurrent()) {
+      close();
+      return;
+    }
     publish({ phase: "active", botId });
     const fail = () => {
       if (current()) {
@@ -148,37 +184,78 @@ export async function startCompanionScreenAuto(botId: string, speakReplies = fal
         if (!withinSession()) return;
         if (screen !== "capturing") throw new Error("屏幕共享已停止。");
         if (Date.now() < nextSendAt) {
-          timer = setTimeout(() => void tick(), Math.max(0, Math.min(
-            5_000, nextSendAt - Date.now(), started.expiresAt - Date.now(),
-          )));
+          timer = setTimeout(
+            () => void tick(),
+            Math.max(0, Math.min(5_000, nextSendAt - Date.now(), started.expiresAt - Date.now())),
+          );
           return;
         }
-        const text = (await takeCompanionScreenText())?.trim().slice(0, 2_000).replace(/[\uD800-\uDBFF]$/, "");
+        const text = (await takeCompanionScreenText())
+          ?.trim()
+          .slice(0, 2_000)
+          .replace(/[\uD800-\uDBFF]$/, "");
         if (!withinSession()) return;
         if (text && text !== lastText && Date.now() >= nextSendAt) {
           lastText = text;
           showingThinking = true;
-          await updateCompanion({ botId, spaceId: scope.spaceId, activityId: scope.activityId, status: "thinking", latestReply: null });
-          if (!withinSession()) return;
-          const result = await rpc("threads/companionScreenRespond", { botId, id: started.id, text }, {
-            requestContext: context, signal: controller.signal, allowConsentPrompt: false, timeoutMs: 20_000,
+          await updateCompanion({
+            botId,
+            spaceId: scope.spaceId,
+            activityId: scope.activityId,
+            status: "thinking",
+            latestReply: null,
           });
+          if (!withinSession()) return;
+          const result = await rpc(
+            "threads/companionScreenRespond",
+            { botId, id: started.id, text },
+            {
+              requestContext: context,
+              signal: controller.signal,
+              allowConsentPrompt: false,
+              timeoutMs: 20_000,
+            },
+          );
           nextSendAt = Date.now() + 30_000;
           if (!withinSession()) return;
           publish({ phase: "active", botId, reply: result.reply });
-          await updateCompanion({ botId, spaceId: scope.spaceId, activityId: scope.activityId, status: "present", latestReply: result.reply });
+          await updateCompanion({
+            botId,
+            spaceId: scope.spaceId,
+            activityId: scope.activityId,
+            status: "present",
+            latestReply: result.reply,
+          });
           showingThinking = false;
-          if (withinSession() && speakReplies && result.reply.trim() &&
-            !getCallSnapshot() && getVoicePlaybackState().status === "idle") {
+          if (
+            withinSession() &&
+            speakReplies &&
+            result.reply.trim() &&
+            !getCallSnapshot() &&
+            getVoicePlaybackState().status === "idle"
+          ) {
             void speakWithDeviceVoice(result.reply, botId, undefined, speechOwner).catch(() => {
-              if (current() && state.phase === "active" && state.botId === botId && state.reply === result.reply) {
-                publish({ phase: "active", botId, reply: result.reply, error: "语音播报失败，文字回应仍可查看。" });
+              if (
+                current() &&
+                state.phase === "active" &&
+                state.botId === botId &&
+                state.reply === result.reply
+              ) {
+                publish({
+                  phase: "active",
+                  botId,
+                  reply: result.reply,
+                  error: "语音播报失败，文字回应仍可查看。",
+                });
               }
             });
           }
         }
         if (withinSession()) {
-          timer = setTimeout(() => void tick(), Math.min(5_000, Math.max(0, started.expiresAt - Date.now())));
+          timer = setTimeout(
+            () => void tick(),
+            Math.min(5_000, Math.max(0, started.expiresAt - Date.now())),
+          );
         }
       } catch {
         fail();

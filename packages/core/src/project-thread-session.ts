@@ -337,7 +337,11 @@ export function createProjectThreadSession<Snapshot extends ProjectThreadHead>(o
         if (consent.recipients.some((recipient) => !recipient.allowed)) return false;
         if (pendingSend.current?.text !== text)
           pendingSend.current = { text, nonce: (options.nonce ?? newClientId)() };
-        const result = await options.send(text, pendingSend.current.nonce, signal) as ProjectSendResult;
+        const result = (await options.send(
+          text,
+          pendingSend.current.nonce,
+          signal,
+        )) as ProjectSendResult;
         if (!current()) return false;
         if (state.snapshot && options.onSendAccepted) {
           const accepted = options.onSendAccepted(state.snapshot, result);

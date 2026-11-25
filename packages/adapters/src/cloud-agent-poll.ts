@@ -61,8 +61,13 @@ export async function pollCloudAgent(
     const [card, member, bot] = await Promise.all([
       deps.prisma.message.findFirst({
         where: {
-          id: agent.messageId ?? "", threadId: agent.threadId,
-          thread: { spaceId: agent.spaceId, userId: agent.userId, projectWorkspaceId: agent.projectWorkspaceId },
+          id: agent.messageId ?? "",
+          threadId: agent.threadId,
+          thread: {
+            spaceId: agent.spaceId,
+            userId: agent.userId,
+            projectWorkspaceId: agent.projectWorkspaceId,
+          },
         },
         select: { id: true },
       }),
@@ -72,8 +77,11 @@ export async function pollCloudAgent(
       }),
       deps.prisma.bot.findFirst({
         where: {
-          id: agent.botId, spaceId: agent.spaceId, userId: agent.userId,
-          projectWorkspaceId: agent.projectWorkspaceId, archivedAt: null,
+          id: agent.botId,
+          spaceId: agent.spaceId,
+          userId: agent.userId,
+          projectWorkspaceId: agent.projectWorkspaceId,
+          archivedAt: null,
         },
       }),
     ]);
@@ -317,8 +325,11 @@ async function finishPoll(
       }),
       tx.bot.findFirst({
         where: {
-          id: agent.botId, spaceId: agent.spaceId, userId: agent.userId,
-          projectWorkspaceId: agent.projectWorkspaceId, archivedAt: null,
+          id: agent.botId,
+          spaceId: agent.spaceId,
+          userId: agent.userId,
+          projectWorkspaceId: agent.projectWorkspaceId,
+          archivedAt: null,
         },
         select: { id: true },
       }),
@@ -364,7 +375,9 @@ async function finishPoll(
       if (terminal && saved.wakeGeneration < saved.generation) {
         // Provider text is untrusted. Wake with local identity and status only.
         const summary = `Cloud agent ${agent.id} is ${status}. Use cloud_agent_status to inspect its result.`;
-        let executionScope;
+        let executionScope:
+          | Awaited<ReturnType<typeof resolveConversationExecutionScope>>
+          | undefined;
         try {
           executionScope = await resolveConversationExecutionScope(tx, agent);
         } catch (error) {

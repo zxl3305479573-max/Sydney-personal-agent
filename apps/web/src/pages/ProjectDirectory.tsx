@@ -100,92 +100,99 @@ export function ProjectDirectory({
   };
   return (
     <>
-    <section
-      className="mt-4 space-y-3 rounded-xl border p-4"
-      aria-label={text("项目目录", "Project folder")}
-    >
-      <h3 className="font-medium">{text("项目目录", "Project folder")}</h3>
-      <p role="status" className="text-sm text-muted-foreground">
-        {capability.isPending
-          ? text("正在读取目录能力…", "Checking folder support…")
-          : !available
-            ? text(
-                "服务器尚未开放项目目录绑定。",
-                "Project folder binding is not available on this server yet.",
-              )
-            : directory.error
+      <section
+        className="mt-4 space-y-3 rounded-xl border p-4"
+        aria-label={text("项目目录", "Project folder")}
+      >
+        <h3 className="font-medium">{text("项目目录", "Project folder")}</h3>
+        <p role="status" className="text-sm text-muted-foreground">
+          {capability.isPending
+            ? text("正在读取目录能力…", "Checking folder support…")
+            : !available
               ? text(
-                  "目录状态读取失败，请刷新。",
-                  "Could not load the folder status. Refresh to retry.",
+                  "服务器尚未开放项目目录绑定。",
+                  "Project folder binding is not available on this server yet.",
                 )
-              : directory.data
-                ? statuses[directory.data.status]
-                : text("正在读取目录状态…", "Loading folder status…")}
-      </p>
-      {!directory.error && available && directory.data?.binding ? (
-        <p className="break-words text-sm" dir="auto">
-          {directory.data.deviceName ?? text("绑定的电脑", "Bound computer")} ·{" "}
-          {directory.data.binding.directoryName} ·{" "}
-          {directory.data.binding.intent === "read-write"
-            ? text("可读取、修改文本并新建 Markdown", "Read and update text files, and create Markdown")
-            : text("只读", "Read only")}
+              : directory.error
+                ? text(
+                    "目录状态读取失败，请刷新。",
+                    "Could not load the folder status. Refresh to retry.",
+                  )
+                : directory.data
+                  ? statuses[directory.data.status]
+                  : text("正在读取目录状态…", "Loading folder status…")}
         </p>
-      ) : null}
-      {available ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={working || directory.isFetching}
-            onClick={() => void directory.refetch()}
-          >
-            {text("刷新目录状态", "Refresh folder status")}
-          </Button>
-          {directory.data?.binding ? (
+        {!directory.error && available && directory.data?.binding ? (
+          <p className="break-words text-sm" dir="auto">
+            {directory.data.deviceName ?? text("绑定的电脑", "Bound computer")} ·{" "}
+            {directory.data.binding.directoryName} ·{" "}
+            {directory.data.binding.intent === "read-write"
+              ? text(
+                  "可读取、修改文本并新建 Markdown",
+                  "Read and update text files, and create Markdown",
+                )
+              : text("只读", "Read only")}
+          </p>
+        ) : null}
+        {available ? (
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="secondary"
-              disabled={working || directory.isFetching || Boolean(directory.error)}
-              onClick={() => void change("remove")}
+              disabled={working || directory.isFetching}
+              onClick={() => void directory.refetch()}
             >
-              {text("撤销目录绑定", "Revoke folder binding")}
+              {text("刷新目录状态", "Refresh folder status")}
             </Button>
-          ) : (
-            <Button
-              type="button"
-              disabled={
-                working ||
-                !directory.data ||
-                Boolean(directory.error) ||
-                !desktopBridge()?.projectDirectory
-              }
-              onClick={() => void change("choose")}
-            >
-              {working
-                ? text("正在选择…", "Selecting…")
-                : text("选择本机目录", "Choose local folder")}
-            </Button>
+            {directory.data?.binding ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={working || directory.isFetching || Boolean(directory.error)}
+                onClick={() => void change("remove")}
+              >
+                {text("撤销目录绑定", "Revoke folder binding")}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={
+                  working ||
+                  !directory.data ||
+                  Boolean(directory.error) ||
+                  !desktopBridge()?.projectDirectory
+                }
+                onClick={() => void change("choose")}
+              >
+                {working
+                  ? text("正在选择…", "Selecting…")
+                  : text("选择本机目录", "Choose local folder")}
+              </Button>
+            )}
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {text(
+            "完整路径仅保存在本机；文件操作逐项审批，任意命令未开放。撤销不删除目录。",
+            "The full path stays on this computer. File operations require approval; arbitrary commands are not available. Revoking does not delete the folder.",
           )}
-        </div>
-      ) : null}
-      <p className="text-xs text-muted-foreground">
-        {text(
-          "完整路径仅保存在本机；文件操作逐项审批，任意命令未开放。撤销不删除目录。",
-          "The full path stays on this computer. File operations require approval; arbitrary commands are not available. Revoking does not delete the folder.",
-        )}
-      </p>
-      {notice ? (
-        <p role="status" className="text-sm">
-          {notice}
         </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="text-sm">
-          {error}
-        </p>
-      ) : null}
-    </section>
-    <ProjectCloudDirectory projectId={projectId} spaceId={spaceId} windowsBound={Boolean(directory.data?.binding)} />
+        {notice ? (
+          <p role="status" className="text-sm">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-sm">
+            {error}
+          </p>
+        ) : null}
+      </section>
+      <ProjectCloudDirectory
+        projectId={projectId}
+        spaceId={spaceId}
+        windowsBound={Boolean(directory.data?.binding)}
+      />
     </>
   );
 }

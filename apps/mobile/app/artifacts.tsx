@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../components/bot-avatar";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeSymbol } from "../components/native-symbol";
 import { formatActivityRelativeTime } from "../lib/activity";
 import type { MobileBot } from "../lib/api";
@@ -303,7 +303,8 @@ export default function ArtifactsScreen() {
               )}
             </View>
           ) : queryActive && filtered?.length === 0 && nextCursor && searchPageFailed ? (
-            <Pressable
+            <MotionPressable
+              preset="control"
               accessibilityRole="button"
               onPress={() => {
                 autoFetchedCursorRef.current = null;
@@ -313,7 +314,7 @@ export default function ArtifactsScreen() {
             >
               <Text style={styles.empty}>{t("Could not load artifacts.")}</Text>
               <Text style={styles.empty}>{t("Try again.")}</Text>
-            </Pressable>
+            </MotionPressable>
           ) : queryActive &&
             filtered?.length === 0 &&
             nextCursor &&
@@ -364,7 +365,8 @@ function Chip({
 }) {
   const styles = useThemedStyles(createStyles);
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
@@ -375,7 +377,7 @@ function Chip({
       <Text style={[styles.chipLabel, active && styles.chipLabelActive]} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -394,13 +396,15 @@ function ArtifactRow({
   const { t } = useI18n();
   const isCode = item.mimeType === "text/html";
   return (
-    <Pressable
+    <MotionPressable
+      preset="row"
+      highlightColor={native.fillPressed}
       accessibilityRole="button"
       accessibilityLabel={bot ? `${item.name}, ${bot.name}` : item.name}
       accessibilityHint={t("Long press to delete")}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      style={styles.row}
     >
       <View style={styles.rowIcon}>
         <NativeSymbol
@@ -435,7 +439,7 @@ function ArtifactRow({
           <Text style={styles.rowMeta}>{formatActivityRelativeTime(item.createdAt)}</Text>
         </View>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

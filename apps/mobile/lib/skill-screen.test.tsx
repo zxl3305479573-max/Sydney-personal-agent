@@ -20,6 +20,7 @@ vi.mock("./native-controls", () => ({ iosAtLeast: () => false }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({ primary: "#000", destructive: "#f00" }) }));
 vi.mock("./native", () => ({
   native: {},
+  useMobileTokens: () => ({ primary: "#000", destructive: "#f00" }),
   useThemedStyles: (create: () => unknown) => create(),
 }));
 vi.mock("./i18n", () => ({ t: mocks.t, useI18n: () => ({ t: mocks.t }) }));

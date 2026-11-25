@@ -333,9 +333,9 @@ describe("dispatchTool audit outcomes", () => {
     };
     vi.mocked(gateToolCall).mockClear();
 
-    await expect(
-      applyTool(ctx as never, "update_preferences", {}, "call-1"),
-    ).rejects.toThrow("already stopped");
+    await expect(applyTool(ctx as never, "update_preferences", {}, "call-1")).rejects.toThrow(
+      "already stopped",
+    );
     expect(gateToolCall).not.toHaveBeenCalled();
     expect(findUser).not.toHaveBeenCalled();
     expect(audited).toEqual([]);
@@ -372,9 +372,9 @@ describe("dispatchTool audit outcomes", () => {
     };
     vi.mocked(gateToolCall).mockClear();
 
-    await expect(
-      applyTool(ctx as never, "github_list", {}, "call-1"),
-    ).rejects.toThrow("stopped during resolve");
+    await expect(applyTool(ctx as never, "github_list", {}, "call-1")).rejects.toThrow(
+      "stopped during resolve",
+    );
     expect(resolveCall).toHaveBeenCalledOnce();
     expect(gateToolCall).not.toHaveBeenCalled();
     expect(executeTool).not.toHaveBeenCalled();
@@ -418,9 +418,9 @@ describe("dispatchTool audit outcomes", () => {
       return outcome;
     });
 
-    await expect(
-      applyTool(ctx as never, "update_preferences", {}, "call-1"),
-    ).rejects.toThrow("stopped in gate");
+    await expect(applyTool(ctx as never, "update_preferences", {}, "call-1")).rejects.toThrow(
+      "stopped in gate",
+    );
     expect(findUser).not.toHaveBeenCalled();
     expect(audited).toEqual([]);
   });

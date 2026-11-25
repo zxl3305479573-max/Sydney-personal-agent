@@ -6,9 +6,7 @@ import {
   replaceMobileSession,
 } from "./api";
 import { t } from "./i18n";
-import {
-  tokenFromAuthResponse,
-} from "./session";
+import { tokenFromAuthResponse } from "./session";
 import { authErrorText, authResponseErrorText, sessionSaveErrorText } from "./user-error";
 
 let inFlight = false;
@@ -23,8 +21,7 @@ export async function continueWithSso(
     const scope = captureServerSessionScope();
     const apiBase = scope.apiBase;
     const requireCurrentSession = () => {
-      if (!isServerSessionScopeCurrent(scope))
-        throw new Error(t("Could not continue"));
+      if (!isServerSessionScopeCurrent(scope)) throw new Error(t("Could not continue"));
     };
     const callbackURL = action === "sign-in" ? "rakazo://sign-in" : "rakazo://account";
     const headers = action === "sign-in" ? {} : await authHeaders();

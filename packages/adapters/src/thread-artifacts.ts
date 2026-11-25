@@ -21,7 +21,12 @@ import {
   validateAttachmentMimeType,
 } from "@rakazo/core";
 import type { Artifact, Prisma, PrismaClient } from "@rakazo/db";
-import { assertHomeArtifactWriteScope, conversationProjectId, IsolationError, withResolvedArtifactVersion } from "@rakazo/db";
+import {
+  assertHomeArtifactWriteScope,
+  conversationProjectId,
+  IsolationError,
+  withResolvedArtifactVersion,
+} from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { resolveBotWorkspacePath } from "./computer-support.js";
 
@@ -139,7 +144,9 @@ export async function attachWorkspaceFileToThread(
       return artifact;
     },
   ).catch(async (error) => {
-    await deps.artifacts.remove(stored.id, { ...context, signal: new AbortController().signal }).catch(() => undefined);
+    await deps.artifacts
+      .remove(stored.id, { ...context, signal: new AbortController().signal })
+      .catch(() => undefined);
     throw error;
   });
   return { artifactId: row.id, block: messageBlockForArtifact(row) };

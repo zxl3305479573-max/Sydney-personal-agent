@@ -171,28 +171,44 @@ if (process.env.VERIFY_DATABASE && !enabled)
     const createRun = await projectRunFixture(projectId, botId);
     const run = await createRun();
     const expected = {
-      ...actor, projectId, runId: run.id, taskId: run.taskId, threadId: run.threadId,
-      workerId: "fixture-worker", fence: 3,
+      ...actor,
+      projectId,
+      runId: run.id,
+      taskId: run.taskId,
+      threadId: run.threadId,
+      workerId: "fixture-worker",
+      fence: 3,
     };
     const pin = { kind: "windows", targetId: binding.deviceId, grantId, intent: binding.intent };
     expect(run.projectDirectoryPin).toEqual(pin);
     await expect(getRunningProjectDirectory(app.prisma, expected)).resolves.toEqual({
-      ...binding, deviceName: "Fixture computer",
+      ...binding,
+      deviceName: "Fixture computer",
     });
     for (const changed of [
-      { projectId: alternateProjectId }, { fence: 2 }, { workerId: "other-worker" },
-      { threadId: "other-thread" }, { taskId: "other-task" }, { userId: second.userId },
+      { projectId: alternateProjectId },
+      { fence: 2 },
+      { workerId: "other-worker" },
+      { threadId: "other-thread" },
+      { taskId: "other-task" },
+      { userId: second.userId },
     ]) {
-      await expect(getRunningProjectDirectory(app.prisma, { ...expected, ...changed })).resolves.toBeNull();
+      await expect(
+        getRunningProjectDirectory(app.prisma, { ...expected, ...changed }),
+      ).resolves.toBeNull();
     }
     const replacement = { ...binding, grantId: randomUUID() };
-    await expect(runAsSystem("try changing a synthetic run pin", () =>
-      owner.prisma.run.update({
-        where: { id: run.id },
-        data: { projectDirectoryPin: { ...pin, grantId: replacement.grantId } },
-      }),
-    )).rejects.toThrow("The project run directory pin cannot be changed");
-    await expect(removeProjectDirectoryBinding(app.prisma, actor, projectId, grantId)).resolves.toBe(true);
+    await expect(
+      runAsSystem("try changing a synthetic run pin", () =>
+        owner.prisma.run.update({
+          where: { id: run.id },
+          data: { projectDirectoryPin: { ...pin, grantId: replacement.grantId } },
+        }),
+      ),
+    ).rejects.toThrow("The project run directory pin cannot be changed");
+    await expect(
+      removeProjectDirectoryBinding(app.prisma, actor, projectId, grantId),
+    ).resolves.toBe(true);
     const unbound = await createRun();
     expect(unbound.projectDirectoryPin).toBeNull();
     await expect(
@@ -201,12 +217,17 @@ if (process.env.VERIFY_DATABASE && !enabled)
     const next = await createRun("follow_up");
     expect(next.projectDirectoryPin).toEqual({ ...pin, grantId: replacement.grantId });
     await expect(getRunningProjectDirectory(app.prisma, expected)).resolves.toBeNull();
-    await expect(getRunningProjectDirectory(app.prisma, {
-      ...expected, runId: unbound.id, taskId: unbound.taskId,
-    })).resolves.toBeNull();
+    await expect(
+      getRunningProjectDirectory(app.prisma, {
+        ...expected,
+        runId: unbound.id,
+        taskId: unbound.taskId,
+      }),
+    ).resolves.toBeNull();
     const nextScope = { ...expected, runId: next.id, taskId: next.taskId };
     await expect(getRunningProjectDirectory(app.prisma, nextScope)).resolves.toEqual({
-      ...replacement, deviceName: "Fixture computer",
+      ...replacement,
+      deviceName: "Fixture computer",
     });
     await runAsSystem("cancel synthetic running project file task", () =>
       owner.prisma.run.updateMany({
@@ -215,32 +236,42 @@ if (process.env.VERIFY_DATABASE && !enabled)
       }),
     );
     await expect(getRunningProjectDirectory(app.prisma, nextScope)).resolves.toBeNull();
-    await expect(removeProjectDirectoryBinding(app.prisma, actor, projectId, replacement.grantId))
-      .resolves.toBe(true);
-    await expect(bindProjectDirectory(app.prisma, actor, projectId, first.sessionId, binding))
-      .resolves.toEqual(binding);
+    await expect(
+      removeProjectDirectoryBinding(app.prisma, actor, projectId, replacement.grantId),
+    ).resolves.toBe(true);
+    await expect(
+      bindProjectDirectory(app.prisma, actor, projectId, first.sessionId, binding),
+    ).resolves.toEqual(binding);
   });
 
   it("pins the cloud computer owner and excludes a simultaneous Windows binding", async () => {
     const computer = await runAsSystem("seed a synthetic native cloud computer", () =>
-      owner.prisma.computer.create({ data: {
-        ...actor,
-        kind: "native-linux",
-        scope: "dedicated",
-        scopeKey: `project-cloud-key-${suffix}`,
-        homeKey: `project-cloud-home-${suffix}`,
-        state: "running",
-        providerRef: "native:0123456789abcdef",
-      } }),
+      owner.prisma.computer.create({
+        data: {
+          ...actor,
+          kind: "native-linux",
+          scope: "dedicated",
+          scopeKey: `project-cloud-key-${suffix}`,
+          homeKey: `project-cloud-home-${suffix}`,
+          state: "running",
+          providerRef: "native:0123456789abcdef",
+        },
+      }),
     );
     const input = {
-      computerId: computer.id, providerRef: computer.providerRef!,
-      folder: { path: "sample", device: "1", inode: "2" }, intent: "read-only" as const,
+      computerId: computer.id,
+      providerRef: computer.providerRef!,
+      folder: { path: "sample", device: "1", inode: "2" },
+      intent: "read-only" as const,
     };
     let grantId: string | undefined;
     try {
-      await expect(bindProjectCloudDirectory(app.prisma, actor, projectId, input)).resolves.toBe(false);
-      await expect(bindProjectCloudDirectory(app.prisma, actor, alternateProjectId, input)).resolves.toBe(true);
+      await expect(bindProjectCloudDirectory(app.prisma, actor, projectId, input)).resolves.toBe(
+        false,
+      );
+      await expect(
+        bindProjectCloudDirectory(app.prisma, actor, alternateProjectId, input),
+      ).resolves.toBe(true);
       const saved = await getProjectCloudDirectory(app.prisma, actor, alternateProjectId);
       expect(saved).toMatchObject({ ...input, available: true });
       grantId = saved?.grantId;
@@ -248,36 +279,58 @@ if (process.env.VERIFY_DATABASE && !enabled)
       const createRun = await projectRunFixture(alternateProjectId, cloudBotId);
       const run = await createRun();
       const runScope = {
-        id: run.id, threadId: run.threadId, taskId: run.taskId, workerId: "fixture-worker", fence: 3,
+        id: run.id,
+        threadId: run.threadId,
+        taskId: run.taskId,
+        workerId: "fixture-worker",
+        fence: 3,
       };
       expect(run.projectDirectoryPin).toEqual({
-        kind: "cloud", targetId: computer.id, grantId, intent: input.intent,
+        kind: "cloud",
+        targetId: computer.id,
+        grantId,
+        intent: input.intent,
       });
-      await expect(getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope))
-        .resolves.toMatchObject({ grantId, available: true });
-      await expect(getProjectCloudDirectory(app.prisma, { spaceId, userId: second.userId }, alternateProjectId))
-        .resolves.toBeNull();
-      await expect(bindProjectDirectory(app.prisma, actor, alternateProjectId, first.sessionId, {
-        ...binding, grantId: randomUUID(),
-      })).resolves.toBeNull();
-      await expect(unbindProjectCloudDirectory(app.prisma, actor, alternateProjectId, grantId!))
-        .resolves.toBe(true);
-      await expect(bindProjectCloudDirectory(app.prisma, actor, alternateProjectId, input))
-        .resolves.toBe(true);
+      await expect(
+        getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope),
+      ).resolves.toMatchObject({ grantId, available: true });
+      await expect(
+        getProjectCloudDirectory(
+          app.prisma,
+          { spaceId, userId: second.userId },
+          alternateProjectId,
+        ),
+      ).resolves.toBeNull();
+      await expect(
+        bindProjectDirectory(app.prisma, actor, alternateProjectId, first.sessionId, {
+          ...binding,
+          grantId: randomUUID(),
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        unbindProjectCloudDirectory(app.prisma, actor, alternateProjectId, grantId!),
+      ).resolves.toBe(true);
+      await expect(
+        bindProjectCloudDirectory(app.prisma, actor, alternateProjectId, input),
+      ).resolves.toBe(true);
       const replacement = await getProjectCloudDirectory(app.prisma, actor, alternateProjectId);
       expect(replacement?.grantId).not.toBe(grantId);
       grantId = replacement?.grantId;
-      await expect(getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope))
-        .resolves.toBeNull();
+      await expect(
+        getProjectCloudDirectory(app.prisma, actor, alternateProjectId, runScope),
+      ).resolves.toBeNull();
       await runAsSystem("replace the synthetic native cloud generation", () =>
         owner.prisma.computer.update({
-          where: { id: computer.id }, data: { providerRef: "native:replacement01234" },
+          where: { id: computer.id },
+          data: { providerRef: "native:replacement01234" },
         }),
       );
-      await expect(getProjectCloudDirectory(app.prisma, actor, alternateProjectId))
-        .resolves.toMatchObject({ available: false });
+      await expect(
+        getProjectCloudDirectory(app.prisma, actor, alternateProjectId),
+      ).resolves.toMatchObject({ available: false });
     } finally {
-      if (grantId) await unbindProjectCloudDirectory(app.prisma, actor, alternateProjectId, grantId);
+      if (grantId)
+        await unbindProjectCloudDirectory(app.prisma, actor, alternateProjectId, grantId);
     }
   });
   it("binds idempotently and refuses a replacement without explicit unbinding", async () => {
@@ -337,15 +390,24 @@ if (process.env.VERIFY_DATABASE && !enabled)
       }),
     );
     const target = { ...scope, botId: id, threadId: thread.id };
-    return (trigger = "user") => runAsTenant(scope, () =>
-      app.prisma.$transaction(async (tx) => {
-        const task = await tx.task.create({ data: { ...target, prompt: "fixture", status: "running" } });
-        return tx.run.create({ data: {
-          ...target, taskId: task.id, status: "running", trigger,
-          leaseOwner: "fixture-worker", leaseFence: 3,
-          leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
-        } });
-      }),
-    );
+    return (trigger = "user") =>
+      runAsTenant(scope, () =>
+        app.prisma.$transaction(async (tx) => {
+          const task = await tx.task.create({
+            data: { ...target, prompt: "fixture", status: "running" },
+          });
+          return tx.run.create({
+            data: {
+              ...target,
+              taskId: task.id,
+              status: "running",
+              trigger,
+              leaseOwner: "fixture-worker",
+              leaseFence: 3,
+              leaseExpiresAt: new Date(Date.now() + 5 * 60_000),
+            },
+          });
+        }),
+      );
   }
 });

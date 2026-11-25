@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@rakazo/db";
-import { RunHistoryWriteError } from "@rakazo/db";
+import { RunHistoryWriteError, runAsSystem } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import { handoffToGroupBot, loadBotGroupDirectory } from "./group-handoff.js";
 
@@ -18,7 +18,15 @@ function harness(
   const runCreate = vi.fn(async () => ({ id: "run-b" }));
   const messageCreate = vi.fn(async (_args: unknown) => ({ id: "message-1" }));
   const tx = {
-    $queryRaw: vi.fn(async (..._args: unknown[]) => [{ id: "group-1" }]),
+    $queryRaw: vi.fn(
+      async (query: TemplateStringsArray | { strings: readonly string[] }, ..._args: unknown[]) => {
+        const sql = ("strings" in query ? query.strings : query).join("");
+        if (sql.includes('FROM "threads"')) {
+          return [{ spaceId: run.spaceId, userId: run.userId, projectWorkspaceId: null }];
+        }
+        return [{ id: "group-1" }];
+      },
+    ),
     chatGroup: {
       findFirst: vi.fn(async () => ({
         id: "group-1",
@@ -56,7 +64,9 @@ function harness(
     },
   };
   const prisma = {
-    $transaction: vi.fn(async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx)),
+    $transaction: vi.fn(async (callback: (value: typeof tx) => Promise<unknown>) =>
+      runAsSystem("group handoff test", () => callback(tx)),
+    ),
   } as unknown as PrismaClient;
   return {
     deps: {
@@ -411,7 +421,12 @@ describe("explicit group destinations", () => {
       }),
     ).resolves.toMatchObject({ error: "group is no longer available" });
     expect(h.messageCreate).not.toHaveBeenCalled();
-    expect(h.tx.$queryRaw.mock.calls[0]?.slice(1)).toEqual(["group-1", run.spaceId, run.userId]);
+    expect(h.tx.$queryRaw.mock.calls[0]?.slice(1)).toEqual([
+      "group-1",
+      run.spaceId,
+      run.userId,
+      null,
+    ]);
   });
 
   it("requires both bots to be active members of the destination", async () => {

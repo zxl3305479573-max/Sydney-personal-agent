@@ -235,15 +235,19 @@ export async function createPurchase(
 ) {
   const origin = await deps.prisma.$transaction(async (tx) => {
     const scope = await resolveConversationExecutionScope(tx, {
-      spaceId: context.spaceId, userId: context.userId,
-      botId: context.botId, threadId: run.threadId,
+      spaceId: context.spaceId,
+      userId: context.userId,
+      botId: context.botId,
+      threadId: run.threadId,
     });
     const thread = await tx.thread.findUniqueOrThrow({
       where: { id: run.threadId, ...scope },
       select: { historyCompactionGeneration: true },
     });
     return {
-      ...scope, botId: context.botId, threadId: run.threadId,
+      ...scope,
+      botId: context.botId,
+      threadId: run.threadId,
       threadGeneration: thread.historyCompactionGeneration,
     };
   });
@@ -309,17 +313,23 @@ export async function createPurchase(
   return purchaseView(purchase, snapshot.card);
 }
 
-export function assertPurchaseOperationScope(purchase: Purchase, owner: {
-  spaceId: string;
-  userId: string;
-  projectWorkspaceId: string | null;
-  botId: string;
-  threadId: string;
-}, providerId: string) {
+export function assertPurchaseOperationScope(
+  purchase: Purchase,
+  owner: {
+    spaceId: string;
+    userId: string;
+    projectWorkspaceId: string | null;
+    botId: string;
+    threadId: string;
+  },
+  providerId: string,
+) {
   if (
-    purchase.spaceId !== owner.spaceId || purchase.userId !== owner.userId ||
+    purchase.spaceId !== owner.spaceId ||
+    purchase.userId !== owner.userId ||
     purchase.projectWorkspaceId !== owner.projectWorkspaceId ||
-    purchase.botId !== owner.botId || purchase.threadId !== owner.threadId ||
+    purchase.botId !== owner.botId ||
+    purchase.threadId !== owner.threadId ||
     purchase.provider !== providerId
   )
     throw new Error("Purchase operation scope changed");

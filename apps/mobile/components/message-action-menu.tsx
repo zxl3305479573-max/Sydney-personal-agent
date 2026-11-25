@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
 import { messageMenuPlacement } from "../lib/message-menu-placement";
 import { useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 
 export type MessageMenuItem = {
   name: string;
@@ -109,22 +110,24 @@ export function MessageMenuHost() {
               }}
             >
               {menu.reactions.map((reaction) => (
-                <Pressable
+                <MotionPressable
                   key={reaction.emoji}
+                  preset="icon"
+                  highlightColor={tokens.accent}
                   accessibilityRole="button"
                   accessibilityLabel={reaction.emoji}
                   onPress={() => run(reaction.onPress)}
-                  style={({ pressed }) => ({
+                  style={{
                     width: 44,
                     height: 44,
                     borderRadius: 22,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: pressed ? tokens.accent : tokens.muted,
-                  })}
+                    backgroundColor: tokens.muted,
+                  }}
                 >
                   <Text style={{ fontSize: 24 }}>{reaction.emoji}</Text>
-                </Pressable>
+                </MotionPressable>
               ))}
             </View>
           ) : null}
@@ -136,24 +139,25 @@ export function MessageMenuHost() {
                 style={{ borderRadius: 18, overflow: "hidden", backgroundColor: tokens.card }}
               >
                 {group.map((item, index) => (
-                  <Pressable
+                  <MotionPressable
                     key={item.name}
+                    preset="row"
+                    highlightColor={tokens.muted}
                     accessibilityRole="menuitem"
                     onPress={() => run(item.onPress)}
-                    style={({ pressed }) => ({
+                    style={{
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 14,
                       paddingHorizontal: 18,
                       paddingVertical: 14,
-                      backgroundColor: pressed ? tokens.muted : undefined,
                       borderTopWidth: index > 0 ? StyleSheet.hairlineWidth : 0,
                       borderTopColor: tokens.border,
-                    })}
+                    }}
                   >
                     <Ionicons name={item.icon} size={20} color={tokens.foreground} />
                     <Text style={{ color: tokens.foreground, fontSize: 16 }}>{item.text}</Text>
-                  </Pressable>
+                  </MotionPressable>
                 ))}
               </View>
             ))}

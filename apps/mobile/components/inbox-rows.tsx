@@ -3,7 +3,7 @@ import { isRunWorking } from "@rakazo/core";
 import { botColors } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import Animated, {
   Easing,
   ReduceMotion,
@@ -32,6 +32,7 @@ import type { BotOrganizationUpdate } from "./bot-organize-modal";
 import { GroupAvatar } from "./group-avatar";
 import { createHomeStyles } from "./home-styles";
 import { InboxSwipeRow } from "./inbox-swipe-row";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export const FALLBACK_COLOR = botColors[3];
@@ -90,7 +91,9 @@ export function ConversationRow({
           ? styles.statusFailedPreview
           : null;
   return (
-    <Pressable
+    <MotionPressable
+      preset="row"
+      highlightColor={native.fillPressed}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !onPress, ...(chatId ? { selected } : {}) }}
@@ -106,14 +109,13 @@ export function ConversationRow({
       disabled={!onPress}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={({ pressed }) => [
+      style={[
         styles.row,
         compact ? styles.compactRow : null,
         roster && styles.rosterRow,
         roster && compact ? styles.compactRosterRow : null,
         selected && styles.rowSelected,
         selected && Platform.OS === "android" && { overflow: "hidden" },
-        pressed && Platform.OS !== "android" && styles.rowPressed,
       ]}
     >
       {avatar}
@@ -146,7 +148,7 @@ export function ConversationRow({
           </Text>
         ) : null}
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -156,15 +158,16 @@ export function ArchivedChatsRow({ count, onPress }: { count: number; onPress: (
   const { t } = useI18n();
   if (count < 1) return null;
   return (
-    <Pressable
+    <MotionPressable
+      preset="row"
+      highlightColor={native.fillPressed}
       accessibilityRole="button"
       accessibilityLabel={`${t("Archived")}, ${count}`}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         // Laid out like a section header, so it lines up with them whatever sits above it.
         styles.sectionToggle,
         styles.archivedRow,
-        pressed && styles.rowPressed,
       ]}
     >
       <Text style={styles.sectionTitle}>{t("Archived")}</Text>
@@ -175,7 +178,7 @@ export function ArchivedChatsRow({ count, onPress }: { count: number; onPress: (
         size={12}
         color={native.tertiaryLabel}
       />
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -247,8 +250,9 @@ export const PinnedTiles = memo(function PinnedTiles({
         const organize = () =>
           chat.kind === "bot" ? onLongPressBot(chat.bot) : onLongPressGroup(chat.group);
         return (
-          <Pressable
+          <MotionPressable
             key={`${chat.kind}-${id}`}
+            preset="card"
             accessibilityRole="button"
             accessibilityLabel={[name, statusLabel || null, unread ? t("unread") : null]
               .filter(Boolean)
@@ -264,11 +268,7 @@ export const PinnedTiles = memo(function PinnedTiles({
             }}
             onPress={() => (chat.kind === "bot" ? onOpenBot(chat.bot) : onOpenGroup(chat.group))}
             onLongPress={organize}
-            style={({ pressed }) => [
-              styles.pinnedTile,
-              selectedId === id ? styles.pinnedTileSelected : null,
-              pressed && styles.rowPressed,
-            ]}
+            style={[styles.pinnedTile, selectedId === id ? styles.pinnedTileSelected : null]}
           >
             {chat.kind === "bot" ? (
               <BotAvatar
@@ -292,7 +292,7 @@ export const PinnedTiles = memo(function PinnedTiles({
             <Text style={[styles.pinnedName, unread && styles.pinnedUnread]} numberOfLines={1}>
               {name}
             </Text>
-          </Pressable>
+          </MotionPressable>
         );
       })}
     </View>

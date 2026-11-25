@@ -2,7 +2,7 @@ import type { MessageBlock } from "@rakazo/contracts";
 import { typeScale } from "@rakazo/ui-tokens";
 import { useRef, useState } from "react";
 import type { ViewProps } from "react-native";
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import {
@@ -14,6 +14,7 @@ import { useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 const styles = StyleSheet.create({
@@ -153,7 +154,8 @@ export function ChoiceCard({
           ) : null}
         </View>
         {!readOnly && !answerId ? (
-          <Pressable
+          <MotionPressable
+            preset="icon"
             testID="choice-card-dismiss"
             accessibilityRole="button"
             accessibilityLabel={t("Dismiss")}
@@ -171,24 +173,26 @@ export function ChoiceCard({
             ]}
           >
             <NativeSymbol ios="xmark" android="close" size={13} color={softTaupe} />
-          </Pressable>
+          </MotionPressable>
         ) : null}
       </View>
       <View style={styles.options}>
         {choiceCardOptions({ ...block, answerId }).map((option) => {
           const chosen = option.id === answerId;
           return (
-            <Pressable
+            <MotionPressable
               key={option.id}
+              preset="control"
+              highlightColor={chosen ? undefined : pillPressedBg}
               accessibilityRole="button"
               accessibilityLabel={option.label}
               accessibilityState={{ disabled: readOnly || busy || chosen, selected: chosen }}
               disabled={readOnly || busy || chosen}
               onPress={() => void submit(option.id)}
-              style={({ pressed }) => [
+              style={[
                 styles.option,
                 {
-                  backgroundColor: pressed || chosen ? pillPressedBg : pillBg,
+                  backgroundColor: chosen ? pillPressedBg : pillBg,
                   borderWidth: hairline,
                   borderColor: pillBorder,
                   opacity: busy ? 0.6 : 1,
@@ -218,7 +222,7 @@ export function ChoiceCard({
               {chosen ? (
                 <NativeSymbol ios="checkmark" android="checkmark" size={15} color={softTaupe} />
               ) : null}
-            </Pressable>
+            </MotionPressable>
           );
         })}
       </View>

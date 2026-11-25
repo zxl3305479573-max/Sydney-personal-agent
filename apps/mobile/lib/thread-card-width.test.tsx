@@ -12,9 +12,11 @@ import type { MobileMessage } from "./api";
 vi.mock("react-native", async () => {
   const { createElement, useImperativeHandle } = await import("react");
   const flatten = (style: unknown): Record<string, unknown> =>
-    Array.isArray(style)
-      ? Object.assign({}, ...style.map(flatten))
-      : ((style as Record<string, unknown>) ?? {});
+    typeof style === "function"
+      ? flatten(style({ pressed: false }))
+      : Array.isArray(style)
+        ? Object.assign({}, ...style.map(flatten))
+        : ((style as Record<string, unknown>) ?? {});
   const element =
     (tag: string) =>
     ({

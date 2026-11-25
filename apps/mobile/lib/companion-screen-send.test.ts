@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  activity: { id: "a", botId: "bot", spaceId: "space" } as { id: string; botId: string; spaceId: string | null } | null,
+  activity: { id: "a", botId: "bot", spaceId: "space" } as {
+    id: string;
+    botId: string;
+    spaceId: string | null;
+  } | null,
   space: "space" as string | null,
   current: true,
   captureState: "capturing",
@@ -15,14 +19,20 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("./api", () => ({
-  captureServerSessionScope: () => ({ apiBase: "https://example.test", sessionGeneration: 1, endpointGeneration: 1 }),
+  captureServerSessionScope: () => ({
+    apiBase: "https://example.test",
+    sessionGeneration: 1,
+    endpointGeneration: 1,
+  }),
   isServerSessionScopeCurrent: () => state.current,
   selectedSpaceId: () => state.space,
   spaceSelectionSeq: () => state.spaceSelection,
   isSpaceSelectionPending: () => state.spacePending,
   subscribeSpaceSelection: (listener: () => void) => {
     state.spaceListener = listener;
-    return () => { state.spaceListener = undefined; };
+    return () => {
+      state.spaceListener = undefined;
+    };
   },
   captureApiRequestContext: state.context,
   rpc: state.rpc,
@@ -30,7 +40,9 @@ vi.mock("./api", () => ({
 vi.mock("./session", () => ({
   subscribeSessionGeneration: (listener: () => void) => {
     state.sessionListener = listener;
-    return () => { state.sessionListener = undefined; };
+    return () => {
+      state.sessionListener = undefined;
+    };
   },
 }));
 vi.mock("./companion-activity", () => ({
@@ -38,7 +50,9 @@ vi.mock("./companion-activity", () => ({
   companionScreenState: async () => state.captureState,
   subscribeCompanionScreenState: (listener: (value: string) => void) => {
     state.listener = listener;
-    return () => { state.listener = undefined; };
+    return () => {
+      state.listener = undefined;
+    };
   },
 }));
 
@@ -62,9 +76,15 @@ describe("reviewed screen text", () => {
   it("sends only reviewed text to the selected bot through the normal RPC", async () => {
     const scope = captureScreenSendScope("bot");
     await sendReviewedScreenText(scope, "  示例  ");
-    expect(state.rpc).toHaveBeenCalledWith("threads/send", expect.objectContaining({
-      botId: "bot", text: expect.stringContaining("示例"), clientNonce: expect.any(String),
-    }), expect.objectContaining({ requestContext: { headers: {} }, signal: expect.any(AbortSignal) }));
+    expect(state.rpc).toHaveBeenCalledWith(
+      "threads/send",
+      expect.objectContaining({
+        botId: "bot",
+        text: expect.stringContaining("示例"),
+        clientNonce: expect.any(String),
+      }),
+      expect.objectContaining({ requestContext: { headers: {} }, signal: expect.any(AbortSignal) }),
+    );
     expect(state.listener).toBeUndefined();
     expect(state.spaceListener).toBeUndefined();
   });
@@ -85,7 +105,12 @@ describe("reviewed screen text", () => {
   it("does not send if capture stops while the request context is loading", async () => {
     const scope = captureScreenSendScope("bot");
     let resolve!: (value: { headers: object }) => void;
-    state.context.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    state.context.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
     const sending = sendReviewedScreenText(scope, "text");
     await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
     state.listener?.("stopping");

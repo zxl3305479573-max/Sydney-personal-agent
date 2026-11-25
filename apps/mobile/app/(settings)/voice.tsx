@@ -9,17 +9,10 @@ import type { ColorTokens } from "@rakazo/ui-tokens";
 import { isCancelledError } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LoadFailure } from "../../components/load-failure";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSwitch } from "../../components/native-switch";
 import { Checkmark } from "../../components/row-accessories";
@@ -470,22 +463,20 @@ export default function VoiceSettings() {
         ) : null}
         {deviceSettings ? (
           <View style={styles.group}>
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               accessibilityRole="button"
               accessibilityState={{ selected: deviceVoice }}
               disabled={pending !== null || !deviceVoiceReady}
               onPress={() => void toggleDeviceVoice()}
-              style={({ pressed }) => [
-                styles.groupRow,
-                (pending !== null || !deviceVoiceReady) && styles.disabled,
-                pressed && styles.pressed,
-              ]}
+              style={[styles.groupRow, (pending !== null || !deviceVoiceReady) && styles.disabled]}
             >
               <View style={styles.rowCopy}>
                 <Text style={styles.cardTitle}>{t("This device")}</Text>
               </View>
               {deviceVoice ? <Checkmark /> : null}
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : null}
         {catalog.length ? (
@@ -493,24 +484,25 @@ export default function VoiceSettings() {
             {catalog.map((entry, index) => {
               const chosen = deviceVoiceReady && !deviceVoice && provider === entry.id;
               return (
-                <Pressable
+                <MotionPressable
+                  preset="row"
+                  highlightColor={native.fillPressed}
                   key={entry.id}
                   accessibilityRole="button"
                   accessibilityState={{ selected: chosen }}
                   disabled={pending !== null || !deviceVoiceReady}
                   onPress={() => void chooseProvider(entry.id)}
-                  style={({ pressed }) => [
+                  style={[
                     styles.groupRow,
                     index > 0 && styles.groupDivider,
                     (pending !== null || !deviceVoiceReady) && styles.disabled,
-                    pressed && styles.pressed,
                   ]}
                 >
                   <View style={styles.rowCopy}>
                     <Text style={styles.cardTitle}>{entry.name}</Text>
                   </View>
                   {chosen ? <Checkmark /> : null}
-                </Pressable>
+                </MotionPressable>
               );
             })}
           </View>
@@ -632,22 +624,23 @@ export default function VoiceSettings() {
             {voices.length ? (
               <View style={[styles.group, styles.voices]}>
                 {voices.map((voice, index) => (
-                  <Pressable
+                  <MotionPressable
+                    preset="row"
+                    highlightColor={native.fillPressed}
                     key={voice.id}
                     accessibilityRole="button"
                     accessibilityState={{ selected: voiceId === voice.id }}
                     disabled={pending !== null}
                     onPress={() => void chooseVoice(voice.id)}
-                    style={({ pressed }) => [
+                    style={[
                       styles.groupRow,
                       index > 0 && styles.groupDivider,
                       pending !== null && styles.disabled,
-                      pressed && styles.pressed,
                     ]}
                   >
                     <Text style={styles.voiceLabel}>{voice.label}</Text>
                     {voiceId === voice.id ? <Checkmark /> : null}
-                  </Pressable>
+                  </MotionPressable>
                 ))}
               </View>
             ) : null}

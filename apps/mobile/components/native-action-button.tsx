@@ -1,10 +1,11 @@
 import type { ColorTokens } from "@rakazo/ui-tokens";
-import { ActivityIndicator, Platform, Pressable, Text } from "react-native";
+import { ActivityIndicator, Platform, Text } from "react-native";
 import { native, useMobileTokens } from "../lib/native";
 import type { ActionProminence, NativeActionButtonProps } from "../lib/native-controls";
 import { actionAccessibilityState, actionFills, actionProminence } from "../lib/native-controls";
 import { androidRipple, withAlpha } from "../lib/ripple";
 import { useScopedTheme } from "../lib/scoped-theme-context";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 /** Android (and non-iOS) form buttons. iOS uses the SwiftUI button in the platform file. */
@@ -56,7 +57,8 @@ export function NativeActionButton({
       : 1
     : 0;
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
       accessibilityRole="button"
@@ -66,7 +68,7 @@ export function NativeActionButton({
       hitSlop={compact ? 8 : undefined}
       android_ripple={androidRipple(withAlpha(colors.label, 0.2))}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         {
           flexDirection: "row",
           gap: icon && label ? 6 : undefined,
@@ -82,7 +84,7 @@ export function NativeActionButton({
           backgroundColor: colors.background,
           borderWidth,
           borderColor: colors.border,
-          opacity: inactive ? 0.45 : pressed && Platform.OS !== "android" ? 0.7 : 1,
+          opacity: inactive ? 0.45 : 1,
         },
         style,
         Platform.OS === "android" && { overflow: "hidden" },
@@ -126,7 +128,7 @@ export function NativeActionButton({
           ) : null}
         </>
       )}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

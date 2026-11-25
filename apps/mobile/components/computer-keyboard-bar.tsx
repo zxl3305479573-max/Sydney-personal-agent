@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ComputerKeyboardCommand, ComputerKeyName } from "../lib/computer-keyboard";
@@ -9,6 +9,7 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { ComputerPointerMode } from "../lib/native-computer-control";
 import { androidRipple } from "../lib/ripple";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSegmentedControl } from "./native-segmented-control";
 import { NativeSymbol } from "./native-symbol";
 
@@ -256,19 +257,20 @@ function ComputerShortcut({
   const keyBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   const color = selected ? selectedFg : fg;
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled, selected }}
       android_ripple={androidRipple()}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         styles.key,
         {
           backgroundColor: selected ? selectedBg : keyBg,
           borderColor: selected ? "transparent" : keyBorder,
-          opacity: disabled ? 0.45 : pressed ? 0.68 : 1,
+          opacity: disabled ? 0.45 : 1,
         },
       ]}
     >
@@ -279,7 +281,7 @@ function ComputerShortcut({
           {label}
         </Text>
       )}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

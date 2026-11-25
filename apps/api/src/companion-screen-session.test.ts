@@ -20,31 +20,51 @@ describe("companion screen session", () => {
     const sessions = createCompanionScreenSessions({ now: () => time, intervalMs: 30 });
     const { id } = sessions.start(owner, true);
     let finish!: (value: string) => void;
-    const first = sessions.run(id, owner, () => new Promise<string>((resolve) => { finish = resolve; }));
+    const first = sessions.run(
+      id,
+      owner,
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
     await Promise.resolve();
     await expect(sessions.run(id, owner, async () => "second")).rejects.toThrow();
     finish("first");
     await expect(first).resolves.toBe("first");
     await expect(sessions.run(id, owner, async () => "second")).rejects.toThrow();
     time += 30;
-    await expect(sessions.run(id, owner, async () => { throw new Error("failed"); })).rejects.toThrow("failed");
+    await expect(
+      sessions.run(id, owner, async () => {
+        throw new Error("failed");
+      }),
+    ).rejects.toThrow("failed");
     await expect(sessions.run(id, owner, async () => "second")).rejects.toThrow();
   });
 
   it("aborts a stopped, expired, or replaced session and rejects late results", async () => {
     let time = 1_000;
-    const sessions = createCompanionScreenSessions({ now: () => time, lifetimeMs: 100, intervalMs: 1 });
+    const sessions = createCompanionScreenSessions({
+      now: () => time,
+      lifetimeMs: 100,
+      intervalMs: 1,
+    });
     for (const ending of ["stop", "expire", "replace"] as const) {
       const { id } = sessions.start(owner, true);
       let finish!: (value: string) => void;
       const onAbort = vi.fn();
       const pending = sessions.run(id, owner, (signal) => {
         signal.addEventListener("abort", onAbort);
-        return new Promise<string>((resolve) => { finish = resolve; });
+        return new Promise<string>((resolve) => {
+          finish = resolve;
+        });
       });
       await Promise.resolve();
       if (ending === "stop") sessions.stop(id, owner);
-      if (ending === "expire") { time += 100; sessions.isActive(id, owner); }
+      if (ending === "expire") {
+        time += 100;
+        sessions.isActive(id, owner);
+      }
       if (ending === "replace") sessions.start(owner, true);
       expect(onAbort).toHaveBeenCalledOnce();
       finish("late");
@@ -73,7 +93,9 @@ describe("companion screen session", () => {
     const second = sessions.start(secondOwner, true);
     await expect(sessions.run(second.id, secondOwner, async () => "second")).rejects.toThrow();
     time += 30;
-    await expect(sessions.run(second.id, secondOwner, async () => "second")).resolves.toBe("second");
+    await expect(sessions.run(second.id, secondOwner, async () => "second")).resolves.toBe(
+      "second",
+    );
   });
 
   it("does not overlap a previous task that ignores cancellation", async () => {
@@ -81,7 +103,14 @@ describe("companion screen session", () => {
     const sessions = createCompanionScreenSessions({ now: () => time, intervalMs: 30 });
     const first = sessions.start(owner, true);
     let finish!: (value: string) => void;
-    const pending = sessions.run(first.id, owner, () => new Promise<string>((resolve) => { finish = resolve; }));
+    const pending = sessions.run(
+      first.id,
+      owner,
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
     await Promise.resolve();
     sessions.stop(first.id, owner);
     await expect(pending).rejects.toThrow();

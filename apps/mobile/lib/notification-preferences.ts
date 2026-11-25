@@ -2,12 +2,13 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import type { NotificationPreferences } from "./notification-preferences-state";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   getCachedNotificationPreferences,
   isNotificationPreferencesLoaded,
-  type NotificationPreferences,
   normalizeNotificationPreferences,
+  notificationSummaryLabel,
   resetNotificationPreferencesStateForTest,
   setCachedNotificationPreferences,
   subscribeNotificationPreferences,
@@ -19,6 +20,7 @@ export {
   getCachedNotificationPreferences,
   isNotificationPreferencesLoaded,
   type NotificationPreferences,
+  notificationSummaryLabel,
   subscribeNotificationPreferences,
 };
 
@@ -129,18 +131,6 @@ export async function sendTestLocalNotification(locale: string): Promise<"sent" 
     trigger: null,
   });
   return "sent";
-}
-
-export function notificationSummaryLabel(
-  prefs: NotificationPreferences,
-  locale: string,
-): string {
-  const traditional = locale === "zh-TW";
-  const chinese = locale.startsWith("zh");
-  if (prefs.enabled) {
-    return chinese ? (traditional ? "已開啟" : "已开启") : "On";
-  }
-  return chinese ? (traditional ? "已關閉" : "已关闭") : "Off";
 }
 
 export function supportsLocalNotificationSettings(): boolean {

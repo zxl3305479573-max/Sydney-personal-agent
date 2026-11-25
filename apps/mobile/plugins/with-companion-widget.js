@@ -21,17 +21,28 @@ function withCompanionWidget(config) {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.cpSync(path.join(__dirname, "..", "ios-companion-widget"), targetDir, { recursive: true });
     fs.copyFileSync(
-      path.join(__dirname, "..", "modules", "sydney-companion", "ios", "CompanionActivityAttributes.swift"),
+      path.join(
+        __dirname,
+        "..",
+        "modules",
+        "sydney-companion",
+        "ios",
+        "CompanionActivityAttributes.swift",
+      ),
       path.join(targetDir, "CompanionActivityAttributes.swift"),
     );
-    const existingTarget = Object.values(project.pbxNativeTargetSection())
-      .some((entry) => typeof entry === "object" && entry?.name?.replaceAll('"', "") === TARGET);
+    const existingTarget = Object.values(project.pbxNativeTargetSection()).some(
+      (entry) => typeof entry === "object" && entry?.name?.replaceAll('"', "") === TARGET,
+    );
     if (!existingTarget) {
       const objects = project.hash.project.objects;
       objects.PBXTargetDependency ??= {};
       objects.PBXContainerItemProxy ??= {};
       const target = project.addTarget(
-        TARGET, "app_extension", TARGET, `${mod.ios.bundleIdentifier}.companion`,
+        TARGET,
+        "app_extension",
+        TARGET,
+        `${mod.ios.bundleIdentifier}.companion`,
       );
       const host = project.getFirstTarget().firstTarget;
       const copyPhases = host.buildPhases

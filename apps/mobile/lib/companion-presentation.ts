@@ -15,7 +15,9 @@ const STATUS_LABELS: Record<CompanionStatus, string> = {
 
 function boundedText(value: string, limit: number): string {
   const characters = Array.from(value.replace(/\s+/gu, " ").trim());
-  return characters.length > limit ? `${characters.slice(0, limit - 1).join("")}…` : characters.join("");
+  return characters.length > limit
+    ? `${characters.slice(0, limit - 1).join("")}…`
+    : characters.join("");
 }
 
 export function companionPresentation(options: {

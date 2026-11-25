@@ -26,6 +26,7 @@ import { useMobileTokens } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
 import { GlassSurface } from "./glass-surface";
 import { FALLBACK_COLOR } from "./inbox-rows";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 
@@ -240,12 +241,13 @@ export function ProjectGroupModal({
                 )}
               </Text>
             </View>
-            <Pressable
+            <MotionPressable
+              preset="icon"
               accessibilityRole="button"
               accessibilityLabel={text("取消", "Cancel")}
               disabled={busy}
               onPress={onClose}
-              style={({ pressed }) => ({
+              style={{
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -254,11 +256,10 @@ export function ProjectGroupModal({
                 borderColor: chipBorder,
                 alignItems: "center",
                 justifyContent: "center",
-                opacity: pressed ? 0.72 : 1,
-              })}
+              }}
             >
               <NativeSymbol ios="xmark" android="close" size={16} color={fg} />
-            </Pressable>
+            </MotionPressable>
           </View>
 
           <ScrollView
@@ -295,8 +296,10 @@ export function ProjectGroupModal({
                   const checked = selected.some((member) => member.id === item.id);
                   const rowDisabled = busy || (!checked && selected.length >= GROUP_MEMBER_MAX);
                   return (
-                    <Pressable
+                    <MotionPressable
                       key={item.id}
+                      preset="row"
+                      highlightColor={chipBg}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked, disabled: rowDisabled }}
                       disabled={rowDisabled}
@@ -305,7 +308,7 @@ export function ProjectGroupModal({
                           checked ? old.filter((member) => member.id !== item.id) : [...old, item],
                         )
                       }
-                      style={({ pressed }) => ({
+                      style={{
                         minHeight: 54,
                         paddingHorizontal: 16,
                         paddingVertical: 11,
@@ -315,8 +318,8 @@ export function ProjectGroupModal({
                         backgroundColor: checked ? chipBg : "transparent",
                         borderBottomWidth: index < items.length - 1 ? hairline : 0,
                         borderBottomColor: cardBorder,
-                        opacity: rowDisabled ? 0.5 : pressed ? 0.72 : 1,
-                      })}
+                        opacity: rowDisabled ? 0.5 : 1,
+                      }}
                     >
                       <BotAvatar
                         color={item.color || FALLBACK_COLOR}
@@ -334,7 +337,7 @@ export function ProjectGroupModal({
                         size={22}
                         color={checked ? (tokens?.primary ?? fg) : mutedFg}
                       />
-                    </Pressable>
+                    </MotionPressable>
                   );
                 })
               )}

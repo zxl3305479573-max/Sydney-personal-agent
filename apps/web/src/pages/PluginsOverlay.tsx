@@ -7,10 +7,7 @@ import type {
   IntegrationCatalogSurface,
   PluginMarketplaceEntry,
 } from "@rakazo/contracts";
-import {
-  CONNECTION_LABEL_MAX_LENGTH,
-  PluginPreviewSchema,
-} from "@rakazo/contracts";
+import { CONNECTION_LABEL_MAX_LENGTH, PluginPreviewSchema } from "@rakazo/contracts";
 import type { PluginCategory } from "@rakazo/core";
 import {
   buildFeaturedConnectorTiles,

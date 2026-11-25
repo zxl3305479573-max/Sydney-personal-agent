@@ -1,6 +1,7 @@
 import type { NativeStackNavigationOptions } from "expo-router";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, View } from "react-native";
 import { iosAtLeast } from "../lib/native-controls";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 /** One of a bot chat's actions in its "…" menu. */
@@ -73,24 +74,26 @@ export function threadHeaderRight({
       : {}),
     headerRight: () =>
       inGroup ? (
-        <Pressable
+        <MotionPressable
+          preset="icon"
           accessibilityRole="button"
           accessibilityLabel={t("Group settings")}
           hitSlop={8}
           onPress={onGroupSettings}
         >
           <NativeSymbol ios="gearshape" android="settings-outline" size={21} color={color} />
-        </Pressable>
+        </MotionPressable>
       ) : (
         <View style={rowStyle}>
-          <Pressable
+          <MotionPressable
+            preset="icon"
             accessibilityRole="button"
             accessibilityLabel={t("Bot actions")}
             hitSlop={8}
             onPress={onBotActions}
           >
             <NativeSymbol ios="ellipsis" android="ellipsis-horizontal" size={21} color={color} />
-          </Pressable>
+          </MotionPressable>
         </View>
       ),
   };

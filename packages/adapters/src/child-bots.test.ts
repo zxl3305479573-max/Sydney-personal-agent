@@ -76,11 +76,14 @@ function noGroupMemberships() {
 
 describe("spawned bot creation", () => {
   it("returns the existing child when a spawn is retried", async () => {
-    const findFirst = vi.fn().mockResolvedValueOnce({ id: "parent-1" }).mockResolvedValueOnce({
-      id: "child-1",
-      name: "Scout",
-      thread: { id: "thread-1" },
-    });
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "parent-1" })
+      .mockResolvedValueOnce({
+        id: "child-1",
+        name: "Scout",
+        thread: { id: "thread-1" },
+      });
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const findRun = vi.fn().mockResolvedValue({ id: "child-run-1" });
     const prisma = {
@@ -296,100 +299,103 @@ describe("spawned bot archival", () => {
 });
 
 describe("destroyBot", () => {
-  it.each([null, "project-a"])("moves explicitly retained memories into personal memory before deleting a Bot (%s)", async (projectWorkspaceId) => {
-    const createDeletion = vi.fn().mockResolvedValue({});
-    const deleteBot = vi.fn().mockResolvedValue({});
-    const executeRaw = vi.fn().mockResolvedValue(1);
-    const releaseComputers = vi.fn().mockResolvedValue({ count: 1 });
-    const removeArtifact = vi.fn().mockResolvedValue(undefined);
-    const findArtifacts = vi.fn().mockResolvedValue([{ storageKey: "stored-artifact" }]);
-    const deleteArtifacts = vi.fn().mockResolvedValue({ count: 1 });
-    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
-      callback({
-        $queryRaw: vi.fn().mockResolvedValue([{ id: "bot-1", projectWorkspaceId }]),
-        chatGroup: {
-          findMany: vi.fn().mockResolvedValue([]),
-          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  it.each([null, "project-a"])(
+    "moves explicitly retained memories into personal memory before deleting a Bot (%s)",
+    async (projectWorkspaceId) => {
+      const createDeletion = vi.fn().mockResolvedValue({});
+      const deleteBot = vi.fn().mockResolvedValue({});
+      const executeRaw = vi.fn().mockResolvedValue(1);
+      const releaseComputers = vi.fn().mockResolvedValue({ count: 1 });
+      const removeArtifact = vi.fn().mockResolvedValue(undefined);
+      const findArtifacts = vi.fn().mockResolvedValue([{ storageKey: "stored-artifact" }]);
+      const deleteArtifacts = vi.fn().mockResolvedValue({ count: 1 });
+      const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+        callback({
+          $queryRaw: vi.fn().mockResolvedValue([{ id: "bot-1", projectWorkspaceId }]),
+          chatGroup: {
+            findMany: vi.fn().mockResolvedValue([]),
+            deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+          },
+          artifact: { findMany: findArtifacts, deleteMany: deleteArtifacts },
+          computerExecutionLease: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          computer: { updateMany: releaseComputers },
+          $executeRaw: executeRaw,
+          botDeletion: { create: createDeletion },
+          bot: { delete: deleteBot },
+        }),
+      );
+      const prisma = {
+        bot: {
+          findUnique: vi.fn(),
         },
-        artifact: { findMany: findArtifacts, deleteMany: deleteArtifacts },
-        computerExecutionLease: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-        computer: { updateMany: releaseComputers },
-        $executeRaw: executeRaw,
-        botDeletion: { create: createDeletion },
-        bot: { delete: deleteBot },
-      }),
-    );
-    const prisma = {
-      bot: {
-        findUnique: vi.fn(),
-      },
-      computer: { findUnique: vi.fn().mockResolvedValue(null) },
-      run: {
-        findMany: vi.fn().mockResolvedValue([]),
-        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-      },
-      routine: { findMany: vi.fn().mockResolvedValue([]) },
-      $transaction: transaction,
-    } as unknown as PrismaClient;
+        computer: { findUnique: vi.fn().mockResolvedValue(null) },
+        run: {
+          findMany: vi.fn().mockResolvedValue([]),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        routine: { findMany: vi.fn().mockResolvedValue([]) },
+        $transaction: transaction,
+      } as unknown as PrismaClient;
 
-    await destroyBot(
-      {
-        prisma,
-        sandbox: {} as SandboxProvider,
-        home: {} as AgentHomeStore,
-        jobs: { cancel: vi.fn() } as unknown as JobPublisher,
-        artifacts: { remove: removeArtifact } as unknown as ArtifactStore,
-      },
-      {
-        id: "bot-1",
-        spaceId: "workspace-1",
-        userId: "user-1",
-        name: "Researcher",
-        archivedAt: null,
-      },
-      context,
-      { deleteMemories: false },
-    );
+      await destroyBot(
+        {
+          prisma,
+          sandbox: {} as SandboxProvider,
+          home: {} as AgentHomeStore,
+          jobs: { cancel: vi.fn() } as unknown as JobPublisher,
+          artifacts: { remove: removeArtifact } as unknown as ArtifactStore,
+        },
+        {
+          id: "bot-1",
+          spaceId: "workspace-1",
+          userId: "user-1",
+          name: "Researcher",
+          archivedAt: null,
+        },
+        context,
+        { deleteMemories: false },
+      );
 
-    expect(transaction).toHaveBeenCalledOnce();
-    expect(releaseComputers).toHaveBeenCalledWith({
-      where: {
-        OR: [{ controlBotId: "bot-1" }, { executionBotId: "bot-1" }],
-      },
-      data: expect.objectContaining({
-        controlHolder: "none",
-        controlBotId: null,
-        executionBotId: null,
-      }),
-    });
-    expect(executeRaw).toHaveBeenCalledOnce();
-    expect(executeRaw.mock.calls[0]?.slice(1)).toEqual([
-      "Archived bots/Researcher (bot-1)",
-      "bot-1",
-      ...(projectWorkspaceId ? ["workspace-1", "user-1"] : []),
-    ]);
-    expect(createDeletion).toHaveBeenCalledWith({
-      data: {
-        id: "bot-1",
-        spaceId: "workspace-1",
-        name: "Researcher",
-        deletedByUserId: "user-1",
-        memoriesPreserved: true,
-      },
-    });
-    expect(deleteBot).toHaveBeenCalledWith({ where: { id: "bot-1" } });
-    expect(findArtifacts).toHaveBeenCalledWith({
-      where: { botId: "bot-1", groupId: null, spaceId: "workspace-1" },
-      select: { storageKey: true },
-    });
-    expect(deleteArtifacts).toHaveBeenCalledWith({
-      where: { botId: "bot-1", groupId: null, spaceId: "workspace-1" },
-    });
-    expect(deleteArtifacts.mock.invocationCallOrder[0]).toBeLessThan(
-      deleteBot.mock.invocationCallOrder[0]!,
-    );
-    expect(removeArtifact).toHaveBeenCalledWith("stored-artifact", context);
-  });
+      expect(transaction).toHaveBeenCalledOnce();
+      expect(releaseComputers).toHaveBeenCalledWith({
+        where: {
+          OR: [{ controlBotId: "bot-1" }, { executionBotId: "bot-1" }],
+        },
+        data: expect.objectContaining({
+          controlHolder: "none",
+          controlBotId: null,
+          executionBotId: null,
+        }),
+      });
+      expect(executeRaw).toHaveBeenCalledOnce();
+      expect(executeRaw.mock.calls[0]?.slice(1)).toEqual([
+        "Archived bots/Researcher (bot-1)",
+        "bot-1",
+        ...(projectWorkspaceId ? ["workspace-1", "user-1"] : []),
+      ]);
+      expect(createDeletion).toHaveBeenCalledWith({
+        data: {
+          id: "bot-1",
+          spaceId: "workspace-1",
+          name: "Researcher",
+          deletedByUserId: "user-1",
+          memoriesPreserved: true,
+        },
+      });
+      expect(deleteBot).toHaveBeenCalledWith({ where: { id: "bot-1" } });
+      expect(findArtifacts).toHaveBeenCalledWith({
+        where: { botId: "bot-1", groupId: null, spaceId: "workspace-1" },
+        select: { storageKey: true },
+      });
+      expect(deleteArtifacts).toHaveBeenCalledWith({
+        where: { botId: "bot-1", groupId: null, spaceId: "workspace-1" },
+      });
+      expect(deleteArtifacts.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteBot.mock.invocationCallOrder[0]!,
+      );
+      expect(removeArtifact).toHaveBeenCalledWith("stored-artifact", context);
+    },
+  );
 
   it("leaves the deletion to a concurrent removal that already deleted the bot", async () => {
     const createDeletion = vi.fn();

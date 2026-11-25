@@ -116,6 +116,12 @@ vi.mock("./native", () => ({
 vi.mock("../components/glass-surface", () => ({
   GlassSurface: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
 }));
+vi.mock("../components/bot-avatar", () => ({
+  BotAvatar: () => createElement("i"),
+}));
+vi.mock("../components/inbox-rows", () => ({
+  FALLBACK_COLOR: "#3EC5A8",
+}));
 vi.mock("../components/native-action-button", () => ({
   NativeActionButton: ({
     label,

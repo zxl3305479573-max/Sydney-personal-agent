@@ -12,7 +12,14 @@ vi.mock("react-native", async () => {
     ({ children, style }: { children?: ReactNode; style?: unknown }) =>
       createElement(
         tag,
-        { "data-style": JSON.stringify(Object.assign({}, ...[style].flat())) },
+        {
+          "data-style": JSON.stringify(
+            Object.assign(
+              {},
+              ...[typeof style === "function" ? style({ pressed: false }) : style].flat(),
+            ),
+          ),
+        },
         children,
       );
 

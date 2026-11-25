@@ -14,9 +14,7 @@ import {
   replaceMobileSession,
 } from "./api";
 import { t } from "./i18n";
-import {
-  tokenFromAuthResponse,
-} from "./session";
+import { tokenFromAuthResponse } from "./session";
 import { authResponseErrorText, errorText, sessionSaveErrorText } from "./user-error";
 
 export type MobilePasskey = { id: string; name: string | null; createdAt: string };
@@ -99,8 +97,7 @@ function captureFlow() {
     apiBase: scope.apiBase,
     scope,
     requireCurrent() {
-      if (!isServerSessionScopeCurrent(scope))
-        throw new Error(t("Could not continue"));
+      if (!isServerSessionScopeCurrent(scope)) throw new Error(t("Could not continue"));
     },
   };
 }

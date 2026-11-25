@@ -60,15 +60,22 @@ async function check() {
   });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error));
-  const initial = await page.goto(`${base}/sign-up`, { waitUntil: "domcontentloaded", timeout: 15000 });
+  const initial = await page.goto(`${base}/sign-up`, {
+    waitUntil: "domcontentloaded",
+    timeout: 15000,
+  });
   if (initial?.status() !== 200) throw new Error("desktop signup page unavailable");
-  await page.getByRole("heading", { name: /Create your Sydney|创建你的 Sydney/ }).waitFor({ timeout: 15000 });
+  await page
+    .getByRole("heading", { name: /Create your Sydney|创建你的 Sydney/ })
+    .waitFor({ timeout: 15000 });
   await page.locator("#name").fill("Staging Desktop");
   await page.locator("#email").fill(email);
   await page.locator('input[type="password"]').nth(0).fill(password);
   await page.locator('input[type="password"]').nth(1).fill(password);
-  const signup = page.waitForResponse((result) =>
-    result.url().endsWith("/api/auth/sign-up/email") && result.request().method() === "POST");
+  const signup = page.waitForResponse(
+    (result) =>
+      result.url().endsWith("/api/auth/sign-up/email") && result.request().method() === "POST",
+  );
   await page.locator('form button[type="submit"]').click();
   if (!(await signup).ok()) throw new Error("desktop signup failed");
   await page.waitForURL(/\/(?:onboarding|app)/, { timeout: 15000 });
@@ -93,8 +100,10 @@ async function check() {
   await page.goto(`${base}/sign-in`, { waitUntil: "domcontentloaded", timeout: 15000 });
   await page.locator("#email").fill(email);
   await page.locator('input[type="password"]').fill(password);
-  const signin = page.waitForResponse((result) =>
-    result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST");
+  const signin = page.waitForResponse(
+    (result) =>
+      result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST",
+  );
   await page.locator('form button[type="submit"]').click();
   if (!(await signin).ok()) throw new Error("desktop signin failed");
   await page.waitForURL(/\/(?:onboarding|app)/, { timeout: 15000 });
@@ -109,9 +118,18 @@ async function check() {
   if (secondUser !== firstUser) throw new Error("desktop signin session differs");
   console.log("desktop-authentication-passed");
   const actor = await rpc(page, "me");
-  const bot = await rpc(page, "bots/create", {
-    name: "Sync Bot", title: "Sync Bot", description: "", instructions: "", notifyOnFinish: false,
-  }, actor.spaceId);
+  const bot = await rpc(
+    page,
+    "bots/create",
+    {
+      name: "Sync Bot",
+      title: "Sync Bot",
+      description: "",
+      instructions: "",
+      notifyOnFinish: false,
+    },
+    actor.spaceId,
+  );
   await page.goto(`${base}/app/${encodeURIComponent(bot.id)}`, {
     waitUntil: "domcontentloaded",
     timeout: 10000,
@@ -121,7 +139,13 @@ async function check() {
   console.log("desktop-chat-composer-visible");
   const desktopSend = await sendFromComposer(page, "desktop to browser staging message");
   console.log("desktop-chat-submit-passed");
-  const firstReply = await waitForReply(page, bot.id, actor.spaceId, desktopSend.runId, "desktop to browser staging message");
+  const firstReply = await waitForReply(
+    page,
+    bot.id,
+    actor.spaceId,
+    desktopSend.runId,
+    "desktop to browser staging message",
+  );
   await expectReplyVisible(page, firstReply);
 
   companionBrowser = await chromium.launch({
@@ -139,8 +163,10 @@ async function check() {
   await other.goto(`${base}/sign-in`, { waitUntil: "domcontentloaded", timeout: 10000 });
   await other.locator("#email").fill(email);
   await other.locator('input[type="password"]').fill(password);
-  const otherSignin = other.waitForResponse((result) =>
-    result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST");
+  const otherSignin = other.waitForResponse(
+    (result) =>
+      result.url().endsWith("/api/auth/sign-in/email") && result.request().method() === "POST",
+  );
   await other.locator('form button[type="submit"]').click();
   if (!(await otherSignin).ok()) throw new Error("second client signin failed");
   await other.waitForURL(/\/(?:onboarding|app)/, { timeout: 10000 });
@@ -151,14 +177,26 @@ async function check() {
   }
   const otherActor = await rpc(other, "me", {}, actor.spaceId);
   if (otherActor.userId !== actor.userId) throw new Error("client accounts differ");
-  await waitForReply(other, bot.id, actor.spaceId, desktopSend.runId, "desktop to browser staging message");
+  await waitForReply(
+    other,
+    bot.id,
+    actor.spaceId,
+    desktopSend.runId,
+    "desktop to browser staging message",
+  );
   await other.goto(`${base}/app/${encodeURIComponent(bot.id)}`, {
     waitUntil: "domcontentloaded",
     timeout: 10000,
   });
   await expectReplyVisible(other, firstReply);
   const otherSend = await sendFromComposer(other, "browser to desktop staging message");
-  const secondReply = await waitForReply(page, bot.id, actor.spaceId, otherSend.runId, "browser to desktop staging message");
+  const secondReply = await waitForReply(
+    page,
+    bot.id,
+    actor.spaceId,
+    otherSend.runId,
+    "browser to desktop staging message",
+  );
   await page.getByText("browser to desktop staging message", { exact: true }).first().waitFor({
     state: "visible",
     timeout: 15000,
@@ -174,8 +212,10 @@ async function sendFromComposer(page, text) {
   const composer = page.locator('textarea[name="chat-message"]');
   await composer.waitFor({ state: "visible", timeout: 10000 });
   await composer.fill(text);
-  const sending = page.waitForResponse((result) =>
-    new URL(result.url()).pathname === "/rpc/threads/send" && result.request().method() === "POST",
+  const sending = page.waitForResponse(
+    (result) =>
+      new URL(result.url()).pathname === "/rpc/threads/send" &&
+      result.request().method() === "POST",
   );
   await page.getByRole("button", { name: /^(Send|发送)$/ }).click({ timeout: 10000 });
   const response = await sending;
@@ -187,25 +227,40 @@ async function sendFromComposer(page, text) {
 async function expectReplyVisible(page, reply) {
   const text = reply.blocks.find((block) => block.kind === "text" && block.text)?.text;
   if (typeof reply.id !== "string" || !text) throw new Error("reply identity or text missing");
-  await page.waitForFunction(({ id, text }) => {
-    const normalize = (value) => value.replace(/\s+/g, " ").trim();
-    const row = [...document.querySelectorAll("[data-message-id]")]
-      .find((element) => element.getAttribute("data-message-id") === id);
-    return !!row && row.getClientRects().length > 0 && normalize(row.textContent ?? "").includes(normalize(text));
-  }, { id: reply.id, text }, { timeout: 15000 });
+  await page.waitForFunction(
+    ({ id, text }) => {
+      const normalize = (value) => value.replace(/\s+/g, " ").trim();
+      const row = [...document.querySelectorAll("[data-message-id]")].find(
+        (element) => element.getAttribute("data-message-id") === id,
+      );
+      return (
+        !!row &&
+        row.getClientRects().length > 0 &&
+        normalize(row.textContent ?? "").includes(normalize(text))
+      );
+    },
+    { id: reply.id, text },
+    { timeout: 15000 },
+  );
 }
 
 async function rpc(page, method, input = {}, spaceId) {
-  return page.evaluate(async ({ method, input, spaceId }) => {
-    const response = await fetch(`/rpc/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(spaceId ? { "x-rakazo-space-id": spaceId } : {}) },
-      body: JSON.stringify({ json: input }),
-    });
-    const result = await response.json();
-    if (!response.ok || result.error) throw new Error(`RPC ${method} failed`);
-    return result.json;
-  }, { method, input, spaceId });
+  return page.evaluate(
+    async ({ method, input, spaceId }) => {
+      const response = await fetch(`/rpc/${method}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(spaceId ? { "x-rakazo-space-id": spaceId } : {}),
+        },
+        body: JSON.stringify({ json: input }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(`RPC ${method} failed`);
+      return result.json;
+    },
+    { method, input, spaceId },
+  );
 }
 
 async function sessionId(page) {
@@ -222,10 +277,17 @@ async function waitForReply(page, botId, spaceId, runId, text) {
     const recent = await rpc(page, "runs/list", { filter: "recent" }, spaceId);
     const run = recent.runs.find((item) => item.runId === runId);
     if (run?.status === "failed" || run?.status === "cancelled") throw new Error("chat run failed");
-    const user = snapshot.messages.some((message) =>
-      message.role === "user" && message.blocks.some((block) => block.kind === "text" && block.text === text));
-    const reply = snapshot.messages.find((message) =>
-      message.role === "bot" && message.runId === runId && message.blocks.some((block) => block.kind === "text" && block.text));
+    const user = snapshot.messages.some(
+      (message) =>
+        message.role === "user" &&
+        message.blocks.some((block) => block.kind === "text" && block.text === text),
+    );
+    const reply = snapshot.messages.find(
+      (message) =>
+        message.role === "bot" &&
+        message.runId === runId &&
+        message.blocks.some((block) => block.kind === "text" && block.text),
+    );
     if (run?.status === "completed" && user && reply) return reply;
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
@@ -241,15 +303,23 @@ Promise.race([
   .catch(async (error) => {
     console.error(error.message);
     if (desktopPage && !desktopPage.isClosed()) {
-      const state = await desktopPage.evaluate(() => ({
-        path: location.pathname.startsWith("/app/") ? "/app/:id" : location.pathname,
-        headings: [...document.querySelectorAll("h1,h2")].map((node) => node.textContent?.trim().slice(0, 80)),
-        composer: [...document.querySelectorAll('textarea[name="chat-message"]')].map((node) => ({
-          disabled: node.disabled,
-        })),
-        buttons: [...document.querySelectorAll("button")].map((node) =>
-          (node.getAttribute("aria-label") || node.textContent || "").trim().slice(0, 40)).filter(Boolean).slice(0, 30),
-      })).catch(() => null);
+      const state = await desktopPage
+        .evaluate(() => ({
+          path: location.pathname.startsWith("/app/") ? "/app/:id" : location.pathname,
+          headings: [...document.querySelectorAll("h1,h2")].map((node) =>
+            node.textContent?.trim().slice(0, 80),
+          ),
+          composer: [...document.querySelectorAll('textarea[name="chat-message"]')].map((node) => ({
+            disabled: node.disabled,
+          })),
+          buttons: [...document.querySelectorAll("button")]
+            .map((node) =>
+              (node.getAttribute("aria-label") || node.textContent || "").trim().slice(0, 40),
+            )
+            .filter(Boolean)
+            .slice(0, 30),
+        }))
+        .catch(() => null);
       console.error(JSON.stringify({ state }));
     }
     process.exitCode = 1;
@@ -262,7 +332,12 @@ Promise.race([
       const root = await fs.realpath(__dirname);
       const resolved = await fs.realpath(userData);
       const info = await fs.lstat(userData);
-      if (path.dirname(resolved) !== root || !path.basename(resolved).startsWith(".sydney-stage-desktop-") || !info.isDirectory() || info.isSymbolicLink()) {
+      if (
+        path.dirname(resolved) !== root ||
+        !path.basename(resolved).startsWith(".sydney-stage-desktop-") ||
+        !info.isDirectory() ||
+        info.isSymbolicLink()
+      ) {
         throw new Error("unsafe temporary desktop data path");
       }
       await fs.rm(resolved, { recursive: true });

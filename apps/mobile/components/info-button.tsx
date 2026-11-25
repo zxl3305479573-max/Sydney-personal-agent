@@ -1,12 +1,14 @@
-import { Alert, Pressable } from "react-native";
+import { Alert } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { native } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 export function InfoButton({ label, children }: { label: string; children: string }) {
   const { t } = useI18n();
   return (
-    <Pressable
+    <MotionPressable
+      preset="icon"
       accessibilityRole="button"
       accessibilityLabel={t("About {label}", { label })}
       accessibilityHint={children}
@@ -25,6 +27,6 @@ export function InfoButton({ label, children }: { label: string; children: strin
         size={14}
         color={native.secondaryLabel}
       />
-    </Pressable>
+    </MotionPressable>
   );
 }

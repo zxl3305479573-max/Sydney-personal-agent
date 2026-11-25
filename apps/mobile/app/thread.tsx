@@ -1,7 +1,8 @@
 import { isRetryableError } from "@rakazo/core";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Text, View } from "react-native";
+import { MotionPressable } from "../components/motion-pressable";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
 import { activeCompanionIdentity } from "../lib/companion-activity";
@@ -154,9 +155,13 @@ export default function ThreadRoute() {
               ? t("Could not switch spaces")
               : "陪伴已结束或链接已失效，请重新开启陪伴。"}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.replace("/")}>
+          <MotionPressable
+            preset="control"
+            accessibilityRole="button"
+            onPress={() => router.replace("/")}
+          >
             <Text style={{ color: tokens.foreground, fontSize: 16 }}>{t("Return to inbox")}</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       )}
     </View>

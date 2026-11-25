@@ -141,8 +141,7 @@ export async function createProjectWorkspace(
           WHERE "id" = ${id} AND "spaceId" = ${actor.spaceId}
             AND "userId" = ${actor.userId} AND "deletingAt" IS NULL
         `);
-          if (!existing[0] || existing[0].name !== name)
-            throw new ProjectWorkspaceConflictError();
+          if (!existing[0] || existing[0].name !== name) throw new ProjectWorkspaceConflictError();
           return existing[0];
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
@@ -169,9 +168,10 @@ export async function renameProjectWorkspace(
   const now = new Date();
   const row = await runAsTenant({ ...actor, projectWorkspaceId: id }, () =>
     withTransactionRetry(() =>
-      prisma.$transaction(async (tx) => {
-        await lockSpaceForContentCreation(tx, actor);
-        const rows = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
+      prisma.$transaction(
+        async (tx) => {
+          await lockSpaceForContentCreation(tx, actor);
+          const rows = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
           UPDATE "project_workspaces" w
           SET "name" = ${name}, "updatedAt" = ${now}
           WHERE w."id" = ${id} AND w."spaceId" = ${actor.spaceId}
@@ -184,8 +184,10 @@ export async function renameProjectWorkspace(
             )
           RETURNING w."id", w."name", w."createdAt", w."updatedAt"
         `);
-        return rows[0] ?? null;
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }),
+          return rows[0] ?? null;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      ),
     ),
   );
   if (!row) return null;

@@ -13,7 +13,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -23,6 +22,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GlassSurface } from "../components/glass-surface";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativePasswordReset } from "../components/native-password-reset";
 import type { PasswordResetCapabilities } from "../lib/api";
@@ -348,7 +348,8 @@ export default function SignIn() {
                     <Text style={{ color: secondaryText, fontSize: 14, flexShrink: 1 }}>
                       {mode === "in" ? t("Don’t have an account?") : t("Already have an account?")}
                     </Text>
-                    <Pressable
+                    <MotionPressable
+                      preset="inline"
                       accessibilityRole="button"
                       hitSlop={8}
                       onPress={() => {
@@ -360,7 +361,7 @@ export default function SignIn() {
                       <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "500" }}>
                         {mode === "in" ? t("Sign up") : t("Sign in")}
                       </Text>
-                    </Pressable>
+                    </MotionPressable>
                   </View>
                 ) : null}
               </View>
@@ -420,7 +421,8 @@ export default function SignIn() {
                     />
                   ) : resetSent ? (
                     <View style={{ alignItems: "center", marginTop: 28 }}>
-                      <Pressable
+                      <MotionPressable
+                        preset="inline"
                         accessibilityRole="button"
                         onPress={() => {
                           setMode("in");
@@ -431,7 +433,7 @@ export default function SignIn() {
                         <Text style={{ color: tokens.foreground, fontSize: 15, fontWeight: "600" }}>
                           {t("Back to sign in")}
                         </Text>
-                      </Pressable>
+                      </MotionPressable>
                     </View>
                   ) : (
                     <>
@@ -589,7 +591,8 @@ export default function SignIn() {
                             }}
                           />
                           {emailSuggestion && emailBlurred ? (
-                            <Pressable
+                            <MotionPressable
+                              preset="inline"
                               accessibilityRole="button"
                               hitSlop={8}
                               onPress={() => setEmail(emailSuggestion)}
@@ -598,7 +601,7 @@ export default function SignIn() {
                               <Text style={{ color: tokens.warning, fontSize: 14 }}>
                                 {t("Did you mean {email}?", { email: emailSuggestion })}
                               </Text>
-                            </Pressable>
+                            </MotionPressable>
                           ) : null}
                           {mode !== "forgot" && !signupCodeOnly ? (
                             <View style={{ marginTop: 16 }}>
@@ -668,7 +671,8 @@ export default function SignIn() {
                             </View>
                           ) : null}
                           {mode === "in" && reset?.passwordReset && reset.resetUrl ? (
-                            <Pressable
+                            <MotionPressable
+                              preset="inline"
                               accessibilityRole="button"
                               hitSlop={8}
                               onPress={() => {
@@ -686,7 +690,7 @@ export default function SignIn() {
                               >
                                 {t("Forgot password?")}
                               </Text>
-                            </Pressable>
+                            </MotionPressable>
                           ) : null}
                           {error ? (
                             <Text
@@ -741,7 +745,8 @@ export default function SignIn() {
                                 marginTop: 24,
                               }}
                             >
-                              <Pressable
+                              <MotionPressable
+                                preset="inline"
                                 accessibilityRole="button"
                                 hitSlop={8}
                                 onPress={() => {
@@ -759,7 +764,7 @@ export default function SignIn() {
                                 >
                                   {t("Back to sign in")}
                                 </Text>
-                              </Pressable>
+                              </MotionPressable>
                             </View>
                           ) : null}
                         </>
@@ -768,7 +773,8 @@ export default function SignIn() {
                   )}
                 </GlassSurface>
               </View>
-              <Pressable
+              <MotionPressable
+                preset="inline"
                 accessibilityRole="button"
                 accessibilityLabel={
                   custom
@@ -803,7 +809,7 @@ export default function SignIn() {
                     {t("Use a custom server")}
                   </Text>
                 )}
-              </Pressable>
+              </MotionPressable>
             </ScrollView>
           </View>
         </TouchableWithoutFeedback>

@@ -16,8 +16,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const scope = {
-  origin: "https://example.com", userId: "user-1", deviceId: "device-1",
-  spaceId: "space-1", projectWorkspaceId: "project-1",
+  origin: "https://example.com",
+  userId: "user-1",
+  deviceId: "device-1",
+  spaceId: "space-1",
+  projectWorkspaceId: "project-1",
 };
 let userData: string;
 let directory: string;

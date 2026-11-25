@@ -28,7 +28,8 @@ export function confirmDeleteBot(
         await rpc("bots/remove", { botId: bot.id, deleteMemories });
       }
       removeFromSearchInbox(bot.id);
-      if (current()) onDeleted();
+      if (scoped && !current()) return;
+      onDeleted();
     } catch (error) {
       if (current()) Alert.alert(t("Could not delete bot"), errorText(error, t("Try again.")));
     }
@@ -36,9 +37,10 @@ export function confirmDeleteBot(
 
   Alert.alert(
     t("Delete {name}?", { name: bot.name }),
-    scoped?.message ?? t(
-      "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?",
-    ),
+    scoped?.message ??
+      t(
+        "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?",
+      ),
     [
       { text: t("Cancel"), style: "cancel" },
       { text: t("Keep memories"), style: "destructive", onPress: () => void remove(false) },
@@ -62,9 +64,13 @@ export function confirmDeleteGroup(
       text: t("Delete"),
       style: "destructive",
       onPress: () =>
-        void (scoped
-          ? scoped.current() ? scoped.remove() : Promise.resolve()
-          : rpc("groups/remove", { groupId: group.id }))
+        void (
+          scoped
+            ? scoped.current()
+              ? scoped.remove()
+              : Promise.resolve()
+            : rpc("groups/remove", { groupId: group.id })
+        )
           .then(() => {
             if (scoped && !scoped.current()) return;
             removeFromSearchInbox(group.id);

@@ -6,16 +6,9 @@ import type {
 import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { PluginIcon } from "../../components/plugin-icon";
 import { Chevron } from "../../components/row-accessories";
@@ -157,13 +150,15 @@ export default function SkillsScreen() {
         <View testID="your-skills" style={styles.list}>
           <Text style={styles.section}>{t("Your skills")}</Text>
           {ownSkills.map((skill) => (
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               key={skill.id}
               testID="own-skill"
               accessibilityRole="button"
               accessibilityLabel={skill.name}
               onPress={() => router.push({ pathname: "/skill", params: { id: skill.id } })}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              style={styles.row}
             >
               <View style={styles.skillMark}>
                 <SkillSymbol size={17} />
@@ -179,16 +174,18 @@ export default function SkillsScreen() {
                 ) : null}
               </View>
               <Chevron />
-            </Pressable>
+            </MotionPressable>
           ))}
-          <Pressable
+          <MotionPressable
+            preset="row"
+            highlightColor={native.fillPressed}
             accessibilityRole="button"
             onPress={() => router.push("/skill")}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            style={styles.row}
           >
             <Text style={[styles.title, styles.grow]}>{t("New skill")}</Text>
             <Chevron />
-          </Pressable>
+          </MotionPressable>
         </View>
         {skillSets.length ? (
           <View testID="plugin-skill-sets" style={styles.list}>
@@ -197,13 +194,15 @@ export default function SkillsScreen() {
               const params = setParams(install);
               const count = pluginSkillCount(install);
               return (
-                <Pressable
+                <MotionPressable
+                  preset="row"
+                  highlightColor={native.fillPressed}
                   key={install.id}
                   testID="plugin-skill-set"
                   accessibilityRole="button"
                   accessibilityLabel={params.name}
                   onPress={() => openSkills(params)}
-                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  style={styles.row}
                 >
                   <PluginIcon
                     logo={params.logo}
@@ -220,7 +219,7 @@ export default function SkillsScreen() {
                     </Text>
                   </View>
                   <Chevron />
-                </Pressable>
+                </MotionPressable>
               );
             })}
           </View>
@@ -258,12 +257,14 @@ export default function SkillsScreen() {
         ) : null}
         <View testID="skill-packs" style={styles.list}>
           {packs.map((entry) => (
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               key={entry.id}
               accessibilityRole="button"
               accessibilityLabel={entry.displayName}
               onPress={() => openSkills(pluginParams(entry))}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              style={styles.row}
             >
               <PluginIcon
                 logo={entry.logo}
@@ -286,7 +287,7 @@ export default function SkillsScreen() {
               ) : (
                 <Chevron />
               )}
-            </Pressable>
+            </MotionPressable>
           ))}
         </View>
       </ScrollView>

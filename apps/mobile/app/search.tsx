@@ -6,7 +6,6 @@ import {
   Alert,
   FlatList,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +18,7 @@ import { BotAvatar } from "../components/bot-avatar";
 import { GlassIconButton } from "../components/glass-icon-button";
 import { GlassSurface } from "../components/glass-surface";
 import { GroupAvatar } from "../components/group-avatar";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { readableGutters } from "../lib/adaptive-layout";
@@ -204,7 +204,8 @@ export default function SearchSheet() {
             style={styles.field}
           />
           {Platform.OS === "android" && query ? (
-            <Pressable
+            <MotionPressable
+              preset="icon"
               accessibilityRole="button"
               accessibilityLabel={t("Clear")}
               hitSlop={8}
@@ -212,7 +213,7 @@ export default function SearchSheet() {
                 setQuery("");
                 field.current?.focus();
               }}
-              style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
+              style={styles.clear}
             >
               <NativeSymbol
                 ios="xmark.circle.fill"
@@ -220,7 +221,7 @@ export default function SearchSheet() {
                 size={20}
                 color={tokens?.mutedForeground ?? softTaupe}
               />
-            </Pressable>
+            </MotionPressable>
           ) : null}
         </GlassSurface>
       </View>
@@ -256,11 +257,13 @@ export default function SearchSheet() {
           ) : null
         }
         renderItem={({ item }) => (
-          <Pressable
+          <MotionPressable
+            preset="row"
+            highlightColor={native.fillPressed}
             accessibilityRole="button"
             accessibilityLabel={`${item.title}, ${item.label}`}
             onPress={() => void open(item)}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            style={styles.row}
           >
             {item.group ? (
               <GroupAvatar members={item.group.members} size={50} />
@@ -288,7 +291,7 @@ export default function SearchSheet() {
                 {item.preview}
               </Text>
             </View>
-          </Pressable>
+          </MotionPressable>
         )}
       />
     </View>

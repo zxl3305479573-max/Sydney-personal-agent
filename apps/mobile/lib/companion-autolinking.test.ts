@@ -19,15 +19,18 @@ it("excludes the companion in ordinary iOS builds and restores it for the experi
   const podfile = path.join(directory, "Podfile");
   fs.writeFileSync(podfile, "target 'Sydney' do\n  use_expo_modules!\nend\n");
   const config = withSydneyCompanionAutolinking({ name: "Sydney", slug: "sydney" });
-  const run = () => config.mods.ios.dangerous({
-    ...config,
-    modRequest: { platformProjectRoot: directory },
-  });
+  const run = () =>
+    config.mods.ios.dangerous({
+      ...config,
+      modRequest: { platformProjectRoot: directory },
+    });
 
   vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "0");
   await run();
   await run();
-  expect(fs.readFileSync(podfile, "utf8")).toContain('use_expo_modules!(exclude: ["sydney-companion"])');
+  expect(fs.readFileSync(podfile, "utf8")).toContain(
+    'use_expo_modules!(exclude: ["sydney-companion"])',
+  );
   vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "1");
   await run();
   expect(fs.readFileSync(podfile, "utf8")).toContain("use_expo_modules!\n");
@@ -42,9 +45,11 @@ it("rejects an unfamiliar Podfile call instead of corrupting it", async () => {
   fs.writeFileSync(podfile, source);
   vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "0");
   const config = withSydneyCompanionAutolinking({ name: "Sydney", slug: "sydney" });
-  await expect(config.mods.ios.dangerous({
-    ...config,
-    modRequest: { platformProjectRoot: directory },
-  })).rejects.toThrow("bare use_expo_modules!");
+  await expect(
+    config.mods.ios.dangerous({
+      ...config,
+      modRequest: { platformProjectRoot: directory },
+    }),
+  ).rejects.toThrow("bare use_expo_modules!");
   expect(fs.readFileSync(podfile, "utf8")).toBe(source);
 });

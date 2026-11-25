@@ -135,13 +135,16 @@ describe("default server startup protection", () => {
     vi.stubEnv("EXPO_PUBLIC_API_URL", "https://203.0.113.10");
     const disk = new Map<string, string>([
       ["rakazo.session_token", "synthetic-token"],
-      ["rakazo.integrations-scope", JSON.stringify({
-        token: "synthetic-token",
-        apiBase: "https://pc.zxlup.xin",
-        userId: "synthetic-user",
-        spaceId: "synthetic-space",
-        selectionId: null,
-      })],
+      [
+        "rakazo.integrations-scope",
+        JSON.stringify({
+          token: "synthetic-token",
+          apiBase: "https://pc.zxlup.xin",
+          userId: "synthetic-user",
+          spaceId: "synthetic-space",
+          selectionId: null,
+        }),
+      ],
     ]);
     vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => disk.get(key) ?? null);
     vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
@@ -171,21 +174,27 @@ describe("default server startup protection", () => {
       disk.set("rakazo.integrations-scope", invalid);
       await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();
     }
-    disk.set("rakazo.integrations-scope", JSON.stringify({
-      token: "synthetic-token",
-      apiBase: "https://203.0.113.10",
-      userId: "synthetic-user",
-      spaceId: "synthetic-space",
-      selectionId: null,
-    }));
+    disk.set(
+      "rakazo.integrations-scope",
+      JSON.stringify({
+        token: "synthetic-token",
+        apiBase: "https://203.0.113.10",
+        userId: "synthetic-user",
+        spaceId: "synthetic-space",
+        selectionId: null,
+      }),
+    );
     await expect(guardDefaultOrigin("https://pc.zxlup.xin", false)).rejects.toThrow();
-    disk.set("rakazo.integrations-scope", JSON.stringify({
-      token: "synthetic-token",
-      apiBase: "https://pc.zxlup.xin",
-      userId: "synthetic-user",
-      spaceId: "synthetic-space",
-      selectionId: null,
-    }));
+    disk.set(
+      "rakazo.integrations-scope",
+      JSON.stringify({
+        token: "synthetic-token",
+        apiBase: "https://pc.zxlup.xin",
+        userId: "synthetic-user",
+        spaceId: "synthetic-space",
+        selectionId: null,
+      }),
+    );
     disk.delete("rakazo.session_token");
     await expect(guardDefaultOrigin("https://203.0.113.10", false)).resolves.toBeUndefined();
     disk.set("rakazo.session_token", "synthetic-token");
@@ -193,7 +202,9 @@ describe("default server startup protection", () => {
     await expect(guardDefaultOrigin("https://203.0.113.10", false)).rejects.toThrow();
     const api = await import("./api");
     await expect(api.authHeaders()).rejects.toThrow("Could not load server settings");
-    await expect(api.fetchMobileJson("https://203.0.113.10/api/auth/get-session", {})).rejects.toThrow();
+    await expect(
+      api.fetchMobileJson("https://203.0.113.10/api/auth/get-session", {}),
+    ).rejects.toThrow();
     vi.mocked(SecureStore.setItemAsync).mockClear();
     vi.mocked(SecureStore.deleteItemAsync).mockClear();
     await expect(api.loadApiBase()).rejects.toThrow("Could not verify the saved server session");
@@ -203,21 +214,27 @@ describe("default server startup protection", () => {
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
 
-    disk.set("rakazo.integrations-scope", JSON.stringify({
-      token: "another-synthetic-token",
-      apiBase: "https://203.0.113.10",
-      userId: "synthetic-user",
-      spaceId: "synthetic-space",
-      selectionId: null,
-    }));
+    disk.set(
+      "rakazo.integrations-scope",
+      JSON.stringify({
+        token: "another-synthetic-token",
+        apiBase: "https://203.0.113.10",
+        userId: "synthetic-user",
+        spaceId: "synthetic-space",
+        selectionId: null,
+      }),
+    );
     await expect(api.loadApiBase()).rejects.toThrow("Could not verify the saved server session");
-    disk.set("rakazo.integrations-scope", JSON.stringify({
-      token: "synthetic-token",
-      apiBase: "https://203.0.113.10",
-      userId: "synthetic-user",
-      spaceId: "synthetic-space",
-      selectionId: null,
-    }));
+    disk.set(
+      "rakazo.integrations-scope",
+      JSON.stringify({
+        token: "synthetic-token",
+        apiBase: "https://203.0.113.10",
+        userId: "synthetic-user",
+        spaceId: "synthetic-space",
+        selectionId: null,
+      }),
+    );
     await expect(api.loadApiBase()).resolves.toBe("https://203.0.113.10");
     await expect(api.authHeaders()).resolves.toMatchObject({
       authorization: "Bearer synthetic-token",

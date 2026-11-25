@@ -422,7 +422,7 @@ it("renders saved bot rows without a notification setting", () => {
     "true",
   ]);
   expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.motion === "lazy")).toBe(true);
-  expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.size === "56")).toBe(true);
+  expect(avatars.every((avatar) => (avatar as HTMLElement).dataset.size === "44")).toBe(true);
 });
 
 it("shows actionable bot status in place of the message preview", () => {
@@ -504,7 +504,7 @@ it("shows pinned tiles with avatar and name without the message preview", () => 
   const avatar = container.querySelector('[data-row="pinned"] b[data-identity="bot-p"]');
   expect(avatar).not.toBeNull();
   expect(avatar?.getAttribute("data-unread")).toBe("true");
-  expect(container.querySelector('[aria-label="Pinned"]')?.textContent).toContain("Pinned");
+  expect(container.querySelector('[aria-label="Pinned, unread"]')?.textContent).toContain("Pinned");
   expect(container.textContent).not.toContain("Private preview");
 });
 
@@ -727,9 +727,11 @@ it("adds a bot made from the inbox's Create menu to the inbox roster before open
 
 it("sends the requested identity to the bot's original workspace", async () => {
   ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
-  ui.rpc.mockReset().mockImplementation(async (method: string) =>
-    method === "bots/create" ? { id: "bot-new", name: "小雪", spaceId: "space-a" } : [],
-  );
+  ui.rpc
+    .mockReset()
+    .mockImplementation(async (method: string) =>
+      method === "bots/create" ? { id: "bot-new", name: "小雪", spaceId: "space-a" } : [],
+    );
   const identity = {
     name: "小雪",
     color: "#123456",
@@ -751,13 +753,19 @@ it("continues creating a bot when the initial roster request stalls", async () =
   try {
     ui.searchInboxSession.mockReturnValue({ generation: 7, apiBase: "http://api.test" });
     let listSignal: AbortSignal | undefined;
-    ui.rpc.mockReset().mockImplementation((method: string, _input: unknown, options: { signal?: AbortSignal }) => {
-      if (method === "bots/list") {
-        listSignal = options.signal;
-        return new Promise(() => undefined);
-      }
-      return Promise.resolve(method === "bots/create" ? { id: "bot-new", name: "New Bot", spaceId: "space-a" } : undefined);
-    });
+    ui.rpc
+      .mockReset()
+      .mockImplementation((method: string, _input: unknown, options: { signal?: AbortSignal }) => {
+        if (method === "bots/list") {
+          listSignal = options.signal;
+          return new Promise(() => undefined);
+        }
+        return Promise.resolve(
+          method === "bots/create"
+            ? { id: "bot-new", name: "New Bot", spaceId: "space-a" }
+            : undefined,
+        );
+      });
     const openChat = vi.fn();
     const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
     await pending;
@@ -777,12 +785,16 @@ it("does not navigate after a workspace change while creation is pending", async
     let finishCreate: (value: unknown) => void = () => undefined;
     ui.rpc.mockReset().mockImplementation((method: string) =>
       method === "bots/create"
-        ? new Promise((resolve) => { finishCreate = resolve; })
+        ? new Promise((resolve) => {
+            finishCreate = resolve;
+          })
         : new Promise(() => undefined),
     );
     const openChat = vi.fn();
     const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
-    await vi.waitFor(() => expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()));
+    await vi.waitFor(() =>
+      expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()),
+    );
     ui.selectedSpace = "space-b";
     ui.selectionSequence += 1;
     finishCreate({ id: "bot-new", name: "New Bot", spaceId: "space-a" });
@@ -800,7 +812,9 @@ it("does not start onboarding when the workspace changes before the roster finis
   let finishList: (value: unknown[]) => void = () => undefined;
   ui.rpc.mockReset().mockImplementation((method: string) =>
     method === "bots/list"
-      ? new Promise<unknown[]>((resolve) => { finishList = resolve; })
+      ? new Promise<unknown[]>((resolve) => {
+          finishList = resolve;
+        })
       : Promise.resolve({ id: "bot-new", name: "New Bot", spaceId: "space-a" }),
   );
   const openChat = vi.fn();
@@ -820,12 +834,16 @@ it("does not navigate or start onboarding after an account change during creatio
   let finishCreate: (value: unknown) => void = () => undefined;
   ui.rpc.mockReset().mockImplementation((method: string) =>
     method === "bots/create"
-      ? new Promise((resolve) => { finishCreate = resolve; })
+      ? new Promise((resolve) => {
+          finishCreate = resolve;
+        })
       : Promise.resolve([]),
   );
   const openChat = vi.fn();
   const pending = createInboxBot({ refreshBots: async () => undefined, openChat });
-  await vi.waitFor(() => expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()));
+  await vi.waitFor(() =>
+    expect(ui.rpc).toHaveBeenCalledWith("bots/create", expect.anything(), expect.anything()),
+  );
   ui.sessionGeneration += 1;
   finishCreate({ id: "bot-new", name: "New Bot", spaceId: "space-a" });
   await pending;

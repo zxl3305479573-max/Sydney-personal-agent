@@ -1306,6 +1306,24 @@ export const ES_MESSAGES: Record<string, string> = {
     "No se pudieron cargar los mensajes guardados sin enviar. Los mensajes nuevos no entregados pueden perderse al cerrar la aplicación.",
   "Server settings or the saved session could not be verified.":
     "No se pudieron verificar los ajustes del servidor o la sesión guardada.",
+  Duplicate: "Duplicar",
+  Project: "Proyecto",
+  "Space changed. Please try again.": "El espacio cambió. Inténtalo de nuevo.",
+  "The project changed. Reopen the project and try again.":
+    "El proyecto cambió. Vuelve a abrir el proyecto e inténtalo de nuevo.",
+  About: "Acerca de",
+  "Could not download the update. Try again later.":
+    "No se pudo descargar la actualización. Inténtalo más tarde.",
+  "Current version": "Versión actual",
+  "Downloading update…": "Descargando actualización…",
+  "Install and restart": "Instalar y reiniciar",
+  "Installed build {build}": "Compilación instalada {build}",
+  "Release notes": "Notas de la versión",
+  "Software update": "Actualización de software",
+  "Update available": "Actualización disponible",
+  "Version {version}": "Versión {version}",
+  "Version {version} available": "Versión {version} disponible",
+  "Version {version} downloaded": "Versión {version} descargada",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

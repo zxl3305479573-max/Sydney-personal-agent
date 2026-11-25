@@ -9,15 +9,15 @@ import path from "node:path";
 import type { Duplex } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
-import { createScreenProxyDispatch } from "../../api/src/screen-proxy-dispatch";
+import { createNovncProxy } from "@rakazo/core/node/novnc-proxy";
 import {
   addScreenProxyCapability,
   openScreenCapability,
 } from "@rakazo/core/node/screen-capability";
-import { createNovncProxy } from "@rakazo/core/node/novnc-proxy";
 import { screenProbeUrl } from "@rakazo/core/screen-reconnect";
 import type { Plugin, ViteDevServer } from "vite";
 import { createServer, preview } from "vite";
+import { createScreenProxyDispatch } from "../../api/src/screen-proxy-dispatch";
 
 const scope = {
   botId: "bot",
@@ -245,8 +245,11 @@ for (const mode of ["development", "preview", "api"] as const) {
             api: process.env.API_PROXY_TARGET,
             logger: {
               warn: (message, bindings) => {
-                if (message === "screen.proxy.websocket_handshake_failed" &&
-                    bindings?.reason === "upstream_timeout") handshakeTimedOut = true;
+                if (
+                  message === "screen.proxy.websocket_handshake_failed" &&
+                  bindings?.reason === "upstream_timeout"
+                )
+                  handshakeTimedOut = true;
               },
               info: () => {},
             },
@@ -257,10 +260,14 @@ for (const mode of ["development", "preview", "api"] as const) {
             http: (req, res) => {
               if (req.url === "/app") {
                 res.setHeader("Content-Type", "text/html");
-                res.end('<!doctype html><title>Fake app</title><body><script src="/app.js"></script></body>');
+                res.end(
+                  '<!doctype html><title>Fake app</title><body><script src="/app.js"></script></body>',
+                );
               } else if (req.url === "/app.js") {
                 res.setHeader("Content-Type", "text/javascript");
-                res.end('localStorage.setItem("app-data", "private-app-data"); document.cookie = "app-session=fake-session; Path=/";');
+                res.end(
+                  'localStorage.setItem("app-data", "private-app-data"); document.cookie = "app-session=fake-session; Path=/";',
+                );
               } else if (req.url === "/session") {
                 res.setHeader("Content-Type", "application/json");
                 res.end(JSON.stringify({ cookie: req.headers.cookie ?? null }));
@@ -274,7 +281,8 @@ for (const mode of ["development", "preview", "api"] as const) {
           await listen(httpServer);
           closeFrontend = () => close(httpServer);
         } else {
-          const server = mode === "development" ? await createServer(config) : await preview(config);
+          const server =
+            mode === "development" ? await createServer(config) : await preview(config);
           httpServer = server.httpServer as Server;
           if ("listen" in server) await listen(httpServer);
           closeFrontend = () => server.close();
@@ -458,7 +466,9 @@ for (const mode of ["development", "preview", "api"] as const) {
       target.pathname = target.pathname.replace("/vnc.html", "/reject");
       const client = sendUpgrade(target);
       let response = "";
-      client.on("data", (chunk) => { response += chunk.toString("latin1"); });
+      client.on("data", (chunk) => {
+        response += chunk.toString("latin1");
+      });
       await new Promise<void>((resolve) => client.once("close", () => resolve()));
       expect(response).toContain("HTTP/1.1 403");
     });

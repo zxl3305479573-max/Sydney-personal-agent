@@ -5,10 +5,12 @@ import { IsolationError } from "./scope.js";
 
 export function assertHomeArtifactWriteScope(owner: { spaceId: string; userId: string }): void {
   const context = currentDbContext();
-  if (context?.kind === "tenant" &&
+  if (
+    context?.kind === "tenant" &&
     (context.spaceId !== owner.spaceId ||
       context.userId !== owner.userId ||
-      context.projectWorkspaceId !== undefined)) {
+      context.projectWorkspaceId !== undefined)
+  ) {
     throw new IsolationError();
   }
 }

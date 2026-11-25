@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import {
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -30,6 +29,7 @@ import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { BotAvatar } from "./bot-avatar";
 import { HomeCompanionCard } from "./home-companion-card";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 const FALLBACK_COLOR = botColors[3];
@@ -382,20 +382,20 @@ export function HomeHub({
           {formatHeaderDate(currentDate, locale)}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-sync-pill"
             accessibilityRole="button"
             accessibilityLabel={syncLabel}
             onPress={onRefresh}
-            style={({ pressed }) => ({
+            style={{
               backgroundColor: tokens.card,
               borderRadius: 999,
               paddingHorizontal: 12,
               paddingVertical: 5,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: tokens.border,
-              opacity: pressed ? 0.7 : 1,
-            })}
+            }}
           >
             <Text
               numberOfLines={1}
@@ -408,14 +408,15 @@ export function HomeHub({
             >
               {syncLabel}
             </Text>
-          </Pressable>
-          <Pressable
+          </MotionPressable>
+          <MotionPressable
+            preset="icon"
             testID="home-hub-search-button"
             accessibilityRole="button"
             accessibilityLabel={t("Search")}
             onPress={() => router.push("/search")}
             hitSlop={4}
-            style={({ pressed }) => ({
+            style={{
               width: 36,
               height: 36,
               borderRadius: 18,
@@ -424,8 +425,7 @@ export function HomeHub({
               borderColor: tokens.border,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.7 : 1,
-            })}
+            }}
           >
             <NativeSymbol
               ios="magnifyingglass"
@@ -433,14 +433,15 @@ export function HomeHub({
               size={16}
               color={tokens.foreground}
             />
-          </Pressable>
-          <Pressable
+          </MotionPressable>
+          <MotionPressable
+            preset="icon"
             testID="home-hub-settings-button"
             accessibilityRole="button"
             accessibilityLabel={t("Settings")}
             onPress={() => router.push("/settings-home")}
             hitSlop={4}
-            style={({ pressed }) => ({
+            style={{
               width: 36,
               height: 36,
               borderRadius: 18,
@@ -449,8 +450,7 @@ export function HomeHub({
               borderColor: tokens.border,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.7 : 1,
-            })}
+            }}
           >
             <NativeSymbol
               ios="gearshape"
@@ -458,7 +458,7 @@ export function HomeHub({
               size={17}
               color={tokens.foreground}
             />
-          </Pressable>
+          </MotionPressable>
         </View>
       </View>
 
@@ -487,12 +487,14 @@ export function HomeHub({
       ) : null}
 
       {/* Pinned / Latest Spotlight Dark Atmospheric Banner */}
-      <Pressable
+      <MotionPressable
+        preset="card"
+        activeOpacity={0.92}
         testID="home-hub-spotlight"
         accessibilityRole="button"
         accessibilityLabel={`${spotlightPreview} ${spotlightMeta}`}
         onPress={() => (spotlightBot ? openBotThread(spotlightBot) : triggerCreateBot())}
-        style={({ pressed }) => ({
+        style={{
           borderRadius: 22,
           backgroundColor: isLight ? "#364556" : "#2B3646",
           experimental_backgroundImage: cardGradient(isLight, "spotlight"),
@@ -500,8 +502,7 @@ export function HomeHub({
           overflow: "hidden",
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: "rgba(250, 248, 244, 0.18)",
-          opacity: pressed ? 0.88 : 1,
-        })}
+        }}
       >
         <View
           pointerEvents="none"
@@ -595,7 +596,7 @@ export function HomeHub({
             </Text>
           </View>
         </View>
-      </Pressable>
+      </MotionPressable>
 
       {/* Background Companion Control Card */}
       <HomeCompanionCard
@@ -624,15 +625,13 @@ export function HomeHub({
             }}
           />
         ))}
-        <Pressable
+        <MotionPressable
+          preset="card"
           testID="home-hub-chats-card"
           accessibilityRole="button"
           accessibilityLabel={copy("聊天与伙伴", "聊天與夥伴", "Chats & Companions")}
           onPress={() => router.push("/chats")}
-          style={({ pressed }) => ({
-            gap: 4,
-            opacity: pressed ? 0.72 : 1,
-          })}
+          style={{ gap: 4 }}
         >
           <Text style={{ color: tokens.mutedForeground, fontSize: 14, lineHeight: 18 }}>
             {copy("聊天与伙伴", "聊天與夥伴", "Chats & Companions")}
@@ -675,7 +674,7 @@ export function HomeHub({
                     : "Ready for natural-language tasks"
                 }`}
           </Text>
-        </Pressable>
+        </MotionPressable>
 
         <View
           style={{
@@ -686,18 +685,18 @@ export function HomeHub({
             gap: 12,
           }}
         >
-          <Pressable
+          <MotionPressable
+            preset="control"
             accessibilityRole="button"
             accessibilityLabel={copy("打开聊天列表", "打開聊天列表", "Open chats")}
             onPress={() => router.push("/chats")}
-            style={({ pressed }) => ({
+            style={{
               flexDirection: "row",
               alignItems: "center",
               gap: 8,
               flex: 1,
               minWidth: 0,
-              opacity: pressed ? 0.7 : 1,
-            })}
+            }}
           >
             {bots.length > 0 ? (
               <View
@@ -734,33 +733,34 @@ export function HomeHub({
                 {copy("点击进入收件箱 ›", "點擊進入收件箱 ›", "Open inbox ›")}
               </Text>
             )}
-          </Pressable>
+          </MotionPressable>
 
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-create-bot"
             accessibilityRole="button"
             accessibilityLabel={copy("新建伙伴", "新建夥伴", "New companion")}
             onPress={triggerCreateBot}
-            style={({ pressed }) => ({
+            style={{
               backgroundColor: chipBackground,
               borderRadius: 999,
               paddingHorizontal: 13,
               paddingVertical: 6,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: chipBorder,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <Text style={{ color: tokens.foreground, fontSize: 13, fontWeight: "600" }}>
               {copy("+ 新建", "+ 新建", "+ New")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       </View>
 
       {/* Full-Width Card 2: Workspaces & Cloud Computer Status */}
       <View style={[cardSurface("slate"), { padding: 20, overflow: "hidden" }]}>
-        <Pressable
+        <MotionPressable
+          preset="card"
           testID="home-hub-workspaces-header"
           accessibilityRole="button"
           accessibilityLabel={copy(
@@ -769,13 +769,12 @@ export function HomeHub({
             `Workspaces & Execution, ${resolvedActiveRuns} active runs`,
           )}
           onPress={() => router.push("/projects")}
-          style={({ pressed }) => ({
+          style={{
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            opacity: pressed ? 0.72 : 1,
-          })}
+          }}
         >
           <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
             <Text
@@ -825,22 +824,22 @@ export function HomeHub({
               {resolvedActiveRuns}
             </Text>
           </View>
-        </Pressable>
+        </MotionPressable>
 
         <View style={{ marginTop: 18, flexDirection: "row", alignItems: "stretch", gap: 16 }}>
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-projects-split"
             accessibilityRole="button"
             accessibilityLabel={copy("项目工作区", "項目工作區", "Projects")}
             onPress={() => router.push("/projects")}
-            style={({ pressed }) => ({
+            style={{
               flex: 1,
               minWidth: 0,
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <View
               style={{
@@ -875,21 +874,21 @@ export function HomeHub({
             >
               {projectCount !== null ? projectCount : "—"}
             </Text>
-          </Pressable>
+          </MotionPressable>
 
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-computer-split"
             accessibilityRole="button"
             accessibilityLabel={copy("云电脑画面", "雲電腦畫面", "Computer")}
             onPress={openComputer}
-            style={({ pressed }) => ({
+            style={{
               flex: 1,
               minWidth: 0,
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <View
               style={{
@@ -928,19 +927,20 @@ export function HomeHub({
                   ? copy("就绪", "就緒", "Ready")
                   : "—"}
             </Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       </View>
 
       {/* 2-Column Bento Feature Grid */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
         {/* Tile 1: GitHub */}
-        <Pressable
+        <MotionPressable
+          preset="card"
           testID="home-hub-github-tile"
           accessibilityRole="button"
           accessibilityLabel="GitHub"
           onPress={() => router.push("/github")}
-          style={({ pressed }) => [
+          style={[
             cardSurface("sage"),
             {
               flexBasis: "47%",
@@ -950,7 +950,6 @@ export function HomeHub({
               padding: 18,
               overflow: "hidden",
               justifyContent: "space-between",
-              opacity: pressed ? 0.72 : 1,
             },
           ]}
         >
@@ -1043,15 +1042,16 @@ export function HomeHub({
               );
             })}
           </View>
-        </Pressable>
+        </MotionPressable>
 
         {/* Tile 2: Connect Apps */}
-        <Pressable
+        <MotionPressable
+          preset="card"
           testID="home-hub-integrations-tile"
           accessibilityRole="button"
           accessibilityLabel={copy("连接应用", "連接應用", "Connect Apps")}
           onPress={() => router.push("/integrations")}
-          style={({ pressed }) => [
+          style={[
             cardSurface("rose"),
             {
               flexBasis: "47%",
@@ -1061,7 +1061,6 @@ export function HomeHub({
               padding: 18,
               overflow: "hidden",
               justifyContent: "space-between",
-              opacity: pressed ? 0.72 : 1,
             },
           ]}
         >
@@ -1139,7 +1138,7 @@ export function HomeHub({
               {copy("管理外部工具与连接器", "管理外部工具與連接器", "Tools & connectors")}
             </Text>
           </View>
-        </Pressable>
+        </MotionPressable>
 
         {/* Tile 3: Routines & Skills */}
         <View
@@ -1156,15 +1155,13 @@ export function HomeHub({
             },
           ]}
         >
-          <Pressable
+          <MotionPressable
+            preset="card"
             testID="home-hub-routines-tile"
             accessibilityRole="button"
             accessibilityLabel={copy("例行与技能", "例行與技能", "Routines & Skills")}
             onPress={openRoutines}
-            style={({ pressed }) => ({
-              gap: 6,
-              opacity: pressed ? 0.72 : 1,
-            })}
+            style={{ gap: 6 }}
           >
             <View
               style={{
@@ -1202,14 +1199,15 @@ export function HomeHub({
                 "Scheduled agent workflows",
               )}
             </Text>
-          </Pressable>
+          </MotionPressable>
 
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-skills-chip"
             accessibilityRole="button"
             accessibilityLabel={copy("技能库", "技能庫", "Skills")}
             onPress={() => router.push("/skills")}
-            style={({ pressed }) => ({
+            style={{
               alignSelf: "flex-start",
               marginTop: 12,
               backgroundColor: chipBackground,
@@ -1218,13 +1216,12 @@ export function HomeHub({
               paddingVertical: 5,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: chipBorder,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <Text style={{ color: tokens.foreground, fontSize: 12.5, fontWeight: "600" }}>
               {copy("技能库 ›", "技能庫 ›", "Skills ›")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         {/* Tile 4: Artifacts & Theme Packs */}
@@ -1242,15 +1239,13 @@ export function HomeHub({
             },
           ]}
         >
-          <Pressable
+          <MotionPressable
+            preset="card"
             testID="home-hub-artifacts-tile"
             accessibilityRole="button"
             accessibilityLabel={copy("文件与换肤", "文件與換膚", "Files & Themes")}
             onPress={() => router.push("/artifacts")}
-            style={({ pressed }) => ({
-              gap: 6,
-              opacity: pressed ? 0.72 : 1,
-            })}
+            style={{ gap: 6 }}
           >
             <View
               style={{
@@ -1288,14 +1283,15 @@ export function HomeHub({
                 "Browse generated files & media",
               )}
             </Text>
-          </Pressable>
+          </MotionPressable>
 
-          <Pressable
+          <MotionPressable
+            preset="control"
             testID="home-hub-appearance-chip"
             accessibilityRole="button"
             accessibilityLabel={copy("外观与换肤", "外觀與換膚", "Themes & Appearance")}
             onPress={openAppearance}
-            style={({ pressed }) => ({
+            style={{
               alignSelf: "flex-start",
               marginTop: 12,
               backgroundColor: chipBackground,
@@ -1304,13 +1300,12 @@ export function HomeHub({
               paddingVertical: 5,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: chipBorder,
-              opacity: pressed ? 0.68 : 1,
-            })}
+            }}
           >
             <Text style={{ color: tokens.foreground, fontSize: 12.5, fontWeight: "600" }}>
               {copy("外观与换肤 ›", "外觀與換膚 ›", "Themes ›")}
             </Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       </View>
     </ScrollView>

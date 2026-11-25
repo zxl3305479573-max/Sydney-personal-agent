@@ -40,20 +40,28 @@ const computer: ComputerRef = {
 
 it("probes a relative project folder and passes a guarded lease with the exact file request", async () => {
   const folder = { path: "project", device: "12", inode: "34" };
-  const transport = vi.fn()
+  const transport = vi
+    .fn()
     .mockResolvedValueOnce(folder)
     .mockResolvedValueOnce({ operation: "read", text: "sample", sha256: "a".repeat(64) });
   const validate = vi.fn().mockResolvedValue(Date.now() + 5_000);
   const sandbox = new NativeLinuxSandbox(validate, transport);
-  await expect(sandbox.identifyProjectFolder(computer, folder.path, context)).resolves.toEqual(folder);
+  await expect(sandbox.identifyProjectFolder(computer, folder.path, context)).resolves.toEqual(
+    folder,
+  );
   expect(validate).not.toHaveBeenCalled();
   const file = { operation: "read", path: "source.txt" } as const;
   await expect(sandbox.executeProjectFile(computer, folder, file, context)).resolves.toEqual({
-    operation: "read", text: "sample", sha256: expect.any(String),
+    operation: "read",
+    text: "sample",
+    sha256: expect.any(String),
   });
   expect(transport).toHaveBeenLastCalledWith(
-    "project_file", { folder, file },
-    expect.objectContaining({ nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }) }),
+    "project_file",
+    { folder, file },
+    expect.objectContaining({
+      nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }),
+    }),
     computer,
   );
   validate.mockResolvedValue(null);
@@ -70,22 +78,38 @@ it("dispatches a guarded project command only to a dedicated native computer", a
   const transport = vi.fn().mockResolvedValue(reply);
   const validate = vi.fn().mockResolvedValue(Date.now() + 5_000);
   const sandbox = new NativeLinuxSandbox(validate, transport);
-  await expect(sandbox.executeProjectCommand(computer, folder, command, context)).resolves.toEqual(reply);
+  await expect(sandbox.executeProjectCommand(computer, folder, command, context)).resolves.toEqual(
+    reply,
+  );
   expect(transport).toHaveBeenCalledExactlyOnceWith(
-    "project_command", { folder, command },
-    expect.objectContaining({ nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }) }),
+    "project_command",
+    { folder, command },
+    expect.objectContaining({
+      nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }),
+    }),
     computer,
   );
-  await expect(sandbox.executeProjectCommand(computer, folder, {
-    ...command, inputFiles: ["../sample.txt"],
-  }, context)).rejects.toThrow();
+  await expect(
+    sandbox.executeProjectCommand(
+      computer,
+      folder,
+      {
+        ...command,
+        inputFiles: ["../sample.txt"],
+      },
+      context,
+    ),
+  ).rejects.toThrow();
   for (const teamHome of [
     computerHomeKey({ mode: "team", spaceId: context.spaceId, userId: context.userId }),
     legacyTeamHomeKey(context.spaceId),
   ]) {
-    await expect(sandbox.executeProjectCommand(
-      { ...computer, botId: teamHome }, folder, command, { ...context, botId: teamHome },
-    )).rejects.toThrow("native_project_command_requires_dedicated_computer");
+    await expect(
+      sandbox.executeProjectCommand({ ...computer, botId: teamHome }, folder, command, {
+        ...context,
+        botId: teamHome,
+      }),
+    ).rejects.toThrow("native_project_command_requires_dedicated_computer");
   }
   validate.mockResolvedValue(null);
   await expect(sandbox.executeProjectCommand(computer, folder, command, context)).rejects.toThrow(
@@ -101,7 +125,9 @@ it("reports isolated project command availability through the guarded driver met
   expect(transport).toHaveBeenCalledExactlyOnceWith(
     "project_command_status",
     {},
-    expect.objectContaining({ nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }) }),
+    expect.objectContaining({
+      nativeRunLease: expect.objectContaining({ expiresAt: expect.any(Number) }),
+    }),
     computer,
   );
 });
@@ -120,7 +146,9 @@ it.each([
     text: "new",
   } as const;
 
-  await expect(sandbox.executeProjectFile(computer, folder, file, context)).resolves.toEqual(result);
+  await expect(sandbox.executeProjectFile(computer, folder, file, context)).resolves.toEqual(
+    result,
+  );
   expect(transport).toHaveBeenCalledOnce();
   expect(transport).toHaveBeenCalledWith(
     "project_file",
@@ -130,18 +158,22 @@ it.each([
   );
 });
 
-it.each(["read", "create"] as const)("rejects a project file update conflict for %s", async (operation) => {
-  const folder = { path: "project", device: "12", inode: "34" };
-  const transport = vi.fn().mockResolvedValue({ operation: "conflict", sha256: "b".repeat(64) });
-  const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5_000, transport);
-  const file = operation === "read"
-    ? { operation, path: "source.txt" }
-    : { operation, path: "result.md", text: "new" };
+it.each(["read", "create"] as const)(
+  "rejects a project file update conflict for %s",
+  async (operation) => {
+    const folder = { path: "project", device: "12", inode: "34" };
+    const transport = vi.fn().mockResolvedValue({ operation: "conflict", sha256: "b".repeat(64) });
+    const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5_000, transport);
+    const file =
+      operation === "read"
+        ? { operation, path: "source.txt" }
+        : { operation, path: "result.md", text: "new" };
 
-  await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toThrow(
-    "native_project_file_result_mismatch",
-  );
-});
+    await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toThrow(
+      "native_project_file_result_mismatch",
+    );
+  },
+);
 
 it("distinguishes an absent project driver, a stale generation, and a lost reply", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "sydney-native-test-"));
@@ -168,19 +200,23 @@ it("distinguishes an absent project driver, a stale generation, and a lost reply
     });
   });
   try {
-    await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toMatchObject({
-      name: "NativeProjectFileDispatchError",
-      reason: "offline",
-    });
+    await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toMatchObject(
+      {
+        name: "NativeProjectFileDispatchError",
+        reason: "offline",
+      },
+    );
     server.listen(socketPath);
     await once(server, "listening");
-    await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toMatchObject({
-      name: "NativeProjectFileDispatchError",
-      reason: "generation_changed",
-    });
-    const disconnected = await sandbox.executeProjectFile(computer, folder, file, context).catch(
-      (error: unknown) => error,
+    await expect(sandbox.executeProjectFile(computer, folder, file, context)).rejects.toMatchObject(
+      {
+        name: "NativeProjectFileDispatchError",
+        reason: "generation_changed",
+      },
     );
+    const disconnected = await sandbox
+      .executeProjectFile(computer, folder, file, context)
+      .catch((error: unknown) => error);
     expect(disconnected).toBeInstanceOf(Error);
     expect(disconnected).not.toBeInstanceOf(NativeProjectFileDispatchError);
     expect(disconnected).toHaveProperty("message", "native_driver_disconnected_result_unknown");

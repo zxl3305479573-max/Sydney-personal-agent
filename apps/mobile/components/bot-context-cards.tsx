@@ -1,17 +1,26 @@
 import type { MemoryDocument, ScratchpadItem } from "@rakazo/contracts";
 import { isEmptyBotMemory } from "@rakazo/contracts";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
-import { errorText } from "../lib/user-error";
 import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
+import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 
-export function BotContextCards({ botId, projectId, scope }: { botId: string; projectId?: string; scope?: string }) {
+export function BotContextCards({
+  botId,
+  projectId,
+  scope,
+}: {
+  botId: string;
+  projectId?: string;
+  scope?: string;
+}) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const [work, setWork] = useState<ScratchpadItem[]>([]);
@@ -22,19 +31,35 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
-    const load = async () => projectId && scope
-      ? rpc("projectWorkspaces/botContext", { projectId, botId }, await projectRequestOptions(scope))
-      : Promise.all([rpc("scratchpad/list", { botId }), rpc("memory/list", { botId, scope: "bot" })]).then(([work, docs]) => ({ work, docs }));
-    void load()
-      .then(({ work: items, docs }) => {
-        if (current && (!projectId || scope === projectScopeKey())) {
-          setWork(items);
-          setDocs(docs.filter((doc) => !isEmptyBotMemory(doc)));
-        }
-      })
-      .catch((err) => {
-        if (current && (!projectId || scope === projectScopeKey())) setError(errorText(err));
-      });
+    setError(null);
+    if (projectId && scope) {
+      void projectRequestOptions(scope)
+        .then((options) => rpc("projectWorkspaces/botContext", { projectId, botId }, options))
+        .then(({ work: items, docs: memoryDocs }) => {
+          if (current && scope === projectScopeKey()) {
+            setWork(items);
+            setDocs(memoryDocs.filter((doc) => !isEmptyBotMemory(doc)));
+          }
+        })
+        .catch((err) => {
+          if (current && scope === projectScopeKey()) setError(errorText(err));
+        });
+    } else {
+      void rpc("scratchpad/list", { botId })
+        .then((items) => {
+          if (current) setWork(items);
+        })
+        .catch((err) => {
+          if (current) setError(errorText(err));
+        });
+      void rpc("memory/list", { botId, scope: "bot" })
+        .then((memoryDocs) => {
+          if (current) setDocs(memoryDocs.filter((doc) => !isEmptyBotMemory(doc)));
+        })
+        .catch((err) => {
+          if (current) setError(errorText(err));
+        });
+    }
     return () => {
       current = false;
     };
@@ -67,9 +92,14 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
                 if (!title || busy) return;
                 setBusy(true);
                 try {
-                  const result = projectId && scope
-                    ? await rpc("projectWorkspaces/botContextAction", { projectId, botId, title, action: "create" }, await projectRequestOptions(scope))
-                    : { item: await rpc("scratchpad/create", { botId, title }) };
+                  const result =
+                    projectId && scope
+                      ? await rpc(
+                          "projectWorkspaces/botContextAction",
+                          { projectId, botId, title, action: "create" },
+                          await projectRequestOptions(scope),
+                        )
+                      : { item: await rpc("scratchpad/create", { botId, title }) };
                   if (result.item) setWork((items) => [result.item!, ...items]);
                 } catch (err) {
                   setError(errorText(err));
@@ -90,7 +120,8 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
                 key={item.id}
                 style={{ minHeight: 44, flexDirection: "row", gap: 12, alignItems: "center" }}
               >
-                <Pressable
+                <MotionPressable
+                  preset="icon"
                   accessibilityLabel={`${t("Complete")} ${item.title}`}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: false }}
@@ -104,9 +135,17 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
                   disabled={busy}
                   onPress={() => {
                     setBusy(true);
-                    void (projectId && scope
-                      ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/botContextAction", { projectId, botId, itemId: item.id, action: "complete" }, options))
-                      : rpc("scratchpad/update", { itemId: item.id, status: "done" }))
+                    void (
+                      projectId && scope
+                        ? projectRequestOptions(scope).then((options) =>
+                            rpc(
+                              "projectWorkspaces/botContextAction",
+                              { projectId, botId, itemId: item.id, action: "complete" },
+                              options,
+                            ),
+                          )
+                        : rpc("scratchpad/update", { itemId: item.id, status: "done" })
+                    )
                       .then(() => setWork((items) => items.filter((entry) => entry.id !== item.id)))
                       .catch((err) => setError(errorText(err)))
                       .finally(() => setBusy(false));
@@ -118,7 +157,7 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
                     size={22}
                     color={tokens.mutedForeground}
                   />
-                </Pressable>
+                </MotionPressable>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: tokens.foreground, fontSize: 14 }}>{item.title}</Text>
                   {item.notes ? (
@@ -130,13 +169,14 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
               </View>
             ))}
             {!allWork && work.length > 5 ? (
-              <Pressable
+              <MotionPressable
+                preset="inline"
                 accessibilityRole="button"
                 onPress={() => setAllWork(true)}
                 style={{ minHeight: 44, alignItems: "center", justifyContent: "center" }}
               >
                 <Text style={{ color: tokens.mutedForeground }}>{t("Show more")}</Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </GlassSurface>
         </View>
@@ -153,8 +193,10 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
             fallbackStyle={{ backgroundColor: native.fill }}
           >
             {(allDocs ? docs : docs.slice(0, 5)).map((doc) => (
-              <Pressable
+              <MotionPressable
                 key={doc.id}
+                preset="row"
+                highlightColor={native.fillPressed}
                 accessibilityRole="button"
                 accessibilityLabel={doc.path}
                 onPress={() => Alert.alert(doc.path, doc.content)}
@@ -175,16 +217,17 @@ export function BotContextCards({ botId, projectId, scope }: { botId: string; pr
                   size={14}
                   color={native.tertiaryLabel}
                 />
-              </Pressable>
+              </MotionPressable>
             ))}
             {!allDocs && docs.length > 5 ? (
-              <Pressable
+              <MotionPressable
+                preset="inline"
                 accessibilityRole="button"
                 onPress={() => setAllDocs(true)}
                 style={{ minHeight: 44, alignItems: "center", justifyContent: "center" }}
               >
                 <Text style={{ color: tokens.mutedForeground }}>{t("Show more")}</Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </GlassSurface>
         </View>

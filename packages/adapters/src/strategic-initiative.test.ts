@@ -1,7 +1,7 @@
 import type { JobPublisher } from "@rakazo/adapter-kit";
 import type * as Db from "@rakazo/db";
 import type { PrismaClient } from "@rakazo/db";
-import { spaceHasModelAccess } from "@rakazo/db";
+import { runAsSystem, spaceHasModelAccess } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import {
   createStrategicInitiativeReconciler,
@@ -77,12 +77,18 @@ function strategicPrisma(options: {
     spaceMember: {
       findUnique: vi.fn(async () => (options.member === false ? null : { id: "member-1" })),
     },
-    $queryRaw: vi.fn(async () => [{ id: "thread-1" }]),
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [{ id: "thread-1" }];
+    }),
     run,
     task,
     $transaction: vi.fn(
       async (fn: (tx: { run: typeof run; task: typeof task }) => Promise<unknown>) =>
-        fn(prisma as never),
+        runAsSystem("strategic initiative test", () => fn(prisma as never)),
     ),
   } as unknown as PrismaClient;
   return { prisma, tasks, runs };

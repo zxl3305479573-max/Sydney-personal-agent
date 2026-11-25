@@ -18,14 +18,16 @@ function directory() {
 function validAvatar(value: unknown): value is SavedBotAvatar {
   if (!value || typeof value !== "object") return false;
   const record = value as Partial<SavedBotAvatar>;
-  return typeof record.id === "string" &&
+  return (
+    typeof record.id === "string" &&
     ID_PATTERN.test(record.id) &&
     typeof record.createdAt === "number" &&
     Number.isFinite(record.createdAt) &&
     typeof record.dataUrl === "string" &&
     record.dataUrl.startsWith("data:image/") &&
     record.dataUrl.length <= BOT_AVATAR_VALUE_MAX_LENGTH &&
-    isBotAvatarValue(record.dataUrl);
+    isBotAvatarValue(record.dataUrl)
+  );
 }
 
 export async function loadBotAvatarLibrary(): Promise<SavedBotAvatar[]> {

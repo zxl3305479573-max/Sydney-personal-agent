@@ -38,7 +38,7 @@ describe("Android live notification resume", () => {
   });
 
   it("resumes the native poller with the normalized server and the active UI locale", async () => {
-    await resumeLiveNotifications(" app.example.test/api/ ", "token-1", "space-1");
+    await resumeLiveNotifications(" app.example.test/ ", "token-1", "space-1");
     expect(native.resume).toHaveBeenCalledWith(
       "https://app.example.test",
       "token-1",

@@ -82,7 +82,11 @@ export function useInboxChatActions({
   );
   const [sendPinState] = useState(() => createLatestQueue<boolean>());
   const updatePin = useCallback(
-    (kind: InboxChatKind, chat: MobileBot | MobileGroup | SpaceBot | SpaceGroup, pinned: boolean) => {
+    (
+      kind: InboxChatKind,
+      chat: MobileBot | MobileGroup | SpaceBot | SpaceGroup,
+      pinned: boolean,
+    ) => {
       const key = unreadOverrideKey(kind, chat.id);
       const generation = currentSessionGeneration();
       const apiBase = currentApiBase();
@@ -104,10 +108,14 @@ export function useInboxChatActions({
           const headers = { ...context.headers };
           if (spaceId) headers["x-rakazo-space-id"] = spaceId;
           else delete headers["x-rakazo-space-id"];
-          await rpc(`${kind}s/update`, { ...chatTarget(kind, chat.id), pinned: nextPinned }, {
-            requestContext: { ...context, headers },
-            skipSpaceAuthRecovery: true,
-          });
+          await rpc(
+            `${kind}s/update`,
+            { ...chatTarget(kind, chat.id), pinned: nextPinned },
+            {
+              requestContext: { ...context, headers },
+              skipSpaceAuthRecovery: true,
+            },
+          );
           if (!isCurrent()) return;
           const patch = <T extends { id: string; pinned?: boolean }>(items: T[]) =>
             items.map((item) => (item.id === chat.id ? { ...item, pinned: nextPinned } : item));

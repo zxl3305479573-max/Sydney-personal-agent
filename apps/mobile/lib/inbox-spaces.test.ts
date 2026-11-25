@@ -399,7 +399,9 @@ describe("removeInboxSpace", () => {
   it("keeps the retry visible when fallback persistence still fails", async () => {
     vi.mocked(adoptDeletedSpaceFallback).mockResolvedValue(false);
     const refresh = vi.fn(async () => undefined);
-    await expect(retryInboxSpaceFallback({ spaceId: "personal", scope }, refresh)).resolves.toBe(false);
+    await expect(retryInboxSpaceFallback({ spaceId: "personal", scope }, refresh)).resolves.toBe(
+      false,
+    );
     expect(refresh).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });

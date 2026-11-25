@@ -59,7 +59,9 @@ describe("project directory storage", () => {
     expect(state.statements[4]?.text).toContain(
       '"project_directory_bindings"."grantId" = EXCLUDED."grantId"',
     );
-    expect(state.statements[4]?.text).toContain('"project_directory_bindings"."intent" = EXCLUDED."intent"');
+    expect(state.statements[4]?.text).toContain(
+      '"project_directory_bindings"."intent" = EXCLUDED."intent"',
+    );
   });
 
   it.each(["project", "device", "conflict"])(

@@ -25,5 +25,8 @@ await mkdir(dist, { recursive: true });
 await Promise.all([
   ...STATIC_FILES.map((file) => copyFile(path.join(root, "src", file), path.join(dist, file))),
   copyFile(TOKENS_FILE, path.join(dist, "tokens.css")),
-  copyFile(path.join(root, "../../packages/ui-tokens/assets/sydney-mark.png"), path.join(dist, "sydney-mark.png")),
+  copyFile(
+    path.join(root, "../../packages/ui-tokens/assets/sydney-mark.png"),
+    path.join(dist, "sydney-mark.png"),
+  ),
 ]);

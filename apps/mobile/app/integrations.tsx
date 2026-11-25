@@ -46,6 +46,7 @@ import { GlassSurface } from "../components/glass-surface";
 import { MainNavigationHeader } from "../components/main-navigation-header";
 import { McpOAuthReturn } from "../components/mcp-oauth-return";
 import { MenuPicker } from "../components/menu-picker";
+import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { PluginIcon } from "../components/plugin-icon";
@@ -530,11 +531,13 @@ export default function Integrations() {
         style={catalogColumns === 2 ? styles.catalogCell : undefined}
         fallbackStyle={styles.rowFallback}
       >
-        <Pressable
+        <MotionPressable
+          preset="row"
+          highlightColor={native.fillPressed}
           accessibilityRole="button"
           accessibilityLabel={entry.displayName}
           onPress={() => openPlugin(pluginParams(entry))}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          style={styles.row}
         >
           <PluginIcon
             logo={entry.logo}
@@ -553,7 +556,7 @@ export default function Integrations() {
             ) : null}
           </View>
           {installed ? <Text style={styles.secondary}>{t("Added")}</Text> : <Chevron />}
-        </Pressable>
+        </MotionPressable>
       </GlassSurface>
     );
   }
@@ -581,12 +584,14 @@ export default function Integrations() {
         cornerRadius={18}
         fallbackStyle={styles.rowFallback}
       >
-        <Pressable
+        <MotionPressable
+          preset="row"
+          highlightColor={native.fillPressed}
           testID="installed-plugin"
           accessibilityRole="button"
           accessibilityLabel={params.name}
           onPress={() => openPlugin(params)}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          style={styles.row}
         >
           <PluginIcon logo={params.logo} name={params.name} site={params.site} size={LOGO_SIZE} />
           <View style={styles.grow}>
@@ -606,7 +611,7 @@ export default function Integrations() {
               variant="text"
             />
           ) : null}
-        </Pressable>
+        </MotionPressable>
       </GlassSurface>
     );
   }
@@ -770,7 +775,8 @@ export default function Integrations() {
                 {name === OTHER_PLUGINS ? t("More") : categoryLabel(name)}
               </Text>
               {entries.length > SECTION_SIZE ? (
-                <Pressable
+                <MotionPressable
+                  preset="inline"
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={() => {
@@ -779,7 +785,7 @@ export default function Integrations() {
                   }}
                 >
                   <Text style={styles.link}>{t("View all")}</Text>
-                </Pressable>
+                </MotionPressable>
               ) : null}
             </View>
             <View style={catalogColumns === 2 ? styles.catalogGrid : styles.catalogStack}>
@@ -1098,7 +1104,8 @@ export default function Integrations() {
           style={[styles.row, tileStyle]}
           fallbackStyle={styles.rowFallback}
         >
-          <Pressable
+          <MotionPressable
+            preset="card"
             accessibilityRole="button"
             accessibilityLabel={label}
             onPress={() =>
@@ -1107,7 +1114,7 @@ export default function Integrations() {
             style={styles.catalogTileBody}
           >
             {body}
-          </Pressable>
+          </MotionPressable>
           {renderCatalogActions(item, label)}
         </GlassSurface>
       );
@@ -1137,14 +1144,15 @@ export default function Integrations() {
       <View style={styles.detail}>
         <View style={styles.detailHeader}>
           <View style={styles.detailTitleRow}>
-            <Pressable
+            <MotionPressable
+              preset="inline"
               accessibilityRole="button"
               accessibilityLabel={t("Back")}
               onPress={closeDetail}
               style={styles.backButton}
             >
               <Text style={styles.link}>{t("Back")}</Text>
-            </Pressable>
+            </MotionPressable>
             <ConnectorIcon logo={item.logo} name={item.name} size={LOGO_SIZE} />
             <Text style={styles.detailTitle}>{item.name}</Text>
           </View>
@@ -1203,7 +1211,9 @@ export default function Integrations() {
           style={styles.card}
           fallbackStyle={styles.cardFallback}
         >
-          <Pressable
+          <MotionPressable
+            preset="row"
+            highlightColor={native.fillPressed}
             accessibilityRole="button"
             accessibilityState={{ expanded: toolsOpen }}
             onPress={() => setToolsOpen((open) => !open)}
@@ -1217,7 +1227,7 @@ export default function Integrations() {
                   : t("{count} tools", { count: toolCount })}
             </Text>
             <Chevron expanded={toolsOpen} />
-          </Pressable>
+          </MotionPressable>
           {toolsOpen ? (
             <View style={styles.toolsBody}>
               {toolsLoading ? (

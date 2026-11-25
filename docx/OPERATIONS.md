@@ -1,5 +1,16 @@
 # 运维手册
 
+## GitHub CI 工作流与检查入口调整（2026-11-25）
+
+为修复 GitHub Actions 中的已知配置与检查报错，本批对仓库 CI 工作流和静态检查脚本做了以下调整（不涉及生产服务器、数据库迁移、环境变量、服务启停或客户端发布）：
+
+- `.github/workflows/desktop-macos-screenshot.yml`：将打包产物路径与二进制路径由 `Sydney.app`／`Contents/MacOS/Sydney` 更新为与 `apps/desktop/package.json`（`productName: "Sydney-partner"`）一致的 `Sydney-partner.app`／`Contents/MacOS/Sydney-partner`。该工作流需在推送后于 macOS arm64 Runner 上实测验证（待验证）。
+- `.github/workflows/weekly-dependencies.yml`：移除每周自动 `schedule:` 触发器（因仓库未配置自动更新所需的 Codex 订阅登录凭据导致每周定时必然红灯），保留 `workflow_dispatch:` 供需要时手动触发。
+- `apps/mobile/package.json`：将 `check` 脚本调整为 `tsc --noEmit -p tsconfig.json`，以便 Turborepo `pnpm check` 在无外网／CI 环境下稳定执行 TypeScript 检查；原 `expo install --check` 保留为 `pnpm --filter @rakazo/mobile check:expo` 供按需核对 Expo 依赖版本。
+- `apps/web/src/locales/{en,zh-CN}/messages.po`：已通过 `pnpm --filter @rakazo/web intl:extract` 同步至最新源码引用并补齐 `zh-CN` 缺失译文，以满足 PR CI 的 `Check translation catalogs are current` 门禁。
+
+本次变更尚未提交或推送；推送后需在 GitHub Actions 核对 `Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Production builds -> Electron smoke` 与 `desktop-macos-screenshot` 的实际执行状态。
+
 ## main 合并后的 iPhone 1.0.24 OTA（2026-11-25）
 
 PR #10 的合并提交 `6c47e8836a89d25be17bbcf94103d2d7485da192` 已通过既有 `mobile-ios-update.yml` 发布到 Sydney `sideload` 通道，runtime 仍为 `sydney-ios-ip-1`。Run `45600236960` 成功，更新组 `abb1e9a2-e636-4857-8589-662987a4c5b6`，更新 ID `01a2125e-c869-7ab4-a278-e6b0e178a73c`；线上清单、启动包和 55 项资源摘要已核验。

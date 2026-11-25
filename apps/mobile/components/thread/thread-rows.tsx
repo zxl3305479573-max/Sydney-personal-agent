@@ -1,5 +1,5 @@
-import type { ThreadItem } from "@rakazo/core";
 import type { SpaceBot } from "@rakazo/contracts";
+import type { ThreadItem } from "@rakazo/core";
 import {
   answerableAskMessageIds,
   dismissableAskMessageIds,

@@ -128,18 +128,12 @@ export interface GithubAccountService {
     input: GithubProfileOverviewInput,
   ): Promise<GithubProfileOverview>;
 
-  listMyRepos(
-    actor: GithubAccountActor,
-    input: GithubListMyReposInput,
-  ): Promise<GithubRepoPage>;
+  listMyRepos(actor: GithubAccountActor, input: GithubListMyReposInput): Promise<GithubRepoPage>;
 
   searchRepos(
     actor: GithubAccountActor,
     input: GithubSearchReposInput,
   ): Promise<GithubSearchReposOutput>;
 
-  getRepoDetail(
-    actor: GithubAccountActor,
-    input: GithubRepoDetailInput,
-  ): Promise<GithubRepoDetail>;
+  getRepoDetail(actor: GithubAccountActor, input: GithubRepoDetailInput): Promise<GithubRepoDetail>;
 }

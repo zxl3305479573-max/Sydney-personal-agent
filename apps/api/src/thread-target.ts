@@ -269,8 +269,9 @@ function sendActivity(
     threadId,
     cursor,
     runs: runs
-      .filter((run): run is typeof run & { botId: string } =>
-        Boolean(run.botId) && !isBackgroundRunTrigger(run.trigger),
+      .filter(
+        (run): run is typeof run & { botId: string } =>
+          Boolean(run.botId) && !isBackgroundRunTrigger(run.trigger),
       )
       .map(({ id, botId, status }) => ({ id, botId, status })),
   };
@@ -992,8 +993,10 @@ export async function sendThreadMessage(
           return { message, runs: [active], routineRuns, eventSeq: event.seq };
         }
         const executionScope = await resolveConversationExecutionScope(tx, {
-          spaceId: actor.spaceId, userId: actor.userId,
-          botId: target.botId, threadId: target.threadId,
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+          botId: target.botId,
+          threadId: target.threadId,
         });
         const task = await tx.task.create({
           data: {
@@ -1173,7 +1176,10 @@ export async function sendThreadMessage(
           continue;
         }
         const executionScope = await resolveConversationExecutionScope(tx, {
-          spaceId: actor.spaceId, userId: actor.userId, botId, threadId: target.threadId,
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+          botId,
+          threadId: target.threadId,
         });
         const task = await tx.task.create({
           data: {
@@ -1468,7 +1474,10 @@ async function startReactionTurn(
   });
   if (recentReaction) return [];
   const executionScope = await resolveConversationExecutionScope(tx, {
-    spaceId: actor.spaceId, userId: actor.userId, botId, threadId,
+    spaceId: actor.spaceId,
+    userId: actor.userId,
+    botId,
+    threadId,
   });
   const task = await tx.task.create({
     data: {

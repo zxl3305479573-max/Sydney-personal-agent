@@ -39,7 +39,9 @@ describe("project workspace deletion lifecycle (DB)", () => {
     const activeQuery = vi
       .fn()
       .mockResolvedValueOnce([]) // space advisory lock
-      .mockResolvedValueOnce([{ id: "project-a", name: "Alpha", deletingAt: null, deletionClaimId: null }]);
+      .mockResolvedValueOnce([
+        { id: "project-a", name: "Alpha", deletingAt: null, deletionClaimId: null },
+      ]);
     const makePrisma = (query: ReturnType<typeof vi.fn>) =>
       ({
         $transaction: async (callback: (tx: unknown) => unknown) =>
@@ -104,7 +106,10 @@ describe("project workspace deletion lifecycle (DB)", () => {
   });
 
   it("renews and releases claims strictly by claimId", async () => {
-    const query = vi.fn().mockResolvedValueOnce([{ id: "project-a" }]).mockResolvedValueOnce([]);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "project-a" }])
+      .mockResolvedValueOnce([]);
     const execute = vi.fn().mockResolvedValue(1);
     await expect(
       renewProjectWorkspaceDeletionClaim({ $queryRaw: query }, actor, {
@@ -156,9 +161,11 @@ describe("project workspace deletion lifecycle (DB)", () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       computerExecutionLease: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: "lease-1", computerId: "comp-1", botId: "bot-1", runId: "run-1", fence: 1 },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "lease-1", computerId: "comp-1", botId: "bot-1", runId: "run-1", fence: 1 },
+          ]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       computer: {
@@ -216,15 +223,38 @@ describe("project workspace deletion lifecycle (DB)", () => {
         .mockResolvedValueOnce([{ hasDeferred: opts.hasDeferred }])
         .mockResolvedValueOnce([{ id: "project-a" }]),
       bot: { count: vi.fn().mockResolvedValue(opts.remainingBots) },
-      run: { deleteMany: vi.fn(async () => { order.push("run"); return { count: 0 }; }) },
-      task: { deleteMany: vi.fn(async () => { order.push("task"); return { count: 0 }; }) },
-      thread: { deleteMany: vi.fn(async () => { order.push("thread"); return { count: 0 }; }) },
-      chatGroup: { deleteMany: vi.fn(async () => { order.push("chatGroup"); return { count: 0 }; }) },
+      run: {
+        deleteMany: vi.fn(async () => {
+          order.push("run");
+          return { count: 0 };
+        }),
+      },
+      task: {
+        deleteMany: vi.fn(async () => {
+          order.push("task");
+          return { count: 0 };
+        }),
+      },
+      thread: {
+        deleteMany: vi.fn(async () => {
+          order.push("thread");
+          return { count: 0 };
+        }),
+      },
+      chatGroup: {
+        deleteMany: vi.fn(async () => {
+          order.push("chatGroup");
+          return { count: 0 };
+        }),
+      },
     });
 
     await expect(
       finalizeProjectWorkspaceDeletion(
-        { $transaction: async (cb: (tx: unknown) => unknown) => cb(makeTx({ remainingBots: 1, hasDeferred: false })) } as unknown as PrismaClient,
+        {
+          $transaction: async (cb: (tx: unknown) => unknown) =>
+            cb(makeTx({ remainingBots: 1, hasDeferred: false })),
+        } as unknown as PrismaClient,
         actor,
         { id: "project-a", claimId: "claim-1" },
       ),
@@ -232,14 +262,20 @@ describe("project workspace deletion lifecycle (DB)", () => {
 
     await expect(
       finalizeProjectWorkspaceDeletion(
-        { $transaction: async (cb: (tx: unknown) => unknown) => cb(makeTx({ remainingBots: 0, hasDeferred: true })) } as unknown as PrismaClient,
+        {
+          $transaction: async (cb: (tx: unknown) => unknown) =>
+            cb(makeTx({ remainingBots: 0, hasDeferred: true })),
+        } as unknown as PrismaClient,
         actor,
         { id: "project-a", claimId: "claim-1" },
       ),
     ).rejects.toBeInstanceOf(ProjectWorkspaceDeferredResourcesError);
 
     await finalizeProjectWorkspaceDeletion(
-      { $transaction: async (cb: (tx: unknown) => unknown) => cb(makeTx({ remainingBots: 0, hasDeferred: false })) } as unknown as PrismaClient,
+      {
+        $transaction: async (cb: (tx: unknown) => unknown) =>
+          cb(makeTx({ remainingBots: 0, hasDeferred: false })),
+      } as unknown as PrismaClient,
       actor,
       { id: "project-a", claimId: "claim-1" },
     );

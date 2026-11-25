@@ -370,10 +370,14 @@ it("Skip posts the default name in pick order and routes to the group", async ()
   await start();
   await pickPair();
   await click("Skip");
-  expect(rpc).toHaveBeenCalledWith("groups/create", {
-    name: "Writer, Researcher",
-    botIds: ["bot-2", "bot-1"],
-  }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
+  expect(rpc).toHaveBeenCalledWith(
+    "groups/create",
+    {
+      name: "Writer, Researcher",
+      botIds: ["bot-2", "bot-1"],
+    },
+    expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }),
+  );
   // The new chat's title seats the members before the inbox lists the group.
   // Only into the session the group was created in.
   expect(addToSearchInbox).toHaveBeenCalledWith(
@@ -396,10 +400,14 @@ it("Create posts a trimmed name with the keyboard done action", async () => {
       .querySelector("input")!
       .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   });
-  expect(rpc).toHaveBeenCalledWith("groups/create", {
-    name: "Project Falcon",
-    botIds: ["bot-2", "bot-1"],
-  }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
+  expect(rpc).toHaveBeenCalledWith(
+    "groups/create",
+    {
+      name: "Project Falcon",
+      botIds: ["bot-2", "bot-1"],
+    },
+    expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }),
+  );
 });
 it.each([false, true])("back keeps picks (hardware: %s)", async (hardware) => {
   await start();
@@ -451,7 +459,9 @@ it("does not navigate or publish a result after scope changes during creation", 
   rpc.mockImplementation((procedure: string) =>
     procedure === "bots/list"
       ? Promise.resolve(bots)
-      : new Promise((resolve) => { finish = resolve; }),
+      : new Promise((resolve) => {
+          finish = resolve;
+        }),
   );
   await start();
   await pickPair();
@@ -491,10 +501,14 @@ it.each(["header", "native header", "hardware"])(
     await pressBack();
     expect(button("Creating…")?.disabled).toBe(true);
     expect(button("Next")).toBeUndefined();
-    expect(rpc).toHaveBeenCalledWith("groups/create", {
-      name: "Writer, Researcher",
-      botIds: ["bot-2", "bot-1"],
-    }, expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }));
+    expect(rpc).toHaveBeenCalledWith(
+      "groups/create",
+      {
+        name: "Writer, Researcher",
+        botIds: ["bot-2", "bot-1"],
+      },
+      expect.objectContaining({ requestContext: expect.any(Object), skipSpaceAuthRecovery: true }),
+    );
     await act(async () => reject(new Error("Could not create group")));
     await pressBack();
     expect(button("Remove Writer")).toBeDefined();

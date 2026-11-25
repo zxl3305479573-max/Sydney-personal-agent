@@ -1,5 +1,5 @@
-import type { Actor } from "@rakazo/contracts";
 import { aiRecipient } from "@rakazo/adapters";
+import type { Actor } from "@rakazo/contracts";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { RouterDeps } from "./router.js";
 

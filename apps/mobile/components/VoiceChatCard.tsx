@@ -2,10 +2,11 @@ import type { VoiceChatGroup } from "@rakazo/core";
 import { speechFromBlocks, voiceChatDuration, voiceChatSummary } from "@rakazo/core";
 import { typeScale } from "@rakazo/ui-tokens";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { MobileMessage } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 function clock(seconds: number): string {
@@ -48,7 +49,8 @@ export function VoiceChatCard({ group }: { group: VoiceChatGroup<MobileMessage> 
         },
       ]}
     >
-      <Pressable
+      <MotionPressable
+        preset="inline"
         accessibilityRole="button"
         accessibilityLabel={open ? t("Hide transcript") : t("Show transcript")}
         accessibilityState={{ expanded: open }}
@@ -79,7 +81,7 @@ export function VoiceChatCard({ group }: { group: VoiceChatGroup<MobileMessage> 
             color={tokens.mutedForeground}
           />
         </View>
-      </Pressable>
+      </MotionPressable>
       {open ? (
         <View style={styles.transcript}>
           {group.messages.map((message) => {

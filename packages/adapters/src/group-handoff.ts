@@ -176,7 +176,10 @@ export async function handoffToGroupBot(
       lease: inGroup ? runLeaseFor(deps, run.id) : undefined,
     });
     const executionScope = await resolveConversationExecutionScope(tx, {
-      spaceId: run.spaceId, userId: run.userId, botId: targetId, threadId: targetThreadId,
+      spaceId: run.spaceId,
+      userId: run.userId,
+      botId: targetId,
+      threadId: targetThreadId,
     });
     const task = await tx.task.create({
       data: {

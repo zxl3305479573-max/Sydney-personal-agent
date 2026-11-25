@@ -1,10 +1,11 @@
 import type { ReplyPreview } from "@rakazo/contracts";
 import { replyLabel } from "@rakazo/core";
 import { typeScale } from "@rakazo/ui-tokens";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import type { MobileArtifactTarget } from "../lib/artifact-open";
 import { t } from "../lib/i18n";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 import { ReplyThumbnail } from "./reply-thumbnail";
 
@@ -35,7 +36,9 @@ export function ReplyLine({
   );
   const tokens = mobileTokens();
   return (
-    <Pressable
+    <MotionPressable
+      preset="inline"
+      motionDisabled={unavailable}
       accessibilityRole={unavailable ? "text" : "button"}
       onPress={
         unavailable
@@ -64,6 +67,6 @@ export function ReplyLine({
       >
         {unavailable ? t("Original message unavailable") : `${author}: ${text}`}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }

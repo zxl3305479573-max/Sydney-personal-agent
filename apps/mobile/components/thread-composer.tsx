@@ -42,6 +42,7 @@ import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useScopedTheme } from "../lib/scoped-theme-context";
 import type { ComposerSnapshot } from "../lib/thread-feedback";
 import { BotAvatar } from "./bot-avatar";
+import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 type NativeEdit = {
@@ -410,7 +411,9 @@ export function ThreadComposer({
                   }}
                 />
               ) : null}
-              <Pressable
+              <MotionPressable
+                preset="row"
+                highlightColor={tokens.muted}
                 accessibilityLabel={t("@{name}", { name: mention.name })}
                 onPress={() => insertMention(mention)}
                 style={{
@@ -441,7 +444,7 @@ export function ThreadComposer({
                     {mention.subtitle}
                   </Text>
                 ) : null}
-              </Pressable>
+              </MotionPressable>
             </View>
           ))}
         </ScrollView>
@@ -462,8 +465,10 @@ export function ThreadComposer({
           }}
         >
           {slashSkillOptions.map((skill) => (
-            <Pressable
+            <MotionPressable
               key={skill.id}
+              preset="row"
+              highlightColor={tokens.muted}
               accessibilityLabel={t("Skill {name}", { name: skill.name })}
               onPress={() => insertSkill(skill)}
               style={{
@@ -489,11 +494,13 @@ export function ThreadComposer({
                   {truncateSlashDescription(skill.description)}
                 </Text>
               </View>
-            </Pressable>
+            </MotionPressable>
           ))}
           {slashActionOptions.map((action) => (
-            <Pressable
+            <MotionPressable
               key={action.id}
+              preset="row"
+              highlightColor={tokens.muted}
               accessibilityLabel={t(action.label)}
               onPress={() => runSlashAction(action.id)}
               style={{
@@ -511,7 +518,7 @@ export function ThreadComposer({
                 color={tokens.mutedForeground}
               />
               <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t(action.label)}</Text>
-            </Pressable>
+            </MotionPressable>
           ))}
         </ScrollView>
       ) : null}
@@ -570,7 +577,8 @@ export function ThreadComposer({
                 >
                   {selectedSkill.name}
                 </Text>
-                <Pressable
+                <MotionPressable
+                  preset="icon"
                   accessibilityLabel={t("Remove skill {name}", { name: selectedSkill.name })}
                   hitSlop={8}
                   onPress={() => setSelectedSkill(null)}
@@ -581,7 +589,7 @@ export function ThreadComposer({
                     size={12}
                     color={tokens.mutedForeground}
                   />
-                </Pressable>
+                </MotionPressable>
               </View>
             ) : null}
             <Pressable
@@ -786,15 +794,12 @@ export function ThreadComposer({
               <View style={{ flex: 1 }} />
             )}
             {!textOnly && !canSend && botId && !onCall ? (
-              <Pressable
+              <MotionPressable
+                preset="icon"
                 accessibilityRole="button"
                 accessibilityLabel={t("Call")}
                 onPress={() => void startVoiceCall()}
-                style={({ pressed }) => [
-                  toolButton,
-                  { backgroundColor: tokens.primary },
-                  pressed && { opacity: 0.78 },
-                ]}
+                style={[toolButton, { backgroundColor: tokens.primary }]}
               >
                 <NativeSymbol
                   ios="waveform"
@@ -802,21 +807,21 @@ export function ThreadComposer({
                   size={19}
                   color={tokens.primaryForeground}
                 />
-              </Pressable>
+              </MotionPressable>
             ) : (
-              <Pressable
+              <MotionPressable
+                preset="icon"
                 accessibilityRole="button"
                 accessibilityLabel={t("Send")}
                 accessibilityState={{ disabled: disabled || sending || !canSend, busy: sending }}
                 disabled={disabled || sending || !canSend}
                 onPress={() => void send()}
-                style={({ pressed }) => [
+                style={[
                   toolButton,
                   {
                     backgroundColor:
                       disabled || sending || !canSend ? tokens.muted : tokens.primary,
                   },
-                  pressed && { opacity: 0.78 },
                 ]}
               >
                 <NativeSymbol
@@ -829,21 +834,19 @@ export function ThreadComposer({
                       : tokens.primaryForeground
                   }
                 />
-              </Pressable>
+              </MotionPressable>
             )}
             {working ? (
-              <Pressable
+              <MotionPressable
+                preset="icon"
                 accessibilityRole="button"
                 accessibilityLabel={t("Stop")}
                 disabled={sending}
                 onPress={() => void stop()}
-                style={({ pressed }) => [
-                  toolButton,
-                  { backgroundColor: tokens.muted, opacity: sending || pressed ? 0.6 : 1 },
-                ]}
+                style={[toolButton, { backgroundColor: tokens.muted, opacity: sending ? 0.6 : 1 }]}
               >
                 <NativeSymbol ios="stop.fill" android="stop" size={15} color={tokens.foreground} />
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </View>
         </View>

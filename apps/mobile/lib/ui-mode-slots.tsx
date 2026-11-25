@@ -2,7 +2,8 @@ import { darkTokens } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { Component, createContext, useContext } from "react";
 import type { ViewStyle } from "react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { MotionPressable } from "../components/motion-pressable";
 import { classicUiMode } from "../ui-modes/classic";
 import type {
   ModeApprovalContainerSlotProps,
@@ -195,7 +196,8 @@ function ClassicTrigger({
   const letterSpacing = resolveLabelTracking(typography);
 
   return (
-    <Pressable
+    <MotionPressable
+      preset="control"
       testID={testID}
       disabled={isDisabled}
       accessibilityRole="button"
@@ -229,7 +231,7 @@ function ClassicTrigger({
       >
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

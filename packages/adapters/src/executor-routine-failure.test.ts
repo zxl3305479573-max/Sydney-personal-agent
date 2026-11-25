@@ -6,7 +6,7 @@ import {
   TransientModelError,
 } from "@rakazo/adapter-kit";
 import type * as DbModule from "@rakazo/db";
-import { countUnreadInboxChats } from "@rakazo/db";
+import { countUnreadInboxChats, runAsSystem } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ComputerLifecycleModule from "./computer-lifecycle.js";
@@ -446,6 +446,13 @@ function retryHarness(scenario: RetryScenario = {}) {
     error: overloaded().message,
   };
   const tx = {
+    $queryRaw: vi.fn(async (query: TemplateStringsArray | { strings: readonly string[] }) => {
+      const sql = ("strings" in query ? query.strings : query).join("");
+      if (sql.includes('FROM "threads"')) {
+        return [{ spaceId: "space-1", userId: "user-1", projectWorkspaceId: null }];
+      }
+      return [];
+    }),
     routine: {
       updateMany: vi.fn(async () => ({
         count: scenario.pausedBeforeCreate || scenario.archivedBeforeCreate ? 0 : 1,
@@ -455,7 +462,7 @@ function retryHarness(scenario: RetryScenario = {}) {
       findFirst: vi.fn(async () => (scenario.invalidDestination ? null : { id: "thread-1" })),
     },
     task: {
-      create: vi.fn(async () => ({ id: "task-2" })),
+      create: vi.fn(async () => ({ id: "task-2", projectWorkspaceId: null })),
       deleteMany: vi.fn(async () => ({ count: 1 })),
     },
     run: {
@@ -501,7 +508,9 @@ function retryHarness(scenario: RetryScenario = {}) {
     task: {
       findUnique: vi.fn(async () => (scenario.missingTask ? null : { prompt: "Sweep the inbox" })),
     },
-    $transaction: vi.fn(async (work: (client: typeof tx) => Promise<unknown>) => work(tx)),
+    $transaction: vi.fn(async (work: (client: typeof tx) => Promise<unknown>) =>
+      runAsSystem("routine retry test", () => work(tx)),
+    ),
     bot: { findUniqueOrThrow: vi.fn(async () => ({ name: "Assistant" })) },
   };
   const enqueue = vi.fn(async () => {
@@ -683,6 +692,7 @@ describe("running a routine retry", () => {
         botId: "bot-1",
         threadId: "thread-1",
         userId: "user-1",
+        projectWorkspaceId: null,
         prompt: "Sweep the inbox",
         status: "queued",
       },
@@ -694,6 +704,7 @@ describe("running a routine retry", () => {
         threadId: "thread-1",
         taskId: "task-2",
         userId: "user-1",
+        projectWorkspaceId: null,
         status: "queued",
         trigger: "routine",
         routineId: "routine-1",

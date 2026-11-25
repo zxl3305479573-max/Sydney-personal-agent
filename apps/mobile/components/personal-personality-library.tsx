@@ -10,20 +10,13 @@ import {
   renderPersonalitySelections,
 } from "@rakazo/contracts";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { captureApiRequestContext, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
+import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
 import { Checkmark } from "./row-accessories";
@@ -305,17 +298,18 @@ export function PersonalPersonalityLibrary({
     destructive = false,
     inactive = false,
   ) => (
-    <Pressable
+    <MotionPressable
+      preset="control"
       accessibilityRole="button"
       disabled={disabled || busy || inactive}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         paddingVertical: 6,
         paddingHorizontal: 12,
         borderRadius: 999,
         backgroundColor: native.fill,
-        opacity: disabled || busy || inactive ? 0.5 : pressed ? 0.7 : 1,
-      })}
+        opacity: disabled || busy || inactive ? 0.5 : 1,
+      }}
     >
       <Text
         style={{
@@ -326,7 +320,7 @@ export function PersonalPersonalityLibrary({
       >
         {title}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
   const matches = PERSONALITY_CATALOG.filter(
     (item) =>
@@ -382,7 +376,9 @@ export function PersonalPersonalityLibrary({
               gap: 8,
             }}
           >
-            <Pressable
+            <MotionPressable
+              preset="row"
+              highlightColor={native.fillPressed}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
               disabled={disabled || busy}
@@ -400,7 +396,7 @@ export function PersonalPersonalityLibrary({
                 ) : null}
               </View>
               {isSelected ? <Checkmark /> : null}
-            </Pressable>
+            </MotionPressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {pillAction(text("编辑", "Edit"), () => edit(item))}
               {pillAction(text("删除", "Delete"), () => confirmRemove(item), true)}
@@ -476,8 +472,9 @@ export function PersonalPersonalityLibrary({
               const chosen = selections.some((selection) => selection.attributeId === item.id);
               const capped = !chosen && selections.length >= 12;
               return (
-                <Pressable
+                <MotionPressable
                   key={item.id}
+                  preset="control"
                   accessibilityRole="button"
                   accessibilityState={{ selected: chosen, disabled: disabled || busy || capped }}
                   disabled={disabled || busy || capped}
@@ -492,15 +489,15 @@ export function PersonalPersonalityLibrary({
                         { attributeId: item.id, weight: "moderate" },
                       ]);
                   }}
-                  style={({ pressed }) => ({
+                  style={{
                     borderRadius: 999,
                     borderWidth: 1,
                     borderColor: chosen ? tokens.primary : tokens.border,
                     backgroundColor: chosen ? native.fill : "transparent",
                     paddingHorizontal: 12,
                     paddingVertical: 7,
-                    opacity: disabled || busy || capped ? 0.45 : pressed ? 0.7 : 1,
-                  })}
+                    opacity: disabled || busy || capped ? 0.45 : 1,
+                  }}
                 >
                   <Text
                     style={{
@@ -511,7 +508,7 @@ export function PersonalPersonalityLibrary({
                   >
                     {label(item)}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               );
             })}
           </View>
@@ -548,7 +545,8 @@ export function PersonalPersonalityLibrary({
                       <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 14 }}>
                         {item ? label(item) : selection.attributeId}
                       </Text>
-                      <Pressable
+                      <MotionPressable
+                        preset="icon"
                         accessibilityRole="button"
                         accessibilityLabel={text("移除", "Remove")}
                         disabled={disabled || busy}
@@ -573,7 +571,7 @@ export function PersonalPersonalityLibrary({
                           size={12}
                           color={tokens.mutedForeground}
                         />
-                      </Pressable>
+                      </MotionPressable>
                     </View>
                     <SegmentedPills
                       accessibilityLabel={item ? label(item) : selection.attributeId}

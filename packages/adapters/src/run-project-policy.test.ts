@@ -68,7 +68,12 @@ describe("project text tool policy", () => {
   });
 
   it.each([
-    ["user", "project-a", "read-only", ["project_list_files", "project_read_file", "project_search_files"]],
+    [
+      "user",
+      "project-a",
+      "read-only",
+      ["project_list_files", "project_read_file", "project_search_files"],
+    ],
     [
       "user",
       "project-a",

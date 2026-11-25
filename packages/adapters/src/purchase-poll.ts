@@ -139,7 +139,7 @@ async function settle(
     });
     if (prior) return { nextPollAt };
     // Provider text is untrusted. Wake with local identity and status only.
-    let executionScope;
+    let executionScope: Awaited<ReturnType<typeof resolveConversationExecutionScope>>;
     try {
       executionScope = await resolveConversationExecutionScope(tx, purchase);
     } catch (error) {

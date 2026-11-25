@@ -1,5 +1,5 @@
-import type { Socket } from "node:net";
 import { createServer } from "node:http";
+import type { Socket } from "node:net";
 import { unwrapEnvFromKeyManager } from "@rakazo/adapters";
 import { loadRootEnv } from "@rakazo/core/node/load-root-env";
 import { createNovncProxy } from "@rakazo/core/node/novnc-proxy";
@@ -25,7 +25,8 @@ try {
   };
   const server = env.screenProxyOnApi
     ? (() => {
-        const host = env.apiHost === "0.0.0.0" ? "127.0.0.1" : env.apiHost === "::" ? "::1" : env.apiHost;
+        const host =
+          env.apiHost === "0.0.0.0" ? "127.0.0.1" : env.apiHost === "::" ? "::1" : env.apiHost;
         const authority = new URL("http://localhost");
         authority.hostname = host.includes(":") ? `[${host}]` : host;
         authority.port = String(env.port);
@@ -45,7 +46,10 @@ try {
         return listener;
       })()
     : (() => {
-        const listener = serve({ fetch: app.fetch, port: env.port, hostname: env.apiHost }, listening);
+        const listener = serve(
+          { fetch: app.fetch, port: env.port, hostname: env.apiHost },
+          listening,
+        );
         if (handleUpgrade) listener.on("upgrade", handleUpgrade);
         return listener;
       })();

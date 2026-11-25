@@ -243,7 +243,14 @@ export async function cancelClaimedProjectWorkspaceRuns(
                 projectWorkspaceId: input.id,
                 status: { in: [...ACTIVE_RUN_STATUSES] },
               },
-              select: { id: true, taskId: true, threadId: true, botId: true, userId: true, spaceId: true },
+              select: {
+                id: true,
+                taskId: true,
+                threadId: true,
+                botId: true,
+                userId: true,
+                spaceId: true,
+              },
             }),
             tx.bot.findMany({
               where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: input.id },

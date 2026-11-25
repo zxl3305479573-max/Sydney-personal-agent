@@ -1,5 +1,42 @@
 # 验证记录
 
+## 手机 App 全界面点击动效统一（2026-11-25）
+
+关联 PA-021。
+
+- **首轮发现与修复**：
+  - 全仓 `<Pressable>` 静态审计检出 `chat-title-content.tsx` 与 `inbox-rows.tsx`（3 处）仍为裸 `Pressable`，已补齐迁移至 `MotionPressable`。
+  - 首轮 `tsc --noEmit` 检出 `motion-pressable.tsx` 与 `motion-pressable.native.tsx` 对 `StyleProp<ViewStyle>` 中 `readonly` 数组的递归类型收窄错误，改为递归遍历 `unknown` 并支持显式后序 `opacity: 1` 覆写后 0 错误通过。
+  - 首轮全量 299 文件 Vitest 检出 `bot-settings-voice.test.tsx` 的极简 `Pressable` 替身直接对 `style` 执行 `JSON.stringify` 而未支持 RN 标准函数式 `style` 回调；同步补齐该测试替身对 `typeof style === "function"` 的展开，并保持 `motion-pressable.tsx` 使用 RN 标准回调样式签名以兼容所有 `style({ pressed })` 既有单测。
+  - 首轮 Biome 检出 `motion-pressable.test.tsx` 中 4 处 `noUnsafeOptionalChaining` 及 `motion-pressable.tsx` 1 处换行格式，均已修正。
+- **最终已执行并通过**：
+  - Biome lint（全部 83 个新建／迁移／修改测试文件）：**0 错误**；Biome 完整 check（6 个新增文件：`press-motion.ts`、`motion-pressable.tsx`、`motion-pressable.native.tsx`、`tab-indicator.tsx`、`tab-indicator.native.tsx`、`motion-pressable.test.tsx`）：**0 错误、0 格式差异**。
+  - 移动端全包 TypeScript 类型检查（`pnpm --filter @rakazo/mobile run check`，即 `tsc --noEmit -p tsconfig.json`）：**0 错误通过**（覆盖 `.native.tsx` 与 `.tsx` 双端文件）。
+  - 差异检查（`git diff --check -- apps/mobile`）：**0 警告通过**。
+  - 移动端全量 Vitest 回归（`pnpm --filter @rakazo/mobile test`）：**299 个测试文件全部通过，3,598 项测试通过、0 失败**（包含新增 `apps/mobile/lib/motion-pressable.test.tsx` 11 项，覆盖 5 档预设、Reduce Motion 降级、`PlatformColor` 高亮覆盖层、禁用态 `opacity` 保持、Android `android_ripple` 避让、非原生降级及 `TabIndicator` 动效）。
+- **未执行项**：未执行真实 iPhone／Android 设备的触控手感、圆角与阴影裁切、快速连点与列表滚动不误触、系统「减弱动态效果」开关实测及侧载 OTA 分发验证；未改动 `apps/web`、`apps/desktop` 或安装任何新依赖。
+
+## GitHub CI 全量失败项分批修复（2026-11-25）
+
+针对 `zxl3305479573-max/Sydney-personal-agent` 在 Run `45612597324`、`45601602567`、`45599825004`、`45599990970`、`45458661085` 暴露的全部 CI 失败项进行系统排查与本机离线验证。
+
+- **本机已执行并通过**：
+  - **全仓 Biome Lint 与格式化**：`pnpm lint`（`biome check .`）扫描 3,672 个文件，**0 errors**（退出码 `0`，仅保留既有 86 条 warning 与 23 条 info；此前基线为 278 errors）。
+  - **全仓 TypeScript 类型检查（全部 20 个 `tsconfig.json`）**：`apps/api`、`apps/desktop`、`apps/desktop`（`tsconfig.jsdom.json`）、`apps/mobile`、`apps/web`、`apps/worker`、`apps/www`、`infra/updater`、`packages/adapter-kit`、`packages/adapters`、`packages/auth`、`packages/chat-ui`、`packages/contracts`、`packages/core`、`packages/db`、`packages/logging`、`packages/memory`、`packages/testkit`、`packages/ui-tokens`、`packages/ui-web` **全部 0 错误通过**。
+  - **Web 翻译目录一致性**：`pnpm --filter @rakazo/web intl:extract` 刷新 `apps/web/src/locales/{en,zh-CN}/messages.po` 并补齐 `zh-CN` 1 条缺失译文，二次运行哈希完全一致（幂等通过，0 missing）。
+  - **离线单元测试回归**：
+    - `packages/contracts`、`packages/adapters`、`apps/web`、`packages/testkit` 全部修复文件回归：**52 个测试文件、1,312 项测试全部通过**（含新增复验 `messaging-delivery.test.ts` 67/67、`purchase-poll.test.ts` 9/9）。
+    - `apps/api` 全部分片修复回归：`bot-secrets-router`、`onboarding`（12/12）、`thread-target`（97/97）、`router-messaging`（26/26）、`archived-thread-reads`（12/12）、`plugin-marketplace`（5/5）、`mcp-approval`（15/15）、`thread-image-admission`（18/18）、`companion-screen-response`（8/8）、`cli/secrets-infisical`（1/1）及 `router.test.ts` 全部非符号链接用例均通过（仅 `export.bot` 4 项为 Windows 非管理员符号链接 `EPERM`）。
+    - `packages/auth`、`packages/db`、`apps/desktop` 修复项回归全部通过。
+    - `apps/mobile/lib` 全量 297 个测试文件分片扫描检出的 **36 个失败文件全部修复并逐批复验通过**，另复验 `motion-pressable.test.tsx`（11/11）、`project-workspace-list.test.tsx`（4/4）、`code-copy-button.test.tsx`（4/4）、`voice-chat-card.test.tsx`（1/1）、`thread-card-width.test.tsx`（30/30）、`bot-context-cards.test.tsx`（6/6）、`bot-member-picker.test.tsx`（4/4）、`i18n.test.ts`（16/16）。
+  - **CI 辅助脚本与驱动单测**：`node --test .github/scripts/app-store-review.test.mjs scripts/pnpm.test.mjs` **7/7 通过**；`python -m unittest infra/native-linux/test_driver.py` **37 项 OK（4 项 Linux 专属跳过）**。
+  - **差异检查**：`git diff --check` 退出码 `0`（0 警告／冲突标记）。
+- **本机环境受限／未执行（严禁声称已通过，待推送后在 GitHub Actions 实跑验收）**：
+  - `Postgres journeys (1/2)` 与 `Postgres journeys (2/2)`：本机未启动 Docker 或 PostgreSQL，已对全部已知失败文件完成源码／夹具修复并通过 TypeScript 与 Biome 检查，实际 PostgreSQL 执行待 CI 验证。
+  - `Production builds -> Electron smoke`（`apps/desktop/e2e/smoke.spec.ts`）：本机未执行全工作区构建或 Electron 打包。
+  - `desktop-macos-screenshot`：需 macOS arm64 Runner 验证 `Sydney-partner.app` 打包、图标核对与截图上传。
+  - Linux 专属 POSIX／符号链接单测与安全脚本：`codex-subscription-auth.test.py`（依赖 `os.O_NOFOLLOW`）、`dependency-update-patch.test.py`（依赖 POSIX symlink/UTF-8 git）、`host-safeguards.test.py`、`changed-areas.test.py`、`scripts/lazy-vendors.test.mjs`（POSIX 路径分隔符）以及 `packages/{core,adapters,testkit}` 中依赖 `/bin/bash`、symlink、`chmod` 的单测需在 GitHub Actions `ubuntu-latest` 上验收。
+
 ## 移动端未读状态、对话状态显示与退出对话持续态修复（2026-11-25）
 
 关联 PA-018／PA-021／PA-022。
@@ -8,13 +45,21 @@
   - `group-avatar.tsx` 首次引入 `mobileTokens` 触发 `expo-modules-core` 导入链路导致 `group-avatar.test.tsx` 在 jsdom 导入失败；改为仅通过 `useThemedStyles` 接收可选 `tokens` 参数后通过。
   - `projects/[workspaceId].tsx` 中 `previewSnippet(item.preview, 40)` 在无预览字段的 roster 项上抛出 `undefined.replace` 与 `TS2345`；改为 `item.preview ? previewSnippet(item.preview, 40) : ""` 后通过。
   - `thread-feedback.ts` 中 `attempt.state !== "pending"` 因 TS 流分析收窄报 `TS2367`，以及新增测试 `chat-header-title.test.tsx`（复用前序未清理的 `thread-1` 标题键）与 `thread-read.test.tsx`（未先 flush 队列微任务）均已修正。
-- **最终已执行并通过（`origin/main` `54556e275` 干净隔离工作树复验）**：
-  - `@rakazo/mobile` 全包 TypeScript 类型检查（`npx tsc --noEmit -p apps/mobile/tsconfig.json`）：**0 错误通过**。
+- **最终已执行并通过**：
   - 移动端定向 Vitest（19 个文件、266 项测试，全部通过、0 失败）：`conversation-status.test.ts`（2）、`thread-session-cache.test.tsx`（17）、`thread-read.test.tsx`（5）、`bot-avatar-render.test.tsx`（18）、`group-avatar.test.tsx`（4）、`chat-header-title.test.tsx`（12）、`chat-title-label.test.tsx`（4）、`chat-title-avatar.test.tsx`（13）、`thread-header.test.ts`（6）、`home-hub.test.tsx`（4）、`use-open-notification-thread.test.tsx`（4）、`use-inbox-chat-actions.test.tsx`（28）、`foreground-poll.test.tsx`（7）、`thread-feedback.test.tsx`（51）、`use-project-thread.test.tsx`（10）、`project-pages-state.test.tsx`（7）、`inbox-spaces.test.ts`（33）、`inbox-swipe.test.tsx`（16）、`main-navigation.test.tsx`（25）。
-  - Biome lint（40 个变更／测试文件）：**0 错误**（仅保留 2 条未改行既有 warning：`projects/[workspaceId].tsx` `canvasBg`、`projects/[workspaceId]/chat.tsx` `useOptionalChain`，以及 1 条 `index.tsx` 既有无用 Fragment info）；`git diff --check` 全部改动 **0 警告通过**。
-- **附带基线说明（`origin/main` 既有未在本批范围的问题）**：
-  - 附带跑到的 `inbox-render.test.tsx` 有 2 项既有失败（行头像断言 `size === "56"` 与 `origin/main` 当前 `44` 及置顶 `aria-label`），`project-chat-screen.test.tsx` 有 5 项既有失败（`bot-actions-modal.tsx` 未在测试替身中导出 `StyleSheet`），`unsent-sends.test.ts` 在导入 `saved-chats.ts` 时因缺少 `Platform` 替身失败；均早于本批改动存在，未计入本批通过项。
+  - TypeScript 类型检查（`npx tsc --noEmit -p apps/mobile/tsconfig.json`）：本批修改／新增的全部 40 个文件 **0 错误**；整包仍存在 10 个未修改的既有脏工作区文件因 `MotionPressable` 替换残留 `Pressable` 未导入／`opacity` 类型错误（`model-connection.tsx`、`plugin.tsx`、`skills.tsx`、`voice.tsx`、`artifact.tsx`、`artifacts.tsx`、`bot-settings.tsx`、`sign-in.tsx`、`motion-pressable.tsx`、`personal-personality-library.tsx`），本批未顺带改动无关文件。
+  - Biome lint（40 个变更／测试文件）：**0 错误**（仅保留 3 条既有机动文件未改行 warning 与 1 条 `index.tsx` 既有无用 Fragment info）；`git diff --check` 对全部 40 个文件 **0 警告通过**。
+- **附带基线说明（既有未在本批范围的问题）**：
+  - 首轮附带跑到的 `inbox-render.test.tsx` 有 2 项既有失败（行头像断言 `size === "56"` 与当前 `44` 及置顶 `aria-label`），`project-chat-screen.test.tsx` 有 5 项既有失败（`bot-actions-modal.tsx` 未在测试替身中导出 `StyleSheet`），`unsent-sends.test.ts` 在导入 `saved-chats.ts` 时因缺少 `Platform` 替身失败；均早于本批改动存在，未计入本批通过项。
 - **未执行项**：未执行 iPhone 真机退页持续状态、后台回前台自动消未读、弱网发送未落库前退页、旧版后台实机联调、OTA 构建及服务端部署。
+
+## 手机 App 开屏 Logo 放大与启动动画（2026-11-25）
+
+关联 PA-021。
+
+- `apps/mobile/lib/startup-splash.test.tsx`：4 项通过（覆盖 `app.json` `imageWidth >= 200` 与 `#F3F1EC` 背景配置、多屏宽 Logo 尺寸缩放、动画正常退场回调及「减弱动态效果」缩短路径）。
+- `pnpm --filter @rakazo/mobile exec tsc --noEmit`：0 错误通过（首轮检出 `StyleSheet.absoluteFillObject` 在 RN 0.86 类型中不可用，改为 `StyleSheet.absoluteFill` 后复验全过）。
+- 未执行：iPhone 真机冷启动视觉流畅度复核，以及重新构建原生 IPA 后的系统层原生开屏尺寸核对（JS 动画层通过 OTA 即可直接生效）。
 
 ## 全分支整合收口：`backend` 分支合入 `main` 与跨包回归（2026-11-25）
 

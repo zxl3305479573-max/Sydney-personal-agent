@@ -80,7 +80,16 @@ describePostgres("chat replies during screen takeover (PostgreSQL)", () => {
   const endWaits = (runIds: string[]) =>
     runAsSystem("test takeover wait", () => endTakeoverWaits(prisma, runIds));
 
-  async function setup(mode: "opened" | "unopened" = "opened", trigger = "user") {
+  async function setup(
+    mode: "opened" | "unopened" = "opened",
+    trigger = "user",
+    createGroupThread?: (ctx: {
+      spaceId: string;
+      userId: string;
+      botId: string;
+      computerId: string;
+    }) => Promise<{ id: string }>,
+  ) {
     const id = randomUUID();
     organizations.push(id);
     await system.user.create({
@@ -96,7 +105,12 @@ describePostgres("chat replies during screen takeover (PostgreSQL)", () => {
     const bot = await system.bot.create({
       data: { spaceId: id, userId: id, name: "Fixture", color: "test", computerId: computer.id },
     });
-    const thread = await system.thread.create({ data: { spaceId: id, userId: id, botId: bot.id } });
+    const dmThread = await system.thread.create({
+      data: { spaceId: id, userId: id, botId: bot.id },
+    });
+    const thread = createGroupThread
+      ? await createGroupThread({ spaceId: id, userId: id, botId: bot.id, computerId: computer.id })
+      : dmThread;
     const task = await system.task.create({
       data: {
         spaceId: id,
@@ -642,28 +656,27 @@ describePostgres("chat replies during screen takeover (PostgreSQL)", () => {
   describe("in a group chat", () => {
     /** The waiting run belongs to the second member; the first member has nothing to do with it. */
     async function setupGroup() {
-      const fixture = await setup();
-      const first = await system.bot.create({
-        data: {
-          spaceId: fixture.actor.spaceId,
-          userId: fixture.actor.userId,
-          name: "Bystander",
-          color: "test",
-        },
-      });
-      const group = await system.chatGroup.create({
-        data: {
-          spaceId: fixture.actor.spaceId,
-          userId: fixture.actor.userId,
-          name: "Fixture group",
-          members: { create: [{ botId: first.id }, { botId: fixture.bot.id }] },
-          thread: { create: { spaceId: fixture.actor.spaceId, userId: fixture.actor.userId } },
-        },
-        include: { thread: true },
+      let first!: Awaited<ReturnType<typeof system.bot.create>>;
+      let group!: Awaited<ReturnType<typeof system.chatGroup.create>> & {
+        thread: { id: string } | null;
+      };
+      const fixture = await setup("opened", "user", async ({ spaceId, userId, botId }) => {
+        first = await system.bot.create({
+          data: { spaceId, userId, name: "Bystander", color: "test" },
+        });
+        group = await system.chatGroup.create({
+          data: {
+            spaceId,
+            userId,
+            name: "Fixture group",
+            members: { create: [{ botId: first.id }, { botId }] },
+            thread: { create: { spaceId, userId } },
+          },
+          include: { thread: true },
+        });
+        return group.thread!;
       });
       const threadId = group.thread!.id;
-      await system.task.updateMany({ where: { id: fixture.run.taskId }, data: { threadId } });
-      await system.run.update({ where: { id: fixture.run.id }, data: { threadId } });
       const card = await system.message.create({
         data: {
           threadId,
@@ -964,28 +977,42 @@ describePostgres("chat replies during screen takeover (PostgreSQL)", () => {
     ).toBe(1);
   });
 
-  /** Ada's takeover wait from setup() moves into a group where Ben works too. */
+  /** Ada's takeover wait starts in a group where Ben works too. */
   async function groupWithWaitingRun() {
-    const { actor, bot: ada, run, computer, sandbox, jobs, deps, control } = await setup();
-    const { spaceId, userId } = actor;
-    const bot = (name: string) =>
-      system.bot.create({
-        data: { spaceId, userId, name, color: "test", computerId: computer.id },
+    let ben!: Awaited<ReturnType<typeof system.bot.create>>;
+    let cy!: Awaited<ReturnType<typeof system.bot.create>>;
+    let group!: Awaited<ReturnType<typeof system.chatGroup.create>> & {
+      thread: { id: string } | null;
+    };
+    const {
+      actor,
+      bot: ada,
+      run,
+      computer,
+      sandbox,
+      jobs,
+      deps,
+      control,
+    } = await setup("opened", "user", async ({ spaceId, userId, botId, computerId }) => {
+      const bot = (name: string) =>
+        system.bot.create({
+          data: { spaceId, userId, name, color: "test", computerId },
+        });
+      [ben, cy] = [await bot("Ben"), await bot("Cy")];
+      group = await system.chatGroup.create({
+        data: {
+          spaceId,
+          userId,
+          name: "Crew",
+          members: { create: [{ botId }, { botId: ben.id }, { botId: cy.id }] },
+          thread: { create: { spaceId, userId } },
+        },
+        include: { thread: true },
       });
-    const [ben, cy] = [await bot("Ben"), await bot("Cy")];
-    const group = await system.chatGroup.create({
-      data: {
-        spaceId,
-        userId,
-        name: "Crew",
-        members: { create: [{ botId: ada.id }, { botId: ben.id }, { botId: cy.id }] },
-        thread: { create: { spaceId, userId } },
-      },
-      include: { thread: true },
+      return group.thread!;
     });
+    const { spaceId, userId } = actor;
     const threadId = group.thread!.id;
-    await system.task.update({ where: { id: run.taskId }, data: { threadId } });
-    await system.run.update({ where: { id: run.id }, data: { threadId } });
     const benTask = await system.task.create({
       data: { spaceId, userId, botId: ben.id, threadId, prompt: "Sign in.", status: "running" },
     });
