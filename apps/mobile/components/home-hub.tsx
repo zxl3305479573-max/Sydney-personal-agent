@@ -18,6 +18,13 @@ import type { MobileBot, MobileMe } from "../lib/api";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient } from "../lib/card-gradient";
 import { conversationStatusLabel, isConversationActiveStatus } from "../lib/conversation-status";
+import type { HomeWeatherSnapshot } from "../lib/home-weather";
+import {
+  homeWeatherLabel,
+  homeWeatherSymbol,
+  isDaytimeHour,
+  useHomeWeather,
+} from "../lib/home-weather";
 import { useI18n } from "../lib/i18n";
 import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
@@ -66,6 +73,7 @@ export type HomeHubProps = {
   refreshing?: boolean;
   lastSyncedAt?: Date | null;
   now?: Date;
+  weather?: HomeWeatherSnapshot | null;
   error?: string | null;
   onRefresh?: () => void;
   onOpenBot?: (bot: MobileBot | SpaceBot) => void;
@@ -166,6 +174,7 @@ export function HomeHub({
   refreshing = false,
   lastSyncedAt = null,
   now,
+  weather,
   error = null,
   onRefresh,
   onOpenBot,
@@ -183,7 +192,23 @@ export function HomeHub({
   const copy = (zhHans: string, zhHant: string, en: string) =>
     chinese ? (traditional ? zhHant : zhHans) : en;
 
-  const currentDate = now ?? new Date();
+  const {
+    weather: liveWeather,
+    clockNow,
+    refreshWeather,
+  } = useHomeWeather({ enabled: weather === undefined, fixedNow: now });
+  const currentDate = now ?? clockNow;
+  const resolvedWeather = weather !== undefined ? weather : liveWeather;
+  const weatherLabel = resolvedWeather ? homeWeatherLabel(resolvedWeather.condition, locale) : null;
+  const weatherSymbol = resolvedWeather
+    ? homeWeatherSymbol(resolvedWeather.condition, now ? isDaytimeHour(now) : resolvedWeather.isDay)
+    : null;
+  const handleRefresh = onRefresh
+    ? () => {
+        onRefresh();
+        if (weather === undefined) void refreshWeather(true);
+      }
+    : undefined;
   const syncClock = formatClockTime(lastSyncedAt ?? currentDate);
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
 
@@ -342,20 +367,21 @@ export function HomeHub({
       showsVerticalScrollIndicator={false}
       testID="home-hub-scroll"
       style={{ flex: 1, backgroundColor: tokens.background }}
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior="never"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{
-        paddingTop: Math.max(insets.top, 16) + 10,
+        paddingTop: Math.max(insets.top, 16) + 8,
         paddingBottom: bottomClaimed ? 28 : Math.max(insets.bottom, 16) + 24,
         paddingLeft: 20 + gutters.left,
         paddingRight: 20 + gutters.right,
         gap: 14,
       }}
       refreshControl={
-        onRefresh ? (
+        handleRefresh ? (
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={handleRefresh}
+            progressViewOffset={Platform.OS === "android" ? insets.top : 0}
             tintColor={native.secondaryLabel}
             colors={[tokens.mutedForeground]}
             progressBackgroundColor={tokens.muted}
@@ -366,6 +392,7 @@ export function HomeHub({
       {/* Header Row 1: Date + Sync Pill + Search + Settings */}
       <View
         style={{
+          minHeight: 36,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -390,7 +417,7 @@ export function HomeHub({
             testID="home-hub-sync-pill"
             accessibilityRole="button"
             accessibilityLabel={syncLabel}
-            onPress={onRefresh}
+            onPress={handleRefresh}
             style={{
               backgroundColor: tokens.card,
               borderRadius: 999,
@@ -465,20 +492,73 @@ export function HomeHub({
         </View>
       </View>
 
-      {/* Header Row 2: Time-based Serif Greeting */}
-      <Text
-        accessibilityRole="header"
+      {/* Header Row 2: Time-based Serif Greeting + Realtime Weather */}
+      <View
         style={{
-          color: tokens.foreground,
-          fontSize: 30,
-          lineHeight: 36,
-          fontWeight: "700",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          columnGap: 10,
+          rowGap: 6,
           marginTop: -2,
           marginBottom: 2,
         }}
       >
-        {greetingText}
-      </Text>
+        <Text
+          accessibilityRole="header"
+          style={{
+            color: tokens.foreground,
+            fontSize: 30,
+            lineHeight: 36,
+            fontWeight: "700",
+            flexShrink: 1,
+          }}
+        >
+          {greetingText}
+        </Text>
+        {resolvedWeather && weatherLabel && weatherSymbol ? (
+          <MotionPressable
+            preset="control"
+            testID="home-hub-weather"
+            accessibilityRole="button"
+            accessibilityLabel={`${resolvedWeather.temperatureC}°C ${weatherLabel}`}
+            onPress={() => {
+              if (weather === undefined) void refreshWeather(true);
+            }}
+            hitSlop={4}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 999,
+              backgroundColor: chipBackground,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: chipBorder,
+            }}
+          >
+            <NativeSymbol
+              ios={weatherSymbol.ios}
+              android={weatherSymbol.android}
+              size={16}
+              color={softAccentInk}
+            />
+            <Text
+              style={{
+                color: tokens.foreground,
+                fontSize: 13.5,
+                lineHeight: 17,
+                fontWeight: "600",
+                fontVariant: ["tabular-nums"],
+              }}
+            >
+              {`${resolvedWeather.temperatureC}°`}
+            </Text>
+          </MotionPressable>
+        ) : null}
+      </View>
 
       {error ? (
         <Text

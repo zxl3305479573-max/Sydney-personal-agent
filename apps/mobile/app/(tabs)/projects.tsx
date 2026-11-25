@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -307,62 +308,101 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   } as const;
 
   const items = isSpaceSelectionPending() || (error && !listState) ? [] : (listState?.items ?? []);
+  const padLeft = 20 + (sideInsets?.paddingLeft ?? 0);
+  const padRight = 20 + (sideInsets?.paddingRight ?? 0);
+  const zhSerifTitle =
+    Platform.OS === "ios" && locale.startsWith("zh") ? { fontFamily: "Songti SC" } : undefined;
+  const headerEyebrow =
+    items.length > 0
+      ? text(`${items.length} 个工作区`, `${items.length} workspaces`)
+      : text("项目工作区", "Project workspaces");
 
   return (
     <View style={{ flex: 1, backgroundColor: screenBackground }}>
       <View
-        style={[
-          {
-            paddingTop: Math.max(insets?.top ?? 0, 12) + 8,
-            paddingHorizontal: 20,
-            paddingBottom: 10,
+        testID="projects-header"
+        style={{
+          paddingTop: Math.max(insets?.top ?? 0, 16) + 8,
+          paddingLeft: padLeft,
+          paddingRight: padRight,
+          paddingBottom: 12,
+          gap: 6,
+        }}
+      >
+        <View
+          style={{
+            minHeight: 36,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-          },
-          sideInsets,
-        ]}
-      >
+            gap: 10,
+          }}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              color: mutedFg,
+              fontSize: 15,
+              lineHeight: 20,
+            }}
+          >
+            {headerEyebrow}
+          </Text>
+          {createAvailable ? (
+            <MotionPressable
+              preset="icon"
+              accessibilityRole="button"
+              accessibilityLabel={newProjectLabel}
+              onPress={openCreateModal}
+              hitSlop={6}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: cardBg,
+                borderWidth: hairline,
+                borderColor: cardBorder,
+                alignItems: "center",
+                justifyContent: "center",
+                ...cardShadow,
+              }}
+            >
+              <NativeSymbol ios="plus" android="add" size={18} color={fg} />
+            </MotionPressable>
+          ) : null}
+        </View>
         <Text
           accessibilityRole="header"
-          style={{ color: fg, fontSize: 30, fontWeight: "700", letterSpacing: -0.5 }}
+          style={[
+            {
+              color: fg,
+              fontSize: 30,
+              lineHeight: 36,
+              fontWeight: "700",
+            },
+            zhSerifTitle,
+          ]}
         >
           {text("项目", "Projects")}
         </Text>
-        {createAvailable ? (
-          <MotionPressable
-            preset="icon"
-            accessibilityRole="button"
-            accessibilityLabel={newProjectLabel}
-            onPress={openCreateModal}
-            hitSlop={8}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: cardBg,
-              borderWidth: hairline,
-              borderColor: cardBorder,
-              alignItems: "center",
-              justifyContent: "center",
-              ...cardShadow,
-            }}
-          >
-            <NativeSymbol ios="plus" android="add" size={20} color={fg} />
-          </MotionPressable>
-        ) : null}
       </View>
 
       <FlatList<ProjectItem>
         ref={listRef}
+        testID="projects-list"
         data={items}
         keyExtractor={(project) => project.id}
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
         {...scroll}
-        style={[{ flex: 1 }, sideInsets]}
+        style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 8,
+          flexGrow: 1,
+          paddingLeft: padLeft,
+          paddingRight: padRight,
+          paddingTop: 6,
           paddingBottom: bottomClaimed ? 28 : Math.max(insets?.bottom ?? 0, 28),
           gap: 12,
         }}
@@ -405,95 +445,143 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         )}
         ListEmptyComponent={
           isSpaceSelectionPending() ? (
-            <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 32,
+                paddingBottom: 48,
+                gap: 10,
+              }}
+            >
               <ActivityIndicator color={mutedFg} />
               <Text style={{ color: mutedFg }}>{text("正在切换空间…", "Switching space…")}</Text>
             </View>
           ) : loading && !listState ? (
-            <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 32,
+                paddingBottom: 48,
+                gap: 10,
+              }}
+            >
               <ActivityIndicator color={mutedFg} />
               <Text style={{ color: mutedFg }}>{text("正在加载项目…", "Loading projects…")}</Text>
             </View>
           ) : error && !listState ? (
-            <GlassSurface
-              shape="roundedRectangle"
-              cornerRadius={22}
-              style={{ borderRadius: 22, padding: 20, gap: 12 }}
-              fallbackStyle={{
-                backgroundColor: cardBg,
-                borderRadius: 22,
-                borderWidth: hairline,
-                borderColor: cardBorder,
-                ...cardShadow,
-              }}
-            >
-              <Text accessibilityRole="alert" style={{ color: destructive }}>
-                {error}
-              </Text>
-              <NativeActionButton
-                label={text("重试", "Retry")}
-                prominence="secondary"
-                fill={false}
-                onPress={() => {
-                  setLoading(true);
-                  setAttempt((old) => old + 1);
-                }}
-              />
-            </GlassSurface>
-          ) : listState ? (
-            <GlassSurface
-              shape="roundedRectangle"
-              cornerRadius={22}
-              style={{ borderRadius: 22, padding: 26, alignItems: "center", gap: 12 }}
-              fallbackStyle={{
-                backgroundColor: cardBg,
-                borderRadius: 22,
-                borderWidth: hairline,
-                borderColor: cardBorder,
-                ...cardShadow,
-              }}
-            >
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 18,
-                  backgroundColor: chipBg,
+            <View style={{ flex: 1, justifyContent: "center", paddingBottom: 48 }}>
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={22}
+                gradient="slate"
+                style={{ borderRadius: 22, padding: 20, gap: 12 }}
+                fallbackStyle={{
+                  backgroundColor: cardBg,
+                  borderRadius: 22,
                   borderWidth: hairline,
-                  borderColor: chipBorder,
-                  alignItems: "center",
-                  justifyContent: "center",
+                  borderColor: cardBorder,
+                  ...cardShadow,
                 }}
               >
-                <NativeSymbol ios="folder" android="folder-outline" size={25} color={accentTaupe} />
-              </View>
-              <Text style={{ color: fg, fontSize: 17, fontWeight: "600" }}>
-                {text("还没有项目工作区", "No project workspaces yet")}
-              </Text>
-              <Text
+                <Text accessibilityRole="alert" style={{ color: destructive }}>
+                  {error}
+                </Text>
+                <NativeActionButton
+                  label={text("重试", "Retry")}
+                  prominence="secondary"
+                  fill={false}
+                  onPress={() => {
+                    setLoading(true);
+                    setAttempt((old) => old + 1);
+                  }}
+                />
+              </GlassSurface>
+            </View>
+          ) : listState ? (
+            <View style={{ flex: 1, justifyContent: "center", paddingBottom: 48 }}>
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={22}
+                gradient="slate"
                 style={{
-                  color: mutedFg,
-                  fontSize: 14,
-                  textAlign: "center",
-                  lineHeight: 20,
+                  borderRadius: 22,
+                  paddingHorizontal: 24,
+                  paddingVertical: 28,
+                  alignItems: "center",
+                  gap: 12,
+                }}
+                fallbackStyle={{
+                  backgroundColor: cardBg,
+                  borderRadius: 22,
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
+                  ...cardShadow,
                 }}
               >
-                {createAvailable
-                  ? text(
-                      "创建独立项目工作区，将不同文件夹下的小伙伴与群聊分开管理。",
-                      "Create a dedicated project workspace to keep bots and group chats organized by folder.",
-                    )
-                  : text(
-                      "项目创建及项目内会话暂未在当前服务器开放。",
-                      "Project creation and project conversations are not enabled on this server yet.",
-                    )}
-              </Text>
-              {createAvailable ? (
-                <View style={{ alignSelf: "stretch", marginTop: 4 }}>
-                  <NativeActionButton label={newProjectLabel} onPress={openCreateModal} />
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    backgroundColor: chipBg,
+                    borderWidth: hairline,
+                    borderColor: chipBorder,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <NativeSymbol
+                    ios="folder"
+                    android="folder-outline"
+                    size={24}
+                    color={accentTaupe}
+                  />
                 </View>
-              ) : null}
-            </GlassSurface>
+                <Text
+                  style={{
+                    color: fg,
+                    fontSize: 18,
+                    lineHeight: 24,
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  {text("还没有项目工作区", "No project workspaces yet")}
+                </Text>
+                <Text
+                  style={{
+                    color: mutedFg,
+                    fontSize: 14,
+                    lineHeight: 21,
+                    textAlign: "center",
+                    maxWidth: 264,
+                  }}
+                >
+                  {createAvailable
+                    ? text(
+                        "创建独立项目工作区，将不同文件夹下的小伙伴与群聊分开管理。",
+                        "Create a dedicated project workspace to keep bots and group chats organized by folder.",
+                      )
+                    : text(
+                        "项目创建及项目内会话暂未在当前服务器开放。",
+                        "Project creation and project conversations are not enabled on this server yet.",
+                      )}
+                </Text>
+                {createAvailable ? (
+                  <View style={{ marginTop: 6, alignItems: "center" }}>
+                    <NativeActionButton
+                      label={newProjectLabel}
+                      fill={false}
+                      onPress={openCreateModal}
+                    />
+                  </View>
+                ) : null}
+              </GlassSurface>
+            </View>
           ) : null
         }
         ListFooterComponent={
@@ -502,7 +590,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
               <ActivityIndicator color={mutedFg} />
             </View>
           ) : items.length > 0 ? (
-            <Text style={{ color: mutedFg, fontSize: 13, textAlign: "center", marginTop: 4 }}>
+            <Text style={{ color: mutedFg, fontSize: 13, textAlign: "center", marginTop: 8 }}>
               {createAvailable
                 ? text("点击右上角 ＋ 可新建项目。", "Tap + in the top right to create a project.")
                 : text(

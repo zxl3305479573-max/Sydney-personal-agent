@@ -80,13 +80,15 @@ export function InboxRosterHeading({
 }
 
 export function InboxIntro({ activityMode }: { activityMode: boolean }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const styles = useThemedStyles(createHomeStyles);
   const isLight = useResolvedAppearance() === "light";
+  const zhSerifTitle =
+    Platform.OS === "ios" && locale?.startsWith("zh") ? { fontFamily: "Songti SC" } : undefined;
   return (
     <View style={styles.inboxIntro}>
-      <Text accessibilityRole="header" style={styles.inboxTitle}>
+      <Text accessibilityRole="header" style={[styles.inboxTitle, zhSerifTitle]}>
         {t(activityMode ? "Activity" : "Chats")}
       </Text>
       <MotionPressable
@@ -134,7 +136,7 @@ export function InboxHeader({
       style={[
         styles.header,
         {
-          paddingTop: Math.max(insets.top, 20) + 8,
+          paddingTop: Math.max(insets.top, 16) + 8,
           paddingLeft: 20 + columnInsets.left,
           paddingRight: 20 + columnInsets.right,
         },

@@ -1,5 +1,83 @@
 # 验证记录
 
+## 手机端首页顶部留白与项目／聊天页排版字体修复（2026-11-25）
+
+关联 PA-021。
+
+- **本机已执行并通过**：
+  - **定向 Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖全部 8 个触碰的源码与测试文件：`apps/mobile/components/home-hub.tsx`、`apps/mobile/app/(tabs)/projects.tsx`、`apps/mobile/app/(tabs)/chats.tsx`、`apps/mobile/components/inbox-screens.tsx`、`apps/mobile/components/inbox-header.tsx`、`apps/mobile/components/home-styles.ts`、`apps/mobile/lib/home-hub.test.tsx`、`apps/mobile/lib/project-pages-state.test.tsx`）：**8/8 文件 0 错误、0 格式差异**（已顺带整理并发窗口留在 `home-hub.tsx` 与 `home-hub.test.tsx` 的 4 处导入／换行格式）。
+  - **全包 TypeScript 类型检查**：`pnpm --filter @rakazo/mobile run check`（`tsc --noEmit -p tsconfig.json`）：**0 错误通过**。
+  - **定向 Vitest 回归**（**9 个文件、80 项测试全部通过、0 失败**）：
+    - `apps/mobile/lib/home-hub.test.tsx`（6 项，含新增防双重顶部安全区回归）
+    - `apps/mobile/lib/project-pages-state.test.tsx`（8 项，含新增防 `sideInsets` 零值覆写 20pt 左右边距及 `contentInsetAdjustmentBehavior="never"` 回归）
+    - `apps/mobile/lib/inbox-render.test.tsx`（18 项）
+    - `apps/mobile/lib/artifacts-navigation.test.tsx`（8 项）
+    - `apps/mobile/lib/home-route.test.tsx`（5 项）
+    - `apps/mobile/lib/main-navigation.test.tsx`（26 项）
+    - `apps/mobile/lib/home-styles.test.ts`（2 项）
+    - `apps/mobile/lib/screen-theme-coverage.test.ts`（6 项）
+    - `apps/mobile/lib/scroll-hygiene.test.ts`（1 项）
+  - **差异空白检查**（`git diff --check` 覆盖全部 8 个源码／测试文件与 3 份 `docx/` 文档）：**0 警告通过**。
+- **未执行项**：未执行提交、推送或新 OTA 发布；真实 iPhone 端首页顶部留白、聊天与项目 Tab 切页基线对齐、iOS 中文 `Songti SC` 大标题渲染及空状态卡片视觉居中效果待发布新 OTA 后实机验收。
+
+## 移动端 OTA 下载续传重试、全局进度提示与错误诊断修复（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **线上 Expo OTA 产物核查**：
+  - `https://u.expo.dev/c33e1434-f7d0-4c40-8839-78b050d41388`（`ios`／`sydney-ios-ip-1`／`sideload`）：清单 HTTP `200`（`1.0.26`，`01a21332-6929-7fe6-9c68-473e21b4a79b`）；全量 `launchAsset` 10,827,436 字节 HTTP `200`、base64url SHA-256 匹配（宽带实测 31.5–36.4s）；全部 `56/56` 资源 HTTP `200` 且 SHA-256 匹配；`1.0.25 → 1.0.26` `A-IM: bsdiff` 请求返回 HTTP `226`（1,392,952 字节，`x-snippets-stage: patch-ok`，12.5s）。
+- **本机已执行并通过**：
+  - 定向 Vitest（**5 个文件、67 项测试全部通过、0 失败**）：`apps/mobile/lib/client-update.test.ts`（16，覆盖自动续传重试、重试耗尽后提取原生日志并去查询参数及一键重试）、`apps/mobile/lib/account-screen.test.tsx`（28）、`apps/mobile/lib/i18n.test.ts`（16，7 套词库全量占位符与缺键校验通过）、`apps/mobile/lib/screen-theme-coverage.test.ts`（6）、`apps/mobile/lib/scroll-hygiene.test.ts`（1）。
+  - 全包 TypeScript 类型检查：`pnpm --filter @rakazo/mobile exec tsc --noEmit`：**0 错误通过**。
+  - Biome 完整检查（`biome check` 全部 12 个新增／修改文件，修正首轮 2 处换行排版后复验）：**0 错误、0 格式差异**。
+  - `git diff --check`（全部 12 个源码／测试文件与 3 份 `docx/` 文档）：**0 警告通过**。
+- **未执行项**：未执行提交／推送、未发布新 OTA、未在真实 iPhone 端实测弱网续传下载与悬浮进度提示。
+
+## 首页打招呼语实时天气显示（2026-11-25）
+
+关联 PA-021。
+
+- 定向 Vitest（2 个文件，10 项通过、0 失败）：
+  - `apps/mobile/lib/home-weather.test.ts`（5 项通过：覆盖 WMO／WWO 天气码映射至天晴／阴天／下雨／下雪四态、昼夜图标随时间切换、GeoJS + Open-Meteo 主链路与坐标缓存复用、失败降级 `wttr.in` 及全失败静默返回 `null`）
+  - `apps/mobile/lib/home-hub.test.tsx`（5 项通过：覆盖打招呼语右侧温度与四态天气渲染及早晚时间切换图标）
+- `pnpm --filter @rakazo/mobile exec tsc --noEmit`：0 错误通过。
+- `git diff --check`（本批修改文件）：0 警告通过。
+- 未执行：真实公网 IP 定位精度复核与 iPhone 真机 OTA 后显示验收。
+
+## 任务结束后残留「等待输入」状态修复（2026-11-25）
+
+关联 PA-018／PA-021。
+
+- **首轮发现与修复**：
+  - `packages/db/src/thread-listing.test.ts` 中无 `threadId` 替身数组显式标注 `Array<{ status: string; threadId?: string }>` 并对齐 Biome 换行格式。
+  - `apps/mobile/lib/thread-session-cache.test.tsx` 移除对 `./api` 的值导入（避免在无 `react-native` 替身环境下解析 Flow），直接验证 `applySendActivity`／`applyAcceptedSend` 与 `run.completed` 收口后 `threadSessionCache.botStatus` 回归 `idle`。
+- **最终本机已执行并通过**：
+  - **定向 Biome 检查**（`apps/mobile/lib/thread-session-cache.ts`、`apps/mobile/lib/thread-session-cache.test.tsx`、`packages/db/src/thread-listing.ts`、`packages/db/src/thread-listing.test.ts`、`packages/db/src/repos.ts`）：**5 个文件 0 错误、0 格式差异**。
+  - **TypeScript 类型检查**：`pnpm exec tsc --noEmit -p packages/db/tsconfig.json` **0 错误通过**；`apps/mobile/tsconfig.json` 中本批触碰的 `thread-session-cache.ts`/`thread-session-cache.test.tsx` **0 错误**（整包报错仅来自同工作区其他并发窗口编辑中的 `settings-home.tsx` 与 `update-download-banner.tsx`）。
+  - **定向离线 Vitest 回归**（3 个文件、**52 项**全部通过、0 失败）：
+    - `packages/db/src/thread-listing.test.ts`（15 项）
+    - `packages/db/src/repos.test.ts`（17 项）
+    - `apps/mobile/lib/thread-session-cache.test.tsx`（20 项）
+  - **差异空白检查**（`git diff --check` 覆盖本批 5 个源码／测试文件）：**0 警告通过**。
+- **未执行项**：未执行 PostgreSQL 集成测试（`working-bot.postgres.test.ts`、`roster-runs.postgres.test.ts`）、未部署生产服务端或发布新 iPhone 侧载 OTA、未执行真机验证，未执行提交或推送。
+
+## GitHub CI 第三批 Postgres 最后残留项修复（2026-11-25）
+
+针对第二批推送（`e81ba0eba`）后最新 `ci` Run `45638515188`（提交 `92b007043`）仅剩的 2 个 Postgres 集成测试文件（共 3 项失败）完成定位、源码修复与本机离线验证。
+
+- **Run `45638515188`（`92b007043`）GitHub Actions 实跑进展**：
+  - `Lint and typecheck`、`Unit tests (1/3)`、`Unit tests (2/3)`、`Unit tests (3/3)`、`Checks` 与全部 9 个服务端镜像构建发布任务：**全部 success**（第二批修复的 `backup-scripts`、`403 INVALID_ORIGIN`、`row-security`、`project-workspace`、`typed-reply` 均已转绿）。
+  - `Postgres journeys (1/2)`：**58/59 文件（405/406 项）通过**，唯一失败 `packages/testkit/src/project-chat.postgres.test.ts:246`。
+  - `Postgres journeys (2/2)`：**57/58 文件（359/361 项）通过**，唯一失败文件 `packages/testkit/src/mention-targets.postgres.test.ts:179,222`。
+- **本批本机已执行并通过**：
+  - **定向 Biome 检查**（`apps/api/src/thread-target.ts`、`packages/testkit/src/project-chat.postgres.test.ts`、`packages/testkit/src/mention-targets.postgres.test.ts`）：**3 个文件 0 错误、0 格式差异**（退出码 `0`）。
+  - **TypeScript 类型检查**：`pnpm exec tsc --noEmit -p apps/api/tsconfig.json` 与 `packages/testkit/tsconfig.json` **全部 0 错误通过**（退出码 `0`）。
+  - **离线单元测试**：`pnpm exec vitest run apps/api/src/thread-target.test.ts`：**1 文件、97 项全部通过、0 失败**。
+  - **差异空白检查**（`git diff --check` 覆盖本批 3 个源码／测试文件与 4 份 `docx/` 文档）：**0 警告通过**。
+- **未执行项（待推送后由 GitHub Actions Linux+PostgreSQL Runner 验收）**：
+  - `Postgres journeys (1/2)` 与 `(2/2)`（特别是 `packages/testkit/src/project-chat.postgres.test.ts` 与 `packages/testkit/src/mention-targets.postgres.test.ts`）。
+  - 未启动本机 Docker／PostgreSQL／桌面服务，未重装依赖，未执行 `git commit` 或 `git push`。
+
 ## iPhone 1.0.26 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。

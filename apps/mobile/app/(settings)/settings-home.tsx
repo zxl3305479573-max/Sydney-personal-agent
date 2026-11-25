@@ -38,7 +38,21 @@ export default function SettingsHome() {
   const { data: me } = useQuery(accountRpcQuery("me"), queryClient);
   const { image: avatar } = useAccountAvatar(me);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const { update, downloaded, downloading } = useClientUpdateState();
+  const {
+    update,
+    downloaded,
+    downloading,
+    progress = 0,
+    attempt = 0,
+    totalAttempts = 3,
+  } = useClientUpdateState();
+  const downloadPercent = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+  const downloadTitle =
+    attempt > 1
+      ? t("Retrying update download ({attempt}/{total})…", { attempt, total: totalAttempts })
+      : downloadPercent > 0 && downloadPercent < 100
+        ? t("Downloading update… {percent}%", { percent: downloadPercent })
+        : t("Downloading update…");
   const availableRelease = sydneyReleaseFromManifest(update?.manifest);
   const availableVersion = update
     ? availableRelease
@@ -230,12 +244,12 @@ export default function SettingsHome() {
           <SettingsRow
             title={
               downloading
-                ? t("Downloading update…")
+                ? downloadTitle
                 : checkingUpdate
                   ? t("Checking for updates…")
                   : t("Check for updates")
             }
-            detail={availableVersion}
+            detail={downloading ? t("Keep the app open while downloading.") : availableVersion}
             accessibilityRole="button"
             disabled={checkingUpdate || downloading}
             onPress={() => void checkUpdate()}

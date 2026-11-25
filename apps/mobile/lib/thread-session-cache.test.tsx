@@ -374,3 +374,61 @@ it("isolates project conversations by workspace and account scope", () => {
   expect(threadSessionCache.botStatus(projectA, "bot-a", "idle")).toBe("running");
   expect(threadSessionCache.botStatus(projectB, "bot-a", "idle")).toBe("idle");
 });
+
+it("drops superseded waiting_input runs on send receipt so completion settles to idle", () => {
+  const waitingSnap = snapshot("waiting_input", 10);
+  const replaced = applySendActivity(
+    waitingSnap,
+    { botId: "bot-a" },
+    {
+      threadId: "thread-a",
+      cursor: 12,
+      runs: [{ id: "run-b", botId: "bot-a", status: "queued" }],
+    },
+  )!;
+  expect(replaced.activeRuns).toEqual([
+    expect.objectContaining({ id: "run-b", botId: "bot-a", status: "queued", sendCursor: 12 }),
+  ]);
+  expect(replaced.run).toMatchObject({ id: "run-b", status: "queued" });
+  const remainingAfterComplete = (replaced.activeRuns ?? []).filter((run) => run.id !== "run-b");
+  threadSessionCache.remember(scope, {
+    ...replaced,
+    cursor: 15,
+    run: remainingAfterComplete[0] ?? null,
+    activeRuns: remainingAfterComplete,
+  });
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("idle");
+
+  // Legacy receipts without activity also clear stale DM waiting_input runs.
+  const legacyReplaced = applyAcceptedSend(waitingSnap, { botId: "bot-a" }, { runId: "run-c" })!;
+  expect(legacyReplaced.activeRuns).toEqual([
+    expect.objectContaining({ id: "run-c", botId: "bot-a", status: "queued" }),
+  ]);
+
+  // In a group chat, only the targeted bot's superseded waiting_input is cleared; peer stays waiting.
+  const groupWaiting: MobileSnapshot = {
+    groupId: "group-1",
+    threadId: "thread-g",
+    cursor: 10,
+    messages: [],
+    olderCursor: null,
+    run: { id: "run-a", botId: "bot-a", status: "waiting_input" },
+    activeRuns: [
+      { id: "run-a", botId: "bot-a", status: "waiting_input" },
+      { id: "run-peer", botId: "bot-b", status: "waiting_input" },
+    ],
+  };
+  const groupReplaced = applySendActivity(
+    groupWaiting,
+    { groupId: "group-1" },
+    {
+      threadId: "thread-g",
+      cursor: 12,
+      runs: [{ id: "run-a2", botId: "bot-a", status: "queued" }],
+    },
+  )!;
+  expect(groupReplaced.activeRuns).toEqual([
+    expect.objectContaining({ id: "run-peer", botId: "bot-b", status: "waiting_input" }),
+    expect.objectContaining({ id: "run-a2", botId: "bot-a", status: "queued", sendCursor: 12 }),
+  ]);
+});

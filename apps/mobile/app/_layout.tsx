@@ -36,6 +36,7 @@ import { MessageActionSheetHost } from "../components/message-action-sheet-host"
 import { NativeSymbol } from "../components/native-symbol";
 import { ScopedThemeRoute, ScopedThemeScreen } from "../components/scoped-theme";
 import { StartupSplash } from "../components/startup-splash";
+import { UpdateDownloadBanner } from "../components/update-download-banner";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -584,6 +585,7 @@ function LayoutContent() {
                 />
               </View>
               <ComputerUpdateProgress />
+              <UpdateDownloadBanner />
               <MessageMenuHost />
               <MessageActionSheetHost />
               <CallCard />

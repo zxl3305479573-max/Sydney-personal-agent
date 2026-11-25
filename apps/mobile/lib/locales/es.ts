@@ -1316,6 +1316,12 @@ export const ES_MESSAGES: Record<string, string> = {
     "No se pudo descargar la actualización. Inténtalo más tarde.",
   "Current version": "Versión actual",
   "Downloading update…": "Descargando actualización…",
+  "Downloading update… {percent}%": "Descargando actualización… {percent}%",
+  "Retrying update download ({attempt}/{total})…":
+    "Reintentando descarga de actualización ({attempt}/{total})…",
+  "Keep the app open while downloading.": "Mantén la app abierta durante la descarga.",
+  "Keep the app open on a stable connection, then try again.":
+    "Mantén la app abierta con una conexión estable e inténtalo de nuevo.",
   "Install and restart": "Instalar y reiniciar",
   "Installed build {build}": "Compilación instalada {build}",
   "Release notes": "Notas de la versión",

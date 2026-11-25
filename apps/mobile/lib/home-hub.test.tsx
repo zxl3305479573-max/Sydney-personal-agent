@@ -67,19 +67,31 @@ vi.mock("react-native", () => {
     get Platform() {
       return { OS: state.platform };
     },
+    AppState: {
+      currentState: "active",
+      addEventListener: () => ({ remove: () => undefined }),
+    },
     StyleSheet: { hairlineWidth: 1 },
     useWindowDimensions: () => ({ width: 393, height: 852, fontScale: 1 }),
     RefreshControl: () => null,
     ScrollView: ({
       children,
       style,
+      contentContainerStyle,
+      contentInsetAdjustmentBehavior,
       testID,
     }: {
       children?: ReactNode;
       style?: unknown;
+      contentContainerStyle?: unknown;
+      contentInsetAdjustmentBehavior?: string;
       testID?: string;
     }) => (
-      <div data-testid={testID} style={flatten(style)}>
+      <div
+        data-testid={testID}
+        data-inset-behavior={contentInsetAdjustmentBehavior}
+        style={{ ...flatten(style), ...flatten(contentContainerStyle) }}
+      >
         {children}
       </div>
     ),
@@ -365,5 +377,86 @@ describe("HomeHub personal hub", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("2 运行中 · 20:15");
     expect(text).toContain("Needs input · Claude · 2026-11-24 ›");
+  });
+
+  it("renders temperature and weather icon only (no text label) beside the greeting and updates day/night icon by time", () => {
+    const fixedMorning = new Date(2026, 10, 25, 9, 30, 0);
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot()]}
+          groups={[]}
+          now={fixedMorning}
+          weather={{
+            temperatureC: 23,
+            condition: "sunny",
+            isDay: true,
+            fetchedAt: fixedMorning.getTime(),
+          }}
+        />,
+      ),
+    );
+    const dayWeather = container.querySelector('[data-testid="home-hub-weather"]');
+    expect(dayWeather?.textContent).toBe("23°");
+    expect(dayWeather?.getAttribute("aria-label")).toContain("天晴");
+    expect(dayWeather?.querySelector('[data-symbol="sun.max"]')).not.toBeNull();
+
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot()]}
+          groups={[]}
+          now={fixedEvening}
+          weather={{
+            temperatureC: 16,
+            condition: "sunny",
+            isDay: true,
+            fetchedAt: fixedEvening.getTime(),
+          }}
+        />,
+      ),
+    );
+    const nightWeather = container.querySelector('[data-testid="home-hub-weather"]');
+    expect(nightWeather?.textContent).toBe("16°");
+    expect(nightWeather?.querySelector('[data-symbol="moon.stars"]')).not.toBeNull();
+
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot()]}
+          groups={[]}
+          now={fixedEvening}
+          weather={{
+            temperatureC: -1,
+            condition: "snowy",
+            isDay: false,
+            fetchedAt: fixedEvening.getTime(),
+          }}
+        />,
+      ),
+    );
+    const snowWeather = container.querySelector('[data-testid="home-hub-weather"]');
+    expect(snowWeather?.textContent).toBe("-1°");
+    expect(snowWeather?.textContent).not.toContain("下雪");
+    expect(snowWeather?.querySelector('[data-symbol="cloud.snow"]')).not.toBeNull();
+  });
+
+  it("avoids double top safe-area inset by disabling automatic scroll inset adjustment", () => {
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot()]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
+    );
+    const scroll = container.querySelector<HTMLDivElement>('[data-testid="home-hub-scroll"]')!;
+    expect(scroll.getAttribute("data-inset-behavior")).toBe("never");
+    expect(scroll.style.paddingTop).toBe("52px");
   });
 });

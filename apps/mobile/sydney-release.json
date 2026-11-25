@@ -1,24 +1,24 @@
 {
-  "version": "1.0.26",
+  "version": "1.0.27",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "全面原生化升级手机端体验：全局隐藏外露滚动条，底栏升级为原生图标加标签 Tab 导航，支持切换保活与重按平滑回顶，并移除项目页伪返回箭头。",
-      "应用详情与 GitHub 仓库详情改为原生 Stack 推入路由并支持 iOS 左缘侧滑返回；项目、GitHub、项目群成员选择器与应用目录全面改用无限滚动。",
-      "新建 Bot／项目／项目群与账号删除弹窗统一升级为原生 Sheet（iOS formSheet 下拉关闭），聊天操作菜单在 iOS 接入原生 ActionSheetIOS，登录页改用全宽暖瓷原生布局。",
-      "统一单色清透暖瓷渐变、去框极简输入栏与顶部防重叠渐隐遮罩，并修复群聊状态与单聊隔离、执行态优先于等待输入及对话左下角实时状态展示。"
+      "修复首页顶部双重安全区导致的大面积空白，并统一首页、聊天与项目三个底部 Tab 的顶栏基线、20pt 边距与 iOS 中文衬线大标题字形。",
+      "修复项目页顶栏贴边错位、负字距与空状态卡片排布，改为与首页同节奏的双行暖瓷顶栏与视觉居中空状态卡片。",
+      "首页问候语右侧新增实时天气图标与温度微标，并支持随昼夜切换与下拉／轻点刷新；同步修复任务完成后仍残留「等待输入」状态的问题。",
+      "增强 OTA 热更新下载韧性：新增最多 3 次自动续传重试、前台悬浮下载进度提示，以及失败时的真实错误诊断与一键重试入口。"
     ],
     "zh-TW": [
-      "全面原生化升級手機端體驗：全域隱藏外露捲軸，底欄升級為原生圖示加標籤 Tab 導覽，支援切換保活與重按平滑回頂，並移除專案頁偽返回箭頭。",
-      "應用詳情與 GitHub 倉庫詳情改為原生 Stack 推入路由並支援 iOS 左緣側滑返回；專案、GitHub、專案群成員選擇器與應用目錄全面改用無限捲動。",
-      "新建 Bot／專案／專案群與帳號刪除彈窗統一升級為原生 Sheet（iOS formSheet 下拉關閉），聊天操作選單在 iOS 接入原生 ActionSheetIOS，登入頁改用全寬暖瓷原生版面。",
-      "統一單色清透暖瓷漸層、去框極簡輸入欄與頂部防重疊漸隱遮罩，並修復群聊狀態與單聊隔離、執行態優先於等待輸入及對話左下角即時狀態顯示。"
+      "修復首頁頂部雙重安全區導致的大面積空白，並統一首頁、聊天與專案三個底部 Tab 的頂欄基線、20pt 邊距與 iOS 中文襯線大標題字形。",
+      "修復專案頁頂欄貼邊錯位、負字距與空狀態卡片排布，改為與首頁同節奏的雙行暖瓷頂欄與視覺置中空狀態卡片。",
+      "首頁問候語右側新增即時天氣圖示與溫度微標，並支援隨晝夜切換與下拉／輕點重新整理；同步修復任務完成後仍殘留「等待輸入」狀態的問題。",
+      "增強 OTA 熱更新下載韌性：新增最多 3 次自動續傳重試、前景懸浮下載進度提示，以及失敗時的真實錯誤診斷與一鍵重試入口。"
     ],
     "en": [
-      "Native mobile HIG overhaul: hide exposed scrollbars app-wide, upgrade bottom navigation to persistent native icon-and-label tabs with tap-to-scroll-top, and remove the spurious back arrow on Projects.",
-      "Move Integration and GitHub repository details onto native Stack push routes with iOS edge-swipe back, and replace button pagination with smooth infinite scroll across Projects, GitHub, group picker, and Integrations.",
-      "Unify modal forms on native sheets (iOS formSheet with swipe-to-dismiss), adopt native ActionSheetIOS for chat action menus on iOS, and redesign Sign-In with a full-width native warm-porcelain layout.",
-      "Unify monochrome warm-porcelain surfaces, borderless circular composer controls, and floating header fade masks, while isolating group status from DMs, prioritizing active runs over stale waiting prompts, and restoring live bottom-left status."
+      "Fix excessive top blank space on Home by removing double safe-area insets, and align top baselines, 20pt gutters, and editorial display headings across Home, Chats, and Projects tabs.",
+      "Fix flush-to-edge Projects header padding and empty-state balance with a unified two-row warm-porcelain header and optically centered empty card.",
+      "Show live weather icon and temperature beside the Home greeting with day/night switching and tap/pull refresh, and fix stale 'waiting for input' status lingering after runs complete.",
+      "Harden OTA downloads with up to 3 automatic resume retries, a non-blocking foreground progress banner, real native failure diagnostics, and a one-tap Retry action."
     ]
   }
 }

@@ -134,7 +134,39 @@ describeWithDatabase("structured @ mention targets", () => {
   });
 
   describe("send with routines", () => {
-    type Receipt = { routineRunIds: string[]; send?: { runId: string; taskId: string } };
+    type Receipt = {
+      routineRunIds: string[];
+      send?: {
+        runId: string;
+        taskId: string;
+        seq: number;
+        runIds: string[];
+        activity?: {
+          threadId: string;
+          cursor: number;
+          runs: Array<{ id: string; botId: string; status: string }>;
+        };
+      };
+    };
+    // `send.activity` reports live cursor/run status that advances as the background executor runs;
+    // compare the durable submission receipt and thread identity across concurrent/replayed calls.
+    const stableReceipt = (receipt: Receipt | undefined) =>
+      receipt
+        ? {
+            routineRunIds: receipt.routineRunIds,
+            ...(receipt.send
+              ? {
+                  send: {
+                    runId: receipt.send.runId,
+                    taskId: receipt.send.taskId,
+                    seq: receipt.send.seq,
+                    runIds: receipt.send.runIds,
+                    ...(receipt.send.activity ? { threadId: receipt.send.activity.threadId } : {}),
+                  },
+                }
+              : {}),
+          }
+        : undefined;
 
     async function owner(name: string) {
       const cookie = await signup(app, `send-routines-${name}-${stamp}@rakazo.test`, name);
@@ -176,7 +208,9 @@ describeWithDatabase("structured @ mention targets", () => {
 
       const [first] = concurrent;
       expect(first?.routineRunIds).toHaveLength(2);
-      for (const receipt of [...concurrent, retried]) expect(receipt).toEqual(first);
+      for (const receipt of [...concurrent, retried]) {
+        expect(stableReceipt(receipt)).toEqual(stableReceipt(first));
+      }
       const thread = await prisma.thread.findUniqueOrThrow({ where: { botId: bot.id } });
       expect(await prisma.message.count({ where: { threadId: thread.id, clientNonce } })).toBe(1);
       expect(await prisma.run.count({ where: { routineId: digest.id } })).toBe(1);
@@ -219,7 +253,7 @@ describeWithDatabase("structured @ mention targets", () => {
         routineIds: [digest.id, review.id],
       });
 
-      expect(retried).toEqual(first);
+      expect(stableReceipt(retried)).toEqual(stableReceipt(first));
       expect(await prisma.run.count({ where: { routineId: digest.id } })).toBe(1);
       expect(await prisma.run.count({ where: { routineId: review.id } })).toBe(0);
     });

@@ -11,7 +11,7 @@ export default function ChatsRoute() {
   const screenBackground = useScreenBackground(tokens.background);
   return (
     <View style={{ flex: 1, backgroundColor: screenBackground }}>
-      {split ? <PickChatPane /> : <HomeSession />}
+      {split ? <PickChatPane /> : <HomeSession inTabBar />}
     </View>
   );
 }

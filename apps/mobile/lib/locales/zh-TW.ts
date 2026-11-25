@@ -1334,6 +1334,11 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Version {version} available": "可更新至 {version}",
   "Update available": "有可用更新",
   "Downloading update…": "正在下載更新…",
+  "Downloading update… {percent}%": "正在下載更新… {percent}%",
+  "Retrying update download ({attempt}/{total})…": "正在重試下載更新（第 {attempt}/{total} 次）…",
+  "Keep the app open while downloading.": "下載期間請保持應用在前景",
+  "Keep the app open on a stable connection, then try again.":
+    "請保持應用在前景並使用穩定的網路連線後重試。",
   "Install and restart": "安裝並重新啟動",
   "Could not download the update. Try again later.": "無法下載更新，請稍後再試。",
   "Current version": "目前版本",

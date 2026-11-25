@@ -34,6 +34,7 @@ import { BotSectionNameConflictError, IsolationError } from "./scope.js";
 import { lockSpaceForContentCreation } from "./spaces.js";
 import {
   activeRunSelection,
+  activeRunsForThread,
   previewFromBlocks,
   primaryActiveRun,
   withLatestBotRuns,
@@ -220,7 +221,7 @@ export function createRepos(
     const bots = await withNewestThreadMessages(prisma, await withLatestBotRuns(prisma, rows), 1);
     return bots.map((bot) => {
       if (!bot.thread) throw new IsolationError("Bot is missing its thread");
-      const activeRun = primaryActiveRun(bot.runs);
+      const activeRun = primaryActiveRun(activeRunsForThread(bot.runs, bot.thread.id));
       return {
         id: bot.id,
         spaceId: bot.spaceId,
@@ -485,7 +486,7 @@ export function createRepos(
             });
             if (messages.length === 0) break;
           }
-          const activeRun = primaryActiveRun(bot.runs);
+          const activeRun = primaryActiveRun(activeRunsForThread(bot.runs, bot.thread?.id));
           return mapBot(
             bot,
             preview,

@@ -10,6 +10,7 @@ const runtime = vi.hoisted(() => ({
   params: { workspaceId: "project-a", scope: "account-a" },
   rpc: vi.fn(),
   capture: vi.fn(),
+  sideInsets: {} as { paddingLeft?: number; paddingRight?: number },
 }));
 vi.mock("expo-router", () => ({
   useFocusEffect: (callback: EffectCallback) => useEffect(callback, [callback]),
@@ -19,80 +20,107 @@ vi.mock("expo-router", () => ({
     Screen: ({ options }: { options: { title: string } }) => <header>{options.title}</header>,
   },
 }));
-vi.mock("react-native", () => ({
-  Platform: { OS: "ios" },
-  Alert: { alert: vi.fn() },
-  AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) },
-  StyleSheet: { hairlineWidth: 1 },
-  ActivityIndicator: () => <span>spinner</span>,
-  RefreshControl: () => null,
-  View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Pressable: ({ children, onPress }: { children: ReactNode; onPress: () => void }) => (
-    <button type="button" onClick={onPress}>
-      {children}
-    </button>
-  ),
-  Modal: ({ children, visible = true }: { children?: ReactNode; visible?: boolean }) =>
-    visible ? <div>{children}</div> : null,
-  KeyboardAvoidingView: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TextInput: () => <input />,
-  FlatList: ({
-    data = [],
-    renderItem,
-    ListHeaderComponent,
-    ListEmptyComponent,
-    ListFooterComponent,
-    contentOffset,
-    onScroll,
-    onEndReached,
-  }: {
-    data?: unknown[];
-    renderItem: (info: { item: unknown; index: number }) => ReactNode;
-    ListHeaderComponent?: ReactNode;
-    ListEmptyComponent?: ReactNode;
-    ListFooterComponent?: ReactNode;
-    contentOffset?: { y: number };
-    onScroll?: (event: unknown) => void;
-    onEndReached?: () => void;
-  }) => (
-    <div
-      data-scroll={contentOffset?.y ?? 0}
-      onScroll={(event) =>
-        onScroll?.({ nativeEvent: { contentOffset: { x: 0, y: event.currentTarget.scrollTop } } })
-      }
-    >
-      {ListHeaderComponent}
-      {data.length > 0
-        ? data.map((item, index) => <div key={index}>{renderItem({ item, index })}</div>)
-        : ListEmptyComponent}
-      {ListFooterComponent}
-      {onEndReached ? (
-        <button type="button" data-end-reached="true" onClick={onEndReached}>
-          trigger-end-reached
-        </button>
-      ) : null}
-    </div>
-  ),
-  ScrollView: ({
-    children,
-    contentOffset,
-    onScroll,
-  }: {
-    children: ReactNode;
-    contentOffset: { y: number };
-    onScroll: (event: unknown) => void;
-  }) => (
-    <div
-      data-scroll={contentOffset.y}
-      onScroll={(event) =>
-        onScroll({ nativeEvent: { contentOffset: { x: 0, y: event.currentTarget.scrollTop } } })
-      }
-    >
-      {children}
-    </div>
-  ),
-}));
+vi.mock("react-native", () => {
+  const flatten = (style: unknown): Record<string, unknown> =>
+    Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
+  return {
+    Platform: { OS: "ios" },
+    Alert: { alert: vi.fn() },
+    AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) },
+    StyleSheet: { hairlineWidth: 1 },
+    ActivityIndicator: () => <span>spinner</span>,
+    RefreshControl: () => null,
+    View: ({
+      children,
+      style,
+      testID,
+    }: {
+      children: ReactNode;
+      style?: unknown;
+      testID?: string;
+    }) => (
+      <div data-testid={testID} style={flatten(style)}>
+        {children}
+      </div>
+    ),
+    Text: ({ children, style }: { children: ReactNode; style?: unknown }) => (
+      <span style={flatten(style)}>{children}</span>
+    ),
+    Pressable: ({ children, onPress }: { children: ReactNode; onPress: () => void }) => (
+      <button type="button" onClick={onPress}>
+        {children}
+      </button>
+    ),
+    Modal: ({ children, visible = true }: { children?: ReactNode; visible?: boolean }) =>
+      visible ? <div>{children}</div> : null,
+    KeyboardAvoidingView: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TextInput: () => <input />,
+    FlatList: ({
+      data = [],
+      renderItem,
+      ListHeaderComponent,
+      ListEmptyComponent,
+      ListFooterComponent,
+      contentOffset,
+      contentInsetAdjustmentBehavior,
+      contentContainerStyle,
+      onScroll,
+      onEndReached,
+      testID,
+    }: {
+      data?: unknown[];
+      renderItem: (info: { item: unknown; index: number }) => ReactNode;
+      ListHeaderComponent?: ReactNode;
+      ListEmptyComponent?: ReactNode;
+      ListFooterComponent?: ReactNode;
+      contentOffset?: { y: number };
+      contentInsetAdjustmentBehavior?: string;
+      contentContainerStyle?: unknown;
+      onScroll?: (event: unknown) => void;
+      onEndReached?: () => void;
+      testID?: string;
+    }) => (
+      <div
+        data-testid={testID}
+        data-scroll={contentOffset?.y ?? 0}
+        data-inset-behavior={contentInsetAdjustmentBehavior}
+        style={flatten(contentContainerStyle)}
+        onScroll={(event) =>
+          onScroll?.({ nativeEvent: { contentOffset: { x: 0, y: event.currentTarget.scrollTop } } })
+        }
+      >
+        {ListHeaderComponent}
+        {data.length > 0
+          ? data.map((item, index) => <div key={index}>{renderItem({ item, index })}</div>)
+          : ListEmptyComponent}
+        {ListFooterComponent}
+        {onEndReached ? (
+          <button type="button" data-end-reached="true" onClick={onEndReached}>
+            trigger-end-reached
+          </button>
+        ) : null}
+      </div>
+    ),
+    ScrollView: ({
+      children,
+      contentOffset,
+      onScroll,
+    }: {
+      children: ReactNode;
+      contentOffset: { y: number };
+      onScroll: (event: unknown) => void;
+    }) => (
+      <div
+        data-scroll={contentOffset.y}
+        onScroll={(event) =>
+          onScroll({ nativeEvent: { contentOffset: { x: 0, y: event.currentTarget.scrollTop } } })
+        }
+      >
+        {children}
+      </div>
+    ),
+  };
+});
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 vi.mock("./api", () => ({
   captureApiRequestContext: runtime.capture,
@@ -111,7 +139,7 @@ vi.mock("./native", () => ({
 }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => false }));
 vi.mock("./side-insets", () => ({
-  useSideInsets: () => ({}),
+  useSideInsets: () => runtime.sideInsets,
   useBottomSafeAreaClaimed: () => false,
 }));
 vi.mock("./use-project-chat-actions", () => ({ useProjectChatActions: () => ({ actions: [] }) }));
@@ -186,6 +214,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   runtime.scope = "account-a";
   runtime.params = { workspaceId: "project-a", scope: "account-a" };
+  runtime.sideInsets = {};
   runtime.capture.mockReset().mockResolvedValue({ apiBase: "https://example.test", headers: {} });
   runtime.rpc
     .mockReset()
@@ -355,4 +384,16 @@ it("displays live conversation status and unread state on project rows after lea
   expect(botRow?.getAttribute("data-preview")).toBe("Working…");
   expect(botRow?.getAttribute("data-unread")).toBe("false");
   act(() => threadSessionCache.clear());
+});
+
+it("keeps 20pt horizontal gutters on the Projects header and disables auto scroll insets even when sideInsets are zero", async () => {
+  runtime.sideInsets = { paddingLeft: 0, paddingRight: 0 };
+  await render(<Projects />);
+  const header = container.querySelector<HTMLDivElement>('[data-testid="projects-header"]')!;
+  expect(header.style.paddingLeft).toBe("20px");
+  expect(header.style.paddingRight).toBe("20px");
+  const list = container.querySelector<HTMLDivElement>('[data-testid="projects-list"]')!;
+  expect(list.getAttribute("data-inset-behavior")).toBe("never");
+  expect(list.style.paddingLeft).toBe("20px");
+  expect(list.style.paddingRight).toBe("20px");
 });

@@ -1,5 +1,28 @@
 # Sydney 开发总计划
 
+## 手机端首页顶部留白与项目／聊天页排版字体修复（PA-021，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（真实 iPhone 视觉与 OTA 生效待用户确认提交并发布新版本后真机验收；未提交或推送）。
+
+范围与交付物：
+- 消除首页顶部双重安全区留白：`apps/mobile/components/home-hub.tsx` 将 `ScrollView` 的 `contentInsetAdjustmentBehavior` 由 `"automatic"` 改为 `"never"`，仅保留单次显式 `paddingTop: Math.max(insets.top, 16) + 8`（消除 iOS 自动叠加 ~59pt 安全区与手动 `insets.top + 10` 叠加形成的 ~128pt 顶部大空白），为 Android `RefreshControl` 补齐 `progressViewOffset` 并统一顶栏行高 `minHeight: 36`。
+- 修复聊天 Tab 在 `<Tabs>` 内的顶栏与滚动安全区：`apps/mobile/app/(tabs)/chats.tsx` 向 `HomeSession` 传入 `inTabBar`，`apps/mobile/components/inbox-screens.tsx` 在无原生 `UINavigationBar` 的底栏 Tab 内禁用 `nativeHeader` 并对非原生顶栏状态设置 `FlatList` `contentInsetAdjustmentBehavior="never"`；`apps/mobile/components/inbox-header.tsx` 与 `apps/mobile/components/home-styles.ts` 对齐三页顶部基线（`Math.max(insets.top, 16) + 8`）与中文大标题字体层级（`30/36`、`fontWeight: "700"`、iOS 中文使用 `Songti SC` 与首页问候衬线一致）。
+- 修复项目 Tab 贴边错位、标题字体割裂与空状态布局：`apps/mobile/app/(tabs)/projects.tsx` 修复 `sideInsets` 写在 `paddingHorizontal: 20` 之后将左右边距覆写为 `0` 导致「项目」与「+」紧贴屏幕边缘的缺陷，改为 `padLeft/padRight = 20 + sideInsets` 统一对齐顶栏与卡片；重构为与首页一致的双行暖瓷顶栏（顶部状态眉标 + 36pt 圆形暖瓷 `+` 按钮、下方 30/36 `Songti SC` 衬线大标题、移除挤压字距 `letterSpacing: -0.5`）；`FlatList` 显式设置 `contentInsetAdjustmentBehavior="never"` 与 `flexGrow: 1`，将空状态卡片（`gradient="slate"`、`maxWidth: 264` 均衡换行与紧凑居中 `fill={false}` 新建按钮）在视口视觉居中排布。
+- 新增回归断言：`apps/mobile/lib/home-hub.test.tsx` 与 `apps/mobile/lib/project-pages-state.test.tsx` 补充防双重顶部安全区与防 `sideInsets` 零值覆写 20pt 边距断言；9 个定向 Vitest 文件（80 项）、`@rakazo/mobile` 全包 `tsc --noEmit`、8 文件 Biome check 与 `git diff --check` 全部 0 错误通过，详见 [验证记录](VALIDATION.md#手机端首页顶部留白与项目聊天页排版字体修复2026-11-25)。
+
+依赖与验收条件：仅改动 `apps/mobile` 样式、布局与测试，不新增依赖、不触碰 PC 端或后端、不改动同工作区其他并发窗口代码，不擅自提交或推送；真实 iPhone 端三页切换基线对齐、中文字体与空状态视觉待发布新 OTA 后真机验收。
+
+## 移动端 OTA 下载续传重试、全局进度提示与错误诊断修复（PA-021／REL-01，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（真实 iPhone OTA 弱网续传下载与错误诊断验收待发版后真机实测；未提交或推送）。
+
+范围与交付物：
+- 核查线上 Expo OTA 资源与原生下载链路：确认 `1.0.26`（`01a21332-6929-7fe6-9c68-473e21b4a79b`）线上清单、完整 `launchAsset`（10.83 MB）、56/56 项资源及 `1.0.25 → 1.0.26` `bsdiff` 补丁（1.39 MB）均校验一致；定位真机“等待一段时间后报无法下载”的根因在于访问海外 `assets.eascdn.net` 耗时逼近 `expo-updates` iOS 原生 `FileDownloader` 60 秒单请求超时、原生 `AppLoader` 零重试（`// TODO: retry`）、首页启动更新无下载进度提示易被切后台／锁屏中断，以及客户端 `catch` 吞掉原生日志并缺少重试入口。
+- 客户端下载韧性与交互修复：`apps/mobile/lib/client-update.ts`（新增并发去重与最多 3 次退避自动续传重试 `fetchUpdateWithRetry`，复用 `AppLoader` 已落盘缓存跳过已下资源；扩展 `useClientUpdateState` 输出实时 `progress` 与重试计数；失败时提取精简且去查询参数的 `Updates.readLogEntriesAsync()` 真实原生原因并提供一键「重试」按钮）、`apps/mobile/components/update-download-banner.tsx` 与 `apps/mobile/app/_layout.tsx`（下载期展示非阻塞暖瓷悬浮进度胶囊并提示保持在前台）、`apps/mobile/app/(settings)/settings-home.tsx`（设置行展示实时下载百分比、重试次数与前台提示），同步补齐 7 套非英文移动端词库与 `apps/mobile/lib/client-update.test.ts` 定向回归。
+- 验证结果：5 个定向 Vitest 文件（67 项，含 `client-update.test.ts` 16 项、`account-screen.test.tsx` 28 项、`i18n.test.ts` 16 项、`screen-theme-coverage.test.ts` 6 项与 `scroll-hygiene.test.ts` 1 项）、`@rakazo/mobile` 全包 `tsc --noEmit`、12 文件 Biome check 与 `git diff --check` 全部 0 错误通过，详见 [验证记录](VALIDATION.md#移动端-ota-下载续传重试全局进度提示与错误诊断修复2026-11-25)。
+
+依赖与验收条件：仅改动 `apps/mobile` 客户端代码，不新增依赖、不重装依赖或改动原生底座（通过 OTA 生效；旧版本客户端需先在前台完成一次更新以拉取本批改进），不擅自提交或推送；真机实测待用户确认提交并发布新 OTA 后验收。
+
 ## 手机 App 原生交互与 iOS HIG 全面重构及 iPhone 1.0.26 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：四阶段源码实现、全仓静态／类型／单元测试全绿验证、源码提交推送、GitHub Actions `sideload` OTA 发布与线上清单／启动包／全量资源核验均已完成；真实 iPhone 下载重启与交互验收待执行。
@@ -38,21 +61,31 @@
 
 依赖与验收条件：仅改动 `apps/mobile`，不修改 PC 端代码，不新增第三方依赖（复用既有 `react-native-reanimated@4.5.1`，支持 iPhone 侧载 OTA 直接生效），不执行提交或推送。真实 iPhone 各类控件手感、深浅色与自定义主题高亮对比度、快速连点与滑动不误触及开启「减弱动态效果」后的表现待真机验收。
 
-## GitHub CI 全量失败项分批修复（2026-11-25）
+## 任务结束后残留「等待输入」状态修复（PA-018／PA-021，2026-11-25）
 
-状态：第一批修复（`097cc0f84`）推送后，GitHub Actions 上 `Lint and typecheck`、`Unit tests (1/3)`、`Unit tests (3/3)`、`desktop-macos-screenshot`（Run `45626341617`）、`iOS unsigned sideload build`（Run `45626327009`）、全部 9 个服务端镜像构建发布任务，以及 5 个既有 PostgreSQL 失败套件（`history-retrieval`、`cloud-agent`、`working-bot`、`takeover-chat`、`run-wakeup`）均已转绿；针对最新 `ci` Run `45628028108`（提交 `fa84bb2ad`）暴露的剩余 5 类失败项已完成第二批源码与测试修复、本机定向离线校验，并按用户确认基于 `d4b92a19b` 在隔离 worktree 提交推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`；Linux 专属 `backup-scripts.test.ts` 与 PostgreSQL 集成全量套件待推送后由 GitHub Actions 实跑验收。
+状态：移动端回执合并缺陷与后端列表跨线程状态串入两处根因已完成源码修复与本机离线验证（未提交或推送；PostgreSQL `working-bot`/`roster-runs` 集成验证、服务端部署及 iPhone 侧载 OTA 实机复核待后续推送发布后验收）。
 
 范围与交付物：
-- 第一批（已合入 `097cc0f84` 并在 GitHub Actions 验证转绿）：`.github/workflows/{desktop-macos-screenshot,weekly-dependencies}.yml`、`apps/desktop/{src/window-options.ts,e2e/smoke.spec.ts}`、`apps/mobile/package.json` 及 36 个移动端失败单测／运行时回归修复、`packages/{auth,contracts,adapters,db,testkit}` 与 `apps/{api,web}` 离线单测与全仓 278 项 Biome 错误归零、20 个 `tsconfig.json` 零错误、Web 翻译目录同步，以及 `history-retrieval`/`cloud-agent`/`working-bot`/`takeover-chat`/`run-wakeup` 等 PostgreSQL 夹具修复。
-- 第二批（针对 Run `45628028108` 剩余 5 类根因，已基于 `d4b92a19b` 独立提交推送）：
-  - `packages/testkit/src/backup-scripts.test.ts`：同步 `infra/compose/backup-drill.sh`（提交 `a80151445`）更新后的输出文案 `"checksums and archive listings checked; restore not performed"`，修复 `Unit tests (2/3)` 唯一失败文件（2 项）。
-  - `packages/testkit/src/cli/harness.ts`：`--integration` 模式下将默认 `WEB_PORT` 对齐为 `5173`（保留 `--e2e` 默认 `5180`），修复开启 `disableOriginCheck: false` 后测试套件发送 `origin: http://127.0.0.1:5173` 在 `signup` 触发 `403 INVALID_ORIGIN` 的系统性失败（覆盖 `authorization.test.ts`、`attachments.test.ts`、`agent-import.postgres.test.ts` 等全部集成套件）。
-  - `packages/db/src/row-security.ts` 与 `packages/db/src/row-security.postgres.test.ts`：向 `ROW_SECURITY_MODELS` 补齐已启用 RLS 的 `ProjectDirectoryBinding` 与 `ProjectCloudDirectoryBinding` 两张模型（真实遗漏缺陷）；同时更新 bypass 策略校验逻辑，在保持「禁止任何原始 `app.rls_bypass`／所有旁路必须经 `( SELECT app_rls_bypass() AS app_rls_bypass)`」安全不变量的前提下，正确兼容显式 `WITH CHECK ((SELECT app_rls_bypass()))`、`*_project_scope` 限制性策略与 `project_cloud_directory_owner` 组合策略。
-  - `packages/db/src/project-workspace.postgres.test.ts`：对齐迁移 `20261122120000_shared_memory_across_projects`（提交 `fc2f9d13a`）语义——项目作用域共享用户级记忆（`botId IS NULL`），同时继续隐藏主页 Bot 级记忆、其修订记录并拒绝跨作用域写入。
-  - `apps/api/src/typed-reply.postgres.test.ts`：在 `kind === "bot"` 场景的 `latest` 问询后补发同 Bot 尾随文本消息，使其在满足 PA-022 私聊任务归属触发器的前提下真正成为非最新消息并触发旧问询退场。
-- 详细验证证据见 [第一批验证记录](VALIDATION.md#github-ci-全量失败项分批修复2026-11-25) 与 [第二批验证记录](VALIDATION.md#github-ci-第二批残留失败项修复2026-11-25)。
+- 移动端回执替换旧 `waiting_input`：`apps/mobile/lib/thread-session-cache.ts` 与 `apps/mobile/lib/thread-session-cache.test.tsx`：修复 `applySendActivity` 与旧服务端路径 `applyAcceptedSend` 在发送新任务时保留旧 `waiting_input` Run 且推进游标跳过 `run.cancelled`，导致新任务完成（`run.completed`）后界面立刻回退并锁死在「等待输入」的缺陷；单聊与群聊按目标 Bot 清理被新 Run 替代的旧 `waiting_input`（群聊保留其他未受影响成员的等待态，若服务端存在真实未决审批／密钥卡片仍由发送后 `threads/get` 权威刷新恢复）。
+- 后端单聊名单状态按单聊线程隔离：`packages/db/src/thread-listing.ts`、`packages/db/src/repos.ts` 与 `packages/db/src/thread-listing.test.ts`：`activeRunSelection` 增选 `threadId: true` 并新增 `activeRunsForThread()`，使 `listBots` 与 `listSpaceBotsForSpaces` 严格按该 Bot 自身单聊 `bot.thread.id` 聚合活跃 Run，避免该 Bot 在群聊中残留的 `waiting_input` 串入首页／聊天列表的单聊行（保持 `groups.ts` 成员状态与既有 `working-bot`/`roster-runs` 契约兼容）。
+- 详细验证证据见 [验证记录](VALIDATION.md#任务结束后残留等待输入状态修复2026-11-25)。
 
-依赖与验收条件：不新增或重装依赖，不启动本机 Docker／PostgreSQL／桌面服务，不调用子代理，不触碰主工作区其他并发窗口的 `apps/mobile`／`thread-listing` 未提交改动。本机以 6 个改动文件 Biome 0 错误、`packages/db`／`packages/testkit`／`apps/api` `tsc --noEmit` 0 错误、6 个离线关联单测文件（66 项）全绿与 `git diff --check` 0 警告为准；`Unit tests (2/3)` 与 `Postgres journeys (1/2)–(2/2)` 以推送后 GitHub Actions 实跑结果为准。
+依赖与验收条件：不新增依赖、不启动本机 Docker／PostgreSQL、不触碰同工作区其他并发窗口的 `home-weather`/`update-download-banner` 改动、不擅自提交或推送。本机以 5 文件 Biome 0 错误、`packages/db` 与改动移动端文件 TypeScript 0 错误、3 个定向 Vitest 文件（52 项）全绿为准；真实生产服务端部署与 iPhone OTA 实机验收单列待验。
+
+## GitHub CI 全量失败项分批修复（2026-11-25）
+
+状态：第一批（`097cc0f84`）与第二批（`e81ba0eba`）推送后，在最新 `ci` Run `45638515188`（提交 `92b007043`）上，`Lint and typecheck`、`Unit tests (1/3)`、`Unit tests (2/3)`、`Unit tests (3/3)`、`Checks`、全部 9 个服务端镜像构建发布任务，以及第二批修复的全部 5 类问题（`backup-scripts`、`403 INVALID_ORIGIN`、`row-security`、`project-workspace`、`typed-reply`）均已**全部转绿**；整仓仅剩 `Postgres journeys (1/2)`（58/59 文件通过，1 项失败：`project-chat.postgres.test.ts:246`）与 `Postgres journeys (2/2)`（57/58 文件通过，2 项失败：`mention-targets.postgres.test.ts:179,222`）。现已完成第三批收口修复与本机离线校验（未提交或推送），待推送后在 GitHub Actions 验证全部 `Postgres journeys` 转绿。
+
+范围与交付物：
+- 第一批（已合入 `097cc0f84` 并验证转绿）：工作流与跨端检查配置、全仓 278 项 Biome 错误归零、20 个 `tsconfig.json` 零错误、Web 翻译目录同步、跨包与移动端离线单测修复及 5 个 PostgreSQL 夹具修复。
+- 第二批（已合入 `e81ba0eba` 并在 Run `45638515188` 全部转绿）：`backup-scripts.test.ts`、`harness.ts`（`--integration` 默认端口 `5173`）、`row-security.ts`（补齐 `ProjectDirectoryBinding`/`ProjectCloudDirectoryBinding`）与 `row-security.postgres.test.ts`、`project-workspace.postgres.test.ts`、`typed-reply.postgres.test.ts`。
+- 第三批（针对 Run `45638515188` 最后 2 个 Postgres 文件共 3 项失败，本机已改完待推送）：
+  - `apps/api/src/thread-target.ts`：单聊（`target.kind === "bot"`）分支查询 `activeRuns` 时补齐遗漏的 `botId: true`（真实代码缺陷），并在 `answered`/`active` 返回路径兜底 `botId: run.botId ?? target.botId`，修复首次发送转向活跃 Run 时 `sendActivity` 因缺少 `botId` 过滤掉当前 Run 返回 `runs: []` 的问题。
+  - `packages/testkit/src/project-chat.postgres.test.ts`：Run 完成后重放 `projectWorkspaces/sendText` 时，`activity` 返回的是实时游标与最新状态（`status: "completed"`、`cursor >= initialActivity.cursor`），将第 246 行断言更新为严格校验稳定发送回执（`taskId`/`runId`/`seq`/`runIds`）与实时完成后 `activity`。
+  - `packages/testkit/src/mention-targets.postgres.test.ts`：在并发与重试 `threads/sendWithRoutines` 用例（第 179、222 行）中校验持久化提交回执与线程标识（`routineRunIds`、`send.{runId,taskId,seq,runIds}`、`threadId`），消除后台执行器推进实时 `send.activity` 状态导致的竞态误报。
+- 详细验证证据见 [第一批](VALIDATION.md#github-ci-全量失败项分批修复2026-11-25)、[第二批](VALIDATION.md#github-ci-第二批残留失败项修复2026-11-25) 与 [第三批验证记录](VALIDATION.md#github-ci-第三批-postgres-最后残留项修复2026-11-25)。
+
+依赖与验收条件：不新增或重装依赖，不启动本机 Docker／PostgreSQL／桌面服务，不调用子代理，不擅自提交或推送。本机以 3 个改动文件 Biome 0 错误、`apps/api` 与 `packages/testkit` `tsc --noEmit` 0 错误、`apps/api/src/thread-target.test.ts`（97 项）全绿与 `git diff --check` 0 警告为准；`Postgres journeys (1/2)–(2/2)` 以推送后 GitHub Actions 实跑结果为准。
 
 ## 移动端群聊状态隔离、执行态优先级与对话左下角状态修复（PA-018／PA-021／PA-022，2026-11-25）
 

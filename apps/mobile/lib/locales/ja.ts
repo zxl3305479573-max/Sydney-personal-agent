@@ -1398,6 +1398,12 @@ export const JA_MESSAGES: Record<string, string> = {
     "アップデートをダウンロードできませんでした。後でもう一度お試しください。",
   "Current version": "現在のバージョン",
   "Downloading update…": "アップデートをダウンロード中…",
+  "Downloading update… {percent}%": "アップデートをダウンロード中… {percent}%",
+  "Retrying update download ({attempt}/{total})…":
+    "アップデートのダウンロードを再試行中 ({attempt}/{total})…",
+  "Keep the app open while downloading.": "ダウンロード中はアプリを開いたままにしてください。",
+  "Keep the app open on a stable connection, then try again.":
+    "安定した接続でアプリを開いたまま、もう一度お試しください。",
   "Install and restart": "インストールして再起動",
   "Installed build {build}": "インストール済みビルド {build}",
   "Release notes": "リリースノート",

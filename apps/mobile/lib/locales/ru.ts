@@ -1405,6 +1405,12 @@ export const RU_MESSAGES: Record<string, string> = {
     "Не удалось загрузить обновление. Попробуйте позже.",
   "Current version": "Текущая версия",
   "Downloading update…": "Загрузка обновления…",
+  "Downloading update… {percent}%": "Загрузка обновления… {percent}%",
+  "Retrying update download ({attempt}/{total})…":
+    "Повторная загрузка обновления ({attempt}/{total})…",
+  "Keep the app open while downloading.": "Не закрывайте приложение во время загрузки.",
+  "Keep the app open on a stable connection, then try again.":
+    "Не закрывайте приложение при стабильном подключении и повторите попытку.",
   "Install and restart": "Установить и перезапустить",
   "Installed build {build}": "Установленная сборка {build}",
   "Release notes": "Примечания к выпуску",

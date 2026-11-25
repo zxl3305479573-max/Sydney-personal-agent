@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { previewFromBlocks, primaryActiveRun } from "./thread-listing.js";
+import { activeRunsForThread, previewFromBlocks, primaryActiveRun } from "./thread-listing.js";
 
 describe("previewFromBlocks", () => {
   it("preserves literal URL paths in autolinks", () => {
@@ -43,5 +43,27 @@ describe("primaryActiveRun", () => {
     const runs = statuses.map((status) => ({ status }));
     expect(primaryActiveRun(runs)?.status).toBe(expected);
     expect(primaryActiveRun([...runs].reverse())?.status).toBe(expected);
+  });
+});
+
+describe("activeRunsForThread", () => {
+  it("isolates a bot's DM status from waiting_input runs in other threads such as groups", () => {
+    const runs = [
+      { status: "waiting_input", threadId: "group-thread-1" },
+      { status: "queued", threadId: "dm-thread-1" },
+    ];
+    expect(primaryActiveRun(activeRunsForThread(runs, "dm-thread-1"))?.status).toBe("queued");
+    expect(
+      primaryActiveRun(
+        activeRunsForThread(
+          [{ status: "waiting_input", threadId: "group-thread-1" }],
+          "dm-thread-1",
+        ),
+      ),
+    ).toBeUndefined();
+    const withoutThread: Array<{ status: string; threadId?: string }> = [{ status: "running" }];
+    expect(primaryActiveRun(activeRunsForThread(withoutThread, "dm-thread-1"))?.status).toBe(
+      "running",
+    );
   });
 });

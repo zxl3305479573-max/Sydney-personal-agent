@@ -12,6 +12,7 @@ const updates = vi.hoisted(() => ({
       isNew: true,
     }),
   ),
+  readLogEntriesAsync: vi.fn(async (): Promise<Array<{ level: string; message: string }>> => []),
   reloadAsync: vi.fn(async () => {}),
 }));
 const storage = vi.hoisted(() => ({
@@ -52,6 +53,7 @@ import {
   checkForManualUpdate,
   clientBuildHeaders,
   FOREGROUND_UPDATE_CHECK_MS,
+  fetchUpdateWithRetry,
   mobileClientBuild,
   noteClientUpdateRequired,
   promptForAvailableUpdate,
@@ -60,6 +62,7 @@ import {
 } from "./client-update";
 
 afterEach(() => {
+  vi.useRealTimers();
   updates.isEnabled = true;
   updates.createdAt = new Date("2026-10-22T09:30:15Z");
   appConfig.expoConfig.extra.sydneySideload = false;
@@ -173,14 +176,70 @@ describe("optional update prompts", () => {
     expect(rn.Alert.alert).not.toHaveBeenCalled();
   });
 
-  it("only offers restart after a successful download", async () => {
+  it("only offers restart after a successful download, with a one-tap retry button", async () => {
     updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false });
     promptForAvailableUpdate(candidate);
     pressOptionalUpdate("Update");
     await flush();
     expect(rn.Alert.alert).toHaveBeenLastCalledWith(
       "Could not download the update. Try again later.",
+      expect.stringContaining("Keep the app open on a stable connection, then try again."),
+      expect.arrayContaining([
+        expect.objectContaining({ text: "Not Now", style: "cancel" }),
+        expect.objectContaining({ text: "Try again" }),
+      ]),
     );
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+
+    updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: true, manifest: updateManifest });
+    pressOptionalUpdate("Try again");
+    await flush();
+    expect(updates.fetchUpdateAsync).toHaveBeenCalledTimes(2);
+    expect(rn.Alert.alert.mock.calls.at(-1)?.[0]).toBe(
+      `Version ${sydneyRelease.version} downloaded`,
+    );
+    pressOptionalUpdate("Not Now");
+  });
+
+  it("automatically retries transient download errors and recovers on cached assets", async () => {
+    updates.fetchUpdateAsync
+      .mockRejectedValueOnce(new Error("Failed to load all assets"))
+      .mockResolvedValueOnce({ isNew: true, manifest: updateManifest });
+    const waited: number[] = [];
+    const result = await fetchUpdateWithRetry({
+      maxAttempts: 3,
+      retryDelaysMs: [100, 200],
+      wait: async (ms) => {
+        waited.push(ms);
+      },
+    });
+    expect(result).toEqual({ isNew: true, manifest: updateManifest });
+    expect(updates.fetchUpdateAsync).toHaveBeenCalledTimes(2);
+    expect(waited).toEqual([100]);
+  });
+
+  it("surfaces the underlying native expo-updates log error when retries exhaust", async () => {
+    vi.useFakeTimers();
+    updates.fetchUpdateAsync
+      .mockRejectedValueOnce(new Error("Failed to load all assets"))
+      .mockRejectedValueOnce(new Error("Failed to load all assets"))
+      .mockRejectedValueOnce(new Error("Failed to load all assets"));
+    updates.readLogEntriesAsync.mockResolvedValueOnce([
+      {
+        level: "error",
+        message:
+          "Unknown error: The request timed out. https://assets.eascdn.net/abc?project=secret-id",
+      },
+      { level: "error", message: "Failed to load all assets" },
+    ]);
+    promptForAvailableUpdate(candidate);
+    pressOptionalUpdate("Update");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(updates.fetchUpdateAsync).toHaveBeenCalledTimes(3);
+    const lastCall = rn.Alert.alert.mock.calls.at(-1);
+    expect(lastCall?.[0]).toBe("Could not download the update. Try again later.");
+    expect(lastCall?.[1]).toContain("The request timed out.");
+    expect(lastCall?.[1]).not.toContain("?project=secret-id");
     expect(updates.reloadAsync).not.toHaveBeenCalled();
   });
 

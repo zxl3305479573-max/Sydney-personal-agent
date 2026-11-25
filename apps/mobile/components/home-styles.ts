@@ -165,12 +165,13 @@ export function createHomeStyles(
     inboxIntro: {
       gap: 12,
       paddingHorizontal: 20,
-      paddingTop: 8,
+      paddingTop: 2,
       paddingBottom: 16,
     },
     inboxTitle: {
       color: colors.label,
-      fontSize: 32,
+      fontSize: 30,
+      lineHeight: 36,
       fontWeight: "700",
     },
     inboxSearch: {

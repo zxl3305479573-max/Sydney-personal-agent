@@ -865,6 +865,7 @@ export async function sendThreadMessage(
           select: {
             id: true,
             taskId: true,
+            botId: true,
             status: true,
             trigger: true,
             modelProvider: true,
@@ -954,7 +955,12 @@ export async function sendThreadMessage(
               replyPreview,
             },
           });
-          return { message, runs: answered, routineRuns, eventSeq: event.seq };
+          return {
+            message,
+            runs: answered.map((run) => ({ ...run, botId: run.botId ?? target.botId })),
+            routineRuns,
+            eventSeq: event.seq,
+          };
         }
         const holdingRuns = activeRuns.filter(
           (run) =>
@@ -990,7 +996,12 @@ export async function sendThreadMessage(
               replyPreview,
             },
           });
-          return { message, runs: [active], routineRuns, eventSeq: event.seq };
+          return {
+            message,
+            runs: [{ ...active, botId: active.botId ?? target.botId }],
+            routineRuns,
+            eventSeq: event.seq,
+          };
         }
         const executionScope = await resolveConversationExecutionScope(tx, {
           spaceId: actor.spaceId,

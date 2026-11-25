@@ -243,7 +243,19 @@ it.skipIf(!enabled)(
           { timeout: 25_000 },
         )
         .toMatchObject({ status: "completed", projectWorkspaceId: first.projectId });
-      expect(await rpc("projectWorkspaces/sendText", send)).toMatchObject(sent);
+      const { activity: initialActivity, ...sendReceipt } = sent;
+      const replayed = await rpc("projectWorkspaces/sendText", send);
+      expect(replayed).toMatchObject({
+        ...sendReceipt,
+        activity: {
+          threadId: snapshot.threadId,
+          cursor: expect.any(Number),
+          runs: [{ id: sent.runId, botId: first.botId, status: "completed" }],
+        },
+      });
+      if (initialActivity && replayed.activity) {
+        expect(replayed.activity.cursor).toBeGreaterThanOrEqual(initialActivity.cursor);
+      }
 
       const reopened = await rpc("projectWorkspaces/threadSnapshot", first);
       expect(reopened.messages.at(-1)?.id).toBe(streamedReply?.payload.messageId);

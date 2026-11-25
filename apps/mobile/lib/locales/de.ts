@@ -1372,6 +1372,12 @@ export const DE_MESSAGES: Record<string, string> = {
     "Update konnte nicht heruntergeladen werden. Versuche es später erneut.",
   "Current version": "Aktuelle Version",
   "Downloading update…": "Update wird heruntergeladen…",
+  "Downloading update… {percent}%": "Update wird heruntergeladen… {percent}%",
+  "Retrying update download ({attempt}/{total})…":
+    "Update-Download wird erneut versucht ({attempt}/{total})…",
+  "Keep the app open while downloading.": "Lass die App während des Downloads geöffnet.",
+  "Keep the app open on a stable connection, then try again.":
+    "Lass die App bei stabiler Verbindung geöffnet und versuche es erneut.",
   "Install and restart": "Installieren und neu starten",
   "Installed build {build}": "Installierter Build {build}",
   "Release notes": "Versionshinweise",

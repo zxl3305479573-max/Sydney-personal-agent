@@ -145,17 +145,34 @@ export function applySendActivity(
   );
   if (!incoming.length) return previous;
   const incomingById = new Map(incoming.map((run) => [run.id, run]));
+  const incomingBotIds = new Set(incoming.map((run) => run.botId));
   let changed = false;
-  const mergedActive = active.map((existing) => {
+  const mergedActive: typeof active = [];
+  for (const existing of active) {
     const next = incomingById.get(existing.id);
-    if (!next) return existing;
-    incomingById.delete(existing.id);
-    if (existing.status !== next.status || (existing.sendCursor ?? -1) < activity.cursor) {
-      changed = true;
-      return { ...existing, ...next, sendCursor: activity.cursor };
+    if (next) {
+      incomingById.delete(existing.id);
+      if (existing.status !== next.status || (existing.sendCursor ?? -1) < activity.cursor) {
+        changed = true;
+        mergedActive.push({ ...existing, ...next, sendCursor: activity.cursor });
+      } else {
+        mergedActive.push(existing);
+      }
+      continue;
     }
-    return existing;
-  });
+    // Sending a new run retires ordinary waiting_input asks before activity.cursor (skipping their
+    // run.cancelled event on SSE). Drop superseded waiting_input runs for the targeted bot(s) so
+    // they cannot resurface when the new run completes; any still-pending approval/secret card is
+    // restored authoritatively by the post-send threads/get refresh.
+    if (
+      existing.status === "waiting_input" &&
+      (!target.groupId || (existing.botId !== undefined && incomingBotIds.has(existing.botId)))
+    ) {
+      changed = true;
+      continue;
+    }
+    mergedActive.push(existing);
+  }
   for (const added of incomingById.values()) {
     changed = true;
     mergedActive.push({ ...added, sendCursor: activity.cursor });
@@ -212,15 +229,24 @@ export function applyAcceptedSend(
   const sendCursor = (base.cursor ?? -1) + 1;
   const receiptIds = new Set(runIds);
   let changed = false;
-  const mergedActive = active.map((existing) => {
-    if (!receiptIds.has(existing.id)) return existing;
-    receiptIds.delete(existing.id);
-    if (existing.status === "waiting_input") {
-      changed = true;
-      return { ...existing, status: "queued", sendCursor };
+  const mergedActive: typeof active = [];
+  for (const existing of active) {
+    if (receiptIds.has(existing.id)) {
+      receiptIds.delete(existing.id);
+      if (existing.status === "waiting_input") {
+        changed = true;
+        mergedActive.push({ ...existing, status: "queued", sendCursor });
+      } else {
+        mergedActive.push(existing);
+      }
+      continue;
     }
-    return existing;
-  });
+    if (!target.groupId && existing.status === "waiting_input") {
+      changed = true;
+      continue;
+    }
+    mergedActive.push(existing);
+  }
   for (const id of receiptIds) {
     changed = true;
     mergedActive.push({

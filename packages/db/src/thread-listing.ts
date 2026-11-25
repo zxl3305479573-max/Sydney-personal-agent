@@ -17,8 +17,17 @@ export const activeRunSelection = {
     trigger: { notIn: backgroundRunTriggers },
   },
   orderBy: { createdAt: "desc" as const },
-  select: { status: true },
+  select: { status: true, threadId: true },
 } as const;
+
+/** Filters a bot's active runs to its own direct-message thread (preserving mocks without threadId). */
+export function activeRunsForThread<T extends { threadId?: string | null }>(
+  runs: readonly T[],
+  threadId: string | null | undefined,
+): T[] {
+  if (!threadId) return [...runs];
+  return runs.filter((run) => !run.threadId || run.threadId === threadId);
+}
 
 /** Takeover, then live running/leased work wins over waiting_input and queued work. */
 export function primaryActiveRun<T extends { status: string }>(runs: readonly T[]): T | undefined {

@@ -94,6 +94,11 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Installed build {build}": "安装包 {build}",
   "Checking for updates…": "正在检查更新…",
   "Downloading update…": "正在下载更新…",
+  "Downloading update… {percent}%": "正在下载更新… {percent}%",
+  "Retrying update download ({attempt}/{total})…": "正在重试下载更新（第 {attempt}/{total} 次）…",
+  "Keep the app open while downloading.": "下载期间请保持应用在前台",
+  "Keep the app open on a stable connection, then try again.":
+    "请保持应用在前台并使用稳定的网络连接后重试。",
   "Install and restart": "安装并重启",
   "Could not download the update. Try again later.": "无法下载更新，请稍后重试。",
   "Updates are unavailable in this build.": "当前安装版本尚未启用在线更新。",

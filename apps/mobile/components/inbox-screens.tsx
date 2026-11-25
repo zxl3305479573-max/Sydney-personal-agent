@@ -606,22 +606,29 @@ export function InboxPane({ onSelectSpace, onShareSelect }: InboxPaneProps) {
 
 export function HomeSession({
   embedded = false,
+  inTabBar = false,
   onSelectSpace,
   onShareSelect,
-}: InboxPaneProps & { embedded?: boolean }) {
+}: InboxPaneProps & { embedded?: boolean; inTabBar?: boolean }) {
   const generation = useSyncExternalStore(subscribeSessionGeneration, currentSessionGeneration);
   const ready = useSyncExternalStore(subscribeSessionGeneration, currentReadySessionGeneration);
   return (
     <Home
       key={`${generation}:${ready}`}
       embedded={embedded}
+      inTabBar={inTabBar}
       onSelectSpace={onSelectSpace}
       onShareSelect={onShareSelect}
     />
   );
 }
 
-function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { embedded: boolean }) {
+function Home({
+  embedded,
+  inTabBar,
+  onSelectSpace,
+  onShareSelect,
+}: InboxPaneProps & { embedded: boolean; inTabBar: boolean }) {
   const generation = currentSessionGeneration();
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
@@ -1103,8 +1110,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     right: embedded ? 0 : insets.right,
   });
   // Liquid Glass uses the native bar: glass bar items and a native menu.
-  // The list beside a chat has no navigation bar of its own.
-  const nativeHeader = iosAtLeast(26) && !embedded;
+  // The list beside a chat or inside the headerless bottom-tabs navigator has no native UINavigationBar.
+  const nativeHeader = iosAtLeast(26) && !embedded && !inTabBar;
   const headerHeight = useHeaderHeightIfAny();
   const listRef = useRef<FlatList<InboxItem>>(null);
   useEffect(() => {
@@ -1486,7 +1493,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                   styles.list,
                   { paddingLeft: columnInsets.left, paddingRight: columnInsets.right },
                 ]}
-                contentInsetAdjustmentBehavior="automatic"
+                contentInsetAdjustmentBehavior={nativeHeader ? "automatic" : "never"}
                 refreshControl={
                   <RefreshControl
                     refreshing={refreshing}

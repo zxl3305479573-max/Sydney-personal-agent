@@ -1365,6 +1365,11 @@ export const NL_MESSAGES: Record<string, string> = {
     "Kan de update niet downloaden. Probeer het later opnieuw.",
   "Current version": "Huidige versie",
   "Downloading update…": "Update downloaden…",
+  "Downloading update… {percent}%": "Update downloaden… {percent}%",
+  "Retrying update download ({attempt}/{total})…": "Update opnieuw downloaden ({attempt}/{total})…",
+  "Keep the app open while downloading.": "Houd de app open tijdens het downloaden.",
+  "Keep the app open on a stable connection, then try again.":
+    "Houd de app open met een stabiele verbinding en probeer het opnieuw.",
   "Install and restart": "Installeren en opnieuw starten",
   "Installed build {build}": "Geïnstalleerde build {build}",
   "Release notes": "Releaseopmerkingen",
