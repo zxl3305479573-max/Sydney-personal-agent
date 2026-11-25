@@ -10,6 +10,7 @@ import {
   ProjectWorkspaceConnectionStatusSchema,
   ProjectWorkspaceIdInput,
   ProjectWorkspaceLocationTypeSchema,
+  ProjectWorkspaceRosterSchema,
   ProjectWorkspaceSchema,
   ProjectWorkspacePageSchema,
   RenameProjectWorkspaceInput,
@@ -39,6 +40,29 @@ describe("project workspace contracts", () => {
 
   it("exports the schema through the package entry", () => {
     expect(PublicProjectWorkspaceSchema).toBe(ProjectWorkspaceSchema);
+  });
+
+  it("accepts name-only rosters from older backends", () => {
+    const roster = {
+      bots: [{ id: "bot-a", name: "Bot" }],
+      groups: [{ id: "group-a", name: "Group" }],
+      nextBotId: null,
+      nextGroupId: null,
+    };
+    expect(ProjectWorkspaceRosterSchema.parse(roster)).toEqual(roster);
+  });
+
+  it("allows project Bot profile edits while rejecting home-only settings", () => {
+    const schema = appContract.projectWorkspaces.updateBot["~orpc"].inputSchema!;
+    const bot = { botId: "bot-a", name: "Project Bot", color: "#4361ee", avatarSet: "rakazo" };
+    const input = { projectId: "project-a", bot };
+    expect(schema.safeParse(input).success).toBe(true);
+    expect(schema.safeParse({ ...input, bot: { ...bot, modelProvider: "openai" } }).success).toBe(
+      false,
+    );
+    expect(schema.safeParse({ ...input, bot: { ...bot, computerMode: "team" } }).success).toBe(
+      false,
+    );
   });
 
   it("validates public metadata without exposing extra fields", () => {

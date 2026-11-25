@@ -559,8 +559,8 @@ export function createUpdaterApp(
         steps,
         restartAdvice:
           decision.strategy === "pull"
-            ? `The updater deployed ${releaseTag ?? targetTag} from its full source-commit image tag and recreated the API, worker, and web containers. Migrations ran inside the new API container before it became healthy.`
-            : "The updater built the fork and recreated the API, worker, and web containers. Migrations ran inside the new API container before it started serving.",
+            ? `The updater deployed ${releaseTag ?? targetTag} from its full source-commit image tag and recreated ${config.updateServices.join(", ")}.`
+            : `The updater built the fork and recreated ${config.updateServices.join(", ")}.`,
       }),
     );
   }

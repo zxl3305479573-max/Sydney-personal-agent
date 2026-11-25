@@ -20,11 +20,45 @@ const installCloseScript =
 const installCloseScriptHash = createHash("sha256").update(installCloseScript).digest("base64");
 const installClosePage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sydney</title></head><body><p>可以关闭此窗口。 You can close this window.</p><script>${installCloseScript}</script></body></html>`;
 
+const nativeInstallCallbackScript = `(() => {
+  const address = location.href;
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  const valid = address.length <= 16384 && !location.hash &&
+    params.getAll("code").length === 1 && params.getAll("state").length === 1 &&
+    !!code && code.length <= 4096 && !/[\\x00-\\x1f\\x7f]/.test(code) &&
+    !!params.get("state") && !params.has("error");
+  history.replaceState(null, "", location.pathname);
+  const field = document.getElementById("address");
+  const status = document.getElementById("status");
+  if (!valid) {
+    status.textContent = "授权未完成，请返回 Sydney 重新开始。";
+    return;
+  }
+  field.value = address;
+  field.hidden = false;
+  status.textContent = "复制下方地址，返回 Sydney 粘贴完成连接。请勿分享此地址。";
+})();`;
+const nativeInstallCallbackStyle =
+  "body{font:16px system-ui;margin:2rem auto;padding:0 1rem;max-width:32rem;line-height:1.6}textarea{box-sizing:border-box;width:100%;min-height:8rem;font:inherit}";
+const sha256Csp = (source: string) =>
+  `'sha256-${createHash("sha256").update(source).digest("base64")}'`;
+const nativeInstallCallbackPolicy = [
+  "default-src 'none'",
+  `script-src ${sha256Csp(nativeInstallCallbackScript)}`,
+  `style-src ${sha256Csp(nativeInstallCallbackStyle)}`,
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
+const nativeInstallCallbackPage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sydney 授权返回</title><style>${nativeInstallCallbackStyle}</style></head><body><h1>返回 Sydney</h1><p id="status" role="status">正在检查授权结果…</p><textarea id="address" aria-label="授权返回地址" readonly hidden></textarea><noscript>请启用 JavaScript 后重新开始授权。</noscript><script>${nativeInstallCallbackScript}</script></body></html>`;
+
 export function mountMessagingInstallReturn(options: {
   app: Hono;
   installations: {
-    returnToForState(state: string): Promise<"web" | "mobile" | null>;
+    returnToForState(state: string): Promise<"web" | "mobile" | "native" | null>;
     claimMobileReturn(state: string): Promise<boolean>;
+    claimNativeReturn?(state: string): Promise<boolean>;
   };
   webOrigin: string;
 }) {
@@ -69,10 +103,25 @@ export function mountMessagingInstallReturn(options: {
         target.search = requestUrl.search;
         return context.redirect(target.href);
       }
-      if (failure) return context.html(installClosePage);
+      if (returnTo === "native") {
+        if (
+          !options.installations.claimNativeReturn ||
+          !(await options.installations.claimNativeReturn(state))
+        ) {
+          return installReturnError(context, 400, "Authorization expired");
+        }
+        if (failure) return context.html(installClosePage);
+        context.header("Content-Security-Policy", nativeInstallCallbackPolicy);
+        return context.html(nativeInstallCallbackPage);
+      }
       if (!(await options.installations.claimMobileReturn(state)))
         return installReturnError(context, 400, "Authorization expired");
       const target = new URL(MOBILE_MESSAGING_INSTALL_REDIRECT);
+      if (failure) {
+        target.searchParams.set("error", params.get("error")!);
+        target.searchParams.set("state", state);
+        return context.redirect(target.href);
+      }
       target.searchParams.set("code", code!);
       target.searchParams.set("state", state);
       return context.redirect(target.href);
@@ -111,7 +160,9 @@ export function messagingRoutes(ctx: RouterContext) {
               input.botId,
               input.returnTo ?? "web",
             ),
-            ...(input.returnTo === "mobile" ? { returnTo: "mobile" as const } : {}),
+            ...(input.returnTo === "mobile" || input.returnTo === "native"
+              ? { returnTo: input.returnTo }
+              : {}),
           };
         }),
         complete: authed.messaging.installations.complete.handler(async ({ context, input }) => {

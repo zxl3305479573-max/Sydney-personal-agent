@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "inbox-cards",
+  "name": "Inbox Cards",
+  "author": "Sydney",
+  "version": "1.0.0",
+  "coverage": ["inbox", "thread", "groupThread"],
+  "defaults": {
+    "layout": "cards",
+    "surface": "outlined",
+    "geometry": {
+      "cardRadius": 22,
+      "controlRadius": 16,
+      "borderWidth": 1
+    },
+    "colors": {
+      "light": {
+        "card": "#FFF7ED",
+        "accent": "#FFEDD5",
+        "accentForeground": "#7C2D12",
+        "border": "#FDBA74"
+      },
+      "dark": {
+        "card": "#2A1B11",
+        "accent": "#4A2B16",
+        "accentForeground": "#FED7AA",
+        "border": "#9A5A2A"
+      }
+    }
+  },
+  "pages": {
+    "thread": {
+      "surface": "glass"
+    },
+    "groupThread": {
+      "surface": "glass"
+    }
+  }
+}

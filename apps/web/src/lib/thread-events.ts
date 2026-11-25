@@ -258,6 +258,7 @@ export function isThreadSnapshotEvent(event: ProductEvent): boolean {
     event.type === "thread.message.updated" ||
     event.type === "thread.message.reaction" ||
     event.type === "run.started" ||
+    event.type === "run.queued" ||
     event.type === "run.waiting_input" ||
     event.type === "computer.takeover.requested" ||
     event.type === "computer.takeover.released" ||
@@ -314,6 +315,60 @@ export function reduceThreadSnapshot(
       members: updateMemberStatus(prev.members, event.botId, "running"),
       // A group failure lives only in run; keep it until dismiss so a late member start
       // cannot wipe the banner (activeRuns still tracks the new work).
+      run: prev.groupId && prev.run?.status === "failed" && prev.run.id !== run.id ? prev.run : run,
+      activeRuns,
+    };
+  }
+  if (event.type === "run.queued") {
+    if (isBackgroundRunTrigger(event.payload.trigger as string | undefined)) {
+      return { ...prev, cursor: event.seq };
+    }
+    const runId = event.runId;
+    if (!runId) {
+      return {
+        ...prev,
+        cursor: event.seq,
+        members: updateMemberStatus(prev.members, event.botId, "queued"),
+      };
+    }
+    const previousRun =
+      prev.activeRuns?.find((candidate) => candidate.id === runId) ??
+      (prev.run?.id === runId ? prev.run : undefined);
+    const trigger = event.payload.trigger;
+    const run: Run = {
+      id: runId,
+      botId: event.botId,
+      threadId: event.threadId,
+      taskId: previousRun?.taskId ?? runId,
+      ...(previousRun?.userId ? { userId: previousRun.userId } : {}),
+      status: "queued",
+      trigger:
+        typeof trigger === "string" && runTriggers.has(trigger)
+          ? (trigger as RunTrigger)
+          : (previousRun?.trigger ?? "user"),
+      routineId: previousRun?.routineId ?? null,
+      modelProvider: previousRun?.modelProvider ?? null,
+      modelId: previousRun?.modelId ?? null,
+      error: null,
+      startedAt: previousRun?.startedAt ?? null,
+      completedAt: null,
+      createdAt: previousRun?.createdAt ?? event.createdAt,
+    };
+    let replaced = false;
+    const activeRuns = (prev.activeRuns ?? (prev.run ? [prev.run] : [])).flatMap((candidate) => {
+      if (candidate.id === run.id) {
+        if (replaced) return [];
+        replaced = true;
+        return [run];
+      }
+      return isActive(candidate.status as RunStatus) ? [candidate] : [];
+    });
+    if (!replaced) activeRuns.push(run);
+    return {
+      ...prev,
+      cursor: event.seq,
+      messages: prev.messages.filter((message) => message.id !== progressMessageId(event)),
+      members: updateMemberStatus(prev.members, event.botId, "queued"),
       run: prev.groupId && prev.run?.status === "failed" && prev.run.id !== run.id ? prev.run : run,
       activeRuns,
     };

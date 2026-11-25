@@ -692,13 +692,13 @@ function createVoiceStyles() {
   const tokens = mobileTokens();
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 20, gap: 10 },
+    content: { padding: 16, gap: 16 },
     error: { color: tokens.destructive, marginBottom: 8 },
     group: { borderRadius: 14, backgroundColor: native.fill, overflow: "hidden" },
     groupRow: {
-      minHeight: 52,
+      minHeight: 56,
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 14,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
@@ -707,8 +707,8 @@ function createVoiceStyles() {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: native.separator,
     },
-    rowCopy: { flex: 1 },
-    cardTitle: { color: native.label, fontSize: 16 },
+    rowCopy: { flex: 1, minWidth: 0 },
+    cardTitle: { color: native.label, fontSize: 17, lineHeight: 22 },
     fieldLabel: { color: native.label, marginTop: 16 },
     input: {
       marginTop: 8,
@@ -717,10 +717,12 @@ function createVoiceStyles() {
       color: native.label,
       paddingHorizontal: 14,
       paddingVertical: 12,
+      minHeight: 48,
+      fontSize: 17,
     },
     disabled: { opacity: 0.4 },
     pressed: { opacity: 0.7 },
     voices: { marginTop: 12 },
-    voiceLabel: { flex: 1, color: native.label, fontSize: 16 },
+    voiceLabel: { flex: 1, color: native.label, fontSize: 17, lineHeight: 22 },
   });
 }

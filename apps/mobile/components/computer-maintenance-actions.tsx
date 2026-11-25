@@ -125,6 +125,7 @@ export function ComputerMaintenanceActions({
           ? [
               {
                 type: "menu" as const,
+                hidesSharedBackground: true,
                 label: t("More computer actions"),
                 accessibilityLabel: t("More computer actions"),
                 icon: { type: "sfSymbol" as const, name: "ellipsis" },

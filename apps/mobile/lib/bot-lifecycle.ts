@@ -11,10 +11,14 @@ export function confirmDeleteBot(
   // False once the screen that asked has gone, so a late failure doesn't alert elsewhere.
   current: () => boolean = () => true,
   requestContext?: ApiRequestContext,
+  scoped?: { remove: (deleteMemories: boolean) => Promise<void>; message?: string },
 ) {
   const remove = async (deleteMemories: boolean) => {
     try {
-      if (requestContext) {
+      if (!current()) return;
+      if (scoped) {
+        await scoped.remove(deleteMemories);
+      } else if (requestContext) {
         await rpc(
           "bots/remove",
           { botId: bot.id, deleteMemories },
@@ -24,7 +28,7 @@ export function confirmDeleteBot(
         await rpc("bots/remove", { botId: bot.id, deleteMemories });
       }
       removeFromSearchInbox(bot.id);
-      onDeleted();
+      if (current()) onDeleted();
     } catch (error) {
       if (current()) Alert.alert(t("Could not delete bot"), errorText(error, t("Try again.")));
     }
@@ -32,7 +36,7 @@ export function confirmDeleteBot(
 
   Alert.alert(
     t("Delete {name}?", { name: bot.name }),
-    t(
+    scoped?.message ?? t(
       "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?",
     ),
     [
@@ -47,21 +51,29 @@ export function confirmDeleteBot(
   );
 }
 
-export function confirmDeleteGroup(group: { id: string; name: string }, onDeleted: () => void) {
+export function confirmDeleteGroup(
+  group: { id: string; name: string },
+  onDeleted: () => void,
+  scoped?: { remove: () => Promise<void>; current: () => boolean },
+) {
   Alert.alert(t("Delete {name}?", { name: group.name }), t("Bots and their own chats stay."), [
     { text: t("Cancel"), style: "cancel" },
     {
       text: t("Delete"),
       style: "destructive",
       onPress: () =>
-        void rpc("groups/remove", { groupId: group.id })
+        void (scoped
+          ? scoped.current() ? scoped.remove() : Promise.resolve()
+          : rpc("groups/remove", { groupId: group.id }))
           .then(() => {
+            if (scoped && !scoped.current()) return;
             removeFromSearchInbox(group.id);
             onDeleted();
           })
-          .catch((err) =>
-            Alert.alert(t("Could not delete group"), errorText(err, t("Try again."))),
-          ),
+          .catch((err) => {
+            if (!scoped || scoped.current())
+              Alert.alert(t("Could not delete group"), errorText(err, t("Try again.")));
+          }),
     },
   ]);
 }

@@ -6,7 +6,7 @@ import type {
   SecretStore,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
-import { createDb, runAsSystem, runAsTenant } from "@rakazo/db";
+import { createDb, currentDbContext, describeRowSecurity, runAsSystem, runAsTenant } from "@rakazo/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createBackgroundJobHandlers } from "./background-job-handlers.js";
 import type { createRunExecutor } from "./executor.js";
@@ -18,10 +18,13 @@ import { createReservedGraphileJobWorkerHost, GraphileJobPublisher } from "./wak
 // as `pnpm test:integration` provides.
 const runtimeUrl = process.env.DATABASE_URL;
 const migrationUrl = process.env.DATABASE_MIGRATION_URL;
-const describePostgres =
-  process.env.VERIFY_DATABASE && runtimeUrl && migrationUrl && runtimeUrl !== migrationUrl
-    ? describe.sequential
-    : describe.skip;
+const verifyPostgres = Boolean(
+  process.env.VERIFY_DATABASE && runtimeUrl && migrationUrl && runtimeUrl !== migrationUrl,
+);
+if (process.env.VERIFY_DATABASE && !verifyPostgres) {
+  throw new Error("VERIFY_DATABASE requires distinct DATABASE_URL and DATABASE_MIGRATION_URL");
+}
+const describePostgres = verifyPostgres ? describe.sequential : describe.skip;
 
 describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
   const suffix = `${process.pid}-${Date.now()}`;
@@ -35,15 +38,27 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
     runId: `tenant-jobs-run-${name}-${suffix}`,
   }));
   const [a, b] = tenants as [(typeof tenants)[0], (typeof tenants)[0]];
+  const projects = ["a", "b"].map((name) => ({
+    ...a,
+    projectWorkspaceId: `tenant-jobs-project-${name}-${suffix}`,
+    botId: `tenant-jobs-project-bot-${name}-${suffix}`,
+    threadId: `tenant-jobs-project-thread-${name}-${suffix}`,
+    runId: `tenant-jobs-project-run-${name}-${suffix}`,
+  }));
   let owner: ReturnType<typeof createDb>;
   let app: ReturnType<typeof createDb>;
+  let seedStarted = false;
 
   beforeAll(() => runAsSystem("test fixture", seed));
 
   async function seed() {
     owner = createDb(migrationUrl!);
     app = createDb(runtimeUrl!, { poolMax: 6 });
+    const security = await describeRowSecurity(app.prisma);
+    expect(security).toMatchObject({ enforced: true });
+    expect(security.systemBlocked).not.toBe(true);
     const o = owner.prisma;
+    seedStarted = true;
     await o.organization.create({
       data: { id: organizationId, name: "Jobs", slug: organizationId, createdAt: new Date() },
     });
@@ -93,15 +108,47 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
         },
       });
     }
+    await o.member.create({
+      data: {
+        id: `tenant-jobs-organization-member-${suffix}`,
+        organizationId,
+        userId: a.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
+    await o.spaceMember.create({
+      data: {
+        id: `tenant-jobs-membership-${suffix}`,
+        organizationId,
+        spaceId: a.spaceId,
+        userId: a.userId,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
   }
 
   afterAll(async () => {
-    if (!owner) return;
-    await owner.prisma.organization.deleteMany({ where: { id: organizationId } });
-    await owner.prisma.user.deleteMany({ where: { id: { in: tenants.map((t) => t.userId) } } });
-    for (const handle of [owner, app]) {
-      await handle.prisma.$disconnect();
-      await handle.pool.end();
+    try {
+      if (seedStarted) {
+        await runAsSystem("remove background job project fixtures", async () => {
+          await owner.prisma.bot.deleteMany({
+            where: { id: { in: projects.map((project) => project.botId) } },
+          });
+          await owner.prisma.projectWorkspace.deleteMany({
+            where: { id: { in: projects.map((project) => project.projectWorkspaceId) } },
+          });
+          await owner.prisma.organization.deleteMany({ where: { id: organizationId } });
+          await owner.prisma.user.deleteMany({ where: { id: { in: tenants.map((t) => t.userId) } } });
+        });
+      }
+    } finally {
+      for (const handle of [owner, app]) {
+        if (!handle) continue;
+        await handle.prisma.$disconnect();
+        await handle.pool.end();
+      }
     }
   });
 
@@ -246,6 +293,93 @@ describePostgres("tenant-scoped background jobs (PostgreSQL)", () => {
       release();
       await host.stop();
       await publisher.close();
+    }
+  });
+
+  it("restores persisted project scope through the real queue for A, B and home runs", async () => {
+    await runAsSystem("seed synthetic project queue fixtures", () =>
+      owner.prisma.$transaction(async (tx) => {
+        for (const project of projects) {
+          const { spaceId, userId, projectWorkspaceId, botId, threadId, runId } = project;
+          const scope = { spaceId, userId, projectWorkspaceId };
+          await tx.projectWorkspace.create({
+            data: { id: projectWorkspaceId, spaceId, userId, name: "Worker project" },
+          });
+          await tx.bot.create({ data: { id: botId, ...scope, name: "Project", color: "#000" } });
+          await tx.thread.create({ data: { id: threadId, ...scope, botId } });
+          await tx.message.create({
+            data: { threadId, seq: 0, role: "user", blocks: [{ text: "Project" }] },
+          });
+          const task = await tx.task.create({
+            data: { ...scope, botId, threadId, prompt: "Project", status: "queued" },
+          });
+          await tx.run.create({
+            data: {
+              id: runId,
+              ...scope,
+              botId,
+              threadId,
+              taskId: task.id,
+              status: "queued",
+              trigger: "user",
+            },
+          });
+        }
+      }),
+    );
+    const fixtures = [...tenants.map((tenant) => ({ ...tenant, projectWorkspaceId: null })), ...projects];
+    const observed = new Map<string, unknown>();
+    const continueRun = vi.fn(async (runId: string) => {
+      const fixture = fixtures.find((row) => row.runId === runId);
+      if (!fixture) throw new Error("Unexpected Worker Run");
+      expect(currentDbContext()).toEqual({
+        kind: "tenant",
+        spaceId: fixture.spaceId,
+        userId: fixture.userId,
+        ...(fixture.projectWorkspaceId ? { projectWorkspaceId: fixture.projectWorkspaceId } : {}),
+      });
+      const messages = await app.prisma.message.findMany({ select: { threadId: true } });
+      const foreignIds = fixtures.filter((row) => row !== fixture).map((row) => row.runId);
+      expect(await app.prisma.run.updateMany({
+        where: { id: { in: foreignIds } }, data: { status: "cancelled" },
+      })).toEqual({ count: 0 });
+      observed.set(runId, messages.map((message) => message.threadId).filter((threadId) =>
+        fixtures.some((row) => row.threadId === threadId)));
+    });
+    const handlers = createBackgroundJobHandlers({
+      executor: { continueRun } as unknown as ReturnType<typeof createRunExecutor>,
+      prisma: app.prisma, sandbox: {} as SandboxProvider, home: {} as AgentHomeStore,
+      artifacts: {} as ArtifactStore, events: {} as ThreadEvents,
+      jobs: { enqueue: vi.fn(async () => undefined) } as never,
+      workerId: "project-jobs", runtime: {} as AgentRuntime, secretStore: {} as SecretStore,
+      memoryProviders: { resolve: vi.fn(async () => null) },
+    });
+    const publisher = new GraphileJobPublisher(app.pool, app.prisma);
+    const host = createReservedGraphileJobWorkerHost(app.pool, { concurrency: 2, pollInterval: 25 });
+    try {
+      await host.start(handlers);
+      for (const fixture of fixtures) {
+        await runAsTenant(fixture, () => publisher.enqueue({ name: "run.continue", payload: { runId: fixture.runId } }));
+      }
+      await vi.waitFor(() => {
+        expect(observed.size).toBe(fixtures.length);
+        for (const fixture of fixtures) expect(observed.get(fixture.runId)).toEqual([fixture.threadId]);
+        expect(continueRun.mock.settledResults.every((result) => result.type === "fulfilled")).toBe(true);
+      }, { timeout: 10_000, interval: 25 });
+      const [revoked] = projects;
+      if (!revoked) throw new Error("Missing project fixture");
+      await runAsSystem("revoke synthetic project", () => owner.prisma.projectWorkspace.update({
+        where: { id: revoked.projectWorkspaceId }, data: { deletingAt: new Date() },
+      }));
+      continueRun.mockClear();
+      await runAsTenant(b, () => handlers["run.continue"]({ runId: revoked.runId }));
+      expect(continueRun).not.toHaveBeenCalled();
+    } finally {
+      await host.stop();
+      await publisher.close();
+      await runAsSystem("restore synthetic project", () => owner.prisma.projectWorkspace.updateMany({
+        where: { id: { in: projects.map((project) => project.projectWorkspaceId) } }, data: { deletingAt: null },
+      }));
     }
   });
 });

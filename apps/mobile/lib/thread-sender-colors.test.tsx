@@ -55,6 +55,15 @@ vi.mock("@rakazo/chat-ui/native", () => ({
 vi.mock("../components/message-caption", () => ({
   MessageCaption: ({ text }: { text: string }) => <span>{text}</span>,
 }));
+vi.mock("../components/glass-surface", () => ({
+  GlassSurface: ({
+    fallbackStyle,
+    tint,
+  }: {
+    fallbackStyle: { backgroundColor: string; borderRadius: number };
+    tint: string;
+  }) => <div data-glass-tint={tint} style={fallbackStyle} />,
+}));
 vi.mock("../components/ComputerCard", () => ({
   ComputerCard: ({ onOpen }: { onOpen: () => void }) => {
     onOpen();
@@ -112,15 +121,15 @@ function contrastRatio(text: string, surface: string): number {
   return (luminance(text) + 0.05) / (luminance(surface) + 0.05);
 }
 
-it("shows the default user bubble in a group without a bot-specific color", () => {
+it.each(["user", "bot"] as const)("shows a translucent glass bubble for a %s message", (role) => {
   const html = renderToStaticMarkup(
     <Bubble
       groupId="group"
-      message={{ id: "message", role: "user", blocks: [{ kind: "text", text: "Hello" }] }}
+      message={{ id: "message", role, blocks: [{ kind: "text", text: "Hello" }] }}
     />,
   );
   expect(html).toContain("border-radius:20px");
-  expect(html).toContain("background-color:");
+  expect(html).toContain('data-glass-tint="rgba(');
   expect(html).toContain(">Hello</span>");
 });
 

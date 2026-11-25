@@ -4,6 +4,7 @@ import path from "node:path";
 import { RECREATED_SERVICES } from "@rakazo/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { resolveUpdaterConfig } from "./updater-logic.js";
 
 interface ComposeService {
   image?: string;
@@ -25,11 +26,30 @@ const compose = parse(readFileSync(composeFile, "utf8"), { merge: true }) as {
   networks: Record<string, unknown>;
 };
 const updater = compose.services.updater as ComposeService;
+const productionUpdateServices = resolveUpdaterConfig({
+  RAKAZO_DEPLOY_DIR: "/srv/rakazo",
+  RAKAZO_UPDATER_TOKEN: "fake-review-updater-token-000000000000",
+  SYDNEY_WEB_SERVICE_ENABLED: updater.environment?.SYDNEY_WEB_SERVICE_ENABLED,
+}).updateServices;
 
 describe("the production computer provider", () => {
   it.each(["api", "worker"])("lets .env select the %s provider with an E2B default", (name) => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: this is the literal Compose expression
     expect(compose.services[name]?.environment?.SANDBOX_PROVIDER).toBe("${SANDBOX_PROVIDER:-e2b}");
+  });
+
+  it("defaults isolated Docker screen networking to the production API proxy", () => {
+    const overlay = parse(
+      readFileSync(path.join(composeDir, "docker-compose.prod.docker.yml"), "utf8"),
+      { merge: true },
+    ) as { services: Record<string, ComposeService> };
+    expect(overlay.services.supervisor?.environment?.SANDBOX_SCREEN_NETWORK).toBe("isolated");
+    expect(overlay.services.supervisor?.environment?.SANDBOX_SCREEN_PEER_SERVICE).toBe(
+      `\${SANDBOX_SCREEN_PEER_SERVICE:-api}`,
+    );
+    expect(compose.services.api?.environment?.SYDNEY_SCREEN_PROXY_ON_API).toBe(
+      `\${SYDNEY_SCREEN_PROXY_ON_API:-true}`,
+    );
   });
 });
 
@@ -40,6 +60,20 @@ describe("the production computer provider", () => {
  */
 /** The Compose interpolation this file is expected to carry, as Compose spells it. */
 const interpolated = (name: string, fallback = "") => `\${${name}:-${fallback}}`;
+
+describe("production project feature gates", () => {
+  it.each([
+    "SYDNEY_PROJECT_CREATE_EXPERIMENT",
+    "SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT",
+  ])("requires explicitly enabling %s", (key) => {
+    expect(compose.services.api?.environment?.[key]).toBe(interpolated(key, "false"));
+  });
+
+  it.each(["api", "worker"])("keeps project device tools disabled by default in %s", (service) => {
+    const key = "SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED";
+    expect(compose.services[service]?.environment?.[key]).toBe(interpolated(key, "false"));
+  });
+});
 
 describe("worker error reporting configuration", () => {
   it.each([
@@ -102,14 +136,16 @@ describe("the updater compose service", () => {
 
   it("is not one of the services an update recreates", () => {
     expect(RECREATED_SERVICES).not.toContain("updater");
-    for (const service of RECREATED_SERVICES) {
+    expect(updater.environment?.SYDNEY_WEB_SERVICE_ENABLED).toBe("false");
+    expect(productionUpdateServices).not.toContain("web");
+    for (const service of productionUpdateServices) {
       expect(Object.keys(compose.services)).toContain(service);
     }
   });
 
   it("pins its own image tag separately from the application image", () => {
     expect(updater.image).toContain("RAKAZO_UPDATER_IMAGE_TAG");
-    for (const service of RECREATED_SERVICES) {
+    for (const service of productionUpdateServices) {
       expect(compose.services[service]?.image).toContain("RAKAZO_IMAGE_TAG");
     }
   });

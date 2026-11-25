@@ -37,7 +37,8 @@
 	@frameRestricted not path /wuying/sdk/ASP/container.html
 	header @frameRestricted X-Frame-Options SAMEORIGIN
 
-	handle /health {
+	@health path /health /ready
+	handle @health {
 		reverse_proxy api:3100 {
 			import deploy_retry
 		}
@@ -57,27 +58,38 @@
 		}
 	}
 
+	@appAssociation path /.well-known/apple-app-site-association /.well-known/assetlinks.json
+	handle @appAssociation {
+		reverse_proxy api:3100 {
+			import deploy_retry
+		}
+	}
+
+	handle /integrations/callback {
+		reverse_proxy {$SYDNEY_INTEGRATION_CALLBACK_UPSTREAM:api:3100} {
+			import deploy_retry
+		}
+	}
+
 	handle /sign-in {
-		reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:web:5173} {
+		reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:api:3100} {
 			import deploy_retry
 		}
 	}
 
 	handle /novnc/* {
-		reverse_proxy {$SYDNEY_SCREEN_PROXY_UPSTREAM:web:5173} {
+		reverse_proxy {$SYDNEY_SCREEN_PROXY_UPSTREAM:api:3100} {
 			import deploy_retry
 		}
 	}
 
 	handle /wuying/* {
-		reverse_proxy {$SYDNEY_WUYING_SCREEN_UPSTREAM:web:5173} {
+		reverse_proxy {$SYDNEY_WUYING_SCREEN_UPSTREAM:api:3100} {
 			import deploy_retry
 		}
 	}
 
 	handle {
-		reverse_proxy web:5173 {
-			import deploy_retry
-		}
+		respond 404
 	}
 }

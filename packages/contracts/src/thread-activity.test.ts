@@ -13,6 +13,19 @@ const event = {
   payload: { activity: { thinking: true } },
 };
 describe("coarse public thinking contract", () => {
+  it("accepts queued run lifecycle events", () => {
+    const queued = {
+      ...event,
+      type: "run.queued",
+      payload: {
+        reason: "project_device_offline",
+        trigger: "user",
+        wakeAt: "2026-11-21T00:00:00.000Z",
+      },
+    };
+    expect(ProductEventSchema.parse(queued)).toEqual(queued);
+  });
+
   it("accepts only an explicit boolean and required run scope", () => {
     expect(ProductEventSchema.parse(event)).toEqual(event);
     expect(ThreadActivityPayloadSchema.parse({ activity: { thinking: false } })).toEqual({

@@ -5,13 +5,7 @@ umask 077
 image="${1:?Pass the existing Caddy image ID}"
 config_base64="${2:?Pass the base64-encoded Caddyfile.ip.example}"
 config_sha256="${3:?Pass the SHA-256 of the workspace Caddyfile.ip.example}"
-screen_upstream="${4-web}"
-sign_in_upstream="${5-unset}"
-[[ "$#" -le 5 ]]
-[[ "$screen_upstream" == web || "$screen_upstream" == api ]]
-[[ "$sign_in_upstream" == unset || "$sign_in_upstream" == web || "$sign_in_upstream" == api ]]
-sign_in_expected="$sign_in_upstream"
-if [[ "$sign_in_expected" == unset ]]; then sign_in_expected="web"; fi
+[[ "$#" -eq 3 ]]
 [[ "$image" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "$config_sha256" =~ ^[0-9a-f]{64}$ ]]
 [[ -z "${DOCKER_HOST:-}" || "$DOCKER_HOST" == unix://* ]]
@@ -20,13 +14,15 @@ for tool in docker openssl nsenter timeout python3 mktemp; do
 done
 [[ "$(docker context inspect "$(docker context show)" --format '{{.Endpoints.docker.Host}}')" == unix://* ]]
 docker image inspect "$image" >/dev/null
-if [[ "$sign_in_upstream" == unset ]]; then
-  docker image inspect --format '{{json .Config.Env}}' "$image" | python3 -c \
-    'import json,sys; values=json.load(sys.stdin) or []; sys.exit(1 if any(value.startswith("SYDNEY_SIGN_IN_UPSTREAM=") for value in values) else 0)' || {
-    echo "Image defines SYDNEY_SIGN_IN_UPSTREAM; unset mode cannot test the default" >&2
+docker image inspect --format '{{json .Config.Env}}' "$image" | python3 -c '
+import json, sys
+names = {"SYDNEY_SCREEN_PROXY_UPSTREAM", "SYDNEY_WUYING_SCREEN_UPSTREAM",
+         "SYDNEY_SIGN_IN_UPSTREAM", "SYDNEY_INTEGRATION_CALLBACK_UPSTREAM"}
+sys.exit(any(value.split("=", 1)[0] in names for value in (json.load(sys.stdin) or [])))
+' || {
+    echo "Image defines a Sydney proxy override; cannot test the API defaults" >&2
     exit 1
-  }
-fi
+}
 
 lab_dir="$(mktemp -d)"
 lab_container=""
@@ -90,30 +86,21 @@ print(f"Input Caddyfile SHA-256: {digest}")
 source = content.decode()
 acme = "\ttls {\n\t\tissuer acme {$RAKAZO_IP_ACME_DIRECTORY} {\n\t\t\tprofile shortlived\n\t\t\tdisable_tlsalpn_challenge\n\t\t}\n\t}"
 changes = [
-    ("{\n\tdefault_sni", "{\n\tadmin off\n\tauto_https off\n\tdefault_sni"),
-    (acme, "\ttls /lab/ip.crt /lab/ip.key"),
-    ("reverse_proxy api:3100", "reverse_proxy 127.0.0.1:3100"),
-    ("reverse_proxy web:5173", "reverse_proxy 127.0.0.1:5173"),
-    ("reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:web:5173}",
-     "reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:127.0.0.1:5173}"),
+    ("{\n\tdefault_sni", "{\n\tadmin off\n\tauto_https off\n\tdefault_sni", 1),
+    (acme, "\ttls /lab/ip.crt /lab/ip.key", 1),
+    ("reverse_proxy api:3100", "reverse_proxy 127.0.0.1:3100", 4),
 ]
-if source.count("reverse_proxy {$SYDNEY_SCREEN_PROXY_UPSTREAM:web:5173}") != 1:
-    raise SystemExit("Unexpected screen proxy environment placeholder")
-if source.count("reverse_proxy {$SYDNEY_WUYING_SCREEN_UPSTREAM:web:5173}") != 1:
-    raise SystemExit("Unexpected Wuying screen environment placeholder")
-if source.count("reverse_proxy {$SYDNEY_SIGN_IN_UPSTREAM:web:5173}") != 1:
-    raise SystemExit("Unexpected sign-in environment placeholder")
-for before, after in changes:
-    expected = 3 if before == "reverse_proxy api:3100" else 1
+for variable in ("SYDNEY_SCREEN_PROXY_UPSTREAM", "SYDNEY_WUYING_SCREEN_UPSTREAM",
+                 "SYDNEY_SIGN_IN_UPSTREAM", "SYDNEY_INTEGRATION_CALLBACK_UPSTREAM"):
+    changes.append((f"reverse_proxy {{${variable}:api:3100}}",
+                    f"reverse_proxy {{${variable}:127.0.0.1:3100}}", 1))
+for before, after, expected in changes:
     if source.count(before) != expected:
         raise SystemExit(f"Unexpected source layout for {before!r}")
     source = source.replace(before, after)
 Path(os.environ["LAB_DIR"], "Caddyfile").write_text(source)
 PY
-echo "Transforms: disable admin and automatic HTTPS; replace IP ACME with a synthetic certificate; map api/web upstreams to isolated loopback."
-echo "Simulated screen upstream: $screen_upstream"
-echo "Simulated Wuying asset upstream: $screen_upstream"
-echo "Simulated sign-in upstream: $sign_in_upstream"
+echo "Transforms: disable admin and automatic HTTPS; replace IP ACME with a synthetic certificate; map API upstreams to isolated loopback."
 echo "No ACME challenge, issuance, renewal, public trust, production network or production upstream is tested."
 
 cat >"$lab_dir/upstream.py" <<'PY'
@@ -121,7 +108,6 @@ import base64
 import hashlib
 import http.server
 import json
-import threading
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -167,13 +153,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-servers = []
-for port, label in [(3100, "api"), (5173, "web")]:
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    server.label = label
-    servers.append(server)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-threading.Event().wait()
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 3100), Handler)
+server.label = "api"
+server.serve_forever()
 PY
 
 cat >"$lab_dir/check.py" <<'PY'
@@ -187,8 +169,6 @@ import sys
 import time
 
 lab = sys.argv[1]
-screen_upstream = sys.argv[2]
-sign_in_upstream = sys.argv[3]
 def request(server_name, host, path, expected_status, expected_upstream=None):
     context = ssl.create_default_context(cafile=lab + ("/domain.crt" if server_name else "/ip.crt"))
     context.check_hostname = True
@@ -243,7 +223,7 @@ def websocket(server_name, host):
             ).digest()).decode("ascii")
             if response.status != 101 or response.getheader("Sec-WebSocket-Accept") != expected:
                 raise AssertionError("WebSocket handshake failed")
-            if response.getheader("X-Test-Upstream") != screen_upstream:
+            if response.getheader("X-Test-Upstream") != "api":
                 raise AssertionError("WebSocket reached the wrong upstream")
             payload = b"staging-websocket"
             mask = b"\x01\x02\x03\x04"
@@ -257,47 +237,41 @@ def websocket(server_name, host):
                 frame += chunk
             if frame != bytes((0x81, len(payload))) + payload:
                 raise AssertionError("WebSocket echo mismatch")
-            print(f"WebSocket {host}: {screen_upstream} handshake and bidirectional frame passed")
+            print(f"WebSocket {host}: API handshake and bidirectional frame passed")
 
 for name, host in [("site.example.test", "site.example.test"), (None, "192.0.2.10")]:
-    for path, upstream in [("/health", "api"), ("/api/example?x=1", "api"),
-                           ("/rpc/example", "api"), ("/api", "web"), ("/rpc", "web"),
-                           ("/api/auth/verify-email?token=SYNTHETIC_VERIFY_TOKEN", "api"),
-                           ("/api/auth/reset-password/SYNTHETIC_RESET_TOKEN", "api"),
-                           ("/api/mcp/oauth/callback?%63ode=SYNTHETIC_ENCODED_CODE&st%61te=SYNTHETIC_ENCODED_STATE&unknown=SYNTHETIC_UNKNOWN_VALUE", "api"),
-                           ("/mcp/oauth/callback?code=SYNTHETIC_WEB_CODE&state=SYNTHETIC_WEB_STATE", "web"),
-                           ("/sign-in", sign_in_upstream), ("/sign-in?error=SYNTHETIC_ERROR", sign_in_upstream),
-                           ("/sign-in/extra", "web"), ("/reset-password?token=SYNTHETIC_PAGE_TOKEN", "web"),
-                           ("/wuying/screen.html", screen_upstream), ("/wuying/screen.js", screen_upstream),
-                           ("/wuying/storage.js", screen_upstream), ("/wuying/WuyingWebSDK.js", screen_upstream),
-                           ("/wuying/sdk/ASP/container.html", screen_upstream),
-                           ("/novnc/session/view/SYNTHETIC_SCREEN_CAPABILITY/vnc.html", screen_upstream), ("/", "web")]:
-        request(name, host, path, 200, upstream)
+    for path in (
+        "/health", "/ready", "/api/example?x=1", "/rpc/example",
+        "/api/auth/verify-email?token=SYNTHETIC_VERIFY_TOKEN",
+        "/api/auth/reset-password/SYNTHETIC_RESET_TOKEN",
+        "/api/mcp/oauth/callback?%63ode=SYNTHETIC_ENCODED_CODE&st%61te=SYNTHETIC_ENCODED_STATE&unknown=SYNTHETIC_UNKNOWN_VALUE",
+        "/integrations/callback?code=SYNTHETIC_CALLBACK_CODE&state=SYNTHETIC_CALLBACK_STATE",
+        "/.well-known/apple-app-site-association", "/.well-known/assetlinks.json",
+        "/sign-in", "/sign-in?error=SYNTHETIC_ERROR", "/wuying/screen.html",
+        "/wuying/screen.js", "/wuying/storage.js", "/wuying/WuyingWebSDK.js",
+        "/wuying/sdk/ASP/container.html", "/novnc/session/view/SYNTHETIC_SCREEN_CAPABILITY/vnc.html",
+    ):
+        request(name, host, path, 200, "api")
+    for path in (
+        "/", "/app", "/api", "/rpc", "/sign-in/extra",
+        "/reset-password?token=SYNTHETIC_PAGE_TOKEN",
+        "/mcp/oauth/callback?code=SYNTHETIC_WEB_CODE&state=SYNTHETIC_WEB_STATE",
+    ):
+        request(name, host, path, 404)
     websocket(name, host)
-request("SITE.EXAMPLE.TEST", "site.example.test", "/", 200, "web")
+request("SITE.EXAMPLE.TEST", "site.example.test", "/health", 200, "api")
 request(None, "192.0.2.10", "/api/example?token=SYNTHETIC_SECRET_QUERY", 200, "api")
 request("site.example.test", "192.0.2.10", "/", 421)
 request(None, "site.example.test", "/", 421)
 request("site.example.test", "unknown.example.test", "/", 200)
 PY
 
-screen_address="127.0.0.1:5173"
-if [[ "$screen_upstream" == api ]]; then screen_address="127.0.0.1:3100"; fi
-sign_in_environment=()
-if [[ "$sign_in_upstream" == web ]]; then
-  sign_in_environment=(-e "SYDNEY_SIGN_IN_UPSTREAM=127.0.0.1:5173")
-elif [[ "$sign_in_upstream" == api ]]; then
-  sign_in_environment=(-e "SYDNEY_SIGN_IN_UPSTREAM=127.0.0.1:3100")
-fi
 create_attempted=1
 if ! lab_container="$(docker create --name "$lab_name" --label "sydney.ip-proxy-lab=$lab_owner" \
   --pull=never --network none --read-only \
   --tmpfs /config --tmpfs /data --memory 128m --cpus 0.5 --pids-limit 128 \
   --mount "type=bind,src=$lab_dir,dst=/lab,readonly" \
   -e RAKAZO_HOST=site.example.test -e RAKAZO_PUBLIC_IP=192.0.2.10 \
-  -e "SYDNEY_SCREEN_PROXY_UPSTREAM=$screen_address" \
-  -e "SYDNEY_WUYING_SCREEN_UPSTREAM=$screen_address" \
-  "${sign_in_environment[@]}" \
   -e RAKAZO_CERT_FILE=/lab/domain.crt -e RAKAZO_KEY_FILE=/lab/domain.key \
   --entrypoint caddy "$image" run --config /lab/Caddyfile --adapter caddyfile)"; then
   create_failed=1
@@ -330,7 +304,7 @@ exec 9<"/proc/$lab_pid/ns/net"
 [[ "$(docker inspect --format '{{.State.Pid}} {{.State.Running}}' "$lab_container")" == "$lab_pid true" ]]
 nsenter --net=/proc/self/fd/9 python3 "$lab_dir/upstream.py" &
 upstream_pid=$!
-timeout 30 nsenter --net=/proc/self/fd/9 python3 "$lab_dir/check.py" "$lab_dir" "$screen_upstream" "$sign_in_expected"
+timeout 30 nsenter --net=/proc/self/fd/9 python3 "$lab_dir/check.py" "$lab_dir"
 for attempt in {1..20}; do
   docker logs "$lab_container" >"$lab_dir/logs" 2>&1
   if LAB_DIR="$lab_dir" python3 - <<'PY'
@@ -353,7 +327,8 @@ for host in ("site.example.test", "192.0.2.10"):
             for item in records
         ):
             raise SystemExit(1)
-    for callback in ("/api/mcp/oauth/callbackREDACTED", "/mcp/oauth/callbackREDACTED"):
+    for callback in ("/api/mcp/oauth/callbackREDACTED", "/integrations/callbackREDACTED",
+                     "/mcp/oauth/callbackREDACTED"):
         if not any(
             item.get("request", {}).get("host") == host
             and item.get("request", {}).get("uri") == callback
@@ -403,7 +378,7 @@ for secret in ("SYNTHETIC_SECRET_HEADER", "SYNTHETIC_SECRET_COOKIE", "SYNTHETIC_
                "SYNTHETIC_VERIFY_TOKEN", "SYNTHETIC_RESET_TOKEN", "SYNTHETIC_PAGE_TOKEN",
                "SYNTHETIC_SCREEN_CAPABILITY", "SYNTHETIC_ENCODED_CODE", "SYNTHETIC_ENCODED_STATE",
                "SYNTHETIC_UNKNOWN_VALUE", "SYNTHETIC_WEB_CODE", "SYNTHETIC_WEB_STATE",
-               "SYNTHETIC_ERROR"):
+               "SYNTHETIC_CALLBACK_CODE", "SYNTHETIC_CALLBACK_STATE", "SYNTHETIC_ERROR"):
     assert secret not in raw_logs, secret
 assert "REDACTED" in json.dumps(records)
 print("Access logs present for both sites; synthetic header, cookie and query token are redacted.")

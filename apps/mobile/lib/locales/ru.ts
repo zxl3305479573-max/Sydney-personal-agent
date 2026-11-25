@@ -4,8 +4,10 @@ export const RU_MESSAGES: Record<string, string> = {
     "Не удалось подтвердить удаление аккаунта. Проверьте его состояние перед повторной попыткой.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "Исходный аккаунт удалён, но локальная очистка не удалась, а текущий сеанс изменился.",
-  "The original account was deleted. Your current session has changed.": "Исходный аккаунт удалён. Текущий сеанс изменился.",
-  "The session changed. Open account deletion again.": "Сеанс изменился. Откройте удаление аккаунта заново.",
+  "The original account was deleted. Your current session has changed.":
+    "Исходный аккаунт удалён. Текущий сеанс изменился.",
+  "The session changed. Open account deletion again.":
+    "Сеанс изменился. Откройте удаление аккаунта заново.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "Аккаунт удалён, но очистить локальный сеанс не удалось. Перезапустите приложение и попробуйте выйти из аккаунта.",
   Computers: "Компьютеры",
@@ -130,8 +132,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Your model provider": "Ваш поставщик моделей",
   "Connect a model in Settings before running bots.":
     "Подключите модель в настройках, прежде чем запускать ботов.",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "Подключите свой API-ключ в разделе «Модели» или выберите кредиты Rakazo в разделе «Оплата».",
+  "Connect your own API key in Models or choose Sydney credits in Billing.":
+    "Подключите свой API-ключ в разделе «Модели» или выберите кредиты Sydney в разделе «Оплата».",
   "The model provider returned an error.": "Поставщик моделей вернул ошибку.",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider} ограничивает частоту запросов. Повторите попытку чуть позже.",
@@ -346,6 +348,9 @@ export const RU_MESSAGES: Record<string, string> = {
   "Close chat organization": "Закрыть организацию чатов",
   "Close computer": "Закрыть компьютер",
   "Computer keyboard": "Клавиатура компьютера",
+  "Pointer mode": "Режим указателя",
+  "Direct touch": "Прямое касание",
+  "Virtual mouse": "Виртуальная мышь",
   Control: "Ctrl",
   Down: "Вниз",
   Escape: "Esc",
@@ -634,8 +639,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Photo library": "Библиотека фотографий",
   Pin: "Закрепить",
   "Please try again.": "Повторите попытку.",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "Направьте это приложение на свой собственный источник Rakazo, тот же URL-адрес HTTPS, который вы открываете в браузере.",
+  "Point this app at your self-hosted Sydney origin, the same HTTPS URL you open in a browser.":
+    "Направьте это приложение на свой собственный источник Sydney, тот же URL-адрес HTTPS, который вы открываете в браузере.",
   Private: "Личный",
   Profile: "Профиль",
   Providers: "Провайдеры",
@@ -704,10 +709,10 @@ export const RU_MESSAGES: Record<string, string> = {
   "Show more": "Показать ещё",
   "Show {label}": "Показать {label}",
   "Sign in": "Войти",
-  "Sign in to Rakazo": "Войти в Rakazo",
+  "Sign in to Sydney": "Войти в Sydney",
   "Sign out": "Выйти",
   "Sign up": "Зарегистрироваться",
-  "Sign up for Rakazo": "Зарегистрироваться в Rakazo",
+  "Sign up for Sydney": "Зарегистрироваться в Sydney",
   "Sign-in": "Вход",
   "Sign-up": "Регистрация",
   "Sign-in did not return a session": "Вход не вернул сессию",
@@ -737,7 +742,7 @@ export const RU_MESSAGES: Record<string, string> = {
   Team: "Команда",
   "Team Computer": "Командный компьютер",
   "That doesn’t look like a URL": "Это не похоже на URL",
-  "That URL did not look like a Rakazo server": "Этот адрес не похож на сервер Rakazo",
+  "That URL did not look like a Sydney server": "Этот адрес не похож на сервер Sydney",
   "That URL is missing a host": "Для этого URL-адреса отсутствует хост",
   "The server changed while starting the request": "Сервер изменился при запуске запроса",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
@@ -824,8 +829,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Open conversation": "Открыть диалог",
   "Open in full window": "Открыть в полном окне",
   "OpenAPI JSON": "OpenAPI JSON",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости Rakazo добавляет /v1.",
+  "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed.":
+    "Вставьте OpenAI-совместимый адрес со своего сервера. При необходимости Sydney добавляет /v1.",
   Paused: "Приостановлено",
   Prompt: "Промпт",
   "Recording a live demonstration needs desktop or web with the full computer view. You can still ask this bot to run saved skills from chat.":
@@ -841,8 +846,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Delete {name} and its {count} bots?": "Удалить {name} и его ботов ({count})?",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "Это удалит все сообщения и остановит текущую работу. Бот, компьютер, память и задачи сохранятся.",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Вход по этой подписке пока недоступен в Rakazo. Используйте учётные данные развёртывания или выберите другого провайдера.",
+  "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider.":
+    "Вход по этой подписке пока недоступен в Sydney. Используйте учётные данные развёртывания или выберите другого провайдера.",
   Tools: "Инструменты",
   Uninstall: "Удалить",
   "Verify and add": "Проверить и добавить",
@@ -944,7 +949,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "AI models": "Модели ИИ",
   Memory: "Память",
   "Privacy policies": "Политики конфиденциальности",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Отозвать все разрешения",
   "Withdraw all permissions?": "Отозвать все разрешения?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1081,14 +1085,14 @@ export const RU_MESSAGES: Record<string, string> = {
   Subscribe: "Оформить подписку",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Ежемесячные кредиты истекают при продлении. Разовые пополнения не сгорают.",
-  "Use Rakazo credits": "Использовать кредиты Rakazo",
+  "Use Sydney credits": "Использовать кредиты Sydney",
   "Choose a plan": "Выбрать тариф",
   "Change plan": "Сменить тариф",
   "Current plan": "Текущий тариф",
   Plan: "Тариф",
   None: "Нет",
   "Free trial": "Бесплатный пробный период",
-  "Rakazo credits": "Кредиты Rakazo",
+  "Sydney credits": "Кредиты Sydney",
   "Free until": "Бесплатно до",
   Ends: "Заканчивается",
   Renews: "Продление",
@@ -1124,7 +1128,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Your free trial has started": "Бесплатный пробный период начался",
   "Free until {date}": "Бесплатно до {date}",
   "Connect your AI": "Подключить ИИ",
-  "Start using Rakazo": "Начать работу с Rakazo",
+  "Start using Sydney": "Начать работу с Sydney",
   "1 unread": "1 непрочитанный",
   "{count} unread": "Непрочитанных: {count}",
   "{count} need attention": "Требуют внимания: {count}",
@@ -1132,12 +1136,12 @@ export const RU_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}, ниже",
   Work: "Работа",
   Both: "И то, и другое",
-  "How will you use Rakazo?": "Как вы будете использовать Rakazo?",
-  "What do you most want Rakazo to help with?":
-    "С чем Rakazo должен помогать вам в первую очередь?",
+  "How will you use Sydney?": "Как вы будете использовать Sydney?",
+  "What do you most want Sydney to help with?":
+    "С чем Sydney должен помогать вам в первую очередь?",
   "How big is your team?": "Сколько человек в вашей команде?",
   "How did you hear about us?": "Как вы о нас узнали?",
-  "Welcome to Rakazo": "Добро пожаловать в Rakazo",
+  "Welcome to Sydney": "Добро пожаловать в Sydney",
   Messaging: "Сообщения",
   Unlink: "Отвязать",
   "Connect a chat app": "Подключить чат-приложение",
@@ -1332,23 +1336,65 @@ export const RU_MESSAGES: Record<string, string> = {
     "Ботов переведено на модель пространства по умолчанию: {count}.",
   "Could not switch {failedNames}. Try again.":
     "Не удалось переключить {failedNames}. Попробуйте снова.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Используется пользовательский фон.",
+  "A custom bubble style is active.": "Используется пользовательский стиль пузырей.",
+  "Background and bubbles": "Фон и пузыри",
+  "Bubble presets": "Готовые стили пузырей",
+  "Bubble style": "Стиль пузырей",
+  Change: "Изменить",
+  "Chat appearance": "Оформление чата",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "Оформление чата сохраняется только на этом устройстве и не загружается на сервер.",
+  "Chat background": "Фон чата",
+  Custom: "Свой",
+  "Default bubbles": "Стандартные пузыри",
+  "Remove background": "Удалить фон",
+  "The image could not be removed.": "Не удалось удалить изображение.",
+  "The image could not be saved on this device.":
+    "Не удалось сохранить изображение на этом устройстве.",
+  "Use the default background.": "Использовать стандартный фон.",
+  "Use the default bubbles.": "Использовать стандартные пузыри.",
+  "Add model": "Добавить модель",
+  "Check for updates": "Проверить обновления",
+  "Check the screen, then release and take control again.":
+    "Проверьте экран, затем освободите управление и возьмите его снова.",
+  "Checking for updates…": "Проверка обновлений…",
+  "Complete connection": "Завершить подключение",
+  "Computer control is unavailable. Release and take control again.":
+    "Управление компьютером недоступно. Освободите его и возьмите снова.",
+  "Computer input failed. Take control again.":
+    "Ошибка ввода на компьютере. Возьмите управление снова.",
+  "Could not check for updates. Try again later.":
+    "Не удалось проверить обновления. Попробуйте позже.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "Не удалось подтвердить подключение. Начните подключение заново.",
+  "Could not restart. Reopen the app to apply the update.":
+    "Не удалось перезапустить. Откройте приложение заново, чтобы применить обновление.",
+  "Could not save changes": "Не удалось сохранить изменения",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Если браузер не может завершить вход, скопируйте полный адрес возврата и вставьте его сюда.",
+  "MCP callback address": "Адрес возврата MCP",
+  "Paste callback address": "Вставьте адрес возврата",
+  Restart: "Перезапустить",
+  "Restart the app now? Save unfinished work first.":
+    "Перезапустить приложение сейчас? Сначала сохраните незавершенную работу.",
+  "The account, server, or space changed. Start the connection again.":
+    "Аккаунт, сервер или пространство изменились. Начните подключение заново.",
+  "The callback address does not match this connection attempt.":
+    "Адрес возврата не соответствует этой попытке подключения.",
+  "This update needs a new app installation.": "Для этого обновления требуется переустановка.",
+  "Update downloaded": "Обновление загружено",
+  "Updates are unavailable in this build.": "Обновления недоступны в этой сборке.",
+  "Waiting for screen dimensions…": "Ожидание размеров экрана…",
+  "Your app is up to date.": "Установлена последняя версия.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Смена сервера завершит вход и может удалить неотправленные сообщения и вложения. Сначала отправьте или сохраните их.",
+  "Disable bot voice": "Отключить голос бота",
+  "Enable bot voice": "Включить голос бота",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "Не удалось загрузить сохраненные неотправленные сообщения. Новые недоставленные сообщения могут быть потеряны при закрытии приложения.",
+  "Server settings or the saved session could not be verified.":
+    "Не удалось проверить настройки сервера или сохраненную сессию.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

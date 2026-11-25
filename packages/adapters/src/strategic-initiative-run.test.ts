@@ -4,7 +4,7 @@ import type { RunContext } from "./run-context.js";
 import { createReplyState } from "./run-progress.js";
 import { completeRun, consumeRunEvents } from "./run-turn.js";
 
-async function context() {
+async function context(projectWorkspaceId?: string) {
   const createMany = vi.fn(async () => ({ count: 1 }));
   const append = vi.fn();
   const finalizeRun = vi.fn(async () => ({}));
@@ -27,8 +27,9 @@ async function context() {
     userId: "user-1",
     threadId: "thread-1",
     taskId: "task-1",
-    trigger: "routine",
-    clientNonce: "strategic-initiative:bot-1:1",
+    trigger: projectWorkspaceId ? "user" : "routine",
+    clientNonce: projectWorkspaceId ? null : "strategic-initiative:bot-1:1",
+    projectWorkspaceId: projectWorkspaceId ?? null,
   };
   const reply = await createReplyState(deps as never, run as never, []);
   const ctx = {
@@ -61,6 +62,48 @@ async function context() {
 async function* events(...items: AgentRuntimeEvent[]) {
   yield* items;
 }
+
+describe("project text runtime events", () => {
+  it("rejects a takeover event before starting the computer", async () => {
+    const { ctx, append, finalizeRun } = await context("project-a");
+    await expect(
+      consumeRunEvents(ctx, events({ type: "takeover", reason: "injected" })),
+    ).rejects.toThrow("Project text conversations cannot start a computer or helper.");
+    expect(append).not.toHaveBeenCalled();
+    expect(finalizeRun).not.toHaveBeenCalled();
+  });
+
+  it("rejects a helper event even if no model tool call preceded it", async () => {
+    const { ctx, append } = await context("project-a");
+    await expect(
+      consumeRunEvents(
+        ctx,
+        events({
+          type: "subagent",
+          agentId: "helper-1",
+          name: "Helper",
+          task: "Read files",
+          status: "running",
+        }),
+      ),
+    ).rejects.toThrow("Project text conversations cannot start a computer or helper.");
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { files: [{ path: "../homepage.txt", content: "changed" }] },
+    { memory: [{ scope: "bot" as const, path: "MEMORY.md", content: "changed" }] },
+    { memory: [{ scope: "user" as const, path: "MEMORY.md", content: "changed" }] },
+  ])("rejects scripted completion effects before publishing: %j", async (turn) => {
+    const { ctx, append, finalizeRun } = await context("project-a");
+    ctx.script = [{ ...turn, assistant: "Done" }];
+    await expect(completeRun(ctx)).rejects.toThrow(
+      "Project text conversations cannot apply scripted files or memory.",
+    );
+    expect(append).not.toHaveBeenCalled();
+    expect(finalizeRun).not.toHaveBeenCalled();
+  });
+});
 
 describe("daily check-in routine execution", () => {
   it("records ordinary routine usage even when the reply is silent", async () => {

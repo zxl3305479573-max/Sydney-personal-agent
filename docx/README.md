@@ -1,6 +1,47 @@
 # Sydney 开发文档入口
 
-更新日期：2026-11-04。
+Bot 状态恢复、未读绿标和普通／项目 Bot 持久记忆共享的验收见 [Bot 状态与记忆评测](BOT_STATE_MEMORY_EVALUATION.md)。
+
+Windows `0.4.3` 与 iPhone `1.0.23` 已于 2026-11-22 提交、推送并发布。源码提交 `7d2829aa3` 已推送到集成分支；Windows 发行页、安装包三项资产、iPhone 启动包及 55 项资源均已核验。Bot、项目和 GitHub 状态缓存、应用对接按钮及手机界面材质改动已进入客户端版本；双端真机视觉、手势、覆盖安装与保留数据回退仍待验。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3) · [本批验证](VALIDATION.md#app-0431023-全量提交与发布2026-11-22) · [更新与回退](OPERATIONS.md#sydney-windows-043iphone-1023-发布通道2026-11-22)
+
+手机界面仅保留对话顶部 Bot 名称组件的玻璃效果，设置、应用、项目、GitHub、聊天内容和通用按钮采用融合的平面样式；应用对接登录操作改为文字按钮。项目与 GitHub 页面及 Bot 运行状态在登录会话内先显示缓存，再由后台更新。[范围](PLAN.md#手机界面玻璃效果统一收敛pa-020pa-0212026-11-21) · [状态验证](VALIDATION.md#手机界面玻璃效果统一收敛2026-11-22)
+
+手机 Bot 运行状态保留修复的范围与验收见 [计划](PLAN.md#iphone-对话运行状态缓存补修pa-018pa-0212026-11-21)、[定向验证](VALIDATION.md#iphone-对话运行状态缓存补修2026-11-21) 和 [本地缓存说明](OPERATIONS.md#手机对话运行状态缓存2026-11-21)。
+
+Windows `0.4.2`／iPhone `1.0.22` 已发布。源码 `24687d3c6` 已提交推送，Windows 发行页三项资产与公开摘要、iOS 启动包及 55 项资源已核验；1,103 项定向回归、五项类型检查和增量 lint 通过。本地主题包随 iPhone OTA 分发，双端真机及保留数据回退待验；后台与驱动未部署。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.2) · [本批验证](VALIDATION.md#sydney-app-0421022-整合与发布2026-11-21) · [更新与回退](OPERATIONS.md#sydney-windows-042iphone-1022-发布通道2026-11-21)
+
+欢迎卡片被自由输入跳过后残留“等待输入”的时序修复 `d7db91355` 已提交推送并上线 API／Worker。172 项定向回归、隔离数据库／HTTP 和生产回读通过，3 条遗留欢迎任务已收口、首页均 idle。手机无需新增 OTA，iPhone 实际显示待用户复核。[计划](PLAN.md#bot-欢迎卡片与自由输入等待收口pa-018pa-0212026-11-21) · [验证](VALIDATION.md#欢迎卡片自由输入等待收口2026-11-21)
+
+
+更新日期：2026-11-22。
+
+`1.0.21` 已发布，修复 iPhone 项目头像和名称同步，补齐项目 Bot／群聊资料、归档、恢复、清空与删除。后台健康，线上启动包及 55 项资源通过，iPhone 实际交互待验。[验证](VALIDATION.md#项目-bot-同步与聊天管理2026-11-21) · [更新与回退](OPERATIONS.md#项目聊天管理与-iphone-10212026-11-21)
+
+项目头像与聊天反馈补修 `1.0.20` 已上线，源码 `e7d729212` 已提交推送。后台名单补回已选图片，两个既有项目的 4 个图片头像只读核对一致；手机采用普通聊天的头像标题、回复卡片、输入栏及项目模型菜单。304 项回归、相关类型及隔离 API 验证通过，OTA Run `44884608273`、线上版本与全部资源已校验，iPhone 下载重启后的视觉与键盘交互待验。[验证](VALIDATION.md#项目头像与聊天反馈补修2026-11-21) · [更新与回退](OPERATIONS.md#项目头像后台补丁与-iphone-10202026-11-21)
+
+手机与 Windows 项目共享状态及固定执行位置的现状和验收矩阵见 [项目设备同步测评](design/PROJECT_DEVICE_SYNC_EVALUATION.md)。Windows 专属 WSL 命令候选已接通源码，但默认不可用，guest 未实测，项目同步 Goal 继续进行。[计划](PLAN.md#新目标手机与-windows-项目消息及执行位置协同pa-022prj-01prj-02) · [测评](ACCEPTANCE.md#个人生产首版测评)
+
+项目聊天消息与输入栏已补齐普通聊天组件复用，两端沿用新版 Bot 头像组件，单聊通过项目名单分页补齐身份资料。手机工作区全部当前改动已整合为 `1.0.19` 提交推送并发布到 iOS `sideload`，512 项回归、相关类型检查、线上清单与全部资源校验通过；Windows 本批客户端发布及双端实机仍待完成。[手机发布](VALIDATION.md#iphone-1019-手机工作区发布2026-11-21) · [共用组件验证](VALIDATION.md#双端项目聊天共用组件2026-11-21) · [组件接线](design/PROJECT_WORKSPACE_PLAN.md#2026-11-21-项目聊天与普通聊天共用组件)
+
+当前 Goal 按 [个人生产首版计划](PLAN.md#个人生产首版交付2026-11-20) 与 [测评](ACCEPTANCE.md#个人生产首版测评) 推进。生产旧 Web 与专用画面桥容器、持久配置均已清理，旧应用入口仍为 404。Windows `0.4.1` 已覆盖安装并验证冷启动画面，iPhone `1.0.18` OTA 分发已核验，待真机实测。生产后台重建及更新回退待验。[生产与客户端验证](VALIDATION.md#windows-基础功能与生产退役落盘2026-11-21) · [iPhone 线上候选](VALIDATION.md#iphone-1018-线上分发与后台能力2026-11-21) · [退役运维](OPERATIONS.md#删除退役-web2026-11-20) · [ADR-0025](../docs/adr/0025-retired-web-removal.md)
+
+Windows 与云电脑项目目录、双端一次性文件审批及 Markdown 下载已完成候选接线。Windows 完整路径留在主进程。云端候选在实际 Linux 上通过 24 项隔离回归，生产驱动部署、私有通道与双端真实目录任务待验。[首版测评](ACCEPTANCE.md#个人生产首版测评) · [驱动验证](VALIDATION.md#项目-linux-驱动与设备预检2026-11-21) · [云端运维](OPERATIONS.md#云电脑项目目录候选2026-11-20)
+
+项目绑定目录现支持单层名称列表，仍需逐次审批；Windows 本机目录回归与接口验证通过。离线任务续接／未知结果核对、目录内容搜索、云端 Linux 实际列表以及隔离项目命令尚未完成，生产电脑能力开关保持关闭。[项目目录验证](VALIDATION.md#项目目录枚举候选2026-11-21) · [当前总目标](PLAN.md#新目标手机与-windows-项目消息及执行位置协同pa-022prj-01prj-02)
+
+手机固定底栏、GitHub 与会话模型交付目标及逐项验收见 [手机专项测评](MOBILE_NAV_GITHUB_EVALUATION.md)，阶段状态统一见 [总计划](PLAN.md)。本轮先记录目标和测评，再实施、验证和推进真实更新；尚未完成项不以源码替代上线验收。
+
+云电脑全覆盖样式已按用户授权部署到原生 noVNC，Windows 原登录客户端三种窗口尺寸四边贴合、真实帧及只读实测通过；重新打开电脑画面加载。部署前的镜像嵌入页改动未包含在本次原生静态部署中，iPhone 真机仍未验。见 [全覆盖验证](VALIDATION.md#pa-023-云电脑画面全覆盖修复2026-11-20) 和 [部署与回退](OPERATIONS.md#云电脑全覆盖样式部署2026-11-20)。
+
+用户已追加 GitHub 上线和项目工作区可用闭环目标，包含手机 GitHub 入口、双端项目文字聊天及后续授权目录连接。实施顺序与真实验收条件统一维护在 [追加目标](PLAN.md#追加目标github-上线与项目工作区可用闭环pa-022pa-024)，不能把既有离线代码视为生产已完成。
+
+手机 GitHub 与双端项目文字会话的客户端接线已补齐。项目会话、目录绑定、运行角色隔离和独立 Worker 的实时回复共 54 项通过，使用 PostgreSQL `18.6` 临时合成库。生产项目迁移、功能开放及双端实际收发待执行，当前发布的备份和隔离恢复也待完成。[隔离实测](VALIDATION.md#项目-postgresql-与独立-worker-实测2026-11-21) · [项目测评](ACCEPTANCE.md#项目基础文字会话pa-022) · [发布顺序](OPERATIONS.md#个人生产首版发布顺序2026-11-20)
+
+本轮已按用户授权在现有生产切换客户端直连，旧 Web 已停止。`Sydney-partner` Windows 安装、既有主机桌面问题及双端待验项见 [验证记录](VALIDATION.md#2026-11-19-生产直连切换结果)，运行和回退入口见 [运维手册](OPERATIONS.md#2026-11-19-生产配置与回退入口)。
+
+2026-11-20 已恢复专属显示及只读画面服务，并按追加授权完成团队连接校准与 Worker 健康恢复；Windows 专属／团队电脑真实画面与自动重连均通过。待回答任务保留，双端共用画面接口已恢复；手机端错误提示和重试仍为离线修复，尚未发布、真机未验。见 [本轮画面结果](VALIDATION.md#pa-023-云电脑画面恢复2026-11-20) 和 [部署／停止／回退](OPERATIONS.md#pa-023-云电脑画面恢复2026-11-20)。
+
+iPhone 应用名为 `Sydney`。多模式换肤已补齐离线设置入口与午夜内置模式，具体状态见 [追加目标](PLAN.md#追加目标完成-ios-多模式换肤的用户可用链路)；尚未发布到手机，真实设备验收见 [测评清单](ACCEPTANCE.md#iphone-多模式换肤pa-018pa-020pa-021)。
 
 本目录保存开发计划、过程记录、验证结论和运维说明。目录名按用户要求使用 `docx`，正文目前使用 Markdown，便于检索、比较修改和随代码维护；当前没有生成 `.docx` Word 文件。
 
@@ -24,11 +65,16 @@
 | [PC 桌面端长期交付计划](design/PC_DESKTOP_DELIVERY_PLAN.md) | Web 布局复用、模块分工、审核循环及 Windows 构建验收 | PC 桌面端阶段、分工或验收变化时 |
 | [手机与桌面客户端迁移方案](design/CLIENT_ONLY_MIGRATION.md) | 桌面内置界面、双端依赖和浏览器入口收口的实施与验收 | 客户端迁移阶段、依赖或验收变化时 |
 | [iPhone 客户端实施与测评](design/IOS_CLIENT_PLAN.md) | 原生移动端现状、云构建准备与分阶段验收 | 移动端实施、构建或验收状态变化时 |
+| [iOS 多模式 UI 架构](design/IOS_UI_MODE_ARCHITECTURE.md) | 移动端模式注册、主题状态、页面宿主和后续视觉阶段边界 | 换肤架构接线、视觉皮肤或真机验收变化时 |
 | [iPhone 操控方案](design/IPHONE_CONTROL_PLAN.md) | Windows 真机自动化候选、权限边界和设备验收 | 设备控制方案或验证状态变化时 |
 | [iPhone 陪伴调研](design/IOS_COMPANION_RESEARCH.md) | 开源参考、屏幕识别与灵动岛方案及验证缺口 | 陪伴方案或验证状态变化时 |
 | [手机端五项任务实施方案](design/MOBILE_FIVE_WORKSTREAMS.md) | 现有功能、云电脑、项目入口、桌面联动及更新的分工与验收 | 五项任务范围、依赖或验收变化时 |
 | [iPhone 免费侧载操作指南](design/IOS_SIDELOAD_GUIDE.md) | Windows 与 iPhone 的候选签名安装流程及验证限制 | 签名、安装或续签流程变化时 |
 | [项目与工作区接入方案](design/PROJECT_WORKSPACE_PLAN.md) | 项目入口、云电脑与本地工作区、授权和分阶段验收 | 项目功能规划、实现或验收变化时 |
+| [手机与 Windows 项目同步测评](design/PROJECT_DEVICE_SYNC_EVALUATION.md) | 双端项目／消息同步、固定执行位置、Windows 隔离命令负向验收 | 项目设备同步、执行位置或验收状态变化时 |
+| [GitHub 模块实施方案](design/GITHUB_MODULE_PLAN.md) | 个人主页、提交热力图、远端项目、开源检索与 Agent 只读工具融合 | GitHub 模块范围、实现或验收变化时 |
+| [GitHub 模块实施与交接指引](HANDOVER_GITHUB.md) | 数据库迁移、真实 PAT 联调验收、代码索引与回归测试 | 后续 Agent 接续实施或环境验收时 |
+| [GitHub 模块架构决策](../docs/adr/0023-github-module-integration.md) | 直连 REST/GraphQL 适配层、PAT 加密绑定与读写边界 | GitHub 接入方式或权限边界变化时 |
 | [工作区归属与元数据隔离决策](../docs/adr/0022-project-workspace-ownership.md) | 成员归属、数据库隔离及开放前阻断 | 工作区权限、数据模型或删除流程变化时 |
 | [PC 后台部署决策](../docs/adr/0015-pc-backend-on-cloud-computer.md) | 云电脑 PC 后台与主后台控制服务的边界和权限 | PC 后台部署、认证或资源边界变化时 |
 | [注册开放实施清单](design/REGISTRATION_ROLLOUT.md) | 注册开关、邮件配置和真实验收顺序 | 注册配置或认证验收变化时 |
@@ -44,7 +90,7 @@
 
 ## 当前项目状态
 
-- Web 已迁至云电脑隔离试运行，后台保留回环入口、API 和 Worker；当前验收与回滚限制见 [ADR-0013](../docs/adr/0013-isolated-cloud-web-proposal.md) 和 [运维手册](OPERATIONS.md)。
+- 生产 Web 已退役并删除旧容器，后台保留 API、Worker 和客户端必需回调／画面；Windows 共用界面源码保留。历史隔离试运行见 [ADR-0013](../docs/adr/0013-isolated-cloud-web-proposal.md)，当前删除边界见 [ADR-0025](../docs/adr/0025-retired-web-removal.md) 和 [运维手册](OPERATIONS.md#删除退役-web2026-11-20)。
 - Rakazo 底座、Sydney 二次开发代码和项目配置统一位于当前仓库根目录；本目录只保存计划、开发过程、验证和运维文档。
 - Rakazo 基线已经导入；上一次底座静态检查与 Pi 离线测试有通过记录，不能代表 Sydney 功能已实现。
 - P2/P3 已接入授权存储、用户任务 API、Pi 工具与主模型门禁；已有定向离线验证，真实数据库和模型尚未验收。继续推进 P4–P6，实际证据见总计划与验证记录。

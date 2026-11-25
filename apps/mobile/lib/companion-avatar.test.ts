@@ -61,8 +61,8 @@ describe("companion organic avatar", () => {
     expect(companionAvatar({ botId: "bot", color: `data:image/png;base64,${"A".repeat(200_001)}` })).toBeNull();
   });
 
-  it("encodes the logo body and a contrasting eye color", () => {
+  it("encodes a retired logo selection as the default avatar", () => {
     expect(companionAvatar({ botId: "bot", color: "#123456", avatarSet: "rakazo" }))
-      .toMatch(/^l\|[0-9A-F]{6}\|(101014|FFFFFF)\|[0-9a-f]+$/);
+      .toBe(companionAvatar({ botId: "bot", color: "#123456" }));
   });
 });

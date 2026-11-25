@@ -9,12 +9,17 @@ import * as runMessages from "./run-messages.js";
 
 const sink = createTestSink();
 
-const provisionComputer = vi.hoisted(() => vi.fn());
+const { provisionComputer, acquireComputerExecutionLease, acquireDedicatedScreenLeaseFence } =
+  vi.hoisted(() => ({
+    provisionComputer: vi.fn(),
+    acquireComputerExecutionLease: vi.fn(async () => null),
+    acquireDedicatedScreenLeaseFence: vi.fn(async () => null),
+  }));
 
 vi.mock("./computer-lifecycle.js", async (importOriginal) => ({
   ...(await importOriginal<typeof ComputerLifecycleModule>()),
-  acquireComputerExecutionLease: async () => null,
-  acquireDedicatedScreenLeaseFence: async () => null,
+  acquireComputerExecutionLease,
+  acquireDedicatedScreenLeaseFence,
   provisionComputer,
 }));
 
@@ -29,6 +34,9 @@ const COMPUTER: ComputerRef = {
 async function runRoutine(
   toolCalls: Array<{ name: string; args: Record<string, unknown> }>,
   options: {
+    projectWorkspaceId?: string;
+    computerSwitching?: boolean;
+    scripted?: boolean;
     takeover?: boolean;
     takeoverReleased?: boolean;
     native?: boolean;
@@ -63,6 +71,7 @@ async function runRoutine(
     taskId: "task-1",
     spaceId: "space-1",
     userId: "user-1",
+    projectWorkspaceId: options.projectWorkspaceId ?? null,
     status: "queued" as string,
     trigger: options.managedControlBlocked
       ? "managed_task"
@@ -154,7 +163,7 @@ async function runRoutine(
         modelId: null,
         thinkingLevel: null,
         computerId: "computer-1",
-        computerSwitching: false,
+        computerSwitching: options.computerSwitching ?? false,
         memoryScope: null,
         computer: {
           id: "computer-1",
@@ -281,15 +290,20 @@ async function runRoutine(
   const executorInput = {
     prisma: withEmptyModels(prisma),
     deploymentModelKey: "fake-deployment-key",
-    runtime: { describe: () => ({ capabilities: { scripted: false } }), run: runtimeRun },
+    runtime: {
+      describe: () => ({ capabilities: { scripted: options.scripted ?? false } }),
+      run: runtimeRun,
+    },
     sandbox,
     home: { commit: vi.fn(async () => "fixture-revision") },
-    memory: { read: async () => ({ documents: [] }) },
+    memory: { read: vi.fn(async () => ({ documents: [] })) },
+    connector: { discoverTools: vi.fn(async () => []) },
+    userDevices: { connected: vi.fn(async () => ({ platform: "win32" })) },
     memoryProviders: {
-      resolve: async () => {
+      resolve: vi.fn(async () => {
         if (options.setupError) throw options.setupError;
         return null;
-      },
+      }),
     },
     artifacts: { get: vi.fn(async () => new Uint8Array([1, 2, 3, 4])) },
     events,
@@ -343,6 +357,7 @@ async function runRoutine(
     prisma,
     run,
     resumeOnNextWorker,
+    executorInput,
   };
 }
 
@@ -359,6 +374,64 @@ afterEach(() => {
 });
 
 describe("run computer provisioning", () => {
+  it("answers a project text turn without computer leases, probes or account integrations", async () => {
+    const { finalizeRun, runtimeRun, sandbox, executorInput, prisma } = await runRoutine([], {
+      projectWorkspaceId: "project-a",
+      native: true,
+      computerSwitching: true,
+      setupError: new Error("Account memory should not be loaded"),
+    });
+    expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({ outcome: "completed" }));
+    expect(runtimeRun).toHaveBeenCalledOnce();
+    const request = runtimeRun.mock.calls[0]![0];
+    expect(request.instructions).toContain("No project directory is connected");
+    expect(request.instructions).not.toContain("Home: ");
+    expect(request.instructions).not.toContain(
+      "This entire computer workspace is your private home",
+    );
+    expect(request.verbatimMcpServers).toBeUndefined();
+    expect(request.tools?.map((tool) => tool.name)).not.toContain("shell");
+    expect(acquireComputerExecutionLease).not.toHaveBeenCalled();
+    expect(acquireDedicatedScreenLeaseFence).not.toHaveBeenCalled();
+    expect(provisionComputer).not.toHaveBeenCalled();
+    expect(sandbox.environment).not.toHaveBeenCalled();
+    expect(executorInput.connector.discoverTools).not.toHaveBeenCalled();
+    expect(executorInput.userDevices.connected).not.toHaveBeenCalled();
+    expect(executorInput.memory.read).not.toHaveBeenCalled();
+    expect(executorInput.memoryProviders.resolve).not.toHaveBeenCalled();
+    expect(prisma.connection.findMany).not.toHaveBeenCalled();
+    expect(prisma.agentSkill.findMany).not.toHaveBeenCalled();
+    expect(prisma.taughtSkill.findMany).not.toHaveBeenCalled();
+    expect(prisma.scratchpadItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses a project scripted runtime before opening its stream", async () => {
+    const { runtimeRun, finalizeRun, sandbox } = await runRoutine([], {
+      projectWorkspaceId: "project-a",
+      scripted: true,
+    });
+    expect(runtimeRun).not.toHaveBeenCalled();
+    expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
+    expect(provisionComputer).not.toHaveBeenCalled();
+    expect(sandbox.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a project model's direct file call before starting a computer", async () => {
+    const { finalizeRun, toolResults, sandbox } = await runRoutine(
+      [{ name: "read_file", args: { path: "../homepage.txt" } }],
+      { projectWorkspaceId: "project-a" },
+    );
+    expect(finalizeRun).toHaveBeenCalledWith(expect.objectContaining({ outcome: "completed" }));
+    expect(toolResults).toEqual([
+      {
+        error: "This tool or setting is unavailable in project text conversations.",
+      },
+    ]);
+    expect(provisionComputer).not.toHaveBeenCalled();
+    expect(sandbox.listFiles).not.toHaveBeenCalled();
+    expect(sandbox.writeFile).not.toHaveBeenCalled();
+  });
+
   it("stops a managed attempt before model and connector setup when control is unavailable", async () => {
     const { prisma, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
       managedControlBlocked: true,

@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import sydneyMobileRelease from "./sydney-release.json";
 
 const RELEASE_PROFILES = new Set(["preview", "production", "android-apk", "diagnostic"]);
 
@@ -89,9 +90,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ) {
       throw new Error("Sydney OTA requires its own valid project ID, owner and runtime version.");
     }
-    if (updatesRequested && process.env.EXPO_PUBLIC_API_URL !== "https://pc.zxlup.xin") {
+    if (
+      updatesRequested &&
+      new URL(process.env.EXPO_PUBLIC_API_URL!).origin !== "https://124.221.182.39"
+    ) {
       throw new Error(
-        "Sydney OTA is restricted to the existing server until update isolation is verified.",
+        "Sydney OTA is restricted to the production IP server until separate channels are verified.",
       );
     }
     result = {
@@ -102,13 +106,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       extra: {
         ...extra,
         sydneySideload: true,
-        ...(updatesRequested ? { eas: { projectId: updateProject } } : {}),
+        ...(updatesRequested ? { eas: { projectId: updateProject }, sydneyMobileRelease } : {}),
       },
       ...(updatesRequested ? { runtimeVersion: updateRuntime } : {}),
       updates: updatesRequested
         ? {
             url: `https://u.expo.dev/${updateProject}`,
             requestHeaders: { "expo-channel-name": "sideload" },
+            checkAutomatically: "NEVER",
           }
         : { enabled: false },
       plugins: result.plugins?.filter((plugin) => {

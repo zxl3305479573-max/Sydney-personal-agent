@@ -11,7 +11,7 @@ import type { ActionApprovalRule } from "@rakazo/core";
 import { inboundRoutineBlock } from "@rakazo/core";
 import { approvalEffectKey, toolEffectIdempotencyKey } from "@rakazo/core/node/approval-effect-key";
 import type { PrismaClient } from "@rakazo/db";
-import { createPendingSteeringRun, sendUserMessage } from "@rakazo/db";
+import { createPendingSteeringRun, runAsSystem, runAsTenant, sendUserMessage } from "@rakazo/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DENIED_ACTION_ERROR, isApprovalPausedResult } from "./approval-effect.js";
 import { MAX_SHARED_MEMORY_CHARS } from "./builtin-tools.js";
@@ -23,6 +23,7 @@ import type { HostComputerRequest } from "./host-computer-protocol.js";
 import { catalogEntries, resolveCatalogCall } from "./lazy-tool-catalog.js";
 import type { TurnCheckpoint } from "./turn-checkpoint.js";
 import { serializeTurnCheckpoint } from "./turn-checkpoint.js";
+import { UserDeviceNotConnectedError } from "./user-device-gateway.js";
 import type { UserDeviceGateway } from "./user-device-protocol.js";
 
 vi.mock("./computer-lifecycle.js", async (importOriginal) => ({
@@ -98,6 +99,9 @@ function fixture({
   routines = [] as { name: string; prompt: string }[],
   connectedApps = [] as string[],
   userDevices,
+  projectWorkspaceId = null,
+  projectDirectoryPin = null,
+  projectDeviceToolsEnabled,
   botUserId = "user-1",
   batch,
   browser,
@@ -108,6 +112,9 @@ function fixture({
   /** The tool runs the actions its arguments name; see ConnectorTool.batch. */
   batch?: ConnectorTool["batch"];
   userDevices?: UserDeviceGateway;
+  projectWorkspaceId?: string | null;
+  projectDirectoryPin?: unknown;
+  projectDeviceToolsEnabled?: boolean;
   /** The bot's owner; runs are started by user-1. */
   botUserId?: string;
   connectedApps?: string[];
@@ -188,6 +195,8 @@ function fixture({
     taskId: "task-1",
     spaceId: "space-1",
     userId: "user-1",
+    projectWorkspaceId,
+    projectDirectoryPin,
     status: "queued",
     trigger,
     sourceMessageId: sourceRole ? "source-1" : null,
@@ -257,10 +266,12 @@ function fixture({
       return { count: 0 };
     }),
     findUnique: vi.fn(
-      async ({ where }: { where: { id?: string; idempotencyKey?: string } }) =>
-        effects.find((effect) =>
+      async ({ where }: { where: { id?: string; idempotencyKey?: string } }) => {
+        const effect = effects.find((effect) =>
           where.id ? effect.id === where.id : effect.idempotencyKey === where.idempotencyKey,
-        ) ?? null,
+        );
+        return effect ? { ...effect } : null;
+      },
     ),
     create: vi.fn(async ({ data }: { data: Omit<Effect, "id"> }) => {
       const effect = { ...data, id: `effect-${effects.length + 1}` };
@@ -602,6 +613,7 @@ function fixture({
     shutdownSignal,
     web,
     userDevices,
+    projectDeviceToolsEnabled,
   } as unknown as Parameters<typeof createRunExecutor>[0]);
   return {
     prisma: transactionalPrisma,
@@ -657,8 +669,9 @@ function fixture({
         role: "user",
         blocks: [{ kind: "text", text: promptText }],
       };
+      const homeScope = { spaceId: run.spaceId, userId: run.userId, projectWorkspaceId: null };
       const tx = {
-        $queryRaw: vi.fn(async () => []),
+        $queryRaw: vi.fn(async () => [homeScope]),
         thread: { update: vi.fn(async () => ({ nextMessageSeq: 2, nextEventSeq: 2 })) },
         message: {
           create: vi.fn(async () => inboundMessage),
@@ -692,18 +705,20 @@ function fixture({
       const inboundPrisma = {
         $transaction: async (action: (client: typeof tx) => unknown) => action(tx),
       } as unknown as PrismaClient;
-      await sendUserMessage(inboundPrisma, {
-        spaceId: run.spaceId,
-        threadId: run.threadId,
-        botId: run.botId,
-        userId: run.userId,
-        trigger: "webhook",
-        prompt: promptText,
-        blocks: inboundMessage.blocks as never,
-      });
+      await runAsSystem("test inbound webhook delivery", () =>
+        sendUserMessage(inboundPrisma, {
+          spaceId: run.spaceId,
+          threadId: run.threadId,
+          botId: run.botId,
+          userId: run.userId,
+          trigger: "webhook",
+          prompt: promptText,
+          blocks: inboundMessage.blocks as never,
+        }),
+      );
       if (busyTrigger) {
         expect(pending[0]).toMatchObject({ runId: null, originTrigger: "webhook" });
-        await createPendingSteeringRun(tx as never, run);
+        await runAsTenant(homeScope, () => createPendingSteeringRun(tx as never, run));
       }
       expect(run.trigger).toBe("webhook");
       expect(run.sourceMessageId).toBe(inboundMessage.id);
@@ -723,6 +738,92 @@ function fixture({
     },
   };
 }
+
+it.each([
+  { enabled: false, pinned: true, offered: false },
+  { enabled: true, pinned: false, offered: false },
+  { enabled: true, pinned: true, offered: true },
+])(
+  "uses the saved project directory for discovery (enabled=$enabled, pinned=$pinned)",
+  async ({ enabled, pinned, offered }) => {
+    const connected = vi.fn(async () => ({ platform: "win32" }));
+    const state = fixture({
+      projectWorkspaceId: "project-1",
+      projectDirectoryPin: pinned ? {
+        kind: "windows", targetId: "windows-a",
+        grantId: "a374627e-87a5-4f8d-a619-1c662ae431b7", intent: "read-only",
+      } : null,
+      projectDeviceToolsEnabled: enabled,
+      sourceRole: "user",
+      userDevices: { connected } as unknown as UserDeviceGateway,
+    });
+    state.setCalls([]);
+
+    await state.run();
+
+    const directoryLookup = expect.objectContaining({
+      text: expect.stringContaining("project_directory_bindings"),
+    });
+    expect(state.prisma.$queryRaw).not.toHaveBeenCalledWith(directoryLookup);
+    expect(connected).not.toHaveBeenCalled();
+    expect(state.offeredTools().includes("project_windows_terminal")).toBe(offered);
+    expect(state.offeredTools().includes("project_read_file")).toBe(offered);
+    expect(state.offeredTools()).not.toContain("project_update_file");
+    expect(state.offeredTools()).toContain("read_history");
+  },
+);
+
+it("resumes an offline project update under the original approval and fixed device", async () => {
+  const binding = {
+    deviceId: "windows-a",
+    grantId: "a374627e-87a5-4f8d-a619-1c662ae431b7",
+    directoryName: "Project A",
+    intent: "read-write",
+  };
+  const replacementHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+  const request = vi.fn()
+    .mockImplementationOnce(() => { throw new UserDeviceNotConnectedError(); })
+    .mockImplementation(async function* () {
+      yield { operation: "update", bytes: 5, sha256: replacementHash };
+    });
+  const state = fixture({
+    projectWorkspaceId: "project-1",
+    projectDirectoryPin: {
+      kind: "windows", targetId: binding.deviceId, grantId: binding.grantId, intent: binding.intent,
+    },
+    projectDeviceToolsEnabled: true,
+    sourceRole: "user",
+    userDevices: { connected: async () => null, request } as unknown as UserDeviceGateway,
+  });
+  state.prisma.$queryRaw.mockImplementation(async (...values: unknown[]) =>
+    (String((values[0] as { text?: string })?.text).includes("project_directory_bindings")
+      ? [binding] : []) as never[],
+  );
+  const args = { path: "result.md", text: "hello", expectedSha256: "a".repeat(64) };
+  state.setCalls([{ name: "project_update_file", args, executionId: "project-update" }]);
+
+  await state.run();
+  expect(state.results).toMatchObject([{ terminate: true }]);
+  expect(state.pauseRunForInput).toHaveBeenCalledOnce();
+  expect(state.effects).toHaveLength(1);
+  state.effects[0]!.status = "approved";
+
+  await state.run();
+  expect(state.effects[0]).toMatchObject({ status: "approved", result: { waitingForDevice: true } });
+  expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+    name: "run.continue", payload: { runId: "run-1" }, availableAt: expect.any(Date),
+  }));
+
+  await state.run();
+  expect(state.effects).toHaveLength(1);
+  expect(state.pauseRunForInput).toHaveBeenCalledOnce();
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenLastCalledWith("user-1", {
+    method: "projectFile", spaceId: "space-1", projectId: "project-1",
+    grantId: binding.grantId, file: { operation: "update", ...args },
+  }, expect.any(AbortSignal), binding.deviceId);
+  expect(state.effects[0]).toMatchObject({ status: "completed", result: { updated: true, bytes: 5 } });
+});
 
 it("enqueues pending work when an approval pauses its current run", async () => {
   const f = fixture({ name: "shell", trigger: "webhook" });

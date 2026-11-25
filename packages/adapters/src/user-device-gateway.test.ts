@@ -16,6 +16,7 @@ import {
   USER_DEVICE_FORWARD_PATH,
   USER_DEVICE_OFFLINE_MESSAGE,
   UserDeviceHub,
+  UserDeviceNotConnectedError,
   UserDevices,
   userDeviceBearer,
   userDeviceForwardBody,
@@ -217,6 +218,20 @@ describe("device tokens", () => {
 });
 
 describe("user device gateway in the holding process", () => {
+  it("routes a directory grant to the exact paired device", async () => {
+    const { hub, devices } = setup();
+    const socket = new FakeSocket();
+    await hub.attach(device, socket);
+    const request = { method: "workspaceGrant" as const, operation: "status" as const, spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
+    const result = collect(devices.request(device.userId, request, new AbortController().signal, device.id));
+    const message = await socket.nextRequest();
+    expect(message.request).toEqual(request);
+    socket.reply(message.id, { value: { state: "authorized" } });
+    socket.reply(message.id, { done: true });
+    await expect(result).resolves.toEqual([{ state: "authorized" }]);
+    await expect(collect(devices.request("other-user", request, new AbortController().signal, device.id))).rejects.toThrow(USER_DEVICE_OFFLINE_MESSAGE);
+  });
+
   it("streams values, skipping heartbeats, until done", async () => {
     const { hub, devices, connections } = setup();
     const socket = new FakeSocket();
@@ -252,6 +267,9 @@ describe("user device gateway in the holding process", () => {
   it("is offline when no device is connected or the connection went stale", async () => {
     const { hub, devices, connections } = setup();
     const signal = new AbortController().signal;
+    await expect(collect(devices.request("user-1", environment, signal))).rejects.toBeInstanceOf(
+      UserDeviceNotConnectedError,
+    );
     await expect(collect(devices.request("user-1", environment, signal))).rejects.toThrow(
       USER_DEVICE_OFFLINE_MESSAGE,
     );
@@ -370,6 +388,20 @@ describe("user device gateway from another process", () => {
     return { calls, fetcher };
   }
 
+  it("forwards the limited directory protocol without a bot or filesystem path", async () => {
+    const { hub, prisma } = setup();
+    const socket = new FakeSocket();
+    await hub.attach(device, socket);
+    const worker = new UserDevices({ prisma, forwardSecret: secret, fetch: forwarding(hub).fetcher });
+    const request = { method: "workspaceGrant" as const, operation: "revoke" as const, spaceId: "space-a", projectId: "project-a", grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72" };
+    const result = collect(worker.request(device.userId, request, new AbortController().signal, device.id));
+    const message = await socket.nextRequest();
+    expect(message.request).toEqual(request);
+    socket.reply(message.id, { value: { state: "unauthorized" } });
+    socket.reply(message.id, { done: true });
+    await expect(result).resolves.toEqual([{ state: "unauthorized" }]);
+  });
+
   it("forwards to the holding process and streams NDJSON frames back", async () => {
     const { hub, prisma } = setup();
     const socket = new FakeSocket();
@@ -440,8 +472,8 @@ describe("user device gateway from another process", () => {
       forwardSecret: secret,
       fetch: (async () => new Response(null, { status: 409 })) as typeof fetch,
     });
-    await expect(collect(moved.request("user-1", environment, signal))).rejects.toThrow(
-      USER_DEVICE_OFFLINE_MESSAGE,
+    await expect(collect(moved.request("user-1", environment, signal))).rejects.toBeInstanceOf(
+      UserDeviceNotConnectedError,
     );
   });
 

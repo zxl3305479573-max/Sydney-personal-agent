@@ -1,6 +1,7 @@
 import type {
   AgentHomeStore,
   ArtifactStore,
+  GithubAccountService,
   JobPublisher,
   MemoryStore,
   PaymentWalletProvider,
@@ -28,11 +29,13 @@ import type {
   RemoteConnectorDependencies,
   TicketChangeNotifier,
   verifyModelServesAgents,
+  UserDevices,
 } from "@rakazo/adapters";
 import type { Auth } from "@rakazo/auth";
 import type { NavLink } from "@rakazo/contracts";
 import type { BoardEvents, PrismaClient, ThreadEvents } from "@rakazo/db";
 import type { BillingService } from "./billing.js";
+import type { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 import { accountRoutes } from "./routes/account.js";
 import { availabilityRoutes } from "./routes/availability.js";
 import { boardsRoutes } from "./routes/boards.js";
@@ -41,6 +44,7 @@ import { computerRoutes } from "./routes/computer.js";
 import { connectionsRoutes } from "./routes/connections.js";
 import { contentRoutes } from "./routes/content.js";
 import { createRouterContext } from "./routes/context.js";
+import { githubRoutes } from "./routes/github.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { messagingRoutes } from "./routes/messaging.js";
@@ -53,7 +57,6 @@ import { spacesRoutes } from "./routes/spaces.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { threadsRoutes } from "./routes/threads.js";
 import type { VoiceDeps } from "./voice.js";
-import type { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
 
 export { nextConnectionLabel } from "./model-credentials.js";
 export { botIntroPrompt, enqueueBotIntroRun } from "./routes/bots.js";
@@ -61,12 +64,14 @@ export { HEARTBEAT_MS, SESSION_RECHECK_MS } from "./routes/shared.js";
 export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
+  userDevices?: Pick<UserDevices, "request" | "list" | "releaseSignedOut"> | null;
   companionScreen?: ReturnType<typeof createCompanionScreenCoordinator>;
   pushTokens: PushTokenStore;
   analytics?: ProductAnalytics;
   cloudAgent?: CloudAgentConnection | null;
   /** The deployment's wallet provider; absent hides purchases. */
   paymentWallet?: PaymentWalletProvider | null;
+  github?: GithubAccountService | null;
   prisma: PrismaClient;
   events: ThreadEvents;
   boardEvents: BoardEvents;
@@ -120,6 +125,7 @@ export interface RouterDeps {
   env: {
     projectWorkspaceCreateExperiment?: boolean;
     projectConversationCreateExperiment?: boolean;
+    projectDeviceToolsEnabled?: boolean;
     ticketBoardEnabled?: boolean;
     navLinks?: NavLink[];
     adminEmails?: string[];
@@ -174,5 +180,6 @@ export function createRouter(deps: RouterDeps) {
     ...messagingRoutes(ctx),
     ...contentRoutes(ctx),
     ...paymentWalletRoutes(ctx),
+    ...githubRoutes(ctx),
   });
 }

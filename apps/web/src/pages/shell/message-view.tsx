@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { ChatMarkdown, LinkifiedText, withBlockMentions } from "@rakazo/chat-ui/web";
+import { ChatMarkdown, withBlockMentions } from "@rakazo/chat-ui/web";
 import type {
   BotAvatarSet,
   LoginFieldInput,
@@ -46,6 +46,7 @@ import {
   McpApprovalCard,
 } from "./message-cards";
 import { MessageHoverActions } from "./message-hover-actions";
+import { MessageText, MessageTextBubble } from "./message-text-bubble";
 
 export const MessageView = memo(function MessageView({
   artifactTarget,
@@ -264,12 +265,7 @@ export const MessageView = memo(function MessageView({
             data-speaker={speakerName ? "true" : undefined}
             className="sydney-assistant-content flex w-fit max-w-full justify-start [@media(hover:none)]:w-full"
           >
-            <div
-              data-testid="message-bot-bubble"
-              className="sydney-chat-bubble-bot rk-chat-type max-w-full space-y-2.5 text-foreground/80"
-              style={{ color: "var(--custom-chat-bot-foreground, var(--foreground))" }}
-              dir="auto"
-            >
+            <MessageTextBubble messageRole="bot" className="space-y-2.5">
               {visibleNarrationBlocks.map((block, i) => {
                 if (block.kind === "steps") {
                   return (
@@ -293,13 +289,14 @@ export const MessageView = memo(function MessageView({
                       key={i}
                       data-quote-message-id={block.kind === "text" ? quoteMessageId : undefined}
                     >
-                      <ChatMarkdown
+                      <MessageText
+                        messageRole="bot"
                         streaming={block.kind === "progress"}
                         renderMention={renderMention}
                         showWebsiteUrls
                       >
                         {block.text}
-                      </ChatMarkdown>
+                      </MessageText>
                     </div>
                   );
                 }
@@ -316,7 +313,7 @@ export const MessageView = memo(function MessageView({
                   {speaking ? <Trans>Stop</Trans> : <Trans>Speak</Trans>}
                 </Button>
               ) : null}
-            </div>
+            </MessageTextBubble>
           </div>
           {hoverActions}
         </div>
@@ -541,15 +538,9 @@ export const MessageView = memo(function MessageView({
                 key={i}
                 className="relative flex w-fit max-w-full justify-end [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
               >
-                <div
-                  data-testid="message-user-bubble"
-                  data-quote-message-id={quoteMessageId}
-                  className="sydney-chat-bubble-user rk-chat-type max-w-full whitespace-pre-wrap wrap-anywhere text-foreground/80"
-                  style={{ color: "var(--custom-chat-user-foreground, var(--foreground))" }}
-                  dir="auto"
-                >
-                  <LinkifiedText>{block.text}</LinkifiedText>
-                </div>
+                <MessageTextBubble messageRole="user" quoteMessageId={quoteMessageId}>
+                  <MessageText messageRole="user">{block.text}</MessageText>
+                </MessageTextBubble>
                 {i === hoverAnchorIndex ? hoverActions : null}
               </div>
             );
@@ -561,18 +552,11 @@ export const MessageView = memo(function MessageView({
                 data-speaker={speakerName ? "true" : undefined}
                 className="sydney-assistant-content relative flex w-fit max-w-full justify-start [@media(hover:none)]:w-full [@media(hover:none)]:flex-wrap"
               >
-                <div
-                  data-testid="message-bot-bubble"
-                  className="sydney-chat-bubble-bot rk-chat-type max-w-full text-foreground/80"
-                  style={{
-                    color: "var(--custom-chat-bot-foreground, var(--foreground))",
-                  }}
-                  dir="auto"
-                >
+                <MessageTextBubble messageRole="bot">
                   <div data-quote-message-id={quoteMessageId}>
-                    <ChatMarkdown renderMention={renderMention} showWebsiteUrls>
+                    <MessageText messageRole="bot" renderMention={renderMention}>
                       {block.text}
-                    </ChatMarkdown>
+                    </MessageText>
                   </div>
                   {voiceReady ? (
                     <Button
@@ -585,7 +569,7 @@ export const MessageView = memo(function MessageView({
                       {speaking ? <Trans>Stop</Trans> : <Trans>Speak</Trans>}
                     </Button>
                   ) : null}
-                </div>
+                </MessageTextBubble>
                 {i === hoverAnchorIndex ? hoverActions : null}
               </div>
             );

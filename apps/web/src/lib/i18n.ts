@@ -40,7 +40,7 @@ async function loadCatalog(locale: UiLocale): Promise<CatalogMessages> {
   const english = fallback?.messages ?? (locale === "en" ? messages : ({} as CatalogMessages));
   const rebrand = (value: unknown): unknown =>
     typeof value === "string"
-      ? value.replaceAll("Rakazo", "Sydney")
+      ? value.replaceAll("Sydney", "Sydney")
       : Array.isArray(value)
         ? value.map(rebrand)
         : value;

@@ -4,7 +4,6 @@ import type {
   PluginSubmissionReview,
   PluginSubmissionStatus,
 } from "@rakazo/contracts";
-import { integrationPageUrl } from "@rakazo/contracts";
 import {
   Button,
   Dialog,
@@ -134,7 +133,7 @@ export function PluginSubmissionsPanel() {
                   </h3>
                   {submission.source ? <ExternalLink href={submission.source} /> : null}
                   {submission.claim ? (
-                    <ExternalLink href={integrationPageUrl(submission.claim)} />
+                    <span className="block truncate text-muted-foreground">{submission.claim}</span>
                   ) : null}
                   {submission.website ? (
                     <div>

@@ -1,4 +1,6 @@
 import * as z from "zod";
+import { BotAvatarSetSchema } from "./bot-avatar.js";
+import { GroupMemberSchema } from "./domain.js";
 import { IsoDate } from "./ids.js";
 
 export const PROJECT_WORKSPACE_NAME_MAX_LENGTH = 80;
@@ -86,8 +88,17 @@ export const ProjectWorkspaceRosterInput = z.object({
 }).strict();
 
 export const ProjectWorkspaceRosterSchema = z.object({
-  bots: z.array(z.object({ id: ProjectWorkspaceId, name: z.string() }).strict()).max(100),
-  groups: z.array(z.object({ id: ProjectWorkspaceId, name: z.string() }).strict()).max(100),
+  bots: z.array(z.object({
+    id: ProjectWorkspaceId,
+    name: z.string(),
+    color: z.string().optional(),
+    avatarSet: BotAvatarSetSchema.optional(),
+  }).strict()).max(100),
+  groups: z.array(z.object({
+    id: ProjectWorkspaceId,
+    name: z.string(),
+    members: z.array(GroupMemberSchema).optional(),
+  }).strict()).max(100),
   nextBotId: ProjectWorkspaceId.nullable(),
   nextGroupId: ProjectWorkspaceId.nullable(),
 }).strict();

@@ -10,7 +10,12 @@ import { errorText } from "../lib/user-error";
 export default function BotModelScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { botId, value = "" } = useLocalSearchParams<{ botId: string; value?: string }>();
+  const { botId, value = "", projectId, scope } = useLocalSearchParams<{
+    botId: string;
+    value?: string;
+    projectId?: string;
+    scope?: string;
+  }>();
   const [choices, setChoices] = useState<ChatModelChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -27,7 +32,10 @@ export default function BotModelScreen() {
       selectedKey={value}
       error={error}
       onSelect={(item) =>
-        router.dismissTo({ pathname: "/bot-settings", params: { botId, model: item.key } })
+        router.dismissTo({
+          pathname: "/bot-settings",
+          params: { botId, model: item.key, projectId, scope },
+        })
       }
     />
   );

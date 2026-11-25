@@ -218,5 +218,17 @@ describe("builtin tools", () => {
         .map((tool) => tool.name)
         .filter((name) => purchaseNames.includes(name)),
     ).toEqual(purchaseNames);
+    const githubNames = [
+      "github_get_profile",
+      "github_list_my_repos",
+      "github_search_repos",
+      "github_read_repo",
+    ];
+    expect(enabled.filter((name) => githubNames.includes(name))).toEqual([]);
+    expect(
+      selectBuiltinToolsForRun({ ...options, githubEnabled: true })
+        .map((tool) => tool.name)
+        .filter((name) => githubNames.includes(name)),
+    ).toEqual(githubNames);
   });
 });

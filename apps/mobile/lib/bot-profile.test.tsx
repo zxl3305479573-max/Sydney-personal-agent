@@ -94,6 +94,11 @@ vi.mock("./companion-activity", () => ({
   takeCompanionScreenText: companion.takeText,
 }));
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./project-scope", () => ({
+  projectScopeKey: () => `project-scope-${session.generation}`,
+  projectRequestOptions: async () => ({ skipSpaceAuthRecovery: true }),
+  subscribeProjectScope: () => () => undefined,
+}));
 vi.mock("./api", () => ({
   rpc,
   currentApiBase: () => "https://api.example",
@@ -339,6 +344,35 @@ const listCalls = () => rpc.mock.calls.filter(([procedure]) => procedure === "ro
 const routinesRow = () => button("Routines");
 
 describe("bot profile", () => {
+  it("reuses the Bot profile with project-scoped identity, notifications and edit navigation", async () => {
+    params.current = { botId: "bot-fixture", projectId: "project-fixture", scope: `project-scope-${session.generation}` };
+    rpc.mockImplementation(async (method: string) => {
+      if (method === "projectWorkspaces/getBot") return fixtureBot;
+      if (method === "projectWorkspaces/updateBot") return { ...fixtureBot, notifyOnFinish: false };
+      throw new Error(`unexpected ${method}`);
+    });
+    await render(createElement(BotProfile));
+    expect(rpc).toHaveBeenCalledWith("projectWorkspaces/getBot", {
+      projectId: "project-fixture", botId: "bot-fixture", includeArchived: true,
+    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    await act(async () => button("Edit").click());
+    expect(push).toHaveBeenCalledWith({ pathname: "/bot-settings", params: {
+      botId: "bot-fixture", projectId: "project-fixture", scope: `project-scope-${session.generation}`,
+    } });
+    const checkbox = container.querySelector<HTMLInputElement>('input[aria-label="Notifications"]')!;
+    await act(async () => checkbox.click());
+    expect(rpc).toHaveBeenCalledWith("projectWorkspaces/updateBot", {
+      projectId: "project-fixture", bot: { botId: "bot-fixture", notifyOnFinish: false },
+    }, expect.objectContaining({ skipSpaceAuthRecovery: true }));
+    expect(rpc.mock.calls.every(([method]) => method.startsWith("projectWorkspaces/"))).toBe(true);
+  });
+
+  it("hides a project profile opened for a previous account scope", async () => {
+    params.current = { botId: "bot-fixture", projectId: "project-fixture", scope: "old-account" };
+    await render(createElement(BotProfile));
+    expect(container.textContent).toContain("The project changed");
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("requires explicit consent and rejects a changed activity before auto response", async () => {
     companion.available.mockReturnValue(true);
     companion.active.mockReturnValue("bot-fixture");

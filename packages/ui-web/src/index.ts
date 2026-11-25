@@ -65,7 +65,6 @@ export {
   SunMoonIcon,
 } from "./icon-morph.js";
 export { cn } from "./lib/utils.js";
-export { LogoAvatar } from "./logo-avatar.js";
 export { ModelThinkingOptions } from "./model-thinking-options.js";
 export { RollingNumber, type RollingNumberProps } from "./rolling-number.js";
 export { SectionHeading } from "./section-heading.js";

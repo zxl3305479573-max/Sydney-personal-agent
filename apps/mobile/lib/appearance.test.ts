@@ -13,6 +13,7 @@ vi.mock("expo-secure-store", () => ({
 }));
 
 vi.mock("react-native", () => ({
+  Platform: { OS: "ios" },
   Appearance: {
     getColorScheme: () => colorSchemeOverride ?? colorScheme,
     setColorScheme: (scheme: "light" | "dark" | "unspecified") => {

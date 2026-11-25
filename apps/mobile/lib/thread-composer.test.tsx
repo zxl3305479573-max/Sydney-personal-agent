@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadComposerHandle } from "../components/thread-composer";
 import { ThreadComposer } from "../components/thread-composer";
+import { chatModelMenuActions } from "./chat-model-menu";
 import { settleComposer } from "./thread-feedback";
 import { useThreadMentionCatalog } from "./thread-mention-catalog";
 
@@ -18,6 +19,19 @@ const input = vi.hoisted(() => ({
   change: (_value: string) => {},
   key: (_event: { nativeEvent: { key: string } }) => {},
   select: (_event: { nativeEvent: { selection: { start: number; end: number } } }) => {},
+}));
+const modelMenu = vi.hoisted(() => ({
+  actions: [] as {
+    id?: string;
+    title: string;
+    state?: string;
+    displayInline?: boolean;
+    subactions?: { id?: string; title: string; state?: string }[];
+  }[],
+  onPressAction: (_event: { nativeEvent: { event: string } }) => {},
+}));
+const actionMenu = vi.hoisted(() => ({
+  onPressAction: (_event: { nativeEvent: { event: string } }) => {},
 }));
 const mentionApi = vi.hoisted(() => ({ rpc: vi.fn(), capture: vi.fn(), generation: 1 }));
 vi.mock("./api", () => ({
@@ -135,9 +149,13 @@ vi.mock("react-native", () => {
       accessibilityLabel?: string;
       accessible?: boolean;
       disabled?: boolean;
-      style?: object;
-    }) =>
-      createElement(
+      style?: object | ((state: { pressed: boolean }) => object | object[]);
+    }) => {
+      const resolved = typeof style === "function" ? style({ pressed: false }) : style;
+      const serializedStyle = JSON.stringify(
+        Array.isArray(resolved) ? Object.assign({}, ...resolved) : resolved,
+      );
+      return createElement(
         "button",
         {
           type: "button",
@@ -145,10 +163,11 @@ vi.mock("react-native", () => {
           "aria-label": accessibilityLabel,
           "data-accessible": accessible,
           disabled,
-          "data-style": JSON.stringify(style),
+          "data-style": serializedStyle,
         },
         children,
-      ),
+      );
+    },
     TextInput: ({
       ref,
       children,
@@ -158,6 +177,7 @@ vi.mock("react-native", () => {
       selection,
       style,
       scrollEnabled,
+      editable,
     }: {
       ref?: Ref<HTMLInputElement>;
       children?: ReactNode;
@@ -167,6 +187,7 @@ vi.mock("react-native", () => {
       selection?: { start: number; end: number };
       style: object;
       scrollEnabled?: boolean;
+      editable?: boolean;
     }) => {
       input.change = onChangeText;
       input.key = onKeyPress;
@@ -193,6 +214,7 @@ vi.mock("react-native", () => {
           ),
         ),
         readOnly: true,
+        disabled: editable === false,
         "data-style": JSON.stringify(style),
         "data-scroll-enabled": scrollEnabled,
         "data-selection": JSON.stringify(selection),
@@ -201,7 +223,25 @@ vi.mock("react-native", () => {
   };
 });
 vi.mock("@expo/ui/community/menu", () => ({
-  MenuView: ({ children }: { children?: ReactNode }) => children,
+  MenuView: ({
+    children,
+    title,
+    actions,
+    onPressAction,
+  }: {
+    children?: ReactNode;
+    title?: string;
+    actions: typeof modelMenu.actions;
+    onPressAction?: typeof modelMenu.onPressAction;
+  }) => {
+    if (title === "Model") {
+      modelMenu.actions = actions;
+      modelMenu.onPressAction = onPressAction ?? (() => {});
+    } else {
+      actionMenu.onPressAction = onPressAction ?? (() => {});
+    }
+    return children;
+  },
 }));
 vi.mock("../components/glass-surface", () => ({
   GlassSurface: ({
@@ -227,7 +267,16 @@ vi.mock("../components/bot-avatar", () => ({
     createElement("span", { "data-avatar": identity, "data-size": size }),
 }));
 vi.mock("./native", () => ({
-  useMobileTokens: () => ({ link: "token-link" }),
+  useMobileTokens: () => ({
+    link: "token-link",
+    primary: "blue",
+    primaryForeground: "white",
+    muted: "gray",
+    mutedForeground: "gray",
+    foreground: "black",
+    card: "white",
+    border: "gray",
+  }),
   useResolvedAppearance: () => "light",
 }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
@@ -250,7 +299,6 @@ const props: Omit<ComponentProps<typeof ThreadComposer>, "ref"> = {
   onCall: false,
   working: false,
   sending: false,
-  styles: { circleButton: {}, composerFill: {} },
   attachActions: [],
   attachFrom: vi.fn(),
   send: vi.fn(async () => {}),
@@ -356,12 +404,76 @@ describe("thread composer isolation", () => {
     return container.querySelector("input")!;
   }
 
-  it("opens the model picker without changing the draft", () => {
-    const onModelPress = vi.fn();
-    render({ onModelPress, modelLabel: "Example model" });
+  it("reuses the composer for project text without attachment, call, mention or slash actions", () => {
+    render({ textOnly: true });
+    expect(container.querySelector('[aria-label="Attach file"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Call"]')).toBeNull();
+    type("/");
+    expect(container.querySelector('[data-testid="slash-picker"]')).toBeNull();
+    type("@");
+    expect(container.querySelector('[data-testid="mention-picker"]')).toBeNull();
+    type("project message");
+    press("Send");
+    expect(props.send).toHaveBeenCalledOnce();
+    expect(composer.current?.snapshot().promptText).toBe("project message");
+  });
+
+  it("disables project text editing and sending when the scoped caller is unavailable", () => {
+    type("private draft");
+    render({ textOnly: true, disabled: true });
+    expect(field().disabled).toBe(true);
+    const sendButton = container.querySelector<HTMLButtonElement>('[aria-label="Send"]')!;
+    expect(sendButton.disabled).toBe(true);
+    act(() => sendButton.click());
+    expect(props.send).not.toHaveBeenCalled();
+    expect(composer.current?.snapshot().promptText).toBe("private draft");
+  });
+
+  it("keeps scoped settings available in the project text composer", () => {
+    const attachFrom = vi.fn();
+    render({
+      textOnly: true,
+      actionLabel: "More actions",
+      attachActions: [{ id: "settings", title: "Settings" }],
+      attachFrom,
+    });
+    expect(container.querySelector('[aria-label="More actions"]')).not.toBeNull();
+    act(() => actionMenu.onPressAction({ nativeEvent: { event: "settings" } }));
+    expect(attachFrom).toHaveBeenCalledExactlyOnceWith("settings");
+    expect(container.querySelector('[aria-label="Call"]')).toBeNull();
+  });
+
+  it("opens the model menu without changing the draft and selects in place", () => {
+    const choices = [
+      { key: "", label: "Space default (Model 1)", title: "Space default", detail: "Model 1" },
+      {
+        key: "openrouter::vendor/model-2",
+        label: "Model 2 (OpenRouter)",
+        providerLabel: "OpenRouter",
+        modelLabel: "Model 2",
+      },
+    ];
+    const onModelSelect = vi.fn();
+    render({
+      modelActions: chatModelMenuActions(choices, ""),
+      modelLabel: "Example model",
+      onModelSelect,
+    });
     type("unfinished message");
-    press("Model");
-    expect(onModelPress).toHaveBeenCalledOnce();
+    expect(container.querySelector('[aria-label="Model"]')?.textContent).toContain("Example model");
+    expect(modelMenu.actions).toEqual([
+      { id: "model:", title: "Space default (Model 1)", state: "on" },
+      {
+        id: "provider:OpenRouter",
+        title: "OpenRouter",
+        displayInline: true,
+        subactions: [{ id: "model:openrouter::vendor/model-2", title: "Model 2", state: "off" }],
+      },
+    ]);
+    act(() =>
+      modelMenu.onPressAction({ nativeEvent: { event: "model:openrouter::vendor/model-2" } }),
+    );
+    expect(onModelSelect).toHaveBeenCalledWith("openrouter::vendor/model-2");
     expect(composer.current?.snapshot().promptText).toBe("unfinished message");
     expect(container.textContent).toContain("Example model");
   });
@@ -1214,11 +1326,11 @@ describe("thread composer isolation", () => {
     const field = container.querySelector("input")!;
     const wrapper = field.parentElement!;
     const textRow = wrapper.parentElement!;
-    const capsule = textRow.parentElement!;
-    const outer = capsule.parentElement!;
+    const surface = textRow.parentElement!;
+    const outer = surface.parentElement!;
     const controlsRow = textRow.nextElementSibling!;
     expect(style(outer)).toMatchObject({ flexShrink: 1, minHeight: 0 });
-    expect(style(capsule)).toMatchObject({ flexShrink: 1, minHeight: 0 });
+    expect(style(surface)).toMatchObject({ flexShrink: 1, minHeight: 0 });
     expect(style(textRow)).toMatchObject({ flexShrink: 1, minHeight: 0, alignItems: "stretch" });
     expect(style(wrapper)).toMatchObject({ flexShrink: 1, minHeight: 0, paddingVertical: 11 });
     expect(style(field)).toMatchObject({ flexShrink: 1, minHeight: 22, maxHeight: 110 });
@@ -1227,10 +1339,12 @@ describe("thread composer isolation", () => {
     expect(composer.current!.snapshot().attachmentIds).toEqual(["attachment-1", "attachment-2"]);
   });
 
-  it("matches the iOS glass corner radius to the composer container", () => {
-    const capsule = container.querySelector('[data-glass="roundedRectangle"]') as HTMLElement;
-    expect(Number(capsule.dataset.radius)).toBe(26);
-    expect(JSON.parse(capsule.dataset.style!).borderRadius).toBe(Number(capsule.dataset.radius));
+  it("uses a distinct rounded composer surface", () => {
+    const surface = container.querySelector('[data-style*="borderRadius"]') as HTMLElement;
+    expect(JSON.parse(surface.dataset.style!)).toMatchObject({
+      borderRadius: 18,
+      borderWidth: 1,
+    });
   });
 
   it("aligns the empty placeholder with the inset text viewport", () => {
@@ -1250,7 +1364,8 @@ describe("thread composer isolation", () => {
     for (const label of ["Call", "Send"]) {
       if (label === "Send") type("Hello");
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      expect(style(button)).toMatchObject({ minWidth: 44, minHeight: 44 });
+      expect(style(button)).toMatchObject({ width: 44, height: 44 });
+      if (label === "Call") expect(style(button).backgroundColor).toBe("blue");
       press(label);
     }
     expect(props.startVoiceCall).toHaveBeenCalledOnce();
@@ -1271,14 +1386,14 @@ describe("thread composer isolation", () => {
     ] as const) {
       type(draft);
       const button = container.querySelector(`button[aria-label="${label}"]`)!;
-      const capsule = button.closest('[data-glass="roundedRectangle"]')!;
       const field = container.querySelector("input")!;
       const textRow = field.parentElement!.parentElement!;
       const controlsRow = button.parentElement!;
-      expect(textRow.parentElement).toBe(capsule);
-      expect(controlsRow.parentElement).toBe(capsule);
+      const surface = textRow.parentElement;
+      expect(surface).not.toBeNull();
+      expect(controlsRow.parentElement).toBe(surface);
       expect(textRow.nextElementSibling).toBe(controlsRow);
-      expect(style(capsule).gap).toBeGreaterThan(0);
+      expect(style(surface!).gap).toBeGreaterThan(0);
       expect(style(field).writingDirection).toBe("auto");
       expect(composer.current!.snapshot().promptText).toBe(draft);
     }

@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { SandboxedHtmlPreview } from "../components/sandboxed-html-preview";
 import { formatActivityRelativeTime } from "../lib/activity";
@@ -64,6 +65,7 @@ export default function ArtifactDetailScreen() {
   const [versions, setVersions] = useState<ArtifactVersion[] | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [content, setContent] = useState<ContentState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +107,7 @@ export default function ArtifactDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [selectedVersionId, t]);
+  }, [selectedVersionId, t, attempt]);
 
   const confirmDelete = useCallback(() => {
     if (content.status !== "ready") return;
@@ -210,12 +212,14 @@ export default function ArtifactDetailScreen() {
                 ? [
                     {
                       type: "button" as const,
+                      hidesSharedBackground: true,
                       label: t("Share"),
                       icon: { type: "sfSymbol" as const, name: "square.and.arrow.up" },
                       onPress: () => void share(),
                     },
                     {
                       type: "button" as const,
+                      hidesSharedBackground: true,
                       label: t("Delete"),
                       icon: { type: "sfSymbol" as const, name: "trash" },
                       tintColor: mobileTokens().destructive,
@@ -252,11 +256,19 @@ export default function ArtifactDetailScreen() {
       <View style={styles.body}>
         {content.status === "loading" ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={native.secondaryLabel} />
+            <ActivityIndicator color={native.secondaryLabel} accessibilityLabel={t("Loading…")} />
           </View>
         ) : content.status === "error" ? (
           <View style={styles.centered}>
-            <Text style={styles.errorText}>{content.message}</Text>
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {content.message}
+            </Text>
+            <NativeActionButton
+              label={t("Retry")}
+              prominence="secondary"
+              style={{ alignSelf: "center" }}
+              onPress={() => setAttempt((value) => value + 1)}
+            />
           </View>
         ) : (
           <ArtifactPreview
@@ -345,8 +357,8 @@ function createStyles() {
     },
     pillText: { color: native.label, fontSize: 13, fontWeight: "600" },
     body: { flex: 1, margin: 16, marginTop: 8, borderRadius: 18, overflow: "hidden" },
-    centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-    errorText: { color: native.secondaryLabel, fontSize: 14, textAlign: "center" },
+    centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
+    errorText: { color: native.secondaryLabel, fontSize: 15, lineHeight: 22, textAlign: "center" },
     previewCard: { flex: 1, borderRadius: 18, overflow: "hidden" },
     markdownScroll: { padding: 20 },
     imageWrap: {

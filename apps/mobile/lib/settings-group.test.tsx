@@ -206,7 +206,7 @@ describe("settings group", () => {
     expect(view.innerHTML).toBe("");
   });
 
-  it("uses the mobile web heading and row typography while retaining secondary text", () => {
+  it("uses the native type scale for settings headings and body text", () => {
     const view = render(
       <SettingsGroup label="Appearance" footer="Applies on this device.">
         <SettingsRow title="Language" detail="Follows the system" />
@@ -219,11 +219,11 @@ describe("settings group", () => {
       return Object.assign({}, ...[JSON.parse(span?.dataset.style ?? "null")].flat());
     };
 
-    expect(textStyle("Appearance")).toMatchObject({ fontSize: 18, lineHeight: 24 });
+    expect(textStyle("Appearance")).toMatchObject({ fontSize: 17, lineHeight: 22 });
     for (const content of ["Follows the system", "Applies on this device."]) {
       expect(textStyle(content)).toMatchObject({ fontSize: 14, lineHeight: 18 });
     }
-    expect(textStyle("Language")).toMatchObject({ fontSize: 14 });
+    expect(textStyle("Language")).toMatchObject({ fontSize: 17, lineHeight: 22 });
   });
 
   it("announces the group label as a header", () => {
@@ -265,6 +265,21 @@ describe("settings group", () => {
 
     act(() => view.querySelector("button")?.click());
     expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("names a settings action with its title, description and current value", () => {
+    const view = render(
+      <SettingsRow
+        title="Main model"
+        detail="Used for new chats"
+        value="Sonnet"
+        onPress={() => undefined}
+      />,
+    );
+    expect(view.querySelector("button")?.getAttribute("aria-label")).toBe(
+      "Main model. Used for new chats. Sonnet",
+    );
+    expect(view.querySelector("button")?.getAttribute("role")).toBe("button");
   });
 
   it.each(["android", "ios"] as const)("uses platform press feedback on %s", (platform) => {

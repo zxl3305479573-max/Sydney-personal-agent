@@ -1,7 +1,7 @@
 import type { ProcessEvent } from "@rakazo/adapter-kit";
 import type { HostComputerEnvironment, HostComputerRequest } from "./host-computer-protocol.js";
 import type { HostScreenObservation } from "./host-screen.js";
-import type { UserDevice, UserDeviceGateway } from "./user-device-protocol.js";
+import type { UserDevice, UserDeviceGateway, UserDeviceRequest } from "./user-device-protocol.js";
 
 export const USER_DEVICE_EMULATOR_OUTPUT = "fixture-mac\n";
 
@@ -23,9 +23,23 @@ export class UserDeviceEmulator implements UserDeviceGateway {
 
   async *request<T>(
     userId: string,
-    request: HostComputerRequest,
+    request: UserDeviceRequest,
     _signal: AbortSignal,
   ): AsyncIterable<T> {
+    if (request.method === "workspaceGrant") {
+      yield { state: "unavailable" } as T;
+      return;
+    }
+    if (request.method === "projectWindowsCommandStatus") {
+      yield { available: false } as T;
+      return;
+    }
+    if (
+      request.method === "projectFile" ||
+      request.method === "projectWindowsTerminal" ||
+      request.method === "projectWindowsCommand"
+    )
+      throw new Error("No emulated project device access");
     this.requests.push({ userId, request });
     if (request.method === "environment") {
       const environment: HostComputerEnvironment = {

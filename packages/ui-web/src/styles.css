@@ -161,7 +161,7 @@
   }
 }
 
-@keyframes rakazo-avatar-spin {
+@keyframes sydney-avatar-spin {
   0% {
     transform: rotate(0deg);
   }
@@ -186,26 +186,26 @@
   }
 }
 
-.rakazo-bot-avatar-ring {
-  animation: rakazo-avatar-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.sydney-bot-avatar-image-ring {
+  animation: sydney-avatar-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   opacity: 0;
   transition: opacity 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.rakazo-bot-avatar {
+.sydney-bot-avatar-image {
   transition: box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.rakazo-bot-avatar[data-working="true"] .rakazo-bot-avatar-ring {
+.sydney-bot-avatar-image[data-working="true"] .sydney-bot-avatar-image-ring {
   opacity: 1;
 }
 
 /* Hidden idle rings would otherwise keep the compositor drawing every frame. */
-.rakazo-bot-avatar[data-working="false"] .rakazo-bot-avatar-ring {
+.sydney-bot-avatar-image[data-working="false"] .sydney-bot-avatar-image-ring {
   animation-play-state: paused;
 }
 
-@keyframes rakazo-avatar-breathe {
+@keyframes sydney-avatar-breathe {
   0%,
   100% {
     transform: scale(1);
@@ -217,16 +217,16 @@
   }
 }
 
-.rakazo-bot-avatar-picture {
+.sydney-bot-avatar-image-picture {
   box-shadow: 0 2px 5px rgb(0 0 0 / 0.5);
 }
 
-.rakazo-bot-avatar-ring-working {
+.sydney-bot-avatar-image-ring-working {
   filter: drop-shadow(0 0 4px var(--status-working));
 }
 
-.rakazo-bot-avatar[data-working="true"] .rakazo-bot-avatar-picture {
-  animation: rakazo-avatar-breathe 1.6s ease-in-out infinite;
+.sydney-bot-avatar-image[data-working="true"] .sydney-bot-avatar-image-picture {
+  animation: sydney-avatar-breathe 1.6s ease-in-out infinite;
   box-shadow:
     0 0 0 2px var(--status-working),
     0 0 10px color-mix(in srgb, var(--status-working) 60%, transparent);
@@ -499,13 +499,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rakazo-bot-avatar-ring,
-  .rakazo-bot-avatar[data-working="true"] .rakazo-bot-avatar-picture {
+  .sydney-bot-avatar-image-ring,
+  .sydney-bot-avatar-image[data-working="true"] .sydney-bot-avatar-image-picture {
     animation: none;
     transition: none;
   }
 
-  .rakazo-bot-avatar {
+  .sydney-bot-avatar-image {
     transition: none;
   }
 

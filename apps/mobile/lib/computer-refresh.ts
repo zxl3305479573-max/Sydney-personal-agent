@@ -35,6 +35,7 @@ export function createComputerRefresh(options: {
   ) => Promise<string | null | { url: string | null; isCurrent: () => boolean }>;
   onStatus: (status: ComputerStatus) => void;
   onScreen: (url: string | null) => void;
+  onScreenError?: (error: unknown | null) => void;
   onReady: () => void;
   onInitialError: (error: unknown) => void;
 }) {
@@ -86,15 +87,18 @@ export function createComputerRefresh(options: {
         try {
           const result = await options.readScreen(screenAttempts);
           if (!current()) return;
-          if (typeof result === "object" && result !== null && !result.isCurrent())
-            throw new Error("Screen request context changed");
-          const url = typeof result === "object" && result !== null ? result.url : result;
-          screenLoaded = true;
-          screenStatus = screenKey(status);
-          screenReadAt = screenRenewReadAt(url, Date.now());
-          options.onScreen(url);
-        } catch {
+          if (typeof result !== "object" || result === null || result.isCurrent()) {
+            const url = typeof result === "object" && result !== null ? result.url : result;
+            screenLoaded = true;
+            screenStatus = screenKey(status);
+            screenReadAt = screenRenewReadAt(url, Date.now());
+            options.onScreen(url);
+            options.onScreenError?.(null);
+          }
+        } catch (error) {
+          if (!current()) return;
           // Keep the last URL after a failed read; a successful null clears it.
+          options.onScreenError?.(error);
         }
       }
       if (!current()) return;

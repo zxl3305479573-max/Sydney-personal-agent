@@ -1,14 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { ogPages } from "../src/og-pages.ts";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = join(root, "public/og");
 const chrome = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 
-const mark = readFileSync(join(root, "public/brand/rakazo-mark.png")).toString("base64");
+const mark = readFileSync(join(root, "public/brand/sydney-mark.png")).toString("base64");
 
 function pageHtml(kicker, title) {
   const fontSize = title.length > 72 ? 40 : 68;
@@ -33,41 +31,34 @@ function pageHtml(kicker, title) {
     </div>
     <div class="brand">
       <img width="36" height="36" src="data:image/png;base64,${mark}" alt="" />
-      Rakazo
+      Sydney
     </div>
   </div>
 </body>
 </html>`;
 }
 
-mkdirSync(outDir, { recursive: true });
-const tmp = join(outDir, ".og-render.html");
-
-const selected = new Set(process.argv.slice(2));
-const pages = ogPages().filter((page) => selected.size === 0 || selected.has(page.id));
+const tmp = join(root, "public/.og-render.html");
+const target = join(root, "public/og-image.png");
 
 try {
-  for (const page of pages) {
-    writeFileSync(tmp, pageHtml(page.kicker, page.title));
-    const target = join(outDir, `${page.id}.png`);
-    const result = spawnSync(
-      chrome,
-      [
-        "--headless=new",
-        "--disable-gpu",
-        "--hide-scrollbars",
-        "--force-device-scale-factor=1",
-        "--window-size=1200,630",
-        "--default-background-color=00000000",
-        `--screenshot=${target}`,
-        `file://${tmp}`,
-      ],
-      { stdio: "inherit" },
-    );
-    if (result.status !== 0) {
-      throw new Error(`Open Graph render failed for ${page.id} with status ${result.status ?? 1}`);
-    }
-    console.log(page.id);
+  writeFileSync(tmp, pageHtml("Sydney Personal Agent", "你的个人 AI 助手"));
+  const result = spawnSync(
+    chrome,
+    [
+      "--headless=new",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--force-device-scale-factor=1",
+      "--window-size=1200,630",
+      "--default-background-color=00000000",
+      `--screenshot=${target}`,
+      pathToFileURL(tmp).href,
+    ],
+    { stdio: "inherit" },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Open Graph render failed with status ${result.status ?? 1}`);
   }
 } finally {
   if (existsSync(tmp)) unlinkSync(tmp);

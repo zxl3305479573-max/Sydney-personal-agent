@@ -507,6 +507,7 @@ describe("thread event reduction", () => {
       isThreadSnapshotEvent(event({ type: "thread.cleared", seq: 12, runId: undefined })),
     ).toBe(true);
     expect(isThreadSnapshotEvent(event({ type: "run.started" }))).toBe(true);
+    expect(isThreadSnapshotEvent(event({ type: "run.queued" }))).toBe(true);
     expect(isThreadSnapshotEvent(event({ type: "run.completed" }))).toBe(true);
     expect(isThreadSnapshotEvent(event({ type: "computer.takeover.requested" }))).toBe(true);
     expect(isThreadSnapshotEvent(event({ type: "computer.takeover.released" }))).toBe(true);
@@ -544,6 +545,36 @@ describe("thread event reduction", () => {
     );
     expect(progressed?.run?.id).toBe("run-1");
     expect(progressed?.cursor).toBe(4);
+  });
+
+  it("queues only the matching run when a project device is offline", () => {
+    const target = threadRun("run-1");
+    const sibling = threadRun("run-2", "bot-2");
+    const initial: ThreadSnapshot = {
+      ...snapshot([
+        { ...message("progress:run-1", [{ kind: "progress", text: "Working" }]), runId: target.id },
+        message("keep", [{ kind: "text", text: "Keep me" }]),
+      ]),
+      groupId: "group-1",
+      run: target,
+      activeRuns: [target, sibling],
+    };
+
+    const next = reduceThreadSnapshot(
+      initial,
+      event({
+        type: "run.queued",
+        runId: target.id,
+        payload: { reason: "project_device_offline", trigger: "user" },
+      }),
+    );
+
+    expect(next?.run).toMatchObject({ id: target.id, status: "queued" });
+    expect(next?.activeRuns).toMatchObject([
+      { id: target.id, status: "queued" },
+      { id: sibling.id, status: "running" },
+    ]);
+    expect(next?.messages.map((item) => item.id)).toEqual(["keep"]);
   });
 
   it.each([undefined, "group-1"])(

@@ -19,6 +19,7 @@ const overlay = parse(
       command?: string[];
       ports?: unknown[];
       cap_drop?: string[];
+      environment?: Record<string, string>;
     }
   >;
 };
@@ -43,28 +44,35 @@ describe("native Linux production overlay draft", () => {
     });
   });
 
-  it("bridges host loopback through a Unix socket into web loopback", () => {
+  it("bridges host loopback through a Unix socket into the API namespace", () => {
     const host = requiredService("native-screen-host-bridge");
-    const web = requiredService("native-screen-web-loopback");
+    const api = requiredService("native-screen-api-loopback");
+    expect(overlay.services).not.toHaveProperty("native-screen-web-loopback");
     expect(host.network_mode).toBe("host");
     expect(host.command).toContain("TCP:127.0.0.1:6080");
-    expect(web.network_mode).toBe("service:web");
-    expect(web.command).toContain("TCP-LISTEN:16080,bind=127.0.0.1,reuseaddr,fork");
-    expect(web.command).toContain("UNIX-CONNECT:/run/rakazo-native/screen.sock");
-    for (const service of [host, web, requiredService("native-driver-proxy")]) {
+    expect(api.network_mode).toBe("service:api");
+    expect(api.command).toContain("TCP-LISTEN:16080,bind=127.0.0.1,reuseaddr,fork");
+    expect(api.command).toContain("UNIX-CONNECT:/run/rakazo-native/screen.sock");
+    for (const service of [host, api, requiredService("native-driver-proxy")]) {
       expect(service.ports).toBeUndefined();
       expect(service.user).toBe("996:986");
       expect(service.cap_drop).toContain("ALL");
     }
   });
 
-  it("includes the overlay and web loopback in updater reconciliation", () => {
+  it("reconciles the API screen bridge using the persistent overlay", () => {
+    const updateServicesVariable = `\${RAKAZO_UPDATE_SERVICES:-}`;
+    const updateServices = requiredService("updater").environment?.RAKAZO_UPDATE_SERVICES;
+    expect(updateServices).toBe(`native-screen-api-loopback,${updateServicesVariable}`);
     const config = resolveUpdaterConfig(
       {
         RAKAZO_DEPLOY_DIR: "/srv/rakazo",
         RAKAZO_UPDATER_TOKEN: "fake-review-updater-token-000000000000",
         RAKAZO_COMPOSE_OVERLAY_FILE: "/etc/rakazo/compose/production.overlay.yml",
-        RAKAZO_UPDATE_SERVICES: "native-screen-web-loopback",
+        RAKAZO_UPDATE_SERVICES: updateServices?.replace(
+          updateServicesVariable,
+          "native-screen-api-loopback,sidecar",
+        ),
       },
       {
         inspect: () =>
@@ -80,14 +88,23 @@ describe("native Linux production overlay draft", () => {
       composeFiles: config.composeFiles,
       services: config.updateServices,
     });
+    expect(config.updateServices).toEqual([
+      "api",
+      "worker",
+      "native-screen-api-loopback",
+      "sidecar",
+    ]);
     expect(invocation.args).toEqual(
       expect.arrayContaining([
         "--file",
         "/srv/rakazo/infra/compose/docker-compose.prod.yml",
         "/etc/rakazo/compose/production.overlay.yml",
-        "web",
-        "native-screen-web-loopback",
+        "api",
+        "worker",
+        "native-screen-api-loopback",
       ]),
     );
+    expect(invocation.args).not.toContain("web");
+    expect(invocation.args).not.toContain("native-screen-web-loopback");
   });
 });

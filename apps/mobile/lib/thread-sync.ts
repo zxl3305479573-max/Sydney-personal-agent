@@ -14,6 +14,7 @@ import {
   writeSavedThread,
 } from "./saved-chats";
 import { currentSessionGeneration } from "./session";
+import { retainAcceptedRuns } from "./thread-session-cache";
 import type { ThreadHistory } from "./thread-history";
 import type { ThreadListScroll } from "./thread-list-scroll";
 import { useThreadLiveSubscription } from "./thread-live";
@@ -138,8 +139,9 @@ export function useThreadSync({
     // events; an older snapshot must not overwrite those while a newer refresh
     // is already in flight. The subscription starts from the snapshot returned
     // here, so a discarded fetch must not supply its cursor.
+    const reconciled = retainAcceptedRuns(snapRef.current, next);
     const result = mobileThreadRefreshResult({
-      fetched: next,
+      fetched: reconciled,
       onScreen: snapRef.current,
       requestGeneration: generation,
       currentGeneration: refreshGeneration.current,
@@ -153,9 +155,13 @@ export function useThreadSync({
     if (result.commit) {
       snapshotOrigin.current = scope;
       pendingSave.current = null;
-      writeSavedThread(scope, savedChatTarget(next), next);
+      writeSavedThread(scope, savedChatTarget(reconciled), reconciled);
       commitSnap(
-        mergeMobileSnapshot(snapRef.current, next, expandedHistoryThread.current === next.threadId),
+        mergeMobileSnapshot(
+          snapRef.current,
+          reconciled,
+          expandedHistoryThread.current === reconciled.threadId,
+        ),
       );
       setShowingSaved(false);
     }

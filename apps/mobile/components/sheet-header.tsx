@@ -64,6 +64,7 @@ export function cancelHeaderOptions(label: string, onPress: () => void) {
           unstable_headerLeftItems: () => [
             {
               type: "button" as const,
+              hidesSharedBackground: true,
               label,
               icon: { type: "sfSymbol" as const, name: "xmark" as const },
               variant: "plain" as const,
@@ -91,6 +92,7 @@ export function trailingHeaderOptions(label: string, onPress: () => void, disabl
           unstable_headerRightItems: () => [
             {
               type: "button" as const,
+              hidesSharedBackground: true,
               label,
               icon: { type: "sfSymbol" as const, name: "checkmark" as const },
               variant: "done" as const,

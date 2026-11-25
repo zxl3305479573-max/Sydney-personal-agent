@@ -4,13 +4,14 @@ import type { ChatSplit } from "../components/chat-route-header";
 import { chatRouteHeader } from "../components/chat-route-header";
 
 const push = vi.hoisted(() => vi.fn());
+const back = vi.hoisted(() => vi.fn());
 const setInboxHidden = vi.hoisted(() => vi.fn());
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
   Pressable: () => null,
   View: () => null,
 }));
-vi.mock("expo-router", () => ({ router: { push } }));
+vi.mock("expo-router", () => ({ router: { push, back } }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({ foreground: "#000" }) }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => true }));
 vi.mock("./split-view", () => ({ setInboxHidden }));
@@ -28,6 +29,7 @@ vi.mock("../components/sheet-header", () => ({
 
 beforeEach(() => {
   push.mockClear();
+  back.mockClear();
   setInboxHidden.mockClear();
 });
 const t = (text: string) => text;
@@ -47,7 +49,8 @@ it("declares a bot chat's title and its … menu when the screen is created", ()
   const [item] = rightItems(options);
   expect(item).toMatchObject({ type: "menu", icon: { type: "sfSymbol", name: "ellipsis" } });
   expect(options.headerRight).toBeTypeOf("function");
-  expect(options.headerBackVisible).toBe(true);
+  expect(options.headerBackVisible).toBe(false);
+  expect(leftItems(options)[0]).toMatchObject({ label: "Back", hidesSharedBackground: true });
 });
 
 it("declares a group chat's settings button, which opens the group's settings", () => {
@@ -84,5 +87,10 @@ it("folded like a book beside the chat list, declares neither a back nor a sideb
   expect(options.headerBackVisible).toBe(false);
   expect(options.headerLeft).toBeUndefined();
   expect(leftItems(options)).toEqual([]);
-  expect(header({ botId: "bot-1" }).headerBackVisible).toBe(true);
+  const phone = header({ botId: "bot-1" });
+  expect(phone.headerBackVisible).toBe(false);
+  const [item] = leftItems(phone);
+  expect(item).toMatchObject({ label: "Back", hidesSharedBackground: true });
+  (item as { onPress: () => void }).onPress();
+  expect(back).toHaveBeenCalledOnce();
 });

@@ -143,6 +143,7 @@ export default function NewGroup() {
                 unstable_headerLeftItems: () => [
                   {
                     type: "button" as const,
+                    hidesSharedBackground: true,
                     label: step === "bots" ? t("Close") : t("Back"),
                     icon: {
                       type: "sfSymbol" as const,
@@ -157,9 +158,10 @@ export default function NewGroup() {
                     ? [
                         {
                           type: "button" as const,
+                          hidesSharedBackground: true,
                           label: t("Next"),
                           icon: { type: "sfSymbol" as const, name: "chevron.right" },
-                          variant: "prominent" as const,
+                          variant: "plain" as const,
                           tintColor: tokens.primary,
                           disabled: !valid,
                           onPress: () => setStep("name"),
@@ -214,6 +216,7 @@ export default function NewGroup() {
                 fallbackStyle={{ backgroundColor: native.fill }}
               >
                 <TextInput
+                  accessibilityLabel={t("Group name")}
                   autoFocus
                   value={name}
                   onChangeText={setName}
@@ -247,7 +250,9 @@ export default function NewGroup() {
                 style={{ marginTop: 24, borderRadius: 28 }}
               />
               {error ? (
-                <Text style={{ color: tokens.destructive, marginTop: 12 }}>{error}</Text>
+                <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+                  {error}
+                </Text>
               ) : null}
             </View>
           )}

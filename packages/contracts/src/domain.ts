@@ -402,7 +402,7 @@ export const CreateBotInput = z.object({
 });
 export type CreateBotInput = z.infer<typeof CreateBotInput>;
 
-export const UpdateBotInput = z
+const BotUpdateFields = z
   .object({
     botId: Id,
     name: z.string().trim().min(1).max(BOT_NAME_MAX_LENGTH).optional(),
@@ -430,8 +430,12 @@ export const UpdateBotInput = z
     disabledBuiltinTools: DisabledBuiltinToolsSchema.optional(),
     /** Write only while these settings still hold, as an undo does. */
     expectedSettings: BotSettingsValuesSchema.optional(),
-  })
-  .superRefine((value, ctx) => {
+  });
+
+function checkBotModelPair(
+  value: { modelProvider?: string | null; modelId?: string | null },
+  ctx: z.RefinementCtx,
+) {
     const providerProvided = value.modelProvider !== undefined;
     const modelProvided = value.modelId !== undefined;
     if (!providerProvided && !modelProvided) return;
@@ -454,8 +458,29 @@ export const UpdateBotInput = z
         path: ["modelId"],
       });
     }
-  });
+}
+
+export const UpdateBotInput = BotUpdateFields.superRefine(checkBotModelPair);
 export type UpdateBotInput = z.infer<typeof UpdateBotInput>;
+
+export const UpdateProjectBotInput = BotUpdateFields.pick({
+  botId: true,
+  name: true,
+  description: true,
+  instructions: true,
+  expectedInstructions: true,
+  notifyOnFinish: true,
+  pinned: true,
+  voiceId: true,
+  autoSpeak: true,
+  color: true,
+  avatarSet: true,
+  modelProvider: true,
+  modelId: true,
+  thinkingLevel: true,
+})
+  .strict()
+  .superRefine(checkBotModelPair);
 
 /**
  * A routine's model is optional, but provider and id only mean something together,
@@ -914,8 +939,6 @@ export const PLUGIN_SUBMISSIONS_PATH = "/api/v1/plugin-submissions";
 export const INTEGRATION_CLAIMS_PATH = "/api/v1/integration-claims";
 /** Opened from the email that proves a claimant reads mail at the app's domain. */
 export const INTEGRATION_CLAIM_CONFIRM_PATH = "/api/v1/integration-claims/confirm";
-export const SUBMIT_PLUGIN_URL = "https://rakazo.com/plugins/submit/";
-export const integrationPageUrl = (slug: string) => `https://rakazo.com/integrations/${slug}/`;
 
 /** People type a bare domain like `acme.com`, so a URL without a scheme gets `https://`. */
 const HttpsUrlSchema = z
@@ -944,7 +967,7 @@ export type PluginSubmissionInput = z.infer<typeof PluginSubmissionInputSchema>;
 
 /** An app's owner claiming its integration page so it links to their site. */
 export const IntegrationClaimInputSchema = z.object({
-  /** The page's URL slug, as in `integrationPageUrl`. */
+  /** The integration's page slug. */
   claim: z
     .string()
     .max(100)
@@ -1864,6 +1887,7 @@ export const MeSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   spaceId: Id,
+  image: z.string().nullable().optional(),
   /** Deprecated: app accounts never have server administrator privileges. Always false. */
   isDeploymentOwner: z.boolean(),
   /** Listed in RAKAZO_ADMIN_EMAILS with a verified email: reviews plugins, adds stdio MCP servers, grants access. */

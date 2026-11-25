@@ -43,7 +43,7 @@ describe("BotAvatar", () => {
       const html = renderToString(<BotAvatar color="data:image/png;base64,abc" status={status} />);
       expect(html).toContain('data-activity="waiting"');
       expect(html).toContain('data-working="false"');
-      expect(html).not.toContain("rakazo-bot-avatar-ring-working");
+      expect(html).not.toContain("sydney-bot-avatar-image-ring-working");
     },
   );
 
@@ -93,7 +93,7 @@ describe("BotAvatar", () => {
 
   it("clips uploaded avatars to a circle without adding an opaque background", () => {
     const html = renderToString(<BotAvatar color="data:image/png;base64,abc" size={32} />);
-    const picture = html.match(/<div class="rakazo-bot-avatar-picture[^"]*"/)?.[0];
+    const picture = html.match(/<div class="sydney-bot-avatar-image-picture[^"]*"/)?.[0];
     expect(picture).toContain("overflow-hidden");
     expect(picture).toContain("rounded-full");
     expect(picture).toContain("bg-transparent");
@@ -105,13 +105,13 @@ describe("BotAvatar", () => {
     const html = renderToString(
       <BotAvatar color="data:image/png;base64,abc" identity="maya" size={32} status="running" />,
     );
-    expect(html).toContain('class="rakazo-bot-avatar relative shrink-0 select-none"');
-    expect(html).toContain("rakazo-bot-avatar-picture");
-    expect(html).toContain("rakazo-bot-avatar-ring-working");
+    expect(html).toContain('class="sydney-bot-avatar-image relative shrink-0 select-none"');
+    expect(html).toContain("sydney-bot-avatar-image-picture");
+    expect(html).toContain("sydney-bot-avatar-image-ring-working");
     expect(html).toContain("stroke-status-working");
     expect(html).toContain('data-working="true"');
-    expect(html.indexOf("rakazo-bot-avatar-picture")).toBeLessThan(
-      html.indexOf("rakazo-bot-avatar-ring"),
+    expect(html.indexOf("sydney-bot-avatar-image-picture")).toBeLessThan(
+      html.indexOf("sydney-bot-avatar-image-ring"),
     );
   });
 
@@ -119,9 +119,9 @@ describe("BotAvatar", () => {
     const html = renderToString(
       <BotAvatar color="data:image/png;base64,abc" identity="maya" size={32} status="idle" />,
     );
-    expect(html).toContain("rakazo-bot-avatar-picture");
+    expect(html).toContain("sydney-bot-avatar-image-picture");
     expect(html).toContain('data-working="false"');
-    expect(html).not.toContain("rakazo-bot-avatar-ring");
+    expect(html).not.toContain("sydney-bot-avatar-image-ring");
   });
 
   it("does not treat arbitrary http(s) color values as remote images", () => {

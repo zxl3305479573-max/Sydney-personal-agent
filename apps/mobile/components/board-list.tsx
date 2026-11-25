@@ -2,12 +2,13 @@ import { MenuView } from "@expo/ui/community/menu";
 import type { Ticket, TicketStatus } from "@rakazo/contracts";
 import { TICKET_STATUSES } from "@rakazo/contracts";
 import { useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { BoardSection } from "../lib/board";
 import { ticketStatusLabel } from "../lib/board";
 import { useI18n } from "../lib/i18n";
 import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { useSideInsets } from "../lib/side-insets";
+import { NativeActionButton } from "./native-action-button";
 import { SettingsGroup, SettingsRow, useStackedSettings } from "./settings-group";
 
 export type BoardListProps = {
@@ -41,7 +42,18 @@ export function BoardList({ sections, error, onMove, onRefresh }: BoardListProps
         />
       }
     >
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={{ gap: 8 }}>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {error}
+          </Text>
+          <NativeActionButton
+            label={t("Retry")}
+            prominence="secondary"
+            onPress={() => void onRefresh()}
+          />
+        </View>
+      ) : null}
       {sections.map((section) => (
         <SettingsGroup key={section.status} label={ticketStatusLabel(section.status, t)}>
           {section.tickets.map((ticket) => (
@@ -66,7 +78,7 @@ export function BoardList({ sections, error, onMove, onRefresh }: BoardListProps
 function createStyles() {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.groupedPage },
-    content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
+    content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 24 },
     compactContent: { paddingHorizontal: 8 },
     error: { color: native.secondaryLabel, fontSize: 15, paddingHorizontal: 16, paddingBottom: 12 },
   });

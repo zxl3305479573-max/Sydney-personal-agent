@@ -206,7 +206,7 @@ export function CreditChoice({
         <AccountMenu disabled={pending} signingOut={signingOut} onLogOut={() => void logOut()} />
       )}
       <h1 className="text-heading1 font-medium">
-        <Trans>Choose how to use Rakazo</Trans>
+        <Trans>Choose how to use Sydney</Trans>
       </h1>
       <div className="grid gap-4 min-[480px]:grid-cols-2">
         <Card>
@@ -285,7 +285,7 @@ export function CreditChoice({
         <Card>
           <CardHeader>
             <h2 className="text-lg font-medium">
-              <Trans>Rakazo credits</Trans>
+              <Trans>Sydney credits</Trans>
             </h2>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-4">
@@ -306,7 +306,7 @@ export function CreditChoice({
             <Button
               className="w-full"
               disabled={pending || !status.canManage || !status.creditPurchasesEnabled}
-              aria-label={t`Subscribe to Rakazo credits`}
+              aria-label={t`Subscribe to Sydney credits`}
               onClick={() => void choose(false)}
             >
               <Trans>Subscribe</Trans>
@@ -638,7 +638,7 @@ export function ModelCreditsSettings({
             })
           }
         >
-          <Trans>Use Rakazo credits</Trans>
+          <Trans>Use Sydney credits</Trans>
         </Button>
       ) : null}
       {status.canManage && status.funding !== "byok" && (!recurring || status.cancelAtPeriodEnd) ? (

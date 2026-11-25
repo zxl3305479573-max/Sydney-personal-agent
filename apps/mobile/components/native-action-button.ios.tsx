@@ -22,9 +22,8 @@ import {
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { ActionProminence, NativeActionButtonProps } from "../lib/native-controls";
-import { actionFills, actionProminence, iosAtLeast } from "../lib/native-controls";
+import { actionFills, actionProminence } from "../lib/native-controls";
 
-/** SwiftUI button. Glass styles need iOS 26; older iOS uses the bordered system styles. */
 export function NativeActionButton({
   label,
   accessibilityLabel,
@@ -81,8 +80,7 @@ export function NativeActionButton({
               ),
             ]
           : []),
-        // Rectangular buttons and the destructive text action (Disconnect) keep a 44pt target.
-        ...(rectangular || prominence === "destructive" ? [frame({ minHeight: 44 })] : []),
+        frame({ minHeight: 44 }),
         ...(rectangular
           ? [
               background(
@@ -162,6 +160,7 @@ export function NativeActionButton({
           <ProgressView
             modifiers={[
               progressViewStyle("circular"),
+              ...(variant ? [frame({ minHeight: 44 })] : []),
               ...(stretches ? [frame({ maxWidth: Infinity })] : []),
             ]}
           />
@@ -197,11 +196,8 @@ export function NativeActionButton({
 }
 
 function swiftStyle(prominence: ActionProminence) {
-  const glass = iosAtLeast(26);
   if (prominence === "primary" || prominence === "destructive") {
-    return glass ? "glassProminent" : "borderedProminent";
+    return "borderedProminent";
   }
-  if (prominence === "quiet") return "plain";
-  if (prominence === "plain") return glass ? "glass" : "plain";
-  return glass ? "glass" : "bordered";
+  return "plain";
 }

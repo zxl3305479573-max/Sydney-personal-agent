@@ -72,6 +72,11 @@ export function isDesktopMenuCommand(value: unknown): value is DesktopMenuComman
 }
 
 export interface RakazoDesktop {
+  projectDirectory?: {
+    choose: (input: import("./project-directory.js").ProjectDirectoryInput) => Promise<
+      import("./project-directory.js").ProjectDirectoryBinding | null
+    >;
+  };
   /** Optional for compatibility with older desktop releases. */
   badge?: {
     set: (count: number) => Promise<boolean>;
@@ -110,6 +115,18 @@ export interface RakazoDesktop {
   };
   /** Absent on older desktop releases, which have no Settings… menu item. */
   settings?: {
+    migrateLegacyAvatars?: (userId: string) => Promise<boolean>;
+    onLegacyMigrationReady?: (listener: () => void) => () => void;
+    readLegacyDraft?: (
+      key: string,
+      space: string,
+    ) => Promise<{
+      owner: string;
+      draft: string;
+      bindings: string | null;
+      backgroundId?: string | null;
+    } | null>;
+    serverOrigin?: () => Promise<string | null>;
     /** The app menu's Settings… item; the OS claims Cmd+, before any page keydown can. */
     onOpen: (listener: () => void) => () => void;
   };
@@ -165,6 +182,7 @@ export interface DesktopSetup {
 
 export interface DesktopSetupState {
   defaultLocalUrl: string;
+  managedLocalAvailable: boolean;
   /** Hosted Rakazo origin, saved as an `existing` server when chosen. */
   cloudUrl: string;
   saved: DesktopSetup | null;

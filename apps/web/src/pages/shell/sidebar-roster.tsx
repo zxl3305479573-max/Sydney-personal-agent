@@ -471,7 +471,7 @@ export function SidebarRoster({
                           : compact
                             ? "w-full min-h-11 gap-2 rounded-xl px-2.5 py-1.5"
                             : "w-full gap-3 rounded-xl px-2.5 py-[10px]"
-                    } text-start ${
+                    } text-start focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${
                       item.kind === "bot" ? "cursor-grab active:cursor-grabbing" : ""
                     } ${
                       selected || rosterDropKey === rowDropKey
@@ -532,8 +532,9 @@ export function SidebarRoster({
                             <span
                               dir="auto"
                               data-roster-bot-name={item.kind === "bot" ? "" : undefined}
-                              className={`rk-script-type max-w-full shrink-0 truncate text-body2 text-foreground ${
-                                item.chat.unread ? "font-semibold" : "font-medium"
+                              title={item.chat.name}
+                              className={`rk-script-type min-w-0 truncate text-body2 text-foreground ${
+                                selected || item.chat.unread ? "font-semibold" : "font-medium"
                               }`}
                             >
                               {item.chat.name}
@@ -548,7 +549,7 @@ export function SidebarRoster({
                             {!compact ? (
                               <span
                                 data-roster-time
-                                className="text-label text-faint-foreground tabular-nums"
+                                className="shrink-0 whitespace-nowrap text-label text-muted-foreground tabular-nums"
                               >
                                 {formatRosterTime(item.chat.updatedAt)}
                               </span>

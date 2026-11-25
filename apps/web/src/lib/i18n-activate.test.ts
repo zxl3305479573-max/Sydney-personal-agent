@@ -20,9 +20,9 @@ describe("web locale activation", () => {
   it("rebrands Chinese messages and uses English fallbacks for missing entries", async () => {
     setCatalogLoadersForTests({
       en: async () => ({
-        messages: { signIn: "Sign in to Rakazo", welcome: "Welcome to Rakazo", group: "Group" },
+        messages: { signIn: "Sign in to Sydney", welcome: "Welcome to Sydney", group: "Group" },
       }),
-      "zh-CN": async () => ({ messages: { signIn: "登录 Rakazo" } }),
+      "zh-CN": async () => ({ messages: { signIn: "登录 Sydney" } }),
     });
     await activateUiLocale("zh-CN");
     expect(i18n._({ id: "signIn" })).toBe("登录 Sydney");

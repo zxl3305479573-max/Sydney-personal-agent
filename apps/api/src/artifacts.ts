@@ -175,7 +175,7 @@ async function findReplayedArtifact(
 ) {
   if (!input.clientNonce) return null;
   const row = await db.artifact.findFirst({
-    where: { spaceId: actor.spaceId, userId: actor.userId, clientNonce: input.clientNonce },
+    where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: null, clientNonce: input.clientNonce },
   });
   if (!row) return null;
   // A group upload is stored under whichever member bot was first, which can change between retries.
@@ -216,6 +216,7 @@ export async function getOwnedArtifact(
       groupId: null,
       spaceId: actor.spaceId,
       userId: actor.userId,
+      projectWorkspaceId: null,
     },
   });
   if (!row) throw new IsolationError();
@@ -236,6 +237,7 @@ export async function getSpaceArtifact(
       groupId: input.groupId,
       spaceId: actor.spaceId,
       userId: actor.userId,
+      projectWorkspaceId: null,
     },
   });
   if (!row) throw new IsolationError();
@@ -256,10 +258,29 @@ export async function getSpaceArtifactById(
       id: input.artifactId,
       spaceId: actor.spaceId,
       userId: actor.userId,
+      projectWorkspaceId: null,
     },
   });
   if (!row) throw new IsolationError();
   return readArtifact(deps.artifacts, actor, row, row.botId ?? row.groupId ?? row.id);
+}
+
+export async function getProjectThreadArtifact(
+  deps: { prisma: PrismaClient; artifacts: ArtifactStore },
+  actor: Actor,
+  input: { artifactId: string; projectId: string; threadId: string },
+) {
+  const scope = {
+    spaceId: actor.spaceId,
+    userId: actor.userId,
+    projectWorkspaceId: input.projectId,
+  };
+  const row = await deps.prisma.artifact.findFirst({ where: { id: input.artifactId, ...scope } });
+  if (!row?.runId || !await deps.prisma.run.findFirst({
+    where: { id: row.runId, threadId: input.threadId, ...scope },
+    select: { id: true },
+  })) throw new IsolationError();
+  return readArtifact(deps.artifacts, actor, row, row.botId ?? row.id, input.projectId);
 }
 
 async function readArtifact(
@@ -279,10 +300,14 @@ async function readArtifact(
     createdAt: Date;
   },
   contextBotId: string,
+  projectWorkspaceId?: string,
 ) {
   const bytes = await artifacts.get(
     row.storageKey,
-    createAdapterContext(actor, contextBotId, `artifact-get:${row.id}`),
+    {
+      ...createAdapterContext(actor, contextBotId, `artifact-get:${row.id}`),
+      ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
+    },
   );
   return {
     id: row.id,
@@ -393,7 +418,8 @@ export async function listSpaceArtifacts(
   const rows = await deps.prisma.$queryRaw<ListSpaceRow[]>(Prisma.sql`
     WITH scoped AS (
       SELECT * FROM "artifacts"
-      WHERE "spaceId" = ${actor.spaceId} AND "userId" = ${actor.userId} ${botFilter}
+      WHERE "spaceId" = ${actor.spaceId} AND "userId" = ${actor.userId}
+        AND "projectWorkspaceId" IS NULL ${botFilter}
         AND "createdAt" <= ${asOf}
     ),
     latest AS (

@@ -263,7 +263,7 @@ class RakazoNotificationService : Service() {
   private fun post(run: RunRecord, copy: NotificationCopy) {
     if (!run.notificationsEnabled || isOpenThread(run)) return
     val notification = builder(copy.channel)
-      .setSmallIcon(R.drawable.ic_rakazo_notification)
+      .setSmallIcon(R.drawable.ic_sydney_notification)
       .setContentTitle(copy.title)
       .setContentText(copy.body)
       .setStyle(Notification.BigTextStyle().bigText(copy.body))
@@ -319,7 +319,7 @@ class RakazoNotificationService : Service() {
 
   private fun liveStatusIcon(run: RunRecord, avatarStyle: String): Icon {
     if (avatarStyle != "organic") {
-      return Icon.createWithResource(this, R.drawable.ic_rakazo_notification)
+      return Icon.createWithResource(this, R.drawable.ic_sydney_notification)
     }
     val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)

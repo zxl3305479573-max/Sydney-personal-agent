@@ -3,7 +3,7 @@ export const JA_MESSAGES: Record<string, string> = {
   "Check for Updates…": "アップデートを確認…",
   "Computer Access…": "コンピュータへのアクセス…",
   "Revoke Local Computer Access": "ローカルコンピュータへのアクセスを取り消す",
-  "Change Rakazo Server…": "Rakazoサーバを変更…",
+  "Change Sydney Server…": "Sydneyサーバを変更…",
   "Stop Local Stack": "ローカルスタックを停止",
   "Hide {name}": "{name}を非表示",
   "Hide Others": "ほかを非表示",
@@ -35,12 +35,12 @@ export const JA_MESSAGES: Record<string, string> = {
   Close: "閉じる",
   "Close Window": "ウインドウを閉じる",
   "Bring All to Front": "すべてを手前に移動",
-  "Rakazo {version} is ready to install.": "Rakazo {version}をインストールする準備ができました。",
+  "Sydney {version} is ready to install.": "Sydney {version}をインストールする準備ができました。",
   Restart: "再起動",
   Later: "あとで",
   "Could not install the update.": "アップデートをインストールできませんでした。",
   "Could not check for updates.": "アップデートを確認できませんでした。",
-  "Rakazo is up to date.": "Rakazoは最新です。",
+  "Sydney is up to date.": "Sydneyは最新です。",
   "Version {version}": "バージョン{version}",
   "Automatic updates are turned off for this install.":
     "このインストールでは自動アップデートがオフになっています。",
@@ -48,12 +48,12 @@ export const JA_MESSAGES: Record<string, string> = {
     "自動アップデートはインストール済みのビルドでのみ動作します。",
   "No desktop releases are published for this build yet.":
     "このビルド向けのデスクトップ版はまだ公開されていません。",
-  "Move Rakazo to Applications to install updates.":
-    "アップデートをインストールするには、Rakazoを「アプリケーション」に移動してください。",
+  "Move Sydney to Applications to install updates.":
+    "アップデートをインストールするには、Sydneyを「アプリケーション」に移動してください。",
   "Free up disk space to install updates.":
     "アップデートをインストールするには、ディスクの空き容量を増やしてください。",
-  "This update could not be verified. Reinstall Rakazo from a trusted download.":
-    "このアップデートを検証できませんでした。信頼できるダウンロード元からRakazoを再インストールしてください。",
+  "This update could not be verified. Reinstall Sydney from a trusted download.":
+    "このアップデートを検証できませんでした。信頼できるダウンロード元からSydneyを再インストールしてください。",
   "The update could not be completed. Try again later.":
     "アップデートを完了できませんでした。しばらくしてからもう一度お試しください。",
   "Could not reach the update server.": "アップデートサーバに接続できませんでした。",
@@ -72,12 +72,12 @@ export const JA_MESSAGES: Record<string, string> = {
     "サインインはすでに進行中です。キャンセルしてからもう一度お試しください。",
   "Could not open browser sign-in. Close other sign-in attempts and retry.":
     "ブラウザでのサインインを開けませんでした。ほかのサインインを閉じてからもう一度お試しください。",
-  "Sign-in callback rejected. Return to Rakazo to retry.":
-    "サインインの応答が拒否されました。Rakazoに戻ってもう一度お試しください。",
-  "You can close this tab and return to Rakazo.": "このタブを閉じてRakazoに戻ってください。",
-  "Set up Rakazo": "Rakazoを設定",
-  "Quit Rakazo": "Rakazoを終了",
-  "Welcome to Rakazo": "Rakazoへようこそ",
+  "Sign-in callback rejected. Return to Sydney to retry.":
+    "サインインの応答が拒否されました。Sydneyに戻ってもう一度お試しください。",
+  "You can close this tab and return to Sydney.": "このタブを閉じてSydneyに戻ってください。",
+  "Set up Sydney": "Sydneyを設定",
+  "Quit Sydney": "Sydneyを終了",
+  "Welcome to Sydney": "Sydneyへようこそ",
   "Choose which server this app should use.": "このアプリで使うサーバを選んでください。",
   Instance: "インスタンス",
   "This computer": "このコンピュータ",
@@ -92,14 +92,14 @@ export const JA_MESSAGES: Record<string, string> = {
   "Check again": "もう一度確認",
   Retry: "再試行",
   "Getting ready…": "準備しています…",
-  "Downloading Rakazo…": "Rakazoをダウンロードしています…",
-  "Starting Rakazo…": "Rakazoを起動しています…",
+  "Downloading Sydney…": "Sydneyをダウンロードしています…",
+  "Starting Sydney…": "Sydneyを起動しています…",
   "Almost ready…": "まもなく完了…",
-  "Rakazo is ready.": "Rakazoの準備ができました。",
+  "Sydney is ready.": "Sydneyの準備ができました。",
   "{size} downloaded": "{size}ダウンロード済み",
   "Connecting…": "接続しています…",
   "Checking…": "確認しています…",
-  "Rakazo answered at {url}.": "Rakazoが{url}で応答しました。",
+  "Sydney answered at {url}.": "Sydneyが{url}で応答しました。",
   "Enter a server address first.": "先にサーバのアドレスを入力してください。",
   "Could not save that address.": "そのアドレスを保存できませんでした。",
   "Could not save that address. Try again.":
@@ -111,18 +111,18 @@ export const JA_MESSAGES: Record<string, string> = {
   "Could not run the connection check. Try again.":
     "接続を確認できませんでした。もう一度お試しください。",
   "Setup bridge unavailable.": "設定用のブリッジを利用できません。",
-  "Setup could not start. Quit Rakazo and try again.":
-    "設定を開始できませんでした。Rakazoを終了してからもう一度お試しください。",
+  "Setup could not start. Quit Sydney and try again.":
+    "設定を開始できませんでした。Sydneyを終了してからもう一度お試しください。",
   "Enter a server address.": "サーバのアドレスを入力してください。",
   "Enter a valid http:// or https:// address.":
     "有効なhttp://またはhttps://のアドレスを入力してください。",
   "Enter a valid server address. Public servers require HTTPS; a new local instance must use localhost.":
     "有効なサーバのアドレスを入力してください。公開サーバにはHTTPSが必要です。新しいローカルインスタンスにはlocalhostを使ってください。",
   "Invalid custom headers": "カスタムヘッダーが無効です",
-  "That address redirects elsewhere. Enter the final Rakazo server address.":
-    "そのアドレスは別の場所にリダイレクトされます。最終的なRakazoサーバのアドレスを入力してください。",
-  "That address did not respond like a Rakazo server.":
-    "そのアドレスはRakazoサーバとして応答しませんでした。",
+  "That address redirects elsewhere. Enter the final Sydney server address.":
+    "そのアドレスは別の場所にリダイレクトされます。最終的なSydneyサーバのアドレスを入力してください。",
+  "That address did not respond like a Sydney server.":
+    "そのアドレスはSydneyサーバとして応答しませんでした。",
   "The server answered with HTTP {status}.": "サーバがHTTP {status}で応答しました。",
   "Timed out reaching that address.": "そのアドレスへの接続がタイムアウトしました。",
   "Nothing is listening at that address yet.": "そのアドレスではまだ何も待ち受けていません。",
@@ -147,8 +147,8 @@ export const JA_MESSAGES: Record<string, string> = {
     "設定を保存できませんでした。以前のインスタンスを復元しました。",
   "Connected, but could not save setup for the next launch. Try Continue again.":
     "接続しましたが、次回の起動用に設定を保存できませんでした。もう一度「続ける」をクリックしてください。",
-  "The app-managed Rakazo services are not ready. Retry setup.":
-    "アプリが管理するRakazoサービスの準備ができていません。設定をやり直してください。",
+  "The app-managed Sydney services are not ready. Retry setup.":
+    "アプリが管理するSydneyサービスの準備ができていません。設定をやり直してください。",
   "Docker is not installed on this computer.":
     "このコンピュータにはDockerがインストールされていません。",
   "Docker is installed, but Docker Compose is missing. Install Docker Desktop or the docker-compose-plugin.":
@@ -173,10 +173,10 @@ export const JA_MESSAGES: Record<string, string> = {
     "Dockerが応答しなくなりました。Dockerを起動してから再試行してください。",
   "Docker Compose is missing. Install Docker Desktop or the docker-compose-plugin, then retry.":
     "Docker Composeがありません。Docker Desktopまたはdocker-compose-pluginをインストールしてから再試行してください。",
-  "Downloading Rakazo images failed. Check the output below, then retry.":
-    "Rakazoのイメージをダウンロードできませんでした。下の出力を確認してから再試行してください。",
-  "Rakazo services did not start. Check the output below, then retry.":
-    "Rakazoのサービスが起動しませんでした。下の出力を確認してから再試行してください。",
+  "Downloading Sydney images failed. Check the output below, then retry.":
+    "Sydneyのイメージをダウンロードできませんでした。下の出力を確認してから再試行してください。",
+  "Sydney services did not start. Check the output below, then retry.":
+    "Sydneyのサービスが起動しませんでした。下の出力を確認してから再試行してください。",
   "The stack started but the web app did not answer. Retry, and check the output below.":
     "スタックは起動しましたが、Webアプリが応答しませんでした。再試行して、下の出力を確認してください。",
   "Could not prepare the local stack. Retry.":
@@ -194,4 +194,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Toggle Sidebar": "サイドバーを切り替え",
   "Search…": "検索…",
   "The window closed before the app loaded.": "アプリの読み込み前にウインドウが閉じられました。",
+  "The local renderer port {port} is already in use. Close the conflicting app and retry.":
+    "ローカルレンダラーのポート {port} はすでに使用されています。競合しているアプリを閉じてから再試行してください。",
+  "The local renderer origin file could not be read. Repair or remove standalone-origins.json and retry.":
+    "ローカルレンダラーのオリジンファイルを読み込めませんでした。standalone-origins.json を修復または削除してから再試行してください。",
 };

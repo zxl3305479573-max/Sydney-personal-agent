@@ -13,11 +13,12 @@ import BotModelScreen from "../app/bot-model";
 import BotSettingsScreen from "../app/bot-settings";
 import ThreadModelScreen from "../app/thread-model";
 import { ModelPickerList } from "../components/model-picker-list";
-import { ThreadModelSheet } from "../components/thread/thread-model-sheet";
+import type { MobileModel } from "./api";
+import { chatModelDisplayName } from "./chat-model";
 import type { ModelConnectionRequest } from "./model-connection-request";
 import { modelConnectionRequest, openModelConnection } from "./model-connection-request";
 import { modelPickerRequest } from "./model-picker-selection";
-import { queryClient } from "./query";
+import { queryClient, rpcQuery } from "./query";
 
 const mocks = vi.hoisted(() => ({
   scrollToLocation: vi.fn(),
@@ -78,7 +79,7 @@ const APPROVAL_DEFAULT = { provider: "openrouter", modelId: "vendor/model-1" };
 const CREDENTIAL_ID = "credential-fixture";
 const WORK_CREDENTIAL_ID = "credential-work";
 
-const catalog = Array.from({ length: 11 }, (_, index) => ({
+const catalog: MobileModel[] = Array.from({ length: 11 }, (_, index) => ({
   provider: "openrouter",
   providerName: "OpenRouter",
   id: `vendor/model-${index + 1}`,
@@ -96,6 +97,7 @@ vi.mock("react-native-safe-area-context", () => ({
 vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => mocks.headerInset }));
 vi.mock("expo-clipboard", () => ({ setStringAsync: vi.fn() }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: vi.fn(async () => null) }));
 vi.mock("./message-action-sheet", () => ({ presentMessageActionSheet: vi.fn() }));
 vi.mock("./live-notifications", () => ({ afterChatNotifyChange: vi.fn(async () => undefined) }));
 
@@ -107,6 +109,7 @@ vi.mock("./api", () => ({
   loadSessionToken: async () => "token",
   captureApiRequestContext: async () => ({ headers: {} }),
   selectedSpaceId: () => "space-fixture",
+  spaceSelectionSeq: () => 1,
   rpc: async (procedure: string, input?: unknown, options?: { signal?: AbortSignal }) => {
     const cloudflare = mocks.gateway
       ? { provider: "cloudflare-ai-gateway", providerName: "Cloudflare AI Gateway" }
@@ -262,7 +265,7 @@ vi.mock("expo-router", () => ({
     dismissTo: mocks.dismissTo,
     setParams: mocks.setParams,
   }),
-  useNavigation: () => ({ setOptions: mocks.setOptions }),
+  useNavigation: () => ({ setOptions: mocks.setOptions, isFocused: () => mocks.focused }),
   useLocalSearchParams: () => mocks.params,
   useFocusEffect: (effect: () => (() => void) | undefined) =>
     useEffect(() => (mocks.focused ? effect() : undefined), [effect, mocks.focused]),
@@ -301,7 +304,15 @@ vi.mock("react-native", () => {
     Linking: { openURL: vi.fn() },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     ScrollView: view,
-    Modal: ({ children, visible, onDismiss }: { children?: ReactNode; visible: boolean; onDismiss: () => void }) => {
+    Modal: ({
+      children,
+      visible,
+      onDismiss,
+    }: {
+      children?: ReactNode;
+      visible: boolean;
+      onDismiss: () => void;
+    }) => {
       useEffect(() => {
         if (!visible) onDismiss();
       }, [visible, onDismiss]);
@@ -655,10 +666,36 @@ describe("chat settings model row", () => {
 });
 
 describe("thread model picker", () => {
-  it("saves the selected model for the bot and returns", async () => {
+  const defaultModel = {
+    defaultProvider: "openrouter",
+    defaultModel: "vendor/model-1",
+    needsModel: false,
+  };
+
+  it("names the configured default before the new bot's metadata arrives", () => {
+    expect(chatModelDisplayName(defaultModel, catalog)).toBe("Model 1");
+    expect(chatModelDisplayName(defaultModel, [])).toBe("vendor/model-1");
+    expect(chatModelDisplayName({ ...defaultModel, needsModel: true }, catalog)).toBeUndefined();
+    expect(
+      chatModelDisplayName(defaultModel, catalog, {
+        modelProvider: "openrouter",
+        modelId: "vendor/model-3",
+      }),
+    ).toBe("Model 3");
+  });
+
+  it("checks the inherited default, saves the new model and publishes it before returning", async () => {
     mocks.params = { botId: "bot-fixture" };
-    mocks.update.mockResolvedValue({});
+    const saved = { id: "bot-fixture", modelProvider: "openrouter", modelId: "vendor/model-3" };
+    mocks.update.mockResolvedValue(saved);
+    const botQuery = rpcQuery("bots/get", { botId: "bot-fixture" });
+    mocks.back.mockImplementationOnce(() => {
+      expect(queryClient.getQueryData(botQuery.queryKey)).toEqual(saved);
+    });
     await act(async () => root.render(<ThreadModelScreen />));
+    expect(container.querySelector('li button[aria-selected="true"]')?.textContent).toBe(
+      "Space defaultModel 1",
+    );
     const row = [...container.querySelectorAll<HTMLButtonElement>("li button")].find((button) =>
       button.textContent?.includes("Model 3"),
     );
@@ -684,13 +721,19 @@ describe("thread model picker", () => {
     await act(async () => row!.click());
     expect(mocks.alert).toHaveBeenCalled();
     expect(mocks.back).not.toHaveBeenCalled();
+    expect(container.querySelector('li button[aria-selected="true"]')?.textContent).toBe(
+      "Space defaultModel 1",
+    );
+    expect(row?.disabled).toBe(false);
   });
 
-  it("restores the space default when selected", async () => {
+  it("marks the override and restores inheritance when selecting the default", async () => {
     mocks.params = { botId: "bot-fixture" };
     mocks.botModel = { modelProvider: "openrouter", modelId: "vendor/model-3" };
-    mocks.update.mockResolvedValue({});
+    const saved = { id: "bot-fixture", modelProvider: null, modelId: null };
+    mocks.update.mockResolvedValue(saved);
     await act(async () => root.render(<ThreadModelScreen />));
+    expect(container.querySelector('li button[aria-selected="true"]')?.textContent).toBe("Model 3");
     const row = [...container.querySelectorAll<HTMLButtonElement>("li button")].find((button) =>
       button.textContent?.includes("Space default"),
     );
@@ -702,20 +745,40 @@ describe("thread model picker", () => {
       modelId: null,
       thinkingLevel: null,
     });
+    const bot = queryClient.getQueryData(rpcQuery("bots/get", { botId: "bot-fixture" }).queryKey);
+    expect(bot).toEqual(saved);
+    expect(chatModelDisplayName(defaultModel, catalog, bot)).toBe("Model 1");
   });
 
-  it("opens model settings to add a connection", async () => {
+  it("blocks another selection while saving and stays on the new screen after leaving", async () => {
+    mocks.params = { botId: "bot-fixture" };
+    let resolveSave!: (value: unknown) => void;
+    mocks.update.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    await act(async () => root.render(<ThreadModelScreen />));
+    const rows = [...container.querySelectorAll<HTMLButtonElement>("li button")];
+    const model = rows.find((button) => button.textContent === "Model 3");
+    await act(async () => model!.click());
+    expect(rows.every((row) => row.disabled)).toBe(true);
+    act(() => rows[0]!.click());
+    expect(mocks.update).toHaveBeenCalledOnce();
+    mocks.focused = false;
+    await act(async () => resolveSave({ modelProvider: "openrouter", modelId: "vendor/model-3" }));
+    expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("keeps model management out of the conversation picker", async () => {
     mocks.params = { botId: "bot-fixture" };
     await act(async () => root.render(<ThreadModelScreen />));
     const headerOptions = mocks.setOptions.mock.calls
       .map(([options]) => options)
       .find((options) => options.headerRight);
-    expect(headerOptions).toBeDefined();
-    act(() => root.render(headerOptions.headerRight()));
-    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Add model"]');
-    expect(button).not.toBeNull();
-    act(() => button!.click());
-    expect(mocks.push).toHaveBeenCalledWith("/models");
+    expect(headerOptions).toBeUndefined();
+    expect(container.querySelector('button[aria-label="Add model"]')).toBeNull();
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 });
 
@@ -1771,31 +1834,6 @@ describe("several connections for one provider", () => {
     });
     expect(request.onConnected).toBeUndefined();
     expect(roleSaves()).toEqual([]);
-  });
-});
-
-describe("chat model sheet", () => {
-  it("lists connected models, saves a selection and offers the add action", async () => {
-    const onClose = vi.fn();
-    const onChanged = vi.fn();
-    const onAdd = vi.fn();
-    await act(async () =>
-      root.render(
-        <ThreadModelSheet botId="bot-fixture" onClose={onClose} onChanged={onChanged} onAdd={onAdd} />,
-      ),
-    );
-    expect(container.textContent).toContain("Space default");
-    const modelButton = [...container.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Model 2"),
-    )!;
-    await act(async () => modelButton.click());
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({ botId: "bot-fixture", modelId: "vendor/model-2" }),
-    );
-    expect(onChanged).toHaveBeenCalledWith("vendor/model-2");
-    expect(onClose).toHaveBeenCalled();
-    await act(async () => buttonWithText("＋ Add model")!.click());
-    expect(onAdd).toHaveBeenCalledOnce();
   });
 });
 

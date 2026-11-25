@@ -268,7 +268,7 @@ describe("reviewing submissions", () => {
       expect.objectContaining({
         name: "acme-tickets",
         displayName: "Acme Tickets",
-        registry: "Rakazo",
+        registry: "Sydney",
         source: `https://github.com/acme/plugins@${SHA}#tickets`,
         installedSource: "https://github.com/acme/plugins#tickets",
         hasConnector: false,
@@ -396,10 +396,8 @@ describe("integration page claims", () => {
     expect(await listPluginSubmissions(prisma, "pending")).toEqual([]);
 
     const opened = await open(confirmLink(confirm!));
-    expect(opened.status).toBe(303);
-    expect(opened.headers.get("location")).toBe(
-      "https://rakazo.com/integrations/acme-tickets/claim/?confirmed",
-    );
+    expect(opened.status).toBe(200);
+    expect(await opened.text()).toContain("Your integration claim is pending review.");
     expect(rows[0]).toMatchObject({ status: "pending", confirmToken: null });
     await vi.waitFor(() => expect(email.sent).toHaveLength(2));
     expect(email.sent[1]).toMatchObject({
@@ -413,16 +411,15 @@ describe("integration page claims", () => {
     expect((await open(confirmLink(confirm!))).status).toBe(404);
   });
 
-  it("sends an expired link back to the claim form", async () => {
+  it("reports an expired link without redirecting", async () => {
     const { rows, prisma } = fakePrisma();
     const { submit, open, email } = routes(prisma);
     await submit(claim);
     await vi.waitFor(() => expect(email.sent).toHaveLength(1));
     rows[0]!.confirmExpiresAt = new Date(Date.now() - 1);
     const opened = await open(confirmLink(email.sent[0]!));
-    expect(opened.headers.get("location")).toBe(
-      "https://rakazo.com/integrations/acme-tickets/claim/?expired",
-    );
+    expect(opened.status).toBe(410);
+    expect(await opened.text()).toBe("This confirmation link has expired.");
     expect(rows[0]!.status).toBe("unconfirmed");
   });
 

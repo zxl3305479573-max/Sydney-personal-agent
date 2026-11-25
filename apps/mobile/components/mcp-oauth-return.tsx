@@ -76,6 +76,14 @@ export function McpOAuthReturn({
 
 const styles = StyleSheet.create({
   card: { borderRadius: 16, padding: 16, gap: 12 },
-  input: { borderWidth: 1, borderColor: "#888888", borderRadius: 10, padding: 10 },
+  input: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: native.separator,
+    backgroundColor: native.fill,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
 });

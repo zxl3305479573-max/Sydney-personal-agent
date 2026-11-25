@@ -1,0 +1,20 @@
+services:
+  api:
+    environment:
+      SYDNEY_SCREEN_PROXY_ON_API: "true"
+      SYDNEY_WUYING_ASSETS_ON_API: "true"
+      SYDNEY_WUYING_ASSETS_DIR: /app/packages/core/wuying-assets
+      SYDNEY_INTEGRATION_API_CALLBACK: "true"
+      SYDNEY_LEGACY_SIGN_IN_RETURN_ON_API: "true"
+  updater:
+    environment:
+      SYDNEY_WEB_SERVICE_ENABLED: "false"
+  caddy:
+    depends_on: !override
+      api:
+        condition: service_started
+    environment:
+      SYDNEY_SCREEN_PROXY_UPSTREAM: api:3100
+      SYDNEY_WUYING_SCREEN_UPSTREAM: api:3100
+      SYDNEY_SIGN_IN_UPSTREAM: api:3100
+      SYDNEY_INTEGRATION_CALLBACK_UPSTREAM: api:3100

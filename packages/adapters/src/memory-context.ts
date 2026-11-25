@@ -126,10 +126,8 @@ export async function readAgentMemory(
   context: AdapterContext,
 ): Promise<MemoryPromptDocument[]> {
   const [botMemory, userMemory] = await Promise.all([
-    memory.read({ scope: "bot", botId }, context),
-    context.projectWorkspaceId
-      ? Promise.resolve(null)
-      : memory.read({ scope: "user" }, context),
+    memory.read({ scope: "bot" }, context),
+    memory.read({ scope: "user" }, context),
   ]);
   return [
     ...botMemory.documents.map((document) => ({ ...document, scope: "bot" as const })),

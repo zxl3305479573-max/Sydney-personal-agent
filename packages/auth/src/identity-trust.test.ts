@@ -50,6 +50,7 @@ function fixture({
   baseURL?: string;
   webOrigin?: string;
   requestOrigin?: string;
+  apiUrl?: string;
   /** The provider accepts the message but never settles, like a hung SMTP connection. */
   stalledDelivery?: boolean;
   rewritePasswordResetLink?: (url: string) => Promise<string> | string;
@@ -349,6 +350,18 @@ describe("client address and security events", () => {
 });
 
 describe("loopback trusted origins", () => {
+  it("accepts the API loopback twin without trusting other ports", async () => {
+    const apiUrl = "http://127.0.0.1:3100";
+    expect(
+      (await fixture({ delivery: false, apiUrl, requestOrigin: "http://localhost:3100" }).signup())
+        .status,
+    ).toBe(200);
+    expect(
+      (await fixture({ delivery: false, apiUrl, requestOrigin: "http://localhost:3101" }).signup())
+        .status,
+    ).toBe(403);
+  });
+
   it("accepts Origin localhost when webOrigin is 127.0.0.1", async () => {
     const f = fixture({
       delivery: false,

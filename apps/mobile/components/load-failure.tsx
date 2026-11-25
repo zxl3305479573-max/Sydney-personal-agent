@@ -7,8 +7,11 @@ import { NativeActionButton } from "./native-action-button";
 export function LoadFailure({ message, onRetry }: { message: string; onRetry: () => void }) {
   const { t } = useI18n();
   return (
-    <View style={{ gap: 8 }}>
-      <Text accessibilityRole="alert" style={{ color: mobileTokens().destructive, fontSize: 14 }}>
+    <View style={{ gap: 12 }}>
+      <Text
+        accessibilityRole="alert"
+        style={{ color: mobileTokens().destructive, fontSize: 15, lineHeight: 22 }}
+      >
         {message}
       </Text>
       <NativeActionButton

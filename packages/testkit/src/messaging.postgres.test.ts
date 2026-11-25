@@ -539,7 +539,7 @@ describeMessaging("messaging surface journeys", () => {
     expect(sms.status).toBe(200);
     await waitForDatabase(async () =>
       prisma.messagingOutbound.findFirst({
-        where: { identityId: identity.id, body: "Answer this request in the Rakazo app." },
+        where: { identityId: identity.id, body: "Answer this request in the Sydney app." },
       }),
     );
     expect(await memberStatus()).toBe("invited");

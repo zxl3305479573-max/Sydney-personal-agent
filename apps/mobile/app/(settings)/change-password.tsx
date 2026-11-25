@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GlassSurface } from "../../components/glass-surface";
@@ -100,29 +101,29 @@ export default function ChangePassword() {
               current: false,
             },
           ].map((field) => (
-            <GlassSurface
-              key={field.label}
-              shape="roundedRectangle"
-              cornerRadius={12}
-              fallbackStyle={styles.inputFallback}
-            >
-              <TextInput
-                accessibilityLabel={field.label}
-                autoCapitalize="none"
-                autoComplete={field.current ? "current-password" : "new-password"}
-                textContentType={field.current ? "password" : "newPassword"}
-                passwordRules={field.current ? undefined : PASSWORD_RULES}
-                maxLength={MAX_PASSWORD_LENGTH}
-                autoCorrect={false}
-                editable={!pending}
-                onChangeText={field.onChange}
-                placeholder={field.label}
-                placeholderTextColor={native.tertiaryLabel}
-                secureTextEntry
-                style={styles.input}
-                value={field.value}
-              />
-            </GlassSurface>
+            <View key={field.label} style={styles.field}>
+              <Text style={styles.fieldLabel}>{field.label}</Text>
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={12}
+                fallbackStyle={styles.inputFallback}
+              >
+                <TextInput
+                  accessibilityLabel={field.label}
+                  autoCapitalize="none"
+                  autoComplete={field.current ? "current-password" : "new-password"}
+                  textContentType={field.current ? "password" : "newPassword"}
+                  passwordRules={field.current ? undefined : PASSWORD_RULES}
+                  maxLength={MAX_PASSWORD_LENGTH}
+                  autoCorrect={false}
+                  editable={!pending}
+                  onChangeText={field.onChange}
+                  secureTextEntry
+                  style={styles.input}
+                  value={field.value}
+                />
+              </GlassSurface>
+            </View>
           ))}
           {error ? (
             <Text accessibilityRole="alert" style={styles.error}>
@@ -145,7 +146,9 @@ function createStyles() {
   const tokens = mobileTokens();
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 20, gap: 12 },
+    content: { padding: 20, gap: 16 },
+    field: { gap: 8 },
+    fieldLabel: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     inputFallback: { borderRadius: 12, backgroundColor: native.fill },
     input: {
       minHeight: 48,
@@ -153,7 +156,7 @@ function createStyles() {
       color: native.label,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      fontSize: 16,
+      fontSize: 17,
     },
     error: { color: tokens.destructive, fontSize: 14 },
   });

@@ -8,72 +8,8 @@ import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
-import { GlassSurface } from "./glass-surface";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { NativeSymbol } from "./native-symbol";
-import { ProjectFolderCard } from "./project-folder-card";
-
-export function InboxQuickActions({
-  columnInsets,
-}: {
-  columnInsets: { left: number; right: number };
-}) {
-  const { t, locale } = useI18n();
-  const projectLabel = locale.startsWith("zh") ? "项目" : "Projects";
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const buttonStyle = {
-    minHeight: 44,
-    borderRadius: 22,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 8,
-    paddingHorizontal: 16,
-  };
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 8,
-        paddingTop: 8,
-        paddingBottom: Math.max(insets.bottom, 12),
-        paddingLeft: 16 + columnInsets.left,
-        paddingRight: 16 + columnInsets.right,
-      }}
-    >
-      <GlassSurface
-        style={{ borderRadius: 22 }}
-        fallbackStyle={{
-          backgroundColor: native.fill,
-          borderWidth: 1,
-          borderColor: native.separator,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("Connect apps")}
-          onPress={() => router.push("/integrations")}
-          style={buttonStyle}
-        >
-          <NativeSymbol ios="square.grid.2x2" android="grid-outline" size={18} />
-          <Text
-            style={{
-              color: native.label,
-              fontSize: 15,
-              fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-            }}
-          >
-            {t("Connect apps")}
-          </Text>
-        </Pressable>
-      </GlassSurface>
-      <View style={{ width: "100%" }}>
-        <ProjectFolderCard label={projectLabel} onPress={() => router.push("/projects")} />
-      </View>
-    </View>
-  );
-}
 
 export function InboxRosterHeading({
   kind,
@@ -94,11 +30,18 @@ export function InboxRosterHeading({
         justifyContent: "space-between",
       }}
     >
-      <Text style={{ color: native.label, fontSize: 20, fontWeight: "600" }}>
-        {locale === "zh-CN"
+      <Text
+        accessibilityRole="header"
+        style={{ color: native.secondaryLabel, fontSize: 15, fontWeight: "600" }}
+      >
+        {locale.startsWith("zh")
           ? kind === "bot"
-            ? "小伙伴"
-            : "群聊"
+            ? locale === "zh-TW"
+              ? "小夥伴"
+              : "小伙伴"
+            : locale === "zh-TW"
+              ? "群組對話"
+              : "群聊"
           : t(kind === "bot" ? "Bots" : "Group")}
       </Text>
       {kind === "group" ? (
@@ -111,6 +54,34 @@ export function InboxRosterHeading({
           <NativeSymbol ios="plus" android="add" size={20} />
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+export function InboxIntro({ activityMode }: { activityMode: boolean }) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const styles = useThemedStyles(createHomeStyles);
+  return (
+    <View style={styles.inboxIntro}>
+      <Text accessibilityRole="header" style={styles.inboxTitle}>
+        {t(activityMode ? "Activity" : "Chats")}
+      </Text>
+      <Pressable
+        testID="home-search-button"
+        accessibilityRole="button"
+        accessibilityLabel={t("Search")}
+        onPress={() => router.push("/search")}
+        style={({ pressed }) => [styles.inboxSearch, pressed && styles.rowPressed]}
+      >
+        <NativeSymbol
+          ios="magnifyingglass"
+          android="search"
+          size={17}
+          color={native.secondaryLabel}
+        />
+        <Text style={styles.inboxSearchLabel}>{t("Search")}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -168,13 +139,6 @@ export function InboxHeader({
             color={activityMode ? tokens.primaryForeground : tokens.foreground}
           />
         </HeaderButton>
-        <HeaderButton
-          testID="home-search-button"
-          accessibilityLabel={t("Search")}
-          onPress={() => router.push("/search")}
-        >
-          <NativeSymbol ios="magnifyingglass" android="search" size={17} />
-        </HeaderButton>
         <MenuView
           actions={createMenuActions(t, Platform.OS)}
           {...(Platform.OS === "android" ? { style: { marginBottom: -CREATE_MENU_GAP } } : {})}
@@ -197,7 +161,6 @@ export function InboxHeader({
 }
 
 function HeaderButton({
-  testID,
   children,
   onPress,
   accessibilityLabel,
@@ -207,14 +170,12 @@ function HeaderButton({
   children: ReactNode;
   onPress: () => void;
   accessibilityLabel: string;
-  testID?: string;
   active?: boolean;
   accent?: boolean;
 }) {
   const styles = useThemedStyles(createHomeStyles);
   return (
     <Pressable
-      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected: active }}

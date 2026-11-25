@@ -2,6 +2,8 @@ import * as Application from "expo-application";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { Platform } from "react-native";
+import type { SydneyRelease } from "./sydney-release";
+import { readSydneyRelease } from "./sydney-release";
 
 export type AppUpdateIdentity =
   | { kind: "embedded" }
@@ -17,6 +19,7 @@ export type AppUpdateIdentity =
 export type AppVersionInfo = {
   /** Store / native binary version, e.g. `1.0.3 (10)`. */
   nativeLabel: string | null;
+  release: SydneyRelease | null;
   update: AppUpdateIdentity;
 };
 
@@ -101,6 +104,7 @@ export function getAppVersionInfo(): AppVersionInfo {
       applicationVersion ?? fallback.version,
       buildVersion ?? fallback.build,
     ),
+    release: readSydneyRelease(Constants.expoConfig?.extra?.sydneyMobileRelease),
     update: resolveUpdateIdentity(),
   };
 }

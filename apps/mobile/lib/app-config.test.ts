@@ -1,6 +1,7 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import appConfig from "../app.config";
+import sydneyRelease from "../sydney-release.json";
 
 beforeEach(() => {
   vi.stubEnv("EAS_BUILD_PROFILE", "production");
@@ -131,25 +132,29 @@ describe("mobile app config", () => {
 
   it("enables sideload updates only for an explicitly configured Sydney project", () => {
     vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
-    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.sydney");
-    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://pc.zxlup.xin");
+    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.zxlup.sydney");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://124.221.182.39");
     vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
     vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
-    vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
+    vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-ip-1");
     expect(
       appConfig(context({ ...config, extra: { eas: { projectId: "upstream" } } })),
     ).toMatchObject({
       owner: "sydney",
-      runtimeVersion: "sydney-ios-1",
-      extra: { eas: { projectId: "12345678-1234-4234-8234-123456789abc" } },
+      runtimeVersion: "sydney-ios-ip-1",
+      extra: {
+        eas: { projectId: "12345678-1234-4234-8234-123456789abc" },
+        sydneyMobileRelease: sydneyRelease,
+      },
       updates: {
         url: "https://u.expo.dev/12345678-1234-4234-8234-123456789abc",
         requestHeaders: { "expo-channel-name": "sideload" },
+        checkAutomatically: "NEVER",
       },
     });
   });
 
-  it.each(["https://203.0.113.10", "https://other.example.com"])(
+  it.each(["https://pc.zxlup.xin", "https://203.0.113.10", "https://other.example.com"])(
     "rejects sideload updates for %s while allowing builds with updates disabled",
     (apiUrl) => {
       vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
@@ -159,7 +164,7 @@ describe("mobile app config", () => {
 
       vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "12345678-1234-4234-8234-123456789abc");
       vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
-      vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-1");
+      vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-ip-1");
       expect(() => appConfig(context(config))).toThrow("Sydney OTA is restricted");
     },
   );

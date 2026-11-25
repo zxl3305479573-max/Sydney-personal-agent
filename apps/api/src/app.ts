@@ -44,6 +44,8 @@ import {
   createBackgroundJobHandlers,
   createCloudAgentConnection,
   createConnectorStack,
+  createGithubAccountService,
+  createGithubProvider,
   createIdleComputerSweeper,
   createJobReconciler,
   createMessagingContextLoader,
@@ -554,6 +556,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     oidc: env.oidc,
     secret: env.authSecret,
     baseURL: env.authUrl,
+    apiUrl: env.apiUrl,
     webOrigin: env.webOrigin,
     publicLinkOrigin: env.authPublicLinkOrigin,
     nativeEmailVerificationOnApi: env.nativeEmailVerificationOnApi,
@@ -647,6 +650,16 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     PAYMENT_WALLET_PROVIDER: env.paymentWalletProvider,
     PAYMENT_WALLET_CLIENT_ID: env.paymentWalletClientId,
   });
+  const githubProvider = createGithubProvider({
+    GITHUB_PROVIDER: env.githubProvider,
+  });
+  const github = githubProvider
+    ? createGithubAccountService({
+        prisma,
+        secretStore: secrets,
+        github: githubProvider,
+      })
+    : null;
   // One cache serves models.list, selection validation, and run-time model
   // resolution alike, so a list call warms the run path in this process.
   const codexCatalog = new CodexCatalogCache();
@@ -699,7 +712,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     web: createWebProvider(),
     cloudAgent,
     userDevices: userDevicesOverride ?? userDevices,
+    projectDeviceToolsEnabled: env.projectDeviceToolsEnabled,
     paymentWallet,
+    github: githubProvider,
     shutdownSignal: shutdown.signal,
   });
 
@@ -770,6 +785,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       : undefined;
 
   const routerDeps: RouterDeps = {
+    userDevices,
     speechSummary:
       env.voiceSummaryMinChars === undefined
         ? undefined
@@ -786,6 +802,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     pluginMarketplaceRead,
     cloudAgent,
     paymentWallet,
+    github,
     codexCatalog,
     prisma,
     pushTokens,
@@ -828,6 +845,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     env: {
       projectWorkspaceCreateExperiment: env.projectWorkspaceCreateExperiment,
       projectConversationCreateExperiment: env.projectConversationCreateExperiment,
+      projectDeviceToolsEnabled: env.projectDeviceToolsEnabled,
       phoneCallsEnabled: env.phoneCallsEnabled,
       phoneCallRingSeconds: env.phoneCallRingSeconds,
       ticketBoardEnabled,
@@ -920,7 +938,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         env.passwordAuth !== false && email
           ? new URL(
               env.nativePasswordResetOnApi ? NATIVE_PASSWORD_RESET_PATH : "/reset-password",
-              env.authPublicLinkOrigin ?? env.webOrigin,
+              env.authPublicLinkOrigin ??
+                (env.nativePasswordResetOnApi ? env.authUrl : env.webOrigin),
             ).href
           : null,
       emailCode: auth.emailCodeSignIn,
@@ -1011,6 +1030,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         return found ? { userId: found.user.id, sessionId: found.session.id } : null;
       },
       trustedOrigin: (origin) => isTrustedOrigin(origin, env),
+      projectDirectoriesEnabled:
+        env.projectWorkspaceCreateExperiment && env.projectDeviceToolsEnabled,
     });
   }
   if (messagingInstallations) {

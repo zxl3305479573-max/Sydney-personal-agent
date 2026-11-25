@@ -68,9 +68,25 @@ export function threadHeaderLeft({
     // Folding back takes the list away, so the chat gets its back button again. Folded like
     // a book, the list stays beside the chat, so it needs neither.
     return {
-      headerBackVisible: !split,
+      headerBackVisible: !split && !iosAtLeast(26),
       headerLeft: undefined,
-      ...(iosAtLeast(26) ? { unstable_headerLeftItems: () => [] } : {}),
+      ...(iosAtLeast(26)
+        ? {
+            unstable_headerLeftItems: () =>
+              split
+                ? []
+                : [
+                    {
+                      type: "button" as const,
+                      label: t("Back"),
+                      accessibilityLabel: t("Back"),
+                      icon: { type: "sfSymbol" as const, name: "chevron.left" },
+                      hidesSharedBackground: true,
+                      onPress: () => router.back(),
+                    },
+                  ],
+          }
+        : {}),
     };
   }
   const label = inboxHidden ? t("Show chats") : t("Hide chats");
@@ -81,6 +97,7 @@ export function threadHeaderLeft({
           unstable_headerLeftItems: () => [
             {
               type: "button" as const,
+              hidesSharedBackground: true,
               label,
               icon: { type: "sfSymbol" as const, name: "sidebar.left" },
               onPress: () => setInboxHidden(!inboxHidden),
