@@ -97,6 +97,7 @@ export default function AiDataSharing() {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[styles.screen, sideInsets]}
       contentContainerStyle={[styles.container, stacked && styles.compactContainer]}
       contentInsetAdjustmentBehavior="automatic"

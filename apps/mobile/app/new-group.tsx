@@ -209,6 +209,7 @@ export default function NewGroup() {
         style={{ flex: 1, backgroundColor: screenBackground }}
       >
         <ScrollView
+          showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
           style={[{ flex: 1 }, sideInsets]}
           contentContainerStyle={{

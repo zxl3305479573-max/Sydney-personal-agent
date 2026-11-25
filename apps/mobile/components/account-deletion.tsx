@@ -1,17 +1,6 @@
 import type { AccountSecurity } from "@rakazo/contracts";
 import { useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ServerSessionScope } from "../lib/api";
 import {
   captureServerSessionScope,
@@ -27,6 +16,7 @@ import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
 import { continueWithSso } from "../lib/sso";
 import { errorText } from "../lib/user-error";
+import { AppModalSheet } from "./app-modal-sheet";
 import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
 
@@ -175,119 +165,113 @@ export function useAccountDeletion({
   }
 
   const dialog = open ? (
-    <Modal transparent animationType="fade" onRequestClose={close}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.dialogOverlay}
+    <AppModalSheet
+      visible={open}
+      onClose={close}
+      preventDismiss={pending}
+      accessibilityLabel={t("Delete your account?")}
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        contentContainerStyle={styles.dialog}
+        keyboardShouldPersistTaps="handled"
+        style={styles.dialogScroll}
       >
-        <Pressable
-          accessibilityLabel={t("Cancel")}
-          style={StyleSheet.absoluteFill}
-          onPress={close}
-        />
-        <ScrollView
-          bounces={false}
-          contentContainerStyle={styles.dialog}
-          keyboardShouldPersistTaps="handled"
-          style={styles.dialogScroll}
-        >
-          <Text style={styles.dialogTitle}>{t("Delete your account?")}</Text>
-          <Text style={styles.dialogBody}>
-            {t(
-              "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.",
-            )}
+        <Text style={styles.dialogTitle}>{t("Delete your account?")}</Text>
+        <Text style={styles.dialogBody}>
+          {t(
+            "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.",
+          )}
+        </Text>
+        {!security?.hasPassword ? (
+          <>
+            {security?.sso ? (
+              <NativeActionButton
+                label={t("Sign in again")}
+                disabled={pending}
+                onPress={() =>
+                  void run(async () => {
+                    if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
+                      throw new Error(t("The session changed. Open account deletion again."));
+                    const authenticated = await continueWithSso("reauthenticate");
+                    if (!authenticated) return;
+                    const next = captureServerSessionScope();
+                    if (
+                      next.apiBase !== dialogScope.apiBase ||
+                      next.endpointGeneration !== dialogScope.endpointGeneration ||
+                      next.sessionGeneration !== dialogScope.sessionGeneration + 1
+                    )
+                      throw new Error(t("The session changed. Open account deletion again."));
+                    setDialogScope(next);
+                    setSsoReauthenticated(true);
+                  })
+                }
+              />
+            ) : null}
+            {security?.emailDeletion ? (
+              <NativeActionButton
+                label={t("Send deletion code")}
+                disabled={pending}
+                onPress={() =>
+                  void run(async () => {
+                    if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
+                      throw new Error(t("The session changed. Open account deletion again."));
+                    await requestAccountDeletionCode();
+                    if (!isServerSessionScopeCurrent(dialogScope))
+                      throw new Error(t("The session changed. Open account deletion again."));
+                    setCodeSent(true);
+                  })
+                }
+              />
+            ) : null}
+          </>
+        ) : null}
+        {security?.hasPassword || codeSent ? (
+          <TextInput
+            accessibilityLabel={security?.hasPassword ? t("Current password") : t("Deletion code")}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            editable={!pending}
+            onChangeText={(next) => {
+              setPassword(next);
+              setError(null);
+            }}
+            placeholder={security?.hasPassword ? t("Current password") : t("Deletion code")}
+            placeholderTextColor={native.tertiaryLabel}
+            secureTextEntry={security?.hasPassword}
+            style={styles.dialogInput}
+            textContentType={security?.hasPassword ? "password" : "oneTimeCode"}
+            value={password}
+          />
+        ) : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={styles.dialogError}>
+            {error}
           </Text>
-          {!security?.hasPassword ? (
-            <>
-              {security?.sso ? (
-                <NativeActionButton
-                  label={t("Sign in again")}
-                  disabled={pending}
-                  onPress={() =>
-                    void run(async () => {
-                      if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
-                        throw new Error(t("The session changed. Open account deletion again."));
-                      const authenticated = await continueWithSso("reauthenticate");
-                      if (!authenticated) return;
-                      const next = captureServerSessionScope();
-                      if (
-                        next.apiBase !== dialogScope.apiBase ||
-                        next.endpointGeneration !== dialogScope.endpointGeneration ||
-                        next.sessionGeneration !== dialogScope.sessionGeneration + 1
-                      )
-                        throw new Error(t("The session changed. Open account deletion again."));
-                      setDialogScope(next);
-                      setSsoReauthenticated(true);
-                    })
-                  }
-                />
-              ) : null}
-              {security?.emailDeletion ? (
-                <NativeActionButton
-                  label={t("Send deletion code")}
-                  disabled={pending}
-                  onPress={() =>
-                    void run(async () => {
-                      if (!dialogScope || !isServerSessionScopeCurrent(dialogScope))
-                        throw new Error(t("The session changed. Open account deletion again."));
-                      await requestAccountDeletionCode();
-                      if (!isServerSessionScopeCurrent(dialogScope))
-                        throw new Error(t("The session changed. Open account deletion again."));
-                      setCodeSent(true);
-                    })
-                  }
-                />
-              ) : null}
-            </>
-          ) : null}
-          {security?.hasPassword || codeSent ? (
-            <TextInput
-              accessibilityLabel={
-                security?.hasPassword ? t("Current password") : t("Deletion code")
-              }
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-              editable={!pending}
-              onChangeText={(next) => {
-                setPassword(next);
-                setError(null);
-              }}
-              placeholder={security?.hasPassword ? t("Current password") : t("Deletion code")}
-              placeholderTextColor={native.tertiaryLabel}
-              secureTextEntry={security?.hasPassword}
-              style={styles.dialogInput}
-              textContentType={security?.hasPassword ? "password" : "oneTimeCode"}
-              value={password}
-            />
-          ) : null}
-          {error ? (
-            <Text accessibilityRole="alert" style={styles.dialogError}>
-              {error}
-            </Text>
-          ) : null}
-          <View style={styles.dialogActions}>
-            <MotionPressable
-              preset="control"
-              accessibilityRole="button"
-              onPress={close}
-              style={styles.dialogAction}
-            >
-              <Text style={styles.dialogCancel}>{t("Cancel")}</Text>
-            </MotionPressable>
-            <MotionPressable
-              preset="control"
-              accessibilityRole="button"
-              disabled={disabled}
-              onPress={() => void submit(password)}
-              style={styles.dialogAction}
-            >
-              <Text style={[styles.dialogDelete, disabled && styles.disabled]}>{t("Delete")}</Text>
-            </MotionPressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
+        ) : null}
+        <View style={styles.dialogActions}>
+          <MotionPressable
+            preset="control"
+            accessibilityRole="button"
+            onPress={close}
+            style={styles.dialogAction}
+          >
+            <Text style={styles.dialogCancel}>{t("Cancel")}</Text>
+          </MotionPressable>
+          <MotionPressable
+            preset="control"
+            accessibilityRole="button"
+            disabled={disabled}
+            onPress={() => void submit(password)}
+            style={styles.dialogAction}
+          >
+            <Text style={[styles.dialogDelete, disabled && styles.disabled]}>{t("Delete")}</Text>
+          </MotionPressable>
+        </View>
+      </ScrollView>
+    </AppModalSheet>
   ) : null;
 
   return { request, run, pending, error: open ? null : error, dialog };
@@ -296,27 +280,20 @@ export function useAccountDeletion({
 function createStyles() {
   const tokens = mobileTokens();
   return StyleSheet.create({
-    dialogOverlay: {
-      flex: 1,
-      justifyContent: "center",
-      padding: 24,
-      backgroundColor: "rgba(0, 0, 0, 0.62)",
-    },
     dialogScroll: {
       flexGrow: 0,
       flexShrink: 1,
-      maxHeight: "100%",
-      borderRadius: 14,
-      backgroundColor: native.page,
     },
     dialog: {
-      padding: 18,
-      gap: 12,
+      paddingHorizontal: 20,
+      paddingTop: 6,
+      paddingBottom: 16,
+      gap: 14,
     },
     dialogTitle: {
       color: native.label,
-      fontSize: 17,
-      fontWeight: "600",
+      fontSize: 20,
+      fontWeight: "700",
     },
     dialogBody: {
       color: native.secondaryLabel,
@@ -325,7 +302,7 @@ function createStyles() {
     },
     dialogInput: {
       height: 48,
-      borderRadius: 12,
+      borderRadius: 14,
       backgroundColor: native.fill,
       color: native.label,
       paddingHorizontal: 14,
@@ -340,6 +317,7 @@ function createStyles() {
       justifyContent: "flex-end",
       alignItems: "center",
       gap: 12,
+      marginTop: 4,
     },
     dialogAction: {
       minHeight: 48,

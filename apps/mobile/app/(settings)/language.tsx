@@ -48,6 +48,7 @@ export default function Language() {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[styles.screen, sideInsets]}
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"

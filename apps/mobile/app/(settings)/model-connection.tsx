@@ -1183,6 +1183,7 @@ export default function ModelConnection() {
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"

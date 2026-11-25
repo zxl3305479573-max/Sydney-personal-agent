@@ -1,24 +1,24 @@
 {
-  "version": "1.0.25",
+  "version": "1.0.26",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "新增个人中枢首页、独立聊天列表、底部三项导航与首页「后台陪伴」卡片，并统一全界面浅柔暖瓷微光风格。",
-      "新增首次进入消息通知引导弹窗与 iOS 消息通知设置页，支持分类开关与本地测试通知。",
-      "修复未读状态同步、单聊／群聊／项目会话状态展示，以及退出对话后持续显示运行状态。",
-      "放大开屏 Logo 并新增暖瓷描线启动动画，全界面统一 5 档克制点击按压动效并适配系统减弱动态效果。"
+      "全面原生化升级手机端体验：全局隐藏外露滚动条，底栏升级为原生图标加标签 Tab 导航，支持切换保活与重按平滑回顶，并移除项目页伪返回箭头。",
+      "应用详情与 GitHub 仓库详情改为原生 Stack 推入路由并支持 iOS 左缘侧滑返回；项目、GitHub、项目群成员选择器与应用目录全面改用无限滚动。",
+      "新建 Bot／项目／项目群与账号删除弹窗统一升级为原生 Sheet（iOS formSheet 下拉关闭），聊天操作菜单在 iOS 接入原生 ActionSheetIOS，登录页改用全宽暖瓷原生布局。",
+      "统一单色清透暖瓷渐变、去框极简输入栏与顶部防重叠渐隐遮罩，并修复群聊状态与单聊隔离、执行态优先于等待输入及对话左下角实时状态展示。"
     ],
     "zh-TW": [
-      "新增個人中樞首頁、獨立聊天列表、底部三項導覽與首頁「背景陪伴」卡片，並統一全介面淺柔暖瓷微光風格。",
-      "新增首次進入訊息通知引導彈窗與 iOS 訊息通知設定頁，支援分類開關與本機測試通知。",
-      "修復未讀狀態同步、單聊／群聊／專案對話狀態顯示，以及退出對話後持續顯示執行狀態。",
-      "放大開屏 Logo 並新增暖瓷描線啟動動畫，全介面統一 5 檔克制點擊按壓動效並適配系統減少動態效果。"
+      "全面原生化升級手機端體驗：全域隱藏外露捲軸，底欄升級為原生圖示加標籤 Tab 導覽，支援切換保活與重按平滑回頂，並移除專案頁偽返回箭頭。",
+      "應用詳情與 GitHub 倉庫詳情改為原生 Stack 推入路由並支援 iOS 左緣側滑返回；專案、GitHub、專案群成員選擇器與應用目錄全面改用無限捲動。",
+      "新建 Bot／專案／專案群與帳號刪除彈窗統一升級為原生 Sheet（iOS formSheet 下拉關閉），聊天操作選單在 iOS 接入原生 ActionSheetIOS，登入頁改用全寬暖瓷原生版面。",
+      "統一單色清透暖瓷漸層、去框極簡輸入欄與頂部防重疊漸隱遮罩，並修復群聊狀態與單聊隔離、執行態優先於等待輸入及對話左下角即時狀態顯示。"
     ],
     "en": [
-      "Introduce the Home Hub, dedicated Chats tab, three-tab bottom bar, Home Companion card, and unified warm-porcelain surfaces across all mobile screens.",
-      "Add first-launch notification onboarding and iOS notification preferences with category toggles and local test notifications.",
-      "Fix unread state syncing, conversation status indicators across chats, groups, and projects, and persistent active status after leaving a thread.",
-      "Enlarge the startup logo with a warm-porcelain launch animation and unify subtle tactile press motion across all interactive controls with Reduce Motion support."
+      "Native mobile HIG overhaul: hide exposed scrollbars app-wide, upgrade bottom navigation to persistent native icon-and-label tabs with tap-to-scroll-top, and remove the spurious back arrow on Projects.",
+      "Move Integration and GitHub repository details onto native Stack push routes with iOS edge-swipe back, and replace button pagination with smooth infinite scroll across Projects, GitHub, group picker, and Integrations.",
+      "Unify modal forms on native sheets (iOS formSheet with swipe-to-dismiss), adopt native ActionSheetIOS for chat action menus on iOS, and redesign Sign-In with a full-width native warm-porcelain layout.",
+      "Unify monochrome warm-porcelain surfaces, borderless circular composer controls, and floating header fade masks, while isolating group status from DMs, prioritizing active runs over stale waiting prompts, and restoring live bottom-left status."
     ]
   }
 }

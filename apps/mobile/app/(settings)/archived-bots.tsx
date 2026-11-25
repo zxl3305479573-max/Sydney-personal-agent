@@ -217,6 +217,7 @@ export default function ArchivedBots() {
   if (!bots?.length && !groups.length)
     return (
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: 20, gap: 12 }}

@@ -46,7 +46,7 @@ vi.mock("../components/glass-icon-button", () => ({
     createElement("button", { type: "button", onClick: onPress }, "Close"),
 }));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
-vi.mock("../app/index", () => ({
+vi.mock("../components/inbox-screens", () => ({
   HomeSession: ({
     onShareSelect,
   }: {
@@ -110,7 +110,7 @@ describe("share route", () => {
       type: "RESET",
       payload: {
         index: 1,
-        routes: [{ name: "index" }, { name: "thread", params: { botId: "example", name: "Bot" } }],
+        routes: [{ name: "(tabs)" }, { name: "thread", params: { botId: "example", name: "Bot" } }],
       },
     });
   });

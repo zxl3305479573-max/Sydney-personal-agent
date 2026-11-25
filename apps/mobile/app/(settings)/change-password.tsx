@@ -79,6 +79,7 @@ export default function ChangePassword() {
         style={styles.screen}
       >
         <ScrollView
+          showsVerticalScrollIndicator={false}
           style={sideInsets}
           contentInsetAdjustmentBehavior="automatic"
           keyboardShouldPersistTaps="handled"

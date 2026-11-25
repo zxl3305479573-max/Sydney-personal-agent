@@ -1,9 +1,9 @@
 import { View } from "react-native";
-import { PickChatPane } from "../components/pick-chat-pane";
-import { useMobileTokens } from "../lib/native";
-import { useScreenBackground } from "../lib/scoped-theme-context";
-import { useSplitView } from "../lib/split-view";
-import { HomeSession } from "./index";
+import { HomeSession } from "../../components/inbox-screens";
+import { PickChatPane } from "../../components/pick-chat-pane";
+import { useMobileTokens } from "../../lib/native";
+import { useScreenBackground } from "../../lib/scoped-theme-context";
+import { useSplitView } from "../../lib/split-view";
 
 export default function ChatsRoute() {
   const { split } = useSplitView();

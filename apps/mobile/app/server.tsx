@@ -157,6 +157,7 @@ export default function ServerScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
+          showsVerticalScrollIndicator={false}
           style={sideInsets}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 }}

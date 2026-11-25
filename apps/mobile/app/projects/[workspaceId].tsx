@@ -4,11 +4,11 @@ import { isRetryableError } from "@rakazo/core";
 import type { Href } from "expo-router";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   ActivityIndicator,
   Alert,
   AppState,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -55,6 +55,18 @@ import { errorText } from "../../lib/user-error";
 const PROJECT_SYNC_INTERVAL_MS = 15_000;
 type ProjectRemoveMode = "remove" | "removeEmpty" | null;
 
+function mergeById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+  const seen = new Set(existing.map((item) => item.id));
+  const merged = [...existing];
+  for (const item of incoming) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 export default function ProjectDetail() {
   const { workspaceId, scope } = useLocalSearchParams<{ workspaceId: string; scope?: string }>();
   const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
@@ -97,26 +109,7 @@ function ProjectContents({
     ["project", workspaceId, "archived"],
     false,
   );
-  const [botCursors, setBotCursors] = usePageState<string[]>(
-    scopeKey,
-    ["project", workspaceId, "botCursors"],
-    [],
-  );
-  const [groupCursors, setGroupCursors] = usePageState<string[]>(
-    scopeKey,
-    ["project", workspaceId, "groupCursors"],
-    [],
-  );
-  const afterBotId = botCursors.at(-1);
-  const afterGroupId = groupCursors.at(-1);
-  const scroll = usePageScroll(scopeKey, [
-    "project",
-    workspaceId,
-    "contents",
-    showArchived,
-    afterBotId,
-    afterGroupId,
-  ]);
+  const scroll = usePageScroll(scopeKey, ["project", workspaceId, "contents", showArchived]);
   type Roster = RpcOutput<"projectWorkspaces/roster">;
   type RosterBot = Roster["bots"][number] &
     Partial<ProjectActionTarget> & {
@@ -138,7 +131,13 @@ function ProjectContents({
         groups: RosterGroup[];
       })
     | null
-  >(scopeKey, ["project", workspaceId, "roster", showArchived, afterBotId, afterGroupId], null);
+  >(scopeKey, ["project", workspaceId, "roster", showArchived], null);
+  const [loadingMoreBots, setLoadingMoreBots] = useState(false);
+  const [loadingMoreGroups, setLoadingMoreGroups] = useState(false);
+  const loadingMoreBotsRef = useRef(false);
+  const loadingMoreGroupsRef = useRef(false);
+  const rosterRef = useRef(roster);
+  rosterRef.current = roster;
   const threadRevision = useSyncExternalStore(
     threadSessionCache.subscribe,
     threadSessionCache.getRevision,
@@ -204,7 +203,7 @@ function ProjectContents({
     const items = roster?.groups ?? [];
     if (!cacheScope) return items;
     return items.map((group) => {
-      const status = threadSessionCache.groupStatus(cacheScope, group.id, group.status ?? "idle");
+      const status = threadSessionCache.groupStatus(cacheScope, group.id, group.status);
       const unread = threadSessionCache.unreadState(
         cacheScope,
         { groupId: group.id },
@@ -248,6 +247,63 @@ function ProjectContents({
     setMenuTarget({ ...target, kind });
     setMenuOpen(true);
   };
+
+  const loadMoreRoster = useCallback(
+    async (kind: "bot" | "group") => {
+      const currentRoster = rosterRef.current;
+      const cursor = kind === "bot" ? currentRoster?.nextBotId : currentRoster?.nextGroupId;
+      const inFlightRef = kind === "bot" ? loadingMoreBotsRef : loadingMoreGroupsRef;
+      if (
+        !workspaceId ||
+        scopeChanged ||
+        !cursor ||
+        inFlightRef.current ||
+        refreshInProgress.current ||
+        !focused.current ||
+        scopeKey !== projectScopeKey() ||
+        isSpaceSelectionPending()
+      )
+        return;
+      inFlightRef.current = true;
+      if (kind === "bot") setLoadingMoreBots(true);
+      else setLoadingMoreGroups(true);
+      try {
+        const requestContext = await captureApiRequestContext();
+        if (!focused.current || scopeKey !== projectScopeKey() || isSpaceSelectionPending()) return;
+        const page = await rpc(
+          "projectWorkspaces/roster",
+          kind === "bot"
+            ? { id: workspaceId, afterBotId: cursor }
+            : { id: workspaceId, afterGroupId: cursor },
+          { requestContext, skipSpaceAuthRecovery: true },
+        );
+        if (!focused.current || scopeKey !== projectScopeKey() || isSpaceSelectionPending()) return;
+        setRoster((previous) => {
+          if (!previous) return page;
+          return kind === "bot"
+            ? {
+                ...previous,
+                bots: mergeById(previous.bots, page.bots),
+                nextBotId: page.nextBotId,
+              }
+            : {
+                ...previous,
+                groups: mergeById(previous.groups, page.groups),
+                nextGroupId: page.nextGroupId,
+              };
+        });
+      } catch {
+        // Leave existing rows intact; scrolling or pulling to refresh will retry.
+      } finally {
+        inFlightRef.current = false;
+        if (focused.current) {
+          if (kind === "bot") setLoadingMoreBots(false);
+          else setLoadingMoreGroups(false);
+        }
+      }
+    },
+    [workspaceId, scopeChanged, scopeKey, setRoster],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -325,11 +381,7 @@ function ProjectContents({
                 nextBotId: null,
                 nextGroupId: null,
               }
-            : await rpc(
-                "projectWorkspaces/roster",
-                { id: workspaceId, afterBotId, afterGroupId },
-                options,
-              );
+            : await rpc("projectWorkspaces/roster", { id: workspaceId }, options);
           if (current()) {
             setProject(result);
             setRoster(projectRoster);
@@ -370,16 +422,7 @@ function ProjectContents({
         if (timer !== undefined) clearTimeout(timer);
         foreground.remove();
       };
-    }, [
-      workspaceId,
-      scopeKey,
-      scopeChanged,
-      attempt,
-      afterBotId,
-      afterGroupId,
-      showArchived,
-      cacheScope,
-    ]),
+    }, [workspaceId, scopeKey, scopeChanged, attempt, showArchived, cacheScope]),
   );
 
   async function createProjectBot(identity: InboxBotIdentity) {
@@ -500,7 +543,6 @@ function ProjectContents({
   const switchLabel = text("切换项目", "Switch project");
   const isLight = appearance === "light";
   const hairline = StyleSheet.hairlineWidth ?? 0.5;
-  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
   const cardBg = isLight ? "#FFFEFC" : "#242933";
   const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
   const chipBg = isLight ? "#F8F6F2" : "#2A303B";
@@ -543,6 +585,16 @@ function ProjectContents({
       pathname: "/bot-settings",
       params: { botId, projectId: workspaceId, scope: scopeKey },
     });
+  };
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scroll.onScroll?.(event);
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    if (!contentSize || !layoutMeasurement) return;
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom > 280) return;
+    if (rosterRef.current?.nextBotId) void loadMoreRoster("bot");
+    if (rosterRef.current?.nextGroupId) void loadMoreRoster("group");
   };
 
   return (
@@ -589,7 +641,10 @@ function ProjectContents({
         }}
       />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         {...scroll}
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
         contentInsetAdjustmentBehavior="automatic"
         style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{
@@ -597,7 +652,6 @@ function ProjectContents({
           paddingBottom: Math.max(insets.bottom, 28),
           gap: 16,
         }}
-        indicatorStyle={appearance === "dark" ? "white" : "black"}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -751,8 +805,6 @@ function ProjectContents({
                 onPress={() => {
                   setMenuOpen(false);
                   setMenuTarget(undefined);
-                  setBotCursors([]);
-                  setGroupCursors([]);
                   setShowArchived((old) => !old);
                 }}
               />
@@ -783,17 +835,12 @@ function ProjectContents({
                         ? openBotSettings
                         : undefined
                   }
-                  hasPrevious={botCursors.length > 0}
-                  next={roster.nextBotId}
+                  hasMore={Boolean(roster.nextBotId)}
+                  loadingMore={loadingMoreBots}
+                  onLoadMore={() => void loadMoreRoster("bot")}
                   actionEnabled={canCreateBot && !showArchived}
                   onAction={() => setCreatingBot(true)}
                   onOpen={canCreateBot ? (id) => openConversation("bot", id) : undefined}
-                  onPrevious={() =>
-                    setBotCursors((old) => (old.at(-1) === afterBotId ? old.slice(0, -1) : old))
-                  }
-                  onNext={(cursor) =>
-                    setBotCursors((old) => (old.at(-1) === afterBotId ? [...old, cursor] : old))
-                  }
                 />
                 <ProjectConversationSection
                   title={text("群聊", "Group chats")}
@@ -805,18 +852,13 @@ function ProjectContents({
                   action={text("新建群聊", "New group chat")}
                   kind="group"
                   items={liveProjectGroups}
-                  hasPrevious={groupCursors.length > 0}
-                  next={roster.nextGroupId}
+                  hasMore={Boolean(roster.nextGroupId)}
+                  loadingMore={loadingMoreGroups}
+                  onLoadMore={() => void loadMoreRoster("group")}
                   actionEnabled={canCreateGroup && !showArchived}
                   onSettings={canManage ? (id) => showActions("group", id) : undefined}
                   onAction={() => setCreatingGroup(true)}
                   onOpen={canCreateGroup ? (id) => openConversation("group", id) : undefined}
-                  onPrevious={() =>
-                    setGroupCursors((old) => (old.at(-1) === afterGroupId ? old.slice(0, -1) : old))
-                  }
-                  onNext={(cursor) =>
-                    setGroupCursors((old) => (old.at(-1) === afterGroupId ? [...old, cursor] : old))
-                  }
                 />
                 <Text style={{ color: mutedFg, fontSize: 13, textAlign: "center" }}>
                   {canCreateBot || canCreateGroup
@@ -868,7 +910,6 @@ function ProjectContents({
               isSpaceSelectionPending()
             )
               return;
-            setBotCursors([]);
             setAttempt((old) => old + 1);
             if (destination) router.push(destination);
           }}
@@ -894,7 +935,6 @@ function ProjectContents({
               isSpaceSelectionPending()
             )
               return;
-            setGroupCursors([]);
             setAttempt((old) => old + 1);
             router.push(conversationHref(workspaceId, "group", groupId));
           }}
@@ -910,10 +950,9 @@ function ProjectConversationSection({
   action,
   kind,
   items,
-  hasPrevious,
-  next,
-  onPrevious,
-  onNext,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   actionEnabled = false,
   onAction,
   onOpen,
@@ -934,10 +973,9 @@ function ProjectConversationSection({
     preview?: string;
     updatedAt?: string;
   }>;
-  hasPrevious: boolean;
-  next: string | null;
-  onPrevious: () => void;
-  onNext: (cursor: string) => void;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   actionEnabled?: boolean;
   onAction?: () => void;
   onOpen?: (id: string) => void;
@@ -1123,25 +1161,16 @@ function ProjectConversationSection({
         )}
       </GlassSurface>
 
-      {hasPrevious || next ? (
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-          {hasPrevious ? (
-            <NativeActionButton
-              label={locale.startsWith("zh") ? "上一页" : "Previous"}
-              prominence="quiet"
-              onPress={onPrevious}
-            />
-          ) : (
-            <View />
-          )}
-          {next ? (
-            <NativeActionButton
-              label={locale.startsWith("zh") ? "下一页" : "Next"}
-              prominence="quiet"
-              onPress={() => onNext(next)}
-            />
-          ) : null}
+      {loadingMore ? (
+        <View style={{ paddingVertical: 8, alignItems: "center" }}>
+          <ActivityIndicator color={mutedFg} />
         </View>
+      ) : hasMore ? (
+        <NativeActionButton
+          label={locale.startsWith("zh") ? "加载更多" : "Load more"}
+          prominence="quiet"
+          onPress={onLoadMore}
+        />
       ) : null}
     </View>
   );

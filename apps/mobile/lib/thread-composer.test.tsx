@@ -1381,7 +1381,7 @@ describe("thread composer isolation", () => {
     const defaultCall = container.querySelector('button[aria-label="Call"]')!;
     const defaultSurface = container.querySelector('[data-style*="borderRadius"]')!;
     expect(styleOf(defaultSurface)).toMatchObject({ borderRadius: 18, borderWidth: 1 });
-    expect(styleOf(defaultCall)).toMatchObject({ borderRadius: 10, width: 44, height: 44 });
+    expect(styleOf(defaultCall)).toMatchObject({ borderRadius: 999, width: 44, height: 44 });
 
     renderScoped(makeScope(16, 2, "outlined"));
     expect(styleOf(container.querySelector('[data-style*="borderRadius"]')!)).toMatchObject({

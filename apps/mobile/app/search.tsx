@@ -226,6 +226,7 @@ export default function SearchSheet() {
         </GlassSurface>
       </View>
       <FlatList
+        showsVerticalScrollIndicator={false}
         data={rows}
         keyExtractor={(row) => row.key}
         automaticallyAdjustKeyboardInsets

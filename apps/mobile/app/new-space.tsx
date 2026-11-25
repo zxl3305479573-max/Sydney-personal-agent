@@ -58,6 +58,7 @@ export default function NewSpace() {
     <>
       <Stack.Screen options={cancelHeaderOptions(t("Cancel"), () => router.back())} />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="automatic"
         style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 20 }}

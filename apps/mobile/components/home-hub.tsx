@@ -2,7 +2,7 @@ import type { SpaceBot } from "@rakazo/contracts";
 import { accountDisplay, isRunWorking } from "@rakazo/core";
 import { botColors } from "@rakazo/ui-tokens";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Platform,
   RefreshControl,
@@ -23,6 +23,7 @@ import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
+import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { BotAvatar } from "./bot-avatar";
 import { HomeCompanionCard } from "./home-companion-card";
 import { MotionPressable } from "./motion-pressable";
@@ -250,9 +251,9 @@ export function HomeHub({
   const softAccentInk = isLight ? "#6E675E" : "#B8B3AA";
   const chipBackground = isLight ? "#F8F6F2" : "#2A303B";
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
-  const barMutedFill = isLight ? "#C5BFB5" : "#4E5563";
-  const barActiveFill = isLight ? "#8C857A" : "#9BA3B2";
-  const rhythmFill = isLight ? "#CFA895" : "#C99A84";
+  const barMutedFill = isLight ? "#C9C3B9" : "#4E5563";
+  const barActiveFill = isLight ? "#7A7368" : "#A6ACB8";
+  const rhythmFill = isLight ? "#8C857A" : "#9BA3B2";
 
   const cardSurfaceStyle = {
     backgroundColor: isLight ? "#FFFEFC" : "#242933",
@@ -326,13 +327,23 @@ export function HomeHub({
     });
   }, [githubRecentCounts]);
 
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(
+    () =>
+      registerTabScrollToTop("/", () => {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }),
+    [],
+  );
+
   return (
     <ScrollView
+      ref={scrollRef}
+      showsVerticalScrollIndicator={false}
       testID="home-hub-scroll"
       style={{ flex: 1, backgroundColor: tokens.background }}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
-      indicatorStyle={appearance === "dark" ? "white" : "black"}
       contentContainerStyle={{
         paddingTop: Math.max(insets.top, 16) + 10,
         paddingBottom: bottomClaimed ? 28 : Math.max(insets.bottom, 16) + 24,
@@ -488,12 +499,12 @@ export function HomeHub({
         onPress={() => (spotlightBot ? openBotThread(spotlightBot) : triggerCreateBot())}
         style={{
           borderRadius: 22,
-          backgroundColor: isLight ? "#364556" : "#2B3646",
+          backgroundColor: isLight ? "#2E2B27" : "#252830",
           experimental_backgroundImage: cardGradient(isLight, "spotlight"),
           padding: 16,
           overflow: "hidden",
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: "rgba(250, 248, 244, 0.18)",
+          borderColor: "rgba(250, 248, 244, 0.14)",
         }}
       >
         <View
@@ -505,7 +516,7 @@ export function HomeHub({
             width: 120,
             height: 68,
             borderRadius: 60,
-            backgroundColor: "rgba(196, 214, 238, 0.18)",
+            backgroundColor: "rgba(246, 242, 234, 0.10)",
           }}
         />
         <View
@@ -516,7 +527,7 @@ export function HomeHub({
             right: 0,
             bottom: 0,
             height: 28,
-            backgroundColor: "rgba(26, 35, 46, 0.18)",
+            backgroundColor: "rgba(24, 22, 19, 0.16)",
           }}
         />
         {STARLIGHT_DOTS.map((dot, index) => (
@@ -612,8 +623,8 @@ export function HomeHub({
               width: fleck.size,
               height: fleck.size,
               borderRadius: fleck.size / 2,
-              backgroundColor: "#C5A367",
-              opacity: fleck.opacity,
+              backgroundColor: "#8C857A",
+              opacity: fleck.opacity * 0.55,
             }}
           />
         ))}

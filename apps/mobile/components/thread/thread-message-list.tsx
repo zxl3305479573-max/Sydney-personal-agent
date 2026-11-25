@@ -92,6 +92,7 @@ export function ThreadMessageList({
       {showPinnedPage ? (
         <ThreadScrollSurface key={`pinned:${jumpTarget ?? pinnedTarget?.messageId ?? threadKey}`}>
           <ScrollView
+            showsVerticalScrollIndicator={false}
             key={jumpTarget ?? pinnedTarget?.messageId ?? threadKey}
             ref={scroll.pinnedList}
             style={styles.list}
@@ -123,6 +124,7 @@ export function ThreadMessageList({
       ) : (
         <ThreadScrollSurface key={`live:${threadKey}`}>
           <FlatList
+            showsVerticalScrollIndicator={false}
             key={threadKey}
             ref={scroll.list}
             data={liveItems}

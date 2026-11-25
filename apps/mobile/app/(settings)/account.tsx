@@ -451,6 +451,7 @@ export default function Account() {
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, stackOptions && styles.compactContent]}

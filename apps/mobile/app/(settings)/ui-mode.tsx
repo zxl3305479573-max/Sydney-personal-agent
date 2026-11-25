@@ -508,6 +508,7 @@ export default function UiModeScreen() {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[{ flex: 1, backgroundColor: screenBackground }, insets]}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 20 }}

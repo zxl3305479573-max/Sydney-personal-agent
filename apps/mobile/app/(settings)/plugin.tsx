@@ -380,6 +380,7 @@ export default function PluginScreen() {
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"

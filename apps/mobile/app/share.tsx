@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassIconButton } from "../components/glass-icon-button";
+import { HomeSession } from "../components/inbox-screens";
 import { NativeSymbol } from "../components/native-symbol";
 import type { MobileBot } from "../lib/api";
 import { useI18n } from "../lib/i18n";
@@ -14,7 +15,6 @@ import {
 import { useMobileTokens } from "../lib/native";
 import { useScreenBackground } from "../lib/scoped-theme-context";
 import { sharePreview } from "../lib/share-preview";
-import { HomeSession } from "./index";
 
 export default function ShareRoute() {
   const router = useRouter();
@@ -58,7 +58,7 @@ export default function ShareRoute() {
         payload: {
           index: 1,
           routes: [
-            { name: "index" },
+            { name: "(tabs)" },
             { name: "thread", params: { botId: bot.id, name: bot.name } },
           ],
         },

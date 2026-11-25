@@ -129,6 +129,7 @@ export default function TeamConversationSettings() {
         options={glassHeaderOptions(conversation.displayName || t("External conversation"))}
       />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={styles.screen}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.content}

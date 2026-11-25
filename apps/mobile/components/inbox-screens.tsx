@@ -22,17 +22,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotOrganizeModal } from "../components/bot-organize-modal";
-import { CreateBotModal } from "../components/create-bot-modal";
-import { HomeErrorState } from "../components/home-error-state";
-import { HomeHub } from "../components/home-hub";
-import { createHomeStyles } from "../components/home-styles";
-import { ActivitySection } from "../components/inbox-activity";
-import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
-import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
-import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
-import { MotionPressable } from "../components/motion-pressable";
-import { useUnreadJumpPills } from "../components/unread-jump-overlay";
 import { fetchSpaceActivity } from "../lib/activity";
 import { loadActivityMode, saveActivityMode } from "../lib/activity-mode";
 import { readableGutters } from "../lib/adaptive-layout";
@@ -96,6 +85,7 @@ import {
 } from "../lib/session";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { useSplitView } from "../lib/split-view";
+import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { threadSessionCache } from "../lib/thread-session-cache";
 import { UiModeScreenHost } from "../lib/ui-mode-slots";
 import { useArchivedCount } from "../lib/use-archived-count";
@@ -107,6 +97,17 @@ import { usePublishSearchInbox } from "../lib/use-publish-search-inbox";
 import type { LoadFailureKind } from "../lib/user-error";
 import { errorText, loadFailureKind } from "../lib/user-error";
 import type { InboxUiModeController } from "../ui-modes/controllers";
+import { BotOrganizeModal } from "./bot-organize-modal";
+import { CreateBotModal } from "./create-bot-modal";
+import { HomeErrorState } from "./home-error-state";
+import { HomeHub } from "./home-hub";
+import { createHomeStyles } from "./home-styles";
+import { ActivitySection } from "./inbox-activity";
+import { InboxHeader, InboxIntro, InboxRosterHeading } from "./inbox-header";
+import { InboxListFooter, useInboxRenderItem } from "./inbox-render-item";
+import { CompactRowsContext, SelectedChatContext } from "./inbox-rows";
+import { MotionPressable } from "./motion-pressable";
+import { useUnreadJumpPills } from "./unread-jump-overlay";
 
 /** A row counts as on screen as soon as any of it shows. */
 const AVATAR_VIEWABILITY = { itemVisiblePercentThreshold: 1 };
@@ -428,10 +429,10 @@ function PersonalHomeHubScreen() {
               }),
               groups: space.groups.map((group) => {
                 const status = threadSessionCache.groupStatus(
-          scope,
-          group.id,
-          "status" in group && typeof group.status === "string" ? group.status : "idle",
-        );
+                  scope,
+                  group.id,
+                  "status" in group && typeof group.status === "string" ? group.status : "idle",
+                );
                 const unread = threadSessionCache.unreadState(
                   scope,
                   { groupId: group.id },
@@ -1011,10 +1012,10 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           }),
           groups: space.groups.map((group) => {
             const status = threadSessionCache.groupStatus(
-          scope,
-          group.id,
-          "status" in group && typeof group.status === "string" ? group.status : "idle",
-        );
+              scope,
+              group.id,
+              "status" in group && typeof group.status === "string" ? group.status : "idle",
+            );
             const unread = unreadOverrides.has(`group:${group.id}`)
               ? group.unread
               : threadSessionCache.unreadState(scope, { groupId: group.id }, group.unread);
@@ -1106,6 +1107,12 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const nativeHeader = iosAtLeast(26) && !embedded;
   const headerHeight = useHeaderHeightIfAny();
   const listRef = useRef<FlatList<InboxItem>>(null);
+  useEffect(() => {
+    if (onShareSelect) return;
+    return registerTabScrollToTop("/chats", () => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+  }, [onShareSelect]);
   const jumpSignals = useSyncExternalStore(
     mobileLogoAvatarActivity.subscribe,
     useMemo(() => {
@@ -1464,6 +1471,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           <View style={styles.listArea}>
             <AvatarViewportScope viewport={avatarViewport}>
               <FlatList<InboxItem>
+                showsVerticalScrollIndicator={false}
                 ref={listRef}
                 {...unreadJump.listProps}
                 style={{ flex: 1 }}
@@ -1474,7 +1482,6 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 keyExtractor={inboxItemKey}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
-                indicatorStyle={appearance === "dark" ? "white" : "black"}
                 contentContainerStyle={[
                   styles.list,
                   { paddingLeft: columnInsets.left, paddingRight: columnInsets.right },

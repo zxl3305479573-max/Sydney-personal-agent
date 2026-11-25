@@ -352,7 +352,7 @@ it.each(["in", "up"])(
     expectBefore(email, password);
     expectBefore(password, submit);
     expectBefore(submit, sso);
-    expectBefore(prompt, email);
+    expectBefore(submit, prompt);
   },
 );
 

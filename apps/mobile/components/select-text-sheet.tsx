@@ -37,7 +37,7 @@ export function SelectTextSheet({ text, onClose }: { text: string | null; onClos
             prominence="primary"
           />
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           {Platform.OS === "ios" ? (
             // iOS selectable Text only copies the whole message; a read-only text
             // view gets the native handles and edit menu. The sheet scrolls, not

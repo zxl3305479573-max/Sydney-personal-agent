@@ -194,6 +194,7 @@ export default function GroupSettingsScreen() {
     <>
       <Stack.Screen options={glassHeaderOptions(t("Group settings"))} />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 20, paddingBottom: 36 }}
         automaticallyAdjustKeyboardInsets

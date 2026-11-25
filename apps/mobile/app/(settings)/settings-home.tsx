@@ -112,6 +112,7 @@ export default function SettingsHome() {
   return (
     <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={insets}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{

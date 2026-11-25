@@ -222,6 +222,7 @@ export default function MessagingSettings() {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}

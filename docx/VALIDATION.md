@@ -1,5 +1,21 @@
 # 验证记录
 
+## 手机 App 原生交互与 iOS HIG 全面重构（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **首轮发现与修复**：
+  - AST 批量补齐 `showsVerticalScrollIndicator={false}` 时在泛型 `<FlatList<T>` 标签处插入于泛型参数之前（`artifacts.tsx`、`index.tsx`），已修正并通过 `scroll-hygiene.test.ts` 与 `tsc`。
+  - 修正 `main-bottom-navigation.tsx` `navigation.emit` `canPreventDefault: true` 与 `androidIcon` 类型、`github-repo.tsx` 兜底 `GithubRepoSummary` 5 个缺失字段、`projects/[workspaceId].tsx` `groupStatus` 新签名与 `account-deletion.tsx` 三元闭合。
+  - 将 `AppModalSheet` 与 `BotActionsModal` 改为无 `react-native-safe-area-context` 与无顶层 `findNodeHandle`/`ActionSheetIOS` 命名导入依赖，兼容全部精简单测替身。
+  - 按全量提交推送与 OTA 要求，同步修复工作区剩余 4 处提交前阻塞：`thread-screen.tsx:895,905`（`headerClearance.padding`）、`thread-composer.tsx:379` 与 `thread-composer.test.tsx:1384`（默认圆钮 `999`、作用域主题保留 `controlRadius`）、`project-chat-screen.test.tsx`（补齐 `GroupAvatar` 替身）以及 `projects/[workspaceId]/chat.tsx:34`（import 格式）。
+- **最终已执行并通过**：
+  - **全仓 Biome 静态与格式检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error .`）：**3,681 / 3,681 文件 0 错误**。
+  - **多包 TypeScript 类型检查**：`@rakazo/mobile`、`packages/db`、`packages/testkit`、`apps/api` `tsc --noEmit` **全部 0 错误通过**。
+  - **移动端全量与复验 Vitest**：全量回归 `pnpm --filter @rakazo/mobile test` 300/302 通过后，针对仅剩的 2 个失败套件（`thread-composer.test.tsx` 71 项、`project-chat-screen.test.tsx` 21 项）连同 `group-title.test.tsx`（6）、`app-modal-sheet.test.tsx`（4）、`inbox-archived.test.tsx`（13）及全部 4 个 `1.0.26` 发布／版本套件（`app-config.test.ts` 34、`app-version.test.ts` 6、`client-update.test.ts` 14、`account-screen.test.tsx` 28）定向复验 **100% 全部通过（0 失败）**；15 个本批直接关联／新增套件（196 项）全部通过。
+  - **全仓差异检查**（`git diff --check`）：**0 警告通过**。
+- **未执行项**：真实 iPhone 设备体验与视觉验收待 OTA 发布后实测。
+
 ## GitHub CI 第二批残留失败项修复（2026-11-25）
 
 针对第一批修复推送后最新 GitHub Actions `ci` Run `45628028108`（提交 `fa84bb2ad`）的剩余 5 类失败项实施定向修复、本机离线验证，并按用户确认基于 `d4b92a19b` 在隔离 worktree 独立提交推送。

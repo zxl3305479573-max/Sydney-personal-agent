@@ -98,7 +98,12 @@ export function NativeSheet({
         accessibilityLabel={label}
         style={{ maxHeight, height: expanded ? maxHeight : undefined }}
       >
-        <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ flexGrow: 0 }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+        >
           {children}
         </ScrollView>
       </View>

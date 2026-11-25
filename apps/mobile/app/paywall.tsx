@@ -330,7 +330,11 @@ export default function Paywall() {
   return (
     <View style={[styles.screen, { backgroundColor: screenBackground }]}>
       {topBar}
-      <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="never">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
+      >
         <View style={styles.hero}>
           <View
             accessible={false}

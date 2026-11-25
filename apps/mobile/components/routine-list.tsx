@@ -35,6 +35,7 @@ export function RoutineList({
   const sideInsets = useSideInsets();
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[styles.screen, sideInsets]}
       contentContainerStyle={[styles.content, stacked && styles.compactContent]}
       contentInsetAdjustmentBehavior="automatic"

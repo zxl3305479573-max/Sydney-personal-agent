@@ -57,7 +57,7 @@ import { themeManager } from "../lib/theme-state";
 import { loadUiMode } from "../lib/ui-mode";
 import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
-import { MainBottomNavigation } from "../components/main-bottom-navigation";
+import { InboxPane } from "../components/inbox-screens";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
@@ -112,7 +112,6 @@ import {
 import { startUnsentSends } from "../lib/unsent-sends";
 import { useFirstLaunchNotificationPrompt } from "../lib/use-first-launch-notification-prompt";
 import { getVoicePlaybackState, subscribeVoicePlayback } from "../lib/voice";
-import { InboxPane } from "./index";
 
 // Before anything renders: text grows with the iOS text size only up to a fixed maximum.
 capTextScaling();
@@ -289,7 +288,7 @@ function ChatContentProviders({
   );
 }
 
-export const unstable_settings = { anchor: "index" };
+export const unstable_settings = { anchor: "(tabs)" };
 
 function LayoutContent() {
   const { t, locale } = useI18n();
@@ -417,23 +416,27 @@ function LayoutContent() {
             <ThemeProvider value={navigationTheme}>
               <StatusBar style={resolved === "light" ? "dark" : "light"} />
               <View style={{ flex: 1 }}>
-                <BottomSafeAreaClaimedContext.Provider value={voicePlaying || showMainNavigation}>
+                <BottomSafeAreaClaimedContext.Provider value={voicePlaying}>
                   <SplitFrame>
                     <Stack
-                      screenLayout={({ route, navigation, options, children }) => (
-                        <AvatarScreenFocus navigation={navigation}>
-                          <ScopedThemeRoute routeName={route.name}>
-                            {/* Sheets and modals cover the window, so the chat list is not beside them. */}
-                            {options.presentation && options.presentation !== "card" ? (
-                              <InboxBesideContext.Provider value={false}>
-                                {children}
-                              </InboxBesideContext.Provider>
-                            ) : (
-                              children
-                            )}
-                          </ScopedThemeRoute>
-                        </AvatarScreenFocus>
-                      )}
+                      screenLayout={({ route, navigation, options, children }) =>
+                        route.name === "(tabs)" ? (
+                          children
+                        ) : (
+                          <AvatarScreenFocus navigation={navigation}>
+                            <ScopedThemeRoute routeName={route.name}>
+                              {/* Sheets and modals cover the window, so the chat list is not beside them. */}
+                              {options.presentation && options.presentation !== "card" ? (
+                                <InboxBesideContext.Provider value={false}>
+                                  {children}
+                                </InboxBesideContext.Provider>
+                              ) : (
+                                children
+                              )}
+                            </ScopedThemeRoute>
+                          </AvatarScreenFocus>
+                        )
+                      }
                       screenOptions={{
                         headerStyle: { backgroundColor: navigationTheme.colors.background },
                         ...floatingHeaderOptions(),
@@ -443,14 +446,7 @@ function LayoutContent() {
                         contentStyle: { backgroundColor: String(native.page) },
                       }}
                     >
-                      <Stack.Screen
-                        name="index"
-                        options={{ headerShown: false, title: "Sydney" }}
-                      />
-                      <Stack.Screen
-                        name="chats"
-                        options={{ headerShown: false, title: t("Chats") }}
-                      />
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                       <Stack.Screen
                         name="search"
                         options={{
@@ -513,13 +509,14 @@ function LayoutContent() {
                       <Stack.Screen name="artifacts" options={glassHeaderOptions(t("Artifacts"))} />
                       <Stack.Screen name="artifact" options={{ title: t("Artifact") }} />
                       <Stack.Screen name="github" options={glassHeaderOptions("GitHub")} />
+                      <Stack.Screen name="github-repo" options={glassHeaderOptions("GitHub")} />
                       <Stack.Screen
                         name="integrations"
                         options={glassHeaderOptions(locale.startsWith("zh") ? "应用" : "Apps")}
                       />
                       <Stack.Screen
-                        name="projects"
-                        options={glassHeaderOptions(locale.startsWith("zh") ? "项目" : "Projects")}
+                        name="integration-detail"
+                        options={glassHeaderOptions(locale.startsWith("zh") ? "应用详情" : "App")}
                       />
                       <Stack.Screen
                         name="projects/[workspaceId]"
@@ -585,7 +582,6 @@ function LayoutContent() {
                 <VoicePlayerBar
                   style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
                 />
-                {showMainNavigation ? <MainBottomNavigation /> : null}
               </View>
               <ComputerUpdateProgress />
               <MessageMenuHost />

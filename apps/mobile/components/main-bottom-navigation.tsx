@@ -1,14 +1,48 @@
 import { usePathname, useRouter } from "expo-router";
+import type { ComponentProps } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
+import type { MainNavigationRoute } from "../lib/main-navigation";
 import { openMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useScopedTheme } from "../lib/scoped-theme-context";
+import { triggerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { MotionPressable } from "./motion-pressable";
+import { NativeSymbol } from "./native-symbol";
 import { TabIndicator } from "./tab-indicator";
 
-export function MainBottomNavigation() {
+type TabBarRoute = {
+  key: string;
+  name: string;
+};
+
+type AndroidSymbolName = ComponentProps<typeof NativeSymbol>["android"];
+
+export type MainBottomNavigationProps = {
+  state?: {
+    index: number;
+    routes: readonly TabBarRoute[];
+  };
+  navigation?: {
+    emit: (event: { type: "tabPress"; target: string; canPreventDefault: true }) => {
+      defaultPrevented?: boolean;
+    };
+    navigate: (name: string) => void;
+  };
+};
+
+type MainTabItem = {
+  tabName: "index" | "chats" | "projects";
+  route: MainNavigationRoute;
+  label: string;
+  iosIcon: string;
+  iosActiveIcon: string;
+  androidIcon: AndroidSymbolName;
+  androidActiveIcon: AndroidSymbolName;
+};
+
+export function MainBottomNavigation({ state, navigation }: MainBottomNavigationProps = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -24,27 +58,44 @@ export function MainBottomNavigation() {
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
-  const items = [
+  const items: readonly MainTabItem[] = [
     {
-      route: "/" as const,
+      tabName: "index",
+      route: "/",
       label: chinese ? (traditional ? "首頁" : "首页") : "Home",
+      iosIcon: "house",
+      iosActiveIcon: "house.fill",
+      androidIcon: "home-outline",
+      androidActiveIcon: "home",
     },
     {
-      route: "/chats" as const,
+      tabName: "chats",
+      route: "/chats",
       label: chinese ? "聊天" : t("Chats"),
+      iosIcon: "bubble.left.and.bubble.right",
+      iosActiveIcon: "bubble.left.and.bubble.right.fill",
+      androidIcon: "chatbubbles-outline",
+      androidActiveIcon: "chatbubbles",
     },
     {
-      route: "/projects" as const,
+      tabName: "projects",
+      route: "/projects",
       label: chinese ? (traditional ? "項目" : "项目") : "Projects",
+      iosIcon: "folder",
+      iosActiveIcon: "folder.fill",
+      androidIcon: "folder-outline",
+      androidActiveIcon: "folder",
     },
   ];
+  const activeTabName = state ? state.routes[state.index]?.name : undefined;
+
   return (
     <View
       testID="main-bottom-navigation"
       style={{
         flexShrink: 0,
         flexDirection: "row",
-        minHeight: 52 + insets.bottom,
+        minHeight: 58 + insets.bottom,
         borderTopWidth: topBorderWidth,
         borderTopColor: scope ? tokens.border : isLight ? "rgba(38, 35, 31, 0.06)" : tokens.border,
         backgroundColor: scope ? tokens.background : isLight ? "#FAF8F4" : tokens.card,
@@ -54,8 +105,29 @@ export function MainBottomNavigation() {
       }}
     >
       {items.map((item) => {
-        const selected = pathname === item.route;
+        const selected = activeTabName ? activeTabName === item.tabName : pathname === item.route;
         const color = selected ? tokens.foreground : tokens.mutedForeground;
+        const handlePress = () => {
+          if (selected) {
+            triggerTabScrollToTop(item.route);
+            return;
+          }
+          if (state && navigation) {
+            const targetRoute = state.routes.find((entry) => entry.name === item.tabName);
+            const event = targetRoute
+              ? navigation.emit({
+                  type: "tabPress",
+                  target: targetRoute.key,
+                  canPreventDefault: true,
+                })
+              : { defaultPrevented: false };
+            if (!event.defaultPrevented) {
+              navigation.navigate(item.tabName);
+            }
+            return;
+          }
+          openMainNavigation(router, pathname, item.route);
+        };
         return (
           <MotionPressable
             key={item.route}
@@ -63,26 +135,32 @@ export function MainBottomNavigation() {
             accessibilityRole="tab"
             accessibilityLabel={item.label}
             accessibilityState={{ selected }}
-            onPress={() => openMainNavigation(router, pathname, item.route)}
+            onPress={handlePress}
             style={{
               flex: 1,
               minWidth: 0,
-              minHeight: 52,
+              minHeight: 56,
               flexDirection: "column",
-              paddingTop: 10,
+              paddingTop: 8,
               paddingBottom: 6,
               paddingHorizontal: 8,
-              gap: 5,
+              gap: 3,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
+            <NativeSymbol
+              ios={selected ? item.iosActiveIcon : item.iosIcon}
+              android={selected ? item.androidActiveIcon : item.androidIcon}
+              size={20}
+              color={color}
+            />
             <Text
               numberOfLines={1}
               style={{
                 color,
-                fontSize: 15,
-                lineHeight: 20,
+                fontSize: 11,
+                lineHeight: 14,
                 fontWeight: selected ? "600" : "400",
                 textAlign: "center",
               }}

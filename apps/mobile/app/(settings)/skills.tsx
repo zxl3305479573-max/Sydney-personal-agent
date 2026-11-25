@@ -119,6 +119,7 @@ export default function SkillsScreen() {
   return (
     <SafeAreaView edges={["bottom"]} style={styles.screen}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"

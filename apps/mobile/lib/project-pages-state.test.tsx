@@ -33,6 +33,47 @@ vi.mock("react-native", () => ({
       {children}
     </button>
   ),
+  Modal: ({ children, visible = true }: { children?: ReactNode; visible?: boolean }) =>
+    visible ? <div>{children}</div> : null,
+  KeyboardAvoidingView: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  TextInput: () => <input />,
+  FlatList: ({
+    data = [],
+    renderItem,
+    ListHeaderComponent,
+    ListEmptyComponent,
+    ListFooterComponent,
+    contentOffset,
+    onScroll,
+    onEndReached,
+  }: {
+    data?: unknown[];
+    renderItem: (info: { item: unknown; index: number }) => ReactNode;
+    ListHeaderComponent?: ReactNode;
+    ListEmptyComponent?: ReactNode;
+    ListFooterComponent?: ReactNode;
+    contentOffset?: { y: number };
+    onScroll?: (event: unknown) => void;
+    onEndReached?: () => void;
+  }) => (
+    <div
+      data-scroll={contentOffset?.y ?? 0}
+      onScroll={(event) =>
+        onScroll?.({ nativeEvent: { contentOffset: { x: 0, y: event.currentTarget.scrollTop } } })
+      }
+    >
+      {ListHeaderComponent}
+      {data.length > 0
+        ? data.map((item, index) => <div key={index}>{renderItem({ item, index })}</div>)
+        : ListEmptyComponent}
+      {ListFooterComponent}
+      {onEndReached ? (
+        <button type="button" data-end-reached="true" onClick={onEndReached}>
+          trigger-end-reached
+        </button>
+      ) : null}
+    </div>
+  ),
   ScrollView: ({
     children,
     contentOffset,
@@ -128,7 +169,7 @@ vi.mock("../components/project-group-modal", () => ({ ProjectGroupModal: () => n
 vi.mock("../components/project-directory", () => ({ ProjectDirectory: () => null }));
 vi.mock("./create-inbox-bot", () => ({ inboxBotInput: vi.fn() }));
 
-import Projects from "../app/projects";
+import Projects from "../app/(tabs)/projects";
 import ProjectDetail from "../app/projects/[workspaceId]";
 import { ProjectCloudDirectory } from "../components/project-cloud-directory";
 import { projectThreadSessionScope, threadSessionCache } from "./thread-session-cache";
@@ -172,9 +213,15 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it("restores the last project page and scroll position before new credentials resolve", async () => {
+it("restores accumulated project pages and scroll position before new credentials resolve", async () => {
   await render(<Projects />);
-  await act(async () => button("下一页").click());
+  expect(container.textContent).toContain("项目一");
+  expect(button("下一页")).toBeUndefined();
+  expect(button("上一页")).toBeUndefined();
+  const loadMore = container.querySelector<HTMLButtonElement>('[data-end-reached="true"]')!;
+  await act(async () => loadMore.click());
+  expect(container.textContent).toContain("项目一");
+  expect(container.textContent).toContain("项目二");
   const scroll = container.querySelector<HTMLDivElement>("[data-scroll]")!;
   await act(async () => {
     scroll.scrollTop = 420;
@@ -183,10 +230,10 @@ it("restores the last project page and scroll position before new credentials re
   await render(null);
   runtime.capture.mockImplementationOnce(() => new Promise(() => {}));
   await render(<Projects />);
+  expect(container.textContent).toContain("项目一");
   expect(container.textContent).toContain("项目二");
   expect(container.textContent).not.toContain("正在加载项目");
   expect(container.querySelector("[data-scroll]")?.getAttribute("data-scroll")).toBe("420");
-  expect(button("上一页")).toBeTruthy();
 });
 
 it("restores a project's archived roster and title while the refresh is pending", async () => {

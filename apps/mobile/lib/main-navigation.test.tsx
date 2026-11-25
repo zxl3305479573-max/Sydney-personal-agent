@@ -15,6 +15,7 @@ import {
   useMainNavigationHidden,
 } from "./main-navigation";
 import { ScopedThemeContext } from "./scoped-theme-context";
+import { registerTabScrollToTop } from "./tab-scroll-to-top";
 import type { ResolvedScopedTheme } from "./theme-pack";
 
 const state = vi.hoisted(() => ({
@@ -123,7 +124,7 @@ describe("main mobile navigation", () => {
     expect(MAIN_NAVIGATION_ROUTES).toEqual(["/", "/chats", "/projects"]);
   });
 
-  it("shows three equal-width editorial text tabs with 首页 selected on /", () => {
+  it("shows three equal-width native icon+label tabs with 首页 selected on /", () => {
     act(() => root.render(<MainBottomNavigation />));
     const bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
     expect(bar.children).toHaveLength(3);
@@ -138,9 +139,9 @@ describe("main mobile navigation", () => {
     ]);
     for (const item of items) {
       expect(item.style.flex).toBe("1 1 0%");
-      // Editorial text-only bar: no icon glyphs inside tabs
-      expect(item.querySelector("i")).toBeNull();
-      expect(item.querySelector("span")?.style.fontSize).toBe("15px");
+      // Native bottom bar: SF Symbol / Ionicons icon paired with compact label
+      expect(item.querySelector("i")).not.toBeNull();
+      expect(item.querySelector("span")?.style.fontSize).toBe("11px");
     }
     // Active tab has semibold foreground label + warm neutral underline indicator
     expect(items[0]!.querySelector("span")?.style.fontWeight).toBe("600");
@@ -151,6 +152,47 @@ describe("main mobile navigation", () => {
 
     act(() => items[1]!.click());
     expect(state.router.push).toHaveBeenCalledWith("/chats");
+  });
+
+  it("uses React Navigation tab navigation when hosted inside Expo Router Tabs and scrolls to top on active re-tap", () => {
+    const emit = vi.fn(() => ({ defaultPrevented: false }));
+    const navigate = vi.fn();
+    const scrollHome = vi.fn();
+    const unregister = registerTabScrollToTop("/", scrollHome);
+    try {
+      act(() =>
+        root.render(
+          <MainBottomNavigation
+            state={{
+              index: 0,
+              routes: [
+                { key: "index-1", name: "index" },
+                { key: "chats-1", name: "chats" },
+                { key: "projects-1", name: "projects" },
+              ],
+            }}
+            navigation={{ emit, navigate }}
+          />,
+        ),
+      );
+      const items = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      // Re-tapping active Home tab scrolls to top instead of navigating
+      act(() => items[0]!.click());
+      expect(scrollHome).toHaveBeenCalledOnce();
+      expect(navigate).not.toHaveBeenCalled();
+
+      // Tapping inactive Projects tab navigates natively without Stack push
+      act(() => items[2]!.click());
+      expect(emit).toHaveBeenCalledWith({
+        type: "tabPress",
+        target: "projects-1",
+        canPreventDefault: true,
+      });
+      expect(navigate).toHaveBeenCalledWith("projects");
+      expect(state.router.push).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
   });
 
   it("localizes tab labels for zh-TW and English", () => {

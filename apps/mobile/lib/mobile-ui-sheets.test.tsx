@@ -59,6 +59,36 @@ vi.mock("react-native", () => {
       visible ? createElement("div", { "data-modal": "true" }, children) : null,
     Platform: { OS: "ios" },
     Pressable: el("button"),
+    FlatList: ({
+      data = [],
+      renderItem,
+      ListEmptyComponent,
+      ListFooterComponent,
+      onEndReached,
+    }: {
+      data?: unknown[];
+      renderItem: (info: { item: unknown; index: number }) => ReactNode;
+      ListEmptyComponent?: ReactNode;
+      ListFooterComponent?: ReactNode;
+      onEndReached?: () => void;
+    }) =>
+      createElement(
+        "div",
+        { "data-flatlist": "true" },
+        data.length > 0
+          ? data.map((item, index) =>
+              createElement("div", { key: index }, renderItem({ item, index })),
+            )
+          : ListEmptyComponent,
+        ListFooterComponent,
+        onEndReached
+          ? createElement("button", {
+              type: "button",
+              "data-end-reached": "true",
+              onClick: onEndReached,
+            })
+          : null,
+      ),
     ScrollView: el("div", { "data-scroll": "true" }),
     StyleSheet: {
       create: <T,>(styles: T) => styles,
@@ -211,4 +241,41 @@ it("renders CreateBotModal with fixed close action, upload tile and disabled cre
   const closeButtons = container.querySelectorAll<HTMLElement>('[aria-label="关闭"]');
   act(() => closeButtons[closeButtons.length - 1]!.click());
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("loads additional project bots via infinite scroll without previous/next buttons", async () => {
+  mocks.rpc
+    .mockResolvedValueOnce({
+      bots: [{ id: "bot-1", name: "Alpha" }],
+      groups: [],
+      nextBotId: "bot-1",
+      nextGroupId: null,
+    })
+    .mockResolvedValueOnce({
+      bots: [{ id: "bot-2", name: "Beta" }],
+      groups: [],
+      nextBotId: null,
+      nextGroupId: null,
+    });
+
+  await act(async () => {
+    root.render(
+      <ProjectGroupModal
+        projectId="proj-1"
+        current={() => true}
+        attempt={{ current: null }}
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
+  });
+
+  expect(container.textContent).toContain("Alpha");
+  expect(container.textContent).not.toContain("下一页");
+  expect(container.textContent).not.toContain("上一页");
+
+  const trigger = container.querySelector<HTMLButtonElement>('[data-end-reached="true"]')!;
+  await act(async () => trigger.click());
+  expect(container.textContent).toContain("Alpha");
+  expect(container.textContent).toContain("Beta");
 });

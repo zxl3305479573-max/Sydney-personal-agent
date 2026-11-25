@@ -21,7 +21,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { GlassSurface } from "../components/glass-surface";
 import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativePasswordReset } from "../components/native-password-reset";
@@ -56,7 +55,8 @@ export default function SignIn() {
   const tokens = useMobileTokens();
   const screenBackground = useScreenBackground(tokens.background);
   const appearance = useResolvedAppearance();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
+  const isWide = (width ?? 0) >= 600;
   const secondaryText = appearance === "light" ? "#4A453E" : tokens.mutedForeground;
   const inputHeight = Math.max(48, 16 * fontScale + 24);
   const router = useRouter();
@@ -297,28 +297,29 @@ export default function SignIn() {
               />
             </View>
             <ScrollView
-              contentContainerStyle={{ flexGrow: 1 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between" }}
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
               keyboardShouldPersistTaps="handled"
             >
               <View
                 style={{
-                  minHeight: 64,
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  columnGap: 16,
+                  flexGrow: 1,
+                  justifyContent: "center",
+                  width: "100%",
+                  maxWidth: isWide ? 460 : undefined,
+                  alignSelf: "center",
+                  paddingHorizontal: 24,
+                  paddingTop: 32,
+                  paddingBottom: 16,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <View style={{ alignItems: "flex-start", gap: 14, marginBottom: 28 }}>
                   <View
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 10,
+                      width: 48,
+                      height: 48,
+                      borderRadius: 15,
                       borderWidth: 1,
                       borderColor: tokens.border,
                       backgroundColor: tokens.card,
@@ -329,74 +330,16 @@ export default function SignIn() {
                     <Image
                       source={require("../../../packages/ui-tokens/assets/Sydney.icon/Assets/sydney-mark.png")}
                       accessibilityIgnoresInvertColors
-                      style={{ width: 20, height: 20, tintColor: tokens.foreground }}
+                      style={{ width: 28, height: 28, tintColor: tokens.foreground }}
                     />
                   </View>
-                  <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "500" }}>
-                    Sydney
-                  </Text>
-                </View>
-                {(mode === "in" || mode === "up") && !resetSent && !codeStep ? (
-                  <View
-                    style={{
-                      flexShrink: 1,
-                      flexDirection: "row",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: secondaryText, fontSize: 14, flexShrink: 1 }}>
-                      {mode === "in" ? t("Don’t have an account?") : t("Already have an account?")}
-                    </Text>
-                    <MotionPressable
-                      preset="inline"
-                      accessibilityRole="button"
-                      hitSlop={8}
-                      onPress={() => {
-                        setMode((current) => (current === "in" ? "up" : "in"));
-                        setError(null);
-                      }}
-                      style={{ marginLeft: 6, minHeight: 44, justifyContent: "center" }}
-                    >
-                      <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "500" }}>
-                        {mode === "in" ? t("Sign up") : t("Sign in")}
-                      </Text>
-                    </MotionPressable>
-                  </View>
-                ) : null}
-              </View>
-              <View
-                style={{
-                  flexGrow: 1,
-                  justifyContent: "center",
-                  width: "100%",
-                  alignSelf: "center",
-                  paddingHorizontal: 12,
-                  paddingVertical: 16,
-                }}
-              >
-                <GlassSurface
-                  shape="roundedRectangle"
-                  cornerRadius={22}
-                  fallbackStyle={{ backgroundColor: tokens.card }}
-                  style={{
-                    width: "100%",
-                    maxWidth: 420,
-                    alignSelf: "center",
-                    padding: 24,
-                    borderRadius: 22,
-                    borderWidth: 1,
-                    borderColor: tokens.border,
-                    backgroundColor: tokens.card,
-                  }}
-                >
                   <Text
                     accessibilityRole="header"
                     style={{
                       color: tokens.foreground,
-                      fontSize: 24,
-                      fontWeight: "500",
-                      marginBottom: 24,
+                      fontSize: 28,
+                      fontWeight: "700",
+                      letterSpacing: -0.4,
                     }}
                   >
                     {resetSent || codeStep
@@ -407,6 +350,9 @@ export default function SignIn() {
                           ? t("Sign up for Sydney")
                           : t("Reset your password")}
                   </Text>
+                </View>
+
+                <View style={{ width: "100%" }}>
                   {resetSent && mode === "forgot" && resetRequest ? (
                     <NativePasswordReset
                       apiBase={resetRequest.apiBase}
@@ -438,7 +384,7 @@ export default function SignIn() {
                   ) : (
                     <>
                       {capabilityError ? (
-                        <View>
+                        <View style={{ gap: 12 }}>
                           <Text
                             accessibilityRole="alert"
                             accessibilityLiveRegion="polite"
@@ -494,11 +440,12 @@ export default function SignIn() {
                             }}
                             onSubmitEditing={() => void submit()}
                             style={{
-                              backgroundColor: tokens.background,
+                              backgroundColor: tokens.card,
                               borderWidth: 1,
                               borderColor: tokens.input,
-                              borderRadius: 12,
+                              borderRadius: 14,
                               padding: 16,
+                              fontSize: 16,
                               color: tokens.foreground,
                             }}
                           />
@@ -551,10 +498,10 @@ export default function SignIn() {
                                 style={{
                                   marginTop: 8,
                                   minHeight: inputHeight,
-                                  backgroundColor: tokens.background,
+                                  backgroundColor: tokens.card,
                                   borderWidth: 1,
                                   borderColor: tokens.input,
-                                  borderRadius: 12,
+                                  borderRadius: 14,
                                   paddingHorizontal: 16,
                                   fontSize: 16,
                                   color: tokens.foreground,
@@ -581,10 +528,10 @@ export default function SignIn() {
                             style={{
                               marginTop: 8,
                               minHeight: inputHeight,
-                              backgroundColor: tokens.background,
+                              backgroundColor: tokens.card,
                               borderWidth: 1,
                               borderColor: tokens.input,
-                              borderRadius: 12,
+                              borderRadius: 14,
                               paddingHorizontal: 16,
                               fontSize: 16,
                               color: tokens.foreground,
@@ -620,10 +567,10 @@ export default function SignIn() {
                                   minHeight: inputHeight,
                                   flexDirection: "row",
                                   alignItems: "center",
-                                  backgroundColor: tokens.background,
+                                  backgroundColor: tokens.card,
                                   borderWidth: 1,
                                   borderColor: tokens.input,
-                                  borderRadius: 12,
+                                  borderRadius: 14,
                                 }}
                               >
                                 <TextInput
@@ -679,7 +626,7 @@ export default function SignIn() {
                                 setMode("forgot");
                                 setError(null);
                               }}
-                              style={{ alignSelf: "flex-end", marginTop: 8 }}
+                              style={{ alignSelf: "flex-end", marginTop: 10 }}
                             >
                               <Text
                                 style={{
@@ -714,7 +661,7 @@ export default function SignIn() {
                                       : t("Send reset link")
                             }
                             onPress={() => void submit()}
-                            style={{ marginTop: 12 }}
+                            style={{ marginTop: 16 }}
                           />
                           {passkeys && mode === "in" ? (
                             <NativeActionButton
@@ -769,9 +716,56 @@ export default function SignIn() {
                           ) : null}
                         </>
                       ) : null}
+                      {(mode === "in" || mode === "up") && !resetSent && !codeStep ? (
+                        <View
+                          style={{
+                            marginTop: 20,
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexShrink: 1,
+                              flexDirection: "row",
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Text style={{ color: secondaryText, fontSize: 14, flexShrink: 1 }}>
+                              {mode === "in"
+                                ? t("Don’t have an account?")
+                                : t("Already have an account?")}
+                            </Text>
+                            <MotionPressable
+                              preset="inline"
+                              accessibilityRole="button"
+                              hitSlop={8}
+                              onPress={() => {
+                                setMode((current) => (current === "in" ? "up" : "in"));
+                                setError(null);
+                              }}
+                              style={{ marginLeft: 6, minHeight: 44, justifyContent: "center" }}
+                            >
+                              <Text
+                                style={{
+                                  color: tokens.foreground,
+                                  fontSize: 14,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {mode === "in" ? t("Sign up") : t("Sign in")}
+                              </Text>
+                            </MotionPressable>
+                          </View>
+                        </View>
+                      ) : null}
                     </>
                   )}
-                </GlassSurface>
+                </View>
               </View>
               <MotionPressable
                 preset="inline"

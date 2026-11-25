@@ -471,6 +471,7 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[styles.screen, sideInsets]}
       contentContainerStyle={[styles.content, stacked && styles.compactContent]}
       contentInsetAdjustmentBehavior="automatic"

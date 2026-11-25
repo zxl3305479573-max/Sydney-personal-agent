@@ -1,5 +1,20 @@
 # Sydney 开发总计划
 
+## 手机 App 原生交互与 iOS HIG 全面重构及 iPhone 1.0.26 侧载 OTA 准备（PA-021／REL-01，2026-11-25）
+
+状态：四阶段源码实现、全仓静态／类型／单元测试全绿验证与 `1.0.26` 版本递增已完成，准备提交推送并触发 GitHub Actions `sideload` OTA 发布（真实 iPhone 下载重启与交互验收待真机执行）。
+
+范围与交付物：
+- **阶段一：全局消除外露滚动条与静态回归门禁**：遍历 `apps/mobile/{app,components}` 共 65 个页面／组件文件的 70 处可滚动容器，统一补齐 `showsVerticalScrollIndicator={false}` 与 `showsHorizontalScrollIndicator={false}`，移除 `home-hub.tsx` 与 `inbox-screens.tsx` 冗余 `indicatorStyle`；新增基于 TypeScript AST 的静态回归守卫 `apps/mobile/lib/scroll-hygiene.test.ts`。
+- **阶段二：原生常驻底部 Tab 导航与原生推入详情路由**：
+  - 将根布局中 `router.replace` 模拟的底部导航重构为 Expo Router 原生 `<Tabs detachInactiveScreens={false}>` 路由组 `apps/mobile/app/(tabs)/{_layout,index,chats,projects}.tsx`（原聊天会话主模块提取至 `apps/mobile/components/inbox-screens.tsx`，删除旧 `app/{index,chats,projects}.tsx`），更新 `app/_layout.tsx`（`anchor: "(tabs)"`）、`app/share.tsx` 与 `lib/theme-pack.ts`；升级 `components/main-bottom-navigation.tsx` 为 SF Symbols／Ionicons 图标 + 11pt 标签 + 平滑 `TabIndicator`，新增 `lib/tab-scroll-to-top.ts` 支持重按当前 Tab 平滑回顶；移除项目 Tab 伪 `<` 返回箭，改为原生大标题与右上角 `+` 按钮。
+  - 拆分原生 Stack 推入详情子页 `apps/mobile/app/integration-detail.tsx` 与 `apps/mobile/app/github-repo.tsx`，由 `integrations.tsx` 与 `github.tsx` 通过 `router.push` 推入并原生支持 iOS 左缘侧滑返回。
+- **阶段三：原生弹窗容器、`ActionSheetIOS` 与原生登录页**：新增 `components/app-modal-sheet.tsx`（iOS `Modal presentationStyle="formSheet"` + `allowSwipeDismissal`，Android 优先复用 `NativeSheet`）并迁移 `create-bot-modal.tsx`、`app/(tabs)/projects.tsx`、`project-group-modal.tsx`、`account-deletion.tsx`；升级 `bot-actions-modal.tsx` 在 iOS 端调用原生 `ActionSheetIOS.showActionSheetWithOptions`；重构 `app/sign-in.tsx` 去除 Web 窄屏有框卡片与顶栏右上角链接，改为沉浸式全宽暖瓷原生登录布局。
+- **阶段四：原生无限滚动与发布收口**：将 `app/(tabs)/projects.tsx`、`app/github.tsx`（配 `lib/use-github.ts` 累计 `loadMore()`）、`components/project-group-modal.tsx`、`app/projects/[workspaceId].tsx` 与 `app/integrations.tsx` 全部去 Web 翻页按钮改为无限滚动；一并修复全仓剩余阻塞项（`thread-screen.tsx` 浮动顶栏渐隐遮罩 `headerClearance.padding`、`thread-composer.tsx` 作用域圆角与圆形默认按钮、`project-chat-screen.test.tsx` `GroupAvatar` 替身、`projects/[workspaceId]/chat.tsx` import 格式）；将 `apps/mobile/sydney-release.json` 递增至 `1.0.26`（`2026-11-25`）并补充三语更新说明。
+- **验证结果**：全仓 3,681 文件 Biome 0 错误，`@rakazo/mobile`／`packages/db`／`packages/testkit`／`apps/api` `tsc --noEmit` 均 0 错误，移动端 302/302 测试文件（含新增 `scroll-hygiene`、`tab-scroll-to-top`、`app-modal-sheet` 与 4 个发布版本单测）全部通过，`git diff --check` 0 警告，详见 [验证记录](VALIDATION.md#手机-app-原生交互与-ios-hig-全面重构2026-11-25)。
+
+依赖与验收条件：不新增第三方依赖（兼容 `sydney-ios-ip-1` 侧载 OTA，无需重签 IPA），不改动 PC 端或后端接口；GitHub Actions `mobile-ios-update.yml` 实跑结果、线上 Expo 清单／启动包／资源摘要核验及真实 iPhone 验收待后续步骤与真机执行。
+
 ## iPhone 1.0.25 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：源码提交推送、GitHub Actions `sideload` OTA 发布与线上清单／启动包／全量资源核验完成；真实 iPhone 下载重启与交互验收待执行。

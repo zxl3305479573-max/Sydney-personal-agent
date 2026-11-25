@@ -17,6 +17,7 @@ export default function About() {
   return (
     <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={insets}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: 16, paddingTop: 24 }}

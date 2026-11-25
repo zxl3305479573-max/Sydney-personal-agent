@@ -107,7 +107,10 @@ export function MarkdownArtifactPreview({
             />
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 28 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 28 }}
+        >
           {state.status === "loading" ? (
             <ActivityIndicator
               color={tokens.mutedForeground}

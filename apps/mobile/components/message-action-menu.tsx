@@ -96,7 +96,12 @@ export function MessageMenuHost() {
           maxHeight,
         }}
       >
-        <ScrollView style={{ maxHeight }} bounces={false} contentContainerStyle={{ gap: 10 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ maxHeight }}
+          bounces={false}
+          contentContainerStyle={{ gap: 10 }}
+        >
           {menu.reactions.length > 0 ? (
             <View
               style={{

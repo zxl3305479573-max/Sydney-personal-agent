@@ -126,6 +126,9 @@ vi.mock("../components/thread/thread-composer-dock", () => ({
     columnPadding: object;
   }) => <div data-composer-dock={JSON.stringify(columnPadding)}>{children}</div>,
 }));
+vi.mock("../components/group-avatar", () => ({
+  GroupAvatar: () => null,
+}));
 vi.mock("../components/bot-avatar", () => ({
   BotAvatar: ({
     identity,

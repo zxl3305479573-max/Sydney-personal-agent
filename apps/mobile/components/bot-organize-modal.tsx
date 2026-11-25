@@ -151,6 +151,7 @@ export function BotOrganizeModal({
       </View>
       <Text style={styles.sectionLabel}>{t("Move to")}</Text>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={[styles.sectionOptions, Sheet ? styles.nativeCardGroup : styles.cardGroup]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled={Sheet ? true : undefined}

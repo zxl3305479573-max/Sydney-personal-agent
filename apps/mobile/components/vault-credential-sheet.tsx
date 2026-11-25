@@ -156,6 +156,7 @@ export function VaultCredentialSheet({
           />
         </View>
         <ScrollView
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets

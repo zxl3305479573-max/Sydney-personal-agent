@@ -431,7 +431,9 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
       if (!member) continue;
       entries.push({ ...member, status: aggregateConversationStatus(statuses) });
     }
-    return entries.sort((left, right) => Number(isRunWorking(right.status)) - Number(isRunWorking(left.status)));
+    return entries.sort(
+      (left, right) => Number(isRunWorking(right.status)) - Number(isRunWorking(left.status)),
+    );
   }, [inGroup, snap?.activeRuns, snap?.members, snap?.run]);
   const working = inGroup ? activeGroupBots.length > 0 : isActiveStatus(currentConversationStatus);
 
@@ -889,6 +891,22 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
               loadingNewer={paging.loadingNewer}
               showLatest={showLatest}
             />
+            {threadHeaderFloats() &&
+            headerClearance.padding > 0 &&
+            !hasUserBackground &&
+            !hasThemeBackground ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: headerClearance.padding + 14,
+                  experimental_backgroundImage: `linear-gradient(180deg, ${tokens.background} 0%, ${tokens.background} 68%, transparent 100%)`,
+                }}
+              />
+            ) : null}
             {/* Shrinks (the suggestion lists scroll) so the input and Send stay above the keyboard. */}
             <ThreadComposerDock
               hidden={readOnly}

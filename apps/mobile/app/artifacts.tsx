@@ -230,6 +230,7 @@ export default function ArtifactsScreen() {
   return (
     <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       <FlatList<MobileArtifactSummary>
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <ScrollView
             ref={chipsScrollRef}

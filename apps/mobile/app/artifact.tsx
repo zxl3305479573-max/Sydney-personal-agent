@@ -310,6 +310,7 @@ function ArtifactPreview({
   if (preview.kind === "markdown") {
     return (
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         contentContainerStyle={styles.markdownScroll}
         contentInsetAdjustmentBehavior="automatic"

@@ -94,6 +94,7 @@ export default function BillingScreen() {
   const annualCents = status.byokAnnualPriceCents;
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={sideInsets}
       contentContainerStyle={[styles.content, stacked && styles.compactContent]}
       contentInsetAdjustmentBehavior="automatic"

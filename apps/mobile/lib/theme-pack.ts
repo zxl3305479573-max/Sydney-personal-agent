@@ -410,19 +410,23 @@ export function resolveScopedTheme(
 }
 
 export function themeScopeForRoute(routeName: string): ThemeScope {
-  const route = routeName.replace(/^\/+|\/+$/g, "").replace(/^\(settings\)\/?/, "settings/");
-  if (!route || route === "index") return "inbox";
+  const route = routeName
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/^\(tabs\)\/?/, "")
+    .replace(/^\(settings\)\/?/, "settings/");
+  if (!route || route === "index" || route === "chats") return "inbox";
   if (route.startsWith("settings/") || route === "settings") return "settings";
   if (/^projects\/[^/]+\/chat$/.test(route)) return "projectThread";
   if (route === "projects" || route.startsWith("projects/")) return "projects";
   if (route === "group-thread") return "groupThread";
   if (route === "thread" || route === "peer-chat" || route === "thread-model") return "thread";
-  if (route === "github") return "github";
+  if (route === "github" || route === "github-repo") return "github";
   if (route === "computer") return "computer";
   if (["sign-in", "server"].includes(route)) return "auth";
   if (route === "search") return "search";
   if (["routines", "routine", "board"].includes(route)) return "routines";
-  if (["integrations", "integration-setup"].includes(route)) return "integrations";
+  if (["integrations", "integration-setup", "integration-detail"].includes(route))
+    return "integrations";
   if (["artifact", "artifacts", "image", "share"].includes(route)) return "artifacts";
   if (
     [

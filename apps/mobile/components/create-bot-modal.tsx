@@ -10,17 +10,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   currentApiBase,
   isSpaceSelectionPending,
@@ -35,6 +31,7 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { currentSessionGeneration } from "../lib/session";
 import { errorText } from "../lib/user-error";
+import { AppModalSheet } from "./app-modal-sheet";
 import { GlassSurface } from "./glass-surface";
 import { MotionPressable } from "./motion-pressable";
 import { NativeActionButton } from "./native-action-button";
@@ -69,7 +66,6 @@ export function CreateBotModal({
   onCreated: (destination: Href | null) => void;
 }) {
   const tokens = useMobileTokens();
-  const insets = useSafeAreaInsets();
   const { locale } = useI18n();
   const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const [name, setName] = useState("");
@@ -260,393 +256,357 @@ export function CreateBotModal({
   });
 
   return (
-    <Modal
+    <AppModalSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={close}
+      onClose={close}
+      preventDismiss={disabled}
+      accessibilityLabel={text("新建 Bot", "New bot")}
+      backgroundColor={tokens.background}
       onDismiss={() => {
         if (!mounted.current || !finished.current) return;
         finished.current = false;
         onCreated(current() ? destination.current : null);
       }}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "flex-end", backgroundColor: tokens.overlay }}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          paddingHorizontal: 20,
+          paddingBottom: 12,
+        }}
       >
-        <Pressable
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+          <Text style={{ color: tokens.foreground, fontSize: 22, fontWeight: "700" }}>
+            {text("新建 Bot", "New bot")}
+          </Text>
+          <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
+            {text("赋予你的助手独特的身份", "Give your assistant a unique identity")}
+          </Text>
+        </View>
+        <MotionPressable
+          preset="control"
+          accessibilityRole="button"
           accessibilityLabel={text("关闭", "Close")}
           disabled={disabled}
           onPress={close}
-          style={{ flex: 1 }}
-        />
-        <View
-          accessibilityViewIsModal
           style={{
-            maxHeight: "92%",
-            backgroundColor: tokens.background,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
-            paddingTop: 10,
-            paddingBottom: Math.max(insets.bottom, 16),
+            minHeight: 34,
+            paddingHorizontal: 14,
+            paddingVertical: 7,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: tokens.border,
+            backgroundColor: tokens.card,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <View
-            accessible={false}
+          <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}>
+            {text("关闭", "Close")}
+          </Text>
+        </MotionPressable>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1, flexShrink: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 18, gap: 18 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <View style={{ alignItems: "center", paddingTop: 4 }}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={30}
             style={{
-              alignSelf: "center",
-              width: 38,
-              height: 5,
-              borderRadius: 2.5,
-              backgroundColor: tokens.mutedForeground,
-              opacity: 0.32,
-              marginBottom: 10,
-            }}
-          />
-          <View
-            style={{
-              flexDirection: "row",
+              width: 104,
+              height: 104,
+              borderRadius: 30,
+              padding: 6,
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              paddingHorizontal: 20,
-              paddingBottom: 12,
+              justifyContent: "center",
+            }}
+            fallbackStyle={{
+              backgroundColor: tokens.card,
+              borderWidth: 1,
+              borderColor: tokens.border,
             }}
           >
-            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-              <Text style={{ color: tokens.foreground, fontSize: 22, fontWeight: "700" }}>
-                {text("新建 Bot", "New bot")}
-              </Text>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
-                {text("赋予你的助手独特的身份", "Give your assistant a unique identity")}
-              </Text>
-            </View>
-            <MotionPressable
-              preset="control"
-              accessibilityRole="button"
-              accessibilityLabel={text("关闭", "Close")}
-              disabled={disabled}
-              onPress={close}
+            <View
               style={{
-                minHeight: 34,
-                paddingHorizontal: 14,
-                paddingVertical: 7,
-                borderRadius: 999,
+                width: "100%",
+                height: "100%",
+                borderRadius: 24,
                 borderWidth: 1,
                 borderColor: tokens.border,
-                backgroundColor: tokens.card,
                 alignItems: "center",
                 justifyContent: "center",
+                overflow: "hidden",
               }}
             >
-              <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}>
-                {text("关闭", "Close")}
-              </Text>
-            </MotionPressable>
+              <Image source={preview} style={{ width: 82, height: 82, borderRadius: 41 }} />
+            </View>
+          </GlassSurface>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
+            {text("Bot 名称", "Bot name")}
+          </Text>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={14}
+            style={{ borderRadius: 14 }}
+            fallbackStyle={{
+              backgroundColor: tokens.card,
+              borderWidth: 1,
+              borderColor: tokens.border,
+            }}
+          >
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              maxLength={BOT_NAME_MAX_LENGTH}
+              editable={!disabled}
+              placeholder={text("为你的 Bot 命名", "Name your bot")}
+              placeholderTextColor={tokens.mutedForeground}
+              style={{
+                minHeight: 48,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                color: tokens.foreground,
+                fontSize: 16,
+              }}
+            />
+          </GlassSurface>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
+            {text("人格", "Personality")}
+          </Text>
+          <View style={{ gap: 8 }}>
+            {personalityRows.map((row) => (
+              <View
+                key={row.map((entry) => entry.id).join("-")}
+                style={{ flexDirection: "row", gap: 8 }}
+              >
+                {row.map((item) => {
+                  const selected = !personal && personality === item.id;
+                  return (
+                    <MotionPressable
+                      key={item.id}
+                      preset="card"
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`${text(...labels[item.id])}，${text(...descriptions[item.id])}`}
+                      disabled={disabled}
+                      onPress={() => {
+                        setPersonality(item.id);
+                        setPersonal(null);
+                      }}
+                      style={[choiceStyle(selected), { flex: 1, minWidth: 0, gap: 4 }]}
+                    >
+                      <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
+                        {text(...labels[item.id])}
+                      </Text>
+                      <Text
+                        numberOfLines={2}
+                        style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
+                      >
+                        {text(...descriptions[item.id])}
+                      </Text>
+                    </MotionPressable>
+                  );
+                })}
+              </View>
+            ))}
           </View>
 
-          <ScrollView
-            style={{ flexShrink: 1 }}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 18, gap: 18 }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={16}
+            style={{ borderRadius: 16, marginTop: 2 }}
+            fallbackStyle={{
+              backgroundColor: tokens.card,
+              borderWidth: personal ? 1.5 : 1,
+              borderColor: personal ? selectedRing : tokens.border,
+            }}
           >
-            <View style={{ alignItems: "center", paddingTop: 4 }}>
-              <GlassSurface
-                shape="roundedRectangle"
-                cornerRadius={30}
-                style={{
-                  width: 104,
-                  height: 104,
-                  borderRadius: 30,
-                  padding: 6,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                fallbackStyle={{
-                  backgroundColor: tokens.card,
-                  borderWidth: 1,
-                  borderColor: tokens.border,
-                }}
+            <MotionPressable
+              preset="row"
+              highlightColor={tokens.muted}
+              accessibilityRole="button"
+              disabled={disabled}
+              onPress={() => {
+                if (!current()) {
+                  setError(
+                    text(
+                      "工作区已改变，请关闭后重新创建。",
+                      "The workspace changed. Close and try again.",
+                    ),
+                  );
+                  return;
+                }
+                setLibraryOpen((open) => !open);
+              }}
+              style={{
+                minHeight: 48,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{ flex: 1, color: tokens.foreground, fontWeight: "500" }}
               >
-                <View
+                {text("个人人格库", "Personal personality library")}
+                {personal ? ` · ${personal.name}` : ""}
+              </Text>
+              <NativeSymbol
+                ios={libraryOpen ? "chevron.up" : "chevron.down"}
+                android={libraryOpen ? "chevron-up" : "chevron-down"}
+                size={15}
+                color={tokens.mutedForeground}
+              />
+            </MotionPressable>
+          </GlassSurface>
+
+          {libraryOpen ? (
+            <PersonalPersonalityLibrary
+              current={current}
+              disabled={busy}
+              selectedId={personal?.id}
+              onSelect={(item) => {
+                setPersonal(item);
+                setLibraryOpen(false);
+              }}
+              onSaved={(item) => setPersonal((old) => (old?.id === item.id ? item : old))}
+              onRemoved={(id) => setPersonal((old) => (old?.id === id ? null : old))}
+              onBusyChange={setLibraryBusy}
+            />
+          ) : null}
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
+            {text("头像", "Avatar")}
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {BUILT_IN_BOT_AVATARS.map((item, index) => (
+              <MotionPressable
+                key={item.id}
+                preset="control"
+                accessibilityRole="button"
+                accessibilityLabel={item.name}
+                accessibilityState={{ selected: !photo && avatarIndex === index }}
+                disabled={disabled}
+                onPress={() => {
+                  setAvatarIndex(index);
+                  setPhoto(null);
+                }}
+                style={avatarTileStyle(!photo && avatarIndex === index)}
+              >
+                <Image source={item.source} style={{ width: 48, height: 48, borderRadius: 24 }} />
+              </MotionPressable>
+            ))}
+            {savedAvatars.map((avatar) => (
+              <View key={avatar.id}>
+                <MotionPressable
+                  preset="control"
+                  accessibilityRole="button"
+                  accessibilityLabel={text("选择已保存头像", "Select saved avatar")}
+                  accessibilityState={{ selected: photo === avatar.dataUrl }}
+                  disabled={disabled}
+                  onPress={() => setPhoto(avatar.dataUrl)}
+                  style={avatarTileStyle(photo === avatar.dataUrl)}
+                >
+                  <Image
+                    source={{ uri: avatar.dataUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                </MotionPressable>
+                <MotionPressable
+                  preset="icon"
+                  accessibilityRole="button"
+                  accessibilityLabel={text("移除已保存头像", "Remove saved avatar")}
+                  disabled={disabled}
+                  hitSlop={6}
+                  onPress={() => confirmRemoveAvatar(avatar)}
                   style={{
-                    width: "100%",
-                    height: "100%",
-                    borderRadius: 24,
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: tokens.card,
                     borderWidth: 1,
                     borderColor: tokens.border,
                     alignItems: "center",
                     justifyContent: "center",
-                    overflow: "hidden",
                   }}
                 >
-                  <Image source={preview} style={{ width: 82, height: 82, borderRadius: 41 }} />
-                </View>
-              </GlassSurface>
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
-                {text("Bot 名称", "Bot name")}
-              </Text>
-              <GlassSurface
-                shape="roundedRectangle"
-                cornerRadius={14}
-                style={{ borderRadius: 14 }}
-                fallbackStyle={{
-                  backgroundColor: tokens.card,
-                  borderWidth: 1,
-                  borderColor: tokens.border,
-                }}
-              >
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  maxLength={BOT_NAME_MAX_LENGTH}
-                  editable={!disabled}
-                  placeholder={text("为你的 Bot 命名", "Name your bot")}
-                  placeholderTextColor={tokens.mutedForeground}
-                  style={{
-                    minHeight: 48,
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    color: tokens.foreground,
-                    fontSize: 16,
-                  }}
-                />
-              </GlassSurface>
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
-                {text("人格", "Personality")}
-              </Text>
-              <View style={{ gap: 8 }}>
-                {personalityRows.map((row) => (
-                  <View
-                    key={row.map((entry) => entry.id).join("-")}
-                    style={{ flexDirection: "row", gap: 8 }}
-                  >
-                    {row.map((item) => {
-                      const selected = !personal && personality === item.id;
-                      return (
-                        <MotionPressable
-                          key={item.id}
-                          preset="card"
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          accessibilityLabel={`${text(...labels[item.id])}，${text(...descriptions[item.id])}`}
-                          disabled={disabled}
-                          onPress={() => {
-                            setPersonality(item.id);
-                            setPersonal(null);
-                          }}
-                          style={[choiceStyle(selected), { flex: 1, minWidth: 0, gap: 4 }]}
-                        >
-                          <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
-                            {text(...labels[item.id])}
-                          </Text>
-                          <Text
-                            numberOfLines={2}
-                            style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
-                          >
-                            {text(...descriptions[item.id])}
-                          </Text>
-                        </MotionPressable>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-
-              <GlassSurface
-                shape="roundedRectangle"
-                cornerRadius={16}
-                style={{ borderRadius: 16, marginTop: 2 }}
-                fallbackStyle={{
-                  backgroundColor: tokens.card,
-                  borderWidth: personal ? 1.5 : 1,
-                  borderColor: personal ? selectedRing : tokens.border,
-                }}
-              >
-                <MotionPressable
-                  preset="row"
-                  highlightColor={tokens.muted}
-                  accessibilityRole="button"
-                  disabled={disabled}
-                  onPress={() => {
-                    if (!current()) {
-                      setError(
-                        text(
-                          "工作区已改变，请关闭后重新创建。",
-                          "The workspace changed. Close and try again.",
-                        ),
-                      );
-                      return;
-                    }
-                    setLibraryOpen((open) => !open);
-                  }}
-                  style={{
-                    minHeight: 48,
-                    paddingHorizontal: 14,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{ flex: 1, color: tokens.foreground, fontWeight: "500" }}
-                  >
-                    {text("个人人格库", "Personal personality library")}
-                    {personal ? ` · ${personal.name}` : ""}
-                  </Text>
                   <NativeSymbol
-                    ios={libraryOpen ? "chevron.up" : "chevron.down"}
-                    android={libraryOpen ? "chevron-up" : "chevron-down"}
-                    size={15}
+                    ios="xmark"
+                    android="close"
+                    size={11}
                     color={tokens.mutedForeground}
                   />
                 </MotionPressable>
-              </GlassSurface>
-
-              {libraryOpen ? (
-                <PersonalPersonalityLibrary
-                  current={current}
-                  disabled={busy}
-                  selectedId={personal?.id}
-                  onSelect={(item) => {
-                    setPersonal(item);
-                    setLibraryOpen(false);
-                  }}
-                  onSaved={(item) => setPersonal((old) => (old?.id === item.id ? item : old))}
-                  onRemoved={(id) => setPersonal((old) => (old?.id === id ? null : old))}
-                  onBusyChange={setLibraryBusy}
-                />
-              ) : null}
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
-                {text("头像", "Avatar")}
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {BUILT_IN_BOT_AVATARS.map((item, index) => (
-                  <MotionPressable
-                    key={item.id}
-                    preset="control"
-                    accessibilityRole="button"
-                    accessibilityLabel={item.name}
-                    accessibilityState={{ selected: !photo && avatarIndex === index }}
-                    disabled={disabled}
-                    onPress={() => {
-                      setAvatarIndex(index);
-                      setPhoto(null);
-                    }}
-                    style={avatarTileStyle(!photo && avatarIndex === index)}
-                  >
-                    <Image
-                      source={item.source}
-                      style={{ width: 48, height: 48, borderRadius: 24 }}
-                    />
-                  </MotionPressable>
-                ))}
-                {savedAvatars.map((avatar) => (
-                  <View key={avatar.id}>
-                    <MotionPressable
-                      preset="control"
-                      accessibilityRole="button"
-                      accessibilityLabel={text("选择已保存头像", "Select saved avatar")}
-                      accessibilityState={{ selected: photo === avatar.dataUrl }}
-                      disabled={disabled}
-                      onPress={() => setPhoto(avatar.dataUrl)}
-                      style={avatarTileStyle(photo === avatar.dataUrl)}
-                    >
-                      <Image
-                        source={{ uri: avatar.dataUrl }}
-                        style={{ width: 48, height: 48, borderRadius: 24 }}
-                      />
-                    </MotionPressable>
-                    <MotionPressable
-                      preset="icon"
-                      accessibilityRole="button"
-                      accessibilityLabel={text("移除已保存头像", "Remove saved avatar")}
-                      disabled={disabled}
-                      hitSlop={6}
-                      onPress={() => confirmRemoveAvatar(avatar)}
-                      style={{
-                        position: "absolute",
-                        top: -4,
-                        right: -4,
-                        width: 22,
-                        height: 22,
-                        borderRadius: 11,
-                        backgroundColor: tokens.card,
-                        borderWidth: 1,
-                        borderColor: tokens.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <NativeSymbol
-                        ios="xmark"
-                        android="close"
-                        size={11}
-                        color={tokens.mutedForeground}
-                      />
-                    </MotionPressable>
-                  </View>
-                ))}
-                <MotionPressable
-                  preset="control"
-                  accessibilityRole="button"
-                  accessibilityLabel={text("上传头像", "Choose photo")}
-                  disabled={disabled || avatarsLoading}
-                  onPress={() => void choosePhoto()}
-                  style={[avatarTileStyle(false), { gap: 3 }]}
-                >
-                  <NativeSymbol ios="plus" android="add" size={20} color={tokens.foreground} />
-                  <Text style={{ color: tokens.mutedForeground, fontSize: 11 }}>
-                    {text("上传", "Upload")}
-                  </Text>
-                </MotionPressable>
               </View>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 17 }}>
-                {text(
-                  "上传的头像保存在此设备，设备上的账号均可使用，不会自动同步。",
-                  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.",
-                )}
+            ))}
+            <MotionPressable
+              preset="control"
+              accessibilityRole="button"
+              accessibilityLabel={text("上传头像", "Choose photo")}
+              disabled={disabled || avatarsLoading}
+              onPress={() => void choosePhoto()}
+              style={[avatarTileStyle(false), { gap: 3 }]}
+            >
+              <NativeSymbol ios="plus" android="add" size={20} color={tokens.foreground} />
+              <Text style={{ color: tokens.mutedForeground, fontSize: 11 }}>
+                {text("上传", "Upload")}
               </Text>
-            </View>
-          </ScrollView>
-
-          <View
-            style={{
-              paddingHorizontal: 20,
-              paddingTop: 12,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderTopColor: tokens.border,
-              gap: 10,
-            }}
-          >
-            {error ? (
-              <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
-                {error}
-              </Text>
-            ) : null}
-            <NativeActionButton
-              label={text("创建", "Create")}
-              disabled={!name.trim() || libraryBusy}
-              busy={busy}
-              onPress={() => void create()}
-            />
+            </MotionPressable>
           </View>
+          <Text style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+            {text(
+              "上传的头像保存在此设备，设备上的账号均可使用，不会自动同步。",
+              "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.",
+            )}
+          </Text>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </ScrollView>
+
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: tokens.border,
+          gap: 10,
+        }}
+      >
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            {error}
+          </Text>
+        ) : null}
+        <NativeActionButton
+          label={text("创建", "Create")}
+          disabled={!name.trim() || libraryBusy}
+          busy={busy}
+          onPress={() => void create()}
+        />
+      </View>
+    </AppModalSheet>
   );
 }

@@ -69,6 +69,7 @@ export default function RoutineDetail() {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
       contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 36 }}
       contentInsetAdjustmentBehavior="automatic"

@@ -39,6 +39,130 @@ type GithubHomeSnapshot = {
   overview: GithubProfileOverview | null;
 };
 
+function mergeRepos(
+  existing: GithubRepoSummary[],
+  incoming: GithubRepoSummary[],
+): GithubRepoSummary[] {
+  const seen = new Set(existing.map((repo) => repo.id));
+  const merged = [...existing];
+  for (const repo of incoming) {
+    if (!seen.has(repo.id)) {
+      seen.add(repo.id);
+      merged.push(repo);
+    }
+  }
+  return merged;
+}
+
+export function rememberGithubRepoPreview(scopeKey: string, repo: GithubRepoSummary) {
+  queryClient.setQueryData(["github-repo-preview", scopeKey, repo.ownerLogin, repo.name], repo);
+}
+
+export function readGithubRepoPreview(
+  scopeKey: string,
+  owner: string,
+  name: string,
+): GithubRepoSummary | null {
+  return (
+    queryClient.getQueryData<GithubRepoSummary>(["github-repo-preview", scopeKey, owner, name]) ??
+    null
+  );
+}
+
+export function useGithubRepoDetail(
+  scopeKey: string,
+  owner: string,
+  name: string,
+  isPrivate: boolean,
+) {
+  const homeKey = useMemo(() => ["github-home", scopeKey], [scopeKey]);
+  const [detail, setDetail] = usePageState<GithubRepoDetail | null>(
+    scopeKey,
+    ["github-content", "detail", owner, name],
+    null,
+  );
+  const [loading, setLoading] = useState(!detail);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const request = useRef(0);
+  const pullRequested = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!owner || !name || isSpaceSelectionPending()) return;
+      const controller = new AbortController();
+      const issued = ++request.current;
+      const current = () =>
+        !controller.signal.aborted &&
+        issued === request.current &&
+        scopeKey === projectScopeKey() &&
+        !isSpaceSelectionPending();
+      setLoading(true);
+      setRefreshing(pullRequested.current);
+      pullRequested.current = false;
+      setError(null);
+      void (async () => {
+        try {
+          const requestContext = await captureApiRequestContext();
+          if (!current()) return;
+          const options = {
+            requestContext,
+            signal: controller.signal,
+            skipSpaceAuthRecovery: true,
+          };
+          const connection = await rpc("github/status", {}, options);
+          if (!current()) return;
+          const previous = queryClient.getQueryData<GithubHomeSnapshot>(homeKey);
+          const changedConnection =
+            previous &&
+            (previous.status.status !== connection.status ||
+              (previous.status.status === "connected" &&
+                connection.status === "connected" &&
+                (previous.status.githubUserId !== connection.githubUserId ||
+                  previous.status.connectedAt !== connection.connectedAt)));
+          if (changedConnection) {
+            clearPageState(scopeKey, ["github-content"]);
+            setDetail(null);
+          }
+          if (isPrivate && connection.status !== "connected") {
+            setDetail(null);
+            return;
+          }
+          const result = await rpc("github/repoDetail", { owner, repo: name }, options);
+          if (current()) setDetail(result);
+        } catch (cause) {
+          if (current()) {
+            if (!isRetryableError(cause)) setDetail(null);
+            setError(errorText(cause));
+          }
+        } finally {
+          if (current()) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      })();
+      return () => {
+        controller.abort();
+      };
+    }, [homeKey, scopeKey, owner, name, isPrivate, revision]),
+  );
+
+  return {
+    detail,
+    loading,
+    refreshing,
+    error,
+    refresh: () => setRevision((value) => value + 1),
+    pullToRefresh: () => {
+      pullRequested.current = true;
+      setRefreshing(true);
+      setRevision((value) => value + 1);
+    },
+  };
+}
+
 export function useGithub(scopeKey: string) {
   const homeKey = useMemo(() => ["github-home", scopeKey], [scopeKey]);
   const [section, setSection] = usePageState<GithubSection>(
@@ -108,6 +232,7 @@ export function useGithub(scopeKey: string) {
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +241,7 @@ export function useGithub(scopeKey: string) {
   const request = useRef(0);
   const mutation = useRef(false);
   const pullRequested = useRef(false);
+  const loadMoreInFlight = useRef(false);
   const inScope = () => scopeKey === projectScopeKey() && !isSpaceSelectionPending();
   const live = () => focused.current && inScope();
 
@@ -266,6 +392,83 @@ export function useGithub(scopeKey: string) {
     ]),
   );
 
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || loadMoreInFlight.current || !live()) return;
+    if (section === "explore") {
+      if (!search?.hasNextPage) return;
+      const nextPage = (search.page ?? page) + 1;
+      const issued = request.current;
+      loadMoreInFlight.current = true;
+      setLoadingMore(true);
+      try {
+        const requestContext = await captureApiRequestContext();
+        if (!live() || issued !== request.current) return;
+        const result = await rpc(
+          "github/searchRepos",
+          { ...exploreFilters, query, page: nextPage, perPage: 20 },
+          { requestContext, skipSpaceAuthRecovery: true },
+        );
+        if (!live() || issued !== request.current) return;
+        setSearch((previous) => ({
+          ...result,
+          items: mergeRepos(previous?.items ?? [], result.items),
+        }));
+      } catch (cause) {
+        if (live() && issued === request.current) setError(errorText(cause));
+      } finally {
+        loadMoreInFlight.current = false;
+        if (live()) setLoadingMore(false);
+      }
+      return;
+    }
+    if (section === "repositories" && status?.status === "connected") {
+      if (!repositories?.hasNextPage) return;
+      const nextPage = (repositories.page ?? page) + 1;
+      const issued = request.current;
+      loadMoreInFlight.current = true;
+      setLoadingMore(true);
+      try {
+        const requestContext = await captureApiRequestContext();
+        if (!live() || issued !== request.current) return;
+        const result = await rpc(
+          "github/listMyRepos",
+          {
+            query,
+            page: nextPage,
+            perPage: 24,
+            ...repositoryFilters,
+            visibility: hidePrivate ? "public" : repositoryFilters.visibility,
+          },
+          { requestContext, skipSpaceAuthRecovery: true },
+        );
+        if (!live() || issued !== request.current) return;
+        setRepositories((previous) => ({
+          ...result,
+          items: mergeRepos(previous?.items ?? [], result.items),
+        }));
+      } catch (cause) {
+        if (live() && issued === request.current) setError(errorText(cause));
+      } finally {
+        loadMoreInFlight.current = false;
+        if (live()) setLoadingMore(false);
+      }
+    }
+  }, [
+    loading,
+    loadingMore,
+    section,
+    search,
+    repositories,
+    status?.status,
+    exploreFilters,
+    repositoryFilters,
+    query,
+    page,
+    hidePrivate,
+    setSearch,
+    setRepositories,
+  ]);
+
   async function changeConnection(token?: string) {
     if (!live() || mutation.current) return;
     mutation.current = true;
@@ -346,6 +549,8 @@ export function useGithub(scopeKey: string) {
     page,
     query,
     selectPage: setPage,
+    loadMore,
+    loadingMore,
     setQuery: (value: string) => {
       setQuery(value.trim());
       setPage(1);

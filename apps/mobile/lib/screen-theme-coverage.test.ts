@@ -19,9 +19,10 @@ const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../a
 // Layouts, redirects, re-exports, media/picker wrappers, or screens that do not paint a root fill.
 const NON_ROOT_FILL_APP_FILES = new Set([
   "_layout.tsx",
+  "(tabs)/_layout.tsx",
+  "(tabs)/index.tsx",
   "(settings)/_layout.tsx",
   "+native-intent.tsx",
-  "index.tsx",
   "group-thread.tsx",
   "integration-setup.tsx",
   "image.tsx",

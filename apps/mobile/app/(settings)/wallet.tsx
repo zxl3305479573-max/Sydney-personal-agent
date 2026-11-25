@@ -87,7 +87,11 @@ export default function WalletSettings() {
   const disconnect = () => void act(() => rpc("paymentWallet/disconnect"));
 
   return (
-    <ScrollView style={sideInsets} contentInsetAdjustmentBehavior="automatic">
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      style={sideInsets}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       {loadError && !status ? (
         <View style={styles.failure}>
           <LoadFailure message={loadError} onRetry={reload} />

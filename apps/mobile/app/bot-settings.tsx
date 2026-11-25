@@ -636,6 +636,7 @@ function BotSettingsScreen({
     <>
       <Stack.Screen options={glassHeaderOptions(t("Chat settings"))} />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         ref={scrollRef}
         style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
         contentContainerStyle={{ padding: 24 }}
@@ -1069,6 +1070,7 @@ function BotSettingsScreen({
           }}
         >
           <ScrollView
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={{ padding: 24, gap: 16 }}
             style={{ backgroundColor: tokens.background }}
           >

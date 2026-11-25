@@ -6,14 +6,16 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { Linking } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import IntegrationDetail from "../app/integration-detail";
 import Integrations from "../app/integrations";
 import { ConnectorIcon } from "../components/connector-icon";
-import { MainNavigationProvider, useMainNavigationHidden } from "./main-navigation";
 
 const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   marketplace: vi.fn(),
   push: vi.fn(),
+  back: vi.fn(),
+  params: {} as Record<string, string>,
   header: vi.fn(),
   read: vi.fn(),
   write: vi.fn(),
@@ -42,8 +44,11 @@ vi.mock("../components/main-navigation-header", () => ({
   },
 }));
 vi.mock("expo-router", () => ({
-  useRouter: () => ({ push: state.push, setParams: vi.fn() }),
-  useLocalSearchParams: () => ({}),
+  Stack: {
+    Screen: ({ options }: { options?: { title?: string } }) => <header>{options?.title}</header>,
+  },
+  useRouter: () => ({ push: state.push, back: state.back, setParams: vi.fn() }),
+  useLocalSearchParams: () => state.params,
   useNavigation: () => ({ setOptions: vi.fn() }),
   useFocusEffect: (callback: () => undefined | (() => void)) => {
     useEffect(() => {
@@ -237,6 +242,8 @@ beforeEach(() => {
   state.read.mockReset().mockReturnValue(null);
   state.write.mockReset();
   state.push.mockReset();
+  state.back.mockReset();
+  state.params = {};
   state.header.mockReset();
   state.marketplace
     .mockReset()
@@ -360,35 +367,38 @@ it("falls back for absent logos and empty names", async () => {
   expect(container.textContent).toBe("?");
 });
 
-it("hides main navigation inside an app connection and returns to the app list", async () => {
-  function NavigationVisibility() {
-    return <output>{useMainNavigationHidden() ? "hidden" : "visible"}</output>;
-  }
+it("pushes the native integration detail route when opening a connected app", async () => {
   state.read.mockReturnValue({ catalog: [item], connections: [account] });
-  await render(
-    <MainNavigationProvider>
-      <Integrations />
-      <NavigationVisibility />
-    </MainNavigationProvider>,
-  );
-  expect(container.querySelector("output")?.textContent).toBe("visible");
+  await render(<Integrations />);
   const added = [...container.querySelectorAll("button")].find(
     (button) => button.textContent === "Added",
   );
   expect(added).toBeDefined();
   await act(async () => added!.click());
-  expect(container.querySelector("output")?.textContent).toBe("hidden");
-  act(() => state.header.mock.lastCall![0].onBack());
-  expect(container.querySelector("output")?.textContent).toBe("visible");
+  expect(state.push).toHaveBeenCalledWith({
+    pathname: "/integration-detail",
+    params: {
+      connectorId: item.connectorId,
+      slug: item.slug,
+      name: item.name,
+      logo: item.logo,
+    },
+  });
 });
 
-it("persists a rename before a pending stale refresh can overwrite it", async () => {
+it("persists a rename on native IntegrationDetail before a pending stale refresh can overwrite it", async () => {
+  state.params = {
+    connectorId: item.connectorId,
+    slug: item.slug,
+    name: item.name,
+    logo: item.logo,
+  };
   state.read.mockReturnValue({ catalog: [item], connections: [account] });
-  await render();
-  const added = [...container.querySelectorAll("button")].find(
-    (button) => button.textContent === "Added",
+  await render(<IntegrationDetail />);
+  expect(container.querySelector("header")?.textContent).toBe("Example app");
+  expect([...container.querySelectorAll("button")].some((b) => b.textContent === "Back")).toBe(
+    false,
   );
-  await act(async () => added?.click());
   const input = container.querySelector("input")!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
@@ -413,14 +423,16 @@ it("persists a rename before a pending stale refresh can overwrite it", async ()
 });
 
 it.each(["Remove", "Uninstall"])(
-  "persists revoked Added state after %s even if the following refresh fails",
+  "persists revoked Added state after %s on IntegrationDetail even if the following refresh fails",
   async (action) => {
+    state.params = {
+      connectorId: item.connectorId,
+      slug: item.slug,
+      name: item.name,
+      logo: item.logo,
+    };
     state.read.mockReturnValue({ catalog: [item], connections: [account] });
-    await render();
-    const added = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent === "Added",
-    );
-    await act(async () => added?.click());
+    await render(<IntegrationDetail />);
     state.rpc.mockImplementation((proc: string) =>
       proc === "connections/catalog"
         ? Promise.reject(new Error("Unavailable"))
@@ -502,8 +514,8 @@ it("rebuilds a stale space and continues refreshing while the screen stays open"
   );
 });
 
-it("keeps sources loading when a rename cancels the catalog refresh", async () => {
-  state.read.mockReturnValue({ catalog: [item], connections: [account] });
+it("keeps sources loading when a connect cancels the catalog refresh", async () => {
+  state.read.mockReturnValue({ catalog: [{ ...item, connected: false }], connections: [] });
   let resolveSources!: (value: unknown[]) => void;
   const sources = new Promise<unknown[]>((resolve) => {
     resolveSources = resolve;
@@ -513,31 +525,21 @@ it("keeps sources loading when a rename cancels the catalog refresh", async () =
     proc === "capabilities/list" ? sources : original(proc),
   );
   await render();
-  await act(async () =>
-    [...container.querySelectorAll("button")].find((b) => b.textContent === "Added")?.click(),
-  );
-  const input = container.querySelector("input")!;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
-      input,
-      "Renamed",
-    );
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+  state.rpc.mockImplementation((proc: string) => {
+    if (proc === "connections/begin")
+      return Promise.resolve({ connectionId: account.id, authorizationUrl: null });
+    if (proc === "connections/complete") return Promise.resolve(account);
+    if (proc === "capabilities/list") return sources;
+    return original(proc);
   });
-  state.rpc.mockImplementation((proc: string) =>
-    proc === "connections/rename"
-      ? Promise.resolve({ ...account, displayName: "Renamed" })
-      : original(proc),
+  await act(async () =>
+    [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")?.click(),
   );
-  await act(async () => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
   await act(async () => resolveCatalog([item]));
   await act(async () =>
     resolveSources([
       { id: "source-a", name: "Installed source", kind: "mcp", source: "https://example.test/mcp" },
     ]),
-  );
-  await act(async () =>
-    [...container.querySelectorAll("button")].find((b) => b.textContent === "Back")?.click(),
   );
   expect(container.querySelector('[data-testid="tool-source"]')?.textContent).toContain(
     "Installed source",
@@ -577,13 +579,16 @@ it("refreshes a different space on focus return and rejects the blurred refresh"
 });
 
 it.each(["rename", "revoke", "uninstall", "connect"])(
-  "rejects a late %s result after an in-place space recovery",
+  "rejects a late %s result on IntegrationDetail after an in-place space recovery",
   async (action) => {
+    state.params = {
+      connectorId: item.connectorId,
+      slug: item.slug,
+      name: item.name,
+      logo: item.logo,
+    };
     state.read.mockReturnValue({ catalog: [item], connections: [account] });
-    await render();
-    await act(async () =>
-      [...container.querySelectorAll("button")].find((b) => b.textContent === "Added")?.click(),
-    );
+    await render(<IntegrationDetail />);
     let finish!: (value: unknown) => void;
     const pending = new Promise((resolve) => {
       finish = resolve;
@@ -639,7 +644,7 @@ it.each(["rename", "revoke", "uninstall", "connect"])(
       ),
     );
     await act(async () => resolveCatalog([item]));
-    expect(container.textContent).toContain("New space appAdd");
+    expect(container.textContent).toContain("New space app");
     const writes = state.write.mock.calls.length;
     await act(async () => finish({ ...account, displayName: "Old space rename" }));
     expect(state.write).toHaveBeenCalledTimes(writes);

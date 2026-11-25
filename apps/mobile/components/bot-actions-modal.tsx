@@ -1,8 +1,18 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import * as ReactNative from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { MotionPressable } from "./motion-pressable";
 import type { ThreadHeaderAction } from "./thread-header-right";
+
+function readActionSheetIOS(): typeof ReactNative.ActionSheetIOS | undefined {
+  try {
+    return Object.hasOwn(ReactNative, "ActionSheetIOS") ? ReactNative.ActionSheetIOS : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function BotActionsModal({
   actions,
@@ -13,6 +23,49 @@ export function BotActionsModal({
 }) {
   const tokens = useMobileTokens();
   const { t } = useI18n();
+  const actionSheetIOS = Platform.OS === "ios" ? readActionSheetIOS() : undefined;
+  const useNativeIosActionSheet = typeof actionSheetIOS?.showActionSheetWithOptions === "function";
+  const shownRef = useRef(false);
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!useNativeIosActionSheet || !actionSheetIOS || shownRef.current) return;
+    shownRef.current = true;
+    const currentActions = actionsRef.current;
+    const cancelLabel = t("Cancel");
+    const options = [...currentActions.map((action) => action.text), cancelLabel];
+    const cancelButtonIndex = currentActions.length;
+    const destructiveIndices = currentActions.reduce<number[]>((indices, action, index) => {
+      if (action.destructive) indices.push(index);
+      return indices;
+    }, []);
+    const destructiveButtonIndex =
+      destructiveIndices.length === 0
+        ? undefined
+        : destructiveIndices.length === 1
+          ? destructiveIndices[0]
+          : destructiveIndices;
+
+    actionSheetIOS.showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+        destructiveButtonIndex,
+      },
+      (buttonIndex) => {
+        onCloseRef.current();
+        if (buttonIndex >= 0 && buttonIndex < currentActions.length) {
+          currentActions[buttonIndex]?.onPress();
+        }
+      },
+    );
+  }, [useNativeIosActionSheet, actionSheetIOS, t]);
+
+  if (useNativeIosActionSheet) return null;
+
   const bg = tokens?.background;
   const isLight =
     typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
@@ -26,50 +79,47 @@ export function BotActionsModal({
   const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View
         style={{
           flex: 1,
-          justifyContent: "center",
-          padding: 24,
-          backgroundColor: tokens?.overlay ?? "rgba(24, 22, 18, 0.20)",
+          justifyContent: "flex-end",
+          backgroundColor: tokens?.overlay ?? "rgba(24, 22, 18, 0.24)",
         }}
       >
-        <Pressable
-          accessibilityLabel={t("Cancel")}
-          onPress={onClose}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        />
+        <Pressable accessibilityLabel={t("Cancel")} onPress={onClose} style={{ flex: 1 }} />
         <View
           accessibilityViewIsModal
           style={{
-            maxHeight: "90%",
+            maxHeight: "82%",
             backgroundColor: porcelainSurface,
-            borderRadius: 22,
-            borderWidth: hairline,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            borderTopWidth: hairline,
             borderColor: porcelainBorder,
-            paddingHorizontal: 8,
+            paddingHorizontal: 12,
             paddingTop: 10,
-            paddingBottom: 10,
+            paddingBottom: 24,
             shadowColor: "#26231F",
             shadowOpacity: isLight ? 0.05 : 0.24,
             shadowRadius: 22,
-            shadowOffset: { width: 0, height: 8 },
+            shadowOffset: { width: 0, height: -4 },
             elevation: 2,
           }}
         >
           <View
+            accessible={false}
             style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
+              width: 38,
+              height: 5,
+              borderRadius: 999,
               alignSelf: "center",
-              marginBottom: 6,
+              marginBottom: 8,
               backgroundColor: softTaupe,
               opacity: 0.28,
             }}
           />
-          <ScrollView bounces={false}>
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             {actions.map((action) => (
               <MotionPressable
                 key={action.text}

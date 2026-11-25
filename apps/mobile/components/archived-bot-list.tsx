@@ -34,6 +34,7 @@ export function ArchivedBotList({
   const scheme = useResolvedAppearance();
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={sideInsets}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ padding: 20 }}

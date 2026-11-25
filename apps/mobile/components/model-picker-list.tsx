@@ -203,6 +203,7 @@ export function ModelPickerList({
 
   return (
     <SectionList
+      showsVerticalScrollIndicator={false}
       ref={list}
       onViewableItemsChanged={revealInitialSelection}
       onScrollToIndexFailed={retryInitialSelection}

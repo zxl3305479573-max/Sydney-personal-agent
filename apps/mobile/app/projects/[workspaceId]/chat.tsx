@@ -31,10 +31,7 @@ import { ThreadComposerDock } from "../../../components/thread/thread-composer-d
 import type { ThreadComposerHandle } from "../../../components/thread-composer";
 import { ThreadComposer } from "../../../components/thread-composer";
 import { threadHeaderRight } from "../../../components/thread-header-right";
-import {
-  conversationStatusColor,
-  conversationStatusLabel,
-} from "../../../lib/conversation-status";
+import { conversationStatusColor, conversationStatusLabel } from "../../../lib/conversation-status";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
 import { projectScopeKey, subscribeProjectScope } from "../../../lib/project-scope";
@@ -274,6 +271,7 @@ function ProjectChat({
           }}
         />
         <ScrollView
+          showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"

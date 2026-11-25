@@ -501,4 +501,23 @@ describe("mobile GitHub requests", () => {
       expect.anything(),
     );
   });
+
+  it("appends subsequent pages cumulatively via loadMore without duplicating items", async () => {
+    const repo2 = { ...repo, id: "repo-2", name: "agent-two", fullName: "example/agent-two" };
+    runtime.rpc.mockImplementation(async (procedure: string, input?: { page?: number }) => {
+      if (procedure === "github/status") return connected;
+      if (procedure === "github/searchRepos") {
+        return input?.page === 2
+          ? { items: [repo, repo2], page: 2, hasNextPage: false }
+          : { items: [repo], page: 1, hasNextPage: true };
+      }
+      return repoPage;
+    });
+    await render();
+    await act(async () => state.selectSection("explore"));
+    expect(state.search?.items.map((entry) => entry.id)).toEqual(["repo-1"]);
+    await act(async () => state.loadMore());
+    expect(state.search?.items.map((entry) => entry.id)).toEqual(["repo-1", "repo-2"]);
+    expect(state.search?.hasNextPage).toBe(false);
+  });
 });

@@ -61,6 +61,7 @@ export default function SignupSurvey() {
       style={styles.screen}
     >
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         contentContainerStyle={[styles.content, stacked && styles.compactContent]}
         contentInsetAdjustmentBehavior="automatic"

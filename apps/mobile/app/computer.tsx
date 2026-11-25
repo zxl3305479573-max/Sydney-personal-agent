@@ -767,6 +767,7 @@ export default function Computer() {
     // The full window's Modal is a child of this scroll view. A tap there, on Close or on the
     // native keyboard bar, must never just dismiss the computer keyboard; only the bar closes it.
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[{ flex: 1, backgroundColor: screenBackground }, sideInsets]}
       contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
       contentInsetAdjustmentBehavior="automatic"

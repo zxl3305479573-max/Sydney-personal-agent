@@ -102,6 +102,7 @@ export default function PeerChat() {
         }}
       />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         ref={scrollRef}
         // Opens at the latest message like a chat; older ones are above.
         onContentSizeChange={() => {

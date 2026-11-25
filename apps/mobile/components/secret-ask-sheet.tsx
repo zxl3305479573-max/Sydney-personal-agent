@@ -107,6 +107,7 @@ export function SecretAskSheet({
           />
         </View>
         <ScrollView
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           // A long title and site at large text sizes can leave the fields under the keyboard.

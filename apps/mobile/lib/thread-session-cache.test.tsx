@@ -248,11 +248,15 @@ it("updates an existing waiting_input run to queued on send receipt and prioriti
   expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
 
   // Server answers the same waiting_input run id -> transitions to queued in place.
-  const resumed = applySendActivity(waitingSnap, { botId: "bot-a" }, {
-    threadId: "thread-a",
-    cursor: 11,
-    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
-  })!;
+  const resumed = applySendActivity(
+    waitingSnap,
+    { botId: "bot-a" },
+    {
+      threadId: "thread-a",
+      cursor: 11,
+      runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+    },
+  )!;
   expect(resumed.run?.status).toBe("queued");
   expect(resumed.activeRuns).toEqual([
     expect.objectContaining({ id: "run-a", status: "queued", sendCursor: 11 }),

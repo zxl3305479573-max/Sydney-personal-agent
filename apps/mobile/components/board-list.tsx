@@ -29,6 +29,7 @@ export function BoardList({ sections, error, onMove, onRefresh }: BoardListProps
   const [refreshing, setRefreshing] = useState(false);
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[styles.screen, sideInsets]}
       contentContainerStyle={[styles.content, stacked && styles.compactContent]}
       contentInsetAdjustmentBehavior="automatic"

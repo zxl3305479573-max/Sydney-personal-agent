@@ -83,6 +83,7 @@ export default function Devices() {
             : t("Could not load devices.");
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       style={[{ flex: 1, backgroundColor: screenBackground }, insets]}
       contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 36, gap: 16 }}
       contentInsetAdjustmentBehavior="automatic"

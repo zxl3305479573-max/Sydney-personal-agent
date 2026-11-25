@@ -5,19 +5,16 @@ import type {
   ConnectionCatalogItem,
   McpServer,
   PluginMarketplaceEntry,
-  RpcOutput,
 } from "@rakazo/contracts";
-import { CONNECTION_LABEL_MAX_LENGTH, MCP_OAUTH_CLIENT_REQUIRED } from "@rakazo/contracts";
+import { MCP_OAUTH_CLIENT_REQUIRED } from "@rakazo/contracts";
 import type { PluginCategory } from "@rakazo/core";
 import {
   buildFeaturedConnectorTiles,
   CONNECTION_CATALOG_PAGE_SIZE,
-  catalogItemAccounts,
   catalogItemKey,
   connectCatalogItem,
   EMPTY_PLUGIN_CATALOG_MESSAGE,
   filterConnectionCatalogItems,
-  humanizeToolName,
   isCatalogItemConnected,
   matchesWordPrefixes,
   newClientId,
@@ -27,6 +24,7 @@ import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   ActivityIndicator,
   Alert,
@@ -88,7 +86,6 @@ import { errorText } from "../lib/user-error";
 
 type SourceAuth = "none" | "bearer" | "header" | "oauth";
 type SourceKind = "treg" | "executor" | "mcp" | "api" | "graphql";
-type ConnectionTool = RpcOutput<"connections/tools">[number];
 
 const LOGO_SIZE = 32;
 const SECTION_SIZE = 4;
@@ -146,13 +143,7 @@ export default function Integrations() {
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [lastBotId, setLastBotId] = useState("");
   const [catalogReady, setCatalogReady] = useState(false);
-  const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
-  const [detailKey, setDetailKey] = useState<{ connectorId: string; slug: string } | null>(null);
-  useHideMainNavigation(Boolean(detailKey || adding));
-  const [tools, setTools] = useState<ConnectionTool[]>([]);
-  const [toolsLoading, setToolsLoading] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(true);
-  const [toolsTick, setToolsTick] = useState(0);
+  useHideMainNavigation(Boolean(adding));
   const connectionAttempt = useRef<AbortController | null>(null);
   const oauthBrowserOpen = useRef(false);
 
@@ -168,13 +159,6 @@ export default function Integrations() {
     setCatalog(next.catalog);
     setConnections(next.connections);
     setCatalogReady(true);
-    setLabelDrafts((current) =>
-      Object.fromEntries(
-        next.connections
-          .filter((row) => row.status === "connected" || row.status === "pending")
-          .map((row) => [row.id, current[row.id] ?? row.displayName]),
-      ),
-    );
   }
 
   function saveSnapshot(next: IntegrationsSnapshot) {
@@ -204,17 +188,17 @@ export default function Integrations() {
   }
 
   function updateAccount(row: Connection) {
-    const connections = [
+    const nextConnections = [
       ...snapshot.current.connections.filter((entry) => entry.id !== row.id),
       row,
     ];
     saveSnapshot({
-      connections,
+      connections: nextConnections,
       catalog: snapshot.current.catalog.map((item) =>
         item.connectorId === row.connectorId && item.slug === row.provider
           ? {
               ...item,
-              connected: connections.some(
+              connected: nextConnections.some(
                 (entry) =>
                   entry.connectorId === item.connectorId &&
                   entry.provider === item.slug &&
@@ -260,15 +244,6 @@ export default function Integrations() {
       : [];
   const connectorPlugins = pluginInstalls.filter(hasPluginConnector);
 
-  const detailItem = useMemo(() => {
-    if (!detailKey) return null;
-    return (
-      catalog.find(
-        (entry) => entry.connectorId === detailKey.connectorId && entry.slug === detailKey.slug,
-      ) ?? null
-    );
-  }, [catalog, detailKey]);
-
   function clearStaleScope() {
     if (!cacheScope.current || isIntegrationsScopeCurrent(cacheScope.current)) return;
     cacheScope.current = null;
@@ -282,8 +257,6 @@ export default function Integrations() {
     setPluginsState("loading");
     setMcpServers([]);
     setMcpError(null);
-    setDetailKey(null);
-    setLabelDrafts({});
     setPending(null);
     connectionAttempt.current?.abort();
   }
@@ -317,8 +290,6 @@ export default function Integrations() {
       setPluginsState("loading");
       setMcpServers([]);
       setMcpError(null);
-      setDetailKey(null);
-      setLabelDrafts({});
     }
     cacheScope.current = scope;
     if (!previous || previous.userId !== scope.userId || previous.spaceId !== scope.spaceId) {
@@ -405,9 +376,9 @@ export default function Integrations() {
     let next: IntegrationsSnapshot;
     try {
       // The catalog call reconciles connection rows, so list them after it.
-      const catalog = await rpc("connections/catalog");
-      const connections = await rpc("connections/list");
-      next = { catalog, connections };
+      const nextCatalog = await rpc("connections/catalog");
+      const nextConnections = await rpc("connections/list");
+      next = { catalog: nextCatalog, connections: nextConnections };
     } catch (reason) {
       if (!mounted.current || focus !== focusGeneration.current) return;
       if (!isIntegrationsScopeCurrent(scope)) return refresh();
@@ -476,32 +447,6 @@ export default function Integrations() {
     });
     return () => subscription.remove();
   }, []);
-
-  useEffect(() => {
-    if (!detailKey) {
-      setTools([]);
-      setToolsLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setToolsLoading(true);
-    void rpc("connections/tools", {
-      connectorId: detailKey.connectorId,
-      provider: detailKey.slug,
-    })
-      .then((list) => {
-        if (!cancelled) setTools(list);
-      })
-      .catch(() => {
-        if (!cancelled) setTools([]);
-      })
-      .finally(() => {
-        if (!cancelled) setToolsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [detailKey, toolsTick]);
 
   useEffect(() => {
     if (!appToOpen || !catalogReady) return;
@@ -745,13 +690,6 @@ export default function Integrations() {
               {pluginMatches.slice(0, pluginCount).map(renderPluginRow)}
             </View>
           ) : null}
-          {pluginCount < pluginMatches.length ? (
-            <NativeActionButton
-              label={t("Show more")}
-              onPress={() => setPluginCount((count) => count + PLUGIN_PAGE_SIZE)}
-              prominence="secondary"
-            />
-          ) : null}
         </>
       );
     }
@@ -808,17 +746,15 @@ export default function Integrations() {
 
   function openDetail(item: ConnectionCatalogItem) {
     setCatalogError(null);
-    setToolsOpen(true);
-    setDetailKey({ connectorId: item.connectorId, slug: item.slug });
-  }
-
-  function closeDetail() {
-    setDetailKey(null);
-    setTools([]);
-  }
-
-  function accountsFor(item: Pick<ConnectionCatalogItem, "connectorId" | "slug">) {
-    return catalogItemAccounts(connections, item);
+    router.push({
+      pathname: "/integration-detail",
+      params: {
+        connectorId: item.connectorId,
+        slug: item.slug,
+        name: item.name,
+        ...(item.logo ? { logo: item.logo } : {}),
+      },
+    });
   }
 
   function itemConnected(item: ConnectionCatalogItem) {
@@ -858,7 +794,6 @@ export default function Integrations() {
         if (result.row) updateAccount(result.row);
         void notifyAppConnected(item, isCurrent);
         await refresh();
-        if (isCurrent()) setToolsTick((tick) => tick + 1);
         return;
       }
       Alert.alert(
@@ -873,76 +808,6 @@ export default function Integrations() {
         connectionAttempt.current = null;
         if (isCurrent()) setPending(null);
       }
-    }
-  }
-
-  async function revokeAccount(row: Connection) {
-    const isCurrent = captureConnectionScope();
-    if (!isCurrent()) return;
-    setPending(row.id);
-    setCatalogError(null);
-    try {
-      await rpc("connections/revoke", { connectionId: row.id });
-      if (!isCurrent()) return;
-      updateAccount({ ...row, status: "revoked" });
-      await refresh();
-      if (isCurrent()) setToolsTick((tick) => tick + 1);
-    } catch (reason) {
-      if (!isCurrent()) return;
-      setCatalogError(errorText(reason, t("Could not revoke connection")));
-    } finally {
-      if (isCurrent()) setPending(null);
-    }
-  }
-
-  async function renameAccount(row: Connection) {
-    const displayName = (labelDrafts[row.id] ?? row.displayName).trim();
-    if (!displayName || displayName === row.displayName) return;
-    const isCurrent = captureConnectionScope();
-    if (!isCurrent()) return;
-    setPending(`rename:${row.id}`);
-    setCatalogError(null);
-    try {
-      const updated = await rpc("connections/rename", {
-        connectionId: row.id,
-        displayName,
-      });
-      if (!isCurrent()) return;
-      updateAccount(updated);
-      setLabelDrafts((current) => ({ ...current, [row.id]: updated.displayName }));
-    } catch (reason) {
-      if (!isCurrent()) return;
-      setCatalogError(errorText(reason, t("Could not rename connection")));
-    } finally {
-      if (isCurrent()) setPending(null);
-    }
-  }
-
-  async function uninstall(item: ConnectionCatalogItem) {
-    const isCurrent = captureConnectionScope();
-    if (!isCurrent()) return;
-    const matches = accountsFor(item);
-    const key = catalogItemKey(item);
-    if (matches.length === 0) {
-      closeDetail();
-      return;
-    }
-    setPending(`uninstall:${key}`);
-    setCatalogError(null);
-    try {
-      for (const row of matches) {
-        await rpc("connections/revoke", { connectionId: row.id });
-        if (!isCurrent()) return;
-        updateAccount({ ...row, status: "revoked" });
-      }
-      await refresh();
-      if (isCurrent()) closeDetail();
-    } catch (reason) {
-      if (!isCurrent()) return;
-      setCatalogError(errorText(reason, t("Could not revoke connection")));
-      await refresh().catch(() => undefined);
-    } finally {
-      if (isCurrent()) setPending(null);
     }
   }
 
@@ -1133,124 +998,6 @@ export default function Integrations() {
     );
   }
 
-  function renderDetail(item: ConnectionCatalogItem) {
-    const accounts = accountsFor(item);
-    const key = catalogItemKey(item);
-    const connecting = pending === key;
-    const uninstalling = pending === `uninstall:${key}`;
-    const toolCount = tools.length;
-
-    return (
-      <View style={styles.detail}>
-        <View style={styles.detailHeader}>
-          <View style={styles.detailTitleRow}>
-            <MotionPressable
-              preset="inline"
-              accessibilityRole="button"
-              accessibilityLabel={t("Back")}
-              onPress={closeDetail}
-              style={styles.backButton}
-            >
-              <Text style={styles.link}>{t("Back")}</Text>
-            </MotionPressable>
-            <ConnectorIcon logo={item.logo} name={item.name} size={LOGO_SIZE} />
-            <Text style={styles.detailTitle}>{item.name}</Text>
-          </View>
-          <NativeActionButton
-            accessibilityLabel={t("Uninstall")}
-            disabled={uninstalling || connecting}
-            fill={false}
-            label={uninstalling ? t("Working…") : t("Uninstall")}
-            onPress={() => void uninstall(item)}
-            prominence="destructive"
-          />
-        </View>
-
-        <GlassSurface
-          shape="roundedRectangle"
-          cornerRadius={20}
-          style={styles.card}
-          fallbackStyle={styles.cardFallback}
-        >
-          <Text style={styles.section}>{t("Accounts")}</Text>
-          {accounts.map((row) => (
-            <View key={row.id} style={styles.accountRow}>
-              <TextInput
-                value={labelDrafts[row.id] ?? row.displayName}
-                maxLength={CONNECTION_LABEL_MAX_LENGTH}
-                onChangeText={(value) =>
-                  setLabelDrafts((current) => ({ ...current, [row.id]: value }))
-                }
-                onEndEditing={() => void renameAccount(row)}
-                accessibilityLabel={t("Account label")}
-                style={styles.accountLabel}
-              />
-              <NativeActionButton
-                accessibilityLabel={t("Remove {name}", { name: row.displayName })}
-                disabled={pending === row.id || uninstalling}
-                fill={false}
-                label={pending === row.id ? t("Working…") : t("Remove")}
-                onPress={() => void revokeAccount(row)}
-                prominence="destructive"
-              />
-            </View>
-          ))}
-          <NativeActionButton
-            accessibilityLabel={t("Add another {name}", { name: item.name })}
-            disabled={connecting || uninstalling}
-            label={connecting ? t("Working…") : t("Add another")}
-            onPress={() => void connect(item)}
-            prominence="secondary"
-            variant="text"
-          />
-        </GlassSurface>
-
-        <GlassSurface
-          shape="roundedRectangle"
-          cornerRadius={20}
-          style={styles.card}
-          fallbackStyle={styles.cardFallback}
-        >
-          <MotionPressable
-            preset="row"
-            highlightColor={native.fillPressed}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: toolsOpen }}
-            onPress={() => setToolsOpen((open) => !open)}
-            style={styles.toolsToggle}
-          >
-            <Text style={styles.title}>
-              {toolsLoading
-                ? t("Tools")
-                : toolCount === 1
-                  ? t("1 tool")
-                  : t("{count} tools", { count: toolCount })}
-            </Text>
-            <Chevron expanded={toolsOpen} />
-          </MotionPressable>
-          {toolsOpen ? (
-            <View style={styles.toolsBody}>
-              {toolsLoading ? (
-                <ActivityIndicator
-                  color={native.secondaryLabel}
-                  accessibilityLabel={t("Loading tools…")}
-                />
-              ) : tools.length === 0 ? (
-                <Text style={styles.secondary}>{t("No tools available.")}</Text>
-              ) : (
-                tools.map((tool) => (
-                  <Text key={tool.name} style={styles.toolName}>
-                    {humanizeToolName(tool.name)}
-                  </Text>
-                ))
-              )}
-            </View>
-          ) : null}
-        </GlassSurface>
-      </View>
-    );
-  }
-
   const addOptions: Array<{ id: "github" | SourceKind; label: string }> = [
     { id: "github", label: t("From GitHub") },
     { id: "mcp", label: t("MCP server") },
@@ -1261,7 +1008,6 @@ export default function Integrations() {
   ];
 
   function startAdding(id: "github" | SourceKind) {
-    closeDetail();
     setSourceError(null);
     if (id === "github") {
       setSourceKind(null);
@@ -1480,48 +1226,63 @@ export default function Integrations() {
     );
   }
 
+  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom > 320) return;
+    if (!category && visibleCount < catalogApps.length) {
+      setVisibleCount((count) =>
+        Math.min(catalogApps.length, count + CONNECTION_CATALOG_PAGE_SIZE),
+      );
+    }
+    if (filtering && pluginCount < pluginMatches.length) {
+      setPluginCount((count) => Math.min(pluginMatches.length, count + PLUGIN_PAGE_SIZE));
+    }
+  }
+
   return (
     <SafeAreaView edges={bottomClaimed ? [] : ["bottom"]} style={styles.screen}>
-      <MainNavigationHeader onBack={adding ? closeAdding : detailKey ? closeDetail : undefined} />
+      <MainNavigationHeader onBack={adding ? closeAdding : undefined} />
       <ScrollView
+        showsVerticalScrollIndicator={false}
         style={sideInsets}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
       >
         <McpOAuthReturn flow={mcpReturn} onCompleted={() => void retryRefresh()} />
         {adding ? (
           renderAdding()
         ) : (
           <>
-            {!detailItem ? renderAddMenuFallback() : null}
-            {!detailItem ? (
-              <GlassSurface
-                shape="roundedRectangle"
-                cornerRadius={16}
-                fallbackStyle={styles.inputFallback}
-              >
-                <TextInput
-                  value={query}
-                  onChangeText={(value) => {
-                    setQuery(value);
-                    setVisibleCount(CONNECTION_CATALOG_PAGE_SIZE);
-                    setPluginCount(PLUGIN_PAGE_SIZE);
-                  }}
-                  accessibilityLabel={t("Search apps")}
-                  placeholder={t("Search apps")}
-                  placeholderTextColor={
-                    native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
-                  }
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="search"
-                  style={styles.searchInput}
-                />
-              </GlassSurface>
-            ) : null}
+            {renderAddMenuFallback()}
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={16}
+              fallbackStyle={styles.inputFallback}
+            >
+              <TextInput
+                value={query}
+                onChangeText={(value) => {
+                  setQuery(value);
+                  setVisibleCount(CONNECTION_CATALOG_PAGE_SIZE);
+                  setPluginCount(PLUGIN_PAGE_SIZE);
+                }}
+                accessibilityLabel={t("Search apps")}
+                placeholder={t("Search apps")}
+                placeholderTextColor={
+                  native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
+                }
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                style={styles.searchInput}
+              />
+            </GlassSurface>
 
-            {!detailItem && (categories.length >= 2 || category) ? (
+            {categories.length >= 2 || category ? (
               <View style={styles.categoryPicker}>
                 <MenuPicker
                   label={t("Category")}
@@ -1540,8 +1301,8 @@ export default function Integrations() {
               </View>
             ) : null}
 
-            {!detailItem && !filtering ? renderConnected() : null}
-            {!detailItem && savedServerMatches.length ? (
+            {!filtering ? renderConnected() : null}
+            {savedServerMatches.length ? (
               <View testID="connected-apps" style={styles.catalogStack}>
                 {savedServerMatches.map(renderSavedServer)}
               </View>
@@ -1561,100 +1322,84 @@ export default function Integrations() {
               </View>
             ) : null}
 
-            {detailItem ? (
-              renderDetail(detailItem)
-            ) : (
-              <>
-                {!catalogReady && !catalogError ? (
+            {!catalogReady && !catalogError ? (
+              <View
+                testID="integrations-loading"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={catalogColumns === 2 ? styles.catalogGrid : styles.catalogStack}
+              >
+                {Array.from({ length: 8 }, (_, index) => (
                   <View
-                    testID="integrations-loading"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                    style={catalogColumns === 2 ? styles.catalogGrid : styles.catalogStack}
+                    key={index}
+                    style={[
+                      styles.row,
+                      styles.rowFallback,
+                      catalogColumns === 2 ? styles.catalogCell : null,
+                    ]}
                   >
-                    {Array.from({ length: 8 }, (_, index) => (
-                      <View
-                        key={index}
-                        style={[
-                          styles.row,
-                          styles.rowFallback,
-                          catalogColumns === 2 ? styles.catalogCell : null,
-                        ]}
-                      >
-                        <View style={styles.logoPlaceholder} />
-                        <View style={styles.grow}>
-                          <View style={styles.titlePlaceholder} />
+                    <View style={styles.logoPlaceholder} />
+                    <View style={styles.grow}>
+                      <View style={styles.titlePlaceholder} />
+                    </View>
+                    <View style={styles.pillPlaceholder} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {catalogReady && catalog.length === 0 ? (
+              <Text style={styles.secondary}>{t(EMPTY_PLUGIN_CATALOG_MESSAGE)}</Text>
+            ) : null}
+
+            {catalogReady && catalog.length > 0 && !category ? (
+              <View style={catalogColumns === 2 ? styles.catalogGrid : styles.catalogStack}>
+                {showFeatured
+                  ? featuredTiles.map((tile) => {
+                      const item = tile.item;
+                      const key = item ? catalogItemKey(item) : tile.id;
+                      const disabled = tile.missing || !item;
+                      if (item && !tile.missing) {
+                        return renderCatalogTile(item, tile.label);
+                      }
+                      return (
+                        <View
+                          key={key}
+                          style={[
+                            styles.row,
+                            styles.rowFallback,
+                            catalogColumns === 2 ? styles.catalogCell : null,
+                            disabled ? { opacity: 0.7 } : null,
+                          ]}
+                        >
+                          <ConnectorIcon logo={item?.logo} name={tile.label} size={LOGO_SIZE} />
+                          <View style={styles.grow}>
+                            <Text numberOfLines={1} style={styles.title}>
+                              {tile.label}
+                            </Text>
+                            {disabled ? (
+                              <Text style={styles.secondary}>{t("Not in the plugin catalog")}</Text>
+                            ) : null}
+                          </View>
                         </View>
-                        <View style={styles.pillPlaceholder} />
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
+                      );
+                    })
+                  : null}
+                {renderedApps.map((item) => renderCatalogTile(item, item.name))}
+              </View>
+            ) : null}
 
-                {catalogReady && catalog.length === 0 ? (
-                  <Text style={styles.secondary}>{t(EMPTY_PLUGIN_CATALOG_MESSAGE)}</Text>
-                ) : null}
+            {catalogReady &&
+            catalogApps.length === 0 &&
+            pluginMatches.length === 0 &&
+            brandMatches.length === 0 &&
+            savedServerMatches.length === 0 &&
+            pluginsState !== "loading" &&
+            filtering ? (
+              <Text style={styles.secondary}>{t("No apps match your search.")}</Text>
+            ) : null}
 
-                {catalogReady && catalog.length > 0 && !category ? (
-                  <View style={catalogColumns === 2 ? styles.catalogGrid : styles.catalogStack}>
-                    {showFeatured
-                      ? featuredTiles.map((tile) => {
-                          const item = tile.item;
-                          const key = item ? catalogItemKey(item) : tile.id;
-                          const disabled = tile.missing || !item;
-                          if (item && !tile.missing) {
-                            return renderCatalogTile(item, tile.label);
-                          }
-                          return (
-                            <View
-                              key={key}
-                              style={[
-                                styles.row,
-                                styles.rowFallback,
-                                catalogColumns === 2 ? styles.catalogCell : null,
-                                disabled ? { opacity: 0.7 } : null,
-                              ]}
-                            >
-                              <ConnectorIcon logo={item?.logo} name={tile.label} size={LOGO_SIZE} />
-                              <View style={styles.grow}>
-                                <Text numberOfLines={1} style={styles.title}>
-                                  {tile.label}
-                                </Text>
-                                {disabled ? (
-                                  <Text style={styles.secondary}>
-                                    {t("Not in the plugin catalog")}
-                                  </Text>
-                                ) : null}
-                              </View>
-                            </View>
-                          );
-                        })
-                      : null}
-                    {renderedApps.map((item) => renderCatalogTile(item, item.name))}
-                  </View>
-                ) : null}
-
-                {catalogReady &&
-                catalogApps.length === 0 &&
-                pluginMatches.length === 0 &&
-                brandMatches.length === 0 &&
-                savedServerMatches.length === 0 &&
-                pluginsState !== "loading" &&
-                filtering ? (
-                  <Text style={styles.secondary}>{t("No apps match your search.")}</Text>
-                ) : null}
-
-                {!category && renderedApps.length < catalogApps.length ? (
-                  <NativeActionButton
-                    label={t("Show more")}
-                    onPress={() => setVisibleCount((count) => count + CONNECTION_CATALOG_PAGE_SIZE)}
-                    prominence="secondary"
-                  />
-                ) : null}
-
-                {renderPlugins()}
-              </>
-            )}
+            {renderPlugins()}
           </>
         )}
       </ScrollView>
@@ -1809,43 +1554,8 @@ function createIntegrationsStyles(
       alignItems: "center",
       gap: 8,
     },
-    accountRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-    },
-    accountLabel: {
-      flex: 1,
-      minHeight: 40,
-      borderRadius: 14,
-      backgroundColor: chipBg,
-      borderWidth: hairline,
-      borderColor: chipBorder,
-      color: labelInk,
-      paddingHorizontal: 12,
-      fontSize: 14,
-    },
     link: { color: labelInk, fontSize: 14, fontWeight: "600" },
     error: { color: destructive, fontSize: 14 },
-    detail: { gap: 14 },
-    detailHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-    detailTitleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
-    backButton: { paddingVertical: 4 },
-    detailTitle: { flex: 1, color: labelInk, fontSize: 17, lineHeight: 22, fontWeight: "600" },
-    toolsToggle: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-    },
-    toolsBody: { gap: 8, paddingTop: 4 },
-    toolName: { color: labelInk, fontSize: 14 },
     addCustom: {
       width: 36,
       height: 36,

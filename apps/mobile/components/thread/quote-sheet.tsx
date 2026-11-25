@@ -63,7 +63,7 @@ export function QuoteSheet({
             prominence={excerpt ? "primary" : "plain"}
           />
         </View>
-        <ScrollView style={{ flex: 1, paddingHorizontal: 20 }}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, paddingHorizontal: 20 }}>
           {segments.map((text, index) => (
             <TextInput
               key={`${index}:${revision}`}
