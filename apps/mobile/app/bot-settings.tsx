@@ -15,6 +15,7 @@ import {
   parseModelOptionKey,
   resolveSelectableModelId,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
@@ -50,12 +51,26 @@ import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
 import { native, useMobileTokens } from "../lib/native";
-import { projectRequestOptions, projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
+import {
+  projectRequestOptions,
+  projectScopeKey,
+  subscribeProjectScope,
+} from "../lib/project-scope";
 import { createQueuedSave } from "../lib/queued-save";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { thinkingLevelLabel } from "../lib/thinking-level";
 import { errorText } from "../lib/user-error";
 import { stopVoicePlayback } from "../lib/voice";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 type BotSettingsParams = {
   botId: string;
@@ -108,6 +123,21 @@ function BotSettingsScreen({
 }) {
   const sideInsets = useSideInsets();
   const tokens = useMobileTokens();
+  const themedScope = useScopedTheme();
+  const isLight = themedScope ? themedScope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = themedScope
+    ? (themedScope.tokens?.card ?? "#FFFEFC")
+    : isLight
+      ? "#FFFEFC"
+      : "#242933";
+  const cardBorder = themedScope
+    ? (themedScope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   const { t } = useI18n();
   const router = useRouter();
   const updateBot = useCallback(
@@ -231,7 +261,11 @@ function BotSettingsScreen({
     if (!botId) return;
     const load = async () =>
       projectId && scope !== undefined
-        ? rpc("projectWorkspaces/getBot", { projectId, botId, includeArchived: true }, await projectRequestOptions(scope))
+        ? rpc(
+            "projectWorkspaces/getBot",
+            { projectId, botId, includeArchived: true },
+            await projectRequestOptions(scope),
+          )
         : rpc("bots/get", { botId });
     let active = true;
     void load()
@@ -268,7 +302,17 @@ function BotSettingsScreen({
     return () => {
       active = false;
     };
-  }, [botId, projectId, scope, dailyCheckInsSave, crossSpaceSave, fleetSave, notifySave, nameSave, t]);
+  }, [
+    botId,
+    projectId,
+    scope,
+    dailyCheckInsSave,
+    crossSpaceSave,
+    fleetSave,
+    notifySave,
+    nameSave,
+    t,
+  ]);
 
   useEffect(() => {
     void Promise.all([rpc("me"), rpc("models/list"), rpc("models/credentials")])
@@ -621,9 +665,11 @@ function BotSettingsScreen({
                   position: "absolute",
                   right: 0,
                   bottom: 0,
-                  padding: 4,
+                  padding: 5,
                   borderRadius: 12,
-                  backgroundColor: tokens.card,
+                  backgroundColor: cardBg,
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
                 }}
               >
                 <NativeSymbol ios="pencil" android="pencil" size={12} color={tokens.foreground} />
@@ -657,7 +703,9 @@ function BotSettingsScreen({
             </View>
           </SettingsGroup>
         </View>
-        {botId ? <BotContextCards key={botId} botId={botId} projectId={projectId} scope={scope} /> : null}
+        {botId ? (
+          <BotContextCards key={botId} botId={botId} projectId={projectId} scope={scope} />
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("Advanced")}
@@ -719,81 +767,83 @@ function BotSettingsScreen({
               </Text>
             ) : null}
 
-                {!projectId ? (
-                <SettingsGroup label={t("Computer")}>
-                  <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
-                </SettingsGroup>
-                ) : null}
-                <SettingsGroup label={t(projectId ? "Device voice" : "Voice")}>
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                      {t("Read replies aloud")}
-                    </Text>
-                    <NativeSwitch
-                      accessibilityLabel={t("Read replies aloud")}
-                      onValueChange={setAutoSpeak}
-                      value={autoSpeak}
-                    />
-                  </View>
-                  {deviceVoiceEnabled ? (
-                    voiceError ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t("Device voice")}
-                        accessibilityValue={{ text: voiceError }}
-                        onPress={() => void retryDeviceVoices()}
-                      >
-                        {voiceRow}
-                      </Pressable>
-                    ) : (
-                      voiceRow
-                    )
-                  ) : null}
-                </SettingsGroup>
-                {!projectId ? <SettingsGroup label={t("Permissions")}>
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                      {t("Daily check-ins on unfinished work")}
-                    </Text>
-                    <NativeSwitch
-                      accessibilityLabel={t("Daily check-ins on unfinished work")}
-                      value={dailyCheckIns}
-                      onValueChange={(value) => {
-                        if (!botId) return;
-                        setError(null);
-                        dailyCheckInsSave.update(value);
-                      }}
-                    />
-                  </View>
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                      {t("Allow cross-space bot communication")}
-                    </Text>
-                    <NativeSwitch
-                      accessibilityLabel={t("Allow cross-space bot communication")}
-                      value={crossSpaceCommunication}
-                      onValueChange={(value) => {
-                        if (!botId) return;
-                        setError(null);
-                        crossSpaceSave.update(value);
-                      }}
-                    />
-                  </View>
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                      {t("Manage other bots")}
-                    </Text>
-                    <NativeSwitch
-                      accessibilityLabel={t("Manage other bots")}
-                      onValueChange={(value) => {
-                        if (!botId) return;
-                        setError(null);
-                        fleetSave.update(value);
-                      }}
-                      value={fleetManagement}
-                    />
-                  </View>
-                </SettingsGroup> : null}
+            {!projectId ? (
+              <SettingsGroup label={t("Computer")}>
+                <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
+              </SettingsGroup>
+            ) : null}
+            <SettingsGroup label={t(projectId ? "Device voice" : "Voice")}>
+              <View style={styles.row}>
+                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                  {t("Read replies aloud")}
+                </Text>
+                <NativeSwitch
+                  accessibilityLabel={t("Read replies aloud")}
+                  onValueChange={setAutoSpeak}
+                  value={autoSpeak}
+                />
+              </View>
+              {deviceVoiceEnabled ? (
+                voiceError ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("Device voice")}
+                    accessibilityValue={{ text: voiceError }}
+                    onPress={() => void retryDeviceVoices()}
+                  >
+                    {voiceRow}
+                  </Pressable>
+                ) : (
+                  voiceRow
+                )
+              ) : null}
+            </SettingsGroup>
+            {!projectId ? (
+              <SettingsGroup label={t("Permissions")}>
+                <View style={styles.row}>
+                  <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                    {t("Daily check-ins on unfinished work")}
+                  </Text>
+                  <NativeSwitch
+                    accessibilityLabel={t("Daily check-ins on unfinished work")}
+                    value={dailyCheckIns}
+                    onValueChange={(value) => {
+                      if (!botId) return;
+                      setError(null);
+                      dailyCheckInsSave.update(value);
+                    }}
+                  />
+                </View>
+                <View style={styles.row}>
+                  <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                    {t("Allow cross-space bot communication")}
+                  </Text>
+                  <NativeSwitch
+                    accessibilityLabel={t("Allow cross-space bot communication")}
+                    value={crossSpaceCommunication}
+                    onValueChange={(value) => {
+                      if (!botId) return;
+                      setError(null);
+                      crossSpaceSave.update(value);
+                    }}
+                  />
+                </View>
+                <View style={styles.row}>
+                  <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                    {t("Manage other bots")}
+                  </Text>
+                  <NativeSwitch
+                    accessibilityLabel={t("Manage other bots")}
+                    onValueChange={(value) => {
+                      if (!botId) return;
+                      setError(null);
+                      fleetSave.update(value);
+                    }}
+                    value={fleetManagement}
+                  />
+                </View>
+              </SettingsGroup>
+            ) : null}
             <View>
               <View
                 style={{
@@ -805,7 +855,9 @@ function BotSettingsScreen({
                 }}
               >
                 <SettingsSectionHeading>{t("Instructions")}</SettingsSectionHeading>
-                {!projectId && bot?.instructionHistory?.length && instructions === bot.instructions ? (
+                {!projectId &&
+                bot?.instructionHistory?.length &&
+                instructions === bot.instructions ? (
                   <View style={{ width: 44 }}>
                     <MenuPickerMenu
                       label={t("Instruction history")}
@@ -830,9 +882,17 @@ function BotSettingsScreen({
                                   versionId,
                                   expectedInstructions: bot.instructions,
                                 };
-                                void (projectId && scope !== undefined
-                                  ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/restoreBotInstructions", { projectId, ...restore }, options))
-                                  : rpc("bots/restoreInstructions", restore))
+                                void (
+                                  projectId && scope !== undefined
+                                    ? projectRequestOptions(scope).then((options) =>
+                                        rpc(
+                                          "projectWorkspaces/restoreBotInstructions",
+                                          { projectId, ...restore },
+                                          options,
+                                        ),
+                                      )
+                                    : rpc("bots/restoreInstructions", restore)
+                                )
                                   .then((updated) => {
                                     setBot(updated);
                                     setInstructions(updated.instructions ?? "");
@@ -865,13 +925,29 @@ function BotSettingsScreen({
                   </View>
                 ) : null}
               </View>
-              <GrowingTextInput
-                label={t("Instructions")}
-                maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
-                value={instructions}
-                onChangeText={setInstructions}
-                backgroundColor={native.fill}
-              />
+              <View
+                style={{
+                  borderRadius: 20,
+                  borderCurve: "continuous",
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
+                  backgroundColor: cardBg,
+                  shadowColor: "#26231F",
+                  shadowOpacity: isLight ? 0.028 : 0.16,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 5 },
+                  elevation: 1,
+                  overflow: "hidden",
+                }}
+              >
+                <GrowingTextInput
+                  label={t("Instructions")}
+                  maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
+                  value={instructions}
+                  onChangeText={setInstructions}
+                  backgroundColor={cardBg}
+                />
+              </View>
             </View>
             <SettingsGroup label={t("How other bots see it")}>
               <GrowingTextInput
@@ -883,61 +959,85 @@ function BotSettingsScreen({
                 inset={0}
               />
             </SettingsGroup>
-              <GlassSurface
-                shape="roundedRectangle"
-                cornerRadius={12}
-                style={{ paddingHorizontal: 16, borderRadius: 12 }}
-                fallbackStyle={{ backgroundColor: native.fill }}
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={20}
+              style={{
+                paddingHorizontal: 16,
+                borderRadius: 20,
+                borderCurve: "continuous",
+                borderWidth: hairline,
+                borderColor: cardBorder,
+                shadowColor: "#26231F",
+                shadowOpacity: isLight ? 0.028 : 0.16,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 5 },
+                elevation: 1,
+                overflow: "hidden",
+              }}
+              fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Export")}
+                style={styles.row}
+                onPress={() => {
+                  void (
+                    projectId && scope !== undefined
+                      ? projectRequestOptions(scope).then((options) =>
+                          rpc("projectWorkspaces/exportBot", { projectId, botId }, options),
+                        )
+                      : rpc("export/bot", { botId })
+                  )
+                    .then((manifest) => Share.share({ message: JSON.stringify(manifest, null, 2) }))
+                    .catch((err) => setError(errorText(err)));
+                }}
               >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t("Export")}
-                  style={styles.row}
-                  onPress={() => {
-                    void (projectId && scope !== undefined
-                      ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/exportBot", { projectId, botId }, options))
-                      : rpc("export/bot", { botId }))
-                      .then((manifest) => Share.share({ message: JSON.stringify(manifest, null, 2) }))
-                      .catch((err) => setError(errorText(err)));
-                  }}
-                >
-                  <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t("Export")}</Text>
-                  <NativeSymbol
-                    ios="square.and.arrow.down"
-                    android="download-outline"
-                    size={18}
-                    color={tokens.mutedForeground}
-                  />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t("Clear conversation")}
-                  style={[
-                    styles.row,
-                    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
-                  ]}
-                  onPress={() =>
-                    Alert.alert(t("Clear conversation"), undefined, [
-                      { text: t("Cancel"), style: "cancel" },
-                      {
-                        text: t("Clear conversation"),
-                        style: "destructive",
-                        onPress: () => {
-                          void (projectId && scope !== undefined
-                            ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/conversationAction", { projectId, botId, action: "clear", deleteMemories: false }, options))
-                            : rpc("threads/clear", { botId }))
-                            .then(() => router.back())
-                            .catch((err) => setError(errorText(err)));
-                        },
+                <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t("Export")}</Text>
+                <NativeSymbol
+                  ios="square.and.arrow.down"
+                  android="download-outline"
+                  size={18}
+                  color={tokens.mutedForeground}
+                />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("Clear conversation")}
+                style={[
+                  styles.row,
+                  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
+                ]}
+                onPress={() =>
+                  Alert.alert(t("Clear conversation"), undefined, [
+                    { text: t("Cancel"), style: "cancel" },
+                    {
+                      text: t("Clear conversation"),
+                      style: "destructive",
+                      onPress: () => {
+                        void (
+                          projectId && scope !== undefined
+                            ? projectRequestOptions(scope).then((options) =>
+                                rpc(
+                                  "projectWorkspaces/conversationAction",
+                                  { projectId, botId, action: "clear", deleteMemories: false },
+                                  options,
+                                ),
+                              )
+                            : rpc("threads/clear", { botId })
+                        )
+                          .then(() => router.back())
+                          .catch((err) => setError(errorText(err)));
                       },
-                    ])
-                  }
-                >
-                  <Text style={{ color: tokens.destructive, fontSize: 14 }}>
-                    {t("Clear conversation")}
-                  </Text>
-                </Pressable>
-              </GlassSurface>
+                    },
+                  ])
+                }
+              >
+                <Text style={{ color: tokens.destructive, fontSize: 14 }}>
+                  {t("Clear conversation")}
+                </Text>
+              </Pressable>
+            </GlassSurface>
           </View>
         ) : null}
         {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}
@@ -1039,11 +1139,11 @@ function BotSettingsScreen({
                       setColor((current) => avatarColor(current));
                     }}
                     style={{
-                      padding: 4,
-                      borderRadius: 14,
-                      borderWidth: 2,
-                      borderColor:
-                        avatarShape(color) === null ? tokens.foreground : "transparent",
+                      padding: 6,
+                      borderRadius: 16,
+                      backgroundColor: avatarShape(color) === null ? cardBg : chipBg,
+                      borderWidth: avatarShape(color) === null ? 2 : hairline,
+                      borderColor: avatarShape(color) === null ? tokens.foreground : chipBorder,
                     }}
                   >
                     <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
@@ -1059,11 +1159,11 @@ function BotSettingsScreen({
                         setColor((current) => withAvatarShape(current, shape));
                       }}
                       style={{
-                        padding: 4,
-                        borderRadius: 14,
-                        borderWidth: 2,
-                        borderColor:
-                          avatarShape(color) === shape ? tokens.foreground : "transparent",
+                        padding: 6,
+                        borderRadius: 16,
+                        backgroundColor: avatarShape(color) === shape ? cardBg : chipBg,
+                        borderWidth: avatarShape(color) === shape ? 2 : hairline,
+                        borderColor: avatarShape(color) === shape ? tokens.foreground : chipBorder,
                       }}
                     >
                       <BotAvatar
@@ -1119,14 +1219,36 @@ const styles = StyleSheet.create({
 });
 
 function SettingsGroup({ label, children }: { label: string; children: ReactNode }) {
+  const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const isLight = scope ? scope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = scope ? (scope.tokens?.card ?? "#FFFEFC") : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? (scope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
   return (
     <View style={{ gap: 8 }}>
       <SettingsSectionHeading>{label}</SettingsSectionHeading>
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={12}
-        style={{ padding: 16, gap: 12, borderRadius: 12 }}
-        fallbackStyle={{ backgroundColor: native.fill }}
+        cornerRadius={20}
+        style={{
+          padding: 16,
+          gap: 12,
+          borderRadius: 20,
+          borderCurve: "continuous",
+          borderWidth: hairline,
+          borderColor: cardBorder,
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
+          elevation: 1,
+        }}
+        fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
       >
         {children}
       </GlassSurface>

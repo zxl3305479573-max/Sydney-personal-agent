@@ -69,7 +69,11 @@ export function NativeSheet({
     <Sheet
       enableDynamicSizing
       enablePanDownToClose
-      backgroundStyle={{ backgroundColor: tokens.card }}
+      backgroundStyle={{
+        backgroundColor: tokens.card,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }}
       handleComponent={null}
       onClose={() => {
         if (closed.current) return;
@@ -78,12 +82,12 @@ export function NativeSheet({
       }}
     >
       {/* The community adapter only supports hiding its stock handle. */}
-      <View accessible={false} style={{ alignItems: "center", paddingTop: 16, paddingBottom: 10 }}>
+      <View accessible={false} style={{ alignItems: "center", paddingTop: 14, paddingBottom: 10 }}>
         <View
           style={{
-            width: 32,
+            width: 36,
             height: 4,
-            borderRadius: 2,
+            borderRadius: 999,
             backgroundColor: tokens.mutedForeground,
             opacity: 0.4,
           }}

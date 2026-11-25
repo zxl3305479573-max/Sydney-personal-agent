@@ -3,6 +3,7 @@ import type {
   CapabilityInstall,
   PluginMarketplaceEntry,
 } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -20,6 +21,7 @@ import { PluginIcon } from "../../components/plugin-icon";
 import { Chevron } from "../../components/row-accessories";
 import { SkillSymbol } from "../../components/skill-symbol";
 import { rpc } from "../../lib/api";
+import { mobileTokens } from "../../lib/appearance";
 import { useI18n } from "../../lib/i18n";
 import { native, useThemedStyles } from "../../lib/native";
 import { iosAtLeast } from "../../lib/native-controls";
@@ -140,7 +142,7 @@ export default function SkillsScreen() {
               autoFocus
               keyboardType="url"
               maxLength={2048}
-              style={styles.input}
+              style={styles.cardInput}
             />
             <NativeActionButton
               disabled={!gitUrl.trim()}
@@ -290,37 +292,102 @@ export default function SkillsScreen() {
   );
 }
 
-function createStyles() {
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 16, gap: 14 },
-    card: { gap: 10 },
-    list: { gap: 8 },
+    content: { padding: 16, paddingBottom: 36, gap: 14 },
+    card: {
+      gap: 12,
+      padding: 16,
+      borderRadius: 20,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
+    list: { gap: 10 },
     input: {
       minHeight: 48,
-      borderRadius: 12,
-      backgroundColor: native.fillPressed,
+      borderRadius: 16,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      color: native.label,
+      paddingHorizontal: 14,
+      fontSize: 17,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.025 : 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
+    cardInput: {
+      minHeight: 48,
+      borderRadius: 14,
+      borderCurve: "continuous",
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
       color: native.label,
       paddingHorizontal: 14,
       fontSize: 17,
     },
     row: {
-      minHeight: 56,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 14,
-      backgroundColor: native.fill,
+      minHeight: 58,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 18,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
     },
-    pressed: { backgroundColor: native.fillPressed },
-    section: { color: native.secondaryLabel, fontSize: 13, fontWeight: "500", marginTop: 6 },
+    pressed: { opacity: 0.76 },
+    section: {
+      color: native.secondaryLabel,
+      fontSize: 13,
+      fontWeight: "600",
+      marginTop: 6,
+      paddingHorizontal: 4,
+    },
     skillMark: {
-      width: LOGO_SIZE,
-      height: LOGO_SIZE,
-      borderRadius: 10,
-      backgroundColor: native.fillPressed,
+      width: LOGO_SIZE + 4,
+      height: LOGO_SIZE + 4,
+      borderRadius: 12,
+      borderCurve: "continuous",
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
       alignItems: "center",
       justifyContent: "center",
     },

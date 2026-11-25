@@ -1,5 +1,5 @@
 import type { RunActivityRow, SpaceBot, SpaceGroup } from "@rakazo/contracts";
-import { accountDisplay, isRetryableError, reportUiLocale } from "@rakazo/core";
+import { accountDisplay, isRetryableError, isRunWorking, reportUiLocale } from "@rakazo/core";
 import type { Href } from "expo-router";
 import {
   Redirect,
@@ -26,12 +26,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotOrganizeModal } from "../components/bot-organize-modal";
 import { CreateBotModal } from "../components/create-bot-modal";
 import { HomeErrorState } from "../components/home-error-state";
+import { HomeHub } from "../components/home-hub";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
 import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
-import { PickChatPane } from "../components/pick-chat-pane";
 import { useUnreadJumpPills } from "../components/unread-jump-overlay";
 import { fetchSpaceActivity } from "../lib/activity";
 import { loadActivityMode, saveActivityMode } from "../lib/activity-mode";
@@ -121,8 +121,388 @@ async function openMobileSpace(spaceId: string | undefined, open: () => void) {
 let localeReportedFor: string | null = null;
 
 export default function HomeRoute() {
-  const { split } = useSplitView();
-  return split ? <PickChatPane /> : <HomeSession />;
+  const generation = useSyncExternalStore(subscribeSessionGeneration, currentSessionGeneration);
+  const ready = useSyncExternalStore(subscribeSessionGeneration, currentReadySessionGeneration);
+  return <PersonalHomeHubScreen key={`${generation}:${ready}`} />;
+}
+
+function PersonalHomeHubScreen() {
+  const generation = currentSessionGeneration();
+  const styles = useThemedStyles(createHomeStyles);
+  const { t } = useI18n();
+  const router = useRouter();
+  const isFocused = useIsFocused();
+  const threadRevision = useSyncExternalStore(
+    threadSessionCache.subscribe,
+    threadSessionCache.getRevision,
+  );
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [bots, setBots] = useState<MobileBot[]>([]);
+  const [groups, setGroups] = useState<MobileGroup[]>([]);
+  const [botSections, setBotSections] = useState<MobileBotSection[]>([]);
+  const [spaces, setSpaces] = useState<MobileSpace[]>([]);
+  const [me, setMe] = useState<
+    (Pick<MobileMe, "userId" | "spaceId" | "name"> & { email?: MobileMe["email"] }) | null
+  >(null);
+  const [spaceName, setSpaceName] = useState<string | null>(null);
+  const [activeRunsCount, setActiveRunsCount] = useState(0);
+  const [projectCount, setProjectCount] = useState<number | null>(null);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubLogin, setGithubLogin] = useState<string | null>(null);
+  const [githubRepoCount, setGithubRepoCount] = useState<number | null>(null);
+  const [githubRecentCounts, setGithubRecentCounts] = useState<number[] | null>(null);
+  const [connectedAppsCount, setConnectedAppsCount] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hubLoading, setHubLoading] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [loadFailure, setLoadFailure] = useState<{ kind: LoadFailureKind; message: string } | null>(
+    null,
+  );
+  const [createBotOpen, setCreateBotOpen] = useState(false);
+  const [badgeLoad, setBadgeLoad] = useState<{ generation: number } | null>(null);
+  const requestIdRef = useRef(0);
+  const hubLoadedRef = useRef(false);
+  const creatingBotRef = useRef(false);
+  const userId = me?.userId;
+
+  useEffect(() => {
+    void loadSessionToken().then((token) => {
+      setHasSession(Boolean(token));
+      setSessionLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hasSession) return;
+    void registerPushToken().catch(() => undefined);
+  }, [hasSession]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") forgetAppBadge();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
+      let active = true;
+      void offerPasskeyOnce(userId, () => active);
+      return () => {
+        active = false;
+      };
+    }, [userId]),
+  );
+
+  useEffect(() => {
+    if (!hasSession) return;
+    let cancelled = false;
+    void loadSavedInbox().then((saved) => {
+      if (cancelled || !saved || hubLoadedRef.current) return;
+      setBots(saved.bots);
+      setBotSections(saved.botSections);
+      setGroups(saved.groups);
+      setSpaces(saved.spaces);
+      setMe(saved.me);
+      const savedSpace = saved.spaces.find((space) => space.id === saved.me.spaceId);
+      if (savedSpace?.name) setSpaceName(savedSpace.name);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSession]);
+
+  const loadHub = useCallback(async () => {
+    const badgeGeneration = appBadgeGeneration();
+    const requestId = ++requestIdRef.current;
+    const apiBase = currentApiBase();
+    const currentGen = currentSessionGeneration();
+    const requestThreadRevision = threadSessionCache.getRequestRevision();
+    const isCurrent = () =>
+      requestId === requestIdRef.current &&
+      currentGen === currentSessionGeneration() &&
+      apiBase === currentApiBase();
+    setHubLoading(true);
+    try {
+      const [navigation, nextMe] = await Promise.all([rpc("spaces/list"), rpc("me")]);
+      if (!isCurrent()) return;
+      if (!(await selectInitialSpace(nextMe.spaceId))) {
+        throw new Error(t("Could not save the default space"));
+      }
+      if (!isCurrent()) return;
+      if (nextMe.billingEnabled) {
+        void rpc("billing/status")
+          .then((billing) => {
+            if (
+              isCurrent() &&
+              billing.funding !== undefined &&
+              !billing.access &&
+              !isPaywallShown()
+            )
+              router.push("/paywall");
+          })
+          .catch(() => undefined);
+      }
+      setBots((current) => retainInboxValue(current, navigation.current.bots));
+      setBotSections((current) => retainInboxValue(current, navigation.current.botSections));
+      setGroups((current) => retainInboxValue(current, navigation.current.groups));
+      setSpaces((current) => retainInboxValue(current, navigation.spaces));
+      setMe((current) => retainInboxValue(current, nextMe));
+      setSpaceName(navigation.current.name);
+      for (const space of navigation.spaces) {
+        threadSessionCache.reconcileRoster(
+          { apiBase, sessionGeneration: currentGen, userId: nextMe.userId, spaceId: space.id },
+          requestThreadRevision,
+        );
+      }
+      threadSessionCache.reconcileRoster(
+        {
+          apiBase,
+          sessionGeneration: currentGen,
+          userId: nextMe.userId,
+          spaceId: navigation.current.id,
+        },
+        requestThreadRevision,
+      );
+      if (nextMe.spaceId === selectedSpaceId()) {
+        queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
+      }
+      if (localeReportedFor !== nextMe.userId && nextMe.locale !== undefined) {
+        localeReportedFor = nextMe.userId;
+        if (nextMe.locale !== getActiveUiLocale()) {
+          void reportUiLocale(getActiveUiLocale, (locale) =>
+            rpc("preferences/update", { locale }),
+          ).catch(() => undefined);
+        }
+      }
+      hubLoadedRef.current = true;
+      setBadgeLoad({ generation: badgeGeneration });
+      setLoadFailure(null);
+      setLastSyncedAt(new Date());
+      saveInbox(
+        {
+          apiBase,
+          userId: nextMe.userId,
+          spaceId: navigation.current.id,
+          sessionGeneration: currentGen,
+          selectionId: selectedSpaceId(),
+        },
+        navigation,
+        nextMe,
+      );
+
+      const optionalOptions = { skipSpaceAuthRecovery: true } as const;
+      void rpc("projectWorkspaces/list", {}, optionalOptions)
+        .then((result) => {
+          if (isCurrent()) setProjectCount(result.items.length);
+        })
+        .catch(() => undefined);
+      void rpc("connections/list", undefined, optionalOptions)
+        .then((connections) => {
+          if (isCurrent()) {
+            setConnectedAppsCount(
+              connections.filter((entry) => entry.status === "connected").length,
+            );
+          }
+        })
+        .catch(() => undefined);
+      void rpc("runs/list", { filter: "active" }, optionalOptions)
+        .then((active) => {
+          if (isCurrent()) setActiveRunsCount(active.runs.length);
+        })
+        .catch(() => undefined);
+      void rpc("github/status", {}, optionalOptions)
+        .then(async (status) => {
+          if (!isCurrent()) return;
+          if (status.status === "connected") {
+            setGithubConnected(true);
+            setGithubLogin(status.login);
+            const overview = await rpc("github/profileOverview", {}, optionalOptions).catch(
+              () => null,
+            );
+            if (!isCurrent() || !overview) return;
+            setGithubRepoCount(overview.profile.publicRepos);
+            const days = overview.calendar.weeks.flatMap((week) =>
+              week.contributionDays.map((day) => day.contributionCount),
+            );
+            if (days.length > 0) setGithubRecentCounts(days.slice(-7));
+          } else {
+            setGithubConnected(false);
+            setGithubLogin(null);
+            setGithubRepoCount(null);
+            setGithubRecentCounts(null);
+          }
+        })
+        .catch(() => undefined);
+
+      return true;
+    } catch (err) {
+      if (!isCurrent()) return;
+      setLoadFailure({
+        kind: loadFailureKind(err),
+        message: errorText(err, t("Could not load bots")),
+      });
+      return isRetryableError(err);
+    } finally {
+      if (requestId === requestIdRef.current) setHubLoading(false);
+    }
+  }, [router, t]);
+
+  const refreshHub = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadHub();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadHub]);
+
+  useForegroundPoll(loadHub, INBOX_POLL_INTERVAL_MS, hasSession && isFocused);
+
+  const liveBots = useMemo(
+    () =>
+      bots.map((bot) => {
+        if (!userId || !me) return bot;
+        const status = threadSessionCache.botStatus(
+          {
+            apiBase: currentApiBase(),
+            sessionGeneration: generation,
+            userId,
+            spaceId: me.spaceId,
+          },
+          bot.id,
+          bot.status,
+        );
+        return status === bot.status ? bot : { ...bot, status };
+      }),
+    [bots, userId, me, generation, threadRevision],
+  );
+
+  const hubSpaces = useMemo<InboxSpace[]>(
+    () =>
+      spaces.length > 0
+        ? spaces.map((space) =>
+            space.id === me?.spaceId ? { ...space, bots: liveBots, groups, botSections } : space,
+          )
+        : me
+          ? [
+              {
+                id: me.spaceId,
+                name: spaceName ?? t("Personal"),
+                isDefault: true,
+                hasContent: true,
+                bots: liveBots,
+                groups,
+                botSections,
+              },
+            ]
+          : [],
+    [spaces, me, liveBots, groups, botSections, spaceName, t],
+  );
+
+  usePublishSearchInbox(hubSpaces, me !== null);
+
+  const badgeCount = me ? unreadChatCount(hubSpaces) : null;
+  useEffect(() => {
+    if (badgeCount === null || badgeLoad === null) return;
+    void syncInboxAppBadge(badgeCount, badgeLoad.generation);
+  }, [badgeCount, badgeLoad]);
+
+  const openHubBot = useCallback(
+    (bot: MobileBot | SpaceBot) => {
+      void openMobileSpace(bot.spaceId, () => {
+        router.push({ pathname: "/thread", params: { botId: bot.id, name: bot.name } });
+      });
+    },
+    [router],
+  );
+
+  const createHubBot = useCallback(
+    async (identity: InboxBotIdentity): Promise<Href | null> => {
+      if (creatingBotRef.current) throw new Error(t("Could not create bot"));
+      creatingBotRef.current = true;
+      try {
+        let destination: Href | null = null;
+        await createInboxBot({
+          identity,
+          refreshBots: refreshHub,
+          openChat: (href) => {
+            destination = href;
+          },
+        });
+        return destination;
+      } finally {
+        creatingBotRef.current = false;
+      }
+    },
+    [refreshHub, t],
+  );
+
+  const signInAgain = useCallback(async () => {
+    await signOut().catch(() => undefined);
+    router.replace("/sign-in");
+  }, [router]);
+
+  if (!sessionLoaded) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator color={native.secondaryLabel} />
+      </View>
+    );
+  }
+  if (!hasSession) return <Redirect href="/sign-in" />;
+
+  if (loadFailure?.kind === "session" && liveBots.length === 0 && !me) {
+    return (
+      <View style={styles.screen}>
+        <HomeErrorState
+          kind={loadFailure.kind}
+          message={loadFailure.message}
+          loading={hubLoading && !refreshing}
+          onRetry={() => void refreshHub()}
+          onSignIn={() => void signInAgain()}
+        />
+      </View>
+    );
+  }
+
+  const workingCount = liveBots.filter((bot) => isRunWorking(bot.status)).length;
+
+  return (
+    <View style={styles.screen}>
+      <HomeHub
+        me={me}
+        spaceName={spaceName}
+        bots={liveBots}
+        groups={groups}
+        activeRunsCount={Math.max(activeRunsCount, workingCount)}
+        projectCount={projectCount}
+        githubConnected={githubConnected}
+        githubLogin={githubLogin}
+        githubRepoCount={githubRepoCount}
+        githubRecentCounts={githubRecentCounts}
+        connectedAppsCount={connectedAppsCount}
+        refreshing={refreshing}
+        lastSyncedAt={lastSyncedAt}
+        error={loadFailure?.message ?? null}
+        onRefresh={() => void refreshHub()}
+        onOpenBot={openHubBot}
+        onCreateBot={() => setCreateBotOpen(true)}
+      />
+      {createBotOpen ? (
+        <CreateBotModal
+          onClose={() => setCreateBotOpen(false)}
+          onCreate={createHubBot}
+          onCreated={(destination) => {
+            setCreateBotOpen(false);
+            if (destination) router.push(destination);
+          }}
+        />
+      ) : null}
+    </View>
+  );
 }
 
 /** The chat list beside the open chat on a wide window. */
@@ -639,6 +1019,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     (href: Href) => {
       if (!embedded) router.push(href);
       else if (pathname === "/thread" || pathname === "/group-thread") router.replace(href);
+      else if (pathname === "/chats" || pathname === "/") router.push(href);
       else {
         if (router.canDismiss()) router.dismissAll();
         router.push(href);

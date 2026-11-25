@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
@@ -15,6 +16,15 @@ import {
 } from "../../lib/chat-appearance";
 import { useI18n } from "../../lib/i18n";
 import { useThemedStyles } from "../../lib/native";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 type AppearanceState = ReturnType<typeof getMobileChatAppearance>;
 type BubbleValue = NonNullable<AppearanceState["bubble"]>;
@@ -174,12 +184,22 @@ export default function ChatAppearanceScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <SettingsGroup label={chinese ? (traditional ? "即時預覽" : "实时预览") : "Live preview"}>
         <View style={styles.preview}>
           <View
             testID="chat-appearance-live-preview"
-            style={[styles.previewFrame, { backgroundColor: tokens.background ?? tokens.card }]}
+            style={[
+              styles.previewFrame,
+              {
+                backgroundColor:
+                  tokens.background ?? (isLightPalette(tokens) ? "#F3F1EC" : "#15171C"),
+              },
+            ]}
           >
             {live.backgroundUri ? (
               <Image
@@ -400,6 +420,12 @@ function SliderControl({
   chinese: boolean;
 }) {
   const tokens = mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
+  const trackBg = isLight ? "#EAE6DE" : "#2A303B";
+  const activeFill = isLight ? "#5E584F" : "#B8B3AA";
+  const thumbBg = isLight ? "#FFFEFC" : "#F5F4F0";
   const trackWidth = useRef(0);
   const lastValue = useRef(value);
   lastValue.current = value;
@@ -413,7 +439,7 @@ function SliderControl({
   const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Text style={{ color: tokens.foreground, fontSize: 15 }}>{label}</Text>
         <Text
@@ -427,7 +453,7 @@ function SliderControl({
           {unit}
         </Text>
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${chinese ? "降低" : "Decrease "}${label}`}
@@ -437,8 +463,9 @@ function SliderControl({
             width: 38,
             height: 38,
             borderRadius: 19,
-            borderWidth: 1,
-            borderColor: tokens.border,
+            backgroundColor: chipBg,
+            borderWidth: 0.5,
+            borderColor: chipBorder,
             alignItems: "center",
             justifyContent: "center",
             opacity: disabled || value <= 0 ? 0.4 : 1,
@@ -484,13 +511,13 @@ function SliderControl({
             justifyContent: "center",
           }}
         >
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: tokens.border }}>
+          <View style={{ height: 6, borderRadius: 999, backgroundColor: trackBg }}>
             <View
               style={{
                 width: `${ratio * 100}%`,
                 height: 6,
-                borderRadius: 3,
-                backgroundColor: tokens.primary ?? tokens.foreground,
+                borderRadius: 999,
+                backgroundColor: activeFill,
               }}
             />
           </View>
@@ -499,13 +526,17 @@ function SliderControl({
             style={{
               position: "absolute",
               left: `${ratio * 100}%`,
-              marginLeft: -9,
-              width: 18,
-              height: 18,
-              borderRadius: 9,
-              backgroundColor: tokens.card ?? "#ffffff",
+              marginLeft: -10,
+              width: 20,
+              height: 20,
+              borderRadius: 10,
+              backgroundColor: thumbBg,
               borderWidth: 2,
-              borderColor: tokens.primary ?? tokens.foreground,
+              borderColor: activeFill,
+              shadowColor: "#26231F",
+              shadowOpacity: isLight ? 0.08 : 0.24,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 2 },
             }}
           />
         </View>
@@ -518,8 +549,9 @@ function SliderControl({
             width: 38,
             height: 38,
             borderRadius: 19,
-            borderWidth: 1,
-            borderColor: tokens.border,
+            backgroundColor: chipBg,
+            borderWidth: 0.5,
+            borderColor: chipBorder,
             alignItems: "center",
             justifyContent: "center",
             opacity: disabled || value >= max ? 0.4 : 1,
@@ -532,12 +564,25 @@ function SliderControl({
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return {
-    content: { padding: 16, gap: 20, paddingBottom: 40 },
-    preview: { padding: 14, backgroundColor: tokens.card },
-    previewFrame: { overflow: "hidden" as const, borderRadius: 14, minHeight: 164 },
+    screen: {
+      flex: 1,
+      backgroundColor: tokens.background ?? (isLight ? "#F3F1EC" : "#15171C"),
+    },
+    content: { paddingHorizontal: 16, paddingTop: 18, gap: 22, paddingBottom: 40 },
+    preview: { padding: 14, backgroundColor: cardBg },
+    previewFrame: {
+      overflow: "hidden" as const,
+      borderRadius: 18,
+      minHeight: 168,
+      borderWidth: 0.5,
+      borderColor: chipBorder,
+    },
     previewImage: {
       position: "absolute" as const,
       top: 0,
@@ -555,11 +600,17 @@ function createStyles() {
       left: 0,
       backgroundColor: "#000",
     },
-    liveTranscript: { padding: 16, gap: 12, justifyContent: "center" as const, minHeight: 164 },
+    liveTranscript: { padding: 16, gap: 12, justifyContent: "center" as const, minHeight: 168 },
     previewBubble: { maxWidth: "85%" as const, paddingHorizontal: 14, paddingVertical: 9 },
     swatches: { flexDirection: "row" as const, gap: 6 },
     stackedSwatches: { marginTop: 8 },
-    swatch: { width: 28, height: 28, borderRadius: 14 },
-    note: { fontSize: 13, lineHeight: 18 },
+    swatch: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      borderWidth: 0.5,
+      borderColor: chipBorder,
+    },
+    note: { fontSize: 13, lineHeight: 18, paddingHorizontal: 4 },
   };
 }

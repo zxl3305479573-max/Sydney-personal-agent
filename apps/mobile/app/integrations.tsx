@@ -23,6 +23,7 @@ import {
   newClientId,
   OTHER_PLUGINS,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +52,7 @@ import { PluginIcon } from "../components/plugin-icon";
 import { Chevron } from "../components/row-accessories";
 import { rpc } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
+import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
 import type { IntegrationsCacheScope, IntegrationsSnapshot } from "../lib/integrations-cache";
 import {
@@ -62,6 +64,7 @@ import {
 } from "../lib/integrations-cache";
 import { loadLastBotId } from "../lib/last-bot";
 import { useHideMainNavigation } from "../lib/main-navigation";
+import type { NativeColors } from "../lib/native";
 import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import type { PluginParams } from "../lib/plugin-marketplace";
@@ -522,7 +525,7 @@ export default function Integrations() {
       <GlassSurface
         key={entry.id}
         shape="roundedRectangle"
-        cornerRadius={14}
+        cornerRadius={18}
         style={catalogColumns === 2 ? styles.catalogCell : undefined}
         fallbackStyle={styles.rowFallback}
       >
@@ -574,7 +577,7 @@ export default function Integrations() {
       <GlassSurface
         key={install.id}
         shape="roundedRectangle"
-        cornerRadius={14}
+        cornerRadius={18}
         fallbackStyle={styles.rowFallback}
       >
         <Pressable
@@ -614,7 +617,7 @@ export default function Integrations() {
         key={server.id}
         testID="registered-mcp-server"
         shape="roundedRectangle"
-        cornerRadius={14}
+        cornerRadius={18}
         style={styles.row}
         fallbackStyle={styles.rowFallback}
       >
@@ -671,7 +674,7 @@ export default function Integrations() {
                 key={source.id}
                 testID="tool-source"
                 shape="roundedRectangle"
-                cornerRadius={14}
+                cornerRadius={18}
                 style={styles.row}
                 fallbackStyle={styles.rowFallback}
               >
@@ -1090,7 +1093,7 @@ export default function Integrations() {
         <GlassSurface
           key={catalogItemKey(item)}
           shape="roundedRectangle"
-          cornerRadius={14}
+          cornerRadius={18}
           style={[styles.row, tileStyle]}
           fallbackStyle={styles.rowFallback}
         >
@@ -1112,7 +1115,7 @@ export default function Integrations() {
       <GlassSurface
         key={catalogItemKey(item)}
         shape="roundedRectangle"
-        cornerRadius={14}
+        cornerRadius={18}
         style={[styles.row, tileStyle]}
         fallbackStyle={styles.rowFallback}
       >
@@ -1156,7 +1159,7 @@ export default function Integrations() {
 
         <GlassSurface
           shape="roundedRectangle"
-          cornerRadius={16}
+          cornerRadius={20}
           style={styles.card}
           fallbackStyle={styles.cardFallback}
         >
@@ -1195,7 +1198,7 @@ export default function Integrations() {
 
         <GlassSurface
           shape="roundedRectangle"
-          cornerRadius={16}
+          cornerRadius={20}
           style={styles.card}
           fallbackStyle={styles.cardFallback}
         >
@@ -1319,7 +1322,7 @@ export default function Integrations() {
           <GlassSurface
             testID="plugin-git-import"
             shape="roundedRectangle"
-            cornerRadius={16}
+            cornerRadius={20}
             style={styles.card}
             fallbackStyle={styles.cardFallback}
           >
@@ -1329,7 +1332,9 @@ export default function Integrations() {
               onChangeText={setGitUrl}
               accessibilityLabel={t("Plugin GitHub URL")}
               placeholder="https://github.com/owner/plugin"
-              placeholderTextColor={native.tertiaryLabel}
+              placeholderTextColor={
+                native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
+              }
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
@@ -1352,7 +1357,7 @@ export default function Integrations() {
         {adding === "source" && sourceKind ? (
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={16}
+            cornerRadius={20}
             style={styles.card}
             fallbackStyle={styles.cardFallback}
           >
@@ -1393,7 +1398,9 @@ export default function Integrations() {
                           ? t("https://example.com/graphql")
                           : t("https://example.com/openapi.json")
                   }
-                  placeholderTextColor={native.tertiaryLabel}
+                  placeholderTextColor={
+                    native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
+                  }
                   style={styles.input}
                 />
               </View>
@@ -1422,7 +1429,9 @@ export default function Integrations() {
                   autoCorrect={false}
                   accessibilityLabel={t("API key header name")}
                   placeholder="x-api-key"
-                  placeholderTextColor={native.tertiaryLabel}
+                  placeholderTextColor={
+                    native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
+                  }
                   style={styles.input}
                 />
               </View>
@@ -1478,7 +1487,7 @@ export default function Integrations() {
             {!detailItem ? (
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={12}
+                cornerRadius={16}
                 fallbackStyle={styles.inputFallback}
               >
                 <TextInput
@@ -1490,7 +1499,9 @@ export default function Integrations() {
                   }}
                   accessibilityLabel={t("Search apps")}
                   placeholder={t("Search apps")}
-                  placeholderTextColor={native.tertiaryLabel}
+                  placeholderTextColor={
+                    native.tertiaryLabel ?? (scheme === "light" ? "#8C857A" : "#8A919E")
+                  }
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="search"
@@ -1640,29 +1651,73 @@ export default function Integrations() {
   );
 }
 
-function createIntegrationsStyles() {
-  const destructive = mobileTokens().destructive;
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
+
+function createIntegrationsStyles(
+  scopedTokens?: Partial<ColorTokens>,
+  scopedColors?: Partial<NativeColors>,
+) {
+  const tokens = scopedTokens ?? mobileTokens();
+  const colors = scopedColors ?? native;
+  const isLight = isLightSurface(tokens?.background);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const pageBg = colors?.page ?? tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const labelInk = colors?.label ?? tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const secondaryInk =
+    colors?.secondaryLabel ?? tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 20, gap: 14 },
-    explanation: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    section: { color: native.secondaryLabel, fontSize: 14, fontWeight: "600", marginTop: 2 },
-    card: { padding: 16, borderRadius: 16, gap: 12 },
-    cardFallback: { backgroundColor: native.fill },
+    screen: { flex: 1, backgroundColor: pageBg },
+    content: { padding: 20, paddingBottom: 32, gap: 14 },
+    explanation: { color: secondaryInk, fontSize: 14, lineHeight: 20 },
+    section: { color: secondaryInk, fontSize: 14, fontWeight: "600", marginTop: 2 },
+    card: { padding: 18, borderRadius: 20, gap: 12 },
+    cardFallback: {
+      backgroundColor: cardBg,
+      experimental_backgroundImage: cardGradient(isLight, "rose"),
+      overflow: "hidden",
+      borderRadius: 20,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
     field: { gap: 8 },
-    fieldLabel: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
+    fieldLabel: { color: secondaryInk, fontSize: 14, lineHeight: 20 },
     input: {
       minHeight: 48,
-      borderRadius: 12,
-      backgroundColor: native.fillPressed,
-      color: native.label,
+      borderRadius: 16,
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      color: labelInk,
       paddingHorizontal: 14,
-      fontSize: 17,
+      fontSize: 16,
     },
-    inputFallback: { backgroundColor: native.fillPressed, borderRadius: 12 },
-    searchInput: { minHeight: 48, color: native.label, paddingHorizontal: 14, fontSize: 17 },
-    catalogGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    catalogStack: { gap: 8 },
+    inputFallback: {
+      backgroundColor: cardBg,
+      borderRadius: 16,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.022 : 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
+    searchInput: { minHeight: 48, color: labelInk, paddingHorizontal: 16, fontSize: 16 },
+    catalogGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    catalogStack: { gap: 10 },
     catalogCell: { flexGrow: 1, flexBasis: "47%", maxWidth: "49%" },
     catalogTileBody: {
       flex: 1,
@@ -1673,37 +1728,49 @@ function createIntegrationsStyles() {
       gap: 10,
     },
     row: {
-      minHeight: 56,
-      paddingHorizontal: 12,
+      minHeight: 60,
+      paddingHorizontal: 14,
       paddingVertical: 12,
-      borderRadius: 14,
+      borderRadius: 18,
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
     },
-    rowFallback: { backgroundColor: native.fill, borderRadius: 14 },
+    rowFallback: {
+      backgroundColor: cardBg,
+      experimental_backgroundImage: cardGradient(isLight, "rose"),
+      overflow: "hidden",
+      borderRadius: 18,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.022 : 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
     logoPlaceholder: {
       width: LOGO_SIZE,
       height: LOGO_SIZE,
       borderRadius: 10,
-      backgroundColor: native.fillPressed,
+      backgroundColor: chipBg,
     },
     titlePlaceholder: {
       width: "65%",
       height: 14,
-      borderRadius: 4,
-      backgroundColor: native.fillPressed,
+      borderRadius: 6,
+      backgroundColor: chipBg,
     },
     pillPlaceholder: {
       width: 52,
       height: 30,
       borderRadius: 15,
-      backgroundColor: native.fillPressed,
+      backgroundColor: chipBg,
     },
     grow: { flex: 1, gap: 3, minWidth: 0 },
-    title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
-    secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
-    pressed: { backgroundColor: native.fillPressed },
+    title: { color: labelInk, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+    secondary: { color: secondaryInk, fontSize: 14, lineHeight: 20 },
+    pressed: { backgroundColor: chipBg },
     categoryPicker: { alignSelf: "flex-start" },
     sectionHeader: {
       marginTop: 10,
@@ -1711,7 +1778,7 @@ function createIntegrationsStyles() {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    sectionTitle: { color: native.label, fontSize: 16, fontWeight: "600" },
+    sectionTitle: { color: labelInk, fontSize: 16, fontWeight: "600" },
     accountActions: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -1726,14 +1793,16 @@ function createIntegrationsStyles() {
     },
     accountLabel: {
       flex: 1,
-      minHeight: 36,
-      borderRadius: 10,
-      backgroundColor: native.fillPressed,
-      color: native.label,
-      paddingHorizontal: 10,
-      fontSize: 13,
+      minHeight: 40,
+      borderRadius: 14,
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      color: labelInk,
+      paddingHorizontal: 12,
+      fontSize: 14,
     },
-    link: { color: native.label, fontSize: 14, fontWeight: "600" },
+    link: { color: labelInk, fontSize: 14, fontWeight: "600" },
     error: { color: destructive, fontSize: 14 },
     detail: { gap: 14 },
     detailHeader: {
@@ -1744,7 +1813,7 @@ function createIntegrationsStyles() {
     },
     detailTitleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
     backButton: { paddingVertical: 4 },
-    detailTitle: { flex: 1, color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+    detailTitle: { flex: 1, color: labelInk, fontSize: 17, lineHeight: 22, fontWeight: "600" },
     toolsToggle: {
       flexDirection: "row",
       alignItems: "center",
@@ -1752,7 +1821,17 @@ function createIntegrationsStyles() {
       gap: 8,
     },
     toolsBody: { gap: 8, paddingTop: 4 },
-    toolName: { color: native.label, fontSize: 14 },
-    addCustom: { alignSelf: "flex-end", padding: 4 },
+    toolName: { color: labelInk, fontSize: 14 },
+    addCustom: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignSelf: "flex-end",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+    },
   });
 }

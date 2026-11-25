@@ -1,6 +1,7 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { NativeSegmentedControlProps } from "../lib/native-controls";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 
 /** The pre-native segmented control, kept for Android and for an empty selection. */
 export function SegmentedPills<T extends string>({
@@ -11,12 +12,29 @@ export function SegmentedPills<T extends string>({
   disabled = false,
 }: NativeSegmentedControlProps<T>) {
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const isLight = useResolvedAppearance() === "light";
+  const hairline = StyleSheet?.hairlineWidth ?? 0.5;
+  const trackFill = scope ? tokens.accent : isLight ? "#EAE6DE" : "#1E222A";
   // The selected segment sits lighter than the track in both palettes.
-  const selectedFill = useResolvedAppearance() === "light" ? tokens.popover : tokens.chatUser;
+  const selectedFill = scope
+    ? isLight
+      ? tokens.popover
+      : tokens.chatUser
+    : isLight
+      ? "#FFFEFC"
+      : "#2D3340";
   return (
     <View
       accessibilityLabel={accessibilityLabel}
-      style={{ flexDirection: "row", padding: 2, borderRadius: 10, backgroundColor: tokens.accent }}
+      style={{
+        flexDirection: "row",
+        padding: 3,
+        borderRadius: 999,
+        backgroundColor: trackFill,
+        borderWidth: hairline,
+        borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.08)",
+      }}
     >
       {options.map((option) => {
         const selected = value === option.value;
@@ -27,16 +45,33 @@ export function SegmentedPills<T extends string>({
             accessibilityState={{ selected, disabled }}
             disabled={disabled}
             onPress={() => onChange(option.value)}
-            style={{
+            style={({ pressed }) => ({
               flex: 1,
               alignItems: "center",
+              justifyContent: "center",
               backgroundColor: selected ? selectedFill : "transparent",
-              borderRadius: 8,
+              borderRadius: 999,
               paddingVertical: 8,
-              opacity: disabled ? 0.5 : 1,
-            }}
+              paddingHorizontal: 10,
+              borderWidth: selected ? hairline : 0,
+              borderColor: selected
+                ? isLight
+                  ? "rgba(38, 35, 31, 0.06)"
+                  : "rgba(245, 244, 240, 0.11)"
+                : "transparent",
+              shadowColor: "#26231F",
+              shadowOpacity: selected ? (isLight ? 0.04 : 0.2) : 0,
+              shadowRadius: selected ? 8 : 0,
+              shadowOffset: { width: 0, height: selected ? 2 : 0 },
+              opacity: disabled ? 0.5 : pressed && !selected ? 0.72 : 1,
+            })}
           >
-            <Text style={{ color: selected ? tokens.foreground : tokens.mutedForeground }}>
+            <Text
+              style={{
+                color: selected ? tokens.foreground : tokens.mutedForeground,
+                fontWeight: selected ? "600" : "500",
+              }}
+            >
               {option.label}
             </Text>
           </Pressable>

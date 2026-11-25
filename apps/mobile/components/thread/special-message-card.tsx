@@ -3,7 +3,7 @@ import type { MessageBlock } from "@rakazo/contracts";
 import { cloudAgentHttpsUrl, displayName as safeDisplayName } from "@rakazo/core";
 import { typeScale } from "@rakazo/ui-tokens";
 import { useEffect, useRef, useState } from "react";
-import { Linking, Pressable, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 import type { MobileBot, MobileSnapshot } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
+import { cardGradient } from "../../lib/card-gradient";
 import { useI18n } from "../../lib/i18n";
 import { useResolvedAppearance } from "../../lib/native";
 import type { UserBubble } from "../../lib/user-bubble";
@@ -72,6 +73,13 @@ function HelperMessageCard({
   }));
   const running = special.status === "running";
   const failed = special.status === "failed";
+  const isLight = colorScheme === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = userBubble ? tokens.card : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const pillBg = isLight ? "#F8F6F2" : "#2A303B";
+  const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return (
     <Pressable
       {...actionProps}
@@ -80,7 +88,19 @@ function HelperMessageCard({
       style={{
         width: "90%",
         borderRadius: 18,
-        backgroundColor: tokens.card,
+        backgroundColor: cardBg,
+        ...(userBubble
+          ? {}
+          : {
+              experimental_backgroundImage: cardGradient(isLight, "champagne"),
+              overflow: "hidden" as const,
+            }),
+        borderWidth: hairline,
+        borderColor: cardBorder,
+        shadowColor: "#26231F",
+        shadowOpacity: isLight ? 0.028 : 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 5 },
       }}
     >
       <Pressable
@@ -127,20 +147,31 @@ function HelperMessageCard({
             >
               {safeDisplayName(special.name, t("subagent"))}
             </Text>
-            <Text
+            <View
               style={{
-                color: failed ? tokens.destructive : running ? tokens.warning : tokens.success,
-                ...typeScale.caption,
+                backgroundColor: pillBg,
+                borderRadius: 999,
+                paddingHorizontal: 9,
+                paddingVertical: 2,
+                borderWidth: hairline,
+                borderColor: pillBorder,
               }}
             >
-              {running
-                ? t("Running")
-                : special.status === "failed"
-                  ? t("Failed")
-                  : special.status === "completed"
-                    ? t("Completed")
-                    : special.status}
-            </Text>
+              <Text
+                style={{
+                  color: failed ? tokens.destructive : running ? tokens.warning : tokens.success,
+                  ...typeScale.caption,
+                }}
+              >
+                {running
+                  ? t("Running")
+                  : special.status === "failed"
+                    ? t("Failed")
+                    : special.status === "completed"
+                      ? t("Completed")
+                      : special.status}
+              </Text>
+            </View>
             <Animated.View style={helperChevronStyle}>
               <NativeSymbol
                 ios="chevron.down"
@@ -161,7 +192,15 @@ function HelperMessageCard({
         </View>
       </Pressable>
       {subagentOpen && (special.result || special.progress) ? (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 14, marginTop: -6 }}>
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingTop: 10,
+            paddingBottom: 14,
+            borderTopWidth: hairline,
+            borderTopColor: cardBorder,
+          }}
+        >
           <ChatMarkdown
             palette={tokens}
             colorScheme={colorScheme}
@@ -178,6 +217,7 @@ function HelperMessageCard({
 
 export function SpecialMessageCard(props: SpecialMessageCardProps) {
   const { special, actionProps, bots, members, onOpenBot, userBubble } = props;
+  const colorScheme = useResolvedAppearance();
   const tokens = withUserBubble(mobileTokens(), userBubble);
   const { t } = useI18n();
   if (special.kind === "subagent") return <HelperMessageCard {...props} special={special} />;
@@ -197,6 +237,13 @@ export function SpecialMessageCard(props: SpecialMessageCardProps) {
     const failed = special.status !== "running" && special.status !== "finished";
     const prHref = cloudAgentHttpsUrl(special.prUrl);
     const href = prHref ?? cloudAgentHttpsUrl(special.url);
+    const isLight = colorScheme === "light";
+    const hairline = StyleSheet.hairlineWidth ?? 0.5;
+    const cardBg = userBubble ? tokens.card : isLight ? "#FFFEFC" : "#242933";
+    const cardBorder =
+      tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+    const pillBg = isLight ? "#F8F6F2" : "#2A303B";
+    const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
     return (
       <Pressable
         {...actionProps}
@@ -210,23 +257,47 @@ export function SpecialMessageCard(props: SpecialMessageCardProps) {
         style={{
           width: "90%",
           borderRadius: 18,
-          backgroundColor: tokens.card,
+          backgroundColor: cardBg,
+          borderWidth: hairline,
+          borderColor: cardBorder,
           paddingHorizontal: 16,
           paddingVertical: 14,
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
         }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
           <Text style={{ flexShrink: 1, color: tokens.cardForeground, ...typeScale.cardTitle }}>
             {title}
           </Text>
-          <Text
+          <View
             style={{
-              color: failed ? tokens.destructive : running ? tokens.warning : tokens.success,
-              ...typeScale.caption,
+              backgroundColor: pillBg,
+              borderRadius: 999,
+              paddingHorizontal: 9,
+              paddingVertical: 2,
+              borderWidth: hairline,
+              borderColor: pillBorder,
             }}
           >
-            {statusLabel}
-          </Text>
+            <Text
+              style={{
+                color: failed ? tokens.destructive : running ? tokens.warning : tokens.success,
+                ...typeScale.caption,
+              }}
+            >
+              {statusLabel}
+            </Text>
+          </View>
         </View>
         {prHref ? (
           <Text style={{ color: tokens.mutedForeground, marginTop: 8, ...typeScale.secondary }}>

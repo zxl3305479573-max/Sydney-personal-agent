@@ -8,8 +8,14 @@ import { composerDraftScope, readComposerDraft, writeComposerDraft } from "../li
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { projectScopeKey } from "../lib/project-scope";
+import { GlassSurface } from "./glass-surface";
 import { MenuPicker } from "./menu-picker";
 import { NativeActionButton } from "./native-action-button";
+
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
 
 export function GithubBotAnalysis({
   repo,
@@ -115,8 +121,29 @@ export function GithubBotAnalysis({
     }
   }
 
+  const isLight = isLightSurface(tokens?.background);
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+
   return (
-    <View style={{ gap: 10 }}>
+    <GlassSurface
+      shape="roundedRectangle"
+      cornerRadius={20}
+      style={{ borderRadius: 20, padding: 18, gap: 12 }}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderRadius: 20,
+        borderWidth: 0.5,
+        borderColor: cardBorder,
+        shadowColor: "#26231F",
+        shadowOpacity: isLight ? 0.028 : 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 5 },
+        elevation: 1,
+      }}
+    >
       {bots?.length ? (
         <View pointerEvents={busy ? "none" : "auto"} accessibilityState={{ disabled: busy }}>
           <MenuPicker
@@ -128,7 +155,7 @@ export function GithubBotAnalysis({
         </View>
       ) : null}
       {bots?.length === 0 ? (
-        <Text style={{ color: tokens.mutedForeground }}>
+        <Text style={{ color: mutedFg }}>
           {text("请先在首页创建 Bot。", "Create a bot in Home first.")}
         </Text>
       ) : null}
@@ -142,14 +169,14 @@ export function GithubBotAnalysis({
         disabled={busy || bots?.length === 0}
         onPress={() => void act()}
       />
-      <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+      <Text style={{ color: mutedFg, fontSize: 13 }}>
         {text("只填入草稿，由你确认发送。", "Prepares a draft for you to review and send.")}
       </Text>
       {error ? (
-        <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+        <Text accessibilityRole="alert" style={{ color: destructive }}>
           {error}
         </Text>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }

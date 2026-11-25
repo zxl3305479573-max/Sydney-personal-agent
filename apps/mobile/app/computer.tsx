@@ -102,6 +102,11 @@ import type { ComputerUiModeController } from "../ui-modes/controllers";
 let nativeInputNeedsReview = false;
 let nativeInputBlockedLease: string | null = null;
 
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
+
 export default function Computer() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
@@ -733,31 +738,54 @@ export default function Computer() {
     setComputerMode,
     reloadScreen,
   };
+  const isLight = isLightSurface(tokens?.background);
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const cardShadow = {
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
+  const porcelainCard = {
+    backgroundColor: cardBg,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: cardBorder,
+    ...cardShadow,
+  } as const;
+
   const classicContent = (
     // The full window's Modal is a child of this scroll view. A tap there, on Close or on the
     // native keyboard bar, must never just dismiss the computer keyboard; only the bar closes it.
     <ScrollView
-      style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
-      contentContainerStyle={{ padding: 24 }}
+      style={[{ flex: 1, backgroundColor: canvasBg }, sideInsets]}
+      contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="always"
     >
       {canRetry && computer?.state !== "running" ? (
-        <View style={{ gap: 8, marginBottom: 16 }}>
+        <View style={{ ...porcelainCard, padding: 18, gap: 8, marginBottom: 14 }}>
           <Text style={{ color: tokens.destructive, fontSize: 17, fontWeight: "600" }}>
             {t("Couldn't start the computer")}
           </Text>
-          <Text style={{ color: tokens.mutedForeground }}>
+          <Text style={{ color: mutedFg }}>
             {t("Something went wrong while it was starting. Try again in a moment.")}
           </Text>
-          {error ? (
-            <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>{error}</Text>
-          ) : null}
+          {error ? <Text style={{ color: mutedFg, fontSize: 13 }}>{error}</Text> : null}
         </View>
       ) : error || canRetry ? (
-        <Text style={{ color: tokens.mutedForeground, marginBottom: 12 }}>
-          {error ?? t("Something went wrong while it was starting. Try again in a moment.")}
-        </Text>
+        <View style={{ ...porcelainCard, padding: 16, marginBottom: 14 }}>
+          <Text style={{ color: mutedFg }}>
+            {error ?? t("Something went wrong while it was starting. Try again in a moment.")}
+          </Text>
+        </View>
       ) : null}
       {screenReadError ? (
         <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>
@@ -766,7 +794,7 @@ export default function Computer() {
       ) : null}
       {retryScreenAction}
       {nativeInputReview ? (
-        <View style={{ gap: 8, marginBottom: 16 }}>
+        <View style={{ ...porcelainCard, padding: 18, gap: 10, marginBottom: 14 }}>
           <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
             之前的电脑输入可能已部分执行或结果未知。请先查看电脑画面并确认，再重新接管。
           </Text>
@@ -785,7 +813,7 @@ export default function Computer() {
           label={t("Try again")}
           prominence="primary"
           size="default"
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 14 }}
           onPress={() =>
             void bootComputer({ takeControl: false, showProgress: true, force: true }).catch(
               () => undefined,
@@ -796,16 +824,19 @@ export default function Computer() {
       <View
         style={{
           aspectRatio: screenAspectRatio,
-          borderRadius: 14,
+          borderRadius: 22,
           overflow: "hidden",
-          backgroundColor: tokens.card,
+          backgroundColor: cardBg,
+          borderWidth: 0.5,
+          borderColor: cardBorder,
+          ...cardShadow,
         }}
       >
         {computerOpen ? (
           <View
             style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 52 }}
           >
-            <Text style={{ color: tokens.mutedForeground }}>{t("Open in full window")}</Text>
+            <Text style={{ color: mutedFg }}>{t("Open in full window")}</Text>
           </View>
         ) : foreground && computer?.state === "running" && embeddedScreenUrl && !screenError ? (
           <ScreenWebView
@@ -842,10 +873,8 @@ export default function Computer() {
               paddingBottom: 56,
             }}
           >
-            {bootPending ? <ActivityIndicator size="large" color={tokens.mutedForeground} /> : null}
-            <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
-              {placeholder}
-            </Text>
+            {bootPending ? <ActivityIndicator size="large" color={mutedFg} /> : null}
+            <Text style={{ color: mutedFg, textAlign: "center" }}>{placeholder}</Text>
           </View>
         )}
         <Pressable
@@ -856,24 +885,33 @@ export default function Computer() {
           onPress={() => void openComputer({ takeControl: false })}
           style={({ pressed }) => ({
             position: "absolute",
-            bottom: 12,
-            end: 12,
+            bottom: 14,
+            end: 14,
             minHeight: 44,
             justifyContent: "center",
-            paddingHorizontal: 14,
-            borderRadius: 12,
-            backgroundColor: tokens.primary,
+            paddingHorizontal: 16,
+            borderRadius: 999,
+            backgroundColor: tokens?.primary ?? (isLight ? "#2B2823" : "#F5F4F0"),
             opacity: bootPending ? 0.55 : pressed ? 0.78 : 1,
           })}
         >
-          <Text style={{ color: tokens.primaryForeground, fontSize: 15, fontWeight: "600" }}>
+          <Text
+            style={{
+              color: tokens?.primaryForeground ?? (isLight ? "#FFFEFC" : "#15171C"),
+              fontSize: 14.5,
+              fontWeight: "600",
+            }}
+          >
             {t("Open computer")}
           </Text>
         </Pressable>
       </View>
       <View
         style={{
-          marginTop: 16,
+          ...porcelainCard,
+          marginTop: 14,
+          paddingHorizontal: 18,
+          paddingVertical: 14,
           flexDirection: stacked ? "column" : "row",
           alignItems: stacked ? "flex-start" : "center",
           justifyContent: "space-between",
@@ -882,7 +920,7 @@ export default function Computer() {
       >
         <Text
           style={{
-            color: tokens.mutedForeground,
+            color: mutedFg,
             ...(stacked ? { alignSelf: "stretch" } : { flex: 1 }),
           }}
         >
@@ -929,7 +967,7 @@ export default function Computer() {
           <KeyboardAvoidingView
             behavior="height"
             enabled={!tabletop}
-            style={{ flex: 1, backgroundColor: tokens.background }}
+            style={{ flex: 1, backgroundColor: canvasBg }}
           >
             <SafeAreaView
               edges={["top", "left", "right"]}
@@ -938,10 +976,10 @@ export default function Computer() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 12,
-                borderBottomWidth: iosAtLeast(26) ? 0 : 1,
-                borderBottomColor: tokens.border,
+                borderBottomWidth: iosAtLeast(26) ? 0 : 0.5,
+                borderBottomColor: cardBorder,
                 paddingHorizontal: 14,
-                paddingVertical: 4,
+                paddingVertical: 6,
               }}
             >
               <View
@@ -957,9 +995,9 @@ export default function Computer() {
                   numberOfLines={1}
                   style={{
                     flexShrink: 1,
-                    color: tokens.foreground,
+                    color: fg,
                     fontSize: 15.5,
-                    fontWeight: "500",
+                    fontWeight: "600",
                   }}
                 >
                   {label}
@@ -968,12 +1006,21 @@ export default function Computer() {
                   <View
                     style={{
                       borderRadius: 999,
-                      backgroundColor: tokens.muted,
-                      paddingHorizontal: 9,
+                      backgroundColor: chipBg,
+                      borderWidth: 0.5,
+                      borderColor: chipBorder,
+                      paddingHorizontal: 10,
                       paddingVertical: 3,
                     }}
                   >
-                    <Text numberOfLines={1} style={{ color: tokens.success, fontSize: 12 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: tokens?.success ?? (isLight ? "#006B3D" : "#46BD7B"),
+                        fontSize: 12,
+                        fontWeight: "500",
+                      }}
+                    >
                       {t("You have control")}
                     </Text>
                   </View>
@@ -1026,8 +1073,10 @@ export default function Computer() {
                   style={{
                     width: screenStageWidth,
                     aspectRatio: screenAspectRatio,
-                    backgroundColor: tokens.card,
-                    borderRadius: 10,
+                    backgroundColor: cardBg,
+                    borderRadius: 16,
+                    borderWidth: 0.5,
+                    borderColor: cardBorder,
                     overflow: "hidden",
                   }}
                 >
@@ -1110,9 +1159,7 @@ export default function Computer() {
                         padding: 16,
                       }}
                     >
-                      <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
-                        {placeholder}
-                      </Text>
+                      <Text style={{ color: mutedFg, textAlign: "center" }}>{placeholder}</Text>
                       {retryScreenAction}
                     </View>
                   )}
@@ -1157,18 +1204,17 @@ export default function Computer() {
                         >
                           <GlassSurface
                             shape="roundedRectangle"
-                            cornerRadius={14}
-                            style={{ borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 }}
+                            cornerRadius={18}
+                            style={{ borderRadius: 18, paddingHorizontal: 16, paddingVertical: 11 }}
                             fallbackStyle={{
-                              backgroundColor: tokens.card,
-                              borderWidth: 1,
-                              borderColor: tokens.border,
+                              backgroundColor: cardBg,
+                              borderRadius: 18,
+                              borderWidth: 0.5,
+                              borderColor: cardBorder,
+                              ...cardShadow,
                             }}
                           >
-                            <Text
-                              accessibilityRole="alert"
-                              style={{ color: tokens.foreground, fontSize: 13 }}
-                            >
+                            <Text accessibilityRole="alert" style={{ color: fg, fontSize: 13 }}>
                               {nativeLease && nativeLease === nativeInputBlockedLease
                                 ? "请先释放当前接管，核对画面后重新接管。"
                                 : !nativeLease

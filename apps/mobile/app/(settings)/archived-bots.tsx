@@ -12,7 +12,8 @@ import {
 import { confirmDeleteBot } from "../../lib/bot-lifecycle";
 import { useFloatingHeaderInset } from "../../lib/floating-header";
 import { useI18n } from "../../lib/i18n";
-import { useMobileTokens } from "../../lib/native";
+import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
+import { useScopedTheme } from "../../lib/scoped-theme-context";
 import { addToSearchInbox, searchInboxSession } from "../../lib/search-inbox";
 import { openFromSettingsSheet } from "../../lib/settings-sheet";
 import { useSideInsets } from "../../lib/side-insets";
@@ -23,6 +24,16 @@ export default function ArchivedBots() {
   const { t } = useI18n();
   const router = useRouter();
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const resolvedAppearance = useResolvedAppearance();
+  const isLight = (scope?.appearance ?? resolvedAppearance) === "light";
+  const pageBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = scope ? (scope.tokens?.card ?? "#FFFEFC") : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? (scope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
   const headerInset = useFloatingHeaderInset();
   const listRequest = useRef<AbortController | null>(null);
   const focusGeneration = useRef(0);
@@ -182,23 +193,54 @@ export default function ArchivedBots() {
   }
 
   const failure = error ? (
-    <>
+    <View
+      style={{
+        gap: 12,
+        padding: 18,
+        borderRadius: 20,
+        backgroundColor: cardBg,
+        borderWidth: 0.5,
+        borderColor: cardBorder,
+        shadowColor: "#26231F",
+        shadowOpacity: isLight ? 0.028 : 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 5 },
+      }}
+    >
       <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
         {error}
       </Text>
       <NativeActionButton label={t("Try again.")} onPress={() => void loadChats()} fill={false} />
-    </>
+    </View>
   ) : null;
   if (!bots?.length && !groups.length)
     return (
       <ScrollView
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: pageBg }, sideInsets]}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 24, gap: 12 }}
+        contentContainerStyle={{ padding: 20, gap: 12 }}
       >
         {failure ??
           (bots ? (
-            <Text style={{ color: tokens.mutedForeground }}>{t("No archived chats")}</Text>
+            <View
+              style={{
+                paddingVertical: 32,
+                paddingHorizontal: 24,
+                borderRadius: 22,
+                backgroundColor: cardBg,
+                borderWidth: 0.5,
+                borderColor: cardBorder,
+                shadowColor: "#26231F",
+                shadowOpacity: isLight ? 0.028 : 0.16,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 5 },
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: tokens.mutedForeground, fontSize: 15, textAlign: "center" }}>
+                {t("No archived chats")}
+              </Text>
+            </View>
           ) : (
             <ActivityIndicator color={tokens.foreground} />
           ))}
@@ -207,7 +249,7 @@ export default function ArchivedBots() {
   return (
     <>
       {failure ? (
-        <View style={{ paddingHorizontal: 24, paddingTop: headerInset + 24, gap: 12 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: headerInset + 16, gap: 12 }}>
           {failure}
         </View>
       ) : null}

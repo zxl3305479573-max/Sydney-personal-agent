@@ -1,6 +1,7 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type { ArtifactVersion, ArtifactWithContent } from "@rakazo/contracts";
 import { isAttachmentImageMimeType } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { File } from "expo-file-system";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import type { ReactNode } from "react";
@@ -339,33 +340,70 @@ function ArtifactPreview({
   );
 }
 
-function createStyles() {
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
     headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
     headerButton: { padding: 8 },
-    pillRow: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+    pillRow: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
     pill: {
       alignSelf: "flex-start",
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
+      paddingVertical: 7,
+      paddingHorizontal: 13,
       borderRadius: 999,
-      backgroundColor: native.fill,
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.025 : 0.14,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
     },
-    pillText: { color: native.label, fontSize: 13, fontWeight: "600" },
-    body: { flex: 1, margin: 16, marginTop: 8, borderRadius: 18, overflow: "hidden" },
+    pillText: { color: isLight ? "#5E584F" : native.label, fontSize: 13, fontWeight: "600" },
+    body: {
+      flex: 1,
+      margin: 16,
+      marginTop: 8,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+      overflow: "hidden",
+    },
     centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
     errorText: { color: native.secondaryLabel, fontSize: 15, lineHeight: 22, textAlign: "center" },
-    previewCard: { flex: 1, borderRadius: 18, overflow: "hidden" },
+    previewCard: { flex: 1, borderRadius: 22, overflow: "hidden", backgroundColor: cardBg },
     markdownScroll: { padding: 20 },
     imageWrap: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: native.fill,
+      backgroundColor: chipBg,
     },
     image: { width: "100%", height: "100%" },
   });

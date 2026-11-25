@@ -1,9 +1,11 @@
 import type { Routine } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { NativeActionButton } from "../components/native-action-button";
 import { RoutineList } from "../components/routine-list";
+import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
 import { deviceTimeZone } from "../lib/routine";
@@ -75,9 +77,11 @@ export default function Routines() {
     <View style={[styles.empty, sideInsets]}>
       {routines ? (
         // There is no add button here: routines are set up by asking the bot.
-        <Text style={styles.message}>{t("Ask this Bot in chat to set up a routine.")}</Text>
+        <View style={styles.emptyCard}>
+          <Text style={styles.message}>{t("Ask this Bot in chat to set up a routine.")}</Text>
+        </View>
       ) : error ? (
-        <>
+        <View style={styles.emptyCard}>
           <Text style={styles.message}>{t("Could not load routines")}</Text>
           <NativeActionButton
             label={t("Try Again")}
@@ -86,7 +90,7 @@ export default function Routines() {
             style={styles.retry}
             onPress={() => void loadBotRoutines(botId)}
           />
-        </>
+        </View>
       ) : (
         <ActivityIndicator color={native.secondaryLabel} />
       )}
@@ -94,17 +98,47 @@ export default function Routines() {
   );
 }
 
-function createStyles() {
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     empty: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 32,
-      gap: 8,
+      paddingHorizontal: 20,
       backgroundColor: native.groupedPage,
     },
-    message: { color: native.secondaryLabel, fontSize: 17, textAlign: "center" },
+    emptyCard: {
+      width: "100%",
+      maxWidth: 420,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 28,
+      paddingVertical: 32,
+      gap: 10,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
+    message: { color: native.secondaryLabel, fontSize: 17, lineHeight: 24, textAlign: "center" },
     // The button aligns itself to the start by default.
     retry: { alignSelf: "center" },
   });

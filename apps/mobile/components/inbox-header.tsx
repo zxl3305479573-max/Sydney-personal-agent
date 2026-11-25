@@ -1,7 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import type { CreateAction } from "../lib/create-chooser";
@@ -19,12 +19,16 @@ export function InboxRosterHeading({
   onCreateGroup: () => void;
 }) {
   const { t, locale } = useI18n();
+  const tokens = mobileTokens();
+  const isLight = resolveMobileAppearance() === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return (
     <View
       style={{
         minHeight: 44,
         marginHorizontal: 20,
         marginTop: 8,
+        marginBottom: 4,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -49,9 +53,26 @@ export function InboxRosterHeading({
           accessibilityRole="button"
           accessibilityLabel={t("New group chat")}
           onPress={onCreateGroup}
-          style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          hitSlop={6}
+          style={({ pressed }) => ({
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: isLight ? "#FFFEFC" : "#242933",
+            borderWidth: hairline,
+            borderColor:
+              tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)"),
+            opacity: pressed ? 0.68 : 1,
+          })}
         >
-          <NativeSymbol ios="plus" android="add" size={20} />
+          <NativeSymbol
+            ios="plus"
+            android="add"
+            size={18}
+            color={tokens?.foreground ?? native.label}
+          />
         </Pressable>
       ) : null}
     </View>
@@ -62,6 +83,7 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
   const { t } = useI18n();
   const router = useRouter();
   const styles = useThemedStyles(createHomeStyles);
+  const isLight = resolveMobileAppearance() === "light";
   return (
     <View style={styles.inboxIntro}>
       <Text accessibilityRole="header" style={styles.inboxTitle}>
@@ -78,7 +100,7 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
           ios="magnifyingglass"
           android="search"
           size={17}
-          color={native.secondaryLabel}
+          color={isLight ? "#6E675E" : "#B8B3AA"}
         />
         <Text style={styles.inboxSearchLabel}>{t("Search")}</Text>
       </Pressable>
@@ -112,8 +134,8 @@ export function InboxHeader({
         styles.header,
         {
           paddingTop: Math.max(insets.top, 20) + 8,
-          paddingLeft: 16 + columnInsets.left,
-          paddingRight: 16 + columnInsets.right,
+          paddingLeft: 20 + columnInsets.left,
+          paddingRight: 20 + columnInsets.right,
         },
       ]}
     >
@@ -152,7 +174,12 @@ export function InboxHeader({
             accessibilityRole="button"
             style={[styles.headerButton, Platform.OS === "android" && styles.createMenuAnchor]}
           >
-            <NativeSymbol ios="plus" android="add" size={18} />
+            <NativeSymbol
+              ios="plus"
+              android="add"
+              size={18}
+              color={tokens?.foreground ?? native.label}
+            />
           </View>
         </MenuView>
       </View>

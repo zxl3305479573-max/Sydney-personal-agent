@@ -94,6 +94,7 @@ export function ConversationRow({
         styles.row,
         compact ? styles.compactRow : null,
         roster && styles.rosterRow,
+        roster && compact ? styles.compactRosterRow : null,
         selected && styles.rowSelected,
         selected && Platform.OS === "android" && { overflow: "hidden" },
         pressed && Platform.OS !== "android" && styles.rowPressed,
@@ -113,7 +114,7 @@ export function ConversationRow({
           </View>
           <View style={styles.rowMeta}>
             {time ? (
-              <Text numberOfLines={1} style={styles.time}>
+              <Text numberOfLines={1} ellipsizeMode="clip" style={styles.time}>
                 {time}
               </Text>
             ) : null}
@@ -238,7 +239,7 @@ export const PinnedTiles = memo(function PinnedTiles({
             onLongPress={organize}
             style={({ pressed }) => [
               styles.pinnedTile,
-              selectedId === id ? { backgroundColor: native.fillPressed } : null,
+              selectedId === id ? styles.pinnedTileSelected : null,
               pressed && styles.rowPressed,
             ]}
           >

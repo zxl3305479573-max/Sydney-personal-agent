@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
@@ -5,6 +6,7 @@ import { NativeActionButton } from "../../components/native-action-button";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
+import { useScopedTheme } from "../../lib/scoped-theme-context";
 import { useSideInsets } from "../../lib/side-insets";
 import { effectiveThemeAssignments } from "../../lib/theme-manager";
 import type { ThemeScope, ThemeTarget } from "../../lib/theme-pack";
@@ -21,9 +23,28 @@ import {
 } from "../../lib/ui-mode";
 import { listAvailableUiModes } from "../../lib/ui-mode-registry";
 
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
 export default function UiModeScreen() {
   const { locale } = useI18n();
   const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const isLight = scope ? scope.appearance === "light" : isLightPalette(tokens);
+  const cardBg = scope ? (scope.tokens?.card ?? "#FFFEFC") : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? (scope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   const insets = useSideInsets();
   const [busy, setBusy] = useState(false);
   useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
@@ -145,7 +166,7 @@ export default function UiModeScreen() {
     <ScrollView
       style={[{ flex: 1, backgroundColor: native.groupedPage }, insets]}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 24 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 36, gap: 22 }}
     >
       <SettingsGroup accessibilityLabel={labels.title} footer={labels.hint}>
         {modes.map((mode) => (
@@ -180,10 +201,10 @@ export default function UiModeScreen() {
               <View
                 accessibilityElementsHidden
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  marginRight: 12,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  marginRight: 4,
                   borderWidth: 2,
                   borderColor: mode.previewBadge?.accentColor ?? tokens.border,
                   backgroundColor: mode.previewBadge?.backgroundColor ?? tokens.background,
@@ -194,7 +215,20 @@ export default function UiModeScreen() {
         ))}
       </SettingsGroup>
       {snapshot.previewModeId !== null ? (
-        <View style={{ gap: 12 }}>
+        <View
+          style={{
+            gap: 12,
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: cardBg,
+            borderWidth: 0.5,
+            borderColor: cardBorder,
+            shadowColor: "#26231F",
+            shadowOpacity: isLight ? 0.028 : 0.16,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 5 },
+          }}
+        >
           <Text accessibilityLiveRegion="polite" style={{ color: tokens.mutedForeground }}>
             {labels.preview}
           </Text>
@@ -228,14 +262,28 @@ export default function UiModeScreen() {
             : "Theme packs use declarative colors, layouts and local images only.")
         }
       >
-        <NativeActionButton
-          label={chinese ? "导入主题包" : "Import theme pack"}
-          onPress={() => void importTheme()}
-        />
+        <View style={{ padding: 14 }}>
+          <NativeActionButton
+            label={chinese ? "导入主题包" : "Import theme pack"}
+            onPress={() => void importTheme()}
+          />
+        </View>
         {themeSnapshot.packs
           .filter((pack) => pack.id !== "classic" && pack.id !== "midnight")
           .map((pack) => (
-            <View key={pack.id} style={{ gap: 8, paddingVertical: 8 }}>
+            <View
+              key={pack.id}
+              style={{
+                gap: 10,
+                marginHorizontal: 14,
+                marginBottom: 14,
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: chipBg,
+                borderWidth: 0.5,
+                borderColor: chipBorder,
+              }}
+            >
               <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
                 {pack.name} · {pack.version}
               </Text>
@@ -288,7 +336,20 @@ export default function UiModeScreen() {
           ))}
       </SettingsGroup>
       {themeSnapshot.preview?.packId && themeSnapshot.preview.packId !== "classic" ? (
-        <View style={{ gap: 12 }}>
+        <View
+          style={{
+            gap: 12,
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: cardBg,
+            borderWidth: 0.5,
+            borderColor: cardBorder,
+            shadowColor: "#26231F",
+            shadowOpacity: isLight ? 0.028 : 0.16,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 5 },
+          }}
+        >
           <Text accessibilityLiveRegion="polite" style={{ color: tokens.mutedForeground }}>
             {chinese
               ? `预览：${themeSnapshot.preview.packId} · ${themeTargetLabel(themeSnapshot.preview.target)}`

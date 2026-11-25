@@ -20,6 +20,18 @@
 - `git diff --check`：通过。
 - 未执行 GitHub Actions、全工作区构建、数据库、Docker 或客户端发布验证。
 
+## 手机 App 个人中枢首页与全界面风格统一离线校验（2026-11-24，2026-11-25 补齐主工作区回归与合入）
+
+关联 PA-019／PA-020／PA-021／PA-022／PA-023／PA-024。源码已由 `ui` 分支（`6ac016e4a`）合入集成分支与 `main`，并在具备完整 `node_modules` 的主工作区补跑完整静态检查与单元测试，同时修复 4 处问题（`apps/mobile/app/index.tsx` 离线缓存 `me` 可选 `email` 类型与 `loadFailure?.kind === "session"` 笔误、`apps/mobile/components/home-hub.tsx` `buildGreeting` 可选 `email` 类型、`apps/mobile/app/(settings)/archived-bots.tsx` 条件调用 `useResolvedAppearance` Hook 违规，以及 `apps/mobile/lib/main-navigation.test.tsx` 暖瓷底栏样式断言与 mock）：
+
+- **已执行并通过**：
+  - 移动端类型检查：`pnpm exec tsc --noEmit -p apps/mobile/tsconfig.json` **0 错误通过**。
+  - 移动端定向单元测试：`pnpm exec vitest run apps/mobile/lib/home-hub.test.tsx apps/mobile/lib/main-navigation.test.tsx apps/mobile/lib/glass-surface.test.tsx apps/mobile/lib/settings-group.test.tsx apps/mobile/lib/github-screen.test.tsx apps/mobile/lib/bot-avatar-render.test.tsx apps/mobile/lib/account-screen.test.tsx apps/mobile/lib/chat-appearance-screen.test.tsx --maxWorkers=1` **8 个测试文件共 104 项全部通过**。
+  - 格式与 lint 检查：全部 74 个新增／修改 `.ts`/`.tsx` 文件执行 Biome `check`，**0 错误通过**（保留 10 条既有 `useOptionalChain` warning 与 1 条 `index.tsx` 既有 info）；`git diff --check` 通过；PC 端（`apps/web`、`apps/desktop`、`packages/ui-web`）保持零改动。
+  - 前序离线对比度与 AST 门禁（`ui` 工作树 2026-11-24）：138 项对比度与令牌同步断言、76 文件 AST 与零字体违规扫描通过。
+- **未执行项（不声称已通过）**：
+  - 未执行 iOS OTA／未签名 IPA 打包及 iPhone 真机在全模块页面上的视觉、深浅色切换、Dynamic Type 大字号、分屏与侧滑返回实测。
+
 ## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
 
 本机 `.env` 指向 `127.0.0.1:54318/rakazo` 的 `rakazo-dev-postgres` 容器。目标生产数据库地址不在本机配置中，本轮没有连接或修改生产数据库。

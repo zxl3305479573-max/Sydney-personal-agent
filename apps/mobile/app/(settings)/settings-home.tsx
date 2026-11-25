@@ -93,12 +93,12 @@ export default function SettingsHome() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingTop: 24,
-          paddingBottom: 32,
-          gap: 28,
+          paddingTop: 18,
+          paddingBottom: 40,
+          gap: 22,
         }}
       >
-        <SettingsGroup label={t("Account")}>
+        <SettingsGroup label={t("Account")} gradient="champagne">
           {Platform.OS === "android" ? (
             <SettingsRow
               title={t("Notifications")}
@@ -109,12 +109,13 @@ export default function SettingsHome() {
           ) : null}
           <SettingsRow
             accessibilityRole="button"
+            prominent
             title={account.label}
             detail={me?.email && account.label !== me.email ? me.email : undefined}
             chevron="right"
             leading={
-              <View style={{ marginRight: 12 }}>
-                <AccountAvatar image={avatar} initial={account.initial} />
+              <View style={{ marginRight: 4 }}>
+                <AccountAvatar image={avatar} initial={account.initial} size={46} />
               </View>
             }
             onPress={() => accountSection("account")}

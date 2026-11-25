@@ -389,6 +389,8 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
             // No percentage width: the iOS menu host has no definite width to resolve it against.
             maxWidth: 576,
             borderRadius: 18,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: tokens.border,
             backgroundColor: tokens.card,
             paddingHorizontal: 16,
             paddingVertical: 14,
@@ -505,6 +507,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     const speakerColor =
       message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
     const hasInlineImages = attachments.some(isInlineImageBlock);
+    const userTailRadius = !chatAppearance.bubble && message.role === "user" ? 6 : undefined;
     const bubble = mobileBubbleSurfaceStyle(
       chatAppearance,
       message.role === "user" ? "user" : "bot",
@@ -520,10 +523,14 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     } as const;
     return (
       <View style={hasInlineImages ? { maxWidth: "100%", gap: 8 } : bubbleStyle}>
-        {!hasInlineImages ? <MessageGlass {...bubble} /> : null}
+        {!hasInlineImages ? (
+          <MessageGlass {...bubble} borderBottomRightRadius={userTailRadius} />
+        ) : null}
         {(showBotSenderName && speaker) || caption ? (
           <View style={hasInlineImages ? bubbleStyle : undefined}>
-            {hasInlineImages ? <MessageGlass {...bubble} /> : null}
+            {hasInlineImages ? (
+              <MessageGlass {...bubble} borderBottomRightRadius={userTailRadius} />
+            ) : null}
             {showBotSenderName && speaker ? (
               <Text
                 style={{ color: speakerColor ?? tokens.mutedForeground, ...typeScale.footnote }}
@@ -548,7 +555,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
             style={hasInlineImages && !isInlineImageBlock(attachment) ? bubbleStyle : undefined}
           >
             {hasInlineImages && !isInlineImageBlock(attachment) ? (
-              <MessageGlass {...bubble} />
+              <MessageGlass {...bubble} borderBottomRightRadius={userTailRadius} />
             ) : null}
             {attachment.kind === "image" ? (
               isInlineImageBlock(attachment) ? (
@@ -788,6 +795,7 @@ export function MessageTextCard({
     : actionProps.accessibilityActions;
   // The menu wrapper owns surface gestures; links and code controls remain responders.
   const Surface = doubleTapSurface ? View : Pressable;
+  const userTailRadius = !chatAppearance.bubble && message.role === "user" ? 6 : undefined;
   const bubble = mobileBubbleSurfaceStyle(
     chatAppearance,
     message.role === "user" ? "user" : "bot",
@@ -813,7 +821,7 @@ export function MessageTextCard({
         paddingVertical: 9,
       }}
     >
-      <MessageGlass {...bubble} />
+      <MessageGlass {...bubble} borderBottomRightRadius={userTailRadius} />
       {speaker ? (
         <Text
           style={{
@@ -839,15 +847,24 @@ export function MessageTextCard({
 function MessageGlass({
   backgroundColor,
   borderRadius,
-}: ReturnType<typeof mobileBubbleSurfaceStyle>) {
+  borderBottomRightRadius,
+}: ReturnType<typeof mobileBubbleSurfaceStyle> & { borderBottomRightRadius?: number }) {
   return (
     <GlassSurface
       pointerEvents="none"
       shape="roundedRectangle"
       cornerRadius={borderRadius}
       tint={backgroundColor}
-      style={StyleSheet.absoluteFill}
-      fallbackStyle={{ backgroundColor, borderRadius }}
+      style={
+        borderBottomRightRadius !== undefined
+          ? [StyleSheet.absoluteFill, { borderBottomRightRadius }]
+          : StyleSheet.absoluteFill
+      }
+      fallbackStyle={
+        borderBottomRightRadius !== undefined
+          ? { backgroundColor, borderRadius, borderBottomRightRadius }
+          : { backgroundColor, borderRadius }
+      }
     />
   );
 }

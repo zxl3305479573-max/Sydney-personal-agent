@@ -2,6 +2,8 @@
 
 2026-11-25 已提交推送当前 CI 清理，并通过 [PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 将完整集成分支合入 `main`（`6c47e8836`）。[iPhone OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 已成功从该提交重新发布 `1.0.24`，线上启动包与 55 项资源全部校验通过；整仓 CI 与 macOS 截图未通过，真机生效待验。[本批验证](VALIDATION.md#工作区提交主分支合并与-iphone-ota2026-11-25) · [手机更新与回退](OPERATIONS.md#main-合并后的-iphone-1024-ota2026-11-25)
 
+手机 App 个人中枢首页（Personal Home Hub）、底部「首页 · 聊天 · 项目」文字导航栏及全 App 70+ 路由／组件的清透奶白 × 暖瓷卡片统一视觉升级已于 2026-11-24 在 `ui` 分支落盘源码并合入主分支（PC 端保持零改动；**100% 保留原有字体不变**）。[设计方案](design/DUAL_SURFACE_UI_DESIGN_PLAN.md) · [阶段计划](PLAN.md#手机-app-个人中枢首页与全界面浅柔暖瓷风格统一pa-019pa-020pa-021pa-022pa-023pa-0242026-11-24) · [本批验证](VALIDATION.md#手机-app-个人中枢首页与全界面风格统一离线校验2026-11-24)
+
 Bot 状态恢复、未读绿标和普通／项目 Bot 持久记忆共享的验收见 [Bot 状态与记忆评测](BOT_STATE_MEMORY_EVALUATION.md)。
 
 Windows `0.4.3` 与 iPhone `1.0.23` 已于 2026-11-22 提交、推送并发布。源码提交 `7d2829aa3` 已推送到集成分支；Windows 发行页、安装包三项资产、iPhone 启动包及 55 项资源均已核验。Bot、项目和 GitHub 状态缓存、应用对接按钮及手机界面材质改动已进入客户端版本；双端真机视觉、手势、覆盖安装与保留数据回退仍待验。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3) · [本批验证](VALIDATION.md#app-0431023-全量提交与发布2026-11-22) · [更新与回退](OPERATIONS.md#sydney-windows-043iphone-1023-发布通道2026-11-22)
@@ -84,6 +86,7 @@ iPhone 应用名为 `Sydney`。多模式换肤已补齐离线设置入口与午�
 | [P2 状态投影与读取](design/TASK_PROJECTION.md) | 已实现的任务状态、历史读取、安全条件和验证局限 | 投影或读取契约变化时 |
 | [任务执行接线](design/TASK_EXECUTION_INTEGRATION.md) | 持久化、用户 API、Pi 门禁与预算 | 执行链路变化时 |
 | [聊天外观方案](design/CHAT_APPEARANCE.md) | 聊天背景、文字颜色和历史气泡方案 | 外观需求或实现变化时 |
+| [手机端个人中枢首页与双端视觉方案](design/DUAL_SURFACE_UI_DESIGN_PLAN.md) | 手机个人中枢首页、三项文字底栏、象牙暖白/曜石深空令牌与原字体保留规范 | 手机首页导航、共享令牌或双端视觉演进时 |
 | [换肤插件设计草案](design/THEME_PLUGIN.md) | 换肤包边界、应用规则、阶段与待决定事项 | 换肤插件需求或设计变化时 |
 | [热插拔插件历史设计](design/HOT_PLUGIN_SYSTEM.md) | 已停止推进的插件方案与离线试点记录 | 仅保留历史参考 |
 | [窗口分工与交接](WORKSTREAMS.md) | 独立对话的实际归属、文件写集和未派发任务 | 分工、交接或窗口能力变化时 |

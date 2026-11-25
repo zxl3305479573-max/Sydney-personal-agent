@@ -351,6 +351,24 @@ function ProjectContents({
 
   const unavailable = scopeChanged || !workspaceId;
   const switchLabel = text("切换项目", "Switch project");
+  const isLight = appearance === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const accentTaupe = isLight ? "#6E675E" : "#B8B3AA";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? accentTaupe;
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+  const cardShadow = {
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
   const conversationHref = (id: string, kind: "bot" | "group", conversationId: string): Href => ({
     pathname: "/projects/[workspaceId]/chat",
     params: {
@@ -405,9 +423,17 @@ function ProjectContents({
                     accessibilityLabel={switchLabel}
                     onPress={() => router.dismissTo("/projects")}
                     hitSlop={8}
-                    style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+                    style={({ pressed }) => ({
+                      backgroundColor: cardBg,
+                      borderRadius: 999,
+                      borderWidth: hairline,
+                      borderColor: cardBorder,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      opacity: pressed ? 0.72 : 1,
+                    })}
                   >
-                    <Text style={{ color: tokens.primary, fontSize: 15, fontWeight: "500" }}>
+                    <Text style={{ color: fg, fontSize: 13.5, fontWeight: "600" }}>
                       {switchLabel}
                     </Text>
                   </Pressable>
@@ -418,11 +444,11 @@ function ProjectContents({
       <ScrollView
         {...scroll}
         contentInsetAdjustmentBehavior="automatic"
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: canvasBg }, sideInsets]}
         contentContainerStyle={{
           padding: 20,
           paddingBottom: Math.max(insets.bottom, 28),
-          gap: 18,
+          gap: 16,
         }}
         indicatorStyle={appearance === "dark" ? "white" : "black"}
         refreshControl={
@@ -434,13 +460,13 @@ function ProjectContents({
               setAttempt((old) => old + 1);
             }}
             tintColor={native.secondaryLabel}
-            colors={[tokens.mutedForeground]}
-            progressBackgroundColor={tokens.muted}
+            colors={[mutedFg]}
+            progressBackgroundColor={tokens?.muted ?? chipBg}
           />
         }
       >
         {failed && project ? (
-          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+          <Text accessibilityRole="alert" style={{ color: destructive }}>
             {text(
               "项目刷新失败，当前显示上次内容，可下拉重试。",
               "Could not refresh. Showing the last content; pull to retry.",
@@ -450,15 +476,17 @@ function ProjectContents({
         {unavailable ? (
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={16}
-            style={{ borderRadius: 16, padding: 18, gap: 12 }}
+            cornerRadius={22}
+            style={{ borderRadius: 22, padding: 20, gap: 12 }}
             fallbackStyle={{
-              backgroundColor: tokens.card,
-              borderWidth: 1,
-              borderColor: tokens.border,
+              backgroundColor: cardBg,
+              borderRadius: 22,
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              ...cardShadow,
             }}
           >
-            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            <Text accessibilityRole="alert" style={{ color: destructive }}>
               {text(
                 "项目入口已失效，请返回列表重新选择项目。",
                 "This project link is no longer active. Choose a project from the list again.",
@@ -474,15 +502,17 @@ function ProjectContents({
         ) : failed && !project ? (
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={16}
-            style={{ borderRadius: 16, padding: 18, gap: 12 }}
+            cornerRadius={22}
+            style={{ borderRadius: 22, padding: 20, gap: 12 }}
             fallbackStyle={{
-              backgroundColor: tokens.card,
-              borderWidth: 1,
-              borderColor: tokens.border,
+              backgroundColor: cardBg,
+              borderRadius: 22,
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              ...cardShadow,
             }}
           >
-            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            <Text accessibilityRole="alert" style={{ color: destructive }}>
               {text(
                 "无法打开项目，项目可能已移除或连接不可用。",
                 "Could not open this project. It may have been removed or the connection is unavailable.",
@@ -495,8 +525,8 @@ function ProjectContents({
           </GlassSurface>
         ) : !project ? (
           <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
-            <ActivityIndicator color={tokens.mutedForeground} />
-            <Text style={{ color: tokens.mutedForeground }}>
+            <ActivityIndicator color={mutedFg} />
+            <Text style={{ color: mutedFg }}>
               {text("正在加载项目…", "Loading project…")}
             </Text>
           </View>
@@ -504,50 +534,54 @@ function ProjectContents({
           <>
             <GlassSurface
               shape="roundedRectangle"
-              cornerRadius={18}
+              cornerRadius={22}
               style={{
-                borderRadius: 18,
-                padding: 18,
+                borderRadius: 22,
+                padding: 20,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 14,
               }}
               fallbackStyle={{
-                backgroundColor: tokens.card,
-                borderWidth: 1,
-                borderColor: tokens.border,
+                backgroundColor: cardBg,
+                borderRadius: 22,
+                borderWidth: hairline,
+                borderColor: cardBorder,
+                ...cardShadow,
               }}
             >
               <View
                 style={{
                   width: 48,
                   height: 48,
-                  borderRadius: 14,
-                  backgroundColor: native.fill,
+                  borderRadius: 15,
+                  backgroundColor: chipBg,
+                  borderWidth: hairline,
+                  borderColor: chipBorder,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <NativeSymbol ios="folder.fill" android="folder" size={26} color={tokens.primary} />
+                <NativeSymbol ios="folder.fill" android="folder" size={23} color={accentTaupe} />
               </View>
-              <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+              <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
                 <Text
                   accessibilityRole="header"
                   numberOfLines={1}
-                  style={{ fontSize: 20, fontWeight: "700", color: tokens.foreground }}
+                  style={{ fontSize: 20, fontWeight: "700", color: fg }}
                 >
                   {project.name}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <View
                     style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 4,
-                      backgroundColor: tokens.mutedForeground,
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: accentTaupe,
                     }}
                   />
-                  <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+                  <Text style={{ color: mutedFg, fontSize: 13 }}>
                     {text("独立项目工作区", "Independent project workspace")}
                   </Text>
                 </View>
@@ -580,8 +614,8 @@ function ProjectContents({
             ) : null}
             {!roster ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 8 }}>
-                <ActivityIndicator color={tokens.mutedForeground} />
-                <Text style={{ color: tokens.mutedForeground }}>
+                <ActivityIndicator color={mutedFg} />
+                <Text style={{ color: mutedFg }}>
                   {text("正在加载项目成员…", "Loading project members…")}
                 </Text>
               </View>
@@ -639,7 +673,7 @@ function ProjectContents({
                     setGroupCursors((old) => (old.at(-1) === afterGroupId ? [...old, cursor] : old))
                   }
                 />
-                <Text style={{ color: tokens.mutedForeground, fontSize: 13, textAlign: "center" }}>
+                <Text style={{ color: mutedFg, fontSize: 13, textAlign: "center" }}>
                   {canCreateBot || canCreateGroup
                     ? text(
                         "点击项目 Bot 或群聊进入独立文字会话。",
@@ -664,7 +698,7 @@ function ProjectContents({
               />
             ) : null}
             {removeError ? (
-              <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              <Text accessibilityRole="alert" style={{ color: destructive }}>
                 {removeError}
               </Text>
             ) : null}
@@ -759,7 +793,17 @@ function ProjectConversationSection({
   onSettings?: (id: string) => void;
 }) {
   const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
   const { locale } = useI18n();
+  const isLight = appearance === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+
   return (
     <View style={{ gap: 10 }}>
       <View
@@ -773,11 +817,24 @@ function ProjectConversationSection({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text
             accessibilityRole="header"
-            style={{ color: tokens.foreground, fontSize: 18, fontWeight: "600" }}
+            style={{ color: fg, fontSize: 18, fontWeight: "600" }}
           >
             {title}
           </Text>
-          <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>{items.length}</Text>
+          <View
+            style={{
+              backgroundColor: chipBg,
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              borderWidth: hairline,
+              borderColor: chipBorder,
+            }}
+          >
+            <Text style={{ color: mutedFg, fontSize: 12.5, fontWeight: "600", fontVariant: ["tabular-nums"] }}>
+              {items.length}
+            </Text>
+          </View>
         </View>
         {actionEnabled ? (
           <Pressable
@@ -788,31 +845,34 @@ function ProjectConversationSection({
               flexDirection: "row",
               alignItems: "center",
               gap: 4,
-              paddingHorizontal: 12,
+              paddingHorizontal: 13,
               paddingVertical: 6,
               borderRadius: 999,
-              backgroundColor: native.fill,
-              opacity: pressed ? 0.7 : 1,
+              backgroundColor: chipBg,
+              borderWidth: hairline,
+              borderColor: chipBorder,
+              opacity: pressed ? 0.68 : 1,
             })}
           >
-            <NativeSymbol ios="plus" android="add" size={15} color={tokens.primary} />
-            <Text style={{ color: tokens.primary, fontSize: 14, fontWeight: "600" }}>{action}</Text>
+            <NativeSymbol ios="plus" android="add" size={14} color={fg} />
+            <Text style={{ color: fg, fontSize: 13, fontWeight: "600" }}>{action}</Text>
           </Pressable>
         ) : null}
       </View>
 
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={16}
-        style={{ borderRadius: 16, overflow: "hidden" }}
+        cornerRadius={20}
+        style={{ borderRadius: 20, overflow: "hidden" }}
         fallbackStyle={{
-          backgroundColor: tokens.card,
-          borderWidth: 1,
-          borderColor: tokens.border,
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          borderWidth: hairline,
+          borderColor: cardBorder,
         }}
       >
         {items.length === 0 ? (
-          <Text style={{ padding: 18, color: tokens.mutedForeground, fontSize: 14 }}>
+          <Text style={{ padding: 20, color: mutedFg, fontSize: 14 }}>
             {emptyLabel}
           </Text>
         ) : (
@@ -820,11 +880,11 @@ function ProjectConversationSection({
             <View
               key={item.id}
               style={{
-                paddingHorizontal: 12,
+                paddingHorizontal: 14,
                 flexDirection: "row",
                 alignItems: "center",
-                borderBottomWidth: index < items.length - 1 ? StyleSheet.hairlineWidth : 0,
-                borderBottomColor: tokens.border,
+                borderBottomWidth: index < items.length - 1 ? hairline : 0,
+                borderBottomColor: cardBorder,
               }}
             >
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -862,19 +922,19 @@ function ProjectConversationSection({
                   }
                   onPress={() => onSettings(item.id)}
                   style={({ pressed }) => ({
-                    width: 44,
-                    minHeight: 44,
+                    width: 40,
+                    minHeight: 40,
                     borderRadius: 12,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: pressed ? native.fill : undefined,
+                    backgroundColor: pressed ? chipBg : undefined,
                   })}
                 >
                   <NativeSymbol
                     ios="ellipsis"
                     android="ellipsis-horizontal"
                     size={18}
-                    color={tokens.mutedForeground}
+                    color={mutedFg}
                   />
                 </Pressable>
               ) : null}

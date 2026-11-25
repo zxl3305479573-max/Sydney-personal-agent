@@ -10,7 +10,7 @@ import {
   DISMISSED_CHOICE_ANSWER_ID,
   threadCardWidth,
 } from "../lib/message-presentation";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
@@ -18,25 +18,31 @@ import { NativeSymbol } from "./native-symbol";
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 18,
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 20,
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  dismiss: { alignItems: "center", height: 24, justifyContent: "center", width: 24 },
+  dismiss: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    width: 26,
+  },
   header: { alignItems: "flex-start", flexDirection: "row", gap: 8 },
   heading: { flex: 1, gap: 2 },
   letter: {
     alignItems: "center",
-    borderRadius: 7,
+    borderRadius: 8,
     height: 24,
     justifyContent: "center",
     width: 24,
   },
-  letterText: { fontSize: 12.5, fontWeight: "500" },
+  letterText: { fontSize: 12.5, fontWeight: "600" },
   option: {
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: 16,
     flexDirection: "row",
     gap: 12,
     minHeight: 48,
@@ -74,6 +80,20 @@ export function ChoiceCard({
   const answerId = block.answerId ?? localAnswerId;
   if (answerId === DISMISSED_CHOICE_ANSWER_ID) return null;
 
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const pillBg = isLight ? "#F8F6F2" : "#2A303B";
+  const pillPressedBg = isLight ? "#EFECE5" : "#323946";
+  const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
+
   // Dismissing records the server's dismissed answer id, so both outcomes share this path.
   async function submit(optionId: string) {
     if (readOnly || pending.current || answerId) return;
@@ -99,9 +119,22 @@ export function ChoiceCard({
     <GlassSurface
       testID="choice-card"
       shape="roundedRectangle"
-      cornerRadius={18}
-      style={[styles.card, { width: threadCardWidth(windowWidth) }]}
-      fallbackStyle={{ backgroundColor: native.fill }}
+      cornerRadius={20}
+      style={[
+        styles.card,
+        {
+          width: threadCardWidth(windowWidth),
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
+        },
+      ]}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderWidth: hairline,
+        borderColor: cardBorder,
+      }}
     >
       <View style={styles.header}>
         <View style={styles.heading}>
@@ -128,9 +161,16 @@ export function ChoiceCard({
             disabled={busy}
             hitSlop={10}
             onPress={() => void submit(DISMISSED_CHOICE_ANSWER_ID)}
-            style={styles.dismiss}
+            style={[
+              styles.dismiss,
+              {
+                backgroundColor: pillBg,
+                borderWidth: hairline,
+                borderColor: pillBorder,
+              },
+            ]}
           >
-            <NativeSymbol ios="xmark" android="close" size={14} color={tokens.mutedForeground} />
+            <NativeSymbol ios="xmark" android="close" size={13} color={softTaupe} />
           </Pressable>
         ) : null}
       </View>
@@ -148,15 +188,24 @@ export function ChoiceCard({
               style={({ pressed }) => [
                 styles.option,
                 {
-                  backgroundColor: pressed || chosen ? native.fillPressed : native.page,
+                  backgroundColor: pressed || chosen ? pillPressedBg : pillBg,
+                  borderWidth: hairline,
+                  borderColor: pillBorder,
                   opacity: busy ? 0.6 : 1,
                 },
               ]}
             >
-              <View style={[styles.letter, { backgroundColor: native.fill }]}>
-                <Text style={[styles.letterText, { color: tokens.mutedForeground }]}>
-                  {option.letter}
-                </Text>
+              <View
+                style={[
+                  styles.letter,
+                  {
+                    backgroundColor: cardBg,
+                    borderWidth: hairline,
+                    borderColor: pillBorder,
+                  },
+                ]}
+              >
+                <Text style={[styles.letterText, { color: softTaupe }]}>{option.letter}</Text>
               </View>
               <Text
                 style={[
@@ -167,12 +216,7 @@ export function ChoiceCard({
                 {option.label}
               </Text>
               {chosen ? (
-                <NativeSymbol
-                  ios="checkmark"
-                  android="checkmark"
-                  size={15}
-                  color={tokens.mutedForeground}
-                />
+                <NativeSymbol ios="checkmark" android="checkmark" size={15} color={softTaupe} />
               ) : null}
             </Pressable>
           );

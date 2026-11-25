@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MainBottomNavigation } from "../components/main-bottom-navigation";
 import { MainNavigationHeader } from "../components/main-navigation-header";
 import {
+  MAIN_NAVIGATION_ROUTES,
   MainNavigationProvider,
   openMainNavigation,
   showsMainNavigation,
@@ -39,24 +40,36 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ locale: state.locale, t: (text: string) => text }) }));
 vi.mock("./native", () => ({
+  useResolvedAppearance: () => "light",
   useMobileTokens: () => ({
-    primary: "blue",
-    mutedForeground: "gray",
-    muted: "lightgray",
-    accent: "silver",
-    background: "white",
-    border: "gray",
+    foreground: "#1B1916",
+    card: "#FFFFFF",
+    primary: "#1B1916",
+    mutedForeground: "#6F6A61",
+    muted: "#F1EEE8",
+    accent: "#E8E4DC",
+    background: "#F1EEE8",
+    border: "#DCD7CE",
   }),
 }));
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => <i /> }));
 vi.mock("react-native", () => ({
+  Platform: { OS: "ios", Version: "26.0" },
   StyleSheet: { hairlineWidth: 1 },
-  View: ({ children, style, testID }: { children: ReactNode; style: object; testID?: string }) => (
+  View: ({
+    children,
+    style,
+    testID,
+  }: {
+    children?: ReactNode;
+    style?: object;
+    testID?: string;
+  }) => (
     <div style={style} data-testid={testID}>
       {children}
     </div>
   ),
-  Text: ({ children, style }: { children: ReactNode; style: object }) => (
+  Text: ({ children, style }: { children?: ReactNode; style?: object }) => (
     <span style={style}>{children}</span>
   ),
   Pressable: ({
@@ -104,60 +117,84 @@ afterEach(() => {
 });
 
 describe("main mobile navigation", () => {
-  it("shows four equal width tabs with Chats selected on the home route", () => {
+  it("defines the 3 editorial bottom navigation routes", () => {
+    expect(MAIN_NAVIGATION_ROUTES).toEqual(["/", "/chats", "/projects"]);
+  });
+
+  it("shows three equal-width editorial text tabs with 首页 selected on /", () => {
     act(() => root.render(<MainBottomNavigation />));
     const bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
-    expect(bar.children).toHaveLength(4);
+    expect(bar.children).toHaveLength(3);
     expect(bar.style.paddingBottom).toBe("34px");
-    expect(bar.style.margin).toBe("");
+    expect(bar.style.backgroundColor).toBe("rgb(250, 248, 244)");
     const items = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    expect(items.map((item) => item.textContent)).toEqual(["Chats", "应用", "项目", "GitHub"]);
+    expect(items.map((item) => item.textContent)).toEqual(["首页", "聊天", "项目"]);
     expect(items.map((item) => item.getAttribute("data-selected"))).toEqual([
       "true",
-      "false",
       "false",
       "false",
     ]);
     for (const item of items) {
       expect(item.style.flex).toBe("1 1 0%");
-      expect(item.style.borderRadius).toBe("");
-      expect(item.children[0]?.querySelector("i")).not.toBeNull();
-      expect(item.children[1]?.tagName).toBe("SPAN");
+      // Editorial text-only bar: no icon glyphs inside tabs
+      expect(item.querySelector("i")).toBeNull();
+      expect(item.querySelector("span")?.style.fontSize).toBe("15px");
     }
-    act(() => items[3]!.click());
-    expect(state.router.push).toHaveBeenCalledWith("/github");
+    // Active tab has semibold foreground label + warm neutral underline indicator
+    expect(items[0]!.querySelector("span")?.style.fontWeight).toBe("600");
+    expect(items[0]!.querySelector("div")?.style.backgroundColor).toBe("rgb(94, 88, 79)");
+    // Inactive tab has regular weight + transparent indicator
+    expect(items[1]!.querySelector("span")?.style.fontWeight).toBe("400");
+    expect(items[1]!.querySelector("div")?.style.backgroundColor).toBe("transparent");
+
+    act(() => items[1]!.click());
+    expect(state.router.push).toHaveBeenCalledWith("/chats");
   });
 
-  it.each(["/integrations", "/projects", "/github"] as const)(
+  it("localizes tab labels for zh-TW and English", () => {
+    state.locale = "zh-TW";
+    act(() => root.render(<MainBottomNavigation />));
+    let items = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(items.map((item) => item.textContent)).toEqual(["首頁", "聊天", "項目"]);
+
+    state.locale = "en-US";
+    act(() => root.render(<MainBottomNavigation />));
+    items = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(items.map((item) => item.textContent)).toEqual(["Home", "Chats", "Projects"]);
+  });
+
+  it.each(["/chats", "/projects"] as const)(
     "highlights only %s and ignores repeated taps",
     (path) => {
       state.pathname = path;
       act(() => root.render(<MainBottomNavigation />));
       const selected = container.querySelectorAll<HTMLButtonElement>('[data-selected="true"]');
       expect(selected).toHaveLength(1);
-      expect(selected[0]!.querySelector("div")?.style.backgroundColor).toBe("lightgray");
-      expect(selected[0]!.querySelector("span")?.style.color).toBe("blue");
-      expect(selected[0]!.querySelector("span")?.style.fontWeight).toBe("700");
+      expect(selected[0]!.querySelector("span")?.style.fontWeight).toBe("600");
+      expect(selected[0]!.querySelector("div")?.style.backgroundColor).toBe("rgb(94, 88, 79)");
       act(() => selected[0]!.click());
       expect(state.router.push).not.toHaveBeenCalled();
       expect(state.router.replace).not.toHaveBeenCalled();
     },
   );
 
-  it("replaces module routes to preserve one Home return instead of stacking modules", () => {
-    openMainNavigation(state.router, "/", "/integrations");
-    openMainNavigation(state.router, "/integrations", "/projects");
-    openMainNavigation(state.router, "/projects", "/github");
-    expect(state.router.push.mock.calls).toEqual([["/integrations"]]);
-    expect(state.router.replace.mock.calls).toEqual([["/projects"], ["/github"]]);
-    openMainNavigation(state.router, "/github", "/");
+  it("replaces peer tabs to preserve one Home return instead of stacking modules", () => {
+    openMainNavigation(state.router, "/", "/chats");
+    openMainNavigation(state.router, "/chats", "/projects");
+    expect(state.router.push.mock.calls).toEqual([["/chats"]]);
+    expect(state.router.replace.mock.calls).toEqual([["/projects"]]);
+    openMainNavigation(state.router, "/projects", "/");
     expect(state.router.dismissTo).toHaveBeenCalledExactlyOnceWith("/");
   });
 
-  it.each(["/", "/integrations", "/projects", "/github"])("allows main route %s", (path) => {
+  it.each(["/", "/chats", "/projects"])("allows main route %s", (path) => {
     expect(showsMainNavigation(path)).toBe(true);
   });
   it.each([
+    "/integrations",
+    "/github",
+    "/routines",
+    "/artifacts",
     "/thread",
     "/group-thread",
     "/computer",

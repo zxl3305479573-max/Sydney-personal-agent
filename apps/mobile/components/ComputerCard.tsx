@@ -5,20 +5,25 @@ import type { ViewProps } from "react-native";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { threadCardWidth } from "../lib/message-presentation";
-import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 18,
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 20,
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  header: { flexDirection: "row", gap: 8, justifyContent: "space-between" },
+  header: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" },
   state: { flexShrink: 1, ...typeScale.caption },
+  statePill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   title: typeScale.cardTitle,
 });
 
@@ -39,16 +44,32 @@ export function ComputerCard({
   const colorScheme = useResolvedAppearance();
   const { width: windowWidth } = useWindowDimensions();
 
+  const isLight = colorScheme === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const pillBg = isLight ? "#F8F6F2" : "#2A303B";
+  const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+
   return (
     <GlassSurface
       testID="computer-card"
       shape="roundedRectangle"
-      cornerRadius={18}
-      fallbackStyle={{ backgroundColor: native.fill }}
+      cornerRadius={20}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderWidth: hairline,
+        borderColor: cardBorder,
+      }}
       style={[
         styles.card,
         {
           width: threadCardWidth(windowWidth),
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
         },
       ]}
     >
@@ -60,27 +81,38 @@ export function ComputerCard({
         >
           {t("Computer")}
         </Text>
-        <Text
+        <View
           style={[
-            styles.state,
+            styles.statePill,
             {
-              color:
-                block.state === "Needs you"
-                  ? tokens.warning
-                  : block.state === "Skipped"
-                    ? tokens.mutedForeground
-                    : tokens.success,
+              backgroundColor: pillBg,
+              borderWidth: hairline,
+              borderColor: pillBorder,
             },
           ]}
         >
-          {block.state === "Needs you"
-            ? t("Needs you")
-            : block.state === "Skipped"
-              ? t("Skipped")
-              : block.state === "Done"
-                ? t("Done")
-                : block.state}
-        </Text>
+          <Text
+            style={[
+              styles.state,
+              {
+                color:
+                  block.state === "Needs you"
+                    ? tokens.warning
+                    : block.state === "Skipped"
+                      ? tokens.mutedForeground
+                      : tokens.success,
+              },
+            ]}
+          >
+            {block.state === "Needs you"
+              ? t("Needs you")
+              : block.state === "Skipped"
+                ? t("Skipped")
+                : block.state === "Done"
+                  ? t("Done")
+                  : block.state}
+          </Text>
+        </View>
       </View>
       {block.text ? (
         <ChatMarkdown palette={tokens} colorScheme={colorScheme}>

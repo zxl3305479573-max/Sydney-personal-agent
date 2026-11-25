@@ -137,13 +137,17 @@ export function ComputerKeyboardBar({
     if (control.current) latch(false);
   }
 
+  const isLight = appearance === "light";
+  const barBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const barBorder = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.10)";
+
   return (
     <View
       style={[
         styles.bar,
         {
-          borderTopColor: tokens.border,
-          backgroundColor: tokens.background,
+          borderTopColor: barBorder,
+          backgroundColor: barBg,
           paddingLeft: insets.left + 12,
           paddingRight: insets.right + 12,
           paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 8),
@@ -243,7 +247,14 @@ function ComputerShortcut({
   onPress: () => void;
 }) {
   const tokens = useMobileTokens();
-  const color = selected ? tokens.primaryForeground : tokens.foreground;
+  const appearance = useResolvedAppearance();
+  const isLight = appearance === "light";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const selectedBg = tokens?.primary ?? (isLight ? "#2B2823" : "#F5F4F0");
+  const selectedFg = tokens?.primaryForeground ?? (isLight ? "#FFFEFC" : "#15171C");
+  const keyBg = isLight ? "#FFFEFC" : "#242933";
+  const keyBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const color = selected ? selectedFg : fg;
   return (
     <Pressable
       accessibilityRole="button"
@@ -255,8 +266,9 @@ function ComputerShortcut({
       style={({ pressed }) => [
         styles.key,
         {
-          backgroundColor: selected ? tokens.primary : tokens.muted,
-          opacity: disabled ? 0.45 : pressed ? 0.65 : 1,
+          backgroundColor: selected ? selectedBg : keyBg,
+          borderColor: selected ? "transparent" : keyBorder,
+          opacity: disabled ? 0.45 : pressed ? 0.68 : 1,
         },
       ]}
     >
@@ -273,8 +285,8 @@ function ComputerShortcut({
 
 const styles = StyleSheet.create({
   bar: {
-    borderTopWidth: 1,
-    paddingTop: 8,
+    borderTopWidth: 0.5,
+    paddingTop: 10,
   },
   content: {
     alignSelf: "center",
@@ -306,7 +318,8 @@ const styles = StyleSheet.create({
     flexBasis: 0,
     minWidth: KEY_SIZE,
     minHeight: KEY_SIZE,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 0.5,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",

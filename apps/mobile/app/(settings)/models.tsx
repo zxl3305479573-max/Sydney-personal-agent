@@ -1,5 +1,6 @@
 import { OPENAI_COMPATIBLE_PROVIDER_ID } from "@rakazo/contracts";
 import { fetchFresh } from "@rakazo/core/query";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { isCancelledError, useQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -268,12 +269,23 @@ export default function Models() {
   );
 }
 
-function createModelsStyles() {
-  const tokens = mobileTokens();
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createModelsStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: native.page,
+      backgroundColor: native.groupedPage,
     },
     centered: {
       alignItems: "center",
@@ -281,13 +293,21 @@ function createModelsStyles() {
     },
     content: {
       width: "100%",
-      padding: 20,
-      gap: 24,
+      paddingHorizontal: 16,
+      paddingTop: 18,
+      gap: 22,
       paddingBottom: 40,
     },
     error: {
       color: tokens.destructive,
       fontSize: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 16,
+      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
+      overflow: "hidden",
     },
   });
 }

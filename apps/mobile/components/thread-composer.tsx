@@ -364,10 +364,11 @@ export function ThreadComposer({
     onSlashAction(action);
   }
 
+  const strokeColor = tokens.glassStroke ?? tokens.border;
   const toolButton = {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   } as const;
@@ -384,9 +385,9 @@ export function ThreadComposer({
             flexGrow: 0,
             flexShrink: 1,
             marginTop: 12,
-            borderRadius: 14,
+            borderRadius: 16,
             borderWidth: 1,
-            borderColor: tokens.border,
+            borderColor: strokeColor,
             backgroundColor: tokens.card,
             overflow: "hidden",
           }}
@@ -446,9 +447,9 @@ export function ThreadComposer({
             flexGrow: 0,
             flexShrink: 1,
             marginTop: 12,
-            borderRadius: 14,
+            borderRadius: 16,
             borderWidth: 1,
-            borderColor: tokens.border,
+            borderColor: strokeColor,
             backgroundColor: tokens.card,
             overflow: "hidden",
           }}
@@ -510,16 +511,16 @@ export function ThreadComposer({
       <View style={{ marginTop: 8, flexShrink: 1, minHeight: 0 }}>
         <View
           style={{
-            borderRadius: 18,
+            borderRadius: 22,
             borderWidth: 1,
-            borderColor: tokens.border,
+            borderColor: strokeColor,
             backgroundColor: tokens.card,
             flexShrink: 1,
             minHeight: 0,
             gap: 6,
-            paddingTop: 12,
-            paddingHorizontal: 8,
-            paddingBottom: 6,
+            paddingTop: 10,
+            paddingHorizontal: 10,
+            paddingBottom: 8,
           }}
         >
           <View
@@ -542,6 +543,8 @@ export function ThreadComposer({
                   alignSelf: "center",
                   gap: 6,
                   backgroundColor: tokens.muted,
+                  borderWidth: 1,
+                  borderColor: strokeColor,
                   borderRadius: 999,
                   paddingHorizontal: 10,
                   paddingVertical: 5,
@@ -716,9 +719,14 @@ export function ThreadComposer({
                   accessible
                   accessibilityRole="button"
                   accessibilityLabel={actionLabel ?? t("Attach file")}
-                  style={toolButton}
+                  style={{
+                    ...toolButton,
+                    borderWidth: 1,
+                    borderColor: strokeColor,
+                    backgroundColor: tokens.muted,
+                  }}
                 >
-                  <NativeSymbol ios="plus" android="add" size={21} color={tokens.foreground} />
+                  <NativeSymbol ios="plus" android="add" size={20} color={tokens.foreground} />
                 </View>
               </MenuView>
             ) : null}
@@ -740,11 +748,16 @@ export function ThreadComposer({
                     accessibilityValue={modelLabel ? { text: modelLabel } : undefined}
                     style={{
                       minHeight: 44,
+                      alignSelf: "flex-start",
+                      maxWidth: "100%",
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingHorizontal: 8,
+                      paddingHorizontal: 12,
                       gap: 6,
-                      borderRadius: 10,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: strokeColor,
+                      backgroundColor: tokens.muted,
                     }}
                   >
                     <Text

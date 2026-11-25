@@ -82,24 +82,66 @@ export default function Devices() {
   return (
     <ScrollView
       style={[{ flex: 1, backgroundColor: native.groupedPage }, insets]}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 32, gap: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 36, gap: 16 }}
       contentInsetAdjustmentBehavior="automatic"
     >
-      {loading ? <ActivityIndicator accessibilityLabel={t("Loading…")} /> : null}
+      {loading ? (
+        <ActivityIndicator
+          accessibilityLabel={t("Loading…")}
+          color={native.secondaryLabel ?? native.label}
+        />
+      ) : null}
       {!loading && query.isError ? (
-        <Text accessibilityRole="alert" style={{ color: native.label }}>
+        <Text
+          accessibilityRole="alert"
+          style={{
+            color: native.label,
+            backgroundColor: native.groupedCell ?? native.groupedPage,
+            borderRadius: 20,
+            borderWidth: 0.5,
+            borderColor: native.separator ?? "rgba(38, 35, 31, 0.06)",
+            paddingHorizontal: 18,
+            paddingVertical: 16,
+            fontSize: 15,
+            lineHeight: 22,
+            overflow: "hidden",
+          }}
+        >
           {errorMessage}
         </Text>
       ) : null}
       {!loading && !query.isError && query.data ? (
-        <Text style={{ color: native.label }}>
+        <Text
+          style={{
+            color: native.secondaryLabel ?? native.label,
+            fontSize: 13.5,
+            lineHeight: 19,
+            paddingHorizontal: 4,
+          }}
+        >
           {t("Status at {time}; refresh to check again.", {
             time: new Date(query.dataUpdatedAt).toLocaleString(dateLocaleForUi(locale)),
           })}
         </Text>
       ) : null}
       {!loading && !query.isError && query.data?.length === 0 ? (
-        <Text style={{ color: native.label }}>{t("No computers paired with this account.")}</Text>
+        <Text
+          style={{
+            color: native.secondaryLabel ?? native.label,
+            backgroundColor: native.groupedCell ?? native.groupedPage,
+            borderRadius: 20,
+            borderWidth: 0.5,
+            borderColor: native.separator ?? "rgba(38, 35, 31, 0.06)",
+            paddingHorizontal: 18,
+            paddingVertical: 20,
+            fontSize: 15,
+            lineHeight: 22,
+            textAlign: "center",
+            overflow: "hidden",
+          }}
+        >
+          {t("No computers paired with this account.")}
+        </Text>
       ) : null}
       {!loading && !query.isError && query.data?.length ? (
         <SettingsGroup>

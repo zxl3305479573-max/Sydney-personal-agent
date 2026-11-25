@@ -2,7 +2,7 @@ import { useFocusEffect } from "expo-router";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useState } from "react";
 
-export const MAIN_NAVIGATION_ROUTES = ["/", "/integrations", "/projects", "/github"] as const;
+export const MAIN_NAVIGATION_ROUTES = ["/", "/chats", "/projects"] as const;
 export type MainNavigationRoute = (typeof MAIN_NAVIGATION_ROUTES)[number];
 
 export function showsMainNavigation(pathname: string): boolean {

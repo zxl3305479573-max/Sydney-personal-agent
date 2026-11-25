@@ -23,6 +23,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { readableGutters } from "../lib/adaptive-layout";
 import { currentApiBase, selectedSpaceId, selectSpace, spaceSelectionSeq } from "../lib/api";
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
+import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
 import { getSearchInbox, subscribeSearchInbox } from "../lib/search-inbox";
@@ -141,13 +142,20 @@ export default function SearchSheet() {
   };
 
   // Preserve this container so the native sheet does not stretch the list over the header.
+  const isLight = appearance === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const porcelainSurface = isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
+
   return (
     <View
       collapsable={false}
       style={[styles.screen, { paddingTop: Platform.OS === "ios" ? 16 : insets.top + 8 }]}
     >
       <View
-        style={[styles.top, { marginLeft: 16 + gutters.left, marginRight: 16 + gutters.right }]}
+        style={[styles.top, { marginLeft: 20 + gutters.left, marginRight: 20 + gutters.right }]}
       >
         <GlassIconButton
           testID="search-sheet-close"
@@ -155,8 +163,12 @@ export default function SearchSheet() {
           ios="xmark"
           android="close"
           size={44}
-          color={tokens.foreground}
-          fallbackStyle={{ backgroundColor: tokens.muted }}
+          color={tokens?.foreground ?? native.label}
+          fallbackStyle={{
+            backgroundColor: porcelainSurface,
+            borderWidth: hairline,
+            borderColor: porcelainBorder,
+          }}
           onPress={() => {
             cancelOpen();
             router.back();
@@ -165,14 +177,13 @@ export default function SearchSheet() {
         <GlassSurface
           shape="capsule"
           style={styles.fieldPill}
-          fallbackStyle={{ backgroundColor: tokens.muted }}
+          fallbackStyle={{
+            backgroundColor: porcelainSurface,
+            borderWidth: hairline,
+            borderColor: porcelainBorder,
+          }}
         >
-          <NativeSymbol
-            ios="magnifyingglass"
-            android="search"
-            size={17}
-            color={tokens.mutedForeground}
-          />
+          <NativeSymbol ios="magnifyingglass" android="search" size={17} color={softTaupe} />
           <TextInput
             ref={field}
             testID="search-sheet-field"
@@ -181,7 +192,7 @@ export default function SearchSheet() {
             value={query}
             onChangeText={setQuery}
             placeholder={t("Search")}
-            placeholderTextColor={tokens.mutedForeground}
+            placeholderTextColor={tokens?.mutedForeground ?? native.secondaryLabel}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
@@ -204,7 +215,7 @@ export default function SearchSheet() {
                 ios="xmark.circle.fill"
                 android="close-circle"
                 size={20}
-                color={tokens.mutedForeground}
+                color={tokens?.mutedForeground ?? softTaupe}
               />
             </Pressable>
           ) : null}
@@ -246,20 +257,21 @@ export default function SearchSheet() {
             accessibilityRole="button"
             accessibilityLabel={`${item.title}, ${item.label}`}
             onPress={() => void open(item)}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
           >
             {item.group ? (
-              <GroupAvatar members={item.group.members} size={54} />
+              <GroupAvatar members={item.group.members} size={50} />
             ) : item.bot ? (
               <BotAvatar
                 identity={item.bot.id}
                 color={item.bot.color || botColors[3]}
                 avatarSet={item.bot.avatarSet}
                 status={item.bot.status}
+                size={50}
               />
             ) : (
               <View style={styles.neutralAvatar}>
-                <NativeSymbol {...kindIcons[item.kind]} color={tokens.mutedForeground} size={24} />
+                <NativeSymbol {...kindIcons[item.kind]} color={softTaupe} size={22} />
               </View>
             )}
             <View style={styles.body}>
@@ -282,16 +294,28 @@ export default function SearchSheet() {
 
 function createStyles() {
   const tokens = mobileTokens();
+  const isLight = resolveMobileAppearance() === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const porcelainCard = isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const creamChip = isLight ? "#F8F6F2" : "#2A303B";
+  const creamChipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: native.page },
-    top: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+    screen: { flex: 1, backgroundColor: tokens?.background ?? native.page },
+    top: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
     fieldPill: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      borderRadius: 22,
-      paddingHorizontal: 12,
+      gap: 10,
+      borderRadius: 999,
+      paddingHorizontal: 15,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
     },
     field: {
       flex: 1,
@@ -304,21 +328,40 @@ function createStyles() {
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      marginHorizontal: 20,
+      marginBottom: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 18,
+      backgroundColor: porcelainCard,
+      experimental_backgroundImage: cardGradient(isLight, "champagne"),
+      overflow: "hidden",
+      borderWidth: hairline,
+      borderColor: porcelainBorder,
       gap: 12,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.02 : 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 1,
     },
-    pressed: { opacity: 0.55 },
+    rowPressed: {
+      backgroundColor: creamChip,
+      opacity: 0.85,
+    },
+    pressed: { opacity: 0.65 },
     clear: { minWidth: 32, minHeight: 44, alignItems: "center", justifyContent: "center" },
     neutralAvatar: {
-      width: 54,
-      height: 54,
-      borderRadius: 27,
-      backgroundColor: tokens.muted,
+      width: 50,
+      height: 50,
+      borderRadius: 18,
+      backgroundColor: creamChip,
+      borderWidth: hairline,
+      borderColor: creamChipBorder,
       alignItems: "center",
       justifyContent: "center",
     },
-    body: { flex: 1, minWidth: 0, gap: 2 },
+    body: { flex: 1, minWidth: 0, gap: 3 },
     rowTop: { flexDirection: "row", alignItems: "center", gap: 8 },
     // Result rows match the inbox rows.
     name: {
@@ -335,6 +378,6 @@ function createStyles() {
     },
     empty: { color: native.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
     failure: { alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 28 },
-    error: { color: tokens.destructive, fontSize: 14 },
+    error: { color: tokens?.destructive ?? "#C4272D", fontSize: 14 },
   });
 }

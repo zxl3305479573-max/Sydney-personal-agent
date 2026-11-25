@@ -7,7 +7,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { BackHandler, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotChipPicker } from "../components/bot-chip-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
@@ -18,7 +18,7 @@ import { SheetCloseButton } from "../components/sheet-close-button";
 import type { MobileBot } from "../lib/api";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { addToSearchInbox, searchInboxSession } from "../lib/search-inbox";
@@ -43,7 +43,8 @@ export default function NewGroup() {
   const openedScope = useRef(scopeKey).current;
   const current = () => openedScope === projectScopeKey() && !isSpaceSelectionPending();
   const scopeChanged = scopeKey !== openedScope || isSpaceSelectionPending();
-  const valid = !scopeChanged && selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
+  const valid =
+    !scopeChanged && selected.length >= GROUP_MEMBER_MIN && selected.length <= GROUP_MEMBER_MAX;
   const picked = selected.flatMap((id) => bots.find((bot) => bot.id === id) ?? []);
   const goBack = () => {
     if (!creating.current) setStep("bots");
@@ -62,15 +63,22 @@ export default function NewGroup() {
         const requestContext = await captureApiRequestContext();
         if (!active || !mounted.current || !current()) return;
         const nextBots = await rpc("bots/list", undefined, {
-          requestContext, signal: controller.signal, skipSpaceAuthRecovery: true,
+          requestContext,
+          signal: controller.signal,
+          skipSpaceAuthRecovery: true,
         });
-        if (active && mounted.current && current()) setBots(nextBots.filter((bot) => !bot.archivedAt));
+        if (active && mounted.current && current())
+          setBots(nextBots.filter((bot) => !bot.archivedAt));
       } catch (cause) {
         if (active && mounted.current && current())
           setError(errorText(cause, t("Could not load bots")));
       }
     })();
-    return () => { active = false; mounted.current = false; controller.abort(); };
+    return () => {
+      active = false;
+      mounted.current = false;
+      controller.abort();
+    };
   }, []);
   useEffect(() => {
     if (step !== "name") return;
@@ -90,12 +98,17 @@ export default function NewGroup() {
     try {
       const requestContext = await captureApiRequestContext();
       if (!mounted.current || !current()) return;
-      const group = await rpc("groups/create", {
-        name: name.trim() || defaultGroupName(picked.map((bot) => bot.name)),
-        botIds: selected,
-      }, {
-        requestContext, skipSpaceAuthRecovery: true,
-      });
+      const group = await rpc(
+        "groups/create",
+        {
+          name: name.trim() || defaultGroupName(picked.map((bot) => bot.name)),
+          botIds: selected,
+        },
+        {
+          requestContext,
+          skipSpaceAuthRecovery: true,
+        },
+      );
       if (!mounted.current || !current()) return;
       addToSearchInbox({ kind: "group", group }, askedIn);
       router.replace({
@@ -109,6 +122,16 @@ export default function NewGroup() {
       if (mounted.current) setPending(false);
     }
   }
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const porcelainSurface = isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+
   return (
     <>
       <Stack.Screen
@@ -125,6 +148,11 @@ export default function NewGroup() {
                 accessibilityLabel={t("Back")}
                 ios="chevron.left"
                 android="chevron-back"
+                fallbackStyle={{
+                  backgroundColor: porcelainSurface,
+                  borderWidth: hairline,
+                  borderColor: porcelainBorder,
+                }}
                 onPress={goBack}
               />
             ),
@@ -176,7 +204,7 @@ export default function NewGroup() {
       <KeyboardAvoidingView
         behavior="padding"
         automaticOffset
-        style={{ flex: 1, backgroundColor: tokens.background }}
+        style={{ flex: 1, backgroundColor: tokens?.background ?? "#F3F1EC" }}
       >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -196,7 +224,14 @@ export default function NewGroup() {
             </Text>
           ) : step === "bots" ? (
             <>
-              {error ? <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginBottom: 12 }}>{error}</Text> : null}
+              {error ? (
+                <Text
+                  accessibilityRole="alert"
+                  style={{ color: tokens.destructive, marginBottom: 12 }}
+                >
+                  {error}
+                </Text>
+              ) : null}
               <BotChipPicker bots={bots} selected={selected} onChange={setSelected} />
             </>
           ) : (
@@ -211,9 +246,13 @@ export default function NewGroup() {
               </View>
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={11}
-                style={{ borderRadius: 11 }}
-                fallbackStyle={{ backgroundColor: native.fill }}
+                cornerRadius={20}
+                style={{ borderRadius: 20 }}
+                fallbackStyle={{
+                  backgroundColor: porcelainSurface,
+                  borderWidth: hairline,
+                  borderColor: porcelainBorder,
+                }}
               >
                 <TextInput
                   accessibilityLabel={t("Group name")}
@@ -231,13 +270,13 @@ export default function NewGroup() {
                   returnKeyType="done"
                   onSubmitEditing={() => void create()}
                   style={{
-                    height: 56,
-                    borderRadius: 11,
+                    height: 58,
+                    borderRadius: 20,
                     color: tokens.foreground,
                     fontSize: 22,
                     fontWeight: "600",
                     textAlign: "center",
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 16,
                   }}
                 />
               </GlassSurface>
@@ -250,7 +289,10 @@ export default function NewGroup() {
                 style={{ marginTop: 24, borderRadius: 28 }}
               />
               {error ? (
-                <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 12 }}>
+                <Text
+                  accessibilityRole="alert"
+                  style={{ color: tokens.destructive, marginTop: 12 }}
+                >
                   {error}
                 </Text>
               ) : null}
