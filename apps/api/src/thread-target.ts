@@ -19,6 +19,7 @@ import {
   ACTIVE_RUN_STATUSES,
   BACKGROUND_RUN_TRIGGERS,
   callIdFromClientNonce,
+  isBackgroundRunTrigger,
   isConversationalRun,
   messageBypassesTakeoverWait,
   messageReaction,
@@ -33,6 +34,7 @@ import type { Prisma, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   answerWaitingRunWithTextInTransaction,
   appendEventInTransaction,
+  cancelRunsInTransaction,
   clearEndedRunState,
   conversationProjectId,
   conversationScopeWhere,
@@ -235,7 +237,10 @@ async function replayExistingSend(
       getLogger().error("thread send realtime notification", error);
     });
   }
-  return sendResult(message, runs);
+  return {
+    ...sendResult(message, runs),
+    activity: sendActivity(threadId, latestEvent?.seq ?? message.seq, runs),
+  };
 }
 
 function sendEventRunIds(payload: Prisma.JsonValue | undefined): string[] {
@@ -252,6 +257,22 @@ function sendResult(message: { seq: number }, runs: Array<{ id: string; taskId: 
     runId: first.id,
     seq: message.seq,
     runIds: runs.map((run) => run.id),
+  };
+}
+
+function sendActivity(
+  threadId: string,
+  cursor: number,
+  runs: Array<{ id: string; botId?: string; status: string; trigger?: string }>,
+) {
+  return {
+    threadId,
+    cursor,
+    runs: runs
+      .filter((run): run is typeof run & { botId: string } =>
+        Boolean(run.botId) && !isBackgroundRunTrigger(run.trigger),
+      )
+      .map(({ id, botId, status }) => ({ id, botId, status })),
   };
 }
 
@@ -871,7 +892,10 @@ export async function sendThreadMessage(
           clientNonce: input.clientNonce,
         });
         const answered: typeof activeRuns = [];
-        for (const run of activeRuns.filter((run) => run.status === "waiting_input")) {
+        const waitingRuns = activeRuns.filter((run) => run.status === "waiting_input");
+        const allowEarlierQuestion =
+          waitingRuns.length === 1 && !input.replyToMessageId && !attachmentBlocks.length;
+        for (const run of waitingRuns) {
           if (
             await answerWaitingRunWithTextInTransaction(tx, {
               spaceId: actor.spaceId,
@@ -880,6 +904,7 @@ export async function sendThreadMessage(
               answeredByUserId: actor.userId,
               answer: input.text ?? "",
               beforeMessageSeq: message.seq,
+              allowEarlierQuestion,
             })
           )
             answered.push({ ...run, status: "queued" });
@@ -1083,6 +1108,10 @@ export async function sendThreadMessage(
       });
       const activeByBotId = new Map<string, (typeof activeRuns)[number]>();
       const answeredByBotId = new Map<string, Array<(typeof activeRuns)[number]>>();
+      const allowEarlierQuestion =
+        activeRuns.filter((run) => run.status === "waiting_input").length === 1 &&
+        !input.replyToMessageId &&
+        !attachmentBlocks.length;
       for (const run of activeRuns) {
         if (run.status === "waiting_input") {
           const answered = await answerWaitingRunWithTextInTransaction(tx, {
@@ -1092,6 +1121,7 @@ export async function sendThreadMessage(
             answeredByUserId: actor.userId,
             answer: input.text ?? "",
             beforeMessageSeq: message.seq,
+            allowEarlierQuestion,
           });
           if (answered) {
             const queuedForBot = answeredByBotId.get(run.botId) ?? [];
@@ -1237,7 +1267,10 @@ export async function sendThreadMessage(
     }
   }
   await enqueueRunsNeedingContinue(deps.jobs, [...committed.routineRuns, ...committed.runs]);
-  return sendResult(committed.message, committed.runs);
+  return {
+    ...sendResult(committed.message, committed.runs),
+    activity: sendActivity(target.threadId, committed.eventSeq, committed.runs),
+  };
 }
 
 const REACTION_TURN_COOLDOWN_MS = 30_000;
@@ -1475,25 +1508,33 @@ export async function stopThreadRuns(
   },
   actor: Actor,
   target: ThreadTarget,
+  selectedRunId?: string,
 ) {
   const { runIds, computers, leases, eventSeq } = await deps.prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM threads WHERE id = ${target.threadId} FOR UPDATE`;
-    const cancelled = await tx.run.updateManyAndReturn({
-      where: {
-        threadId: target.threadId,
-        status: { in: [...ACTIVE_RUN_STATUSES] },
-      },
-      data: { status: "cancelled", completedAt: new Date() },
-      select: { id: true, botId: true, userId: true, spaceId: true },
-    });
+    const cancelledAt = new Date();
+    const cancelled =
+      selectedRunId === undefined
+        ? await tx.run.updateManyAndReturn({
+            where: { threadId: target.threadId, status: { in: [...ACTIVE_RUN_STATUSES] } },
+            data: { status: "cancelled", completedAt: cancelledAt },
+            select: { id: true, botId: true, userId: true, spaceId: true },
+          })
+        : await cancelSelectedRun(tx, actor, target.threadId, selectedRunId, cancelledAt);
     const ids = cancelled.map((run) => run.id);
-    await clearEndedRunState(tx, ids);
-    await tx.steeringMessage.deleteMany({
-      where: {
-        botId: { in: target.kind === "bot" ? [target.botId] : target.memberBotIds },
-        message: { threadId: target.threadId },
-      },
-    });
+    if (selectedRunId === undefined) {
+      await clearEndedRunState(tx, ids);
+      await tx.steeringMessage.deleteMany({
+        where: {
+          botId: { in: target.kind === "bot" ? [target.botId] : target.memberBotIds },
+          message: { threadId: target.threadId },
+        },
+      });
+    } else if (ids.length > 0) {
+      await tx.steeringMessage.deleteMany({
+        where: { runId: selectedRunId, message: { threadId: target.threadId } },
+      });
+    }
     // Snapshot teardown coordinates before commit. Once cancellation becomes
     // visible, a worker can release its lease / execution columns immediately; a
     // later lookup would then miss the sandbox work this request must stop.
@@ -1550,6 +1591,7 @@ export async function stopThreadRuns(
     }
     return { runIds: ids, computers, leases, eventSeq };
   });
+  if (runIds.length === 0) return;
   if (eventSeq !== null) {
     // The events are durable; subscribers refetch from their persisted cursor.
     await deps.events.notify(target.threadId, eventSeq).catch((error) => {
@@ -1625,6 +1667,21 @@ export async function stopThreadRuns(
       executionLeaseExpiresAt: null,
     },
   });
+}
+
+async function cancelSelectedRun(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  threadId: string,
+  runId: string,
+  cancelledAt: Date,
+) {
+  const run = await tx.run.findFirst({
+    where: { id: runId, threadId, ...conversationScopeWhere(actor) },
+    select: { id: true, taskId: true, botId: true, userId: true, spaceId: true },
+  });
+  if (!run) throw new ORPCError("NOT_FOUND");
+  return cancelRunsInTransaction(tx, [run], cancelledAt);
 }
 
 /**

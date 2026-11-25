@@ -182,7 +182,6 @@ describe("compose argv construction", () => {
         "pull",
         "api",
         "worker",
-        "web",
       ],
     });
   });
@@ -228,11 +227,7 @@ describe("compose argv construction", () => {
   });
 
   it("falls back to the built-in services when the target names none", () => {
-    expect(composeUpArgv({ ...target, services: [] }).args.slice(-3)).toEqual([
-      "api",
-      "worker",
-      "web",
-    ]);
+    expect(composeUpArgv({ ...target, services: [] }).args.slice(-2)).toEqual(["api", "worker"]);
   });
 
   it("carries the overlay files and extra services into the update plan and its recovery", () => {
@@ -298,7 +293,7 @@ describe("compose argv construction", () => {
 
   it("names the services explicitly so a bare up cannot sweep the whole project", () => {
     const args = composeUpArgv(target).args;
-    expect(args.slice(-3)).toEqual(["api", "worker", "web"]);
+    expect(args.slice(-2)).toEqual(["api", "worker"]);
   });
 });
 

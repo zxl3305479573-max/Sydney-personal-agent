@@ -3,12 +3,13 @@ import { foregroundStyle, glassEffect } from "@expo/ui/swift-ui/modifiers";
 import { StyleSheet, View } from "react-native";
 import { useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { getActiveUiMode } from "../lib/ui-mode";
 import type { GlassSurfaceProps } from "./glass-surface";
 
-/** Liquid Glass behind React Native children on iOS 26; `fallbackStyle` elsewhere. */
 export function GlassSurface({
+  chatTitle = false,
   shape = "capsule",
-  cornerRadius = 22,
+  cornerRadius,
   tint,
   style,
   fallbackStyle,
@@ -16,7 +17,10 @@ export function GlassSurface({
   ...viewProps
 }: GlassSurfaceProps) {
   const scheme = useResolvedAppearance();
-  if (!iosAtLeast(26))
+  const policy = getActiveUiMode().glassPolicy;
+  const radius = cornerRadius ?? policy.defaultCornerRadius ?? 22;
+  const resolvedTint = tint ?? (policy.mode === "tinted-liquid" ? policy.defaultTint : undefined);
+  if (!chatTitle || !iosAtLeast(26) || policy.mode === "solid-fallback")
     return (
       <View {...viewProps} style={[style, fallbackStyle]}>
         {children}
@@ -25,18 +29,23 @@ export function GlassSurface({
   const modifiers = [
     foregroundStyle("#00000000"),
     glassEffect({
-      glass: { variant: "regular", ...(tint ? { tint } : {}) },
+      glass: { variant: "regular", ...(resolvedTint ? { tint: resolvedTint } : {}) },
       shape,
-      cornerRadius,
+      cornerRadius: radius,
     }),
   ];
   return (
     <View {...viewProps} style={style}>
-      <Host colorScheme={scheme} pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Host
+        colorScheme={scheme}
+        ignoreSafeArea="all"
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+      >
         {shape === "circle" ? (
           <Circle modifiers={modifiers} />
         ) : shape === "roundedRectangle" ? (
-          <RoundedRectangle cornerRadius={cornerRadius} modifiers={modifiers} />
+          <RoundedRectangle cornerRadius={radius} modifiers={modifiers} />
         ) : (
           <Capsule modifiers={modifiers} />
         )}

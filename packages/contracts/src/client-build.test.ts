@@ -45,7 +45,12 @@ describe("client builds", () => {
       mobile: "20261001000000",
     });
     expect(() => parseMinimumClientBuilds("20261022093015")).toThrow(/RAKAZO_MIN_CLIENT_BUILD/);
-    expect(() => parseMinimumClientBuilds("desktop=20261022093015")).toThrow();
+    expect(parseMinimumClientBuilds("desktop=20261022093015")).toEqual({
+      desktop: "20261022093015",
+    });
+    expect(clientUpdateRequired("desktop/20261022093014", { desktop: "20261022093015" })).toBe(
+      true,
+    );
     expect(() => parseMinimumClientBuilds("web=2026-10-22")).toThrow();
   });
 

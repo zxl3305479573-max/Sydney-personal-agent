@@ -219,9 +219,9 @@ export function updateSteps(input: UpdatePlanInput): UpdateStep[] {
     },
     {
       id: "build",
-      label: "Build the web app",
+      label: "Build the API and worker",
       command: "pnpm",
-      args: ["--filter", "@rakazo/web", "run", "build"],
+      args: ["--filter", "@rakazo/api", "--filter", "@rakazo/worker", "run", "build"],
     },
     {
       id: "migrate",
@@ -256,9 +256,9 @@ export function detectRestartSupervisor(
 
 export function restartSupervisorAdvice(supervisor: RestartSupervisor): string {
   if (supervisor.kind !== "none") {
-    return `Rakazo will exit after updating and ${supervisor.label} will start it on the new code.`;
+    return `Sydney will exit after updating and ${supervisor.label} will start it on the new code.`;
   }
-  return `No process supervisor was detected, so Rakazo will not exit on its own. Restart the API, worker, and web processes yourself, or set ${RESTART_SUPERVISOR_ENV} to the supervisor that restarts them (for example "docker" with restart: unless-stopped, or run under systemd with Restart=always).`;
+  return `No process supervisor was detected, so Sydney will not exit on its own. Restart the API and worker processes yourself, or set ${RESTART_SUPERVISOR_ENV} to the supervisor that restarts them (for example "docker" with restart: unless-stopped, or run under systemd with Restart=always).`;
 }
 
 export type UpdateAvailability =

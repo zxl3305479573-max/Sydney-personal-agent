@@ -364,7 +364,7 @@ export const MessageRow = memo(function MessageRow({
     hasLike,
     optimisticLike,
   ]);
-  const layout = messageRowLayout(message.blocks, { activityBotId, inGroup, columnWidth });
+  const layout = messageRowLayout(message, columnWidth);
   return (
     <View
       key={message.id}
@@ -380,36 +380,27 @@ export const MessageRow = memo(function MessageRow({
       <View
         style={{
           width: "100%",
-          flexDirection: "row",
-          alignItems: "flex-start",
+          flexDirection: "column",
+          alignItems: message.role === "user" ? "flex-end" : "flex-start",
           gap: 8,
-          justifyContent: message.role === "user" ? "flex-end" : "flex-start",
         }}
       >
-        {activityBotId ? (
-          <View style={{ paddingTop: 22 }}>
-            {activityColor ? (
-              <BotAvatar
-                color={activityColor}
-                avatarSet={activityAvatarSet}
-                identity={activityBotId}
-                size={inGroup ? 20 : 28}
-                status={activityStatus}
-                motion={message.id.startsWith("progress:") ? "running" : undefined}
-                composing={message.id.startsWith("progress:") && liveMessageComposing(message.blocks)}
-                pokeable={message.id.startsWith("progress:")}
-              />
-            ) : (
-              <View style={{ width: inGroup ? 20 : 28, height: inGroup ? 20 : 28 }} />
-            )}
-          </View>
+        {activityBotId && activityColor ? (
+          <BotAvatar
+            color={activityColor}
+            avatarSet={activityAvatarSet}
+            identity={activityBotId}
+            size={inGroup ? 20 : 28}
+            status={activityStatus}
+            motion={message.id.startsWith("progress:") ? "running" : undefined}
+            composing={message.id.startsWith("progress:") && liveMessageComposing(message.blocks)}
+            pokeable={message.id.startsWith("progress:")}
+          />
         ) : null}
         <View
           style={{
             width: layout.width,
             maxWidth: layout.maxWidth,
-            flex: activityBotId ? 1 : undefined,
-            flexShrink: 1,
           }}
         >
           {isPeerReceiptBlocks(message.blocks) ? null : (

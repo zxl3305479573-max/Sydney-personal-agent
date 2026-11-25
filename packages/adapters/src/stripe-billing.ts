@@ -211,7 +211,7 @@ export class StripeBillingProvider implements BillingProvider {
                 price: await this.recurringPrice(
                   `rakazo_monthly_credits_${input.amountCents}`,
                   input.amountCents,
-                  "Rakazo monthly model credits",
+                  "Sydney monthly model credits",
                 ),
               }
             : {
@@ -219,7 +219,7 @@ export class StripeBillingProvider implements BillingProvider {
                 price_data: {
                   currency: "usd",
                   unit_amount: input.amountCents,
-                  product_data: { name: "Rakazo model credits" },
+                  product_data: { name: "Sydney model credits" },
                 },
               },
         ],
@@ -253,7 +253,7 @@ export class StripeBillingProvider implements BillingProvider {
           price: await this.recurringPrice(
             `rakazo_monthly_credits_${amountCents}`,
             amountCents,
-            "Rakazo monthly model credits",
+            "Sydney monthly model credits",
           ),
           quantity: 1,
         },
@@ -339,7 +339,7 @@ export class StripeBillingProvider implements BillingProvider {
     return this.recurringPrice(
       `rakazo_byok_${interval === "year" ? "yearly" : "monthly"}_${amountCents}`,
       amountCents,
-      "Rakazo own-key plan",
+      "Sydney own-key plan",
       interval,
     );
   }

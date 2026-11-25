@@ -1,6 +1,6 @@
 import type { DesktopDownloads } from "../src/github.js";
 import { fetchDesktopDownloads } from "../src/github.js";
-import { LATEST_RELEASE_URL } from "../src/site.js";
+import { RELEASES_URL } from "../src/site.js";
 
 // Edge functions are bundled, which resolves the extensionless source imports.
 export const config = { runtime: "edge" };
@@ -15,7 +15,7 @@ export async function fetchDownload(
   const location =
     (platform && Object.hasOwn(downloads, platform)
       ? downloads[platform as keyof DesktopDownloads]
-      : undefined) ?? LATEST_RELEASE_URL;
+      : undefined) ?? RELEASES_URL;
   return new Response(null, {
     status: 302,
     headers: {

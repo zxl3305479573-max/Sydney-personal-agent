@@ -14,7 +14,12 @@ import {
 } from "@rakazo/contracts/content-security-policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRakazoHealth } from "./setup-config.js";
-import { StandaloneRendererProxy } from "./standalone-renderer-proxy.js";
+import {
+  DEFAULT_UPSTREAM_TIMEOUT_MS,
+  PROXY_CAPABILITY_HEADER,
+  StandaloneRendererProxy,
+} from "./standalone-renderer-proxy.js";
+import { StandaloneScreenSocket } from "./standalone-screen-socket.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -386,6 +391,37 @@ describe("standalone renderer loopback proxy", () => {
     expect(await response.text()).toBe("ok");
     expect((await received.promise)["x-gateway-key"]).toBe("configured-secret");
     expect(upstreamCalls).toEqual(["/api/config"]);
+  });
+
+  it("never sends a configured header named as the proxy capability", async () => {
+    await proxy.stop();
+    proxy = new StandaloneRendererProxy({
+      rendererRoot: root,
+      remoteOrigin,
+      setup: {
+        mode: "existing",
+        serverUrl: remoteOrigin,
+        headers: { [PROXY_CAPABILITY_HEADER]: "configured-not-token" },
+      },
+    });
+    origin = await proxy.start();
+    const received = deferred<IncomingMessage["headers"]>();
+    upstreamHandler = (request, response) => {
+      received.resolve(request.headers);
+      response.end("ok");
+    };
+    const rejected = await fetch(`${origin}/api/config`, {
+      headers: { [PROXY_CAPABILITY_HEADER]: "configured-not-token", origin },
+    });
+    expect(rejected.status).toBe(403);
+    expect(upstreamCalls).toEqual([]);
+
+    const accepted = await fetch(`${origin}/api/config`, {
+      headers: { [PROXY_CAPABILITY_HEADER]: proxy.capability, origin },
+    });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.text()).toBe("ok");
+    expect((await received.promise)[PROXY_CAPABILITY_HEADER]).toBeUndefined();
   });
 
   it("does not follow cross-origin redirects carrying configured server headers", async () => {
@@ -1197,37 +1233,273 @@ describe("standalone renderer loopback proxy", () => {
         "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
       );
     });
-    const exchange = (headers: string) =>
+    const exchange = (headers: string, expected: string) =>
       new Promise<string>((resolve, reject) => {
         const client = connect(Number(new URL(origin).port), "127.0.0.1");
         let receivedText = "";
-        client.setTimeout(2_000, () => client.destroy(new Error("Upgrade hung")));
+        client.setTimeout(2_000, () => {
+          client.destroy();
+          resolve(`${receivedText}|TIMEOUT`);
+        });
         client.on("error", reject);
         client.on("data", (chunk) => {
           receivedText += chunk.toString();
+          if (receivedText.includes(expected)) {
+            client.destroy();
+            resolve(receivedText);
+          }
         });
         client.once("close", () => resolve(receivedText));
         client.once("connect", () =>
           client.write(
-            `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n${headers}\r\n`,
+            `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n${headers}\r\n\r\n`,
           ),
         );
       });
-    expect(await exchange("X-Sydney-Proxy-Capability: forged")).toContain("403 Forbidden");
+    await exchange("X-Sydney-Proxy-Capability: forged", "403 Forbidden");
     expect(upstreamCalls).toEqual([]);
-    const accepted = await exchange(`X-Sydney-Proxy-Capability: ${capability}`);
+    const accepted = await exchange(
+      `X-Sydney-Proxy-Capability: ${capability}`,
+      "101 Switching Protocols",
+    );
     expect(accepted).toContain("101 Switching Protocols");
     expect((await handshake.promise)["x-sydney-proxy-capability"]).toBeUndefined();
   });
 
-  it("issues a distinct capability per proxy instance", () => {
+  it("rejects multi-value proxy capabilities on HTTP and screen WebSockets", async () => {
+    const capability = await restartWithCapability();
+    expect(
+      (
+        await rawRequest(origin, "/api/capability", {
+          "x-sydney-proxy-capability": `${capability}, forged`,
+        })
+      ).status,
+    ).toBe(403);
+    expect(upstreamCalls).toEqual([]);
+    const response = await new Promise<string>((resolve, reject) => {
+      const client = connect(Number(new URL(origin).port), "127.0.0.1");
+      let text = "";
+      client.setTimeout(2000, () => client.destroy(new Error("Upgrade hung")));
+      client.on("error", reject);
+      client.on("data", (chunk) => (text += chunk.toString()));
+      client.once("close", () => resolve(text));
+      client.once("connect", () =>
+        client.write(
+          `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nX-Sydney-Proxy-Capability: ${capability}\r\nX-Sydney-Proxy-Capability: forged\r\n\r\n`,
+        ),
+      );
+    });
+    expect(response).toContain("403 Forbidden");
+  });
+
+  it("never forwards a configured screen header named as the proxy capability", async () => {
+    await restartWithSetup({
+      mode: "existing",
+      serverUrl: remoteOrigin,
+      headers: { [PROXY_CAPABILITY_HEADER]: "configured-not-token" },
+    });
+    const handshake = deferred<IncomingMessage["headers"]>();
+    upstream.on("upgrade", (request, socket) => {
+      handshake.resolve(request.headers);
+      socket.end(
+        "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+      );
+    });
+    const response = await new Promise<string>((resolve, reject) => {
+      const client = connect(Number(new URL(origin).port), "127.0.0.1");
+      let text = "";
+      client.setTimeout(2000, () => client.destroy(new Error("Upgrade hung")));
+      client.on("error", reject);
+      client.on("data", (chunk) => (text += chunk.toString()));
+      client.once("close", () => resolve(text));
+      client.once("connect", () =>
+        client.write(
+          `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`,
+        ),
+      );
+    });
+    expect(response).toContain("101 Switching Protocols");
+    expect((await handshake.promise)[PROXY_CAPABILITY_HEADER]).toBeUndefined();
+  });
+
+  it("issues distinct app and screen capabilities per proxy instance and restricts screenCapability to anonymous screen traffic", async () => {
     const other = new StandaloneRendererProxy({
       rendererRoot: root,
       remoteOrigin,
       requireCapability: false,
     });
     expect(other.capability).not.toBe(proxy.capability);
+    expect(other.screenCapability).not.toBe(proxy.screenCapability);
+    expect(proxy.screenCapability).not.toBe(proxy.capability);
     expect(other.capability.length).toBeGreaterThanOrEqual(43);
+    expect(other.screenCapability.length).toBeGreaterThanOrEqual(43);
+
+    await restartWithCapability();
+    const screenCapability = proxy.screenCapability;
+    upstreamHandler = (_request, response) => response.end("screen-ok");
+    upstream.on("upgrade", (incoming, socket) => {
+      expect(incoming.headers[PROXY_CAPABILITY_HEADER]).toBeUndefined();
+      socket.end(
+        "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+      );
+    });
+
+    for (const forbidden of ["/", "/api/secret", "/rpc/bots", "/wuying/screen.html"]) {
+      expect(
+        (
+          await rawRequest(origin, forbidden, {
+            [PROXY_CAPABILITY_HEADER]: screenCapability,
+          })
+        ).status,
+      ).toBe(403);
+    }
+    expect(upstreamCalls).toEqual([]);
+
+    const opaqueAllowed = await rawRequest(origin, "/wuying/screen.js", {
+      [PROXY_CAPABILITY_HEADER]: screenCapability,
+      "sec-fetch-site": "cross-site",
+      "sec-fetch-dest": "script",
+      origin: "null",
+    });
+    expect(opaqueAllowed.status).toBe(200);
+    expect(opaqueAllowed.body).toBe("screen-ok");
+
+    const wsResponse = await new Promise<string>((resolve, reject) => {
+      const client = connect(Number(new URL(origin).port), "127.0.0.1");
+      let text = "";
+      client.setTimeout(2_000, () => client.destroy(new Error("Upgrade hung")));
+      client.on("error", reject);
+      client.on("data", (chunk) => (text += chunk.toString()));
+      client.once("close", () => resolve(text));
+      client.once("connect", () =>
+        client.write(
+          `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nX-Sydney-Proxy-Capability: ${screenCapability}\r\n\r\n`,
+        ),
+      );
+    });
+    expect(wsResponse).toContain("101 Switching Protocols");
+  });
+
+  it("binds an explicit loopback port, rejects invalid ports, and fails cleanly on EADDRINUSE", async () => {
+    for (const badPort of [-1, 65_536, 1.5, Number.NaN]) {
+      expect(
+        () => new StandaloneRendererProxy({ rendererRoot: root, remoteOrigin, port: badPort }),
+      ).toThrow("port");
+    }
+    const occupiedPort = Number(new URL(origin).port);
+    const conflicting = new StandaloneRendererProxy({
+      rendererRoot: root,
+      remoteOrigin,
+      port: occupiedPort,
+      requireCapability: false,
+    });
+    await expect(conflicting.start()).rejects.toThrow();
+    expect(conflicting.url).toBeUndefined();
+    expect((await fetch(`${origin}/`)).status).toBe(200);
+
+    await proxy.stop();
+    const fixed = new StandaloneRendererProxy({
+      rendererRoot: root,
+      remoteOrigin,
+      port: occupiedPort,
+      requireCapability: false,
+    });
+    try {
+      expect(await fixed.start()).toBe(`http://127.0.0.1:${occupiedPort}`);
+      expect((await fetch(`http://127.0.0.1:${occupiedPort}/`)).status).toBe(200);
+    } finally {
+      await fixed.stop();
+    }
+  });
+
+  it("refuses /sw.js locally and supports top-level dotted /artifacts document fallback", async () => {
+    await writeFile(path.join(root, "sw.js"), "self.addEventListener('install', () => {});");
+    expect((await fetch(`${origin}/sw.js`)).status).toBe(404);
+
+    const docNav = await rawRequest(origin, "/artifacts/report.v1", {
+      accept: "text/html,application/xhtml+xml",
+      "sec-fetch-dest": "document",
+    });
+    expect(docNav.status).toBe(200);
+    expect(docNav.body).toContain("Local Sydney");
+
+    const nonDoc = await rawRequest(origin, "/artifacts/report.v1", {
+      accept: "text/html",
+      "sec-fetch-dest": "empty",
+    });
+    expect(nonDoc.status).toBe(404);
+  });
+
+  it("uses a 120s default upstream header timeout and aborts stalled upstreams when configured", async () => {
+    expect(DEFAULT_UPSTREAM_TIMEOUT_MS).toBe(120_000);
+    for (const badTimeout of [0, -10, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        () =>
+          new StandaloneRendererProxy({
+            rendererRoot: root,
+            remoteOrigin,
+            upstreamTimeoutMs: badTimeout,
+          }),
+      ).toThrow("upstreamTimeoutMs");
+    }
+    await proxy.stop();
+    proxy = new StandaloneRendererProxy({
+      rendererRoot: root,
+      remoteOrigin,
+      upstreamTimeoutMs: 40,
+      requireCapability: false,
+    });
+    origin = await proxy.start();
+    upstreamHandler = () => {
+      // Intentionally never respond with headers
+    };
+    const response = await fetch(`${origin}/api/slow`);
+    expect(response.status).toBe(502);
+  });
+
+  it("normalizes mixed-case configured headers in StandaloneScreenSocket", async () => {
+    const handshake = deferred<IncomingMessage["headers"]>();
+    upstream.on("upgrade", (incoming, socket) => {
+      handshake.resolve(incoming.headers);
+      socket.end(
+        "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+      );
+    });
+    const directServer = createServer();
+    const directSocket = new StandaloneScreenSocket(
+      new URL(remoteOrigin),
+      { "X-Sydney-Proxy-Capability": "must-strip", "X-Gateway-Key": "kept" },
+      "direct-cap",
+    );
+    directServer.on("upgrade", (req, sock, head) => {
+      const addr = directServer.address();
+      if (!addr || typeof addr === "string") return sock.destroy();
+      directSocket.handle(req, sock, head, new URL(`http://127.0.0.1:${addr.port}`));
+    });
+    await new Promise<void>((resolve) => directServer.listen(0, "127.0.0.1", resolve));
+    try {
+      const port = (directServer.address() as { port: number }).port;
+      const response = await new Promise<string>((resolve, reject) => {
+        const client = connect(port, "127.0.0.1");
+        let text = "";
+        client.setTimeout(2_000, () => client.destroy(new Error("Upgrade hung")));
+        client.on("error", reject);
+        client.on("data", (chunk) => (text += chunk.toString()));
+        client.once("close", () => resolve(text));
+        client.once("connect", () =>
+          client.write(
+            `GET /novnc/session/view/9999999999999.synthetic/websockify HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: null\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nX-Sydney-Proxy-Capability: direct-cap\r\n\r\n`,
+          ),
+        );
+      });
+      expect(response).toContain("101 Switching Protocols");
+      const received = await handshake.promise;
+      expect(received[PROXY_CAPABILITY_HEADER]).toBeUndefined();
+      expect(received["x-gateway-key"]).toBe("kept");
+    } finally {
+      directSocket.stop();
+      await new Promise<void>((resolve) => directServer.close(() => resolve()));
+    }
   });
 
   it("serializes lifecycle calls, releases its listener and supports restart", async () => {

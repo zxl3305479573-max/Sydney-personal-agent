@@ -2,18 +2,12 @@ import type { SpaceBot } from "@rakazo/contracts";
 import { displayName as safeDisplayName } from "@rakazo/core";
 import { useRouter } from "expo-router";
 import { useSyncExternalStore } from "react";
-import { Pressable } from "react-native";
 import type { MobileBot, MobileGroup } from "../lib/api";
 import type { ChatTitleRoute } from "../lib/chat-settings-route";
 import { chatTitleRoute } from "../lib/chat-settings-route";
 import { useI18n } from "../lib/i18n";
-import { useThemedStyles } from "../lib/native";
 import { useInboxBot, useInboxGroup } from "../lib/search-inbox";
-import { CHAT_TITLE_AVATAR_SIZE, ChatTitleAvatar } from "./chat-title-avatar";
-import { ChatTitleLabel } from "./chat-title-label";
-import { GlassSurface } from "./glass-surface";
-import { GroupSeats } from "./group-seats";
-import { createThreadHeaderStyles } from "./thread-header-styles";
+import { ChatTitleContent } from "./chat-title-content";
 
 /** What an open chat shows in its title, once it has loaded its own data. */
 export type ChatTitle = {
@@ -74,7 +68,6 @@ export function ChatHeaderTitle({
 }) {
   const { t } = useI18n();
   const router = useRouter();
-  const styles = useThemedStyles(createThreadHeaderStyles);
   const published = useSyncExternalStore(subscribe, () => titles.get(routeKey));
   const inboxBot = useInboxBot(params.botId);
   const inboxGroup = useInboxGroup(params.groupId);
@@ -100,21 +93,15 @@ export function ChatHeaderTitle({
   const accessibilityLabel = label || t("Thread");
   const opens = title.opens;
   return (
-    <Pressable
-      accessibilityRole="button"
+    <ChatTitleContent
+      name={label}
+      bot={params.botId ? title.bot : undefined}
+      members={inGroup ? (members ?? []) : undefined}
+      status={title.status}
+      composing={title.composing}
+      showAvatar={Boolean(params.botId) || inGroup}
       accessibilityLabel={opens ? t(inGroup ? "Group settings" : "Profile") : accessibilityLabel}
-      disabled={!opens}
-      onPress={() => {
-        if (opens) router.push(opens);
-      }}
-    >
-      <GlassSurface style={styles.titleCapsule} fallbackStyle={styles.titleCapsuleFill}>
-        {!inGroup && params.botId ? (
-          <ChatTitleAvatar bot={title.bot} status={title.status} composing={title.composing} />
-        ) : null}
-        {inGroup ? <GroupSeats members={members ?? []} size={CHAT_TITLE_AVATAR_SIZE} /> : null}
-        <ChatTitleLabel label={label} placeholder={!label} style={styles.title} />
-      </GlassSurface>
-    </Pressable>
+      onPress={opens ? () => router.push(opens) : undefined}
+    />
   );
 }

@@ -9,7 +9,7 @@ import {
 } from "@rakazo/contracts";
 import { ONCE_ROUTINE_CRON } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { RunHistoryWriteError } from "@rakazo/db";
+import { runAsTenant, RunHistoryWriteError } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { describe, expect, it, vi } from "vitest";
 import { builtinAgentTools } from "./builtin-tools.js";
@@ -53,6 +53,13 @@ import { parseUpdateBotPatch } from "./update-bot-patch.js";
 
 const createRunExecutor = (deps: Parameters<typeof createExecutor>[0]) =>
   createExecutor({ ...deps, prisma: withModelRoles(deps.prisma) });
+
+const routineOwner = { spaceId: "ws-1", userId: "user-1", projectWorkspaceId: null };
+const readRoutineOwner = async () => [routineOwner];
+
+function wakeRoutineAsOwner(executor: ReturnType<typeof createExecutor>, scheduledAt: Date) {
+  return runAsTenant(routineOwner, () => executor.wakeRoutine("routine-1", scheduledAt.toISOString()));
+}
 
 describe("bot tool permissions", () => {
   it("describes bounded cross-chat keyword fanout and authorized reads", () => {
@@ -1985,6 +1992,7 @@ describe("createRunExecutor", () => {
           id: "routine-1",
           spaceId: "ws-1",
           botId: "bot-1",
+          userId: "user-1",
           prompt: "say hi",
           crons: ["0 0 */30 * *"],
           timezone: "UTC",
@@ -2007,6 +2015,7 @@ describe("createRunExecutor", () => {
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany,
             findUnique: vi.fn(async () => ({
@@ -2031,7 +2040,7 @@ describe("createRunExecutor", () => {
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
     try {
-      await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+      await wakeRoutineAsOwner(executor, scheduledAt);
     } finally {
       clock.mockRestore();
     }
@@ -2080,6 +2089,7 @@ describe("createRunExecutor", () => {
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany,
             findUnique: vi.fn(async () => ({
@@ -2103,7 +2113,7 @@ describe("createRunExecutor", () => {
       events: { append },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(executor, scheduledAt);
 
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2163,6 +2173,7 @@ describe("createRunExecutor", () => {
         agentSkill: { findMany: vi.fn(async () => []) },
         $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
           callback({
+            $queryRaw: readRoutineOwner,
             routine: {
               updateMany: vi.fn(async () => ({ count: 1 })),
               findUnique: vi.fn(async () => claimedModel),
@@ -2189,13 +2200,16 @@ describe("createRunExecutor", () => {
       } as unknown as Parameters<typeof createRunExecutor>[0]);
     }
 
-    await executorFor(
-      fixture({
-        modelProvider: "routine-provider",
-        modelId: "routine-model",
-        thinkingLevel: "low",
-      }),
-    ).wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(
+      executorFor(
+        fixture({
+          modelProvider: "routine-provider",
+          modelId: "routine-model",
+          thinkingLevel: "low",
+        }),
+      ),
+      scheduledAt,
+    );
     expect(runCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -2209,21 +2223,25 @@ describe("createRunExecutor", () => {
     );
 
     runCreate.mockClear();
-    await executorFor(
-      fixture({ modelProvider: null, modelId: null, thinkingLevel: null }),
-    ).wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(
+      executorFor(fixture({ modelProvider: null, modelId: null, thinkingLevel: null })),
+      scheduledAt,
+    );
     const [unpinned] = runCreate.mock.calls.at(0) as unknown as [{ data: Record<string, unknown> }];
     expect(unpinned.data).not.toHaveProperty("modelProvider");
     expect(unpinned.data).not.toHaveProperty("modelId");
     expect(unpinned.data).not.toHaveProperty("modelPinned");
 
     runCreate.mockClear();
-    await executorFor(
-      fixture(
-        { modelProvider: "stale-provider", modelId: "stale-model", thinkingLevel: "low" },
-        { modelProvider: "current-provider", modelId: "current-model", thinkingLevel: "high" },
+    await wakeRoutineAsOwner(
+      executorFor(
+        fixture(
+          { modelProvider: "stale-provider", modelId: "stale-model", thinkingLevel: "low" },
+          { modelProvider: "current-provider", modelId: "current-model", thinkingLevel: "high" },
+        ),
       ),
-    ).wakeRoutine("routine-1", scheduledAt.toISOString());
+      scheduledAt,
+    );
     expect(runCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -2313,6 +2331,7 @@ describe("createRunExecutor", () => {
       agentSkill: { findMany: vi.fn(async () => []) },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany: vi.fn(async () => ({ count: 1 })),
             findUnique: vi.fn(async () => ({
@@ -2340,7 +2359,7 @@ describe("createRunExecutor", () => {
       events: { append },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(executor, scheduledAt);
 
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2389,6 +2408,7 @@ describe("createRunExecutor", () => {
       agentSkill: { findMany: vi.fn(async () => []) },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany: vi.fn(async () => ({ count: 1 })),
             findUnique: vi.fn(async () => ({
@@ -2416,7 +2436,7 @@ describe("createRunExecutor", () => {
       events: { append },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(executor, scheduledAt);
 
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2482,6 +2502,7 @@ description: Prepare standup notes
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany: vi.fn(async () => ({ count: 1 })),
             findUnique: vi.fn(async () => ({
@@ -2501,7 +2522,7 @@ description: Prepare standup notes
       events: { append: vi.fn(async () => undefined) },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(executor, scheduledAt);
 
     expect(createdPrompt).toContain("Use skill: Daily standup");
     expect(createdPrompt).toContain("Summarize wins");
@@ -2542,6 +2563,7 @@ description: Prepare standup notes
       },
       $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
+          $queryRaw: readRoutineOwner,
           routine: {
             updateMany,
             findUnique: vi.fn(async () => ({
@@ -2561,9 +2583,7 @@ description: Prepare standup notes
       events: { append },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await expect(
-      executor.wakeRoutine("routine-1", scheduledAt.toISOString()),
-    ).resolves.toBeUndefined();
+    await expect(wakeRoutineAsOwner(executor, scheduledAt)).resolves.toBeUndefined();
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
     expect(cancel).toHaveBeenCalledWith("routine:routine-1");
   });
@@ -2607,6 +2627,7 @@ description: Prepare standup notes
         transactionCalls += 1;
         if (transactionCalls === 1) {
           return callback({
+            $queryRaw: readRoutineOwner,
             routine: {
               updateMany: claimUpdateMany,
               findUnique: vi.fn(async () => ({
@@ -2632,7 +2653,7 @@ description: Prepare standup notes
       events: { append: vi.fn(async () => undefined) },
     } as unknown as Parameters<typeof createRunExecutor>[0]);
 
-    await executor.wakeRoutine("routine-1", scheduledAt.toISOString());
+    await wakeRoutineAsOwner(executor, scheduledAt);
     expect(deleteRunMany).not.toHaveBeenCalled();
     expect(deleteTaskMany).not.toHaveBeenCalled();
     expect(restoreUpdateMany).not.toHaveBeenCalled();

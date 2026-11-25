@@ -257,14 +257,18 @@ describe("thread cards", () => {
         }
       }
       expect(styleOf(outer.firstElementChild)).toMatchObject({
-        borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 12,
       });
       expect(styleOf(outer.lastElementChild)).toMatchObject({
-        borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 12,
+      });
+      expect(styleOf(outer.firstElementChild?.firstElementChild)).toMatchObject({
+        borderRadius: 20,
+      });
+      expect(styleOf(outer.lastElementChild?.firstElementChild)).toMatchObject({
+        borderRadius: 20,
       });
       act(() =>
         container.querySelector<HTMLButtonElement>('button[aria-label="screenshot.png"]')!.click(),

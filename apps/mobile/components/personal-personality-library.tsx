@@ -10,11 +10,24 @@ import {
   renderPersonalitySelections,
 } from "@rakazo/contracts";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { captureApiRequestContext, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
+import { native, useMobileTokens } from "../lib/native";
 import { errorText } from "../lib/user-error";
+import { GlassSurface } from "./glass-surface";
+import { NativeActionButton } from "./native-action-button";
+import { NativeSymbol } from "./native-symbol";
+import { Checkmark } from "./row-accessories";
+import { SegmentedPills } from "./segmented-pills";
 
 const categories: readonly [PersonalityAttributeCategory, string, string][] = [
   ["personality", "性格", "Personality"],
@@ -47,7 +60,7 @@ export function PersonalPersonalityLibrary({
 }) {
   const tokens = useMobileTokens();
   const { locale } = useI18n();
-  const text = (chinese: string, english: string) => locale.startsWith("zh") ? chinese : english;
+  const text = (chinese: string, english: string) => (locale.startsWith("zh") ? chinese : english);
   const [items, setItems] = useState<PersonalityPreset[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -69,7 +82,9 @@ export function PersonalPersonalityLibrary({
   async function refresh() {
     if (!current()) {
       setLoading(false);
-      setError(text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."));
+      setError(
+        text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."),
+      );
       return;
     }
     const version = ++readVersion.current;
@@ -79,7 +94,9 @@ export function PersonalPersonalityLibrary({
       const requestContext = await captureApiRequestContext();
       if (!current()) {
         if (mounted.current && readVersion.current === version)
-          setError(text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."));
+          setError(
+            text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."),
+          );
         return;
       }
       const next = await rpc("personalities/list", undefined, {
@@ -88,7 +105,10 @@ export function PersonalPersonalityLibrary({
       });
       if (mounted.current && readVersion.current === version) {
         if (current()) setItems(next);
-        else setError(text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."));
+        else
+          setError(
+            text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."),
+          );
       }
     } catch (cause) {
       if (mounted.current && current() && readVersion.current === version)
@@ -101,7 +121,10 @@ export function PersonalPersonalityLibrary({
   useEffect(() => {
     mounted.current = true;
     void refresh();
-    return () => { mounted.current = false; readVersion.current += 1; };
+    return () => {
+      mounted.current = false;
+      readVersion.current += 1;
+    };
   }, []);
 
   function resetEditor() {
@@ -163,7 +186,12 @@ export function PersonalPersonalityLibrary({
         : await rpc("personalities/create", value, options);
       if (!mounted.current) return;
       if (!current()) {
-        setError(text("工作区已改变，保存结果可能已生效；请关闭后重新查看。", "The workspace changed. The save may have completed; close and check again."));
+        setError(
+          text(
+            "工作区已改变，保存结果可能已生效；请关闭后重新查看。",
+            "The workspace changed. The save may have completed; close and check again.",
+          ),
+        );
         return;
       }
       setItems((old) => [saved, ...old.filter((item) => item.id !== saved.id)]);
@@ -171,9 +199,20 @@ export function PersonalPersonalityLibrary({
       resetEditor();
     } catch (cause) {
       if (mounted.current)
-        setError(current()
-          ? errorText(cause, text("无法保存人格，请重新加载确认结果。", "Could not save personality. Reload to check the result."))
-          : text("工作区已改变，保存结果可能已生效；请关闭后重新查看。", "The workspace changed. The save may have completed; close and check again."));
+        setError(
+          current()
+            ? errorText(
+                cause,
+                text(
+                  "无法保存人格，请重新加载确认结果。",
+                  "Could not save personality. Reload to check the result.",
+                ),
+              )
+            : text(
+                "工作区已改变，保存结果可能已生效；请关闭后重新查看。",
+                "The workspace changed. The save may have completed; close and check again.",
+              ),
+        );
     } finally {
       working.current = false;
       if (mounted.current) {
@@ -194,13 +233,22 @@ export function PersonalPersonalityLibrary({
     try {
       const requestContext = await captureApiRequestContext();
       if (!current()) return;
-      await rpc("personalities/remove", { personalityId: item.id }, {
-        requestContext,
-        skipSpaceAuthRecovery: true,
-      });
+      await rpc(
+        "personalities/remove",
+        { personalityId: item.id },
+        {
+          requestContext,
+          skipSpaceAuthRecovery: true,
+        },
+      );
       if (!mounted.current) return;
       if (!current()) {
-        setError(text("工作区已改变，删除结果可能已生效；请关闭后重新查看。", "The workspace changed. The deletion may have completed; close and check again."));
+        setError(
+          text(
+            "工作区已改变，删除结果可能已生效；请关闭后重新查看。",
+            "The workspace changed. The deletion may have completed; close and check again.",
+          ),
+        );
         return;
       }
       setItems((old) => old.filter((entry) => entry.id !== item.id));
@@ -208,9 +256,20 @@ export function PersonalPersonalityLibrary({
       onRemoved(item.id);
     } catch (cause) {
       if (mounted.current)
-        setError(current()
-          ? errorText(cause, text("无法删除人格，请重新加载确认结果。", "Could not delete personality. Reload to check the result."))
-          : text("工作区已改变，删除结果可能已生效；请关闭后重新查看。", "The workspace changed. The deletion may have completed; close and check again."));
+        setError(
+          current()
+            ? errorText(
+                cause,
+                text(
+                  "无法删除人格，请重新加载确认结果。",
+                  "Could not delete personality. Reload to check the result.",
+                ),
+              )
+            : text(
+                "工作区已改变，删除结果可能已生效；请关闭后重新查看。",
+                "The workspace changed. The deletion may have completed; close and check again.",
+              ),
+        );
     } finally {
       working.current = false;
       if (mounted.current) {
@@ -233,107 +292,364 @@ export function PersonalPersonalityLibrary({
 
   const inputStyle = {
     color: tokens.foreground,
+    backgroundColor: tokens.card,
     borderColor: tokens.border,
     borderWidth: 1,
     borderRadius: 12,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   };
-  const action = (title: string, onPress: () => void, inactive = false) => (
-    <Pressable accessibilityRole="button" disabled={disabled || busy || inactive}
-      onPress={onPress} style={{ paddingVertical: 8, paddingHorizontal: 10 }}>
-      <Text style={{ color: inactive ? tokens.mutedForeground : tokens.foreground }}>{title}</Text>
+  const pillAction = (
+    title: string,
+    onPress: () => void,
+    destructive = false,
+    inactive = false,
+  ) => (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled || busy || inactive}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        backgroundColor: native.fill,
+        opacity: disabled || busy || inactive ? 0.5 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Text
+        style={{
+          color: destructive ? tokens.destructive : tokens.foreground,
+          fontSize: 13,
+          fontWeight: "500",
+        }}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
-  const matches = PERSONALITY_CATALOG.filter((item) =>
-    item.category === category &&
-    `${label(item)} ${item.name} ${item.slug} ${item.id} ${item.description}`.toLowerCase().includes(search.trim().toLowerCase()),
+  const matches = PERSONALITY_CATALOG.filter(
+    (item) =>
+      item.category === category &&
+      `${label(item)} ${item.name} ${item.slug} ${item.id} ${item.description}`
+        .toLowerCase()
+        .includes(search.trim().toLowerCase()),
   );
+
   return (
-    <View style={{ gap: 10, borderWidth: 1, borderColor: tokens.border, borderRadius: 16, padding: 12 }}>
-      {loading ? <Text style={{ color: tokens.mutedForeground }}>{text("正在加载…", "Loading…")}</Text> : null}
-      {error ? (
-        <View>
-          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>{error}</Text>
-          {action(text("重试加载", "Retry loading"), () => void refresh())}
-        </View>
-      ) : null}
-      {!loading && !error && items.length === 0 ? (
-        <Text style={{ color: tokens.mutedForeground }}>{text("暂无已保存人格", "No saved personalities")}</Text>
-      ) : null}
-      {items.map((item) => (
-        <View key={item.id} style={{ borderBottomWidth: 1, borderColor: tokens.border, paddingBottom: 8 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedId === item.id }}
-            disabled={disabled || busy} onPress={() => onSelect(item)} style={{ paddingVertical: 8 }}>
-            <Text style={{ color: tokens.foreground, fontWeight: "600" }}>{item.name}{selectedId === item.id ? " ✓" : ""}</Text>
-            {item.description ? <Text style={{ color: tokens.mutedForeground }}>{item.description}</Text> : null}
-          </Pressable>
-          <View style={{ flexDirection: "row" }}>
-            {action(text("编辑", "Edit"), () => edit(item))}
-            {action(text("删除", "Delete"), () => confirmRemove(item))}
-          </View>
-        </View>
-      ))}
-      {!showEditor ? action(text("创建人格", "Create personality"), () => edit()) : (
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
-            {editing ? text("编辑人格", "Edit personality") : text("创建人格", "Create personality")}
+    <GlassSurface
+      shape="roundedRectangle"
+      cornerRadius={16}
+      style={{ borderRadius: 16, padding: 14, gap: 12 }}
+      fallbackStyle={{
+        backgroundColor: tokens.card,
+        borderWidth: 1,
+        borderColor: tokens.border,
+      }}
+    >
+      {loading ? (
+        <View style={{ paddingVertical: 12, alignItems: "center", gap: 6 }}>
+          <ActivityIndicator size="small" color={tokens.mutedForeground} />
+          <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+            {text("正在加载…", "Loading…")}
           </Text>
-          <TextInput accessibilityLabel={text("名称", "Name")} placeholder={text("名称", "Name")}
-            placeholderTextColor={tokens.mutedForeground} editable={!busy && !disabled}
-            value={name} onChangeText={setName} maxLength={80} style={inputStyle} />
-          <TextInput accessibilityLabel={text("描述", "Description")} placeholder={text("描述", "Description")}
-            placeholderTextColor={tokens.mutedForeground} editable={!busy && !disabled}
-            value={description} onChangeText={setDescription} maxLength={500} style={inputStyle} />
-          <Text style={{ color: tokens.foreground }}>{text("属性分类", "Attribute category")}</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {categories.map(([value, chinese, english]) => (
-              <View key={value}>{action(`${text(chinese, english)}${category === value ? " ✓" : ""}`, () => setCategory(value))}</View>
-            ))}
+        </View>
+      ) : null}
+      {error ? (
+        <View style={{ gap: 8 }}>
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            {error}
+          </Text>
+          <View style={{ alignSelf: "flex-start" }}>
+            {pillAction(text("重试加载", "Retry loading"), () => void refresh())}
           </View>
-          <TextInput accessibilityLabel={text("搜索属性", "Search attributes")}
-            placeholder={text("搜索属性", "Search attributes")} placeholderTextColor={tokens.mutedForeground}
-            editable={!busy && !disabled} value={search} onChangeText={setSearch} style={inputStyle} />
-          {matches.slice(0, 40).map((item) => {
-            const chosen = selections.some((selection) => selection.attributeId === item.id);
-            return (
-              <View key={item.id}>
-                {action(`${label(item)}${chosen ? " ✓" : ""}`, () => {
-                  if (chosen) setSelections((old) => old.filter((selection) => selection.attributeId !== item.id));
-                  else if (selections.length < 12)
-                    setSelections((old) => [...old, { attributeId: item.id, weight: "moderate" }]);
-                }, !chosen && selections.length >= 12)}
+        </View>
+      ) : null}
+      {!loading && !error && items.length === 0 && !showEditor ? (
+        <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
+          {text("暂无已保存人格", "No saved personalities")}
+        </Text>
+      ) : null}
+      {items.map((item, index) => {
+        const isSelected = selectedId === item.id;
+        return (
+          <View
+            key={item.id}
+            style={{
+              borderBottomWidth: index < items.length - 1 ? StyleSheet.hairlineWidth : 0,
+              borderColor: tokens.border,
+              paddingBottom: index < items.length - 1 ? 10 : 4,
+              gap: 8,
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              disabled={disabled || busy}
+              onPress={() => onSelect(item)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
+                  {item.name}
+                </Text>
+                {item.description ? (
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+                    {item.description}
+                  </Text>
+                ) : null}
               </View>
-            );
-          })}
-          {matches.length > 40 ? <Text style={{ color: tokens.mutedForeground }}>{text("输入关键词查看其他属性", "Search to find more attributes")}</Text> : null}
-          {selections.map((selection) => {
-            const item = PERSONALITY_CATALOG.find((entry) => entry.id === selection.attributeId);
-            return (
-              <View key={selection.attributeId}>
-                <Text style={{ color: tokens.foreground }}>{item ? label(item) : selection.attributeId}</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                  {weights.map(([weight, chinese, english]) => (
-                    <View key={weight}>{action(`${text(chinese, english)}${weight === selection.weight ? " ✓" : ""}`, () =>
-                      setSelections((old) => old.map((entry) => entry.attributeId === selection.attributeId ? { ...entry, weight } : entry)))}</View>
-                  ))}
-                  {action(text("移除", "Remove"), () => setSelections((old) => old.filter((entry) => entry.attributeId !== selection.attributeId)))}
-                </View>
-              </View>
-            );
-          })}
-          {invalid ? <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>{text("属性存在冲突，请调整选择。", "These attributes conflict. Adjust your selection.")}</Text> : null}
-          {combinedLength > BOT_INSTRUCTIONS_MAX_LENGTH ? <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>{text("人格内容过长。", "Personality instructions are too long.")}</Text> : null}
-          <TextInput accessibilityLabel={text("自定义表达风格", "Custom speaking style")}
-            placeholder={text("自定义表达风格", "Custom speaking style")} placeholderTextColor={tokens.mutedForeground}
-            editable={!busy && !disabled} multiline value={instructions} onChangeText={setInstructions}
-            maxLength={BOT_INSTRUCTIONS_MAX_LENGTH} style={[inputStyle, { minHeight: 90, textAlignVertical: "top" }]} />
-          <View style={{ flexDirection: "row" }}>
-            {action(text("保存", "Save"), () => void save(), !canSave)}
-            {action(text("取消", "Cancel"), resetEditor)}
+              {isSelected ? <Checkmark /> : null}
+            </Pressable>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {pillAction(text("编辑", "Edit"), () => edit(item))}
+              {pillAction(text("删除", "Delete"), () => confirmRemove(item), true)}
+            </View>
           </View>
-          <Text style={{ color: tokens.mutedForeground }}>{text("人格调整表达风格；编辑或删除不会改变已有 Bot。", "Personalities adjust speaking style; changes do not affect existing bots.")}</Text>
+        );
+      })}
+
+      {!showEditor ? (
+        <NativeActionButton
+          label={text("创建人格", "Create personality")}
+          prominence="secondary"
+          fill={false}
+          disabled={disabled || busy}
+          onPress={() => edit()}
+        />
+      ) : (
+        <View style={{ gap: 12, paddingTop: 4 }}>
+          <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 16 }}>
+            {editing
+              ? text("编辑人格", "Edit personality")
+              : text("创建人格", "Create personality")}
+          </Text>
+          <TextInput
+            accessibilityLabel={text("名称", "Name")}
+            placeholder={text("名称", "Name")}
+            placeholderTextColor={tokens.mutedForeground}
+            editable={!busy && !disabled}
+            value={name}
+            onChangeText={setName}
+            maxLength={80}
+            style={inputStyle}
+          />
+          <TextInput
+            accessibilityLabel={text("描述", "Description")}
+            placeholder={text("描述（可选）", "Description (optional)")}
+            placeholderTextColor={tokens.mutedForeground}
+            editable={!busy && !disabled}
+            value={description}
+            onChangeText={setDescription}
+            maxLength={500}
+            style={inputStyle}
+          />
+
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: tokens.foreground, fontWeight: "500", fontSize: 14 }}>
+              {text("属性分类", "Attribute category")}
+            </Text>
+            <SegmentedPills
+              accessibilityLabel={text("属性分类", "Attribute category")}
+              value={category}
+              disabled={disabled || busy}
+              onChange={setCategory}
+              options={categories.map(([value, chinese, english]) => ({
+                value,
+                label: text(chinese, english),
+              }))}
+            />
+          </View>
+
+          <TextInput
+            accessibilityLabel={text("搜索属性", "Search attributes")}
+            placeholder={text("搜索属性", "Search attributes")}
+            placeholderTextColor={tokens.mutedForeground}
+            editable={!busy && !disabled}
+            value={search}
+            onChangeText={setSearch}
+            style={inputStyle}
+          />
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {matches.slice(0, 40).map((item) => {
+              const chosen = selections.some((selection) => selection.attributeId === item.id);
+              const capped = !chosen && selections.length >= 12;
+              return (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: chosen, disabled: disabled || busy || capped }}
+                  disabled={disabled || busy || capped}
+                  onPress={() => {
+                    if (chosen)
+                      setSelections((old) =>
+                        old.filter((selection) => selection.attributeId !== item.id),
+                      );
+                    else if (selections.length < 12)
+                      setSelections((old) => [
+                        ...old,
+                        { attributeId: item.id, weight: "moderate" },
+                      ]);
+                  }}
+                  style={({ pressed }) => ({
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: chosen ? tokens.primary : tokens.border,
+                    backgroundColor: chosen ? native.fill : "transparent",
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    opacity: disabled || busy || capped ? 0.45 : pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: chosen ? tokens.primary : tokens.foreground,
+                      fontSize: 13,
+                      fontWeight: chosen ? "600" : "400",
+                    }}
+                  >
+                    {label(item)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {matches.length > 40 ? (
+            <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
+              {text("输入关键词查看其他属性", "Search to find more attributes")}
+            </Text>
+          ) : null}
+
+          {selections.length > 0 ? (
+            <View style={{ gap: 10 }}>
+              {selections.map((selection) => {
+                const item = PERSONALITY_CATALOG.find(
+                  (entry) => entry.id === selection.attributeId,
+                );
+                return (
+                  <View
+                    key={selection.attributeId}
+                    style={{
+                      gap: 8,
+                      padding: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: tokens.border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 14 }}>
+                        {item ? label(item) : selection.attributeId}
+                      </Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={text("移除", "Remove")}
+                        disabled={disabled || busy}
+                        hitSlop={6}
+                        onPress={() =>
+                          setSelections((old) =>
+                            old.filter((entry) => entry.attributeId !== selection.attributeId),
+                          )
+                        }
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: native.fill,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <NativeSymbol
+                          ios="xmark"
+                          android="close"
+                          size={12}
+                          color={tokens.mutedForeground}
+                        />
+                      </Pressable>
+                    </View>
+                    <SegmentedPills
+                      accessibilityLabel={item ? label(item) : selection.attributeId}
+                      value={selection.weight}
+                      disabled={disabled || busy}
+                      onChange={(weight) =>
+                        setSelections((old) =>
+                          old.map((entry) =>
+                            entry.attributeId === selection.attributeId
+                              ? { ...entry, weight }
+                              : entry,
+                          ),
+                        )
+                      }
+                      options={weights.map(([weight, chinese, english]) => ({
+                        value: weight,
+                        label: text(chinese, english),
+                      }))}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {invalid ? (
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              {text(
+                "属性存在冲突，请调整选择。",
+                "These attributes conflict. Adjust your selection.",
+              )}
+            </Text>
+          ) : null}
+          {combinedLength > BOT_INSTRUCTIONS_MAX_LENGTH ? (
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              {text("人格内容过长。", "Personality instructions are too long.")}
+            </Text>
+          ) : null}
+          <TextInput
+            accessibilityLabel={text("自定义表达风格", "Custom speaking style")}
+            placeholder={text("自定义表达风格", "Custom speaking style")}
+            placeholderTextColor={tokens.mutedForeground}
+            editable={!busy && !disabled}
+            multiline
+            value={instructions}
+            onChangeText={setInstructions}
+            maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
+            style={[inputStyle, { minHeight: 88, textAlignVertical: "top" }]}
+          />
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <NativeActionButton
+                label={text("保存", "Save")}
+                disabled={!canSave || disabled}
+                busy={busy}
+                onPress={() => void save()}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <NativeActionButton
+                label={text("取消", "Cancel")}
+                prominence="secondary"
+                fill={false}
+                disabled={busy || disabled}
+                onPress={resetEditor}
+              />
+            </View>
+          </View>
+          <Text style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+            {text(
+              "人格调整表达风格；编辑或删除不会改变已有 Bot。",
+              "Personalities adjust speaking style; changes do not affect existing bots.",
+            )}
+          </Text>
         </View>
       )}
-    </View>
+    </GlassSurface>
   );
 }

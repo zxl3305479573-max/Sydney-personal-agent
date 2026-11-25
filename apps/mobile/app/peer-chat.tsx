@@ -16,7 +16,7 @@ import {
 import { glassHeaderOptions } from "../components/glass-title";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { NativeActionButton } from "../components/native-action-button";
-import { SheetCloseButton } from "../components/sheet-close-button";
+import { cancelHeaderOptions } from "../components/sheet-header";
 import { rpc } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
 import { openMobileArtifact } from "../lib/artifact-open";
@@ -84,9 +84,8 @@ export default function PeerChat() {
       <Stack.Screen
         options={{
           ...glassHeaderOptions(""),
-          headerBackVisible: false,
+          ...cancelHeaderOptions(t("Close"), () => router.back()),
           headerTitleAlign: "center",
-          headerLeft: () => <SheetCloseButton onPress={() => router.back()} />,
           headerTitle: () => (
             <View style={styles.pill}>
               <Text

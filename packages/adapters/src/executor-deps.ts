@@ -79,6 +79,7 @@ export interface ExecutorDeps {
   codexCatalog?: CodexLiveCatalog;
   /** The run starter's connected desktop; absent never offers user_computer_shell. */
   userDevices?: UserDeviceGateway;
+  projectDeviceToolsEnabled?: boolean;
   /** Aborted when createApp stop() begins so in-flight continueRun boot waits exit promptly. */
   shutdownSignal?: AbortSignal;
   /** Set by withRunLease for one attempt; that run's history writes carry its lease. */

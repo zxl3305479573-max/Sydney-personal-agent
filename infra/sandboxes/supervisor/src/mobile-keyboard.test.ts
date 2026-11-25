@@ -300,6 +300,9 @@ describe("mobile computer keyboard", () => {
     expect(embed).toMatch(/attachMobileTrackpad/);
     expect(embed).toMatch(/mobile-trackpad/);
     expect(embed).toMatch(/mobile-keyboard-open #screen/);
+    expect(embed).toMatch(
+      /#screen canvas\s*\{[\s\S]*width:\s*100% !important;[\s\S]*height:\s*100% !important;[\s\S]*transform:\s*none !important;/,
+    );
     expect(embed).toMatch(/mobile-key-bar/);
     expect(embed).toMatch(/data-key="Escape"/);
     expect(embed).toMatch(/__rakazoNativeKeys/);

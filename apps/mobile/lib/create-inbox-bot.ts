@@ -19,6 +19,18 @@ export type InboxBotIdentity = Pick<
   "name" | "color" | "instructions" | "spawnKey"
 >;
 
+export function inboxBotInput(identity?: InboxBotIdentity) {
+  return {
+    name: identity?.name ?? "New Bot",
+    color: identity?.color,
+    instructions: identity?.instructions,
+    spawnKey: identity?.spawnKey,
+    notifyOnFinish: true,
+    avatarSet: DEFAULT_NEW_BOT_AVATAR_SET,
+    computerMode: "team" as const,
+  };
+}
+
 const EXISTING_BOTS_TIMEOUT_MS = 2_000;
 
 async function loadExistingBots(
@@ -71,15 +83,7 @@ export async function createInboxBot({
   if (!isCurrent()) throw new Error("Space changed. Please try again.");
   const bot = await rpc(
     "bots/create",
-    {
-      name: identity?.name ?? "New Bot",
-      color: identity?.color,
-      instructions: identity?.instructions,
-      spawnKey: identity?.spawnKey,
-      notifyOnFinish: true,
-      avatarSet: DEFAULT_NEW_BOT_AVATAR_SET,
-      computerMode: "team",
-    },
+    inboxBotInput(identity),
     options,
   );
   if (!isCurrent()) return;

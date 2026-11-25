@@ -5,6 +5,14 @@ import { guardManagedRun, preflightManagedRun, runAsTenant } from "@rakazo/db";
 import { isTerminatingReplyResult } from "./approval-effect.js";
 import { IMAGE_RETURNING_COMPUTER_TOOLS, MODEL_CANNOT_SEE_MESSAGE } from "./model-vision.js";
 import type { RunContext } from "./run-context.js";
+import {
+  isProjectDeviceTool,
+  isProjectFileTool,
+  PROJECT_CLOUD_COMMAND,
+  PROJECT_WINDOWS_COMMAND,
+  PROJECT_WINDOWS_TERMINAL,
+  projectTextToolAllowed,
+} from "./run-project-policy.js";
 import type { ToolHandler } from "./run-tool-gate.js";
 import { auditToolCall, gateToolCall } from "./run-tool-gate.js";
 import { prepareToolRequest, resolveToolRequest } from "./run-tool-request.js";
@@ -17,6 +25,16 @@ import { cloudAgentTool, connectorTool, integrationTools } from "./run-tools-int
 import { memoryTools } from "./run-tools-memory.js";
 import { messagingTools } from "./run-tools-messaging.js";
 import { preferenceTools } from "./run-tools-preferences.js";
+import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
+import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
+import {
+  prepareProjectWindowsTerminal,
+  runProjectWindowsTerminal,
+} from "./run-tools-project-terminal.js";
+import {
+  prepareProjectWindowsCommand,
+  runProjectWindowsCommand,
+} from "./run-tools-project-windows-command.js";
 import { purchaseTools } from "./run-tools-purchases.js";
 import { secretTools } from "./run-tools-secrets.js";
 import { taskTools } from "./run-tools-tasks.js";
@@ -45,6 +63,10 @@ const TOOL_HANDLERS = new Map<string, ToolHandler>([
   [USER_COMPUTER_ACT_TOOL, userComputerAct],
   ...Object.entries(purchaseTools),
   ...Object.entries(preferenceTools),
+  ...Object.entries(projectFileHandlers),
+  [PROJECT_CLOUD_COMMAND, runProjectCloudCommand],
+  [PROJECT_WINDOWS_TERMINAL, runProjectWindowsTerminal],
+  [PROJECT_WINDOWS_COMMAND, runProjectWindowsCommand],
   ...Object.entries(feedbackTools),
   ...[...PAGE_BROWSER_TOOL_NAMES].map((name) => [name, pageBrowserTool] as const),
 ]);
@@ -81,6 +103,7 @@ async function dispatchTool(
   observer: AgentToolExecutionObserver | undefined,
 ) {
   ctx.context.signal.throwIfAborted();
+  if (!inRunScope(ctx, name, args)) return projectScopeError(ctx);
   if (!strategicInitiativeToolAllowed(name, ctx.run)) {
     return { error: "Daily check-ins can only ask or message the user." };
   }
@@ -116,6 +139,7 @@ async function dispatchTool(
   const request = await resolveToolRequest(ctx, name, args, executionId);
   ctx.context.signal.throwIfAborted();
   if ("error" in request) return request;
+  if (!inRunScope(ctx, request.name, request.args)) return projectScopeError(ctx);
   if (ctx.run.trigger === "managed_task") {
     try {
       const mandate = StoredTaskMandateSchema.parse(ctx.run.taskMandate);
@@ -131,7 +155,15 @@ async function dispatchTool(
       return { error: "Managed task authorization or execution budget rejected this tool." };
     }
   }
-  const refused = await prepareToolRequest(ctx, request);
+  const refused = isProjectFileTool(request.name)
+    ? await prepareProjectFile(ctx, request)
+    : request.name === PROJECT_WINDOWS_TERMINAL
+      ? await prepareProjectWindowsTerminal(ctx, request)
+      : request.name === PROJECT_WINDOWS_COMMAND
+        ? await prepareProjectWindowsCommand(ctx, request)
+        : request.name === PROJECT_CLOUD_COMMAND
+          ? await prepareProjectCloudCommand(ctx, request)
+          : await prepareToolRequest(ctx, request);
   ctx.context.signal.throwIfAborted();
   if (refused) return refused;
   if (ctx.run.trigger === "managed_task") {
@@ -195,23 +227,26 @@ async function dispatchTool(
       });
       if (!resource)
         return { error: "Managed task permission does not allow this tool or resource." };
-      await runAsTenant({
-        userId: ctx.run.userId, spaceId: ctx.run.spaceId,
-        projectWorkspaceId: ctx.run.projectWorkspaceId,
-      }, () =>
-        guardManagedRun(
-          ctx.deps.prisma,
-          { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
-          mandate.taskId,
-          {
-            runId: ctx.runId,
-            workerId: ctx.workerId,
-            fence: ctx.fence,
-            action: { tool: gate.call.name, action: "execute", resource },
-            executionId,
-          },
-          0,
-        ),
+      await runAsTenant(
+        {
+          userId: ctx.run.userId,
+          spaceId: ctx.run.spaceId,
+          projectWorkspaceId: ctx.run.projectWorkspaceId,
+        },
+        () =>
+          guardManagedRun(
+            ctx.deps.prisma,
+            { userId: ctx.run.userId, spaceId: ctx.run.spaceId },
+            mandate.taskId,
+            {
+              runId: ctx.runId,
+              workerId: ctx.workerId,
+              fence: ctx.fence,
+              action: { tool: gate.call.name, action: "execute", resource },
+              executionId,
+            },
+            0,
+          ),
       );
     } catch {
       ctx.context.signal.throwIfAborted();
@@ -231,6 +266,26 @@ async function dispatchTool(
       autoApproved: gate.call.bypassApproval,
     });
   }
+}
+
+function inRunScope(ctx: RunContext, name: string, args: Record<string, unknown>): boolean {
+  if (isProjectDeviceTool(name)) {
+    return Boolean(
+      ctx.run.projectWorkspaceId &&
+        ctx.source.ownerStartedRun &&
+        !ctx.source.messagingChannelRun &&
+        ctx.tools.builtins.some((tool) => tool.name === name),
+    );
+  }
+  return !ctx.run.projectWorkspaceId || projectTextToolAllowed(name, args);
+}
+
+function projectScopeError(ctx: RunContext) {
+  return {
+    error: ctx.run.projectWorkspaceId
+      ? "This tool or setting is unavailable in project text conversations."
+      : "This tool or setting is unavailable in this conversation.",
+  };
 }
 
 export function isToolError(result: unknown): boolean {

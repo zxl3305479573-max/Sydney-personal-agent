@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import type { ArtifactWithContent } from "@rakazo/contracts";
 import { Image } from "react-native";
 import type { ApiRequestContext } from "./api";
 import { captureApiRequestContext, currentApiBase, rpc, selectedSpaceId } from "./api";
@@ -234,6 +235,15 @@ export async function imageArtifactPreview(
 /** Share a file already on disk (for example an image the viewer is showing) without downloading it again. */
 export async function shareLocalFile(uri: string, mimeType: string, name: string): Promise<void> {
   await shareNamedFile(new File(uri), mimeType, name);
+}
+
+export async function shareDownloadedArtifact(artifact: ArtifactWithContent): Promise<void> {
+  const source = writeArtifactCacheFile(artifact.id, artifact.mimeType, artifact.contentBase64);
+  try {
+    await shareNamedFile(source, artifact.mimeType, artifact.name);
+  } finally {
+    if (source.exists) source.delete();
+  }
 }
 
 async function shareNamedFile(source: File, mimeType: string, name: string): Promise<void> {

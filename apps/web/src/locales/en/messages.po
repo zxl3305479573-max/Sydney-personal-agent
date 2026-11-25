@@ -721,8 +721,8 @@ msgid "Allow once"
 msgstr "Allow once"
 
 #: src/lib/dictation.ts
-msgid "Allow Rakazo to use Speech Recognition and the microphone in System Settings."
-msgstr "Allow Rakazo to use Speech Recognition and the microphone in System Settings."
+msgid "Allow Sydney to use Speech Recognition and the microphone in System Settings."
+msgstr "Allow Sydney to use Speech Recognition and the microphone in System Settings."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
@@ -769,8 +769,8 @@ msgid "An API key is stored for this provider, not a subscription sign-in."
 msgstr "An API key is stored for this provider, not a subscription sign-in."
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "An existing Honcho peer to read from. Rakazo never writes to it."
-msgstr "An existing Honcho peer to read from. Rakazo never writes to it."
+msgid "An existing Honcho peer to read from. Sydney never writes to it."
+msgstr "An existing Honcho peer to read from. Sydney never writes to it."
 
 #: src/lib/agent-import-errors.ts
 msgid "An imported API key could not be checked. Try again."
@@ -1389,8 +1389,8 @@ msgstr "Choose folder"
 
 #: src/components/ModelCredits.tsx
 #: src/components/SubscriptionGate.tsx
-msgid "Choose how to use Rakazo"
-msgstr "Choose how to use Rakazo"
+msgid "Choose how to use Sydney"
+msgstr "Choose how to use Sydney"
 
 #: src/lib/localized-provider-hint.ts
 msgid "Claude subscription"
@@ -1704,8 +1704,8 @@ msgstr "Connect using the managed app"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
-msgstr "Connect your own API key in Models or choose Rakazo credits in Billing."
+msgid "Connect your own API key in Models or choose Sydney credits in Billing."
+msgstr "Connect your own API key in Models or choose Sydney credits in Billing."
 
 #: src/components/ComputerDeviceSettings.tsx
 #: src/components/integrations/IntegrationSetup.tsx
@@ -2405,8 +2405,8 @@ msgid "Create space"
 msgstr "Create space"
 
 #: src/pages/Auth.tsx
-msgid "Create your Rakazo"
-msgstr "Create your Rakazo"
+msgid "Create your Sydney"
+msgstr "Create your Sydney"
 
 #: src/components/AskCard.tsx
 msgid "Created"
@@ -3321,8 +3321,8 @@ msgid "How to check"
 msgstr "How to check"
 
 #: src/components/SignupSurvey.tsx
-msgid "How will you use Rakazo?"
-msgstr "How will you use Rakazo?"
+msgid "How will you use Sydney?"
+msgstr "How will you use Sydney?"
 
 #: src/pages/shell/computer-release-actions.tsx
 msgid "I’m done"
@@ -4292,8 +4292,8 @@ msgid "Not imported"
 msgstr "Not imported"
 
 #: src/pages/shell/import-status.ts
-msgid "Not in Rakazo's catalog"
-msgstr "Not in Rakazo's catalog"
+msgid "Not in Sydney's catalog"
+msgstr "Not in Sydney's catalog"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Not now"
@@ -4301,12 +4301,12 @@ msgstr "Not now"
 
 #: src/pages/shell/agent-import.tsx
 #: src/pages/shell/import-status.ts
-msgid "Not supported in Rakazo"
-msgstr "Not supported in Rakazo"
+msgid "Not supported in Sydney"
+msgstr "Not supported in Sydney"
 
 #: src/pages/shell/agent-import.tsx
-msgid "Not used by Rakazo"
-msgstr "Not used by Rakazo"
+msgid "Not used by Sydney"
+msgstr "Not used by Sydney"
 
 #: src/components/McpServerHealthLine.tsx
 msgid "Not working"
@@ -4557,8 +4557,8 @@ msgid "Paste a replacement key"
 msgstr "Paste a replacement key"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
-msgid "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed."
-msgstr "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed."
+msgid "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed."
+msgstr "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed."
 
 #: src/pages/shell/agent-import.tsx
 msgid "Paste the reply"
@@ -4753,12 +4753,12 @@ msgid "Queued"
 msgstr "Queued"
 
 #: src/components/ModelCredits.tsx
-msgid "Rakazo credits"
-msgstr "Rakazo credits"
+msgid "Sydney credits"
+msgstr "Sydney credits"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "rakazo-shared and IDs starting with bot- are reserved for Rakazo."
-msgstr "rakazo-shared and IDs starting with bot- are reserved for Rakazo."
+msgid "rakazo-shared and IDs starting with bot- are reserved for Sydney."
+msgstr "rakazo-shared and IDs starting with bot- are reserved for Sydney."
 
 #: src/pages/shell/message-hover-actions.tsx
 msgid "React"
@@ -5168,8 +5168,8 @@ msgstr "Return to call with {0}"
 
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/SlackInstallCallback.tsx
-msgid "Return to Rakazo"
-msgstr "Return to Rakazo"
+msgid "Return to Sydney"
+msgstr "Return to Sydney"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Review provider settings and test again."
@@ -5604,8 +5604,8 @@ msgid "Sign in at <0>{0}</0>, then paste the code here."
 msgstr "Sign in at <0>{0}</0>, then paste the code here."
 
 #: src/pages/Auth.tsx
-msgid "Sign in to Rakazo"
-msgstr "Sign in to Rakazo"
+msgid "Sign in to Sydney"
+msgstr "Sign in to Sydney"
 
 #: src/lib/user-error.ts
 msgid "Sign in to your existing account to link SSO"
@@ -5870,8 +5870,8 @@ msgid "Subscribe for {price} / month"
 msgstr "Subscribe for {price} / month"
 
 #: src/components/ModelCredits.tsx
-msgid "Subscribe to Rakazo credits"
-msgstr "Subscribe to Rakazo credits"
+msgid "Subscribe to Sydney credits"
+msgstr "Subscribe to Sydney credits"
 
 #: src/components/ModelCredits.tsx
 msgid "Subscribe with your own AI"
@@ -6187,8 +6187,8 @@ msgid "This server's tool result does not fit the model. Turn off Keep tool resu
 msgstr "This server's tool result does not fit the model. Turn off Keep tool results whole for that server, or choose another model."
 
 #: src/pages/model-settings/connection-controls.tsx
-msgid "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
-msgstr "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
+msgid "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider."
+msgstr "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider."
 
 #: src/pages/Artifacts.tsx
 msgid "This week"
@@ -6496,8 +6496,8 @@ msgid "Use Protected input for passwords."
 msgstr "Use Protected input for passwords."
 
 #: src/components/ModelCredits.tsx
-msgid "Use Rakazo credits"
-msgstr "Use Rakazo credits"
+msgid "Use Sydney credits"
+msgstr "Use Sydney credits"
 
 #: src/pages/model-settings/space-bots-model.tsx
 msgid "Use space default"
@@ -6649,8 +6649,8 @@ msgid "Weekends"
 msgstr "Weekends"
 
 #: src/components/SignupSurvey.tsx
-msgid "Welcome to Rakazo"
-msgstr "Welcome to Rakazo"
+msgid "Welcome to Sydney"
+msgstr "Welcome to Sydney"
 
 #: src/pages/shell/dialogs.tsx
 msgid "What about its memories?"
@@ -6661,8 +6661,8 @@ msgid "What can this space use?"
 msgstr "What can this space use?"
 
 #: src/components/SignupSurvey.tsx
-msgid "What do you most want Rakazo to help with?"
-msgstr "What do you most want Rakazo to help with?"
+msgid "What do you most want Sydney to help with?"
+msgstr "What do you most want Sydney to help with?"
 
 #: src/pages/shell/message-cards.tsx
 msgid "What do you want me on first?"

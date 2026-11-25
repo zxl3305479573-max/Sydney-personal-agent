@@ -2,7 +2,7 @@
 
 ## Reporting vulnerabilities
 
-Email **security@rakazo.com** only. Do not open public GitHub issues for security bugs.
+Report vulnerabilities privately to the Sydney deployment owner. Keep report details out of public GitHub issues.
 
 Please include:
 
@@ -10,16 +10,9 @@ Please include:
 - Impact (what an attacker could do)
 - Whether the issue is already public
 
-We will acknowledge your report and work on a fix. Please do not file a public issue for unfixed vulnerabilities.
-
-## Other contact
-
-- General support: **support@rakazo.com**
-- Maintainer: **elie@rakazo.com**
-
 ## Scope
 
-This policy covers the Rakazo self-hosted product in **this repository**.
+This policy covers Sydney Personal Agent in this repository.
 
 Out of scope:
 

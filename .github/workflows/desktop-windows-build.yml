@@ -8,9 +8,11 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows directory without configured signing
+    name: Build Windows installer and directory without configured signing
     runs-on: windows-2022
     timeout-minutes: 60
+    env:
+      npm_config_virtual_store_dir_max_length: "60"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -18,7 +20,7 @@ jobs:
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate database client
@@ -30,7 +32,7 @@ jobs:
         env:
           RAKAZO_ALLOW_DEV_SECRETS: "1"
       - name: Package without publishing
-        run: pnpm --filter @rakazo/desktop exec electron-builder --win --x64 --dir --publish never
+        run: pnpm --filter @rakazo/desktop exec electron-builder --win nsis --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - name: Verify packaged PC backend connection and update guard
@@ -42,6 +44,7 @@ jobs:
             "shows setup when the configured PC backend is unreachable",
             "rejects an invalid configured PC backend",
             "rejects a configured PC backend without the Sydney health response",
+            "packaged Windows opens direct setup for a legacy local profile",
             "packaged Sydney disables desktop updates"
           )
           foreach ($testName in $testNames) {
@@ -63,7 +66,7 @@ jobs:
             }
           }
         env:
-          RAKAZO_E2E_EXECUTABLE: out/win-unpacked/Sydney.exe
+          RAKAZO_E2E_EXECUTABLE: out/win-unpacked/Sydney-partner.exe
       - name: Verify files and record build identity
         shell: pwsh
         run: |
@@ -71,16 +74,20 @@ jobs:
           $revision = (git rev-parse HEAD).Trim()
           if ($revision -ne $env:GITHUB_SHA) { throw "Checkout does not match the requested revision" }
           $directory = "apps/desktop/out/win-unpacked"
+          $version = (Get-Content -Raw -LiteralPath "apps/desktop/package.json" | ConvertFrom-Json).version
+          $installerName = "Sydney-partner-Setup-$version.exe"
+          $installerPath = Join-Path "apps/desktop/out" $installerName
+          if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) { throw "Windows installer is missing" }
+          $installer = Get-Item -LiteralPath $installerPath
+          if ($installer.Length -eq 0) { throw "Windows installer is empty" }
           $executables = @(Get-ChildItem -LiteralPath $directory -Filter "*.exe" -File)
           if ($executables.Count -eq 0) { throw "Windows executable is missing" }
           $archive = Join-Path $directory "resources/app.asar"
           $webIndex = Join-Path $directory "resources/web/index.html"
-          $stackCompose = Join-Path $directory "resources/stack/docker-compose.images.yml"
-          $stackTemplate = Join-Path $directory "resources/stack/.env.images.example"
+          $stackDirectory = Join-Path $directory "resources/stack"
           if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) { throw "App archive is missing" }
           if (-not (Test-Path -LiteralPath $webIndex -PathType Leaf)) { throw "Bundled web index is missing" }
-          if (-not (Test-Path -LiteralPath $stackCompose -PathType Leaf)) { throw "Stack compose file is missing" }
-          if (-not (Test-Path -LiteralPath $stackTemplate -PathType Leaf)) { throw "Stack template is missing" }
+          if (Test-Path -LiteralPath $stackDirectory) { throw "Managed local stack shipped in the Windows package" }
           $artifactRoot = (Resolve-Path -LiteralPath "apps/desktop/out").Path
           $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Force -File | Sort-Object FullName)
           $hashes = @($files | ForEach-Object {
@@ -99,10 +106,15 @@ jobs:
             pnpm = (pnpm --version | Select-Object -Last 1)
             platform = "windows-x64"
             package = "directory"
+            installer = @{
+              file = $installerName
+              bytes = $installer.Length
+              signature = (Get-AuthenticodeSignature -LiteralPath $installerPath).Status.ToString()
+            }
             signatures = $signatures
             files = $hashes
           } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "apps/desktop/out/build-metadata.json" -Encoding utf8
-      - name: Upload unpublished build
+      - name: Upload unpublished directory
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sydney-windows-unpacked-${{ github.sha }}
@@ -111,4 +123,13 @@ jobs:
             apps/desktop/out/build-metadata.json
           if-no-files-found: error
           include-hidden-files: true
+          retention-days: 7
+      - name: Upload unpublished installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sydney-windows-installer-${{ github.sha }}
+          path: |
+            apps/desktop/out/Sydney-partner-Setup-*.exe
+            apps/desktop/out/build-metadata.json
+          if-no-files-found: error
           retention-days: 7

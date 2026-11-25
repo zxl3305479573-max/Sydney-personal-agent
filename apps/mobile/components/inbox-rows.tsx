@@ -47,6 +47,7 @@ export function ConversationRow({
   accessibilityLabel,
   accessibilityHint,
   roster = false,
+  wrapTitle = false,
 }: {
   chatId?: string;
   title: string;
@@ -54,13 +55,14 @@ export function ConversationRow({
   time: string;
   avatar: ReactNode;
   unread?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
   onLongPress?: () => void;
   actions?: InboxRowAction[];
   onAction?: (action: InboxRowAction) => void;
   accessibilityLabel: string;
   accessibilityHint?: string;
   roster?: boolean;
+  wrapTitle?: boolean;
 }) {
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
@@ -75,6 +77,7 @@ export function ConversationRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: !onPress, ...(chatId ? { selected } : {}) }}
       accessibilityHint={accessibilityHint}
       // Screen readers access swipe actions through the row.
       accessibilityActions={rowActions.length > 0 ? rowActions : undefined}
@@ -84,19 +87,14 @@ export function ConversationRow({
         if (action) onAction?.(action);
       }}
       android_ripple={androidRipple()}
+      disabled={!onPress}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
         styles.row,
         compact ? styles.compactRow : null,
-        selected && !roster ? styles.rowSelected : null,
-        roster && {
-          marginHorizontal: 0,
-          paddingHorizontal: 4,
-          paddingVertical: 8,
-          gap: 16,
-          borderRadius: 16,
-        },
+        roster && styles.rosterRow,
+        selected && styles.rowSelected,
         selected && Platform.OS === "android" && { overflow: "hidden" },
         pressed && Platform.OS !== "android" && styles.rowPressed,
       ]}
@@ -106,34 +104,28 @@ export function ConversationRow({
         <View style={styles.rowTop}>
           <View style={styles.titleRow}>
             <Text
-              style={[styles.name, roster && { fontSize: 18, fontWeight: "500" }]}
-              numberOfLines={1}
+              style={[styles.name, unread && styles.unreadName]}
+              numberOfLines={wrapTitle ? undefined : 1}
               ellipsizeMode="tail"
             >
               {title}
             </Text>
           </View>
           <View style={styles.rowMeta}>
-            {!roster && time ? <Text style={styles.time}>{time}</Text> : null}
-            {!roster && unread ? (
-              <View accessibilityElementsHidden style={styles.unreadDot} />
+            {time ? (
+              <Text numberOfLines={1} style={styles.time}>
+                {time}
+              </Text>
             ) : null}
+            {unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
           </View>
         </View>
         {preview ? (
-          <Text
-            style={[
-              styles.preview,
-              !roster && unread && styles.unreadPreview,
-              roster && { fontSize: 15 },
-            ]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.preview, unread && styles.unreadPreview]} numberOfLines={1}>
             {preview}
           </Text>
         ) : null}
       </View>
-      {roster && unread ? <View accessibilityElementsHidden style={styles.unreadDot} /> : null}
     </Pressable>
   );
 }
@@ -232,7 +224,7 @@ export const PinnedTiles = memo(function PinnedTiles({
           <Pressable
             key={`${chat.kind}-${id}`}
             accessibilityRole="button"
-            accessibilityLabel={name}
+            accessibilityLabel={unread ? `${name}, ${t("unread")}` : name}
             accessibilityState={{ selected: selectedId === id }}
             accessibilityActions={actions.map((action) => ({
               name: action,
@@ -258,6 +250,7 @@ export const PinnedTiles = memo(function PinnedTiles({
                 size={avatarSize}
                 status={chat.bot.status}
                 muted={chat.bot.notifyOnFinish === false}
+                unread={chat.bot.unread}
                 motion="lazy"
               />
             ) : (
@@ -356,9 +349,10 @@ export const BotRow = memo(function BotRow({
             color={bot.color || FALLBACK_COLOR}
             avatarSet={bot.avatarSet}
             identity={bot.id}
-            size={56}
+            size={44}
             status={bot.status}
             muted={bot.notifyOnFinish === false}
+            unread={bot.unread}
             motion="lazy"
           />
         </AvatarRow>
@@ -382,6 +376,7 @@ export const BotRow = memo(function BotRow({
             avatarSet={bot.avatarSet}
             identity={bot.id}
             size={32}
+            unread={bot.unread}
           />
         ),
       }}
@@ -435,7 +430,7 @@ export const GroupRow = memo(function GroupRow({
       onLongPress={onLongPress ? () => onLongPress(group) : undefined}
       actions={onAction ? inboxRowActionList(group) : undefined}
       onAction={runAction}
-      avatar={<GroupAvatar members={group.members} size={56} />}
+      avatar={<GroupAvatar members={group.members} size={44} />}
     />
   );
   return onAction ? (

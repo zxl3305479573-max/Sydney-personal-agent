@@ -406,9 +406,9 @@ export default function SignIn() {
                     {resetSent || codeStep
                       ? t("Check your email")
                       : mode === "in"
-                        ? t("Sign in to Rakazo")
+                        ? t("Sign in to Sydney")
                         : mode === "up"
-                          ? t("Sign up for Rakazo")
+                          ? t("Sign up for Sydney")
                           : t("Reset your password")}
                   </Text>
                   {resetSent && mode === "forgot" && resetRequest ? (

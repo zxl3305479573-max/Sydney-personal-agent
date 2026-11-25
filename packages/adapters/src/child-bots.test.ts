@@ -296,7 +296,7 @@ describe("spawned bot archival", () => {
 });
 
 describe("destroyBot", () => {
-  it("moves bot memories into shared memory before the cascading delete", async () => {
+  it.each([null, "project-a"])("moves explicitly retained memories into personal memory before deleting a Bot (%s)", async (projectWorkspaceId) => {
     const createDeletion = vi.fn().mockResolvedValue({});
     const deleteBot = vi.fn().mockResolvedValue({});
     const executeRaw = vi.fn().mockResolvedValue(1);
@@ -306,7 +306,7 @@ describe("destroyBot", () => {
     const deleteArtifacts = vi.fn().mockResolvedValue({ count: 1 });
     const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
       callback({
-        $queryRaw: vi.fn().mockResolvedValue([{ id: "bot-1" }]),
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "bot-1", projectWorkspaceId }]),
         chatGroup: {
           findMany: vi.fn().mockResolvedValue([]),
           deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -366,6 +366,7 @@ describe("destroyBot", () => {
     expect(executeRaw.mock.calls[0]?.slice(1)).toEqual([
       "Archived bots/Researcher (bot-1)",
       "bot-1",
+      ...(projectWorkspaceId ? ["workspace-1", "user-1"] : []),
     ]);
     expect(createDeletion).toHaveBeenCalledWith({
       data: {

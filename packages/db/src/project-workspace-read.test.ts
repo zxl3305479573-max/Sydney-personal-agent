@@ -85,21 +85,28 @@ describe("renameProjectWorkspace", () => {
 
 describe("removeEmptyProjectWorkspace", () => {
   it.each([true, false])("returns %s when the scoped delete succeeds", async (deleted) => {
-    const query = vi.fn()
+    const query = vi
+      .fn()
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce(deleted ? [{ id: "project-a" }] : []);
     const tx = {
       $queryRaw: query,
-      spaceMember: { findUnique: vi.fn().mockResolvedValue({
-        organizationId: "org", space: { deletingAt: null },
-      }) },
+      spaceMember: {
+        findUnique: vi.fn().mockResolvedValue({
+          organizationId: "org",
+          space: { deletingAt: null },
+        }),
+      },
     };
     const prisma = {
       $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx),
     } as unknown as PrismaClient;
-    await expect(removeEmptyProjectWorkspace(prisma, actor, {
-      id: "project-a", confirmRemoveAppData: true,
-    })).resolves.toBe(deleted);
+    await expect(
+      removeEmptyProjectWorkspace(prisma, actor, {
+        id: "project-a",
+        confirmRemoveAppData: true,
+      }),
+    ).resolves.toBe(deleted);
     const sql = query.mock.calls[1]?.[0];
     expect(sql.text).toContain('DELETE FROM "project_workspaces"');
     expect(sql.text).toContain('NOT EXISTS (SELECT 1 FROM "artifacts"');
@@ -198,7 +205,9 @@ describe("getProjectWorkspace", () => {
 
   it("rejects invalid identity before querying and propagates database failures", async () => {
     const { prisma, query } = fixture(0);
-    await expect(getProjectWorkspace(prisma, actor, "../workspace")).rejects.toThrow("Invalid workspace scope");
+    await expect(getProjectWorkspace(prisma, actor, "../workspace")).rejects.toThrow(
+      "Invalid workspace scope",
+    );
     expect(query).not.toHaveBeenCalled();
     const failure = new Error("database unavailable");
     query.mockRejectedValueOnce(failure);
@@ -207,9 +216,36 @@ describe("getProjectWorkspace", () => {
 });
 
 describe("listProjectWorkspaceRoster", () => {
+  it("returns stored image avatars and group member identities from the project roster", async () => {
+    const color = "data:image/png;base64,aW1hZ2U=";
+    const member = { botId: "bot-image", name: "Selected avatar", color, avatarSet: "rakazo" };
+    const query = vi.fn().mockResolvedValue([
+      { kind: "workspace", id: "project-a", name: "" },
+      { kind: "bot", id: member.botId, name: member.name, color, avatarSet: "rakazo" },
+      { kind: "group", id: "group-a", name: "Group", members: [member] },
+    ]);
+    const prisma = { $queryRaw: query } as unknown as Pick<PrismaClient, "$queryRaw">;
+    const roster = await listProjectWorkspaceRoster(prisma, actor, { id: "project-a" });
+    expect(roster?.bots[0]).toEqual({
+      id: member.botId,
+      name: member.name,
+      color,
+      avatarSet: "rakazo",
+    });
+    expect(roster?.groups[0]?.members).toEqual([member]);
+    const statement = query.mock.calls[0]![0] as { text: string };
+    expect(statement.text).toContain('b."color"');
+    expect(statement.text).toContain('b."avatarSet"');
+    expect(statement.text).toContain('b."projectWorkspaceId" =');
+  });
+
   it("uses the requested tenant and project and bounds each result list", async () => {
     const query = vi.fn(async (statement: { text: string; values: unknown[] }) => {
-      expect(currentDbContext()).toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
+      expect(currentDbContext()).toEqual({
+        kind: "tenant",
+        ...actor,
+        projectWorkspaceId: "project-a",
+      });
       expect(statement.text).toContain('b."projectWorkspaceId"');
       expect(statement.text).toContain('g."projectWorkspaceId"');
       expect(statement.text).toContain('w."deletingAt" IS NULL');
@@ -219,7 +255,11 @@ describe("listProjectWorkspaceRoster", () => {
       expect(statement.values).toContain("project-a");
       return [
         { kind: "workspace", id: "project-a", name: "" },
-        ...Array.from({ length: 101 }, (_, index) => ({ kind: "bot", id: `bot-${index}`, name: "Bot" })),
+        ...Array.from({ length: 101 }, (_, index) => ({
+          kind: "bot",
+          id: `bot-${index}`,
+          name: "Bot",
+        })),
         { kind: "group", id: "group-1", name: "Group" },
       ];
     });
@@ -234,8 +274,12 @@ describe("listProjectWorkspaceRoster", () => {
 
   it("rejects an invalid project before querying", async () => {
     const { prisma, query } = fixture(0);
-    await expect(listProjectWorkspaceRoster(prisma, actor, { id: "../project" })).rejects.toThrow("Invalid workspace scope");
-    await expect(listProjectWorkspaceRoster(prisma, actor, { id: "project-a", afterBotId: "../bot" })).rejects.toThrow("Invalid workspace scope");
+    await expect(listProjectWorkspaceRoster(prisma, actor, { id: "../project" })).rejects.toThrow(
+      "Invalid workspace scope",
+    );
+    await expect(
+      listProjectWorkspaceRoster(prisma, actor, { id: "project-a", afterBotId: "../bot" }),
+    ).rejects.toThrow("Invalid workspace scope");
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -248,19 +292,29 @@ describe("listProjectWorkspaceRoster", () => {
       return [{ kind: "workspace", id: "project-a", name: "" }];
     });
     const prisma = { $queryRaw: query } as unknown as Pick<PrismaClient, "$queryRaw">;
-    await expect(listProjectWorkspaceRoster(prisma, actor, {
-      id: "project-a", afterBotId: "bot-previous", afterGroupId: "group-previous",
-    })).resolves.toEqual({ bots: [], groups: [], nextBotId: null, nextGroupId: null });
+    await expect(
+      listProjectWorkspaceRoster(prisma, actor, {
+        id: "project-a",
+        afterBotId: "bot-previous",
+        afterGroupId: "group-previous",
+      }),
+    ).resolves.toEqual({ bots: [], groups: [], nextBotId: null, nextGroupId: null });
   });
 
   it("distinguishes an inaccessible project from an empty project", async () => {
-    const query = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([
-      { kind: "workspace", id: "project-a", name: "" },
-    ]);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ kind: "workspace", id: "project-a", name: "" }]);
     const prisma = { $queryRaw: query } as unknown as Pick<PrismaClient, "$queryRaw">;
-    await expect(listProjectWorkspaceRoster(prisma, actor, { id: "project-a" })).resolves.toBeNull();
+    await expect(
+      listProjectWorkspaceRoster(prisma, actor, { id: "project-a" }),
+    ).resolves.toBeNull();
     await expect(listProjectWorkspaceRoster(prisma, actor, { id: "project-a" })).resolves.toEqual({
-      bots: [], groups: [], nextBotId: null, nextGroupId: null,
+      bots: [],
+      groups: [],
+      nextBotId: null,
+      nextGroupId: null,
     });
   });
 });

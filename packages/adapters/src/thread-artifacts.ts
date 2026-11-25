@@ -21,7 +21,7 @@ import {
   validateAttachmentMimeType,
 } from "@rakazo/core";
 import type { Artifact, Prisma, PrismaClient } from "@rakazo/db";
-import { assertHomeArtifactWriteScope, IsolationError, withResolvedArtifactVersion } from "@rakazo/db";
+import { assertHomeArtifactWriteScope, conversationProjectId, IsolationError, withResolvedArtifactVersion } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { resolveBotWorkspacePath } from "./computer-support.js";
 
@@ -44,16 +44,23 @@ export async function attachWorkspaceFileToThread(
     botId: string;
     groupId?: string;
     runId: string;
+    projectWorkspaceId?: string;
     filePath: string;
     bytes: Uint8Array;
     operationId: string;
+    signal?: AbortSignal;
     name?: string;
     description?: string;
     /** Checkpoint a caller's durable state atomically with attachment creation. */
     onAttached?: (tx: Prisma.TransactionClient, artifact: Artifact) => Promise<void>;
   },
 ): Promise<{ artifactId: string; block: Extract<MessageBlock, { kind: "image" | "file" }> }> {
-  assertHomeArtifactWriteScope(input);
+  const projectWorkspaceId = input.projectWorkspaceId ?? null;
+  if (projectWorkspaceId) {
+    if (conversationProjectId(input) !== projectWorkspaceId) throw new IsolationError();
+  } else {
+    assertHomeArtifactWriteScope(input);
+  }
   const fileName = path.basename(input.filePath) || input.filePath;
   const mimeType = inferAttachmentMimeType(fileName);
   if (!mimeType) {
@@ -73,12 +80,12 @@ export async function attachWorkspaceFileToThread(
       spaceId: input.spaceId,
       userId: input.userId,
       botId: input.botId,
-      projectWorkspaceId: null,
+      projectWorkspaceId,
       thread: {
         is: {
           spaceId: input.spaceId,
           userId: input.userId,
-          projectWorkspaceId: null,
+          projectWorkspaceId,
         },
       },
     },
@@ -94,7 +101,8 @@ export async function attachWorkspaceFileToThread(
     spaceId: input.spaceId,
     userId: input.userId,
     botId: input.botId,
-    signal: new AbortController().signal,
+    projectWorkspaceId,
+    signal: input.signal ?? new AbortController().signal,
   };
   const stored = await deps.artifacts.put({ name, mimeType, bytes: input.bytes }, context);
   const hash = createHash("sha256").update(input.bytes).digest("hex");
@@ -104,7 +112,7 @@ export async function attachWorkspaceFileToThread(
       spaceId: input.spaceId,
       userId: input.userId,
       botId: input.botId,
-      projectWorkspaceId: null,
+      projectWorkspaceId,
       groupId: run.thread.groupId,
       name,
     },
@@ -116,6 +124,7 @@ export async function attachWorkspaceFileToThread(
           botId: input.botId,
           groupId: run.thread.groupId,
           runId: input.runId,
+          ...(projectWorkspaceId ? { projectWorkspaceId } : {}),
           name,
           description: input.description?.trim().slice(0, ARTIFACT_DESCRIPTION_MAX_LENGTH) || null,
           mimeType,
@@ -130,7 +139,7 @@ export async function attachWorkspaceFileToThread(
       return artifact;
     },
   ).catch(async (error) => {
-    await deps.artifacts.remove(stored.id, context).catch(() => undefined);
+    await deps.artifacts.remove(stored.id, { ...context, signal: new AbortController().signal }).catch(() => undefined);
     throw error;
   });
   return { artifactId: row.id, block: messageBlockForArtifact(row) };

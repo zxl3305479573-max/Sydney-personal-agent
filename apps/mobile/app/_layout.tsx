@@ -34,6 +34,7 @@ import { MermaidDiagram } from "../components/mermaid-diagram";
 import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
+import { ScopedThemeRoute } from "../components/scoped-theme";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -45,11 +46,17 @@ import {
   subscribeSessionRejected,
 } from "../lib/api";
 import { clearAppBadge } from "../lib/app-badge";
-import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
+import { loadAppearancePreference } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { AvatarScreenFocus } from "../lib/avatar-life";
-import { installClientUpdates, watchForegroundUpdates } from "../lib/client-update";
+import { installClientUpdates, useStartupUpdatePrompt } from "../lib/client-update";
+import { loadInstalledThemes } from "../lib/theme-library";
+import { themeScopeForRoute } from "../lib/theme-pack";
+import { themeManager } from "../lib/theme-state";
+import { loadUiMode } from "../lib/ui-mode";
+import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
+import { MainBottomNavigation } from "../components/main-bottom-navigation";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import { loadLinkFavicon } from "../lib/link-favicons";
@@ -57,6 +64,11 @@ import {
   configureForegroundNotifications,
   resumeLiveNotifications,
 } from "../lib/live-notifications";
+import {
+  MainNavigationProvider,
+  showsMainNavigation,
+  useMainNavigationHidden,
+} from "../lib/main-navigation";
 import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useNotificationResponses } from "../lib/open-notification";
@@ -73,7 +85,7 @@ import {
   registerSessionDiskCache,
   subscribeSessionGeneration,
 } from "../lib/session";
-import { InboxBesideContext } from "../lib/side-insets";
+import { BottomSafeAreaClaimedContext, InboxBesideContext } from "../lib/side-insets";
 import {
   chooseInboxWidth,
   closesSplitPane,
@@ -96,6 +108,7 @@ import {
   useTrustedLinkSites,
 } from "../lib/trusted-link-sites";
 import { startUnsentSends } from "../lib/unsent-sends";
+import { getVoicePlaybackState, subscribeVoicePlayback } from "../lib/voice";
 import { InboxPane } from "./index";
 
 // Before anything renders: text grows with the iOS text size only up to a fixed maximum.
@@ -115,6 +128,9 @@ const FULL_WINDOW_ROUTES = new Set(["/sign-in", "/server", "/image", "/computer"
 /** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
 function SplitFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  useEffect(() => {
+    themeManager.setActiveScope(themeScopeForRoute(pathname));
+  }, [pathname]);
   const router = useRouter();
   const params = useGlobalSearchParams();
   const routeKey = JSON.stringify([pathname, params]);
@@ -129,8 +145,13 @@ function SplitFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (home) setInboxHidden(false);
   }, [home]);
-  const projectRoute = pathname === "/projects" || pathname.startsWith("/projects/");
-  const showsInbox = split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
+  const projectRoute =
+    pathname === "/projects" ||
+    pathname.startsWith("/projects/") ||
+    pathname === "/integrations" ||
+    pathname === "/github";
+  const showsInbox =
+    split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
   // Dragging resizes the list natively; the width is kept when the finger lifts.
   const paneWidth = useSharedValue(inboxWidth);
   const dragStart = useRef(inboxWidth);
@@ -262,8 +283,10 @@ function ChatContentProviders({
 export const unstable_settings = { anchor: "index" };
 
 function LayoutContent() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const insets = useSafeAreaInsets();
+  const voicePlaying =
+    useSyncExternalStore(subscribeVoicePlayback, getVoicePlaybackState).status !== "idle";
   // Beside the list a chat swaps in place, the way it does when picked from a sidebar.
   const { split, inboxHidden, foldActive } = useSplitView();
   const chatAnimation = split ? "none" : undefined;
@@ -272,6 +295,8 @@ function LayoutContent() {
   useNotificationResponses(ready);
   const pathname = usePathname();
   useCompanionThreadWatch(ready);
+  const navigationHidden = useMainNavigationHidden();
+  const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
   const screen = analyticsScreen(pathname);
   useEffect(() => setMobileMonitoringScreen(screen), [screen]);
   useEffect(() => {
@@ -289,14 +314,16 @@ function LayoutContent() {
     };
   }, [ready, screen]);
   const [appearanceReady, setAppearanceReady] = useState(false);
+  const [splashHidden, setSplashHidden] = useState(false);
+  useStartupUpdatePrompt(splashHidden);
   const resolved = useResolvedAppearance();
+  const tokens = useMobileTokens();
   const loadRemoteImages = useSyncExternalStore(
     subscribeRemoteImages,
     getCachedRemoteImagesEnabled,
     () => false,
   );
   const navigationTheme = useMemo(() => {
-    const tokens = mobileTokens();
     return {
       ...DarkTheme,
       dark: resolved === "dark",
@@ -310,12 +337,15 @@ function LayoutContent() {
         notification: tokens.foreground,
       },
     };
-  }, [resolved]);
+  }, [resolved, tokens]);
 
   useEffect(() => {
     if (appearanceReady && ready)
       void SplashScreen.hideAsync()
-        .then(completeMobileStartup)
+        .then(() => {
+          completeMobileStartup();
+          setSplashHidden(true);
+        })
         .catch(() => undefined);
   }, [appearanceReady, ready]);
 
@@ -330,20 +360,23 @@ function LayoutContent() {
     return startUnsentSends();
   }, [ready]);
 
-  useEffect(() => watchForegroundUpdates(), []);
-
   useEffect(() => {
+    let active = true;
     markMobileStartupMounted();
     void waitForMobileStartup(trackMobileStartup("server", loadApiBase()), [
-      trackMobileStartup("appearance", loadAppearancePreference()).finally(() =>
-        setAppearanceReady(true),
-      ),
+      trackMobileStartup(
+        "appearance",
+        Promise.all([loadAppearancePreference(), loadUiMode(), loadInstalledThemes()]),
+      ).finally(() => {
+        if (active) setAppearanceReady(true);
+      }),
       trackMobileStartup("streaming", loadResponseStreamingPreference()),
       trackMobileStartup("images", loadRemoteImagesPreference()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])
       .then(() => {
+        if (!active) return;
         // The native poller stores the locale its notification copy uses, so the
         // restart waits for the language to load rather than saving the default.
         // Notification restoration must not keep the native splash visible.
@@ -354,7 +387,12 @@ function LayoutContent() {
           .catch(() => undefined);
         setReady(true);
       })
-      .catch(() => setStartupError(true));
+      .catch(() => {
+        if (active) setStartupError(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (startupError) throw new ServerSettingsStartupError("Could not load server settings");
@@ -367,134 +405,176 @@ function LayoutContent() {
             <ThemeProvider value={navigationTheme}>
               <StatusBar style={resolved === "light" ? "dark" : "light"} />
               <View style={{ flex: 1 }}>
-                <SplitFrame>
-                  <Stack
-                    screenLayout={({ navigation, options, children }) => (
-                      <AvatarScreenFocus navigation={navigation}>
-                        {/* Sheets and modals cover the window, so the chat list is not beside them. */}
-                        {options.presentation && options.presentation !== "card" ? (
-                          <InboxBesideContext.Provider value={false}>
-                            {children}
-                          </InboxBesideContext.Provider>
-                        ) : (
-                          children
+                <BottomSafeAreaClaimedContext.Provider value={voicePlaying || showMainNavigation}>
+                  <SplitFrame>
+                    <Stack
+                      screenLayout={({ navigation, options, children }) => (
+                        <AvatarScreenFocus navigation={navigation}>
+                          <ScopedThemeRoute
+                            routeName={
+                              navigation.getState().routes[navigation.getState().index ?? 0]
+                                ?.name ?? "other"
+                            }
+                          >
+                            {/* Sheets and modals cover the window, so the chat list is not beside them. */}
+                            {options.presentation && options.presentation !== "card" ? (
+                              <InboxBesideContext.Provider value={false}>
+                                {children}
+                              </InboxBesideContext.Provider>
+                            ) : (
+                              children
+                            )}
+                          </ScopedThemeRoute>
+                        </AvatarScreenFocus>
+                      )}
+                      screenOptions={{
+                        headerStyle: { backgroundColor: navigationTheme.colors.background },
+                        ...floatingHeaderOptions(),
+                        headerTintColor: navigationTheme.colors.text,
+                        headerShadowVisible: false,
+                        headerBackButtonDisplayMode: "minimal",
+                        contentStyle: { backgroundColor: String(native.page) },
+                      }}
+                    >
+                      <Stack.Screen
+                        name="index"
+                        options={{ headerShown: false, title: "Sydney" }}
+                      />
+                      <Stack.Screen
+                        name="search"
+                        options={{
+                          headerShown: false,
+                          presentation: Platform.OS === "ios" ? "formSheet" : "card",
+                          sheetAllowedDetents: [1],
+                          sheetGrabberVisible: false,
+                          sheetExpandsWhenScrolledToEdge: false,
+                        }}
+                      />
+                      <Stack.Screen name="share" options={{ headerShown: false }} />
+                      <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="paywall"
+                        options={{
+                          headerShown: false,
+                          presentation: "fullScreenModal",
+                          gestureEnabled: false,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="(settings)"
+                        options={{
+                          headerShown: false,
+                          // One stack of settings pages in a sheet over the screen that opened it.
+                          // Android keeps pushed pages: it has no nested stack inside a formSheet.
+                          presentation: Platform.OS === "ios" ? "formSheet" : "card",
+                          sheetAllowedDetents: [0.95],
+                          sheetGrabberVisible: false,
+                          sheetExpandsWhenScrolledToEdge: false,
+                          contentStyle: { backgroundColor: native.groupedPage },
+                        }}
+                      />
+                      <Stack.Screen
+                        name="server"
+                        options={{
+                          title: t("Server"),
+                          presentation: "formSheet",
+                          sheetAllowedDetents: [0.6, 1],
+                          sheetGrabberVisible: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="new-group"
+                        options={{
+                          title: t("New group chat"),
+                          presentation: "modal",
+                          gestureEnabled: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="new-space"
+                        options={{
+                          title: t("New private space"),
+                          presentation: "modal",
+                          gestureEnabled: true,
+                          headerBackVisible: false,
+                        }}
+                      />
+                      <Stack.Screen name="artifacts" options={glassHeaderOptions(t("Artifacts"))} />
+                      <Stack.Screen name="artifact" options={{ title: t("Artifact") }} />
+                      <Stack.Screen name="github" options={glassHeaderOptions("GitHub")} />
+                      <Stack.Screen
+                        name="integrations"
+                        options={glassHeaderOptions(locale.startsWith("zh") ? "应用" : "Apps")}
+                      />
+                      <Stack.Screen
+                        name="projects"
+                        options={glassHeaderOptions(locale.startsWith("zh") ? "项目" : "Projects")}
+                      />
+                      <Stack.Screen
+                        name="projects/[workspaceId]"
+                        options={glassHeaderOptions(locale.startsWith("zh") ? "项目" : "Project")}
+                      />
+                      <Stack.Screen
+                        name="projects/[workspaceId]/chat"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh") ? "项目会话" : "Project chat",
                         )}
-                      </AvatarScreenFocus>
-                    )}
-                    screenOptions={{
-                      headerStyle: { backgroundColor: navigationTheme.colors.background },
-                      ...floatingHeaderOptions(),
-                      headerTintColor: navigationTheme.colors.text,
-                      headerShadowVisible: false,
-                      headerBackButtonDisplayMode: "minimal",
-                      contentStyle: { backgroundColor: String(native.page) },
-                    }}
-                  >
-                    <Stack.Screen name="index" options={{ headerShown: false, title: "Sydney" }} />
-                    <Stack.Screen
-                      name="search"
-                      options={{
-                        headerShown: false,
-                        presentation: Platform.OS === "ios" ? "formSheet" : "card",
-                        sheetAllowedDetents: [1],
-                        sheetGrabberVisible: false,
-                        sheetExpandsWhenScrolledToEdge: false,
-                      }}
-                    />
-                    <Stack.Screen name="share" options={{ headerShown: false }} />
-                    <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                    <Stack.Screen
-                      name="paywall"
-                      options={{
-                        headerShown: false,
-                        presentation: "fullScreenModal",
-                        gestureEnabled: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="(settings)"
-                      options={{
-                        headerShown: false,
-                        // One stack of settings pages in a sheet over the screen that opened it.
-                        // Android keeps pushed pages: it has no nested stack inside a formSheet.
-                        presentation: Platform.OS === "ios" ? "formSheet" : "card",
-                        sheetAllowedDetents: [0.95],
-                        sheetGrabberVisible: false,
-                        sheetExpandsWhenScrolledToEdge: false,
-                        contentStyle: { backgroundColor: native.groupedPage },
-                      }}
-                    />
-                    <Stack.Screen
-                      name="server"
-                      options={{
-                        title: t("Server"),
-                        presentation: "formSheet",
-                        sheetAllowedDetents: [0.6, 1],
-                        sheetGrabberVisible: true,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="new-group"
-                      options={{
-                        title: t("New group chat"),
-                        presentation: "modal",
-                        gestureEnabled: true,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="new-space"
-                      options={{
-                        title: t("New private space"),
-                        presentation: "modal",
-                        gestureEnabled: true,
-                        headerBackVisible: false,
-                      }}
-                    />
-                    <Stack.Screen name="artifacts" options={glassHeaderOptions(t("Artifacts"))} />
-                    <Stack.Screen name="artifact" options={{ title: t("Artifact") }} />
-                    <Stack.Screen
-                      name="group-thread"
-                      options={({ route }) => ({
-                        title: t("Group"),
-                        animation: chatAnimation,
-                        ...chatRouteHeader(route, t, { split, inboxHidden, foldActive }),
-                      })}
-                    />
-                    <Stack.Screen
-                      name="group-settings"
-                      options={glassHeaderOptions(t("Group settings"))}
-                    />
-                    <Stack.Screen name="bot-profile" options={glassHeaderOptions(t("Profile"))} />
-                    <Stack.Screen
-                      name="bot-settings"
-                      options={glassHeaderOptions(t("Chat settings"))}
-                    />
-                    <Stack.Screen name="bot-model" options={glassHeaderOptions(t("Model"))} />
-                    <Stack.Screen name="thread-model" options={glassHeaderOptions(t("Model"))} />
-                    <Stack.Screen
-                      name="thread"
-                      options={({ route }) => ({
-                        title: t("Thread"),
-                        animation: chatAnimation,
-                        ...chatRouteHeader(route, t, { split, inboxHidden, foldActive }),
-                      })}
-                    />
-                    <Stack.Screen name="routines" options={glassHeaderOptions(t("Routines"))} />
-                    <Stack.Screen name="routine" options={glassHeaderOptions(t("Routine"))} />
-                    <Stack.Screen name="board" options={glassHeaderOptions(t("Board"))} />
-                    <Stack.Screen name="computer" options={{ title: t("Computer") }} />
-                    <Stack.Screen
-                      name="image"
-                      options={{
-                        headerShown: false,
-                        presentation: "transparentModal",
-                        contentStyle: { backgroundColor: "transparent" },
-                        animation: "fade",
-                      }}
-                    />
-                  </Stack>
-                </SplitFrame>
-                <VoicePlayerBar style={{ marginTop: 8, marginBottom: insets.bottom + 8 }} />
+                      />
+                      <Stack.Screen
+                        name="group-thread"
+                        options={({ route }) => ({
+                          title: t("Group"),
+                          animation: chatAnimation,
+                          ...chatRouteHeader(route, t, { split, inboxHidden, foldActive }),
+                        })}
+                      />
+                      <Stack.Screen
+                        name="group-settings"
+                        options={glassHeaderOptions(t("Group settings"))}
+                      />
+                      <Stack.Screen name="bot-profile" options={glassHeaderOptions(t("Profile"))} />
+                      <Stack.Screen
+                        name="bot-settings"
+                        options={glassHeaderOptions(t("Chat settings"))}
+                      />
+                      <Stack.Screen name="bot-model" options={glassHeaderOptions(t("Model"))} />
+                      <Stack.Screen
+                        name="thread-model"
+                        options={{
+                          ...glassHeaderOptions(t("Model")),
+                          presentation: "formSheet",
+                          sheetAllowedDetents: [0.55, 1],
+                          sheetGrabberVisible: true,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="thread"
+                        options={({ route }) => ({
+                          title: t("Thread"),
+                          animation: chatAnimation,
+                          ...chatRouteHeader(route, t, { split, inboxHidden, foldActive }),
+                        })}
+                      />
+                      <Stack.Screen name="routines" options={glassHeaderOptions(t("Routines"))} />
+                      <Stack.Screen name="routine" options={glassHeaderOptions(t("Routine"))} />
+                      <Stack.Screen name="board" options={glassHeaderOptions(t("Board"))} />
+                      <Stack.Screen name="computer" options={{ title: t("Computer") }} />
+                      <Stack.Screen
+                        name="image"
+                        options={{
+                          headerShown: false,
+                          presentation: "transparentModal",
+                          contentStyle: { backgroundColor: "transparent" },
+                          animation: "fade",
+                        }}
+                      />
+                    </Stack>
+                  </SplitFrame>
+                </BottomSafeAreaClaimedContext.Provider>
+                <VoicePlayerBar
+                  style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
+                />
+                {showMainNavigation ? <MainBottomNavigation /> : null}
               </View>
               <ComputerUpdateProgress />
               <MessageMenuHost />
@@ -513,7 +593,11 @@ function LayoutContent() {
 export default function Layout() {
   return (
     <AppErrorBoundary>
-      <LayoutContent />
+      <UiModeProvider>
+        <MainNavigationProvider>
+          <LayoutContent />
+        </MainNavigationProvider>
+      </UiModeProvider>
     </AppErrorBoundary>
   );
 }

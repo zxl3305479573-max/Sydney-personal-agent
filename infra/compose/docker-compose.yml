@@ -35,6 +35,7 @@ x-app-environment: &app-environment
   RAKAZO_UPDATE_RESTART_SUPERVISOR:
   TICKET_BOARD_ENABLED:
   USER_DEVICES_ENABLED:
+  SYDNEY_PROJECT_DEVICE_TOOLS_ENABLED:
   BOT_MESSAGE_MAX_HOPS:
   RAKAZO_MESSAGE_USER_MAX_CHARS:
   TEACH_RECORDING_TTL_MS:
@@ -209,6 +210,7 @@ x-app-environment: &app-environment
   CURSOR_API_KEY: ${CURSOR_API_KEY:-}
   # Tools and integrations
   WEB_PROVIDER:
+  GITHUB_PROVIDER:
   KEENABLE_API_KEY:
   COMPOSIO_API_KEY:
   PIPEDREAM_CLIENT_ID:
@@ -500,6 +502,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile
+      target: self-host
       args:
         SYDNEY_PREPARE_WUYING_ASSETS: ${SYDNEY_PREPARE_WUYING_ASSETS:-false}
     # Directly, not through pnpm, so a stop reaches it (see the api command).

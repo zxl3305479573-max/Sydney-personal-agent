@@ -1,7 +1,6 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { BillingStatus, ByokInterval } from "@rakazo/contracts";
 import {
-  AI_PRIVACY_URL,
   DEFAULT_MONTHLY_CREDIT_AMOUNT,
   MODEL_CREDIT_AMOUNTS,
   ModelCreditAmountSchema,
@@ -50,7 +49,8 @@ import { errorText } from "../lib/user-error";
 type Amount = (typeof MODEL_CREDIT_AMOUNTS)[number];
 type SymbolName = ComponentProps<typeof NativeSymbol>["android"];
 
-const TERMS_URL = "https://rakazo.com/terms/";
+const TERMS_URL = process.env.EXPO_PUBLIC_SYDNEY_TERMS_URL;
+const PRIVACY_URL = process.env.EXPO_PUBLIC_SYDNEY_PRIVACY_URL;
 
 // Bots carry the app's only colour, so the paywall's colour is a small crew of them.
 const CREW = [
@@ -259,7 +259,7 @@ export default function Paywall() {
         </View>
         <View style={styles.footer}>
           <NativeActionButton
-            label={started === "byok" ? t("Connect your AI") : t("Start using Rakazo")}
+            label={started === "byok" ? t("Connect your AI") : t("Start using Sydney")}
             onPress={() => {
               router.back();
               if (started === "byok") router.push("/models");
@@ -421,7 +421,7 @@ export default function Paywall() {
             <PlanCard
               selected={plan === "credits"}
               onPress={() => setPlan("credits")}
-              title={t("Rakazo credits")}
+              title={t("Sydney credits")}
               badge={subscribed === "credits" ? t("Current plan") : undefined}
               price={
                 <MenuView
@@ -503,10 +503,12 @@ export default function Paywall() {
               {t("Only the owner of this account can choose a plan.")}
             </Text>
           )}
-          <View style={styles.legal}>
-            <LegalLink label={t("Terms")} url={TERMS_URL} />
-            <LegalLink label={t("Privacy")} url={AI_PRIVACY_URL} />
-          </View>
+          {TERMS_URL || PRIVACY_URL ? (
+            <View style={styles.legal}>
+              {TERMS_URL ? <LegalLink label={t("Terms")} url={TERMS_URL} /> : null}
+              {PRIVACY_URL ? <LegalLink label={t("Privacy")} url={PRIVACY_URL} /> : null}
+            </View>
+          ) : null}
         </View>
       </View>
     </View>

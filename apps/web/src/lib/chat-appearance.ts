@@ -77,7 +77,7 @@ export type ChatAppearance = {
   botTextColor?: string | null;
   backgrounds: ChatBackground[];
   backgroundId: string | null;
-  chatBackgrounds?: Record<string, string>;
+  chatBackgrounds?: Record<string, string | null>;
   surfaceOpacity?: number;
   bubble?: ChatBubbleStyle | null;
 };
@@ -122,7 +122,7 @@ const appearanceSchema = z.object({
     )
     .max(100),
   backgroundId: idSchema.nullable(),
-  chatBackgrounds: z.record(z.string().min(1).max(500), idSchema).optional(),
+  chatBackgrounds: z.record(z.string().min(1).max(500), idSchema.nullable()).optional(),
   surfaceOpacity: z.number().int().min(0).max(100).optional(),
 });
 
@@ -158,7 +158,9 @@ export function normalizeAppearance(value: ChatAppearance): ChatAppearance {
     ...(value.chatBackgrounds
       ? {
           chatBackgrounds: Object.fromEntries(
-            Object.entries(value.chatBackgrounds).filter(([, id]) => backgroundIds.has(id)),
+            Object.entries(value.chatBackgrounds).filter(
+              ([, id]) => id === null || backgroundIds.has(id),
+            ),
           ),
         }
       : {}),
@@ -251,6 +253,51 @@ export function loadChatAppearance(): Promise<void> {
       });
   }
   return loadPromise;
+}
+
+export async function refreshChatAppearance(): Promise<void> {
+  await loadPromise;
+  loadPromise = undefined;
+  await loadChatAppearance();
+}
+
+export async function restoreChatBackground(
+  chatKey: string,
+  backgroundId: string,
+  isCurrent: () => boolean,
+): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const updated = await new Promise<boolean>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(RECORD_KEY);
+      let changed = false;
+      request.onsuccess = () => {
+        if (!isCurrent()) return;
+        const parsed = appearanceSchema.safeParse(request.result);
+        if (
+          !parsed.success ||
+          Object.hasOwn(parsed.data.chatBackgrounds ?? {}, chatKey) ||
+          !parsed.data.backgrounds.some((background) => background.id === backgroundId)
+        )
+          return;
+        store.put(
+          {
+            ...parsed.data,
+            chatBackgrounds: { ...parsed.data.chatBackgrounds, [chatKey]: backgroundId },
+          },
+          RECORD_KEY,
+        );
+        changed = true;
+      };
+      transaction.oncomplete = () => resolve(changed);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    if (updated && isCurrent()) await refreshChatAppearance();
+  } finally {
+    database.close();
+  }
 }
 
 export async function saveChatAppearance(value: ChatAppearance): Promise<void> {

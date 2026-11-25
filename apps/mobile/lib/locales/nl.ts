@@ -4,8 +4,10 @@ export const NL_MESSAGES: Record<string, string> = {
     "Het verwijderen van het account kon niet worden bevestigd. Controleer je account voordat je het opnieuw probeert.",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "Het oorspronkelijke account is verwijderd, maar lokaal opschonen is mislukt en je sessie is gewijzigd.",
-  "The original account was deleted. Your current session has changed.": "Het oorspronkelijke account is verwijderd. Je huidige sessie is gewijzigd.",
-  "The session changed. Open account deletion again.": "De sessie is gewijzigd. Open het verwijderen van het account opnieuw.",
+  "The original account was deleted. Your current session has changed.":
+    "Het oorspronkelijke account is verwijderd. Je huidige sessie is gewijzigd.",
+  "The session changed. Open account deletion again.":
+    "De sessie is gewijzigd. Open het verwijderen van het account opnieuw.",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "Het account is verwijderd, maar de lokale sessie kon niet worden opgeschoond. Start de app opnieuw en probeer uit te loggen.",
   Computers: "Computers",
@@ -131,8 +133,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Your model provider": "Jouw modelaanbieder",
   "Connect a model in Settings before running bots.":
     "Verbind een model in Instellingen voordat je bots uitvoert.",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "Verbind je eigen API-sleutel bij Modellen of kies Rakazo-tegoed bij Facturatie.",
+  "Connect your own API key in Models or choose Sydney credits in Billing.":
+    "Verbind je eigen API-sleutel bij Modellen of kies Sydney-tegoed bij Facturatie.",
   "The model provider returned an error.": "De modelaanbieder heeft een fout teruggegeven.",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider} beperkt het aantal verzoeken. Probeer het zo nog eens.",
@@ -200,8 +202,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Chat Settings": "Chatinstellingen",
   "Configure a plugin catalog on the server to connect apps.":
     "Configureer een plugincatalogus op de server om apps te koppelen.",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "Plak het OpenAI-compatibele adres van je server. Rakazo voegt zo nodig /v1 toe.",
+  "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed.":
+    "Plak het OpenAI-compatibele adres van je server. Sydney voegt zo nodig /v1 toe.",
   "Settings: General": "Instellingen: algemeen",
   "Settings: Usage": "Instellingen: gebruik",
   "Sign-in did not return a session": "De aanmelding gaf geen sessie terug",
@@ -242,9 +244,9 @@ export const NL_MESSAGES: Record<string, string> = {
   "Reset your password": "Je wachtwoord opnieuw instellen",
   "Send reset link": "Herstellingslink verzenden",
   Server: "Server",
-  "Sign in to Rakazo": "Aanmelden bij Rakazo",
+  "Sign in to Sydney": "Aanmelden bij Sydney",
   "Sign up": "Registreren",
-  "Sign up for Rakazo": "Registreer je voor Rakazo",
+  "Sign up for Sydney": "Registreer je voor Sydney",
   "Use a custom server": "Gebruik een eigen server",
   "Use default server": "Gebruik de standaardserver",
   Activity: "Activiteit",
@@ -489,6 +491,9 @@ export const NL_MESSAGES: Record<string, string> = {
   Bot: "Bot",
   "Close computer": "Computer sluiten",
   "Computer keyboard": "Computertoetsenbord",
+  "Pointer mode": "Aanwijzermodus",
+  "Direct touch": "Direct aanraken",
+  "Virtual mouse": "Virtuele muis",
   Control: "Ctrl",
   Down: "Omlaag",
   Escape: "Esc",
@@ -566,8 +571,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Supports images": "Ondersteunt afbeeldingen",
   "Supports thinking": "Ondersteunt denken",
   "Then paste the code here.": "Plak daarna de code hier.",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Deze abonnementsaanmelding is nog niet beschikbaar in Rakazo. Gebruik een implementatiegegeven of kies een andere aanbieder.",
+  "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider.":
+    "Deze abonnementsaanmelding is nog niet beschikbaar in Sydney. Gebruik een implementatiegegeven of kies een andere aanbieder.",
   "Use a found model": "Een gevonden model gebruiken",
   "Waiting for sign-in…": "Wachten op aanmelding…",
   "exact-model-id": "exact-model-id",
@@ -834,7 +839,7 @@ export const NL_MESSAGES: Record<string, string> = {
     "Voer alleen het serveradres in, zonder inloggegevens, pad, query of fragment",
   "Public servers need https://. HTTP only works on your local network.":
     "Openbare servers vereisen https://. HTTP werkt alleen op je lokale netwerk.",
-  "That URL did not look like a Rakazo server": "Die URL leek geen Rakazo-server",
+  "That URL did not look like a Sydney server": "Die URL leek geen Sydney-server",
   "That URL is missing a host": "Die URL mist een host",
   "That doesn’t look like a URL": "Dat lijkt geen URL",
   "Use an http or https URL": "Gebruik een http- of https-URL",
@@ -904,7 +909,6 @@ export const NL_MESSAGES: Record<string, string> = {
   "AI models": "AI-modellen",
   Memory: "Geheugen",
   "Privacy policies": "Privacybeleid",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Alle toestemmingen intrekken",
   "Withdraw all permissions?": "Alle toestemmingen intrekken?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1042,14 +1046,14 @@ export const NL_MESSAGES: Record<string, string> = {
   Subscribe: "Abonneren",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Maandelijks tegoed vervalt bij verlenging. Los gekocht tegoed verloopt niet.",
-  "Use Rakazo credits": "Rakazo-tegoed gebruiken",
+  "Use Sydney credits": "Sydney-tegoed gebruiken",
   "Choose a plan": "Kies een abonnement",
   "Change plan": "Abonnement wijzigen",
   "Current plan": "Huidig abonnement",
   Plan: "Abonnement",
   None: "Geen",
   "Free trial": "Gratis proefperiode",
-  "Rakazo credits": "Rakazo-tegoed",
+  "Sydney credits": "Sydney-tegoed",
   "Free until": "Gratis tot",
   Ends: "Eindigt op",
   Renews: "Verlengt op",
@@ -1085,7 +1089,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Your free trial has started": "Je gratis proefperiode is begonnen",
   "Free until {date}": "Gratis tot {date}",
   "Connect your AI": "Verbind je AI",
-  "Start using Rakazo": "Aan de slag met Rakazo",
+  "Start using Sydney": "Aan de slag met Sydney",
   "1 unread": "1 ongelezen",
   "{count} unread": "{count} ongelezen",
   "{count} need attention": "{count} vragen aandacht",
@@ -1093,11 +1097,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}, onder",
   Work: "Werk",
   Both: "Allebei",
-  "How will you use Rakazo?": "Hoe ga je Rakazo gebruiken?",
-  "What do you most want Rakazo to help with?": "Waarmee wil je vooral hulp van Rakazo?",
+  "How will you use Sydney?": "Hoe ga je Sydney gebruiken?",
+  "What do you most want Sydney to help with?": "Waarmee wil je vooral hulp van Sydney?",
   "How big is your team?": "Hoe groot is je team?",
   "How did you hear about us?": "Hoe heb je over ons gehoord?",
-  "Welcome to Rakazo": "Welkom bij Rakazo",
+  "Welcome to Sydney": "Welkom bij Sydney",
   Messaging: "Berichten",
   Unlink: "Ontkoppelen",
   "Connect a chat app": "Chat-app koppelen",
@@ -1291,23 +1295,66 @@ export const NL_MESSAGES: Record<string, string> = {
   "{count} bots now use the space default.": "{count} bots gebruiken nu de spacestandaard.",
   "Could not switch {failedNames}. Try again.":
     "Kon {failedNames} niet overzetten. Probeer het opnieuw.",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "Er is een aangepaste achtergrond actief.",
+  "A custom bubble style is active.": "Er is een aangepaste tekstballonstijl actief.",
+  "Background and bubbles": "Achtergrond en tekstballonnen",
+  "Bubble presets": "Tekstballonvoorinstellingen",
+  "Bubble style": "Tekstballonstijl",
+  Change: "Wijzigen",
+  "Chat appearance": "Chatweergave",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "De chatweergave wordt op dit apparaat opgeslagen en niet geüpload.",
+  "Chat background": "Chatachtergrond",
+  Custom: "Aangepast",
+  "Default bubbles": "Standaard tekstballonnen",
+  "Remove background": "Achtergrond verwijderen",
+  "The image could not be removed.": "De afbeelding kon niet worden verwijderd.",
+  "The image could not be saved on this device.":
+    "De afbeelding kon niet op dit apparaat worden opgeslagen.",
+  "Use the default background.": "Gebruik de standaardachtergrond.",
+  "Use the default bubbles.": "Gebruik de standaard tekstballonnen.",
+  "Add model": "Model toevoegen",
+  "Check for updates": "Controleren op updates",
+  "Check the screen, then release and take control again.":
+    "Controleer het scherm, geef de besturing vrij en neem deze opnieuw over.",
+  "Checking for updates…": "Controleren op updates…",
+  "Complete connection": "Verbinding voltooien",
+  "Computer control is unavailable. Release and take control again.":
+    "Computerbesturing is niet beschikbaar. Geef vrij en neem opnieuw over.",
+  "Computer input failed. Take control again.":
+    "Computerinvoer mislukt. Neem de besturing opnieuw over.",
+  "Could not check for updates. Try again later.":
+    "Kon niet controleren op updates. Probeer het later opnieuw.",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "Kon de verbinding niet bevestigen. Start een nieuwe verbindingspoging.",
+  "Could not restart. Reopen the app to apply the update.":
+    "Kon niet opnieuw opstarten. Open de app opnieuw om de update toe te passen.",
+  "Could not save changes": "Wijzigingen konden niet worden opgeslagen",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "Als de browser niet kan voltooien, kopieer dan het volledige callback-adres en plak het hier.",
+  "MCP callback address": "MCP-callback-adres",
+  "Paste callback address": "Callback-adres plakken",
+  Restart: "Opnieuw starten",
+  "Restart the app now? Save unfinished work first.":
+    "De app nu opnieuw starten? Sla eerst onvoltooid werk op.",
+  "The account, server, or space changed. Start the connection again.":
+    "Het account, de server of de space is gewijzigd. Start de verbinding opnieuw.",
+  "The callback address does not match this connection attempt.":
+    "Het callback-adres komt niet overeen met deze verbindingspoging.",
+  "This update needs a new app installation.":
+    "Voor deze update moet de app opnieuw worden geïnstalleerd.",
+  "Update downloaded": "Update gedownload",
+  "Updates are unavailable in this build.": "Updates zijn niet beschikbaar in deze build.",
+  "Waiting for screen dimensions…": "Wachten op schermafmetingen…",
+  "Your app is up to date.": "Je app is up-to-date.",
+  "Changing servers signs you out and may delete unsent messages and attachments. Send or save them first.":
+    "Bij het wijzigen van server word je uitgelogd en kunnen niet-verzonden berichten en bijlagen worden verwijderd. Verstuur of bewaar ze eerst.",
+  "Disable bot voice": "Botstem uitschakelen",
+  "Enable bot voice": "Botstem inschakelen",
+  "Saved unsent messages could not be loaded. New messages that are not delivered may be lost when the app closes.":
+    "Opgeslagen niet-verzonden berichten konden niet worden geladen. Nieuwe niet-afgeleverde berichten kunnen verloren gaan wanneer de app sluit.",
+  "Server settings or the saved session could not be verified.":
+    "Serverinstellingen of de opgeslagen sessie konden niet worden geverifieerd.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
   consent: vi.fn(),
   allow: vi.fn(),
+  stop: vi.fn(),
+  answer: vi.fn(),
+  enqueue: vi.fn(),
 }));
 
 vi.mock("../thread-target.js", () => ({
@@ -39,12 +42,20 @@ function fixture(enabled: boolean, rows: unknown[]) {
   const handler = (callback: unknown) => callback;
   const query = vi.fn().mockResolvedValue(rows);
   const routes = projectWorkspaceRoutes({
-    deps: { env: { projectConversationCreateExperiment: enabled }, prisma: { $queryRaw: query } },
+    deps: {
+      env: { projectConversationCreateExperiment: enabled },
+      prisma: { $queryRaw: query },
+      events: { answerRunInput: mocks.answer },
+      jobs: { enqueue: mocks.enqueue },
+    },
     authed: { projectWorkspaces: {
+      directoryCapability: { handler }, directory: { handler }, unbindDirectory: { handler },
+      cloudDirectory: { handler }, bindCloudDirectory: { handler }, unbindCloudDirectory: { handler },
       capabilities: { handler }, conversationCapabilities: { handler }, groupCreationCapability: { handler },
       list: { handler }, get: { handler }, roster: { handler }, create: { handler }, rename: { handler }, removeEmpty: { handler }, remove: { handler },
       createBot: { handler }, createGroup: { handler }, threadHead: { handler }, threadSnapshot: { handler }, messages: { handler },
-      sendText: { handler }, stop: { handler }, markRead: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+      sendText: { handler }, stop: { handler }, markRead: { handler }, cancelRun: { handler }, answerApproval: { handler }, getArtifact: { handler }, subscribe: { handler }, consentStatus: { handler }, consentAllow: { handler },
+      getBot: { handler }, updateBot: { handler }, conversations: { handler }, botContext: { handler }, botContextAction: { handler }, conversationAction: { handler }, updateGroup: { handler }, restoreBotInstructions: { handler }, exportBot: { handler },
     } },
   } as unknown as RouterContext);
   return {
@@ -54,6 +65,8 @@ function fixture(enabled: boolean, rows: unknown[]) {
     send: routes.projectWorkspaces.sendText as unknown as (args: unknown) => Promise<unknown>,
     stop: routes.projectWorkspaces.stop as unknown as (args: unknown) => Promise<unknown>,
     markRead: routes.projectWorkspaces.markRead as unknown as (args: unknown) => Promise<unknown>,
+    cancel: routes.projectWorkspaces.cancelRun as unknown as (args: unknown) => Promise<unknown>,
+    answer: routes.projectWorkspaces.answerApproval as unknown as (args: unknown) => Promise<unknown>,
     subscribe: routes.projectWorkspaces.subscribe as unknown as (args: unknown) => AsyncGenerator<unknown>,
     consentStatus: routes.projectWorkspaces.consentStatus as unknown as (args: unknown) => Promise<unknown>,
     consentAllow: routes.projectWorkspaces.consentAllow as unknown as (args: unknown) => Promise<unknown>,
@@ -103,6 +116,64 @@ describe("project thread snapshot", () => {
   });
 });
 
+describe("project run cancellation", () => {
+  const actor = { spaceId: "space-a", userId: "user-a" };
+  const input = { projectId: "project-a", botId: "bot-a", runId: "run-a" };
+
+  it("cancels the displayed Run inside the resolved project", async () => {
+    const target = { kind: "bot", botId: "bot-a", threadId: "thread-a" };
+    mocks.resolve.mockReset().mockResolvedValue(target);
+    mocks.stop.mockReset().mockImplementation(async () => {
+      expect(currentDbContext()).toEqual({
+        kind: "tenant", ...actor, projectWorkspaceId: "project-a",
+      });
+    });
+    const { cancel } = fixture(true, [{
+      id: "project-a", name: "Project", createdAt: new Date(0), updatedAt: new Date(0),
+    }]);
+    await expect(cancel({ context: { actor }, input })).resolves.toEqual({ ok: true });
+    expect(mocks.stop).toHaveBeenCalledExactlyOnceWith(expect.anything(), actor, target, "run-a");
+  });
+
+  it.each([false, true])("denies a closed or inaccessible project (enabled=%s)", async (enabled) => {
+    mocks.resolve.mockReset();
+    mocks.stop.mockReset();
+    const { cancel } = fixture(enabled, []);
+    await expect(cancel({ context: { actor }, input })).rejects.toThrow();
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+});
+
+describe("project approval", () => {
+  const actor = { spaceId: "space-a", userId: "user-a" };
+  const input = {
+    projectId: "project-a", botId: "bot-a", runId: "run-a",
+    messageId: "message-a", effectId: "effect-a", decision: "allow",
+  };
+
+  it.each([true, false])("dispatches the exact card and enqueues only after commit (%s)", async (accepted) => {
+    mocks.resolve.mockReset().mockResolvedValue({ threadId: "thread-a" });
+    mocks.answer.mockReset().mockImplementation(async () => {
+      expect(currentDbContext()).toMatchObject({ ...actor, projectWorkspaceId: "project-a" });
+      return accepted;
+    });
+    mocks.enqueue.mockReset().mockResolvedValue(undefined);
+    const { answer } = fixture(true, [{
+      id: "project-a", name: "Project", createdAt: new Date(0), updatedAt: new Date(0),
+    }]);
+    const response = answer({ context: { actor }, input });
+    if (accepted) await expect(response).resolves.toEqual({ ok: true });
+    else await expect(response).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(mocks.answer).toHaveBeenCalledExactlyOnceWith({
+      spaceId: "space-a", threadId: "thread-a", runId: "run-a", messageId: "message-a",
+      answeredByUserId: "user-a", answer: "allow",
+      projectApproval: { projectId: "project-a", effectId: "effect-a" },
+    });
+    expect(mocks.enqueue).toHaveBeenCalledTimes(accepted ? 1 : 0);
+  });
+});
+
 describe("project AI disclosure", () => {
   it("checks and grants only within the selected project and conversation", async () => {
     mocks.consent.mockReset().mockImplementation(async () => currentDbContext());
@@ -118,10 +189,14 @@ describe("project AI disclosure", () => {
       context: { actor }, input: { ...target, scope: "scope", version: "version", keys: ["key"] },
     })).resolves.toEqual(projectScope);
     expect(mocks.consent).toHaveBeenCalledWith(expect.anything(), actor, {
-      botId: "bot-a", groupId: undefined, uses: ["model", "memory"],
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
     expect(mocks.allow).toHaveBeenCalledWith(expect.anything(), actor, expect.objectContaining(target), {
-      botId: "bot-a", groupId: undefined, uses: ["model", "memory"],
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
   });
 });
@@ -145,6 +220,11 @@ describe("project text send", () => {
     const input = { projectId: "project-a", botId: "bot-a", text: "Hello", clientNonce: "nonce-a" };
     await expect(send({ context: { actor }, input })).resolves.toMatchObject({
       kind: "tenant", ...actor, projectWorkspaceId: "project-a",
+    });
+    expect(mocks.consent).toHaveBeenCalledWith(expect.anything(), actor, {
+      botId: "bot-a",
+      groupId: undefined,
+      uses: ["model"],
     });
     expect(mocks.send).toHaveBeenCalledWith(actor, input);
   });

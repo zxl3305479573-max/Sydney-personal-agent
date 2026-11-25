@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { SettingsGroup, SettingsRow } from "../components/SettingsRows";
+import { desktopBridge } from "../lib/desktop";
 import { providerLabel } from "../lib/messaging";
 import { useSpaceQueries } from "../lib/query";
 import { rpc } from "../lib/rpc";
@@ -221,7 +222,60 @@ export function MessagingSettingsPanel() {
     if (popup) popup.opener = null;
     void act(async () => {
       try {
-        const { url } = await rpc.messaging.installations.start({});
+        const desktop = desktopBridge();
+        const serverOrigin = await desktop?.settings?.serverOrigin?.();
+        if (serverOrigin && (!popup || !desktop?.oauth)) {
+          throw new Error("Slack authorization popup unavailable");
+        }
+        const { url, returnTo } = await rpc.messaging.installations.start(
+          serverOrigin ? { returnTo: "native" } : {},
+        );
+        if (serverOrigin && popup && desktop?.oauth) {
+          const authorization = new URL(url);
+          const state = authorization.searchParams.get("state");
+          if (
+            returnTo !== "native" ||
+            authorization.origin !== "https://slack.com" ||
+            authorization.pathname !== "/oauth/v2/authorize" ||
+            !state ||
+            authorization.searchParams.get("redirect_uri") !==
+              `${serverOrigin}/api/v1/messaging/install/slack/callback`
+          ) {
+            throw new Error("Invalid Slack native authorization");
+          }
+          const oauth = desktop.oauth;
+          await new Promise<void>((resolve, reject) => {
+            const cleanup = () => {
+              unsubscribe();
+              window.clearInterval(closed);
+              window.clearTimeout(timeout);
+            };
+            const unsubscribe = oauth.onCallback((callback) => {
+              if (callback.state !== state) return;
+              cleanup();
+              void rpc.messaging.installations
+                .complete({ state, code: callback.code })
+                .then(() => resolve(), reject);
+            });
+            const closed = window.setInterval(() => {
+              if (!popup.closed || !document.hasFocus()) return;
+              cleanup();
+              resolve();
+            }, 500);
+            const timeout = window.setTimeout(() => {
+              cleanup();
+              popup.close();
+              resolve();
+            }, 5 * 60_000);
+            try {
+              popup.location.href = url;
+            } catch (error) {
+              cleanup();
+              reject(error);
+            }
+          });
+          return;
+        }
         if (popup) popup.location.href = url;
         else window.location.assign(url);
       } catch (error) {

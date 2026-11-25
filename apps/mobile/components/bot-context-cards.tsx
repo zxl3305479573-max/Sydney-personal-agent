@@ -6,11 +6,12 @@ import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { errorText } from "../lib/user-error";
+import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
 import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 
-export function BotContextCards({ botId }: { botId: string }) {
+export function BotContextCards({ botId, projectId, scope }: { botId: string; projectId?: string; scope?: string }) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const [work, setWork] = useState<ScratchpadItem[]>([]);
@@ -21,24 +22,23 @@ export function BotContextCards({ botId }: { botId: string }) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
-    void rpc("scratchpad/list", { botId })
-      .then((items) => {
-        if (current) setWork(items);
+    const load = async () => projectId && scope
+      ? rpc("projectWorkspaces/botContext", { projectId, botId }, await projectRequestOptions(scope))
+      : Promise.all([rpc("scratchpad/list", { botId }), rpc("memory/list", { botId, scope: "bot" })]).then(([work, docs]) => ({ work, docs }));
+    void load()
+      .then(({ work: items, docs }) => {
+        if (current && (!projectId || scope === projectScopeKey())) {
+          setWork(items);
+          setDocs(docs.filter((doc) => !isEmptyBotMemory(doc)));
+        }
       })
       .catch((err) => {
-        if (current) setError(errorText(err));
-      });
-    void rpc("memory/list", { botId, scope: "bot" })
-      .then((documents) => {
-        if (current) setDocs(documents.filter((doc) => !isEmptyBotMemory(doc)));
-      })
-      .catch((err) => {
-        if (current) setError(errorText(err));
+        if (current && (!projectId || scope === projectScopeKey())) setError(errorText(err));
       });
     return () => {
       current = false;
     };
-  }, [botId]);
+  }, [botId, projectId, scope]);
   const heading = { color: tokens.mutedForeground, fontSize: 12, fontWeight: "500" as const };
   const card = { borderRadius: 12, padding: 16, gap: 12 };
   return (
@@ -67,8 +67,10 @@ export function BotContextCards({ botId }: { botId: string }) {
                 if (!title || busy) return;
                 setBusy(true);
                 try {
-                  const item = await rpc("scratchpad/create", { botId, title });
-                  setWork((items) => [item, ...items]);
+                  const result = projectId && scope
+                    ? await rpc("projectWorkspaces/botContextAction", { projectId, botId, title, action: "create" }, await projectRequestOptions(scope))
+                    : { item: await rpc("scratchpad/create", { botId, title }) };
+                  if (result.item) setWork((items) => [result.item!, ...items]);
                 } catch (err) {
                   setError(errorText(err));
                 } finally {
@@ -102,7 +104,9 @@ export function BotContextCards({ botId }: { botId: string }) {
                   disabled={busy}
                   onPress={() => {
                     setBusy(true);
-                    void rpc("scratchpad/update", { itemId: item.id, status: "done" })
+                    void (projectId && scope
+                      ? projectRequestOptions(scope).then((options) => rpc("projectWorkspaces/botContextAction", { projectId, botId, itemId: item.id, action: "complete" }, options))
+                      : rpc("scratchpad/update", { itemId: item.id, status: "done" }))
                       .then(() => setWork((items) => items.filter((entry) => entry.id !== item.id)))
                       .catch((err) => setError(errorText(err)))
                       .finally(() => setBusy(false));

@@ -398,6 +398,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
   private storedRefreshToken: string | null;
   /** Whether `saveTokens()` has committed a newly issued grant through this provider. */
   private tokensCommitted = false;
+  private readonly stagedRegistration: boolean;
 
   get committedTokens(): boolean {
     return this.tokensCommitted;
@@ -410,6 +411,14 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     private readonly options: ProviderOptions = {},
   ) {
     this.storedRefreshToken = material.oauth?.tokens?.refresh_token ?? null;
+    this.stagedRegistration = Boolean(
+      options.onAuthorization &&
+        options.redirectUri &&
+        material.oauth?.clientInformation &&
+        material.oauth.redirectUri !== options.redirectUri &&
+        !material.oauthClient,
+    );
+    if (this.stagedRegistration) material.oauth = {};
     if (options.redirectUri) {
       const prior = this.material.oauth;
       if (
@@ -440,7 +449,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     const applicationType = hostname === "localhost" || hostname === "127.0.0.1" ? "native" : "web";
     return {
       redirect_uris: [redirectUri],
-      client_name: "Rakazo",
+      client_name: "Sydney",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       token_endpoint_auth_method: "none",
@@ -648,6 +657,7 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
 
   /** `issued` marks a write carrying tokens the server just issued, which replace any stored grant. */
   private async persist(issued = false): Promise<void> {
+    if (this.stagedRegistration && !issued) return;
     const snapshot = structuredClone(this.material);
     const held = this.material.oauth?.tokens;
     const storedRefreshToken = issued ? undefined : this.storedRefreshToken;

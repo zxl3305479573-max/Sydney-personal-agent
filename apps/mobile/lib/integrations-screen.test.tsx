@@ -6,13 +6,15 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { Linking } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import Integrations from "../app/(settings)/integrations";
+import Integrations from "../app/integrations";
 import { ConnectorIcon } from "../components/connector-icon";
+import { MainNavigationProvider, useMainNavigationHidden } from "./main-navigation";
 
 const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   marketplace: vi.fn(),
   push: vi.fn(),
+  header: vi.fn(),
   read: vi.fn(),
   write: vi.fn(),
   current: true,
@@ -29,7 +31,16 @@ vi.mock("./query", () => ({
     setQueryData: (key: string, value: unknown) => state.cache.set(key, value),
   },
 }));
-vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./side-insets", () => ({
+  useSideInsets: () => ({}),
+  useBottomSafeAreaClaimed: () => true,
+}));
+vi.mock("../components/main-navigation-header", () => ({
+  MainNavigationHeader: (props: unknown) => {
+    state.header(props);
+    return null;
+  },
+}));
 vi.mock("expo-router", () => ({
   useRouter: () => ({ push: state.push, setParams: vi.fn() }),
   useLocalSearchParams: () => ({}),
@@ -159,17 +170,20 @@ vi.mock("react-native", () => {
       </button>
     ),
     TextInput: ({
+      accessibilityLabel,
       placeholder,
       value,
       onChangeText,
       onEndEditing,
     }: {
+      accessibilityLabel?: string;
       placeholder?: string;
       value?: string;
       onChangeText?: (value: string) => void;
       onEndEditing?: () => void;
     }) => (
       <input
+        aria-label={accessibilityLabel}
         onBlur={onEndEditing}
         placeholder={placeholder}
         value={value}
@@ -223,6 +237,7 @@ beforeEach(() => {
   state.read.mockReset().mockReturnValue(null);
   state.write.mockReset();
   state.push.mockReset();
+  state.header.mockReset();
   state.marketplace
     .mockReset()
     .mockResolvedValue({ entries: [], unavailableRegistries: [], skippedEntries: 0 });
@@ -343,6 +358,28 @@ it("falls back for absent logos and empty names", async () => {
   expect(container.textContent).toBe("E");
   await render(<ConnectorIcon name=" " />);
   expect(container.textContent).toBe("?");
+});
+
+it("hides main navigation inside an app connection and returns to the app list", async () => {
+  function NavigationVisibility() {
+    return <output>{useMainNavigationHidden() ? "hidden" : "visible"}</output>;
+  }
+  state.read.mockReturnValue({ catalog: [item], connections: [account] });
+  await render(
+    <MainNavigationProvider>
+      <Integrations />
+      <NavigationVisibility />
+    </MainNavigationProvider>,
+  );
+  expect(container.querySelector("output")?.textContent).toBe("visible");
+  const added = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "Added",
+  );
+  expect(added).toBeDefined();
+  await act(async () => added!.click());
+  expect(container.querySelector("output")?.textContent).toBe("hidden");
+  act(() => state.header.mock.lastCall![0].onBack());
+  expect(container.querySelector("output")?.textContent).toBe("visible");
 });
 
 it("persists a rename before a pending stale refresh can overwrite it", async () => {
@@ -841,7 +878,7 @@ it("saves native MCP API key auth as a named encrypted header", async () => {
       .find((button) => button.textContent === "API key")
       ?.click();
   });
-  const credential = container.querySelector('input[placeholder="API key"]');
+  const credential = container.querySelector('input[aria-label="API key"]');
   expect(credential).not.toBeNull();
   await act(async () => {
     if (!(credential instanceof HTMLInputElement)) return;
@@ -896,7 +933,7 @@ it("registers an OAuth MCP server and starts the existing browser callback flow"
   );
   expect(state.rpc).toHaveBeenCalledWith(
     "mcp/oauth/begin",
-    { serverId: "oauth-server" },
+    { serverId: "oauth-server", nativeCallback: true },
     { requestContext: expect.objectContaining({ apiBase: "https://fixture.test" }) },
   );
   expect(Linking.openURL).toHaveBeenCalledWith("https://identity.example.test/authorize");
@@ -920,7 +957,7 @@ it("finishes a matching MCP callback using the current authenticated context", a
         status: "authorization_required",
         sessionId: "test-session",
         authorizationUrl: "https://identity.example.test/authorize",
-        callbackUri: "https://fixture.test/mcp/oauth/callback",
+        callbackUri: "https://fixture.test/api/mcp/oauth/callback",
       });
     if (proc === "mcp/oauth/complete") return Promise.resolve({ ok: true });
     return fallback?.(proc, args);
@@ -941,7 +978,7 @@ it("finishes a matching MCP callback using the current authenticated context", a
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
       input,
-      "https://fixture.test/mcp/oauth/callback?code=synthetic&state=test-session",
+      "https://fixture.test/api/mcp/oauth/callback?code=synthetic&state=test-session",
     );
     input!.dispatchEvent(new Event("input", { bubbles: true }));
   });

@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, Prisma } from "./client.js";
 import { describeRowSecurity, RUNTIME_ROLE } from "./database-access.js";
+import { eventsAfter, sendUserMessage } from "./events.js";
+import { createGroupRepos } from "./groups.js";
 import {
   AccountHasProjectWorkspacesError,
   claimProjectAccountDeletion,
   ProjectAccountDeletionInProgressError,
 } from "./project-account-lifecycle.js";
+import { runInProjectWorkspace } from "./project-workspace-context.js";
 import {
   cancelClaimedProjectWorkspaceRuns,
   claimProjectWorkspaceDeletion,
@@ -15,7 +18,9 @@ import {
   ProjectWorkspaceDeletionInProgressError,
 } from "./project-workspace-deletion.js";
 import { createProjectWorkspace, listProjectWorkspaces } from "./project-workspace-read.js";
+import { createRepos } from "./repos.js";
 import { drainUnscopedDatabaseAccess, runAsSystem, runAsTenant } from "./row-security.js";
+import { IsolationError } from "./scope.js";
 
 const runtimeUrl = process.env.DATABASE_URL;
 const migrationUrl = process.env.DATABASE_MIGRATION_URL;
@@ -33,6 +38,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
   const spaceId = `workspace-space-${suffix}`;
   const otherSpaceId = `workspace-other-space-${suffix}`;
   const otherWorkspaceId = `workspace-other-${suffix}`;
+  const siblingWorkspaceId = `workspace-sibling-${suffix}`;
   const ownCreatedId = `workspace-created-${suffix}`;
   const users = ["a", "b"].map((name) => ({
     userId: `workspace-user-${name}-${suffix}`,
@@ -184,10 +190,17 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
       if (seeded) {
         await runAsSystem("clean synthetic project fixtures", () => owner.prisma.$transaction(async (tx) => {
           await tx.cloudAgent.deleteMany({ where: { spaceId: { in: [spaceId, otherSpaceId] } } });
+          const projectResources = { spaceId, projectWorkspaceId: { in: [first.workspaceId, siblingWorkspaceId] } };
+          await tx.artifact.deleteMany({ where: projectResources });
+          await tx.run.deleteMany({ where: projectResources });
+          await tx.task.deleteMany({ where: projectResources });
+          await tx.thread.deleteMany({ where: projectResources });
+          await tx.chatGroup.deleteMany({ where: projectResources });
+          await tx.bot.deleteMany({ where: projectResources });
           await tx.$executeRaw`
             DELETE FROM project_workspaces
             WHERE "spaceId" = ANY(${[spaceId, otherSpaceId]}::text[])
-              AND id = ANY(${[...workspaceIds, ...pageFixtureIds, ownCreatedId, forgedId, unscopedId, nonmemberId]}::text[])`;
+              AND id = ANY(${[...workspaceIds, ...pageFixtureIds, ownCreatedId, forgedId, unscopedId, nonmemberId, siblingWorkspaceId]}::text[])`;
           await tx.organization.deleteMany({ where: { id: organizationId } });
           await tx.user.deleteMany({ where: { id: { in: users.map((user) => user.userId) } } });
         }));
@@ -468,7 +481,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
     }
   });
 
-  it("hides home artifacts from project scope and prohibits project artifact writes", async () => {
+  it("hides home artifacts from project scope and rejects an artifact without its project Run", async () => {
     const artifactId = `workspace-artifact-${randomUUID()}`;
     const blockedId = `workspace-blocked-artifact-${randomUUID()}`;
     try {
@@ -849,7 +862,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
     }))).rejects.toThrow(/Conversation identity and target are immutable/);
   });
 
-  it("opens the five core conversation tables for project writes while keeping deferred gates", async () => {
+  it("opens project text and scoped artifacts while leaving project external operations gated", async () => {
     const constraints = await owner.prisma.$queryRaw<Array<{ name: string; validated: boolean; definition: string }>>`
       SELECT conname AS name, convalidated AS validated, pg_get_constraintdef(oid) AS definition FROM pg_constraint
       WHERE connamespace = 'public'::regnamespace AND contype = 'c'
@@ -858,11 +871,12 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
           'public.artifacts'::regclass, 'public.cloud_agents'::regclass, 'public.purchases'::regclass])
         AND conname = ANY(ARRAY['bots_project_scope_disabled', 'chat_groups_project_scope_disabled',
           'threads_project_scope_disabled', 'tasks_project_scope_disabled', 'runs_project_scope_disabled',
-          'artifacts_project_scope_disabled', 'cloud_agents_project_scope_disabled', 'purchases_project_scope_disabled'])
+          'artifacts_project_scope_disabled', 'cloud_agents_project_scope_disabled',
+          'purchases_project_scope_disabled'])
       ORDER BY conname
     `;
     expect(constraints).toEqual([
-      "artifacts", "cloud_agents", "purchases",
+      "cloud_agents", "purchases",
     ].map((table) => ({
       name: `${table}_project_scope_disabled`, validated: true,
       definition: expect.stringMatching(/"projectWorkspaceId" IS NULL/),
@@ -1044,6 +1058,102 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
         }),
       );
     }
+  });
+
+  it("persists and isolates Bot and group text sends across projects in the same Space", async () => {
+    const prisma = app.prisma;
+    const actor = { ...tenant(first), email: `${first.userId}@rakazo.test`, isDeploymentOwner: false };
+    const repos = createRepos(prisma);
+    const groups = createGroupRepos(prisma);
+    const inProject = <T>(projectId: string, run: () => Promise<T>) =>
+      runInProjectWorkspace(prisma, actor, projectId, run);
+    await runAsTenant(actor, () => insert(siblingWorkspaceId, first.userId));
+
+    const makeProjectChat = (projectId: string) => inProject(projectId, async () => {
+      const botInput = { description: "", instructions: "", notifyOnFinish: false };
+      const member = await repos.createBot(actor, { ...botInput, name: "Project member" });
+      const peer = await repos.createBot(actor, { ...botInput, name: "Project peer" });
+      const group = await groups.createGroup(actor, { name: "Project group", botIds: [member.id, peer.id] });
+      const send = async (threadId: string) => {
+        const input = {
+          ...tenant(first), threadId, botId: member.id, prompt: "project text",
+          blocks: [{ kind: "text" as const, text: "project text" }],
+          trigger: "user" as const, clientNonce: `project-send-${suffix}`,
+        };
+        const sent = await sendUserMessage(prisma, input);
+        expect(sent).toMatchObject({ taskId: expect.any(String), runId: expect.any(String) });
+        expect(await sendUserMessage(prisma, input)).toEqual(sent);
+        return { threadId, ...sent };
+      };
+      return { member, peer, group, messages: [await send(member.threadId), await send(group.threadId)] };
+    });
+    const projectA = await makeProjectChat(first.workspaceId);
+    const projectB = await makeProjectChat(siblingWorkspaceId);
+    const artifactA = await inProject(first.workspaceId, async () => {
+      const data = {
+        ...tenant(first),
+        botId: projectA.member.id,
+        projectWorkspaceId: first.workspaceId,
+        name: "fixture.md",
+        mimeType: "text/markdown",
+        size: 6,
+        hash: "fixture-hash",
+        storageKey: "fixture-store",
+      };
+      await expect(prisma.artifact.create({
+        data: { ...data, runId: projectB.messages[0]?.runId },
+      })).rejects.toThrow(/Project artifact does not match its Run/);
+      return prisma.artifact.create({ data: { ...data, runId: projectA.messages[0]?.runId } });
+    });
+    await expect(inProject(siblingWorkspaceId, () =>
+      prisma.artifact.findUnique({ where: { id: artifactA.id } }),
+    )).resolves.toBeNull();
+    await expect(runAsTenant(tenant(first), () =>
+      prisma.artifact.findUnique({ where: { id: artifactA.id } }),
+    )).resolves.toBeNull();
+    await expect(inProject(first.workspaceId, () =>
+      prisma.artifact.findUnique({ where: { id: artifactA.id } }),
+    )).resolves.toMatchObject({ id: artifactA.id, projectWorkspaceId: first.workspaceId });
+
+    for (const [projectId, own, other] of [
+      [first.workspaceId, projectA, projectB],
+      [siblingWorkspaceId, projectB, projectA],
+    ] as const) {
+      await inProject(projectId, async () => {
+        const runs = await prisma.run.findMany({ orderBy: { id: "asc" }, include: { task: true } });
+        expect(runs.map((run) => run.id)).toEqual(own.messages.map((message) => message.runId).sort());
+        for (const run of runs) {
+          expect(run).toMatchObject({ projectWorkspaceId: projectId, task: { projectWorkspaceId: projectId } });
+        }
+        expect(await prisma.message.count()).toBe(2);
+        for (const message of own.messages) {
+          expect(await eventsAfter(prisma, message.threadId, -1)).toHaveLength(1);
+        }
+        expect(await eventsAfter(prisma, other.group.threadId, -1)).toEqual([]);
+        expect(await prisma.bot.findUnique({ where: { id: conversation.botId } })).toBeNull();
+        expect(await prisma.chatGroup.findUnique({ where: { id: other.group.id } })).toBeNull();
+        await expect(prisma.chatGroupMember.create({
+          data: { groupId: own.group.id, botId: other.peer.id },
+        })).rejects.toThrow(/Group member scope does not match/);
+        expect(await prisma.run.updateMany({
+          where: { id: { in: other.messages.flatMap((message) => message.runId ?? []) } },
+          data: { status: "cancelled" },
+        })).toEqual({ count: 0 });
+        await expect(groups.createGroup(actor, { name: "Mixed", botIds: [own.member.id, other.peer.id] }))
+          .rejects.toThrow(IsolationError);
+      });
+    }
+
+    await runAsTenant(actor, async () => {
+      expect(await prisma.bot.findUnique({ where: { id: conversation.botId } })).not.toBeNull();
+      expect(await prisma.bot.findUnique({ where: { id: projectA.member.id } })).toBeNull();
+      expect(await eventsAfter(prisma, projectA.group.threadId, -1)).toEqual([]);
+    });
+    await runAsTenant({ ...tenant(second), projectWorkspaceId: first.workspaceId }, async () => {
+      expect(await prisma.run.findMany()).toEqual([]);
+      expect(await prisma.bot.updateMany({ where: { id: projectA.member.id }, data: { name: "Denied" } }))
+        .toEqual({ count: 0 });
+    });
   });
 
   it("requires a Space membership and restricts deleting an owner membership", async () => {

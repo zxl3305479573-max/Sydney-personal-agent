@@ -5,6 +5,8 @@ const storage = vi.hoisted(() => ({
   fail: false,
 }));
 
+vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
+
 vi.mock("expo-file-system", () => ({
   File: class {
     uri: string;
@@ -55,6 +57,17 @@ it("applies transparency to the bubble background without fading its contents", 
     backgroundColor: "rgba(219, 234, 254, 0.4)",
     borderRadius: 12,
   });
+});
+
+it("uses a translucent default for both message roles", async () => {
+  const mobile = await import("./chat-appearance");
+  const appearance = mobile.getMobileChatAppearance();
+  expect(
+    mobile.mobileBubbleSurfaceStyle(appearance, "user", { backgroundColor: "#112233" }),
+  ).toMatchObject({ backgroundColor: "rgba(17, 34, 51, 0.64)" });
+  expect(
+    mobile.mobileBubbleSurfaceStyle(appearance, "bot", { backgroundColor: "#445566" }),
+  ).toMatchObject({ backgroundColor: "rgba(68, 85, 102, 0.64)" });
 });
 
 it("keeps the previous appearance when saving fails", async () => {

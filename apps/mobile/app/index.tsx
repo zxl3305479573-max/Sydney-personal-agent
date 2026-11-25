@@ -28,7 +28,7 @@ import { CreateBotModal } from "../components/create-bot-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
 import { ActivitySection } from "../components/inbox-activity";
-import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
 import { InboxListFooter, useInboxRenderItem } from "../components/inbox-render-item";
 import { CompactRowsContext, SelectedChatContext } from "../components/inbox-rows";
 import { PickChatPane } from "../components/pick-chat-pane";
@@ -83,13 +83,17 @@ import { findOrganizeTarget } from "../lib/organize-target";
 import { offerPasskeyOnce } from "../lib/passkey";
 import { ACTIVITY_POLL_INTERVAL_MS, INBOX_POLL_INTERVAL_MS } from "../lib/poll-cadence";
 import { registerPushToken } from "../lib/push";
+import { queryClient, rpcQuery } from "../lib/query";
 import { loadSavedInbox, saveInbox } from "../lib/saved-chats";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
   subscribeSessionGeneration,
 } from "../lib/session";
+import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { useSplitView } from "../lib/split-view";
+import { threadSessionCache } from "../lib/thread-session-cache";
+import { UiModeScreenHost } from "../lib/ui-mode-slots";
 import { useArchivedCount } from "../lib/use-archived-count";
 import { useCollapsedSections } from "../lib/use-collapsed-sections";
 import { useHomeHeader } from "../lib/use-home-header";
@@ -98,6 +102,7 @@ import { useInboxDay } from "../lib/use-inbox-day";
 import { usePublishSearchInbox } from "../lib/use-publish-search-inbox";
 import type { LoadFailureKind } from "../lib/user-error";
 import { errorText, loadFailureKind } from "../lib/user-error";
+import type { InboxUiModeController } from "../ui-modes/controllers";
 
 /** A row counts as on screen as soon as any of it shows. */
 const AVATAR_VIEWABILITY = { itemVisiblePercentThreshold: 1 };
@@ -188,6 +193,10 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const [spaceBusy, setSpaceBusy] = useState(false);
   const [spaceRecoveryId, setSpaceRecoveryId] = useState<string | null>(null);
   const userId = me?.userId;
+  const threadRevision = useSyncExternalStore(
+    threadSessionCache.subscribe,
+    threadSessionCache.getRevision,
+  );
   const { collapsed, toggleCollapsed, loaded: collapsedLoaded } = useCollapsedSections(userId);
   // Collapsed sections load before the inbox first renders, so they don't fold on launch.
   const ready = sessionLoaded && collapsedLoaded;
@@ -230,6 +239,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     const requestId = ++inboxRequestId.current;
     const apiBase = currentApiBase();
     const generation = currentSessionGeneration();
+    const requestThreadRevision = threadSessionCache.getRequestRevision();
     setError(null);
     setInboxLoading(true);
     try {
@@ -269,6 +279,24 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
       setGroups((current) => retainInboxValue(current, navigation.current.groups));
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
+      for (const space of navigation.spaces) {
+        threadSessionCache.reconcileRoster(
+          { apiBase, sessionGeneration: generation, userId: nextMe.userId, spaceId: space.id },
+          requestThreadRevision,
+        );
+      }
+      threadSessionCache.reconcileRoster(
+        {
+          apiBase,
+          sessionGeneration: generation,
+          userId: nextMe.userId,
+          spaceId: navigation.current.id,
+        },
+        requestThreadRevision,
+      );
+      if (nextMe.spaceId === selectedSpaceId()) {
+        queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
+      }
       // Emails follow the app's language, so the account keeps the one this app runs in. Once
       // per account and launch: polls must not undo a language picked on another device since.
       // A server that predates it leaves `locale` out.
@@ -420,11 +448,16 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     () =>
       withoutArchiving(
         "group",
-        applyPinOverrides("group", applyUnreadOverrides("group", groups, unreadOverrides), pinOverrides, {
-          generation,
-          apiBase: currentApiBase(),
-          spaceId: me?.spaceId,
-        }),
+        applyPinOverrides(
+          "group",
+          applyUnreadOverrides("group", groups, unreadOverrides),
+          pinOverrides,
+          {
+            generation,
+            apiBase: currentApiBase(),
+            spaceId: me?.spaceId,
+          },
+        ),
         archiving,
       ),
     [groups, unreadOverrides, pinOverrides, archiving, generation, me?.spaceId],
@@ -438,21 +471,25 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
             bots: withoutArchiving(
               "bot",
               applyPinOverrides("bot", space.bots, pinOverrides, {
-                generation, apiBase: currentApiBase(), spaceId: space.id,
+                generation,
+                apiBase: currentApiBase(),
+                spaceId: space.id,
               }),
               archiving,
             ),
             groups: withoutArchiving(
               "group",
               applyPinOverrides("group", space.groups, pinOverrides, {
-                generation, apiBase: currentApiBase(), spaceId: space.id,
+                generation,
+                apiBase: currentApiBase(),
+                spaceId: space.id,
               }),
               archiving,
             ),
           })),
     [spaces, archiving, pinOverrides, generation],
   );
-  const inboxSpaces = useMemo(
+  const rosterSpaces = useMemo<InboxSpace[]>(
     () =>
       shownSpaces.length > 0
         ? shownSpaces.map((space) =>
@@ -475,6 +512,27 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           : [],
     [shownSpaces, me, visible, visibleGroups, botSections, t, locale],
   );
+  const inboxSpaces = useMemo(
+    () =>
+      rosterSpaces.map((space) => ({
+        ...space,
+        bots: space.bots.map((bot) => {
+          if (!userId) return bot;
+          const status = threadSessionCache.botStatus(
+            {
+              apiBase: currentApiBase(),
+              sessionGeneration: generation,
+              userId,
+              spaceId: space.id,
+            },
+            bot.id,
+            bot.status,
+          );
+          return status === bot.status ? bot : { ...bot, status };
+        }),
+      })),
+    [rosterSpaces, userId, generation, threadRevision],
+  );
   usePublishSearchInbox(inboxSpaces, me !== null);
   const listData = useMemo((): InboxItem[] => {
     // Only bot threads support importing shares; use the same rows for every target.
@@ -485,12 +543,17 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           .map((space) => ({ ...space, groups: [] })),
         collapsed,
       );
-    const otherSpaces = shownSpaces.filter((space) => space.id !== me?.spaceId);
+    const pinnedSpaces = [
+      ...inboxSpaces.filter((space) => space.id === me?.spaceId),
+      ...inboxSpaces.filter((space) => space.id !== me?.spaceId),
+    ];
     const pinned: PinnedChat[] = [
-      ...[...visible, ...otherSpaces.flatMap((space) => space.bots)]
+      ...pinnedSpaces
+        .flatMap((space) => space.bots)
         .filter((bot) => bot.pinned)
         .map((bot) => ({ kind: "bot" as const, bot })),
-      ...[...visibleGroups, ...otherSpaces.flatMap((space) => space.groups)]
+      ...pinnedSpaces
+        .flatMap((space) => space.groups)
         .filter((group) => group.pinned)
         .map((group) => ({ kind: "group" as const, group })),
     ];
@@ -501,16 +564,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     }));
     const items: InboxItem[] = spaceInboxItems(sidebarSpaces, collapsed, me?.spaceId);
     return pinned.length > 0 ? [{ type: "pinned", chats: pinned }, ...items] : items;
-  }, [
-    inboxSpaces,
-    collapsed,
-    me?.spaceId,
-    shownSpaces,
-    visible,
-    visibleGroups,
-    locale,
-    onShareSelect,
-  ]);
+  }, [inboxSpaces, collapsed, me?.spaceId, locale, onShareSelect]);
   const badgeCount = me ? unreadChatCount(inboxSpaces) : null;
   useEffect(() => {
     if (badgeCount === null || badgeLoad === null) return;
@@ -529,6 +583,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         organizeTarget.chat)
     : null;
   const insets = useSafeAreaInsets();
+  const bottomClaimed = useBottomSafeAreaClaimed();
   // An unfolded or tablet window keeps the inbox in a centred column.
   const windowWidth = useWindowDimensions().width;
   const { inboxWidth } = useSplitView();
@@ -568,7 +623,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     listRef,
     // The Liquid Glass header floats over the list; the older header sits above it.
     topInset: nativeHeader ? headerHeight : 0,
-    bottomInset: insets.bottom,
+    bottomInset: onShareSelect || !bottomClaimed ? insets.bottom : 0,
   });
   const router = useRouter();
   const pathname = usePathname();
@@ -694,22 +749,31 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     [deleteInboxSpace, t],
   );
 
-  const createBot = useCallback(async (identity: InboxBotIdentity): Promise<Href | null> => {
-    if (creatingBotRef.current || spaceActionRef.current.busy || spaceActionRef.current.recoveryId)
-      throw new Error(t("Could not create bot"));
-    creatingBotRef.current = true;
-    try {
-      let destination: Href | null = null;
-      await createInboxBot({
-        identity,
-        refreshBots,
-        openChat: (href) => { destination = href; },
-      });
-      return destination;
-    } finally {
-      creatingBotRef.current = false;
-    }
-  }, [refreshBots, t]);
+  const createBot = useCallback(
+    async (identity: InboxBotIdentity): Promise<Href | null> => {
+      if (
+        creatingBotRef.current ||
+        spaceActionRef.current.busy ||
+        spaceActionRef.current.recoveryId
+      )
+        throw new Error(t("Could not create bot"));
+      creatingBotRef.current = true;
+      try {
+        let destination: Href | null = null;
+        await createInboxBot({
+          identity,
+          refreshBots,
+          openChat: (href) => {
+            destination = href;
+          },
+        });
+        return destination;
+      } finally {
+        creatingBotRef.current = false;
+      }
+    },
+    [refreshBots, t],
+  );
 
   const runCreateAction = useCallback(
     (action: CreateAction) => {
@@ -854,7 +918,26 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const showLoadFailure = Boolean(loadFailure) && inboxHasNoChats(listData);
   const inlineError = error ?? (showLoadFailure ? null : (loadFailure?.message ?? null));
 
-  return (
+  const controller: InboxUiModeController = {
+    items: listData,
+    me,
+    embedded,
+    sharing: Boolean(onShareSelect),
+    loading: inboxLoading,
+    refreshing,
+    error: inlineError,
+    loadFailure,
+    spaceBusy,
+    spaceRecoveryId,
+    refresh: async () => {
+      await Promise.all([refreshBots(), loadActivity()]);
+    },
+    openBot,
+    openGroup,
+    create: runCreateAction,
+    selectSpace: chooseInboxSpace,
+  };
+  const classicContent = (
     <View style={styles.screen}>
       {nativeHeader || onShareSelect ? null : (
         <InboxHeader
@@ -901,12 +984,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 }
                 ListHeaderComponent={
                   <>
-                    {!onShareSelect && !showLoadFailure ? (
-                      <InboxRosterHeading
-                        kind="bot"
-                        onCreateGroup={() => runCreateAction("group")}
-                      />
-                    ) : null}
+                    {!onShareSelect ? <InboxIntro activityMode={activityMode} /> : null}
                     {inlineError ? <Text style={styles.error}>{inlineError}</Text> : null}
                     {spaceRecoveryId ? (
                       <Pressable
@@ -938,16 +1016,13 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 }
                 ListFooterComponent={
                   <>
-                    {!onShareSelect &&
-                    !showLoadFailure &&
-                    !listData.some((item) => item.type === "group") ? (
-                      <InboxRosterHeading
-                        kind="group"
-                        onCreateGroup={() => runCreateAction("group")}
-                      />
-                    ) : null}
                     <InboxListFooter
-                      createHint={false}
+                      createHint={
+                        !onShareSelect &&
+                        !showLoadFailure &&
+                        !inboxLoading &&
+                        inboxHasNoChats(listData)
+                      }
                       archivedCount={onShareSelect ? 0 : archivedCount}
                     />
                   </>
@@ -961,7 +1036,6 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           </View>
         </CompactRowsContext.Provider>
       </SelectedChatContext.Provider>
-      {!onShareSelect ? <InboxQuickActions columnInsets={columnInsets} /> : null}
       {createBotOpen ? (
         <CreateBotModal
           onClose={() => setCreateBotOpen(false)}
@@ -994,5 +1068,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         />
       ) : null}
     </View>
+  );
+  return (
+    <UiModeScreenHost slot="inbox" controller={controller} renderClassic={() => classicContent} />
   );
 }

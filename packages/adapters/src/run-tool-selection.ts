@@ -1,13 +1,23 @@
+import type { ProjectDirectoryIntent } from "@rakazo/contracts";
 import {
   disabledBuiltinToolSet,
   FLEET_TOOL_NAMES,
   FLEET_WRITE_TOOL_NAMES,
+  GITHUB_TOOL_NAMES,
 } from "@rakazo/contracts";
 import { isBackgroundRunTrigger, isOwnerStartedRun } from "@rakazo/core";
 import { builtinAgentTools } from "./builtin-tools.js";
 import { selectCloudAgentTools } from "./cloud-agent-tools-select.js";
 import { selectMemoryTools } from "./memory-tools.js";
 import { filterImageReturningComputerTools } from "./model-vision.js";
+import {
+  filterProjectTextTools,
+  isProjectDeviceTool,
+  PROJECT_CLOUD_COMMAND,
+  PROJECT_WINDOWS_COMMAND,
+  PROJECT_WINDOWS_TERMINAL,
+  projectFileToolAllowed,
+} from "./run-project-policy.js";
 import { USER_COMPUTER_SCREEN_TOOLS } from "./run-tools-user-computer.js";
 import { filterBuiltinToolsForRun, filterBuiltinToolsForThread } from "./schedule-tools.js";
 
@@ -33,10 +43,14 @@ export const READ_ONLY_AGENT_TOOLS = new Set([
   "list_secrets",
   "cloud_agent_status",
   "purchase_status",
+  ...GITHUB_TOOL_NAMES,
 ]);
 
 /** Offered only to a user who connected a wallet. */
 const PURCHASE_TOOL_NAMES = new Set(["request_purchase", "purchase_status", "paid_request"]);
+
+/** Offered only to a user who connected a GitHub account. */
+const GITHUB_TOOL_NAMES_SET: ReadonlySet<string> = new Set(GITHUB_TOOL_NAMES);
 
 export const BUILTIN_AGENT_TOOL_NAMES = new Set(builtinAgentTools.map((tool) => tool.name));
 
@@ -53,6 +67,11 @@ export const FLEET_WRITE_TOOL_NAMES_SET: ReadonlySet<string> = new Set(FLEET_WRI
 const CREATED_RUN_TOOL_NAMES = new Set(["ask_user", "update_bot"]);
 
 export function selectBuiltinToolsForRun(options: {
+  projectWorkspaceId?: string | null;
+  projectDirectoryIntent?: ProjectDirectoryIntent;
+  projectWindowsTerminal?: boolean;
+  projectWindowsCommand?: boolean;
+  projectCloudCommand?: boolean;
   ticketBoardEnabled?: boolean;
   phoneCallsEnabled?: boolean;
   historyRetrievalEnabled?: boolean;
@@ -68,6 +87,8 @@ export function selectBuiltinToolsForRun(options: {
   cloudAgentEnabled?: boolean;
   /** The run's user connected a payment wallet. */
   paymentWalletEnabled?: boolean;
+  /** The run's user connected a GitHub account. */
+  githubEnabled?: boolean;
   mediaImagesEnabled?: boolean;
   mediaVideoEnabled?: boolean;
   messagingChannelRun: boolean;
@@ -111,6 +132,7 @@ export function selectBuiltinToolsForRun(options: {
         (Boolean(options.fleetManagement) && ownerStartedRun)) &&
       (ownerStartedRun || (tool.name !== "update_preferences" && tool.name !== "feedback")) &&
       (options.paymentWalletEnabled || !PURCHASE_TOOL_NAMES.has(tool.name)) &&
+      (options.githubEnabled || !GITHUB_TOOL_NAMES_SET.has(tool.name)) &&
       (options.mediaImagesEnabled || tool.name !== "generate_image") &&
       (options.mediaVideoEnabled || tool.name !== "generate_video") &&
       (options.ticketBoardEnabled ||
@@ -150,7 +172,21 @@ export function selectBuiltinToolsForRun(options: {
           !tool.name.startsWith("scratchpad_") &&
           !tool.name.startsWith("ticket_"))),
   );
-  return selected.map((tool) => {
+  const scoped = options.projectWorkspaceId
+    ? [
+        ...filterProjectTextTools(selected),
+        ...selected.filter(
+          (tool) =>
+            ownerStartedRun &&
+            !options.messagingChannelRun &&
+            (projectFileToolAllowed(tool.name, options.projectDirectoryIntent) ||
+              (tool.name === PROJECT_WINDOWS_TERMINAL && options.projectWindowsTerminal) ||
+              (tool.name === PROJECT_WINDOWS_COMMAND && options.projectWindowsCommand) ||
+              (tool.name === PROJECT_CLOUD_COMMAND && options.projectCloudCommand)),
+        ),
+      ]
+    : selected.filter((tool) => !isProjectDeviceTool(tool.name));
+  return scoped.map((tool) => {
     if (options.computerKind !== "native-linux" || tool.name !== "computer_act") return tool;
     const schema = structuredClone(tool.inputSchema) as {
       properties: { actions: { items: { oneOf: Record<string, unknown>[] } } };

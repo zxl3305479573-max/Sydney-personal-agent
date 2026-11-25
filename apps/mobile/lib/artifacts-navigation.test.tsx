@@ -5,27 +5,58 @@ import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { InboxHeader, InboxQuickActions, InboxRosterHeading } from "../components/inbox-header";
+import { InboxHeader, InboxIntro, InboxRosterHeading } from "../components/inbox-header";
+import { ProjectFolderCard } from "../components/project-folder-card";
 
 const header = vi.hoisted(() => ({
   platform: { OS: "ios" },
   push: vi.fn(),
   locale: "en",
 }));
-const { labelled } = vi.hoisted(() => ({
-  labelled:
-    (tag: string) =>
-    ({
-      children,
-      accessibilityLabel,
-      onPress,
-    }: {
-      children?: ReactNode;
-      accessibilityLabel?: string;
-      onPress?: () => void;
-    }) =>
-      createElement(tag, { "aria-label": accessibilityLabel, onClick: onPress }, children),
-}));
+const { labelled } = vi.hoisted(() => {
+  function flattenStyle(style: unknown): Record<string, unknown> {
+    if (!style) return {};
+    if (Array.isArray(style)) return Object.assign({}, ...style.map(flattenStyle));
+    return typeof style === "object" ? (style as Record<string, unknown>) : {};
+  }
+  return {
+    labelled:
+      (tag: string) =>
+      ({
+        children,
+        accessibilityLabel,
+        accessibilityRole,
+        disabled,
+        onPress,
+        style,
+      }: {
+        children?: ReactNode;
+        accessibilityLabel?: string;
+        accessibilityRole?: string;
+        disabled?: boolean;
+        onPress?: () => void;
+        style?: unknown;
+      }) => {
+        const resolved = flattenStyle(
+          typeof style === "function" ? style({ pressed: false }) : style,
+        );
+        return createElement(
+          tag,
+          {
+            "aria-label": accessibilityLabel,
+            role: accessibilityRole === "button" ? "button" : undefined,
+            disabled,
+            onClick: disabled ? undefined : onPress,
+            "data-flex-direction": resolved.flexDirection,
+            "data-flex-wrap": resolved.flexWrap,
+            "data-flex": resolved.flex,
+            "data-position": resolved.position,
+          },
+          children,
+        );
+      },
+  };
+});
 
 vi.mock("react-native", () => ({
   Platform: header.platform,
@@ -73,7 +104,11 @@ vi.mock("./appearance", () => ({
 vi.mock("./i18n", () => {
   return { useI18n: () => ({ t: (text: string) => text, locale: header.locale }) };
 });
-vi.mock("./native", () => ({ native: {}, useThemedStyles: () => ({}) }));
+vi.mock("./native", () => ({
+  native: {},
+  useMobileTokens: () => ({}),
+  useThemedStyles: () => ({}),
+}));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -119,12 +154,22 @@ it.each(["android", "ios"])("omits Artifacts from the %s fallback header", (plat
     Array.from(container.querySelectorAll("[aria-label]"), (node) =>
       node.getAttribute("aria-label"),
     ),
-  ).toEqual(["Account", "Activity", "Search", "Create"]);
+  ).toEqual(["Account", "Activity", "Create"]);
   act(() => control("Account").click());
-  act(() => control("Search").click());
   act(() => control("Activity").click());
-  expect(header.push.mock.calls).toEqual([["/settings-home"], ["/search"]]);
+  expect(header.push.mock.calls).toEqual([["/settings-home"]]);
   expect(toggleActivityMode).toHaveBeenCalledOnce();
+});
+
+it("puts search below the Chats heading and opens the existing search route", () => {
+  act(() => root.render(<InboxIntro activityMode={false} />));
+  expect(container.textContent).toBe("ChatsSearch");
+  const search = [...container.querySelectorAll("button")].find(
+    (item) => item.getAttribute("aria-label") === "Search",
+  );
+  expect(search).toBeDefined();
+  act(() => search?.click());
+  expect(header.push).toHaveBeenCalledExactlyOnceWith("/search");
 });
 
 it.each(["android", "ios"])("creates from the %s menu", (platform) => {
@@ -133,11 +178,14 @@ it.each(["android", "ios"])("creates from the %s menu", (platform) => {
   expect(runCreateAction.mock.calls).toEqual([["bot"], ["group"], ["space"]]);
 });
 
-it("opens integrations without a duplicate bottom search action", () => {
-  act(() => root.render(<InboxQuickActions columnInsets={{ left: 0, right: 0 }} />));
-  act(() => container.querySelector<HTMLElement>('[aria-label="Connect apps"]')?.click());
-  expect(container.querySelector('[aria-label="Search"]')).toBeNull();
-  expect(header.push.mock.calls).toEqual([["/integrations"]]);
+it("renders ProjectFolderCard as a single non-overlapping surface", () => {
+  const onPress = vi.fn();
+  act(() =>
+    root.render(<ProjectFolderCard label="Sydney" subtitle="Open project" onPress={onPress} />),
+  );
+  expect(container.querySelector('[data-position="absolute"]')).toBeNull();
+  act(() => container.querySelector<HTMLElement>('[aria-label="Sydney · Open project"]')?.click());
+  expect(onPress).toHaveBeenCalledOnce();
 });
 
 it("keeps the group creation shortcut in the roster", () => {

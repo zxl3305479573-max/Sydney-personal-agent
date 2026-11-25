@@ -35,6 +35,8 @@ export * from "./model-credentials.js";
 export * from "./model-credits.js";
 export * from "./model-roles.js";
 export * from "./provider-transactions.js";
+export * from "./project-directory.js";
+export * from "./project-cloud-directory.js";
 export {
   AccountHasProjectWorkspacesError as ProjectAccountHasWorkspacesError,
   assertMemberHasNoProjectWorkspacesInOrg,

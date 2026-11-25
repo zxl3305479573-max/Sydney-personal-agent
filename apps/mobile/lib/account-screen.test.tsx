@@ -7,8 +7,10 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { Alert } from "react-native";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import About from "../app/(settings)/about";
 import Account from "../app/(settings)/account";
 import SettingsHome from "../app/(settings)/settings-home";
+import sydneyRelease from "../sydney-release.json";
 import {
   deleteAccount,
   fetchAccountSecurity,
@@ -16,7 +18,7 @@ import {
   requestAccountDeletionCode,
 } from "./api";
 import { replaceWithSignIn } from "./auth-routing";
-import { checkForManualUpdate, restartForUpdate } from "./client-update";
+import { checkForManualUpdate, promptForAvailableUpdate } from "./client-update";
 import { promptAccountDeletion } from "./delete-account-prompt";
 import { queryClient } from "./query";
 import { registerSettingsSheet } from "./settings-sheet";
@@ -43,6 +45,13 @@ const { element, account } = vi.hoisted(() => ({
       unknown
     >,
     push: vi.fn(),
+    fetchAvatar: vi.fn(),
+    release: null as typeof sydneyRelease | null,
+    availableUpdate: undefined as
+      | { updateId: string; manifest: { extra: { expoClient: { extra: object } } } }
+      | undefined,
+    pickAvatar: vi.fn(),
+    updateAvatar: vi.fn(),
     params: {} as { section?: string; focus?: string },
     approvals: { mode: "ask", enabled: false, skipApprovals: false, checkerAvailable: true },
     rules: [] as { id: string }[],
@@ -61,9 +70,11 @@ vi.mock("./query", async () => {
 });
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: account.pickAvatar }));
 vi.mock("./client-update", () => ({
-  checkForManualUpdate: vi.fn(async () => "downloaded"),
-  restartForUpdate: vi.fn(async () => undefined),
+  checkForManualUpdate: vi.fn(async () => ({ status: "current" })),
+  promptForAvailableUpdate: vi.fn(),
+  useClientUpdateState: () => ({ update: account.availableUpdate, downloaded: false }),
 }));
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
@@ -72,6 +83,7 @@ vi.mock("react-native", () => ({
   ActivityIndicator: () => null,
   Alert: { alert: vi.fn() },
   AppState: { addEventListener: () => ({ remove: () => undefined }) },
+  Image: ({ source }: { source: { uri: string } }) => <img src={source.uri} alt="" />,
   KeyboardAvoidingView: element("div"),
   Modal: ({ children, visible = true }: { children?: ReactNode; visible?: boolean }) =>
     visible ? createElement("section", null, children) : null,
@@ -161,38 +173,47 @@ vi.mock("../components/settings-group", () => ({
   SettingsLabel: element("span"),
   SettingsRow: ({
     title,
+    detail,
     value,
     accessibilityRole,
     chevron,
     disabled,
+    leading,
     onPress,
   }: {
     title: string;
+    detail?: string;
     value?: string;
     accessibilityRole?: string;
     chevron?: string;
     disabled?: boolean;
+    leading?: ReactNode;
     onPress?: () => void;
-  }) =>
-    createElement(
-      "button",
-      {
-        type: "button",
-        role: accessibilityRole,
-        "data-chevron": chevron,
-        "data-value": value,
-        "data-row": "",
-        disabled,
-        onClick: onPress,
-      },
-      title,
-    ),
+  }) => (
+    <>
+      {leading}
+      <button
+        type="button"
+        role={accessibilityRole}
+        data-chevron={chevron}
+        data-detail={detail}
+        data-value={value}
+        data-row=""
+        disabled={disabled}
+        onClick={onPress}
+      >
+        {title}
+      </button>
+    </>
+  ),
   SettingsSwitch: ({ title, label }: { title?: string; label?: string }) =>
     createElement("button", { type: "button" }, title ?? label),
   useStackedSettings: () => false,
 }));
 vi.mock("./api", () => ({
+  captureApiRequestContext: async () => ({ apiBase: "https://server.example" }),
   currentApiBase: () => "http://127.0.0.1:3100",
+  fetchAccountAvatar: account.fetchAvatar,
   captureServerSessionScope: () => ({
     apiBase: "https://server.example",
     endpointGeneration: 1,
@@ -215,11 +236,12 @@ vi.mock("./api", () => ({
   ),
   selectedSpaceId: () => "space-1",
   signOut: vi.fn(),
+  updateAccountAvatar: account.updateAvatar,
   updateAccountName: vi.fn(),
 }));
 vi.mock("./app-version", () => ({
   formatUpdateLabel: () => "",
-  getAppVersionInfo: () => ({ version: "1.0.0", build: "1" }),
+  getAppVersionInfo: () => ({ nativeLabel: "1.0.12 (4)", release: account.release }),
 }));
 vi.mock("./appearance", () => ({
   getCachedAppearancePreference: () => "system",
@@ -234,7 +256,11 @@ vi.mock("./auth-routing", () => ({ replaceWithSignIn: vi.fn() }));
 vi.mock("./delete-account-prompt", () => ({ promptAccountDeletion: vi.fn() }));
 vi.mock("./i18n", () => {
   // Stable across renders, as the real hook's is.
-  const i18n = { t: (text: string) => text, locale: "en" };
+  const i18n = {
+    t: (text: string, values?: Record<string, string>) =>
+      text.replace(/\{(\w+)\}/g, (match, key) => values?.[key] ?? match),
+    locale: "en",
+  };
   return { dateLocaleForUi: () => "en", useI18n: () => i18n };
 });
 vi.mock("./live-notifications", () => ({
@@ -249,6 +275,7 @@ vi.mock("./live-notifications", () => ({
 const { styles } = vi.hoisted(() => ({ styles: new Proxy({}, { get: () => ({}) }) }));
 vi.mock("./native", () => ({
   native: new Proxy({}, { get: () => "#000" }),
+  useMobileTokens: () => ({ muted: "#ddd", foreground: "#000" }),
   useResolvedAppearance: () => "light",
   useThemedStyles: () => styles,
 }));
@@ -301,6 +328,9 @@ let container: HTMLDivElement | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  account.release = null;
+  account.availableUpdate = undefined;
+  account.fetchAvatar.mockResolvedValue(null);
   account.me = { userId: "user-1", name: "Tester", email: "tester@example.test" };
   queryClient.clear();
   queryClient.setQueryData(["me"], account.me);
@@ -341,7 +371,39 @@ it("opens separate settings sections from the grouped home", async () => {
   ]);
 });
 
-it("offers to restart after downloading a manual update", async () => {
+it("saves a selected own account avatar and leaves it in place on cancel", async () => {
+  const image = "data:image/jpeg;base64,cGhvdG8=";
+  account.pickAvatar.mockResolvedValueOnce(image).mockResolvedValueOnce(null);
+  account.updateAvatar.mockResolvedValueOnce(undefined);
+  const view = await renderAccount();
+  await view.press("Edit avatar");
+  expect(account.updateAvatar).toHaveBeenCalledWith(image, { apiBase: "https://server.example" });
+  expect(queryClient.getQueryData(["me"])).toMatchObject({ image });
+  await view.press("Edit avatar");
+  expect(account.updateAvatar).toHaveBeenCalledOnce();
+  expect(queryClient.getQueryData(["me"])).toMatchObject({ image });
+});
+
+it("reads the saved avatar on a fresh load when the server omits it from me", async () => {
+  const image = "data:image/jpeg;base64,cGhvdG8=";
+  account.fetchAvatar.mockResolvedValueOnce(image);
+  await renderAccount();
+  await vi.waitFor(() => {
+    expect(container?.querySelector("img")?.getAttribute("src")).toBe(image);
+  });
+  expect(account.fetchAvatar).toHaveBeenCalledWith("user-1");
+});
+
+it("shows a discovered version in Settings and asks for consent after checking", async () => {
+  const update = { id: "available-release", release: sydneyRelease };
+  account.availableUpdate = {
+    updateId: update.id,
+    manifest: { extra: { expoClient: { extra: { sydneyMobileRelease: sydneyRelease } } } },
+  };
+  vi.mocked(checkForManualUpdate).mockResolvedValueOnce({
+    status: "available",
+    update,
+  });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = document.createElement("div");
   document.body.append(container);
@@ -350,12 +412,31 @@ it("offers to restart after downloading a manual update", async () => {
   const button = [...container.querySelectorAll("button")].find(
     (node) => node.textContent === "Check for updates",
   );
+  expect(button?.getAttribute("data-detail")).toBe(`Version ${sydneyRelease.version} available`);
   await act(async () => button?.click());
   expect(checkForManualUpdate).toHaveBeenCalledOnce();
-  const buttons = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
-  expect(restartForUpdate).not.toHaveBeenCalled();
-  await act(async () => buttons?.find((item) => item.text === "Restart")?.onPress?.());
-  expect(restartForUpdate).toHaveBeenCalledOnce();
+  expect(promptForAvailableUpdate).toHaveBeenCalledWith(update);
+});
+
+it("opens About with the running version and keeps release notes in Settings", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  account.release = sydneyRelease;
+  container = document.createElement("div");
+  root = createRoot(container);
+  await act(async () => root?.render(<SettingsHome />));
+  const row = (title: string) =>
+    [...container!.querySelectorAll("button")].find((element) => element.textContent === title);
+  expect(row("About")?.getAttribute("data-value")).toBe(sydneyRelease.version);
+  await act(async () => row("About")?.click());
+  expect(account.push).toHaveBeenCalledWith("/about");
+  await act(async () => row("Release notes")?.click());
+  expect(Alert.alert).toHaveBeenLastCalledWith(
+    `Version ${sydneyRelease.version}`,
+    expect.stringContaining(sydneyRelease.releasedOn),
+    [{ text: "Close" }],
+  );
+  await act(async () => root?.render(<About />));
+  expect(row("Current version")?.getAttribute("data-value")).toBe(sydneyRelease.version);
 });
 
 it.each([

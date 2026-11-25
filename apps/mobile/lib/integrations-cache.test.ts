@@ -4,7 +4,9 @@ import {
   integrationsCacheScope,
   isIntegrationsScopeCurrent,
   persistedIntegrationsCacheScope,
+  readGithubConnectionCache,
   readIntegrationsCache,
+  writeGithubConnectionCache,
   writeIntegrationsCache,
 } from "./integrations-cache";
 
@@ -98,6 +100,26 @@ beforeEach(() => {
 });
 
 describe("integration disk cache", () => {
+  it("rehydrates GitHub status in the same verified account and space without saving credentials", () => {
+    const connection = {
+      status: "invalid" as const,
+      authKind: "pat" as const,
+      login: "example",
+      displayName: null,
+      avatarUrl: null,
+      connectedAt: "2026-01-01T00:00:00.000Z",
+      message: "Token revoked",
+    };
+    const response = { ...connection, token: "fixture-credential" };
+    writeGithubConnectionCache(scope, response);
+    expect(readGithubConnectionCache(scope)).toEqual(connection);
+    expect(readGithubConnectionCache({ ...scope, userId: "user-b" })).toBeNull();
+    expect(readGithubConnectionCache({ ...scope, spaceId: "space-b" })).toBeNull();
+    expect([...state.files.values()].join()).not.toContain(response.token);
+    writeGithubConnectionCache(scope, { status: "disconnected" });
+    expect(readGithubConnectionCache(scope)).toEqual({ status: "disconnected" });
+  });
+
   it("round trips catalog artwork and Added accounts, including local mutations", () => {
     expect(readIntegrationsCache(scope)).toBeNull();
     writeIntegrationsCache(scope, snapshot);

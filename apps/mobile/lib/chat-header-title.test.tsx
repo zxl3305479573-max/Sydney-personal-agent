@@ -31,7 +31,8 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ push }) }));
 vi.mock("../components/glass-surface", () => ({
-  GlassSurface: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+  GlassSurface: ({ children, chatTitle }: { children?: ReactNode; chatTitle?: boolean }) =>
+    createElement("div", { "data-chat-title-glass": chatTitle }, children),
 }));
 vi.mock("../components/chat-title-avatar", () => ({
   CHAT_TITLE_AVATAR_SIZE: 28,
@@ -106,6 +107,7 @@ it("draws the inbox's bot from the route alone, before the chat publishes anythi
   expect(name()?.textContent).toBe("Helper");
   expect(name()?.getAttribute("data-placeholder")).toBe("false");
   expect(button().getAttribute("aria-label")).toBe("Profile");
+  expect(container.querySelector('[data-chat-title-glass="true"]')).not.toBeNull();
 });
 
 it("reserves the avatar without showing a false name while the bot is unknown", () => {

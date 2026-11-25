@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
+import type { ProjectDirectoryIntent } from "@rakazo/contracts";
+import { ProjectDirectoryIntentSchema, ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import { readPrivateFile, writePrivateFile } from "./setup-store.js";
 
 export interface WorkspaceGrantScope {
@@ -14,7 +15,7 @@ export interface WorkspaceGrantScope {
 
 export interface WorkspaceGrantSummary {
   id: string;
-  intent: "read-only";
+  intent: ProjectDirectoryIntent;
 }
 
 interface StoredGrant extends WorkspaceGrantSummary {
@@ -101,7 +102,7 @@ async function load(
     if (
       record.version !== 1 ||
       record.id !== id ||
-      record.intent !== "read-only" ||
+      !ProjectDirectoryIntentSchema.safeParse(record.intent).success ||
       record.scope?.origin !== scope.origin ||
       record.scope?.userId !== scope.userId ||
       record.scope?.deviceId !== scope.deviceId ||
@@ -125,6 +126,7 @@ export async function saveWorkspaceGrant(
   userDataDir: string,
   scope: WorkspaceGrantScope,
   directory: string,
+  intent: ProjectDirectoryIntent = "read-only",
 ): Promise<WorkspaceGrantSummary> {
   if (typeof directory !== "string" || !path.isAbsolute(directory) || directory.includes("\0")) {
     throw new Error("Invalid workspace directory");
@@ -136,7 +138,7 @@ export async function saveWorkspaceGrant(
     id,
     scope: { ...scope },
     directory,
-    intent: "read-only",
+    intent: ProjectDirectoryIntentSchema.parse(intent),
   };
   const contents = JSON.stringify(record);
   if (Buffer.byteLength(contents) > MAX_BYTES) throw new Error("Workspace grant is too large");
@@ -149,7 +151,7 @@ export async function saveWorkspaceGrant(
   } catch {
     throw new Error("Could not save workspace grant");
   }
-  return { id, intent: "read-only" };
+  return { id, intent };
 }
 
 /** Returns only an opaque identifier and the recorded intent. */
@@ -158,14 +160,8 @@ export async function readWorkspaceGrant(
   scope: WorkspaceGrantScope,
   id: string,
 ): Promise<WorkspaceGrantSummary | null> {
-  const file = grantFile(userDataDir, scope, id);
-  return serial(file, async () => {
-    if (blocked.has(file)) throw new Error("Workspace grant is unavailable");
-    const expected = active.get(file);
-    if (expected === undefined) return null;
-    const record = await load(file, scope, id, expected);
-    return record ? { id: record.id, intent: record.intent } : null;
-  });
+  const record = await readWorkspaceGrantAccess(userDataDir, scope, id);
+  return record ? { id: record.id, intent: record.intent } : null;
 }
 
 /** Main-process only; does not establish that a directory is safe to access. */
@@ -174,12 +170,21 @@ export async function readWorkspaceGrantDirectory(
   scope: WorkspaceGrantScope,
   id: string,
 ): Promise<string | null> {
+  return (await readWorkspaceGrantAccess(userDataDir, scope, id))?.directory ?? null;
+}
+
+export async function readWorkspaceGrantAccess(
+  userDataDir: string,
+  scope: WorkspaceGrantScope,
+  id: string,
+): Promise<(WorkspaceGrantSummary & { directory: string }) | null> {
   const file = grantFile(userDataDir, scope, id);
   return serial(file, async () => {
     if (blocked.has(file)) throw new Error("Workspace grant is unavailable");
     const expected = active.get(file);
     if (expected === undefined) return null;
-    return (await load(file, scope, id, expected))?.directory ?? null;
+    const record = await load(file, scope, id, expected);
+    return record ? { id: record.id, intent: record.intent, directory: record.directory } : null;
   });
 }
 

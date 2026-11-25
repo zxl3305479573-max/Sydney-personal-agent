@@ -1,4 +1,5 @@
 import { MenuView } from "@expo/ui/community/menu";
+import { typeScale } from "@rakazo/ui-tokens";
 import type { ReactElement } from "react";
 import { cloneElement, useState } from "react";
 import type { ViewProps } from "react-native";
@@ -149,6 +150,7 @@ function createStyles() {
     row: {
       minHeight: 52,
       paddingHorizontal: 16,
+      paddingVertical: 12,
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
@@ -159,13 +161,14 @@ function createStyles() {
     },
     label: {
       color: native.label,
-      fontSize: 16,
+      ...typeScale.body,
+      flexShrink: 1,
     },
     value: {
       flex: 1,
       color: native.secondaryLabel,
       textAlign: "right",
-      fontSize: 16,
+      ...typeScale.secondary,
     },
     pressed: {
       backgroundColor: native.fillPressed,

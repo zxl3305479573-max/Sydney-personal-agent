@@ -2,6 +2,7 @@ import type {
   AgentRunModel,
   AgentRunRequest,
   ComputerRef,
+  GithubProvider,
   SemanticMemoryProvider,
 } from "@rakazo/adapter-kit";
 import {
@@ -14,6 +15,7 @@ import {
 import type { MessageBlock, ModelRoleChoice, RunStatus } from "@rakazo/contracts";
 import {
   disabledBuiltinToolSet,
+  ProjectRunDirectoryPinSchema,
   StoredTaskMandateSchema,
   TaskExecutionStateSchema,
 } from "@rakazo/contracts";
@@ -44,7 +46,7 @@ import {
 import type { ThreadEvents } from "@rakazo/db";
 import {
   availableInSpace,
-  effectiveMemoryScope,
+  getProjectCloudDirectory,
   guardManagedRun,
   isPartialReplyClientNonce,
   isTooManyDatabaseConnections,
@@ -101,6 +103,8 @@ import { formatCurrentTimeInstruction } from "./current-time.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import type { ExecutorDeps } from "./executor-deps.js";
 import type { FleetRun } from "./fleet-tools.js";
+import { hasConnectedGithubAccount } from "./github-connections.js";
+import { createGithubToolConnector, isGithubToolName } from "./github-tools.js";
 import { loadBotGroupDirectory, loadGroupContext } from "./group-handoff.js";
 import {
   formatCompactedSummary,
@@ -185,6 +189,16 @@ import {
   runtimeFallbackModel,
 } from "./run-model.js";
 import { createReplyState } from "./run-progress.js";
+import {
+  PROJECT_CLOUD_COMMAND,
+  PROJECT_CLOUD_COMMAND_INSTRUCTION,
+  PROJECT_FILE_INSTRUCTION,
+  PROJECT_TEXT_ONLY_INSTRUCTION,
+  PROJECT_WINDOWS_COMMAND,
+  PROJECT_WINDOWS_COMMAND_INSTRUCTION,
+  PROJECT_WINDOWS_TERMINAL,
+  PROJECT_WINDOWS_TERMINAL_INSTRUCTION,
+} from "./run-project-policy.js";
 import { DELEGATED_EMPTY_NOTICE, runAllowsSilentEmpty, runReplyGuidance } from "./run-replies.js";
 import {
   notifyRoutineRetryAttemptsExhausted,
@@ -257,6 +271,15 @@ async function verbatimMcpServersForRun(
   return { ids: servers.map((server) => server.id), slugs: servers.map((server) => server.slug) };
 }
 
+export type { ExecutorDeps } from "./executor-deps.js";
+
+declare module "./executor-deps.js" {
+  interface ExecutorDeps {
+    /** Optional GitHub provider; null/omit keeps GitHub tools uninjected. */
+    github?: GithubProvider | null;
+  }
+}
+
 export function createRunExecutor(executorDeps: ExecutorDeps) {
   const contextStrategy = executorDeps.contextStrategy ?? DEFAULT_CONTEXT_STRATEGY;
   const web = executorDeps.web ?? createWebProvider();
@@ -305,6 +328,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       if (deps.shutdownSignal?.aborted) return;
       const run = await deps.prisma.run.findUnique({ where: { id: runId } });
       if (!run) return;
+      const projectTextOnly = Boolean(run.projectWorkspaceId);
       // Logs and security events raised by this run's tools name its account and space.
       enrichLogContext({
         "run.id": runId,
@@ -442,7 +466,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         },
       });
       if (!leaseTarget.computerId) throw new Error("Bot has no computer");
-      if (leaseTarget.computerSwitching) {
+      if (!projectTextOnly && leaseTarget.computerSwitching) {
         await requeueComputerRun(deps, runId, workerId, fence, resumeCheckpoint, heldForTakeover);
         return;
       }
@@ -468,14 +492,15 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       }
       let computerLease: ComputerExecutionLease | null = null;
       try {
-        computerLease = await acquireComputerExecutionLease(deps.prisma, {
-          computerId: leaseTarget.computerId,
-          runId,
-          botId: run.botId,
-          workerId,
-          runFence: fence,
-        });
-        if (!computerLease && leaseTarget.computer?.scope === "dedicated") {
+        if (!projectTextOnly)
+          computerLease = await acquireComputerExecutionLease(deps.prisma, {
+            computerId: leaseTarget.computerId,
+            runId,
+            botId: run.botId,
+            workerId,
+            runFence: fence,
+          });
+        if (!projectTextOnly && !computerLease && leaseTarget.computer?.scope === "dedicated") {
           computerLease = await acquireDedicatedScreenLeaseFence(deps.prisma, {
             computerId: leaseTarget.computerId,
             runId,
@@ -629,32 +654,38 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             ? loadBotMessageContext(deps.prisma, run.sourceMessageId)
             : Promise.resolve(undefined),
           deps.prisma.task.findUniqueOrThrow({ where: { id: run.taskId } }),
-          deps.prisma.connection.findMany({
-            where: { userId: run.userId, spaceId: run.spaceId },
-            select: {
-              id: true,
-              connectorId: true,
-              provider: true,
-              providerRef: true,
-              displayName: true,
-              status: true,
-            },
-          }),
+          projectTextOnly
+            ? []
+            : deps.prisma.connection.findMany({
+                where: { userId: run.userId, spaceId: run.spaceId },
+                select: {
+                  id: true,
+                  connectorId: true,
+                  provider: true,
+                  providerRef: true,
+                  displayName: true,
+                  status: true,
+                },
+              }),
           resolveMemberMainModel(deps, run),
           deps.prisma.deploymentSettings.findUnique({
             where: { id: "default" },
           }),
           deps.memoryProviders.resolve(run.spaceId),
-          deps.prisma.taughtSkill.findMany({
-            where: { botId: run.botId, spaceId: run.spaceId, status: "saved" },
-          }),
-          listAgentSkillRecords(deps.prisma, {
-            spaceId: run.spaceId,
-            userId: run.userId,
-          }),
-          loadBotCommandEnvironment(deps.prisma, deps.secretStore, run),
+          projectTextOnly
+            ? []
+            : deps.prisma.taughtSkill.findMany({
+                where: { botId: run.botId, spaceId: run.spaceId, status: "saved" },
+              }),
+          projectTextOnly
+            ? []
+            : listAgentSkillRecords(deps.prisma, {
+                spaceId: run.spaceId,
+                userId: run.userId,
+              }),
+          projectTextOnly ? {} : loadBotCommandEnvironment(deps.prisma, deps.secretStore, run),
           loadLoginPasswordRedactions(deps.prisma, deps.secretStore, run),
-          deps.paymentWallet ? loadPurchaseRedactions(deps, run) : [],
+          !projectTextOnly && deps.paymentWallet ? loadPurchaseRedactions(deps, run) : [],
           loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
           loadRunCodeRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
@@ -783,12 +814,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
         };
-        const memoryScope = configuredMemory && !run.projectWorkspaceId
-          ? effectiveMemoryScope(bot.memoryScope, configuredMemory.defaultScope)
-          : null;
-        const semanticMemory: SemanticMemoryProvider | null = run.projectWorkspaceId
-          ? null
-          : configuredMemory?.provider ?? null;
+        const memoryScope = configuredMemory ? "shared" : null;
+        const semanticMemory: SemanticMemoryProvider | null = configuredMemory?.provider ?? null;
 
         await deps.events.append({
           spaceId: run.spaceId,
@@ -799,9 +826,10 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           payload: { trigger: run.trigger, routineId: run.routineId },
         });
 
-        const discoveredPromise = deps.connector
-          ? deps.connector.discoverTools(context)
-          : Promise.resolve([]);
+        const discoveredPromise =
+          !projectTextOnly && deps.connector
+            ? deps.connector.discoverTools(context)
+            : Promise.resolve([]);
         // Group threads only: who wrote each message, so the model can tell the bots and the
         // user apart. Direct chats stay plain user/assistant turns.
         const speakers = await loadThreadSpeakers(
@@ -939,7 +967,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 spaceId: run.spaceId,
                 botId: bot.id,
               }),
-          nonOwnerChatRun || !deps.ticketBoardEnabled
+          nonOwnerChatRun || projectTextOnly || !deps.ticketBoardEnabled
             ? Promise.resolve(undefined)
             : loadAgentTicketContext(deps, {
                 spaceId: run.spaceId,
@@ -1143,6 +1171,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         };
         const runComputer = lazyRunComputer(
           async () => {
+            if (projectTextOnly) throw new Error("No authorized project directory is connected.");
             getLogger().info("computer.requested");
             const computer = await provisionComputer(deps, storedComputer.id, context, "bot");
             computerUse.screenRelease = { computer, context, keepWarm: false };
@@ -1159,7 +1188,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           },
           () => runAbortController?.abort(),
         );
-        const computerKind = (await deps.sandbox.provisionKind?.()) ?? storedComputer.kind;
+        const computerKind = projectTextOnly
+          ? storedComputer.kind
+          : ((await deps.sandbox.provisionKind?.()) ?? storedComputer.kind);
         const workspaceCheckpoint = createRunWorkspaceCheckpoint(
           async () => {
             if (!runComputer.ready) return;
@@ -1172,6 +1203,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         let copyingTurnFiles = Promise.resolve();
         // Serialize copies before each tool, including attachments received while a boot is in flight.
         const getRunComputer = async (reason: "tool" | "takeover" | "script", tool?: string) => {
+          if (projectTextOnly) throw new Error("No authorized project directory is connected.");
           if (computerUse.reason === "none") {
             computerUse.reason = reason;
             computerUse.tool = tool && BUILTIN_AGENT_TOOL_NAMES.has(tool) ? tool : undefined;
@@ -1232,7 +1264,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           .filter(Boolean)
           .join("\n\n");
         const graphical =
-          computerKind !== "desktop" && deps.sandbox.describe().capabilities.graphical;
+          !projectTextOnly &&
+          computerKind !== "desktop" &&
+          deps.sandbox.describe().capabilities.graphical;
         // Gate on the pair written to the run row above; re-deriving it would drop the
         // deployment fallback and gate a vision-capable default as text-only.
         const modelSeesImages = modelAcceptsImageInput(
@@ -1247,16 +1281,24 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               name: bot.name,
             })
           : undefined;
-        const hasMessagingIdentity = deps.messaging
-          ? await deps.messaging.hasIdentity(bot.id)
-          : false;
+        const hasMessagingIdentity =
+          !projectTextOnly && deps.messaging ? await deps.messaging.hasIdentity(bot.id) : false;
         const paymentWallet = deps.paymentWallet;
-        const paymentWalletEnabled = paymentWallet
-          ? await paymentWalletConnected(
-              { prisma: deps.prisma, secretStore: deps.secretStore, paymentWallet },
-              run.userId,
-            )
-          : false;
+        const paymentWalletEnabled =
+          !projectTextOnly && paymentWallet
+            ? await paymentWalletConnected(
+                { prisma: deps.prisma, secretStore: deps.secretStore, paymentWallet },
+                run.userId,
+              )
+            : false;
+        const github = deps.github;
+        const githubEnabled =
+          !projectTextOnly && github
+            ? await hasConnectedGithubAccount(
+                { prisma: deps.prisma, secretStore: deps.secretStore, github },
+                run.userId,
+              )
+            : false;
         const messagingContext =
           [
             hasMessagingIdentity ? messagingDmSurfaceNote() : null,
@@ -1291,6 +1333,18 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const sourceClientNonce = sourceMessage?.clientNonce ?? null;
         // A follow-up can be queued by a bot (group handoffs); only the user's own counts.
         const ownerStartedRun = isOwnerStartedRun(run.trigger, sourceMessage?.role === "user");
+        const projectId =
+          deps.projectDeviceToolsEnabled && ownerStartedRun && !nonOwnerChatRun
+            ? run.projectWorkspaceId
+            : null;
+        const directoryPin = projectId
+          ? ProjectRunDirectoryPinSchema.safeParse(run.projectDirectoryPin).data
+          : undefined;
+        const projectDirectoryIntent =
+          (directoryPin?.kind === "windows" && deps.userDevices) ||
+          (directoryPin?.kind === "cloud" && deps.sandbox.executeProjectFile)
+            ? directoryPin.intent
+            : undefined;
         // A hang-up run has no source message: its own nonce carries the call it closes.
         const callEndRun = run.trigger === "call_end";
         const callClientNonceForRun = callEndRun ? run.clientNonce : sourceClientNonce;
@@ -1309,9 +1363,58 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           runUserId: run.userId,
           botUserId: bot.userId,
         });
+        const projectWindowsTerminal = Boolean(
+          directoryPin?.kind === "windows" &&
+            userComputerOwnerId &&
+            deps.userDevices &&
+            !disabledBuiltinTools.has(PROJECT_WINDOWS_TERMINAL),
+        );
+        const projectWindowsCommand = Boolean(
+          directoryPin?.kind === "windows" &&
+            projectId &&
+            userComputerOwnerId &&
+            deps.userDevices &&
+            ownerStartedRun &&
+            !nonOwnerChatRun &&
+            !disabledBuiltinTools.has(PROJECT_WINDOWS_COMMAND),
+        );
+        let projectCloudCommand = false;
+        if (
+          directoryPin?.kind === "cloud" &&
+          projectId &&
+          deps.sandbox.executeProjectCommand &&
+          deps.sandbox.projectCommandAvailable &&
+          ownerStartedRun &&
+          !nonOwnerChatRun &&
+          !disabledBuiltinTools.has(PROJECT_CLOUD_COMMAND)
+        ) {
+          const cloudBinding = await getProjectCloudDirectory(deps.prisma, run, projectId, {
+            id: runId,
+            threadId: run.threadId,
+            taskId: run.taskId,
+            workerId,
+            fence,
+          });
+          if (cloudBinding?.available) {
+            const computer = {
+              id: cloudBinding.computerId,
+              kind: "native-linux" as const,
+              botId: cloudBinding.homeKey,
+              providerRef: cloudBinding.providerRef,
+            };
+            projectCloudCommand = await deps.sandbox
+              .projectCommandAvailable(computer, {
+                ...context,
+                botId: cloudBinding.homeKey,
+                signal: AbortSignal.any([context.signal, AbortSignal.timeout(2_000)]),
+              })
+              .catch(() => false);
+          }
+        }
         let userComputer: UserComputerState;
         let userComputerScreen = false;
         if (
+          !projectTextOnly &&
           userComputerOwnerId &&
           deps.userDevices &&
           !disabledBuiltinTools.has(USER_COMPUTER_SHELL_TOOL)
@@ -1328,6 +1431,11 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         }
         const builtins = [
           ...selectBuiltinToolsForRun({
+            projectWorkspaceId: run.projectWorkspaceId,
+            projectDirectoryIntent,
+            projectWindowsTerminal,
+            projectWindowsCommand,
+            projectCloudCommand,
             ticketBoardEnabled: deps.ticketBoardEnabled,
             phoneCallsEnabled: deps.phoneCallsEnabled,
             historyRetrievalEnabled: contextStrategy !== "current",
@@ -1342,6 +1450,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             mediaVideoEnabled: Boolean(deps.artifacts && mediaGeneration?.capabilities.video),
             cloudAgentEnabled: cloudAgentsEnabled(cloudAgent, run.spaceId),
             paymentWalletEnabled,
+            githubEnabled,
             messagingChannelRun: nonOwnerChatRun,
             voiceCall,
             disabledBuiltinTools: bot.disabledBuiltinTools,
@@ -1351,7 +1460,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             userComputerScreen,
           }),
           // Cross-owner agent connections only exist for chat-linked bots.
-          ...(hasMessagingIdentity &&
+          ...(!projectTextOnly &&
+          hasMessagingIdentity &&
           bot.crossSpaceCommunication === true &&
           !isBackgroundRunTrigger(run.trigger) &&
           run.trigger !== "created"
@@ -1430,7 +1540,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           disabledBuiltinTools,
         );
         const hostEnvironment =
-          computerKind && usesNativeShell(computerKind)
+          !projectTextOnly && computerKind && usesNativeShell(computerKind)
             ? await deps.sandbox
                 .environment?.(
                   {
@@ -1454,16 +1564,26 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           : computerKind === "wuying"
             ? `Commands run on a Windows cloud computer. ${hostShell} Files outside the bot workspace can be accessed through commands. The screen shows the Windows desktop; use the graphical tools for apps without a command line.`
             : `Commands run on the user's ${hostEnvironment.platform} computer with their account permissions. ${hostShell} Local files outside the bot workspace can be accessed through commands. App launching is available through OS commands; graphical screen control is unavailable.`;
-        const computerInstruction = [
-          "Use the computer only when the task needs files, commands, a browser, or an installed application. Answer directly from the conversation when sufficient; use connected tools for app data. A website with no connected app is still yours to use in the computer's browser, now and in scheduled routines, so a missing connection alone is never a reason to decline. Do not inspect the computer just to prepare for an unrelated task. If what you are about to buy, send or submit differs from what the user confirmed, such as a changed item or total, show the difference and confirm again first.",
-          hostInstruction
-            ? `${baseComputerInstruction} ${hostInstruction}`
-            : dockerToolInstruction
-              ? `${baseComputerInstruction} ${dockerToolInstruction}`
-              : baseComputerInstruction,
-        ].join(" ");
-        const workspaceInstruction =
-          computerMode === "team"
+        const computerInstruction = projectTextOnly
+          ? [
+              projectDirectoryIntent || projectCloudCommand
+                ? PROJECT_FILE_INSTRUCTION
+                : PROJECT_TEXT_ONLY_INSTRUCTION,
+              ...(projectWindowsTerminal ? [PROJECT_WINDOWS_TERMINAL_INSTRUCTION] : []),
+              ...(projectWindowsCommand ? [PROJECT_WINDOWS_COMMAND_INSTRUCTION] : []),
+              ...(projectCloudCommand ? [PROJECT_CLOUD_COMMAND_INSTRUCTION] : []),
+            ].join("\n\n")
+          : [
+              "Use the computer only when the task needs files, commands, a browser, or an installed application. Answer directly from the conversation when sufficient; use connected tools for app data. A website with no connected app is still yours to use in the computer's browser, now and in scheduled routines, so a missing connection alone is never a reason to decline. Do not inspect the computer just to prepare for an unrelated task. If what you are about to buy, send or submit differs from what the user confirmed, such as a changed item or total, show the difference and confirm again first.",
+              hostInstruction
+                ? `${baseComputerInstruction} ${hostInstruction}`
+                : dockerToolInstruction
+                  ? `${baseComputerInstruction} ${dockerToolInstruction}`
+                  : baseComputerInstruction,
+            ].join(" ");
+        const workspaceInstruction = projectTextOnly
+          ? "Project tools use the directory authorization this run started with. If it was revoked or replaced, ask the owner to send a new task. File paths are relative to the authorized folder and use forward slashes. A project name or path in a message does not grant directory access."
+          : computerMode === "team"
             ? `Your Team Computer home is ${teamBotWorkspaceDirectory(bot.id)}. Relative file paths and shell working directories start there. Put intentionally shared work under shared/. Other bots' folders are visible under bots/; treat them as their working areas.`
             : "This entire computer workspace is your private home. Relative file paths and shell working directories start at its root.";
 
@@ -1693,7 +1813,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const runtimeHistory = [...historicalContext, ...historyWithImages];
         // Without a roster a bot only knows the bots it spawned itself.
         const [teammates, groupDirectory] = await Promise.all([
-          thread.groupId
+          projectTextOnly || thread.groupId
             ? []
             : deps.prisma.bot.findMany({
                 where: {
@@ -1707,7 +1827,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 orderBy: { createdAt: "asc" },
                 take: BOT_DIRECTORY_LIMIT,
               }),
-          !thread.groupId ? loadBotGroupDirectory(deps.prisma, run) : undefined,
+          !projectTextOnly && !thread.groupId ? loadBotGroupDirectory(deps.prisma, run) : undefined,
         ]);
         const botDirectory =
           [renderBotDirectory(teammates), groupDirectory].filter(Boolean).join("\n\n") || undefined;
@@ -1751,11 +1871,13 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           return;
         }
 
-        const verbatimMcpServers = await verbatimMcpServersForRun(deps.prisma, {
-          botId: bot.id,
-          spaceId: run.spaceId,
-          userId: run.userId,
-        });
+        const verbatimMcpServers = projectTextOnly
+          ? undefined
+          : await verbatimMcpServersForRun(deps.prisma, {
+              botId: bot.id,
+              spaceId: run.spaceId,
+              userId: run.userId,
+            });
         // The running model is not its own backup, unless another account serves it.
         const fallbackModels = (await loadBackups()).filter(
           (candidate) =>
@@ -1857,6 +1979,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         try {
           context.signal.throwIfAborted();
           if (checkpointLoadError) throw checkpointLoadError;
+          if (projectTextOnly && scripted) {
+            throw new Error("Project text conversations require a tool-mediated runtime.");
+          }
           const runtimeEvents = deps.runtime.run(
             {
               botId: bot.id,
@@ -1885,6 +2010,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               // cache-aware context for connections declaring a cache window.
               contextStrategy: deps.contextStrategy,
               instructions: userTurnInstructions({
+                projectTextOnly,
                 botInstructions: runIdentityInstruction(bot, run.trigger),
                 groupContext,
                 messagingContext,
@@ -1909,13 +2035,14 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                 agentSkillsLine,
                 taughtSkillsLine,
                 replyGuidance: runReplyGuidance(run.trigger),
-                disabledBuiltinTools: isStrategicInitiativeRun(run)
-                  ? new Set(
-                      builtinAgentTools
-                        .map((tool) => tool.name)
-                        .filter((name) => !strategicBuiltins.some((tool) => tool.name === name)),
-                    )
-                  : disabledBuiltinTools,
+                disabledBuiltinTools:
+                  projectTextOnly || isStrategicInitiativeRun(run)
+                    ? new Set(
+                        builtinAgentTools
+                          .map((tool) => tool.name)
+                          .filter((name) => !strategicBuiltins.some((tool) => tool.name === name)),
+                      )
+                    : disabledBuiltinTools,
                 offeredFleetTools: offeredFleetTools(strategicBuiltins),
                 userComputer,
               })
@@ -2044,7 +2171,30 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               executeTool: scripted
                 ? undefined
                 : (name, args, executionId, route, observer) =>
-                    applyTool(ctx, name, args, executionId, route, observer),
+                    applyTool(
+                      isGithubToolName(name)
+                        ? {
+                            ...ctx,
+                            deps: {
+                              ...ctx.deps,
+                              connector: createGithubToolConnector(
+                                ctx.deps.connector,
+                                {
+                                  prisma: deps.prisma,
+                                  secretStore: deps.secretStore,
+                                  github,
+                                },
+                                { userId: run.userId, spaceId: run.spaceId },
+                              ),
+                            },
+                          }
+                        : ctx,
+                      name,
+                      args,
+                      executionId,
+                      route,
+                      observer,
+                    ),
               resolveModel: scripted
                 ? undefined
                 : async (provider, modelId) => {

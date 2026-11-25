@@ -20,7 +20,6 @@ import {
   INTEGRATION_CLAIM_CONFIRM_PATH,
   INTEGRATION_CLAIMS_PATH,
   IntegrationClaimInputSchema,
-  integrationPageUrl,
   PLUGIN_SUBMISSIONS_PATH,
   PluginSubmissionInputSchema,
 } from "@rakazo/contracts";
@@ -33,7 +32,7 @@ import { assertMcpRemoteEndpoint } from "./mcp-servers.js";
 import type { RouterDeps } from "./router.js";
 import { throttleKey, windowCounter } from "./window-counter.js";
 
-const PLUGIN_REGISTRY = "Rakazo";
+const PLUGIN_REGISTRY = "Sydney";
 const MAX_BODY_BYTES = 32 * 1024;
 const HOUR_MS = 60 * 60_000;
 const SUBMISSIONS_PER_IP_PER_HOUR = 10;
@@ -220,14 +219,15 @@ export function pluginSubmissionRoutes(
       return c.text("This link was already used or is invalid.", 404);
     }
     if (row.confirmExpiresAt.getTime() < Date.now()) {
-      return c.redirect(`${integrationPageUrl(row.claim)}claim/?expired`, 303);
+      return c.text("This confirmation link has expired.", 410);
     }
     const confirmed = await deps.prisma.pluginSubmission.updateMany({
       where: { id: row.id, status: "unconfirmed", confirmToken: row.confirmToken },
       data: { status: "pending", confirmToken: null, confirmExpiresAt: null },
     });
-    if (confirmed.count > 0) notifyAdmins(row);
-    return c.redirect(`${integrationPageUrl(row.claim)}claim/?confirmed`, 303);
+    if (confirmed.count === 0) return c.text("This link was already used or is invalid.", 404);
+    notifyAdmins(row);
+    return c.text("Email confirmed. Your integration claim is pending review.");
   });
 
   // The marketing site reads this when it builds; a few minutes of staleness is fine.

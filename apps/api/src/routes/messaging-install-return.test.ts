@@ -135,20 +135,21 @@ describe("Slack install return", () => {
     expect(target.searchParams.has("code")).toBe(false);
   });
 
-  it("shows a safe closing page for mobile cancellations without the state", async () => {
+  it("returns mobile cancellations through the one-time app callback", async () => {
     returnToForState.mockResolvedValueOnce("mobile");
     const response = await app.request(
       `/api/v1/messaging/install/slack/callback?error=access_denied&state=${validState}&error_description=private`,
     );
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain("window.close();");
-    expect(body).not.toContain(validState);
-    expect(body).not.toContain("private");
+    expect(response.status).toBe(302);
+    const target = new URL(response.headers.get("location")!);
+    expect(target.protocol).toBe("rakazo:");
+    expect(target.searchParams.get("state")).toBe(validState);
+    expect(target.searchParams.get("error")).toBe("access_denied");
+    expect(target.searchParams.has("code")).toBe(false);
+    expect(target.searchParams.has("error_description")).toBe(false);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(response.headers.get("location")).toBeNull();
-    expect(claimMobileReturn).not.toHaveBeenCalled();
+    expect(claimMobileReturn).toHaveBeenCalledExactlyOnceWith(validState);
   });
   it("rejects a duplicate mobile handoff while leaving completion to the original user", async () => {
     returnToForState.mockResolvedValue("mobile");

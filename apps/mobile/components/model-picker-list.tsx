@@ -33,6 +33,7 @@ export function ModelPickerList({
   providerLabel,
   emptyMessage,
   connectChoices,
+  savingKey,
 }: {
   choices: readonly ChatModelChoice[] | null;
   /** Providers that need a connection first, listed after the models. */
@@ -41,6 +42,7 @@ export function ModelPickerList({
   onSelect: (choice: ChatModelChoice) => void;
   error?: string | null;
   emptyMessage?: string;
+  savingKey?: string | null;
   /** A single-provider picker only needs vendor headings. */
   providerLabel?: string;
 }) {
@@ -246,6 +248,8 @@ export function ModelPickerList({
       }
       renderItem={({ item, index, section }) => {
         const selected = item.key === selectedKey;
+        const saving = item.key === savingKey;
+        const disabled = savingKey != null;
         return (
           <View
             style={[
@@ -258,17 +262,22 @@ export function ModelPickerList({
               accessibilityRole="button"
               accessibilityLabel={item.label}
               accessibilityHint={item.images === false ? t("Can't read images") : undefined}
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled, busy: saving }}
+              disabled={disabled}
               onPress={() => onSelect(item)}
               title={item.title ?? item.label}
               detail={item.detail}
               value={section.connect ? t("Connect") : undefined}
               chevron={section.connect ? "right" : undefined}
               trailing={
-                item.images === false || selected ? (
+                item.images === false || selected || saving ? (
                   <View style={styles.trailing}>
                     {item.images === false ? <TextOnlyMark /> : null}
-                    {selected ? <Checkmark /> : null}
+                    {saving ? (
+                      <ActivityIndicator color={native.secondaryLabel} />
+                    ) : selected ? (
+                      <Checkmark />
+                    ) : null}
                   </View>
                 ) : null
               }

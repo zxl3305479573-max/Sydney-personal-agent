@@ -5,10 +5,7 @@
 
   /** Core's `translate`, which this plain page cannot import: English-keyed, `{name}` placeholders. */
   function t(message, values) {
-    const template = (Object.hasOwn(messages, message) ? messages[message] : message).replace(
-      /Rakazo/g,
-      "Sydney",
-    );
+    const template = Object.hasOwn(messages, message) ? messages[message] : message;
     if (!values) return template;
     return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) =>
       Object.hasOwn(values, key) ? String(values[key]) : match,
@@ -57,10 +54,10 @@
   const PHASE_LABELS = {
     "checking-docker": t("Getting ready…"),
     preparing: t("Getting ready…"),
-    pulling: t("Downloading Rakazo…"),
-    starting: t("Starting Rakazo…"),
+    pulling: t("Downloading Sydney…"),
+    starting: t("Starting Sydney…"),
     "waiting-healthy": t("Almost ready…"),
-    ready: t("Rakazo is ready."),
+    ready: t("Sydney is ready."),
   };
   const TERMINAL_PHASES = new Set([
     "idle",
@@ -83,6 +80,7 @@
 
   let defaultLocalUrl = "";
   let cloudUrl = "";
+  let managedLocalAvailable = false;
   /** Bumped on user edits, mode switches, and new async runs; a run left behind is stale. */
   let requestGeneration = 0;
   /** Generation of the check in flight; an edit or mode switch retires it and releases its lock. */
@@ -114,7 +112,9 @@
 
   /** A save in flight cannot be cancelled, so the choice it commits must not change under it. */
   function lockChoice(locked) {
-    for (const input of form.querySelectorAll('input[name="mode"]')) input.disabled = locked;
+    for (const input of form.querySelectorAll('input[name="mode"]')) {
+      input.disabled = locked || (input.value === "new" && !managedLocalAvailable);
+    }
     serverUrl.disabled = locked;
     serverHeaders.disabled = locked;
   }
@@ -342,7 +342,7 @@
       if (generation !== requestGeneration) return result;
       if (result.ok) {
         serverUrl.value = result.url;
-        setStatus(t("Rakazo answered at {url}.", { url: result.url }), "ok");
+        setStatus(t("Sydney answered at {url}.", { url: result.url }), "ok");
       } else {
         setStatus(result.error ?? t("Could not reach that address."), "error");
       }
@@ -410,9 +410,9 @@
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const mode = selectedMode();
-    if (mode === "new") void runStack();
-    // Cloud is an existing server at a fixed address.
-    else if (mode === "cloud") void save("existing", cloudUrl);
+    if (mode === "new") {
+      if (managedLocalAvailable) void runStack();
+    } else if (mode === "cloud") void save("existing", cloudUrl);
     else {
       const headers = readHeaders();
       if (headers === null) setStatus(t("Invalid custom headers"), "error");
@@ -440,7 +440,6 @@
       return;
     }
 
-    watchStack();
     // Continue needs the Cloud address and any saved choice before it can submit.
     setBusy(true);
     try {
@@ -448,7 +447,12 @@
       if (state === null) throw new Error("Setup is not active");
       defaultLocalUrl = state.defaultLocalUrl;
       cloudUrl = state.cloudUrl;
-      if (state.saved !== null) {
+      managedLocalAvailable = state.managedLocalAvailable;
+      const managedChoice = document.getElementById("mode-new");
+      managedChoice.disabled = !managedLocalAvailable;
+      managedChoice.closest("label").hidden = !managedLocalAvailable;
+      if (managedLocalAvailable) watchStack();
+      if (state.saved !== null && (state.saved.mode !== "new" || managedLocalAvailable)) {
         const savedCloud = state.saved.mode === "existing" && state.saved.serverUrl === cloudUrl;
         const mode = savedCloud ? "cloud" : state.saved.mode;
         const modeInput = document.querySelector(`input[name="mode"][value="${mode}"]`);
@@ -463,9 +467,9 @@
       }
       // A relaunch with the stack down starts it before this window opens; show that
       // attempt instead of the saved mode, and follow it while it is still running.
-      const stack = await bridge.stack.state();
+      const stack = managedLocalAvailable ? await bridge.stack.state() : null;
       const attached = stack !== null && stack.phase !== "idle";
-      if (attached) document.getElementById("mode-new").checked = true;
+      if (attached) managedChoice.checked = true;
       syncPanels();
       setBusy(false);
       if (state.error) setStatus(state.error, "error");
@@ -478,7 +482,7 @@
         continueButton.focus();
       }
     } catch {
-      setStatus(t("Setup could not start. Quit Rakazo and try again."), "error");
+      setStatus(t("Setup could not start. Quit Sydney and try again."), "error");
       setBusy(true);
     }
   }

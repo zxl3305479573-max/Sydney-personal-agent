@@ -9,6 +9,7 @@ import type { MobileMessage } from "../../lib/api";
 import { mobileTokens } from "../../lib/appearance";
 import type { MobileArtifactTarget } from "../../lib/artifact-open";
 import { useI18n } from "../../lib/i18n";
+import { useBottomSafeAreaClaimed } from "../../lib/side-insets";
 import type { PendingAttachment } from "../../lib/thread-attachments";
 import type { ThreadColumnPadding } from "../../lib/thread-edges";
 import { previewMessageText } from "../../lib/thread-message-text";
@@ -55,6 +56,7 @@ export function ThreadComposerDock({
   const tokens = mobileTokens();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const bottomClaimed = useBottomSafeAreaClaimed();
   // Frame by frame, including a swipe that drags the keyboard down.
   const keyboardProgress = useSharedValue(KeyboardController.isVisible() ? 1 : 0);
   useKeyboardHandler(
@@ -74,8 +76,11 @@ export function ThreadComposerDock({
     },
     [],
   );
-  const composerRestingPadding =
-    Platform.OS === "ios" ? insets.bottom : Math.max(insets.bottom + 12, 24);
+  const composerRestingPadding = bottomClaimed
+    ? 8
+    : Platform.OS === "ios"
+      ? insets.bottom
+      : Math.max(insets.bottom + 12, 24);
   // Hands the composer from the keyboard to the safe area as the keyboard moves, so it never
   // dips into the home indicator and then jumps back up.
   const composerKeyboardPadding = useAnimatedStyle(() => ({

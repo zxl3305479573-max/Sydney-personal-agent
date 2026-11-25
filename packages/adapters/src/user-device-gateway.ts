@@ -9,20 +9,18 @@ import { recordSecurityEvent, runAsSystem } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { WebSocketServer } from "ws";
 import { z } from "zod";
-import type { HostComputerFrame, HostComputerRequest } from "./host-computer-protocol.js";
-import {
-  HOST_COMPUTER_MAX_BYTES,
-  hostComputerDeadlineMs,
-  hostComputerRequest,
-} from "./host-computer-protocol.js";
+import type { HostComputerFrame } from "./host-computer-protocol.js";
+import { HOST_COMPUTER_MAX_BYTES, hostComputerDeadlineMs } from "./host-computer-protocol.js";
 import type {
   UserDevice,
   UserDeviceGateway,
+  UserDeviceRequest,
   UserDeviceRevokeReason,
 } from "./user-device-protocol.js";
 import {
   USER_DEVICE_REVOKED_HEADER,
   userDeviceClientMessage,
+  userDeviceRequest,
   userDeviceRevokeReason,
 } from "./user-device-protocol.js";
 
@@ -43,6 +41,14 @@ export class UserDeviceOfflineError extends Error {
   constructor(message = USER_DEVICE_OFFLINE_MESSAGE, options?: ErrorOptions) {
     super(message, options);
     this.name = "UserDeviceOfflineError";
+  }
+}
+
+/** No request was sent because the fixed device had no live connection. */
+export class UserDeviceNotConnectedError extends UserDeviceOfflineError {
+  constructor() {
+    super();
+    this.name = "UserDeviceNotConnectedError";
   }
 }
 
@@ -328,11 +334,11 @@ export class UserDeviceHub {
   /** Raw HostComputerFrame values from the device for one request. */
   async *frames(
     route: UserDeviceRoute,
-    request: HostComputerRequest,
+    request: UserDeviceRequest,
     signal: AbortSignal,
   ): AsyncIterable<unknown> {
     const entry = this.live.get(route.deviceId);
-    if (!entry || !this.holds(route)) throw new UserDeviceOfflineError();
+    if (!entry || !this.holds(route)) throw new UserDeviceNotConnectedError();
     signal.throwIfAborted();
     const id = randomUUID();
     const queue = new FrameQueue();
@@ -362,7 +368,7 @@ export class UserDeviceHub {
   }
 
   /** NDJSON stream of frames for a forwarded request; a failure becomes an error frame. */
-  stream(route: UserDeviceRoute, request: HostComputerRequest, signal: AbortSignal): Response {
+  stream(route: UserDeviceRoute, request: UserDeviceRequest, signal: AbortSignal): Response {
     if (!this.holds(route)) return new Response(null, { status: 409 });
     const controller = new AbortController();
     const linked = AbortSignal.any([signal, controller.signal]);
@@ -569,18 +575,38 @@ export class UserDevices implements UserDeviceGateway {
 
   async *request<T>(
     userId: string,
-    request: HostComputerRequest,
+    request: UserDeviceRequest,
     signal: AbortSignal,
     deviceId?: string,
   ): AsyncIterable<T> {
+    if (
+      (request.method === "projectFile" ||
+        request.method === "projectWindowsTerminal" ||
+        request.method === "projectWindowsCommand" ||
+        request.method === "projectWindowsCommandStatus") &&
+      !deviceId
+    )
+      throw new Error("Project requests require a fixed device");
     const body = JSON.stringify(request);
     if (Buffer.byteLength(body) > HOST_COMPUTER_MAX_BYTES)
       throw new Error("Request to your computer is too large");
     const route = await this.route(userId, deviceId);
-    if (!route) throw new UserDeviceOfflineError();
+    if (!route) throw new UserDeviceNotConnectedError();
     const deadline = AbortSignal.any([
       signal,
-      AbortSignal.timeout(hostComputerDeadlineMs(request)),
+      AbortSignal.timeout(
+        request.method === "workspaceGrant"
+          ? 5_000
+          : request.method === "projectFile"
+            ? 15_000
+            : request.method === "projectWindowsTerminal"
+              ? 90_000
+              : request.method === "projectWindowsCommand"
+                ? 90_000
+                : request.method === "projectWindowsCommandStatus"
+                  ? 15_000
+                  : hostComputerDeadlineMs(request),
+      ),
     ]);
     const target = { deviceId: route.deviceId, userId, connectionId: route.connectionId };
     const frames = this.deps.hub?.holds(target)
@@ -635,7 +661,7 @@ export class UserDevices implements UserDeviceGateway {
   private async *forward(
     address: string,
     route: UserDeviceRoute,
-    request: HostComputerRequest,
+    request: UserDeviceRequest,
     signal: AbortSignal,
   ): AsyncIterable<unknown> {
     let response: Response;
@@ -656,6 +682,7 @@ export class UserDevices implements UserDeviceGateway {
     }
     if (!response.ok || !response.body) {
       await response.body?.cancel();
+      if (response.status === 409) throw new UserDeviceNotConnectedError();
       throw new UserDeviceOfflineError();
     }
     yield* ndjson(response.body, signal);
@@ -672,7 +699,7 @@ export const userDeviceForwardBody = z.object({
   deviceId: z.string().min(1).max(64),
   userId: z.string().min(1).max(128),
   connectionId: z.string().min(1).max(64),
-  request: hostComputerRequest,
+  request: userDeviceRequest,
 });
 
 async function* framesToValues<T>(

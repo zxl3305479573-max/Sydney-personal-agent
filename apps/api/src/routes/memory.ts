@@ -29,6 +29,7 @@ export function memoryRoutes(ctx: RouterContext) {
             ...(input.botId ? { botId: input.botId } : {}),
             ...(input.scope ? { scope: input.scope } : {}),
           },
+          orderBy: [{ updatedAt: "desc" }, { path: "asc" }, { id: "asc" }],
         });
         return docs.map((doc) => ({
           id: doc.id,
@@ -93,7 +94,9 @@ export function memoryRoutes(ctx: RouterContext) {
           path: updated.path,
           content: updated.content,
           revision: updated.revision,
-          updatedAt: new Date().toISOString(),
+          updatedAt: (
+            await deps.prisma.memoryDocument.findUniqueOrThrow({ where: { id: updated.id } })
+          ).updatedAt.toISOString(),
         };
       }),
       remove: authed.memory.remove.handler(async ({ context, input }) => {

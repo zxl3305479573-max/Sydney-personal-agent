@@ -32,17 +32,6 @@ export function createThreadHeaderStyles() {
       alignItems: "center",
       gap: 20,
     },
-    circleButton: {
-      flex: 1,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    composerFill: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tokens.glassStroke,
-      backgroundColor: tokens.glassFill,
-    },
     statusBarFade: {
       position: "absolute",
       top: 0,

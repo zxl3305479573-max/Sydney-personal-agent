@@ -2,6 +2,9 @@ import { typeScale } from "@rakazo/ui-tokens";
 import { StyleSheet } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { native } from "../lib/native";
+import { effectiveThemeAssignments } from "../lib/theme-manager";
+import { resolveScopedTheme } from "../lib/theme-pack";
+import { themeManager } from "../lib/theme-state";
 
 export const INBOX_ROW = { padding: 16, gap: 12, avatarSize: 62 };
 export const COMPACT_INBOX_ROW = { padding: 12, gap: 10 };
@@ -10,6 +13,15 @@ export const CREATE_MENU_GAP = 6;
 
 export function createHomeStyles() {
   const tokens = mobileTokens();
+  const snapshot = themeManager.getSnapshot();
+  const scope = themeManager.getActiveScope();
+  const layout =
+    snapshot.hydrated &&
+    (snapshot.assignments.globalPackId !== "classic" || snapshot.assignments.pages[scope])
+      ? resolveScopedTheme(snapshot.packs, effectiveThemeAssignments(snapshot), scope, "dark")
+          .layout
+      : "classic";
+  const cards = layout === "cards";
   return StyleSheet.create({
     screen: {
       flex: 1,
@@ -77,10 +89,38 @@ export function createHomeStyles() {
     },
     listArea: {
       flex: 1,
+      minHeight: 0,
+      overflow: "hidden",
     },
     list: {
       flexGrow: 1,
       paddingBottom: 32,
+    },
+    inboxIntro: {
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 16,
+    },
+    inboxTitle: {
+      color: native.label,
+      fontSize: 32,
+      fontWeight: "700",
+    },
+    inboxSearch: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: native.fillPressed,
+    },
+    inboxSearchLabel: {
+      color: native.secondaryLabel,
+      flexShrink: 1,
+      ...typeScale.secondary,
     },
     empty: {
       color: native.secondaryLabel,
@@ -91,15 +131,26 @@ export function createHomeStyles() {
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: INBOX_ROW.padding,
-      paddingVertical: 14,
+      marginHorizontal: cards ? 12 : 0,
+      paddingHorizontal: cards ? 14 : INBOX_ROW.padding,
+      paddingVertical: cards ? 16 : 14,
       gap: INBOX_ROW.gap,
+      borderRadius: cards ? 18 : 0,
+      backgroundColor: cards ? tokens.card : "transparent",
+      borderWidth: cards ? StyleSheet.hairlineWidth : 0,
+      borderColor: cards ? tokens.border : "transparent",
+      marginBottom: cards ? 8 : 0,
     },
     rowSelected: {
-      marginHorizontal: 12,
-      paddingHorizontal: 4,
       borderRadius: 12,
       backgroundColor: native.fillPressed,
+    },
+    rosterRow: {
+      marginHorizontal: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+      minHeight: 64,
+      borderRadius: 12,
     },
     pinnedTiles: {
       flexDirection: "row",
@@ -113,8 +164,11 @@ export function createHomeStyles() {
       alignItems: "center",
       paddingVertical: 8,
       paddingHorizontal: 4,
-      borderRadius: 16,
+      borderRadius: cards ? 20 : 16,
       gap: 4,
+      backgroundColor: cards ? tokens.card : "transparent",
+      borderWidth: cards ? StyleSheet.hairlineWidth : 0,
+      borderColor: cards ? tokens.border : "transparent",
     },
     pinnedName: {
       color: native.secondaryLabel,
@@ -153,20 +207,26 @@ export function createHomeStyles() {
       gap: 6,
     },
     rowMeta: {
+      flexShrink: 1,
+      maxWidth: "40%",
       flexDirection: "row",
       alignItems: "center",
       gap: 7,
     },
     name: {
-      flexShrink: 0,
-      maxWidth: "100%",
+      flexShrink: 1,
       color: native.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
     time: {
-      color: native.tertiaryLabel,
+      flexShrink: 1,
+      color: native.secondaryLabel,
       ...typeScale.caption,
+      fontVariant: ["tabular-nums"],
+    },
+    unreadName: {
+      fontWeight: "700",
     },
     preview: {
       color: native.secondaryLabel,

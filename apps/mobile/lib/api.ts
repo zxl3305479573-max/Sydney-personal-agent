@@ -284,15 +284,16 @@ async function performLoadApiBase(
   } catch {
     throw new Error("Could not load server settings");
   }
-  if (stored != null) {
+  const hasSavedEndpoint = stored !== null && stored !== "";
+  if (stored !== null && stored !== "") {
     const parsed = normalizeApiBase(stored);
     if (!parsed.ok) throw new Error("Could not load server settings");
     apiBase = parsed.url;
   }
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
-  apiBase = await compatibleDefaultOrigin(apiBase, stored != null);
+  apiBase = await compatibleDefaultOrigin(apiBase, hasSavedEndpoint);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
-  await guardDefaultOrigin(apiBase, stored != null);
+  await guardDefaultOrigin(apiBase, hasSavedEndpoint);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
   await loadServerHeaders(apiBase);
   if (endpointChangesPending || endpoint !== endpointGeneration) return currentApiBase();
@@ -972,7 +973,34 @@ export async function updateAccountName(name: string): Promise<void> {
   if (!nextName || nextName.length > 80 || !displayName(nextName, "")) {
     throw new Error(t("Could not update name"));
   }
-  const context = await captureApiRequestContext();
+  await updateAccountProfile({ name: nextName }, t("Could not update name"));
+}
+
+export async function updateAccountAvatar(image: string, context: ApiRequestContext): Promise<void> {
+  await updateAccountProfile({ image }, t("Could not save changes"), context);
+}
+
+export async function fetchAccountAvatar(userId: string): Promise<string | null> {
+  const scope = captureServerSessionScope();
+  const context = await captureApiRequestContext(null);
+  const { response, body } = await fetchMobileJson<{
+    user?: { id?: string; image?: unknown };
+  } | null>(
+    `${context.apiBase}/api/auth/get-session?disableCookieCache=true`,
+    { redirect: "error", headers: { origin: "rakazo://", ...context.headers } },
+    null,
+  );
+  if (!response.ok || body?.user?.id !== userId || !isServerSessionScopeCurrent(scope))
+    throw new Error(t("Could not continue"));
+  return typeof body.user.image === "string" ? body.user.image : null;
+}
+
+async function updateAccountProfile(
+  fields: { name: string } | { image: string },
+  message: string,
+  context?: ApiRequestContext,
+): Promise<void> {
+  context ??= await captureApiRequestContext();
   assertEndpointCurrent(context.apiBase, context.endpointGeneration!);
   if (context.sessionGeneration !== currentSessionGeneration())
     throw new Error(t("Something went wrong. Try again."));
@@ -985,13 +1013,13 @@ export async function updateAccountName(name: string): Promise<void> {
         origin: "rakazo://",
         ...context.headers,
       },
-      body: JSON.stringify({ name: nextName }),
+      body: JSON.stringify(fields),
     },
     {},
   );
   if (!response.ok)
     throw new Error(
-      authResponseErrorText(response.status, body, invalidJson, t("Could not update name")),
+      authResponseErrorText(response.status, body, invalidJson, message),
     );
 }
 
@@ -1284,7 +1312,6 @@ async function request(
   const uses = aiDataUsesForProcedure(proc, body);
   const companionConsent =
     proc === "threads/companionScreenStart" || proc === "threads/companionScreenRespond";
-  const companionSignal = companionConsent ? options.signal : undefined;
   const consentTarget = aiConsentTarget(body);
   const projectConsentTarget =
     proc === "projectWorkspaces/sendText" &&
@@ -1296,6 +1323,7 @@ async function request(
       : undefined;
   if (proc === "projectWorkspaces/sendText" && !projectConsentTarget)
     throw new Error("Project consent scope is missing");
+  const consentSignal = companionConsent || projectConsentTarget ? options.signal : undefined;
   const consentContext =
     options.requestContext ?? (uses.length ? await captureApiRequestContext() : undefined);
   await ensureAiDataConsent({
@@ -1304,20 +1332,20 @@ async function request(
       projectConsentTarget
         ? rpc("projectWorkspaces/consentStatus", projectConsentTarget, {
             requestContext: consentContext,
-            signal: companionSignal,
+            signal: consentSignal,
           })
         : rpc(
             "aiConsent/status",
             { uses, ...consentTarget },
-            { requestContext: consentContext, signal: companionSignal },
+            { requestContext: consentContext, signal: consentSignal },
           ),
     prompt:
       options.allowConsentPrompt === false
         ? async () => false
         : async (recipient, privacyUrl) => {
-            if (companionSignal?.aborted) return false;
+            if (consentSignal?.aborted) return false;
             const accepted = await promptAiConsent(recipient, privacyUrl);
-            return accepted && !companionSignal?.aborted;
+            return accepted && !consentSignal?.aborted;
           },
     allow: (input) =>
       projectConsentTarget
@@ -1326,7 +1354,7 @@ async function request(
             { ...projectConsentTarget, ...input },
             {
               requestContext: consentContext,
-              signal: companionSignal,
+              signal: consentSignal,
             },
           )
         : rpc(
@@ -1334,7 +1362,7 @@ async function request(
             consentTarget.settingsScope
               ? { ...input, settingsScope: consentTarget.settingsScope }
               : input,
-            { requestContext: consentContext, signal: companionSignal },
+            { requestContext: consentContext, signal: consentSignal },
           ),
     coalesceKey: consentContext
       ? `${aiConsentCoalesceKey(consentContext)}${companionConsent ? `\0companion:${++companionConsentCheckSequence}` : ""}`
@@ -1608,6 +1636,7 @@ export type MobileMe = Pick<
   | "userId"
   | "name"
   | "email"
+  | "image"
   | "spaceId"
   | "defaultProvider"
   | "defaultModel"
@@ -1648,11 +1677,12 @@ export type MobileSpace = Space;
 export type MobileSpaceNavigation = SpaceNavigation;
 
 /** A run as live events report it, before a refresh brings the full record. */
-type MobileRun = Pick<Run, "id"> & Partial<Pick<Run, "botId" | "userId">> & { status: string };
+type MobileRun = Pick<Run, "id"> &
+  Partial<Pick<Run, "botId" | "userId">> & { status: string; sendCursor?: number };
 
 /**
  * A thread as the screen holds it: live events patch it between refreshes, and a saved chat
- * reopens without its cursor, runs, or computer.
+ * reopens with its last known runs and event cursor, without computer control.
  */
 export type MobileSnapshot = Omit<
   ThreadSnapshot,
@@ -2070,6 +2100,46 @@ export function applyMobileThreadEvent(
       cursor,
       members,
       // Keep a group failure visible while another member starts work.
+      run: prev.groupId && prev.run?.status === "failed" && prev.run.id !== run.id ? prev.run : run,
+      activeRuns,
+    };
+  }
+  if (event.type === "run.queued") {
+    const cursor = event.seq ?? prev.cursor;
+    if (isBackgroundRunTrigger(event.payload?.trigger as string | undefined)) {
+      return cursor === prev.cursor ? prev : { ...prev, cursor };
+    }
+    const members = updateMemberStatus(prev.members, event.botId, "queued");
+    if (!event.runId) {
+      return cursor === prev.cursor && members === prev.members
+        ? prev
+        : { ...prev, cursor, members };
+    }
+    const previousRun =
+      prev.activeRuns?.find((candidate) => candidate.id === event.runId) ??
+      (prev.run?.id === event.runId ? prev.run : undefined);
+    const run = {
+      ...previousRun,
+      id: event.runId,
+      status: "queued",
+      ...(event.botId ? { botId: event.botId } : {}),
+      error: null,
+    };
+    let replaced = false;
+    const activeRuns = (prev.activeRuns ?? (prev.run ? [prev.run] : [])).flatMap((candidate) => {
+      if (candidate.id === run.id) {
+        if (replaced) return [];
+        replaced = true;
+        return [run];
+      }
+      return isActive(candidate.status as RunStatus) ? [candidate] : [];
+    });
+    if (!replaced) activeRuns.push(run);
+    return {
+      ...prev,
+      cursor,
+      messages: prev.messages.filter((message) => message.id !== progressMessageId(event)),
+      members,
       run: prev.groupId && prev.run?.status === "failed" && prev.run.id !== run.id ? prev.run : run,
       activeRuns,
     };

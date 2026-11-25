@@ -20,6 +20,39 @@ export const SCREEN_URL_RENEW_MS = 50 * 60_000;
 
 export type ComputerStatus = ContractComputerStatus;
 
+export const COMPUTER_SCREEN_SIZE_SCRIPT = `
+(function () {
+  var previous = "";
+  function report() {
+    var canvas = document.querySelector("#noVNC_container canvas, #screen canvas");
+    if (!canvas || !canvas.width || !canvas.height) return;
+    var message = JSON.stringify({ rakazoScreenSize: [canvas.width, canvas.height] });
+    if (message === previous) return;
+    previous = message;
+    window.ReactNativeWebView.postMessage(message);
+  }
+  new MutationObserver(report).observe(document.documentElement, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ["width", "height"]
+  });
+  report();
+})();true;`;
+
+export function computerScreenDimensions(data: string): { width: number; height: number } | null {
+  try {
+    const size: unknown = JSON.parse(data)?.rakazoScreenSize;
+    if (
+      Array.isArray(size) &&
+      size.length === 2 &&
+      size.every((value) => Number.isSafeInteger(value) && value > 0)
+    ) {
+      return { width: size[0], height: size[1] };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function screenUrlForApi(
   screen: { url: string | null; proxy?: string },
   apiBase: string,

@@ -7,6 +7,12 @@ function authedProjectWorkspaces() {
   const handler = (callback: unknown) => callback;
   return {
     projectWorkspaces: {
+      directoryCapability: { handler },
+      directory: { handler },
+      unbindDirectory: { handler },
+      cloudDirectory: { handler },
+      bindCloudDirectory: { handler },
+      unbindCloudDirectory: { handler },
       capabilities: { handler },
       conversationCapabilities: { handler },
       groupCreationCapability: { handler },
@@ -19,12 +25,24 @@ function authedProjectWorkspaces() {
       remove: { handler },
       createBot: { handler },
       createGroup: { handler },
+      getBot: { handler },
+      updateBot: { handler },
+      conversations: { handler },
+      botContext: { handler },
+      botContextAction: { handler },
+      conversationAction: { handler },
+      updateGroup: { handler },
+      restoreBotInstructions: { handler },
+      exportBot: { handler },
       threadHead: { handler },
       threadSnapshot: { handler },
       messages: { handler },
       sendText: { handler },
       stop: { handler },
       markRead: { handler },
+      cancelRun: { handler },
+      answerApproval: { handler },
+      getArtifact: { handler },
       subscribe: { handler },
       consentStatus: { handler },
       consentAllow: { handler },
@@ -258,11 +276,11 @@ describe("project conversation creation experiment", () => {
     const { routes } = routesFor(enabled, []);
     const call = routes.projectWorkspaces.conversationCapabilities as unknown as () => Promise<unknown>;
     const groupCall = routes.projectWorkspaces.groupCreationCapability as unknown as () => Promise<unknown>;
-    await expect(call()).resolves.toEqual({ createBot: enabled });
+    await expect(call()).resolves.toEqual({ createBot: enabled, botSettings: enabled, chatManagement: enabled });
     await expect(groupCall()).resolves.toEqual({ createGroup: enabled });
   });
 
-  it.each(["createBot", "createGroup"] as const)("keeps %s closed by default", async (method) => {
+  it.each(["createBot", "createGroup", "getBot", "updateBot"] as const)("keeps %s closed by default", async (method) => {
     const { routes, query, createBot, createGroup } = routesFor(false, []);
     const call = routes.projectWorkspaces[method] as unknown as (args: unknown) => Promise<unknown>;
     await expect(call({ context: {}, input: {} })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
@@ -283,7 +301,7 @@ describe("project conversation creation experiment", () => {
     })).resolves.toEqual({ kind: "tenant", ...actor, projectWorkspaceId: "project-a" });
   });
 
-  it.each(["createBot", "createGroup"] as const)("does not run %s for an inaccessible project", async (method) => {
+  it.each(["createBot", "createGroup", "getBot", "updateBot"] as const)("does not run %s for an inaccessible project", async (method) => {
     const { routes, createBot, createGroup } = routesFor(true, []);
     const call = routes.projectWorkspaces[method] as unknown as (args: unknown) => Promise<unknown>;
     await expect(call({

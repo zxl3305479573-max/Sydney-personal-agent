@@ -22,7 +22,9 @@ import {
   changePassword,
   currentApiBase,
   currentSpaceSelectionGeneration,
+  defaultApiBase,
   deleteAccount,
+  fetchAccountAvatar,
   fetchAccountSecurity,
   IDLE_TIMEOUT_MS,
   isServerReachable,
@@ -88,20 +90,26 @@ afterEach(() => {
 });
 
 describe("mobile API authentication", () => {
-  it.each(["unavailable", "invalid", "empty"])(
+  it.each(["unavailable", "invalid"])(
     "rejects server initialization when saved settings are %s",
     async (failure) => {
       const previous = currentApiBase();
       vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
         if (key !== "rakazo.api_base") return null;
         if (failure === "unavailable") throw new Error("storage locked");
-        if (failure === "empty") return "";
         return "https://example.com/unexpected-path";
       });
       await expect(loadApiBase()).rejects.toThrow("Could not load server settings");
       expect(currentApiBase()).toBe(previous);
     },
   );
+
+  it.each([null, ""])("uses the default server when saved settings are %s", async (saved) => {
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) =>
+      key === "rakazo.api_base" ? saved : null,
+    );
+    await expect(loadApiBase()).resolves.toBe(defaultApiBase());
+  });
 
   it("notifies selection start synchronously and settlement after storage", async () => {
     let finish: (() => void) | undefined;
@@ -441,7 +449,7 @@ describe("mobile API authentication", () => {
     const { fetchMock, fetchStarted, resolveFetch } = deferredFetch();
     vi.stubGlobal(
       "fetch",
-      vi.fn((url: string, init: RequestInit) =>
+      vi.fn((url: string) =>
         String(url).endsWith("/api/auth/delete-user")
           ? fetchMock()
           : Promise.resolve(jsonResponse({ json: null })),
@@ -916,6 +924,19 @@ describe("mobile API authentication", () => {
       headers: expect.objectContaining({ origin: "rakazo://" }),
       body: JSON.stringify({ name: "Alex Rivera" }),
     });
+  });
+
+  it("reads only the expected signed-in user's avatar from the session endpoint", async () => {
+    const image = "data:image/jpeg;base64,cGhvdG8=";
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      jsonResponse({ user: { id: "user-a", image } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchAccountAvatar("user-a")).resolves.toBe(image);
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/auth/get-session?disableCookieCache=true");
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
+    await expect(fetchAccountAvatar("user-b")).rejects.toThrow("Could not continue");
   });
 
   it.each(["", "   ", "💬", "__AbCdEfGh__", "x".repeat(81)])(
@@ -1891,6 +1912,34 @@ describe("mobile API authentication", () => {
     expect(init?.body).toContain("project-a");
     expect(init?.body).toContain("bot-a");
     expect(init?.body).not.toContain("private content");
+  });
+
+  it("does not grant project consent or send text after cancelling its consent prompt", async () => {
+    let resolvePrompt!: (accepted: boolean) => void;
+    let promptOpened!: () => void;
+    const opened = new Promise<void>((resolve) => { promptOpened = resolve; });
+    vi.mocked(promptAiConsent).mockImplementation(() => {
+      promptOpened();
+      return new Promise<boolean>((resolve) => { resolvePrompt = resolve; });
+    });
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
+      paths.push(new URL(String(url)).pathname);
+      return jsonResponse({ json: {
+        scope: "account-space", version: "2026-09-14",
+        recipients: [{ key: "provider", name: "Example AI", use: "model", detail: "", allowed: false }],
+      } });
+    }));
+    const controller = new AbortController();
+    const send = rpc("projectWorkspaces/sendText", {
+      projectId: "project-a", botId: "bot-a", text: "private", clientNonce: "nonce-a",
+    }, { signal: controller.signal });
+    const rejected = expect(send).rejects.toThrow();
+    await opened;
+    controller.abort();
+    resolvePrompt(true);
+    await rejected;
+    expect(paths).toEqual(["/rpc/projectWorkspaces/consentStatus"]);
   });
 
   it("does not prompt or send screen text when automatic model consent is missing", async () => {
@@ -4248,6 +4297,41 @@ describe("mobile thread event reduction", () => {
       runId: "run-1",
     });
     expect(statuses(completed)).toEqual(["idle", "idle"]);
+  });
+
+  it("updates the matching project run to queued without touching sibling runs", () => {
+    const target = { id: "run-a", botId: "bot-1", status: "running" };
+    const sibling = { id: "run-b", botId: "bot-2", status: "running" };
+    const initial: MobileSnapshot = {
+      ...snapshot(),
+      groupId: "group-1",
+      run: target,
+      activeRuns: [target, sibling],
+      messages: [
+        mobileMessage("progress:run-a", [{ kind: "progress", text: "Working" }]),
+        mobileMessage("keep", [{ kind: "text", text: "Keep me" }]),
+      ].map((message) => ({ ...message, runId: message.id.startsWith("progress:") ? "run-a" : undefined })),
+      members: [
+        { botId: "bot-1", name: "Writer", color: "blue", status: "running" },
+        { botId: "bot-2", name: "Researcher", color: "green", status: "running" },
+      ],
+    };
+
+    const next = applyMobileThreadEvent(initial, {
+      type: "run.queued",
+      seq: 9,
+      runId: target.id,
+      botId: target.botId,
+      payload: { reason: "project_device_offline", trigger: "user" },
+    });
+
+    expect(next?.run).toMatchObject({ id: target.id, status: "queued" });
+    expect(next?.activeRuns).toEqual([
+      { ...target, status: "queued", error: null },
+      sibling,
+    ]);
+    expect(next?.members?.map((member) => member.status)).toEqual(["queued", "running"]);
+    expect(next?.messages.map((message) => message.id)).toEqual(["keep"]);
   });
 
   it("marks a waiting peer that the snapshot omitted", () => {

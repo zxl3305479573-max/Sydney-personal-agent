@@ -68,8 +68,12 @@ export async function waitForMobileStartup(
   server: Promise<unknown>,
   tasks: Promise<unknown>[],
 ): Promise<void> {
-  const [serverResult] = await Promise.allSettled([server, ...tasks]);
-  if (serverResult.status === "rejected") throw new Error("Could not load server settings");
+  await Promise.all([
+    server.catch(() => {
+      throw new ServerSettingsStartupError("Could not load server settings");
+    }),
+    Promise.allSettled(tasks),
+  ]);
 }
 
 /** A visible app or its error boundary ends startup monitoring. */

@@ -28,12 +28,17 @@ const FILE_NON_DIRECTORY_FILE = 0x00000040;
 const FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
 const FILE_OPEN_REPARSE_POINT = 0x00200000;
 const OBJ_CASE_INSENSITIVE = 0x00000040;
+const OBJ_DONT_REPARSE = 0x00001000;
 const GENERIC_READ = 0x80000000;
 const GENERIC_WRITE = 0x40000000;
 const SYNCHRONIZE = 0x00100000;
 const FILE_SHARE_ALL = 0x00000007;
+const FILE_SHARE_READ = 0x00000001;
+const FILE_SHARE_WRITE = 0x00000002;
 const FILE_ATTRIBUTE_NORMAL = 0x00000080;
 const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+const FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
+const FILE_ATTRIBUTE_TAG_INFO = 9;
 /** NTSTATUS 0xC0000035 as signed int32 */
 const STATUS_OBJECT_NAME_COLLISION = -1073741771;
 /** NTSTATUS 0xC0000034 as signed int32 */
@@ -47,11 +52,13 @@ function escapeWorkspace(): never {
 
 type NtFns = {
   NtCreateFile: KoffiFunction;
+  NtQueryDirectoryFile: KoffiFunction;
   RtlInitUnicodeString: KoffiFunction;
   getOsFhandle: KoffiFunction;
   openOsFhandle: KoffiFunction;
   CloseHandle: KoffiFunction;
   GetFinalPathNameByHandleW: KoffiFunction;
+  GetFileInformationByHandleEx: KoffiFunction;
   objectAttributesSize: number;
 };
 
@@ -99,6 +106,9 @@ function nt(): NtFns {
     NtCreateFile: ntdll.func(
       "int32_t __stdcall NtCreateFile(_Out_ void **FileHandle, uint32_t DesiredAccess, OBJECT_ATTRIBUTES *ObjectAttributes, IO_STATUS_BLOCK *IoStatusBlock, void *AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, void *EaBuffer, uint32_t EaLength)",
     ),
+    NtQueryDirectoryFile: ntdll.func(
+      "int32_t __stdcall NtQueryDirectoryFile(void *FileHandle, void *Event, void *ApcRoutine, void *ApcContext, IO_STATUS_BLOCK *IoStatusBlock, void *FileInformation, uint32_t Length, int32_t FileInformationClass, uint8_t ReturnSingleEntry, void *FileName, uint8_t RestartScan)",
+    ),
     RtlInitUnicodeString: ntdll.func(
       "void __stdcall RtlInitUnicodeString(_Out_ UNICODE_STRING *DestinationString, void *SourceString)",
     ),
@@ -107,6 +117,9 @@ function nt(): NtFns {
     CloseHandle: kernel32.func("int __stdcall CloseHandle(void *hObject)"),
     GetFinalPathNameByHandleW: kernel32.func(
       "uint32_t __stdcall GetFinalPathNameByHandleW(void *hFile, void *lpszFilePath, uint32_t cchFilePath, uint32_t dwFlags)",
+    ),
+    GetFileInformationByHandleEx: kernel32.func(
+      "int __stdcall GetFileInformationByHandleEx(void *hFile, int classId, void *info, uint32_t size)",
     ),
     objectAttributesSize: koffi.sizeof(OBJECT_ATTRIBUTES),
   };
@@ -151,6 +164,7 @@ function ntCreateRelative(
   createDisposition: number,
   createOptions: number,
   fileAttributes: number,
+  project?: { directory: boolean; write: boolean },
 ): { fd: number; status: number } {
   assertLeafName(name);
   const api = nt();
@@ -165,7 +179,7 @@ function ntCreateRelative(
     Length: api.objectAttributesSize,
     RootDirectory: root,
     ObjectName: uni,
-    Attributes: OBJ_CASE_INSENSITIVE,
+    Attributes: OBJ_CASE_INSENSITIVE | (project ? OBJ_DONT_REPARSE : 0),
     SecurityDescriptor: null,
     SecurityQualityOfService: null,
   };
@@ -173,12 +187,14 @@ function ntCreateRelative(
   const handleOut: Array<unknown> = [null];
   const status = api.NtCreateFile(
     handleOut,
-    GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+    GENERIC_READ | (project === undefined || project.write ? GENERIC_WRITE : 0) | SYNCHRONIZE,
     objectAttributes,
     ioStatus,
     null,
     fileAttributes,
-    FILE_SHARE_ALL,
+    project === undefined
+      ? FILE_SHARE_ALL
+      : FILE_SHARE_READ | (project.directory ? FILE_SHARE_WRITE : 0),
     createDisposition,
     createOptions,
     null,
@@ -280,4 +296,98 @@ export function openChildDirectoryViaDirectoryFdWin32(parentFd: number, name: st
   );
   if (status !== 0) escapeWorkspace();
   return fileHandleFromFd(fd);
+}
+
+export function assertPlainWindowsHandle(fd: number) {
+  const api = nt();
+  const handle = api.getOsFhandle(fd) as number | bigint;
+  const info = Buffer.alloc(8);
+  if (
+    handle === -1 || handle === -1n ||
+    !api.GetFileInformationByHandleEx(handle, FILE_ATTRIBUTE_TAG_INFO, info, info.length) ||
+    (info.readUInt32LE(0) & FILE_ATTRIBUTE_REPARSE_POINT) !== 0
+  ) {
+    escapeWorkspace();
+  }
+}
+
+export function listProjectDirectoryWin32(fd: number, maxEntries: number) {
+  const api = nt();
+  const handle = api.getOsFhandle(fd) as number | bigint;
+  const buffer = Buffer.alloc(1024 * 1024);
+  const ioStatus = { Status: 0, Information: 0 };
+  const status = api.NtQueryDirectoryFile(
+    handle,
+    null,
+    null,
+    null,
+    ioStatus,
+    buffer,
+    buffer.length,
+    1,
+    0,
+    null,
+    1,
+  ) as number;
+  const noMoreFiles = -2147483642;
+  const bufferOverflow = -2147483643;
+  if (status === noMoreFiles) return { entries: [], truncated: false };
+  if (status !== 0 && status !== bufferOverflow) throw new Error("Project folder could not be listed");
+  const entries: { name: string; kind: "directory" | "file" }[] = [];
+  let truncated = status === bufferOverflow;
+  let offset = 0;
+  while (offset + 64 <= buffer.length) {
+    const nextOffset = buffer.readUInt32LE(offset);
+    const nameBytes = buffer.readUInt32LE(offset + 60);
+    const attributes = buffer.readUInt32LE(offset + 56);
+    if (nameBytes === 0) break;
+    if (nameBytes % 2 !== 0 || nameBytes > buffer.length - offset - 64)
+      throw new Error("Invalid project folder listing");
+    const name = buffer.toString("utf16le", offset + 64, offset + 64 + nameBytes);
+    const reparse = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) !== 0;
+    if (name !== "." && name !== ".." && !reparse && name.length > 0) {
+      if (entries.length === maxEntries) {
+        truncated = true;
+        break;
+      }
+      entries.push({ name, kind: attributes & FILE_ATTRIBUTE_DIRECTORY ? "directory" : "file" });
+    }
+    if (nextOffset === 0) break;
+    if (nextOffset < 64 || nextOffset > buffer.length - offset)
+      throw new Error("Invalid project folder listing");
+    offset += nextOffset;
+  }
+  return { entries, truncated };
+}
+
+export function openProjectChildWin32(
+  parentFd: number,
+  name: string,
+  kind: "directory" | "read" | "create" | "update",
+) {
+  const directory = kind === "directory";
+  const write = kind === "create" || kind === "update";
+  const { fd, status } = ntCreateRelative(
+    parentFd,
+    name,
+    kind === "create" ? FILE_CREATE : FILE_OPEN,
+    (directory ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE) |
+      FILE_SYNCHRONOUS_IO_NONALERT |
+      FILE_OPEN_REPARSE_POINT,
+    directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+    { directory, write },
+  );
+  if (status === STATUS_OBJECT_NAME_COLLISION && kind === "create") {
+    const error = new Error("Output already exists") as NodeJS.ErrnoException;
+    error.code = "EEXIST";
+    throw error;
+  }
+  if (status !== 0) escapeWorkspace();
+  try {
+    assertPlainWindowsHandle(fd);
+    return fileHandleFromFd(fd);
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
 }

@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -9,8 +10,9 @@ import { USER_DEVICE_CONNECT_PATH } from "@rakazo/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
-import type { UserDeviceClient } from "./user-device-client.js";
+import type { UserDeviceClient, UserDeviceClientOptions } from "./user-device-client.js";
 import { startUserDeviceClient, USER_DEVICE_MAX_MESSAGE_BYTES } from "./user-device-client.js";
+import { captureWindowsProjectRoot, executeWindowsProjectFile } from "./windows-project-files.js";
 
 const token = "device-token";
 const nodeEnv: Record<string, string> = process.versions.electron
@@ -73,13 +75,25 @@ describe("user device client", () => {
     await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
   });
 
-  function start(authorize: () => Promise<boolean> = async () => true) {
+  function start(
+    authorize: () => Promise<boolean> = async () => true,
+    workspaceGrant?: UserDeviceClientOptions["workspaceGrant"],
+    projectFile?: UserDeviceClientOptions["projectFile"],
+    projectWindowsTerminal?: UserDeviceClientOptions["projectWindowsTerminal"],
+    projectWindowsCommand?: UserDeviceClientOptions["projectWindowsCommand"],
+    projectWindowsCommandStatus?: UserDeviceClientOptions["projectWindowsCommandStatus"],
+  ) {
     client = startUserDeviceClient({
       serverUrl,
       token,
       root,
       onRevoked: revoked,
       authorize,
+      workspaceGrant,
+      projectFile,
+      projectWindowsTerminal,
+      projectWindowsCommand,
+      projectWindowsCommandStatus,
       retryMs: { min: 20, max: 40 },
     });
   }
@@ -95,6 +109,353 @@ describe("user device client", () => {
   async function until(check: () => boolean) {
     await vi.waitFor(() => expect(check()).toBe(true), { timeout: 10_000, interval: 10 });
   }
+
+  it("returns a terminal diagnostic through the fixed project channel without taking general consent", async () => {
+    const authorize = vi.fn(async () => false);
+    const terminal = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsTerminal"]>>(
+      async () => ({ status: "completed", stdout: "10.0.26100" }),
+    );
+    start(authorize, undefined, undefined, terminal);
+    const ws = await connection();
+    const received = frames(ws);
+    const request = {
+      method: "projectWindowsTerminal",
+      projectId: "project-a",
+      projectName: "Project A",
+      spaceId: "space-a",
+      runId: "run-a",
+      command: "ver",
+    };
+    ws.send(JSON.stringify({ type: "request", id: "terminal", request }));
+    await until(() => received.some((frame) => frame.id === "terminal" && "done" in frame.frame));
+    expect(terminal).toHaveBeenCalledExactlyOnceWith(request, expect.any(AbortSignal));
+    expect(received.find((frame) => frame.id === "terminal")?.frame).toEqual({
+      value: { status: "completed", stdout: "10.0.26100" },
+    });
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("reports sandbox availability and routes approved commands through the project-only channel", async () => {
+    const authorize = vi.fn(async () => false);
+    const command = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommand"]>>(
+      async () => ({ status: "completed", stdout: "ok", stderr: "", code: 0 }),
+    );
+    const status = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommandStatus"]>>(
+      async () => ({ available: true }),
+    );
+    start(authorize, undefined, undefined, undefined, command, status);
+    const ws = await connection();
+    const received = frames(ws);
+    const base = {
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+      runId: "run-a",
+    };
+    const availability = { ...base, method: "projectWindowsCommandStatus" };
+    ws.send(JSON.stringify({ type: "request", id: "guest-status", request: availability }));
+    await until(() =>
+      received.some((frame) => frame.id === "guest-status" && "done" in frame.frame),
+    );
+    expect(received.find((frame) => frame.id === "guest-status")?.frame).toEqual({
+      value: { available: true },
+    });
+    expect(status).toHaveBeenCalledWith(availability, expect.any(AbortSignal));
+    const request = {
+      ...base,
+      method: "projectWindowsCommand",
+      projectName: "Project A",
+      command: {
+        argv: ["/usr/bin/python3", "-c", "print('ok')"],
+        inputFiles: ["main.py"],
+        timeoutMs: 2000,
+      },
+    };
+    ws.send(JSON.stringify({ type: "request", id: "command", request }));
+    await until(() => received.some((frame) => frame.id === "command" && "done" in frame.frame));
+    expect(received.find((frame) => frame.id === "command")?.frame).toEqual({
+      value: { status: "completed", stdout: "ok", stderr: "", code: 0 },
+    });
+    expect(command).toHaveBeenCalledWith(request, expect.any(AbortSignal));
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("cancels a project command when the run is revoked before the result arrives", async () => {
+    const authorize = vi.fn(async () => false);
+    let operationSignal: AbortSignal | undefined;
+    let finish!: () => void;
+    const command = vi.fn<NonNullable<UserDeviceClientOptions["projectWindowsCommand"]>>(
+      async (_request, signal) => {
+        operationSignal = signal;
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        return { status: "completed", stdout: "late", stderr: "", code: 0 };
+      },
+    );
+    start(authorize, undefined, undefined, undefined, command);
+    const ws = await connection();
+    const received = frames(ws);
+    const request = {
+      method: "projectWindowsCommand",
+      spaceId: "space-a",
+      projectId: "project-a",
+      projectName: "Project A",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+      runId: "run-a",
+      command: {
+        argv: ["/usr/bin/python3", "-c", "print('late')"],
+        inputFiles: [],
+        timeoutMs: 2000,
+      },
+    };
+    ws.send(JSON.stringify({ type: "request", id: "long-command", request }));
+    await until(() => Boolean(operationSignal));
+    ws.send(JSON.stringify({ type: "cancel", id: "long-command" }));
+    await until(() => operationSignal?.aborted === true);
+    finish();
+    const barrier = {
+      method: "workspaceGrant",
+      operation: "status",
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: request.grantId,
+    };
+    ws.send(JSON.stringify({ type: "request", id: "barrier", request: barrier }));
+    await until(() => received.some((frame) => frame.id === "barrier" && "done" in frame.frame));
+    expect(received.some((frame) => frame.id === "long-command")).toBe(false);
+    expect(command).toHaveBeenCalledExactlyOnceWith(request, expect.any(AbortSignal));
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "moves bounded text through the device socket using real Windows handles",
+    async () => {
+      const projectRoot = await captureWindowsProjectRoot(root);
+      const authorize = vi.fn(async () => false);
+      await writeFile(path.join(root, "input.txt"), "样本");
+      start(authorize, undefined, (request, signal) =>
+        executeWindowsProjectFile(projectRoot, request.file, signal),
+      );
+      const ws = await connection();
+      const received = frames(ws);
+      const request = {
+        method: "projectFile",
+        spaceId: "space-a",
+        projectId: "project-a",
+        grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+      };
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "read",
+          request: {
+            ...request,
+            file: { operation: "read", path: "input.txt" },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "read" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "read")?.frame).toEqual({
+        value: {
+          operation: "read",
+          text: "样本",
+          sha256: createHash("sha256").update("样本", "utf8").digest("hex"),
+        },
+      });
+      const sampleHash = createHash("sha256").update("样本", "utf8").digest("hex");
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "update",
+          request: {
+            ...request,
+            file: {
+              operation: "update",
+              path: "input.txt",
+              expectedSha256: sampleHash,
+              text: "已修改",
+            },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "update" && "done" in frame.frame));
+      const updatedHash = createHash("sha256").update("已修改", "utf8").digest("hex");
+      expect(received.find((frame) => frame.id === "update")?.frame).toEqual({
+        value: {
+          operation: "update",
+          bytes: Buffer.byteLength("已修改", "utf8"),
+          sha256: updatedHash,
+        },
+      });
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "conflict",
+          request: {
+            ...request,
+            file: {
+              operation: "update",
+              path: "input.txt",
+              expectedSha256: sampleHash,
+              text: "不应覆盖",
+            },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "conflict" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "conflict")?.frame).toEqual({
+        value: { operation: "conflict", sha256: updatedHash },
+      });
+      expect(await readFile(path.join(root, "input.txt"), "utf8")).toBe("已修改");
+      ws.send(
+        JSON.stringify({
+          type: "request",
+          id: "create",
+          request: {
+            ...request,
+            file: { operation: "create", path: "result.md", text: "结果" },
+          },
+        }),
+      );
+      await until(() => received.some((frame) => frame.id === "create" && "done" in frame.frame));
+      expect(received.find((frame) => frame.id === "create")?.frame).toEqual({
+        value: { operation: "create", bytes: 6 },
+      });
+      expect(await readFile(path.join(root, "result.md"), "utf8")).toBe("结果");
+      expect(authorize).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["cancel", "disconnect"] as const)(
+    "aborts a project file transfer on %s without sending the result or requesting shell consent",
+    async (mode) => {
+      const authorize = vi.fn(async () => false);
+      let operationSignal: AbortSignal | undefined;
+      let finish!: () => void;
+      const file = vi.fn<NonNullable<UserDeviceClientOptions["projectFile"]>>(
+        async (_request, signal) => {
+          operationSignal = signal;
+          await new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+          return { operation: "read", text: "private sample", sha256: "a".repeat(64) };
+        },
+      );
+      start(authorize, undefined, file);
+      const ws = await connection();
+      const received = frames(ws);
+      const request = {
+        method: "projectFile",
+        spaceId: "space-a",
+        projectId: "project-a",
+        grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+        file: { operation: "read", path: "notes/input.md" },
+      };
+      ws.send(JSON.stringify({ type: "request", id: "file", request }));
+      await until(() => Boolean(operationSignal));
+      if (mode === "cancel") ws.send(JSON.stringify({ type: "cancel", id: "file" }));
+      else ws.terminate();
+      await until(() => operationSignal?.aborted === true);
+      finish();
+      if (mode === "cancel") {
+        ws.send(
+          JSON.stringify({
+            type: "request",
+            id: "barrier",
+            request: { ...request, method: "workspaceGrant", file: undefined, operation: "status" },
+          }),
+        );
+        await until(() =>
+          received.some((frame) => frame.id === "barrier" && "done" in frame.frame),
+        );
+      } else {
+        await connection(1);
+      }
+      expect(received.some((frame) => frame.id === "file")).toBe(false);
+      expect(authorize).not.toHaveBeenCalled();
+      expect(file).toHaveBeenCalledExactlyOnceWith(request, expect.any(AbortSignal));
+    },
+  );
+
+  it("checks a project grant without asking for whole-computer access", async () => {
+    const authorize = vi.fn(async () => false);
+    const workspaceGrant = vi.fn(async () => ({ state: "authorized" as const }));
+    start(authorize, workspaceGrant);
+    const ws = await connection();
+    const received = frames(ws);
+    const request = {
+      method: "workspaceGrant",
+      operation: "status",
+      spaceId: "space-a",
+      projectId: "project-a",
+      grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+    };
+    ws.send(JSON.stringify({ type: "request", id: "grant-status", request }));
+    await until(() => received.some((frame) => "done" in frame.frame));
+    expect(workspaceGrant).toHaveBeenCalledWith(request);
+    expect(authorize).not.toHaveBeenCalled();
+    expect(received[0]?.frame).toEqual({ value: { state: "authorized" } });
+  });
+
+  it("reports unsupported grants without invoking whole-computer consent", async () => {
+    const authorize = vi.fn(async () => false);
+    start(authorize);
+    const ws = await connection();
+    const received = frames(ws);
+    ws.send(
+      JSON.stringify({
+        type: "request",
+        id: "grant-status",
+        request: {
+          method: "workspaceGrant",
+          operation: "status",
+          spaceId: "space-a",
+          projectId: "project-a",
+          grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+        },
+      }),
+    );
+    await until(() => received.some((frame) => "done" in frame.frame));
+    expect(received[0]?.frame).toEqual({ value: { state: "unavailable" } });
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("drops a grant result after the server cancels the request", async () => {
+    let finish!: (result: { state: "authorized" }) => void;
+    const workspaceGrant = vi.fn(
+      () =>
+        new Promise<{ state: "authorized" }>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    start(async () => false, workspaceGrant);
+    const ws = await connection();
+    const received = frames(ws);
+    ws.send(
+      JSON.stringify({
+        type: "request",
+        id: "grant-status",
+        request: {
+          method: "workspaceGrant",
+          operation: "status",
+          spaceId: "space-a",
+          projectId: "project-a",
+          grantId: "746acaf1-0a4f-477d-822d-7357e7e8fe72",
+        },
+      }),
+    );
+    await until(() => workspaceGrant.mock.calls.length === 1);
+    ws.send(JSON.stringify({ type: "cancel", id: "grant-status" }));
+    const pinged = once(ws, "pong");
+    ws.ping();
+    await pinged;
+    finish({ state: "authorized" });
+    const drained = once(ws, "pong");
+    ws.ping();
+    await drained;
+    expect(received).toEqual([]);
+  });
 
   it("authenticates outbound and streams request frames back by id", async () => {
     start();
@@ -354,5 +715,31 @@ describe("user device client", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("forwards custom server headers on loopback/TLS upgrades without letting them override Bearer auth", async () => {
+    client = startUserDeviceClient({
+      serverUrl,
+      token,
+      root,
+      headers: {
+        "CF-Access-Client-Id": "client-123",
+        Authorization: "Bearer wrong-token",
+        Host: "spoofed.example",
+        Origin: "https://spoofed.example",
+        Cookie: "session=leaked",
+        "Sec-Fetch-Site": "cross-site",
+      },
+      onRevoked: revoked,
+      authorize: async () => true,
+      retryMs: { min: 20, max: 40 },
+    });
+    await connection();
+    expect(upgrades[0]!.headers["cf-access-client-id"]).toBe("client-123");
+    expect(upgrades[0]!.headers.authorization).toBe(`Bearer ${token}`);
+    expect(upgrades[0]!.headers.host).not.toBe("spoofed.example");
+    expect(upgrades[0]!.headers.origin).toBeUndefined();
+    expect(upgrades[0]!.headers.cookie).toBeUndefined();
+    expect(upgrades[0]!.headers["sec-fetch-site"]).toBeUndefined();
   });
 });

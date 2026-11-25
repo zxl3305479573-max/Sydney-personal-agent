@@ -131,8 +131,12 @@ export function resolveUpdaterConfig(
     }
   }
   const updateServices = [
-    ...RECREATED_SERVICES,
-    ...extraServices.filter((service) => !RECREATED_SERVICES.includes(service as never)),
+    ...new Set([
+      ...RECREATED_SERVICES,
+      ...extraServices.filter(
+        (service) => service !== "web" && service !== "native-screen-web-loopback",
+      ),
+    ]),
   ];
   const port = Number(env.RAKAZO_UPDATER_PORT ?? DEFAULT_UPDATER_PORT);
   if (!Number.isInteger(port) || port <= 0 || port > 65_535) {

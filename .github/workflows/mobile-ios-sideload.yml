@@ -36,9 +36,9 @@ jobs:
       SYDNEY_COMPANION_EXPERIMENT: ${{ inputs.companion_experiment && '1' || '0' }}
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url || 'https://124.221.182.39' }}
       SYDNEY_IOS_BUNDLE_ID: ${{ inputs.bundle_id || 'xin.zxlup.sydney' }}
-      SYDNEY_OTA_PROJECT_ID: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://pc.zxlup.xin' && vars.SYDNEY_OTA_PROJECT_ID || '' }}
-      SYDNEY_OTA_OWNER: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://pc.zxlup.xin' && vars.SYDNEY_OTA_OWNER || '' }}
-      SYDNEY_OTA_RUNTIME_VERSION: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://pc.zxlup.xin' && vars.SYDNEY_OTA_RUNTIME_VERSION || '' }}
+      SYDNEY_OTA_PROJECT_ID: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_PROJECT_ID || '' }}
+      SYDNEY_OTA_OWNER: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_OWNER || '' }}
+      SYDNEY_OTA_RUNTIME_VERSION: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_RUNTIME_VERSION || '' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -48,9 +48,10 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$SYDNEY_OTA_PROJECT_ID$SYDNEY_OTA_OWNER$SYDNEY_OTA_RUNTIME_VERSION" &&
-                "$EXPO_PUBLIC_API_URL" != "https://pc.zxlup.xin" ]]; then
-            echo "OTA-enabled sideload builds currently require the existing domain target." >&2
-            echo "OTA is restricted to the existing domain; IP builds must ship a new IPA." >&2
+                ( "$EXPO_PUBLIC_API_URL" != "https://124.221.182.39" ||
+                  "$SYDNEY_IOS_BUNDLE_ID" != "xin.zxlup.sydney" ||
+                  "$SYDNEY_COMPANION_EXPERIMENT" == "1" ) ]]; then
+            echo "OTA-enabled sideload builds require the production IP target and xin.zxlup.sydney bundle ID." >&2
             exit 1
           fi
 
@@ -140,12 +141,41 @@ jobs:
           ditto "$app" "$RUNNER_TEMP/sydney-ipa/Payload/Sydney.app"
           ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/sydney-ipa/Payload" "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa"
           /usr/bin/python3 -c '
-          import sys, zipfile
+          import os, pathlib, plistlib, sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as archive:
-              longest = max(archive.namelist(), key=len)
+              names = archive.namelist()
+              longest = max(names, key=len)
+              bundle = archive.read("Payload/Sydney.app/main.jsbundle")
+              expo_plist = plistlib.loads(archive.read("Payload/Sydney.app/Expo.plist"))
           if len(longest) > 200:
               raise SystemExit(f"IPA path exceeds Windows sideload budget ({len(longest)} > 200): {longest}")
-          print(f"Longest IPA path: {len(longest)} characters")
+          asset_dirs = {
+              entry.split("/")[4]
+              for entry in names
+              if entry.startswith("Payload/Sydney.app/assets/sydney/") and len(entry.split("/")) > 5
+          }
+          if not asset_dirs:
+              raise SystemExit("Expected bundled assets under Payload/Sydney.app/assets/sydney/")
+          missing = sorted(d for d in asset_dirs if f"/assets/sydney/{d}".encode() not in bundle)
+          if missing:
+              raise SystemExit(f"Bundled asset directories missing from main.jsbundle: {missing}")
+          ota_project = os.environ.get("SYDNEY_OTA_PROJECT_ID", "")
+          ota_runtime = os.environ.get("SYDNEY_OTA_RUNTIME_VERSION", "")
+          enabled = expo_plist.get("EXUpdatesEnabled")
+          actual_url = expo_plist.get("EXUpdatesURL")
+          actual_runtime = expo_plist.get("EXUpdatesRuntimeVersion")
+          if ota_project:
+              expected_url = f"https://u.expo.dev/{ota_project}"
+              if enabled is not True:
+                  raise SystemExit(f"Expected EXUpdatesEnabled=True in Expo.plist, got {enabled!r}")
+              if actual_url != expected_url:
+                  raise SystemExit(f"Unexpected EXUpdatesURL in Expo.plist: {actual_url!r}")
+              if actual_runtime != ota_runtime:
+                  raise SystemExit(f"Unexpected EXUpdatesRuntimeVersion in Expo.plist: {actual_runtime!r}")
+          else:
+              if enabled is not False:
+                  raise SystemExit(f"Expected EXUpdatesEnabled=False when OTA vars are unset, got {enabled!r}")
+          print(f"Longest IPA path: {len(longest)} characters; verified {len(asset_dirs)} asset directories; EXUpdatesEnabled={enabled}")
           ' "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa"
           shasum -a 256 "$GITHUB_WORKSPACE/ios-artifact/Sydney-unsigned.ipa" > "$GITHUB_WORKSPACE/ios-artifact/SHA256.txt"
 

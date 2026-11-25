@@ -1,4 +1,5 @@
 const OAUTH_POPUP_NAMES = new Set([
+  "rakazo-slack-install",
   "rakazo-app-connect",
   "rakazo-mcp-oauth",
   "rakazo-sso-oauth",
@@ -7,6 +8,7 @@ const OAUTH_POPUP_NAMES = new Set([
 ]);
 
 const BLANK_OAUTH_POPUP_NAMES = new Set([
+  "rakazo-slack-install",
   "rakazo-app-connect",
   "rakazo-mcp-oauth",
   "rakazo-plugin-connect",

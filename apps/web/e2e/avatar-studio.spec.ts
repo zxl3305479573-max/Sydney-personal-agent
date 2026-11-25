@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { captureScreenshot, completeOnboarding, openBotPanelTab, signup } from "./helpers";
+import { completeOnboarding, signup } from "./helpers";
 
-test("bot settings open Avatar Studio on the Bot tab", async ({ page }, testInfo) => {
+test("bot settings keep Sydney avatars and uploaded-avatar controls", async ({ page }) => {
   const stamp = Date.now();
   await signup(page, `avatar-studio-${stamp}@rakazo.test`, "password12", "Avatar Studio");
   await completeOnboarding(page);
@@ -15,50 +15,15 @@ test("bot settings open Avatar Studio on the Bot tab", async ({ page }, testInfo
   await settings.getByTestId("avatar-studio-trigger").click();
   const studio = page.getByTestId("avatar-studio");
   await expect(studio).toBeVisible();
-  await expect(studio.getByText("Avatar Studio", { exact: true })).toBeVisible();
-  await expect(studio.getByRole("tab", { name: "Bot", exact: true })).toBeVisible();
-  await expect(studio.getByRole("tab", { name: "Upload", exact: true })).toBeVisible();
-  await expect(studio.getByTestId("avatar-studio-bot-tab")).toBeVisible();
+  await expect(studio.getByText("Avatar library", { exact: true })).toBeVisible();
+  for (const name of ["紫晶", "橙花", "蓝羽"]) {
+    await expect(studio.getByRole("button", { name, exact: true })).toBeVisible();
+  }
+  await expect(studio.getByLabel("Add from device")).toBeAttached();
+  await expect(studio.getByText(/Rakazo/i)).toHaveCount(0);
+  await expect(studio.locator(".rakazo-logo-avatar")).toHaveCount(0);
 
-  await expect(studio.getByRole("tab", { name: "Original", exact: true })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  const defaultLook = studio.getByTestId("avatar-studio-default");
-  const wedge = studio.getByRole("button", { name: "wedge", exact: true });
-  await expect(defaultLook).toHaveAttribute("aria-pressed", "true");
-  await expect(wedge).toHaveAttribute("aria-pressed", "false");
-
-  await wedge.click();
-  await expect(wedge).toHaveAttribute("aria-pressed", "true");
-  await expect(defaultLook).toHaveAttribute("aria-pressed", "false");
-  await expect(studio.locator(".rakazo-organic-avatar")).toHaveCount(0);
-
-  await defaultLook.click();
-  await expect(defaultLook).toHaveAttribute("aria-pressed", "true");
-  await expect(wedge).toHaveAttribute("aria-pressed", "false");
-  await expect(studio.locator(".rakazo-organic-avatar")).toHaveCount(1);
-  await expect(studio.locator(".rakazo-organic-avatar-eyes").first()).toBeVisible();
-
-  await studio.getByRole("button", { name: "Color #EAB308" }).click();
-  await expect(defaultLook).toHaveAttribute("aria-pressed", "true");
-  await expect(wedge).toHaveAttribute("aria-pressed", "false");
-
-  await wedge.click();
-  await studio.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(defaultLook).toHaveAttribute("aria-pressed", "true");
-  await expect(wedge).toHaveAttribute("aria-pressed", "false");
-  await expect(studio.locator(".rakazo-organic-avatar")).toHaveCount(1);
-
-  await captureScreenshot(page, testInfo, "avatar-studio-bot-tab");
-  await studio.getByRole("tab", { name: "Rakazo", exact: true }).click();
-  await expect(studio.locator(".rakazo-logo-avatar").first()).toBeVisible();
-  await studio.getByRole("button", { name: "Done", exact: true }).click();
-  await page.reload();
-  await openBotPanelTab(page, "Computer");
-  await page.getByTestId("bot-settings").getByTestId("avatar-studio-trigger").click();
-  await expect(
-    page.getByTestId("avatar-studio").getByRole("tab", { name: "Rakazo", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
-  await captureScreenshot(page, testInfo, "avatar-studio-rakazo-set");
+  const lilacAvatar = studio.getByRole("button", { name: "紫晶", exact: true });
+  await lilacAvatar.click();
+  await expect(lilacAvatar).toHaveAttribute("aria-pressed", "true");
 });

@@ -1,0 +1,139 @@
+import { usePathname } from "expo-router";
+import { DarkTheme, ThemeProvider } from "expo-router/react-navigation";
+import type { PropsWithChildren } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { Image, Platform, StyleSheet, View } from "react-native";
+import { resolveUserMobileAppearance } from "../lib/appearance";
+import { reportMobileError } from "../lib/monitoring";
+import { useResolvedAppearance } from "../lib/native";
+import { ScopedThemeContext, useScopedTheme } from "../lib/scoped-theme-context";
+import { effectiveThemeAssignments } from "../lib/theme-manager";
+import type { ResolvedScopedTheme, ThemeScope } from "../lib/theme-pack";
+import { hasCustomThemeForScope, resolveScopedTheme, themeScopeForRoute } from "../lib/theme-pack";
+import { themeManager } from "../lib/theme-state";
+import { UiModeCrashBoundary, UiModeRuntimeProvider, useUiModeRuntime } from "../lib/ui-mode-slots";
+
+export function useThemeManagerSnapshot() {
+  return useSyncExternalStore(
+    themeManager.subscribe,
+    themeManager.getSnapshot,
+    themeManager.getSnapshot,
+  );
+}
+
+export function useThemeForScope(scope: ThemeScope, preview = true): ResolvedScopedTheme | null {
+  const snapshot = useThemeManagerSnapshot();
+  useResolvedAppearance();
+  const appearance = resolveUserMobileAppearance();
+  return useMemo(
+    () =>
+      Platform.OS === "ios" &&
+      snapshot.hydrated &&
+      hasCustomThemeForScope(
+        snapshot.packs,
+        preview ? effectiveThemeAssignments(snapshot) : snapshot.assignments,
+        scope,
+      )
+        ? resolveScopedTheme(
+            snapshot.packs,
+            preview ? effectiveThemeAssignments(snapshot) : snapshot.assignments,
+            scope,
+            appearance,
+          )
+        : null,
+    [appearance, preview, scope, snapshot],
+  );
+}
+
+export function ScopedThemeBackground({ children }: PropsWithChildren) {
+  const background = useScopedTheme()?.background;
+  return (
+    <>
+      {background ? (
+        <Image
+          source={{ uri: background.uri }}
+          resizeMode={background.fit}
+          accessible={false}
+          style={[
+            StyleSheet.absoluteFill,
+            { width: "100%", height: "100%", opacity: background.opacity },
+          ]}
+        />
+      ) : null}
+      {children}
+    </>
+  );
+}
+
+function ScopedThemeContent({
+  theme,
+  children,
+}: PropsWithChildren<{ theme: ResolvedScopedTheme | null }>) {
+  const runtime = useUiModeRuntime();
+  if (!theme) return children;
+  const navigationTheme = {
+    ...DarkTheme,
+    dark: theme.appearance === "dark",
+    colors: {
+      ...DarkTheme.colors,
+      background: theme.tokens.background,
+      card: theme.tokens.card,
+      text: theme.tokens.foreground,
+      border: theme.tokens.border,
+      primary: theme.tokens.primary,
+    },
+  };
+  return (
+    <ScopedThemeContext.Provider value={theme}>
+      <UiModeRuntimeProvider value={{ ...runtime, theme }}>
+        <ThemeProvider value={navigationTheme}>
+          <View style={{ flex: 1, backgroundColor: theme.tokens.background }}>
+            <ScopedThemeBackground>{children}</ScopedThemeBackground>
+          </View>
+        </ThemeProvider>
+      </UiModeRuntimeProvider>
+    </ScopedThemeContext.Provider>
+  );
+}
+
+export function ScopedThemeScreen({ scope, children }: PropsWithChildren<{ scope: ThemeScope }>) {
+  const snapshot = useThemeManagerSnapshot();
+  const theme = useThemeForScope(scope);
+  const assignments = effectiveThemeAssignments(snapshot);
+  const packId = assignments.pages[scope] ?? assignments.globalPackId;
+  const fallback = resolveScopedTheme(
+    snapshot.packs,
+    { schemaVersion: 1, globalPackId: "classic", pages: {} },
+    scope,
+    resolveUserMobileAppearance(),
+  );
+  if (!theme) return children;
+  return (
+    <UiModeCrashBoundary
+      modeId={packId}
+      fallback={<ScopedThemeContent theme={fallback}>{children}</ScopedThemeContent>}
+      onModeError={(error) => {
+        reportMobileError(error, "react.render");
+        if (snapshot.preview) themeManager.cancelPreview();
+        else
+          void themeManager
+            .recover(assignments.pages[scope] ? scope : "all")
+            .catch(() => undefined);
+      }}
+    >
+      <ScopedThemeContent theme={theme}>{children}</ScopedThemeContent>
+    </UiModeCrashBoundary>
+  );
+}
+
+export function ScopedThemeRoute({
+  routeName,
+  children,
+}: PropsWithChildren<{ routeName: string }>) {
+  const pathname = usePathname();
+  const scope = themeScopeForRoute(pathname || routeName);
+  useEffect(() => {
+    themeManager.setActiveScope(scope);
+  }, [scope]);
+  return <ScopedThemeScreen scope={scope}>{children}</ScopedThemeScreen>;
+}

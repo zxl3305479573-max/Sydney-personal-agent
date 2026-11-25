@@ -863,6 +863,42 @@ describe("MCP OAuth", () => {
     expect(await broker.statusFor(shared.server, shared.context)).toBe("reconnect");
   });
 
+  it("stages a new dynamic registration until the new grant is issued", async () => {
+    const persist = vi.fn(async () => undefined);
+    const provider = new StoredMcpOAuthProvider(
+      "server-1",
+      {
+        oauth: {
+          redirectUri: "https://app.example.test/mcp/oauth/callback",
+          clientInformation: { client_id: "old-client" },
+          tokens: { access_token: "working", refresh_token: "old-refresh", token_type: "bearer" },
+        },
+      },
+      persist,
+      {
+        redirectUri: "https://app.example.test/api/mcp/oauth/callback",
+        onAuthorization: vi.fn(),
+      },
+    );
+
+    expect(provider.clientInformation()).toBeUndefined();
+    expect(await provider.tokens()).toBeUndefined();
+    await provider.saveClientInformation({ client_id: "new-client" });
+    await provider.saveCodeVerifier("new-verifier");
+    expect(persist).not.toHaveBeenCalled();
+
+    await provider.saveTokens({ access_token: "new-grant", token_type: "bearer" });
+    expect(persist).toHaveBeenCalledExactlyOnceWith(
+      {
+        oauth: expect.objectContaining({
+          clientInformation: { client_id: "new-client" },
+          tokens: { access_token: "new-grant", token_type: "bearer" },
+        }),
+      },
+      undefined,
+    );
+  });
+
   it("rejects unsafe browser authorization URLs", async () => {
     const onAuthorization = vi.fn();
     const provider = new StoredMcpOAuthProvider(
@@ -1113,7 +1149,7 @@ describe("MCP OAuth", () => {
       if (started.status !== "authorization_required") throw new Error("OAuth was not requested");
       const authorizationUrl = new URL(started.authorizationUrl);
 
-      expect(registration).toMatchObject({ client_name: "Rakazo", application_type: "native" });
+      expect(registration).toMatchObject({ client_name: "Sydney", application_type: "native" });
       expect(authorizationUrl.origin).toBe("https://auth.example.test");
       expect(authorizationUrl.searchParams.get("client_id")).toBe("registered-client-id");
       expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe("S256");

@@ -39,9 +39,9 @@ describe.each(caddyfiles)("%s access log", (filename) => {
     }
   });
 
-  it("keeps the exact legacy sign-in route on web by default", () => {
+  it("keeps the exact legacy sign-in return on the API", () => {
     expect(config).toMatch(
-      /handle \/sign-in \{\s*reverse_proxy \{\$SYDNEY_SIGN_IN_UPSTREAM:web:5173\}/,
+      /handle \/sign-in \{\s*reverse_proxy \{\$SYDNEY_SIGN_IN_UPSTREAM:api:3100\}/,
     );
   });
 

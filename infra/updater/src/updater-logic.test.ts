@@ -22,7 +22,7 @@ describe("resolveUpdaterConfig", () => {
     expect(config).toMatchObject({
       deployDir: "/srv/rakazo",
       composeFiles: [`/srv/rakazo/${DEFAULT_COMPOSE_FILE}`],
-      updateServices: ["api", "worker", "web"],
+      updateServices: ["api", "worker"],
       envFile: "/srv/rakazo/.env",
       projectName: DEFAULT_COMPOSE_PROJECT_NAME,
       token: base.RAKAZO_UPDATER_TOKEN,
@@ -154,15 +154,26 @@ describe("resolveUpdaterConfig", () => {
   it("appends the deployment's extra services to the built-in set", () => {
     expect(
       resolveUpdaterConfig({ ...base, RAKAZO_UPDATE_SERVICES: "supervisor, caddy" }).updateServices,
-    ).toEqual(["api", "worker", "web", "supervisor", "caddy"]);
+    ).toEqual(["api", "worker", "supervisor", "caddy"]);
   });
 
-  it("cannot drop a built-in service, however RAKAZO_UPDATE_SERVICES is written", () => {
+  it.each(["true", "false", undefined])("excludes legacy web with old switch %s", (enabled) => {
+    expect(
+      resolveUpdaterConfig({
+        ...base,
+        SYDNEY_WEB_SERVICE_ENABLED: enabled,
+        RAKAZO_UPDATE_SERVICES:
+          "web,native-screen-web-loopback,supervisor,native-screen-api-loopback",
+      }).updateServices,
+    ).toEqual(["api", "worker", "supervisor", "native-screen-api-loopback"]);
+  });
+
+  it("cannot drop a built-in service through RAKAZO_UPDATE_SERVICES alone", () => {
     const services = resolveUpdaterConfig({
       ...base,
       RAKAZO_UPDATE_SERVICES: "web,supervisor",
     }).updateServices;
-    expect(services).toEqual(["api", "worker", "web", "supervisor"]);
+    expect(services).toEqual(["api", "worker", "supervisor"]);
   });
 
   it("refuses to recreate the updater, which would kill the run mid-flight", () => {

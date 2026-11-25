@@ -47,8 +47,7 @@ for (const app of ["web", "www"]) {
   await ico(rounded, `${publicDir}/favicon.ico`, [16, 32, 48]);
 }
 await mkdir(path("apps/www/public/brand"), { recursive: true });
-// The marketing site still points at this file name; its copy is rebranded separately.
-await png(rounded, "apps/www/public/brand/rakazo-mark.png", 256);
+await png(rounded, "apps/www/public/brand/sydney-mark.png", 256);
 // The web app tints the mark with the theme foreground through a CSS mask.
 await png(rounded, "apps/web/public/sydney-mark.png", 256);
 await png(rounded, "packages/ui-tokens/assets/sydney-mark.png", 256);
@@ -84,3 +83,7 @@ async function whiteSilhouette(input: Buffer, name: string, size: number) {
 // Android themed launchers and notification icons need white alpha silhouettes.
 await whiteSilhouette(rounded, "apps/mobile/assets/monochrome-icon.png", 1024);
 await whiteSilhouette(rounded, "apps/mobile/assets/notification-icon.png", 72);
+const nativeNotificationResources =
+  "apps/mobile/modules/rakazo-notifications/android/src/main/res/drawable-xxhdpi";
+await mkdir(path(nativeNotificationResources), { recursive: true });
+await whiteSilhouette(rounded, `${nativeNotificationResources}/ic_sydney_notification.png`, 72);

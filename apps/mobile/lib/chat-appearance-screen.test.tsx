@@ -25,7 +25,9 @@ vi.mock("react-native", () => ({
   Image: ({ resizeMode }: { resizeMode: string }) => <div data-resize-mode={resizeMode} />,
   ScrollView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  View: ({ children, testID }: { children: ReactNode; testID?: string }) => (
+    <div data-testid={testID}>{children}</div>
+  ),
   Pressable: ({
     children,
     accessibilityLabel,
@@ -69,7 +71,7 @@ vi.mock("./native", () => ({ useThemedStyles: (factory: () => unknown) => factor
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text, locale: "zh-CN" }) }));
 vi.mock("./chat-appearance", () => ({
   getMobileChatAppearance: () => store.current,
-  useMobileChatAppearance: () => store.current,
+  useSavedMobileChatAppearance: () => store.current,
   saveMobileChatAppearance: store.save,
   chooseMobileChatBackground: vi.fn(),
   clearMobileChatBackground: vi.fn(),
@@ -130,5 +132,13 @@ it("saves bubble radius and transparency without changing the chat background", 
     ...store.current,
     bubble: expect.objectContaining({ radius: 20, opacity: 0.9 }),
   });
+  const livePreview = container.querySelector('[data-testid="chat-appearance-live-preview"]');
+  expect(livePreview?.querySelector("[data-resize-mode]")).not.toBeNull();
+  expect(livePreview?.textContent).toContain("机器人消息");
+  expect(livePreview?.textContent).toContain("我发送的消息");
+  const defaultRow = [...container.querySelectorAll("button")].find((button) =>
+    button.textContent?.includes("Default bubbles"),
+  );
+  expect(defaultRow?.textContent).toContain("✓");
   await act(async () => root.unmount());
 });

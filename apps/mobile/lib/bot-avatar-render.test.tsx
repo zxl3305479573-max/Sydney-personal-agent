@@ -1,14 +1,6 @@
 // @vitest-environment jsdom
 
-import {
-  avatarIdentitySeed,
-  LOGO_BODY_PATH,
-  logoAvatarFrame,
-  logoAvatarTraits,
-  organicAvatarPath,
-  seededLogoAvatarColor,
-  shippedBotAvatarShapePath,
-} from "@rakazo/core";
+import { avatarIdentitySeed, organicAvatarPath, shippedBotAvatarShapePath } from "@rakazo/core";
 import type { ColorTokens } from "@rakazo/ui-tokens";
 import { botEyeColor, tokensForAppearance } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
@@ -19,13 +11,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BotAvatarProps } from "../components/bot-avatar";
 import { BotAvatar } from "../components/bot-avatar";
 import { AvatarScreenFocus } from "./avatar-life";
-import { mobileLogoAvatarActivity } from "./logo-avatar-activity";
 
-const nativeProps = vi.hoisted(() => [] as Array<() => Record<string, unknown>>);
 const mobileTokens = vi.hoisted(() => ({ current: undefined as ColorTokens | undefined }));
 const nativeMotion = vi.hoisted(() => ({
   reduced: true,
-  styles: [] as Array<() => { transform: unknown[] }>,
   timings: [] as number[],
 }));
 
@@ -78,15 +67,9 @@ vi.mock("react-native-reanimated", () => {
     Easing: { linear: (value: number) => value, inOut: (value: unknown) => value, cubic: 0 },
     ReduceMotion: { Never: "never" },
     withSpring: (value: unknown) => value,
-    useAnimatedProps: (sample: () => Record<string, unknown>) => {
-      nativeProps.push(sample);
-      return {};
-    },
+    useAnimatedProps: () => ({}),
     useDerivedValue: (sample: () => unknown) => ({ value: sample() }),
-    useAnimatedStyle: (sample: () => { transform: unknown[] }) => {
-      nativeMotion.styles.push(sample);
-      return {};
-    },
+    useAnimatedStyle: () => ({}),
     useReducedMotion: () => nativeMotion.reduced,
     useSharedValue: <T,>(value: T) => useRef({ value }).current,
     withRepeat: (value: unknown) => value,
@@ -147,43 +130,6 @@ vi.mock("./native", () => ({
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 
 describe("BotAvatar", () => {
-  it("renders the thinking pose only while the production mobile store has a genuine marker", () => {
-    mobileLogoAvatarActivity.hydrate("native-test", {
-      threadId: "native-thread",
-      cursor: 0,
-      botId: "bot-1",
-      run: { id: "native-run", botId: "bot-1", status: "running", trigger: "user" },
-    });
-    render("#10B981", "rakazo");
-    const latestEye = () =>
-      nativeProps
-        .map((sample) => sample())
-        .filter((props) => typeof props.cx === "number")
-        .slice(-2)[0]!;
-    const send = (seq: number, thinking: boolean) =>
-      act(() =>
-        mobileLogoAvatarActivity.apply("native-test", {
-          threadId: "native-thread",
-          seq,
-          botId: "bot-1",
-          runId: "native-run",
-          type: "thread.meta",
-          payload: { activity: { thinking } },
-        }),
-      );
-    send(1, true);
-    const frame = logoAvatarFrame("thinking", logoAvatarTraits("bot-1", "#10B981"), 0, true);
-    expect(latestEye()).toMatchObject({ cx: 40.5 + frame.eyeX, cy: 49 + frame.eyeY });
-    send(2, false);
-    expect(latestEye()).toMatchObject({ cx: 40.5, cy: 49 });
-  });
-
-  it("uses the same shared seed colour as SSR for a bot without a saved colour", () => {
-    const node = render("", "rakazo");
-    expect(
-      node.querySelector(`stop[data-stop-color="${seededLogoAvatarColor("bot-1").toLowerCase()}"]`),
-    ).not.toBeNull();
-  });
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
 
@@ -193,11 +139,8 @@ describe("BotAvatar", () => {
     root = undefined;
     container = undefined;
     vi.unstubAllGlobals();
-    nativeProps.length = 0;
     nativeMotion.reduced = true;
-    nativeMotion.styles.length = 0;
     nativeMotion.timings.length = 0;
-    mobileLogoAvatarActivity.clear();
     mobileTokens.current = undefined;
   });
 
@@ -231,49 +174,6 @@ describe("BotAvatar", () => {
   const bodies = (view: HTMLElement) =>
     Array.from(view.querySelectorAll("path"), (path) => path.dataset.d);
 
-  it("preserves the shared native tap reactions on the Rakazo set", () => {
-    nativeMotion.reduced = false;
-    const view = render("#3EC5A8", "rakazo", { pokeable: true, motion: "running" });
-    const button = view.querySelector("button");
-    expect(button).not.toBeNull();
-    expect(button!.dataset.accessible).toBe("false");
-    act(() => button!.click());
-    expect(nativeMotion.timings.filter((ms) => ms < 1000)).toEqual([800]);
-    expect(nativeMotion.styles.at(-1)!().transform).not.toEqual([
-      { translateY: 0 },
-      { rotate: "0deg" },
-      { scaleY: 1 },
-    ]);
-    act(() => button!.click());
-    expect(nativeMotion.timings.filter((ms) => ms < 1000)).toEqual([800, 700]);
-    expect(nativeMotion.timings.filter((ms) => ms >= 1000)).toEqual([24_000]);
-  });
-
-  it("settles an active tap when reduced motion becomes enabled", () => {
-    nativeMotion.reduced = false;
-    const view = render("#3EC5A8", "rakazo", { pokeable: true, motion: "running" });
-    act(() => view.querySelector("button")!.click());
-    nativeMotion.reduced = true;
-    act(() =>
-      root?.render(
-        <BotAvatar
-          color="#3EC5A8"
-          avatarSet="rakazo"
-          identity="bot-1"
-          size={42}
-          status="running"
-          pokeable
-          motion="running"
-        />,
-      ),
-    );
-    expect(nativeMotion.styles.at(-1)!().transform).toEqual([
-      { translateY: 0 },
-      { rotate: "0deg" },
-      { scaleY: 1 },
-    ]);
-  });
-
   it.each(["reduced", "offscreen", "static"])("keeps tap motion still when %s", (condition) => {
     nativeMotion.reduced = condition === "reduced";
     const view = render(
@@ -284,6 +184,7 @@ describe("BotAvatar", () => {
     );
     const button = view.querySelector("button");
     expect(button).not.toBeNull();
+    nativeMotion.timings.length = 0;
     act(() => button!.click());
     expect(nativeMotion.timings.filter((ms) => ms > 0 && ms < 1000)).toEqual([]);
   });
@@ -311,47 +212,22 @@ describe("BotAvatar", () => {
     expect(bodies(view)).toEqual([shippedBotAvatarShapePath(3)]);
     expect(view.querySelectorAll("ellipse")).toHaveLength(2);
   });
-  it("draws the explicitly selected Rakazo set as paths and gradients without a raster image", () => {
+  it("renders a retired mascot selection with the default body", () => {
     const view = render("#3EC5A8", "rakazo");
-    expect(bodies(view)).toContain(LOGO_BODY_PATH);
-    expect(bodies(view)).not.toContain(organicAvatarPath(avatarIdentitySeed("bot-1")));
+    expect(bodies(view)).toEqual([organicAvatarPath(avatarIdentitySeed("bot-1"))]);
     expect(view.querySelector("img, image")).toBeNull();
-    expect(view.querySelectorAll("ellipse")).toHaveLength(2);
-    expect(view.querySelector("radialGradient")).not.toBeNull();
   });
 
-  it("keeps a custom picture when the stored set is Rakazo", () => {
+  it("keeps a custom picture when the stored set is Sydney", () => {
     const view = render("data:image/png;base64,abc", "rakazo");
     expect(view.querySelector("img")?.getAttribute("src")).toBe("data:image/png;base64,abc");
     expect(bodies(view)).toEqual([]);
   });
 
-  it("keeps an explicitly selected original shape when the stored set is Rakazo", () => {
+  it("keeps an explicitly selected original shape when the stored set is Sydney", () => {
     const view = render("#8B5CF6::shape_3", "rakazo");
     expect(bodies(view)).toEqual([shippedBotAvatarShapePath(3)]);
   });
-  it("updates native SVG hosts with finite six-value matrices and numeric eye props", () => {
-    render("#3EC5A8", "rakazo");
-    const updates = nativeProps.map((sample) => sample());
-    const matrices = updates.flatMap((update) =>
-      Array.isArray(update.matrix) ? [update.matrix] : [],
-    );
-    expect(matrices).toHaveLength(5);
-    for (const matrix of matrices) {
-      expect(matrix).toHaveLength(6);
-      expect(matrix.every(Number.isFinite)).toBe(true);
-    }
-    expect(updates.filter((update) => "cx" in update)).toHaveLength(2);
-    expect(updates.every((update) => !("transform" in update))).toBe(true);
-  });
-
-  it("keeps eyes legible on a saved dark body in the light theme", () => {
-    const view = render("#101014", "rakazo");
-    expect(
-      Array.from(view.querySelectorAll("ellipse"), (eye) => eye.getAttribute("data-fill")),
-    ).toEqual(["#FFF", "#FFF"]);
-  });
-
   it.each([
     ["light", "data:image/png;base64,abc"],
     ["dark", "data:image/png;base64,abc"],
@@ -370,5 +246,20 @@ describe("BotAvatar", () => {
     });
     expect(badge?.querySelector<HTMLElement>("div")?.dataset.background).toBe(tokens.secondary);
     expect(badge?.querySelector("i")?.dataset.color).toBe(tokens.foreground);
+  });
+
+  it("shows the green marker for an unread bot", () => {
+    const view = render("#3EC5A8", undefined, { unread: true });
+    expect(view.querySelectorAll('[aria-label="Working"]')).toHaveLength(1);
+  });
+
+  it("keeps one green marker when a bot is running and unread", () => {
+    const view = render("#3EC5A8", undefined, { status: "running", unread: true });
+    expect(view.querySelectorAll('[aria-label="Working"]')).toHaveLength(1);
+  });
+
+  it("does not show the green marker for a read idle bot", () => {
+    const view = render("#3EC5A8", undefined, { unread: false });
+    expect(view.querySelector('[aria-label="Working"]')).toBeNull();
   });
 });

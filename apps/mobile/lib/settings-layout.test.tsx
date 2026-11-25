@@ -43,7 +43,7 @@ vi.mock("../components/glass-title", () => ({
   glassHeaderOptions: (title: string) => ({ title }),
 }));
 vi.mock("expo-router/react-navigation", () => ({ HeaderBackButton: () => null }));
-vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
+vi.mock("./i18n", () => ({ useI18n: () => ({ locale: "zh-CN", t: (text: string) => text }) }));
 vi.mock("./native", () => ({ native: {}, useMobileTokens: () => ({}) }));
 
 function headerOptions(page: string, pages: string[]) {

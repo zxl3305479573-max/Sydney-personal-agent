@@ -4,7 +4,6 @@ import { act, createElement, forwardRef, useImperativeHandle } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ComputerKeyboardBar } from "../components/computer-keyboard-bar";
-import type { NativeActionButtonProps } from "./native-controls";
 
 type InputProps = {
   value?: string;
@@ -37,7 +36,35 @@ vi.mock("react-native", () => ({
     },
   },
   StyleSheet: { create: (styles: unknown) => styles },
-  View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  View: ({ children, style }: { children: ReactNode; style?: { flexBasis?: number } }) => (
+    <div data-basis={style?.flexBasis}>{children}</div>
+  ),
+  Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) => (
+    <span data-lines={numberOfLines}>{children}</span>
+  ),
+  Pressable: (props: {
+    children: ReactNode;
+    accessibilityLabel: string;
+    accessibilityState: { selected?: boolean };
+    disabled: boolean;
+    onPress: () => void;
+    style: (state: { pressed: boolean }) => [{ minWidth: number; minHeight: number }];
+  }) => {
+    const [style] = props.style({ pressed: false });
+    return (
+      <button
+        type="button"
+        aria-label={props.accessibilityLabel}
+        aria-pressed={props.accessibilityState.selected}
+        disabled={props.disabled}
+        onClick={props.onPress}
+        data-min-width={style.minWidth}
+        data-min-height={style.minHeight}
+      >
+        {props.children}
+      </button>
+    );
+  },
   TextInput: forwardRef((props: InputProps, ref) => {
     input.props = props;
     useImperativeHandle(ref, () => ({
@@ -50,25 +77,42 @@ vi.mock("react-native", () => ({
   }),
 }));
 vi.mock("react-native-keyboard-controller", () => ({ useKeyboardState: () => false }));
-vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0 }),
+}));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 vi.mock("./native", () => ({ useMobileTokens: () => ({}), useResolvedAppearance: () => "light" }));
-vi.mock("../components/native-action-button", () => ({
-  NativeActionButton: (props: NativeActionButtonProps) => (
-    <button
-      type="button"
-      aria-label={props.accessibilityLabel ?? props.label}
-      aria-pressed={props.selected}
-      data-size={props.size}
-      data-icon={props.icon?.ios}
-      onClick={props.onPress}
-    >
-      {props.label}
-    </button>
-  ),
+vi.mock("./ripple", () => ({ androidRipple: () => undefined }));
+vi.mock("../components/native-symbol", () => ({
+  NativeSymbol: ({ ios }: { ios: string }) => <span data-icon={ios} />,
+}));
+vi.mock("../components/native-segmented-control", () => ({
+  NativeSegmentedControl: ({
+    value,
+    options,
+    onChange,
+    disabled,
+  }: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+    disabled: boolean;
+  }) =>
+    options.map((option) => (
+      <button
+        type="button"
+        key={option.value}
+        aria-label={option.label}
+        aria-pressed={option.value === value}
+        disabled={disabled}
+        onClick={() => onChange(option.value)}
+      >
+        {option.label}
+      </button>
+    )),
 }));
 
-async function renderBar() {
+async function renderBar(pointer?: Parameters<typeof ComputerKeyboardBar>[0]["pointer"]) {
   const view = document.createElement("div");
   const root = createRoot(view);
   const onCommand = vi.fn();
@@ -81,7 +125,9 @@ async function renderBar() {
   vi.spyOn(Date, "now").mockImplementation(() => now);
   (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
   const render = (active: boolean) =>
-    act(async () => root.render(createElement(ComputerKeyboardBar, { active, onCommand })));
+    act(async () =>
+      root.render(createElement(ComputerKeyboardBar, { active, onCommand, pointer })),
+    );
   await render(true);
   const button = (name: string) => view.querySelector<HTMLButtonElement>(`[aria-label="${name}"]`);
   // Whatever the field starts with; typed values below are what it holds after each keystroke.
@@ -120,11 +166,35 @@ async function renderBar() {
 describe("computer keyboard accessory", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("shows the selected pointer mode and only switches while control is active", async () => {
+    const onChange = vi.fn();
+    const bar = await renderBar({ mode: "touch", onChange });
+    try {
+      expect(bar.button("Direct touch")?.getAttribute("aria-pressed")).toBe("true");
+      await bar.click("Virtual mouse");
+      expect(onChange).toHaveBeenCalledWith("mouse");
+      await bar.setActive(false);
+      expect(bar.button("Virtual mouse")?.disabled).toBe(true);
+      await bar.click("Virtual mouse");
+      expect(onChange).toHaveBeenCalledTimes(1);
+    } finally {
+      await bar.unmount();
+    }
+  });
+
   it("toggles focus and consumes Ctrl once for keys, typing and Return", async () => {
     const bar = await renderBar();
     try {
-      expect(bar.view.querySelectorAll('[data-size="compact"]')).toHaveLength(8);
-      expect(bar.button("Show keyboard")!.dataset.icon).toBe("keyboard");
+      expect(bar.view.querySelectorAll('[data-min-width="44"][data-min-height="44"]')).toHaveLength(
+        8,
+      );
+      expect(bar.button("Show keyboard")?.querySelector('[data-icon="keyboard"]')).not.toBeNull();
+      const groups = bar.view.querySelectorAll("[data-basis]");
+      expect(groups).toHaveLength(2);
+      expect(
+        Array.from(groups[0]!.querySelectorAll('[data-lines="1"]'), (item) => item.textContent),
+      ).toEqual(["Esc", "Tab", "Ctrl"]);
+      expect(groups[1]?.querySelectorAll("[data-icon]")).toHaveLength(4);
       await bar.click("Show keyboard");
       expect(bar.button("Hide keyboard")!.getAttribute("aria-pressed")).toBe("true");
       await bar.click("Hide keyboard");
@@ -140,6 +210,10 @@ describe("computer keyboard accessory", () => {
       expect(bar.button("Control")!.getAttribute("aria-pressed")).toBe("false");
       await bar.click("Tab");
       expect(bar.onCommand).toHaveBeenLastCalledWith({ type: "key", name: "Tab" });
+      for (const direction of ["Left", "Down", "Up", "Right"]) {
+        await bar.click(direction);
+        expect(bar.onCommand).toHaveBeenLastCalledWith({ type: "key", name: `Arrow${direction}` });
+      }
       await bar.click("Control");
       await bar.type("c");
       expect(bar.onCommand).toHaveBeenLastCalledWith({ type: "char", text: "c", control: true });

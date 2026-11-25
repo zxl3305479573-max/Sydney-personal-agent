@@ -1,5 +1,6 @@
 import type { AiRecipient } from "@rakazo/contracts";
-import { AI_DATA_DISCLOSURES, AI_PRIVACY_URL } from "@rakazo/contracts";
+import { AI_DATA_DISCLOSURES } from "@rakazo/contracts";
+import type { AlertButton } from "react-native";
 import { Alert, AppState, Linking } from "react-native";
 import { t } from "./i18n";
 
@@ -7,7 +8,7 @@ export const FOREGROUND_FALLBACK_MS = 400;
 
 export function promptAiConsent(
   recipient: AiRecipient,
-  privacyUrl = AI_PRIVACY_URL,
+  privacyUrl?: string,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
@@ -72,6 +73,35 @@ export function promptAiConsent(
       if (settled || waitingForPrivacyReturn || dialogOpen) return;
       dialogOpen = true;
       let privacyPolicyPressed = false;
+      const buttons: AlertButton[] = [
+        { text: t("Not now"), style: "cancel", onPress: () => finish(false) },
+      ];
+      if (privacyUrl) {
+        buttons.push({
+          text: t("Privacy policy"),
+          onPress: () => {
+            privacyPolicyPressed = true;
+            dialogOpen = false;
+            cancelForegroundFallback();
+            const attempt = ++privacyAttempt;
+            leftForeground = AppState.currentState !== "active";
+            waitingForPrivacyReturn = true;
+            foregroundFallback = setTimeout(() => {
+              foregroundFallback = undefined;
+              if (!isCurrentPrivacyAttempt(attempt) || !stillInForeground()) return;
+              waitingForPrivacyReturn = false;
+              show();
+            }, FOREGROUND_FALLBACK_MS);
+            void Linking.openURL(privacyUrl).catch(() => {
+              if (!isCurrentPrivacyAttempt(attempt)) return;
+              cancelForegroundFallback();
+              waitingForPrivacyReturn = false;
+              showWhenReady();
+            });
+          },
+        });
+      }
+      buttons.push({ text: t("Allow"), onPress: () => finish(true) });
       Alert.alert(
         t("Share data with {name}?", { name: recipient.name }),
         [
@@ -81,41 +111,7 @@ export function promptAiConsent(
         ]
           .filter(Boolean)
           .join("\n\n"),
-        [
-          { text: t("Not now"), style: "cancel", onPress: () => finish(false) },
-          {
-            text: t("Privacy policy"),
-            onPress: () => {
-              // The button callback is the deterministic lifecycle point on both platforms.
-              // RN only maps onDismiss on Android, and Android consumes a button callback
-              // instead of sending a second dismissed action.
-              privacyPolicyPressed = true;
-              dialogOpen = false;
-              cancelForegroundFallback();
-              const attempt = ++privacyAttempt;
-              leftForeground = AppState.currentState !== "active";
-              waitingForPrivacyReturn = true;
-              foregroundFallback = setTimeout(() => {
-                foregroundFallback = undefined;
-                if (!isCurrentPrivacyAttempt(attempt) || !stillInForeground()) return;
-                waitingForPrivacyReturn = false;
-                show();
-              }, FOREGROUND_FALLBACK_MS);
-              void Linking.openURL(privacyUrl).then(
-                () => {
-                  if (attempt !== privacyAttempt || settled) return;
-                },
-                () => {
-                  if (!isCurrentPrivacyAttempt(attempt)) return;
-                  cancelForegroundFallback();
-                  waitingForPrivacyReturn = false;
-                  showWhenReady();
-                },
-              );
-            },
-          },
-          { text: t("Allow"), onPress: () => finish(true) },
-        ],
+        buttons,
         {
           cancelable: true,
           onDismiss: () => {

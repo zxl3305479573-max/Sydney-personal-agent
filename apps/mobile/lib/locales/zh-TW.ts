@@ -1,12 +1,15 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
-  "Server settings or the saved session could not be verified.": "無法驗證伺服器設定或已儲存的登入狀態。",
+  "Server settings or the saved session could not be verified.":
+    "無法驗證伺服器設定或已儲存的登入狀態。",
   "Account deleted": "帳號已刪除",
   "Could not confirm account deletion. Check your account before trying again.":
     "無法確認帳號是否已刪除。請先檢查帳號狀態，再決定是否重試。",
   "The original account was deleted, but local cleanup failed and your session has changed.":
     "原帳號已刪除，但本機清理失敗，且目前的登入工作階段已變更。",
-  "The original account was deleted. Your current session has changed.": "原帳號已刪除，目前的登入工作階段已變更。",
-  "The session changed. Open account deletion again.": "登入工作階段已變更，請重新開啟帳號刪除頁面。",
+  "The original account was deleted. Your current session has changed.":
+    "原帳號已刪除，目前的登入工作階段已變更。",
+  "The session changed. Open account deletion again.":
+    "登入工作階段已變更，請重新開啟帳號刪除頁面。",
   "The account was deleted, but local session cleanup failed. Restart the app and try signing out.":
     "帳號已刪除，但本機工作階段清理失敗。請重新啟動應用程式並嘗試登出。",
   Computers: "電腦裝置",
@@ -112,8 +115,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Your Anthropic": "你的 Anthropic",
   "Your model provider": "你的模型供應商",
   "Connect a model in Settings before running bots.": "執行機器人前，請先在設定中連接模型。",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "請在「模型」中連接你自己的 API 金鑰，或在「帳務」中選擇 Rakazo 點數。",
+  "Connect your own API key in Models or choose Sydney credits in Billing.":
+    "請在「模型」中連接你自己的 API 金鑰，或在「帳務」中選擇 Sydney 點數。",
   "The model provider returned an error.": "模型供應商回傳了錯誤。",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider} 正在限制請求頻率。請稍後重試。",
@@ -311,6 +314,9 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Close chat organization": "關閉聊天整理",
   "Close computer": "關閉電腦",
   "Computer keyboard": "電腦鍵盤",
+  "Pointer mode": "指標模式",
+  "Direct touch": "觸控",
+  "Virtual mouse": "虛擬滑鼠",
   Control: "Ctrl",
   Down: "向下",
   Escape: "Esc",
@@ -594,8 +600,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Photo library": "相簿",
   Pin: "置頂",
   "Please try again.": "請重試。",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "將此應用程式連至你自行架設的 Rakazo，網址與你在瀏覽器中開啟的 HTTPS 網址相同。",
+  "Point this app at your self-hosted Sydney origin, the same HTTPS URL you open in a browser.":
+    "將此應用程式連至你自行架設的 Sydney，網址與你在瀏覽器中開啟的 HTTPS 網址相同。",
   Private: "私人",
   Profile: "資料",
   Providers: "供應商",
@@ -661,10 +667,10 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Show more": "顯示更多",
   "Show {label}": "顯示 {label}",
   "Sign in": "登入",
-  "Sign in to Rakazo": "登入 Rakazo",
+  "Sign in to Sydney": "登入 Sydney",
   "Sign out": "登出",
   "Sign up": "註冊",
-  "Sign up for Rakazo": "註冊 Rakazo",
+  "Sign up for Sydney": "註冊 Sydney",
   "Sign-in": "登入",
   "Sign-up": "註冊",
   "Sign-in did not return a session": "登入未返回工作階段",
@@ -695,7 +701,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Team: "團隊",
   "Team Computer": "團隊電腦",
   "That doesn’t look like a URL": "這看起來不像 URL",
-  "That URL did not look like a Rakazo server": "該地址看起來不是 Rakazo 伺服器",
+  "That URL did not look like a Sydney server": "該地址看起來不是 Sydney 伺服器",
   "That URL is missing a host": "該地址缺少主機名稱",
   "The server changed while starting the request": "請求開始時伺服器已更改",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
@@ -780,8 +786,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Open conversation": "開啟對話",
   "Open in full window": "在全視窗中開啟",
   "OpenAPI JSON": "OpenAPI JSON",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "貼上你伺服器的 OpenAI 相容地址。如有需要，Rakazo 會自動補上 /v1。",
+  "Paste the OpenAI-compatible address from your server. Sydney adds /v1 if needed.":
+    "貼上你伺服器的 OpenAI 相容地址。如有需要，Sydney 會自動補上 /v1。",
   Paused: "已暫停",
   Prompt: "提示詞",
   "Recording a live demonstration needs desktop or web with the full computer view. You can still ask this bot to run saved skills from chat.":
@@ -794,8 +800,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Teach a task": "教一個任務",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "這將刪除所有訊息並停止目前工作。機器人、電腦、記憶和例行任務會保留。",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Rakazo 暫不支援此訂閱登入。請使用部署憑證或選擇其他供應商。",
+  "This subscription sign-in is not available in Sydney yet. Use a deployment credential or choose another provider.":
+    "Sydney 暫不支援此訂閱登入。請使用部署憑證或選擇其他供應商。",
   Tools: "工具",
   Uninstall: "解除安裝",
   "Verify and add": "驗證並新增",
@@ -902,7 +908,6 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "AI models": "AI 模型",
   Memory: "記憶",
   "Privacy policies": "隱私權政策",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "撤回所有權限",
   "Withdraw all permissions?": "要撤回所有權限嗎？",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1034,14 +1039,14 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Subscribe: "訂閱",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "每月額度在續訂時到期。單次加值額度不會過期。",
-  "Use Rakazo credits": "使用 Rakazo 額度",
+  "Use Sydney credits": "使用 Sydney 額度",
   "Choose a plan": "選擇方案",
   "Change plan": "變更方案",
   "Current plan": "目前方案",
   Plan: "方案",
   None: "無",
   "Free trial": "免費試用",
-  "Rakazo credits": "Rakazo 額度",
+  "Sydney credits": "Sydney 額度",
   "Free until": "免費至",
   Ends: "結束於",
   Renews: "續訂日期",
@@ -1076,7 +1081,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Your free trial has started": "你的免費試用已開始",
   "Free until {date}": "{date} 前免費",
   "Connect your AI": "連接你的 AI",
-  "Start using Rakazo": "開始使用 Rakazo",
+  "Start using Sydney": "開始使用 Sydney",
   "1 unread": "1 條未讀",
   "{count} unread": "{count} 條未讀",
   "{count} need attention": "{count} 個需要處理",
@@ -1084,11 +1089,11 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}，下方",
   Work: "工作",
   Both: "兩者都有",
-  "How will you use Rakazo?": "你會如何使用 Rakazo？",
-  "What do you most want Rakazo to help with?": "你最希望 Rakazo 幫你做什麼？",
+  "How will you use Sydney?": "你會如何使用 Sydney？",
+  "What do you most want Sydney to help with?": "你最希望 Sydney 幫你做什麼？",
   "How big is your team?": "你的團隊有多大？",
   "How did you hear about us?": "你是如何知道我們的？",
-  "Welcome to Rakazo": "歡迎使用 Rakazo",
+  "Welcome to Sydney": "歡迎使用 Sydney",
   "Add a model in Settings to use this.": "請先在設定中新增模型再使用。",
   "Add provider": "新增供應商",
   "Always act": "一律處理",
@@ -1305,23 +1310,65 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "1 bot now uses the space default.": "1 個機器人已改用空間預設模型。",
   "{count} bots now use the space default.": "{count} 個機器人已改用空間預設模型。",
   "Could not switch {failedNames}. Try again.": "無法切換 {failedNames}，請再試一次。",
-  "A custom background is active.": "A custom background is active.",
-  "A custom bubble style is active.": "A custom bubble style is active.",
-  "Background and bubbles": "Background and bubbles",
-  "Bubble presets": "Bubble presets",
-  "Bubble style": "Bubble style",
-  Change: "Change",
-  "Chat appearance": "Chat appearance",
+  "A custom background is active.": "已啟用自訂背景。",
+  "A custom bubble style is active.": "已啟用自訂氣泡樣式。",
+  "Background and bubbles": "背景與氣泡",
+  "Bubble presets": "氣泡預設",
+  "Bubble style": "氣泡樣式",
+  Change: "更換",
+  "Chat appearance": "聊天外觀",
   "Chat appearance is saved on this device and is not uploaded.":
-    "Chat appearance is saved on this device and is not uploaded.",
-  "Chat background": "Chat background",
-  Custom: "Custom",
-  "Default bubbles": "Default bubbles",
-  "Remove background": "Remove background",
-  "The image could not be removed.": "The image could not be removed.",
-  "The image could not be saved on this device.": "The image could not be saved on this device.",
-  "Use the default background.": "Use the default background.",
-  "Use the default bubbles.": "Use the default bubbles.",
+    "聊天外觀儲存在此裝置上，不會上傳至伺服器。",
+  "Chat background": "聊天背景",
+  Custom: "自訂",
+  "Default bubbles": "預設氣泡",
+  "Remove background": "移除背景",
+  "The image could not be removed.": "無法移除背景圖片。",
+  "The image could not be saved on this device.": "無法在此裝置上儲存該圖片。",
+  "Use the default background.": "使用預設背景。",
+  "Use the default bubbles.": "使用預設氣泡。",
+  "Add model": "新增模型",
+  "Check for updates": "檢查更新",
+  "Software update": "版本更新",
+  About: "關於",
+  "Version {version} available": "可更新至 {version}",
+  "Update available": "有可用更新",
+  "Downloading update…": "正在下載更新…",
+  "Install and restart": "安裝並重新啟動",
+  "Could not download the update. Try again later.": "無法下載更新，請稍後再試。",
+  "Current version": "目前版本",
+  "Release notes": "更新說明",
+  "Version {version}": "版本 {version}",
+  "Version {version} downloaded": "版本 {version} 已下載",
+  "Installed build {build}": "安裝套件 {build}",
+  "Check the screen, then release and take control again.": "請先查看畫面，再釋放並重新接管。",
+  "Checking for updates…": "正在檢查更新…",
+  "Complete connection": "完成連結",
+  "Computer control is unavailable. Release and take control again.":
+    "電腦接管暫不可用，請釋放後重新接管。",
+  "Computer input failed. Take control again.": "電腦輸入失敗，請重新接管。",
+  "Could not check for updates. Try again later.": "無法檢查更新，請稍後再試。",
+  "Could not confirm the connection. Start a new connection attempt.":
+    "無法確認連結狀態，請重新發起連結。",
+  "Could not restart. Reopen the app to apply the update.":
+    "無法自動重新啟動，請重新開啟應用程式以套用更新。",
+  "Could not save changes": "無法儲存變更",
+  "If the browser cannot finish, copy its full callback address and paste it here.":
+    "若瀏覽器無法完成回跳，請複製完整的回呼網址並貼到這裡。",
+  "MCP callback address": "MCP 回呼網址",
+  "Paste callback address": "貼上回呼網址",
+  Restart: "重新啟動",
+  "Restart the app now? Save unfinished work first.":
+    "要立即重新啟動應用程式嗎？請先儲存未完成的工作。",
+  "The account, server, or space changed. Start the connection again.":
+    "帳號、伺服器或空間已變更，請重新發起連結。",
+  "The callback address does not match this connection attempt.":
+    "此回呼網址與本次連結請求不一致。",
+  "This update needs a new app installation.": "此更新需要重新安裝應用程式。",
+  "Update downloaded": "更新已下載",
+  "Updates are unavailable in this build.": "此建置版本不支援線上更新。",
+  "Waiting for screen dimensions…": "正在等待電腦畫面尺寸…",
+  "Your app is up to date.": "目前已是最新版本。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

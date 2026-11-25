@@ -1,21 +1,51 @@
+import { canonicalPiProviderId } from "@rakazo/contracts";
 import type { ChatModelChoice } from "@rakazo/core";
-import { chatModelChoices, connectedModelChoices } from "@rakazo/core";
-import type { MobileMe, MobileModel, MobileModelCredential } from "./api";
+import {
+  chatModelChoices,
+  connectedModelChoices,
+  modelOptionKey,
+  resolveSelectableModelId,
+} from "@rakazo/core";
+import type { MobileBot, MobileMe, MobileModel, MobileModelCredential } from "./api";
+
+type BotModel = Pick<MobileBot, "modelProvider" | "modelId">;
+type DefaultModel = Pick<MobileMe, "defaultProvider" | "defaultModel" | "needsModel">;
+
+export function chatModelSelectionKey(catalog: MobileModel[], bot: BotModel): string {
+  return bot.modelProvider && bot.modelId
+    ? modelOptionKey(
+        bot.modelProvider,
+        resolveSelectableModelId(catalog, bot.modelProvider, bot.modelId),
+      )
+    : "";
+}
+
+export function chatModelDisplayName(
+  me: DefaultModel | null | undefined,
+  catalog: MobileModel[],
+  bot?: BotModel,
+): string | undefined {
+  if (bot?.modelProvider && bot.modelId)
+    return catalogEntry(catalog, bot.modelProvider, bot.modelId)?.label ?? bot.modelId;
+  if (me?.needsModel || !me?.defaultModel) return undefined;
+  return catalogEntry(catalog, me.defaultProvider, me.defaultModel)?.label ?? me.defaultModel;
+}
 
 /** What a chat's model picker lists, with the space default named after its model. */
 export function chatModelPickerChoices(
-  me: MobileMe | null,
+  me: DefaultModel | null,
   catalog: MobileModel[],
   credentials: MobileModelCredential[],
   selectedKey: string,
   t: (message: string) => string,
 ): ChatModelChoice[] {
-  const defaultEntry = me?.defaultModel
-    ? catalogEntry(catalog, me.defaultProvider, me.defaultModel)
+  const defaultId = me?.needsModel ? undefined : me?.defaultModel;
+  const defaultEntry = defaultId
+    ? catalogEntry(catalog, me?.defaultProvider, defaultId)
     : undefined;
-  const spaceDefaultLabel = me?.defaultModel
-    ? `${t("Space default")} (${defaultEntry?.label ?? me.defaultModel})`
-    : t("Space default");
+  const defaultName = defaultEntry?.label ?? defaultId ?? undefined;
+  const title = t("Space default");
+  const spaceDefaultLabel = defaultName ? `${title} (${defaultName})` : title;
   const choices = chatModelChoices(
     connectedModelChoices(credentials, catalog),
     selectedKey,
@@ -24,8 +54,8 @@ export function chatModelPickerChoices(
   );
   choices[0] = {
     ...choices[0]!,
-    title: t("Space default"),
-    detail: me?.defaultModel ? (defaultEntry?.label ?? me.defaultModel) : undefined,
+    title,
+    detail: defaultName,
   };
   return choices;
 }
@@ -36,5 +66,12 @@ function catalogEntry(
   modelId: string,
 ) {
   if (!provider) return undefined;
-  return catalog.find((entry) => entry.provider === provider && entry.id === modelId);
+  const resolvedId = resolveSelectableModelId(catalog, provider, modelId);
+  const canonicalProvider = canonicalPiProviderId(provider);
+  return catalog.find(
+    (entry) =>
+      !entry.placeholder &&
+      canonicalPiProviderId(entry.provider) === canonicalProvider &&
+      (entry.id === resolvedId || entry.id === modelId),
+  );
 }
