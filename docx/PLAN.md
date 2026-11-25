@@ -1,5 +1,13 @@
 # Sydney 开发总计划
 
+## GitHub CI 移除退役 Web E2E（2026-11-24）
+
+状态：源码改动和定向验证完成。用户确认生产 Web 已退役，删除 GitHub Actions 中独立的 Web Playwright E2E、夜间 Web 截图和 PR 报告发布链路；保留 `apps/web` 作为 Windows 包内界面构建来源，保留桌面 Electron E2E、移动端截图和本地测试入口。
+
+交付物：移除 `.github/workflows/playwright.yml`、`.github/workflows/nightly-verification.yml`、`.github/workflows/publish-playwright-report.yml` 及其专用报告脚本、提取器、生成器和测试；从 `ci.yml` 与变更区域脚本中清理 Web E2E 门禁和 `e2e` 输出；同步开发、验证和运维记录。
+
+验收条件：仓库内不再有 GitHub CI 对 Web E2E 工作流、夜间 Web 截图或 Web Playwright 报告发布的活动引用；变更区域测试通过；不删除桌面打包仍依赖的 `apps/web` 源码和移动端截图图库能力。
+
 ## Bot 状态恢复与持久记忆共享（PA-018、PA-021、PA-022）
 
 状态：源码实现、离线验证、提交推送与客户端发布已完成。本机 PostgreSQL 迁移和 RLS 租户范围验证已完成，生产 PostgreSQL 迁移、并发实测、真实 iPhone／Windows 验收和服务端部署仍待独立执行。交付移动端普通／项目会话恢复、未读和 Run 状态同步，以及同用户同 Space 的持久记忆共享。验收条件见 [专项评测](BOT_STATE_MEMORY_EVALUATION.md)。

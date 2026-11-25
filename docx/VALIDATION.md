@@ -1,5 +1,14 @@
 # 验证记录
 
+## GitHub CI 移除退役 Web E2E（2026-11-24）
+
+本轮删除 GitHub Actions 的 Web Playwright E2E、夜间 Web 截图和 PR 截图报告发布工作流，以及只被这些工作流使用的报告辅助代码。`apps/web` 仍保留为 Windows 包内界面构建来源，桌面 Electron E2E 与移动端截图工作流未删除。
+
+- 已静态检查工作流与仓库引用，确认不再存在 `ci.yml` 对 Web E2E 的调用、夜间验证对 Playwright 工作流的调用或 PR 报告发布工作流对 `Web E2E / Web E2E` 的查询。
+- `.github/scripts/changed-areas.test.py`：3 个测试通过。Windows 默认 `bash` 解析到缺少 `/bin/bash` 的 WSL 转发，使用本机已有 MSYS2 Bash 作为测试子进程后完成验证，未修改测试逻辑。
+- `git diff --check`：通过。
+- 未执行 GitHub Actions、全工作区构建、数据库、Docker 或客户端发布验证。
+
 ## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
 
 本机 `.env` 指向 `127.0.0.1:54318/rakazo` 的 `rakazo-dev-postgres` 容器。目标生产数据库地址不在本机配置中，本轮没有连接或修改生产数据库。

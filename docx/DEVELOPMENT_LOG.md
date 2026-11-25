@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-24（GitHub CI 移除退役 Web E2E）：用户确认没有 Web 端后，清理独立 Web Playwright E2E 工作流、夜间 Web 截图工作流、PR 截图报告发布工作流及其仅供该链路使用的报告脚本、提取器、生成器和测试。同步移除 `ci.yml` 的 Web E2E 调用、`changed-areas.sh` 的 `e2e` 输出和对应 Python 测试断言。`apps/web`、桌面 Electron E2E、移动端截图发布和本地 `test:e2e` 入口保留，因为它们仍服务于 Windows 包界面或其他验证范围。定向验证结果记录在 `VALIDATION.md`。
+
 2026-11-22（PA-018／PA-021／PA-022 PostgreSQL 迁移本机验证）：本机 `.env` 指向 `rakazo-dev-postgres` 的 `127.0.0.1:54318/rakazo`，没有连接生产数据库。清理一个未被 Git 跟踪且缺少 `migration.sql` 的本机空迁移目录后，按 Prisma 完整迁移顺序补齐 18 条待执行迁移，包含 `20261122120000_shared_memory_across_projects`。最终 `prisma migrate status` 报告数据库结构已最新；`memory_documents`、`memory_revisions` 的 RLS 和目标 restrictive policy 存在。使用 `rakazo_app` 角色验证当前用户／Space 可读样本记忆，换用其他用户／Space 后两张表均返回 0 条。生产迁移、备份、并发冲突和服务重启仍待执行。
 
 2026-11-22（PA-018／PA-021／PA-022／REL-01 Bot 状态与记忆发布）：提交 `fc2f9d13ab3e2a258a62a26da1d58115395f2e20` 已推送到 `cursor/integrate-remote-branches-7334`。Windows 工作流 Run `44978766434` 成功，Release ID `454171797` 已公开，标签 `sydney-desktop-v0.4.4`，`Sydney-partner-Setup-0.4.4.exe` 为 133,981,118 字节，SHA-256 `763df8627e4ec8e603e86e12654d36f5fd328919e5f29f855561e54a34710614`，构建元数据确认源码一致及未签名。iOS 未签名底座 Run `44978723093` 成功，IPA SHA-256 `f379b20f3c4b044a8f484bfc4d16e1474f7dfd5ab505f445761403cced7b63ee`，Bundle ID `xin.zxlup.sydney`，原生版本 `1.0.12`，runtime `sydney-ios-ip-1`，9 个资源目录引用完整且无 Widget 扩展。OTA Run `44978769113` 成功，更新组 `6cfe7f68-0bc8-40b4-85e2-81a4f9929593`，iOS 更新 ID `01a20136-1ba5-7848-9d7f-518e379615c9`。发布核对使用内存凭据，下载工件存于忽略目录；PostgreSQL 迁移、RLS／并发实测和真机验收仍待执行。

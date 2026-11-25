@@ -10,8 +10,7 @@ permissions:
 # Superseded PR checks cancel together. On main, each job that leads to a deploy holds a per-job
 # lock: one revision runs while only the newest waits, so a burst of merges deploys its last commit
 # without stopping work already in progress. Main reruns only what the deploy needs; the pull
-# request already ran the rest against the then-current main, and the nightly run refreshes the
-# E2E screenshot baseline.
+# request already ran the rest against the then-current main.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -32,7 +31,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       web: ${{ steps.areas.outputs.web }}
-      e2e: ${{ steps.areas.outputs.e2e }}
       server: ${{ steps.areas.outputs.server }}
       native: ${{ steps.areas.outputs.native }}
       compose: ${{ steps.areas.outputs.compose }}
@@ -308,15 +306,6 @@ jobs:
         with:
           persist-credentials: false
       - run: bash infra/compose/upgrade-postgres.docker-test.sh
-
-  test-e2e:
-    name: Web E2E
-    needs: changes
-    uses: ./.github/workflows/playwright.yml
-    with:
-      upload_artifacts: true
-      # Skipped inside the called workflow so the required "Web E2E / Web E2E" check still reports.
-      skip: ${{ needs.changes.outputs.e2e != 'true' }}
 
   # Publishes sha-<commit> and edge alongside the checks, so the production deploy pulls the
   # image this run built instead of building on the production host.
