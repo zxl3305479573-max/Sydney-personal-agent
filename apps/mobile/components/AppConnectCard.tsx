@@ -7,12 +7,17 @@ import { Linking, Text, View } from "react-native";
 import { rpc } from "../lib/api";
 import { appConnectPresentation } from "../lib/app-connect";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
 import { ConnectorIcon } from "./connector-icon";
 import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
+
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
 
 export function AppConnectCard({
   botId,
@@ -85,31 +90,65 @@ export function AppConnectCard({
     }
   }
 
+  const isLight = isLightSurface(tokens?.background);
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const successColor = tokens?.success ?? (isLight ? "#006B3D" : "#46BD7B");
+  const destructiveColor = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+
   return (
     <GlassSurface
       accessibilityLabel={t("{name} connection", { name: block.name })}
       shape="roundedRectangle"
-      cornerRadius={18}
-      fallbackStyle={{ backgroundColor: native.fill }}
+      cornerRadius={20}
+      gradient="rose"
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderRadius: 20,
+        borderWidth: 0.5,
+        borderColor: cardBorder,
+        shadowColor: "#26231F",
+        shadowOpacity: isLight ? 0.028 : 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 5 },
+        elevation: 1,
+      }}
       style={{
         width: "100%",
-        borderRadius: 18,
+        borderRadius: 20,
         paddingHorizontal: 16,
-        paddingVertical: 14,
+        paddingVertical: 15,
         gap: 8,
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <ConnectorIcon name={block.name} logo={block.logo} size={40} />
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 13,
+            backgroundColor: chipBg,
+            borderWidth: 0.5,
+            borderColor: chipBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ConnectorIcon name={block.name} logo={block.logo} size={30} />
+        </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text
             accessibilityActions={accessibilityActions}
             onAccessibilityAction={onAccessibilityAction}
-            style={{ color: tokens.foreground, ...typeScale.cardTitle }}
+            style={{ color: fg, ...typeScale.cardTitle }}
           >
             {view.title}
           </Text>
-          <Text style={{ color: tokens.mutedForeground, ...typeScale.secondary }} numberOfLines={1}>
+          <Text style={{ color: mutedFg, ...typeScale.secondary }} numberOfLines={1}>
             {view.description}
           </Text>
         </View>
@@ -123,15 +162,26 @@ export function AppConnectCard({
             onPress={() => void authorize()}
           />
         ) : !view.showAuthorize ? (
-          <Text
-            style={{ color: tokens.success, ...typeScale.secondary, fontWeight: fontWeight.medium }}
+          <View
+            style={{
+              backgroundColor: chipBg,
+              borderRadius: 999,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderWidth: 0.5,
+              borderColor: chipBorder,
+            }}
           >
-            {view.actionLabel}
-          </Text>
+            <Text
+              style={{ color: successColor, ...typeScale.secondary, fontWeight: fontWeight.medium }}
+            >
+              {view.actionLabel}
+            </Text>
+          </View>
         ) : null}
       </View>
       {error ? (
-        <Text style={{ color: tokens.destructive, ...typeScale.caption }}>{error}</Text>
+        <Text style={{ color: destructiveColor, ...typeScale.caption }}>{error}</Text>
       ) : null}
     </GlassSurface>
   );

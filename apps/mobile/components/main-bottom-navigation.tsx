@@ -3,41 +3,30 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n } from "../lib/i18n";
 import { openMainNavigation } from "../lib/main-navigation";
-import { useMobileTokens } from "../lib/native";
-import { NativeSymbol } from "./native-symbol";
+import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 
 export function MainBottomNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tokens = useMobileTokens();
+  const appearance = useResolvedAppearance();
+  const isLight = appearance === "light";
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
   const items = [
     {
       route: "/" as const,
-      label: t("Chats"),
-      ios: "bubble.left.and.bubble.right",
-      android: "chatbubbles-outline" as const,
+      label: chinese ? (traditional ? "首頁" : "首页") : "Home",
     },
     {
-      route: "/integrations" as const,
-      label: chinese ? (traditional ? "應用" : "应用") : "Apps",
-      ios: "square.grid.2x2",
-      android: "grid-outline" as const,
+      route: "/chats" as const,
+      label: chinese ? "聊天" : t("Chats"),
     },
     {
       route: "/projects" as const,
       label: chinese ? (traditional ? "項目" : "项目") : "Projects",
-      ios: "folder",
-      android: "folder-outline" as const,
-    },
-    {
-      route: "/github" as const,
-      label: "GitHub",
-      ios: "chevron.left.forwardslash.chevron.right",
-      android: "logo-github" as const,
     },
   ];
   return (
@@ -46,9 +35,10 @@ export function MainBottomNavigation() {
       style={{
         flexShrink: 0,
         flexDirection: "row",
+        minHeight: 52 + insets.bottom,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: tokens.border,
-        backgroundColor: tokens.background,
+        borderTopColor: isLight ? "rgba(38, 35, 31, 0.06)" : tokens.border,
+        backgroundColor: isLight ? "#FAF8F4" : tokens.card,
         paddingLeft: insets.left + 8,
         paddingRight: insets.right + 8,
         paddingBottom: insets.bottom,
@@ -56,7 +46,7 @@ export function MainBottomNavigation() {
     >
       {items.map((item) => {
         const selected = pathname === item.route;
-        const color = selected ? tokens.primary : tokens.mutedForeground;
+        const color = selected ? tokens.foreground : tokens.mutedForeground;
         return (
           <Pressable
             key={item.route}
@@ -67,38 +57,38 @@ export function MainBottomNavigation() {
             style={({ pressed }) => ({
               flex: 1,
               minWidth: 0,
-              minHeight: 54,
+              minHeight: 52,
               flexDirection: "column",
-              paddingVertical: 6,
-              paddingHorizontal: 4,
-              gap: 4,
+              paddingTop: 10,
+              paddingBottom: 6,
+              paddingHorizontal: 8,
+              gap: 5,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: pressed ? tokens.accent : undefined,
+              opacity: pressed ? 0.65 : 1,
             })}
           >
-            <View
-              style={{
-                width: 46,
-                height: 26,
-                borderRadius: 10,
-                justifyContent: "center",
-                alignItems: "center",
-                backgroundColor: selected ? tokens.muted : undefined,
-              }}
-            >
-              <NativeSymbol ios={item.ios} android={item.android} size={20} color={color} />
-            </View>
             <Text
+              numberOfLines={1}
               style={{
                 color,
-                fontSize: 11,
-                fontWeight: selected ? "700" : "500",
+                fontSize: 15,
+                lineHeight: 20,
+                fontWeight: selected ? "600" : "400",
                 textAlign: "center",
               }}
             >
               {item.label}
             </Text>
+            <View
+              accessibilityElementsHidden
+              style={{
+                width: 18,
+                height: 2,
+                borderRadius: 1,
+                backgroundColor: selected ? (isLight ? "#5E584F" : tokens.foreground) : "transparent",
+              }}
+            />
           </Pressable>
         );
       })}

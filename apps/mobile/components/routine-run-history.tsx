@@ -1,15 +1,27 @@
 import type { RoutineRun } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { formatRoutineRunAt } from "@rakazo/core";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { activityStatusLabel } from "../lib/activity";
+import { mobileTokens } from "../lib/appearance";
 import { dateLocaleForUi, useI18n } from "../lib/i18n";
-import { native } from "../lib/native";
+import { native, useThemedStyles } from "../lib/native";
 import { routineRunDestination, useRoutineRuns } from "../lib/routine-runs";
 import { NativeActionButton } from "./native-action-button";
+import { NativeSymbol } from "./native-symbol";
 import { RunErrorSheet, useRunError } from "./run-error-sheet";
 import { SettingsGroup, SettingsRow } from "./settings-group";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 export function RoutineRunHistory({
   routineId,
@@ -91,13 +103,25 @@ function RunRow({
   onPress: (() => void) | undefined;
 }) {
   const { locale, t } = useI18n();
+  const styles = useThemedStyles(createRunHistoryStyles);
   const failure = useRunError(error);
   const title = formatRoutineRunAt(run, dateLocaleForUi(locale));
+  const isFailed = run.status === "failed";
   return (
     <SettingsRow
       accessibilityRole={onPress ? "button" : undefined}
       title={title}
       detail={failure?.summary}
+      leading={
+        <View style={styles.runChip}>
+          <NativeSymbol
+            ios={isFailed ? "exclamationmark.circle" : "checkmark.circle"}
+            android={isFailed ? "alert-circle-outline" : "checkmark-circle-outline"}
+            size={15}
+            color={isFailed ? mobileTokens().destructive : styles.runIcon.color}
+          />
+        </View>
+      }
       value={
         run.status !== "completed"
           ? activityStatusLabel(run.status)
@@ -109,4 +133,24 @@ function RunRow({
       onPress={onPress}
     />
   );
+}
+
+function createRunHistoryStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  return StyleSheet.create({
+    runChip: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#F8F6F2" : "#2A303B",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    runIcon: { color: isLight ? "#6E675E" : "#B8B3AA" },
+  });
 }

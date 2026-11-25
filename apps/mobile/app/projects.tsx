@@ -11,6 +11,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -205,6 +206,24 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
   );
 
   const newProjectLabel = text("新建项目", "New project");
+  const isLight = appearance === "light";
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const accentTaupe = isLight ? "#6E675E" : "#B8B3AA";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? accentTaupe;
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+  const cardShadow = {
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
 
   return (
     <>
@@ -233,14 +252,19 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                       accessibilityLabel={newProjectLabel}
                       onPress={openCreateModal}
                       hitSlop={8}
-                      style={{
+                      style={({ pressed }) => ({
                         width: 36,
                         height: 36,
+                        borderRadius: 18,
+                        backgroundColor: cardBg,
+                        borderWidth: hairline,
+                        borderColor: cardBorder,
                         alignItems: "center",
                         justifyContent: "center",
-                      }}
+                        opacity: pressed ? 0.72 : 1,
+                      })}
                     >
-                      <NativeSymbol ios="plus" android="add" size={22} color={tokens.foreground} />
+                      <NativeSymbol ios="plus" android="add" size={20} color={fg} />
                     </Pressable>
                   ),
                 }
@@ -250,7 +274,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
       <ScrollView
         {...scroll}
         contentInsetAdjustmentBehavior="automatic"
-        style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
+        style={[{ flex: 1, backgroundColor: canvasBg }, sideInsets]}
         contentContainerStyle={{
           padding: 20,
           paddingBottom: bottomClaimed ? 28 : Math.max(insets.bottom, 28),
@@ -267,42 +291,44 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
               setAttempt((old) => old + 1);
             }}
             tintColor={native.secondaryLabel}
-            colors={[tokens.mutedForeground]}
-            progressBackgroundColor={tokens.muted}
+            colors={[mutedFg]}
+            progressBackgroundColor={tokens?.muted ?? chipBg}
           />
         }
       >
         {error && page ? (
-          <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+          <Text accessibilityRole="alert" style={{ color: destructive }}>
             {error}
           </Text>
         ) : null}
         {isSpaceSelectionPending() ? (
           <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
-            <ActivityIndicator color={tokens.mutedForeground} />
-            <Text style={{ color: tokens.mutedForeground }}>
+            <ActivityIndicator color={mutedFg} />
+            <Text style={{ color: mutedFg }}>
               {text("正在切换空间…", "Switching space…")}
             </Text>
           </View>
         ) : loading && !page ? (
           <View style={{ paddingVertical: 32, alignItems: "center", gap: 10 }}>
-            <ActivityIndicator color={tokens.mutedForeground} />
-            <Text style={{ color: tokens.mutedForeground }}>
+            <ActivityIndicator color={mutedFg} />
+            <Text style={{ color: mutedFg }}>
               {text("正在加载项目…", "Loading projects…")}
             </Text>
           </View>
         ) : error && !page ? (
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={16}
-            style={{ borderRadius: 16, padding: 18, gap: 12 }}
+            cornerRadius={22}
+            style={{ borderRadius: 22, padding: 20, gap: 12 }}
             fallbackStyle={{
-              backgroundColor: tokens.card,
-              borderWidth: 1,
-              borderColor: tokens.border,
+              backgroundColor: cardBg,
+              borderRadius: 22,
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              ...cardShadow,
             }}
           >
-            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            <Text accessibilityRole="alert" style={{ color: destructive }}>
               {error}
             </Text>
             <NativeActionButton
@@ -318,20 +344,24 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         ) : page?.items.length === 0 ? (
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={20}
-            style={{ borderRadius: 20, padding: 24, alignItems: "center", gap: 12 }}
+            cornerRadius={22}
+            style={{ borderRadius: 22, padding: 26, alignItems: "center", gap: 12 }}
             fallbackStyle={{
-              backgroundColor: tokens.card,
-              borderWidth: 1,
-              borderColor: tokens.border,
+              backgroundColor: cardBg,
+              borderRadius: 22,
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              ...cardShadow,
             }}
           >
             <View
               style={{
                 width: 56,
                 height: 56,
-                borderRadius: 28,
-                backgroundColor: native.fill,
+                borderRadius: 18,
+                backgroundColor: chipBg,
+                borderWidth: hairline,
+                borderColor: chipBorder,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -339,18 +369,18 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
               <NativeSymbol
                 ios="folder"
                 android="folder-outline"
-                size={26}
-                color={tokens.primary}
+                size={25}
+                color={accentTaupe}
               />
             </View>
-            <Text style={{ color: tokens.foreground, fontSize: 17, fontWeight: "600" }}>
+            <Text style={{ color: fg, fontSize: 17, fontWeight: "600" }}>
               {cursors.length
                 ? text("此页没有更多项目", "No more projects on this page")
                 : text("还没有项目工作区", "No project workspaces yet")}
             </Text>
             <Text
               style={{
-                color: tokens.mutedForeground,
+                color: mutedFg,
                 fontSize: 14,
                 textAlign: "center",
                 lineHeight: 20,
@@ -419,7 +449,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         ) : null}
 
         {page && page.items.length > 0 ? (
-          <Text style={{ color: tokens.mutedForeground, fontSize: 13, textAlign: "center" }}>
+          <Text style={{ color: mutedFg, fontSize: 13, textAlign: "center" }}>
             {createAvailable
               ? text("点击右上角 ＋ 可新建项目。", "Tap + in the top right to create a project.")
               : text(
@@ -434,7 +464,11 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
         <Modal transparent animationType="slide" onRequestClose={closeCreateModal}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ flex: 1, justifyContent: "flex-end", backgroundColor: tokens.overlay }}
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: tokens?.overlay ?? (isLight ? "rgba(24, 22, 18, 0.24)" : "rgba(8, 10, 14, 0.45)"),
+            }}
           >
             <Pressable
               accessibilityLabel={text("关闭", "Close")}
@@ -445,9 +479,11 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
             <View
               accessibilityViewIsModal
               style={{
-                backgroundColor: tokens.background,
+                backgroundColor: canvasBg,
                 borderTopLeftRadius: 28,
                 borderTopRightRadius: 28,
+                borderTopWidth: hairline,
+                borderColor: cardBorder,
                 paddingTop: 10,
                 paddingHorizontal: 20,
                 paddingBottom: Math.max(insets.bottom, 20),
@@ -458,11 +494,10 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                 accessible={false}
                 style={{
                   alignSelf: "center",
-                  width: 36,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: tokens.mutedForeground,
-                  opacity: 0.35,
+                  width: 38,
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: isLight ? "rgba(38, 35, 31, 0.18)" : "rgba(245, 244, 240, 0.22)",
                 }}
               />
               <View
@@ -474,7 +509,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
               >
                 <Text
                   accessibilityRole="header"
-                  style={{ color: tokens.foreground, fontSize: 20, fontWeight: "700" }}
+                  style={{ color: fg, fontSize: 20, fontWeight: "700" }}
                 >
                   {newProjectLabel}
                 </Text>
@@ -483,26 +518,30 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                   accessibilityLabel={text("关闭", "Close")}
                   disabled={creating}
                   onPress={closeCreateModal}
-                  style={{
+                  style={({ pressed }) => ({
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: native.fill,
+                    backgroundColor: chipBg,
+                    borderWidth: hairline,
+                    borderColor: chipBorder,
                     alignItems: "center",
                     justifyContent: "center",
-                  }}
+                    opacity: pressed ? 0.72 : 1,
+                  })}
                 >
-                  <NativeSymbol ios="xmark" android="close" size={16} color={tokens.foreground} />
+                  <NativeSymbol ios="xmark" android="close" size={16} color={fg} />
                 </Pressable>
               </View>
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={14}
-                style={{ borderRadius: 14 }}
+                cornerRadius={16}
+                style={{ borderRadius: 16 }}
                 fallbackStyle={{
-                  backgroundColor: tokens.card,
-                  borderWidth: 1,
-                  borderColor: tokens.border,
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
                 }}
               >
                 <TextInput
@@ -513,11 +552,11 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                   onChangeText={setProjectName}
                   editable={!creating}
                   placeholder={text("输入项目名称", "Enter project name")}
-                  placeholderTextColor={tokens.mutedForeground}
+                  placeholderTextColor={mutedFg}
                   returnKeyType="done"
                   onSubmitEditing={() => void createProject()}
                   style={{
-                    color: tokens.foreground,
+                    color: fg,
                     minHeight: 48,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
@@ -526,7 +565,7 @@ function ProjectBrowser({ scopeKey }: { scopeKey: string }) {
                 />
               </GlassSurface>
               {createError ? (
-                <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+                <Text accessibilityRole="alert" style={{ color: destructive }}>
                   {createError}
                 </Text>
               ) : null}

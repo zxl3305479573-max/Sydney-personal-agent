@@ -22,12 +22,17 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureApiRequestContext, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
 import { GlassSurface } from "./glass-surface";
 import { FALLBACK_COLOR } from "./inbox-rows";
 import { NativeActionButton } from "./native-action-button";
 import { NativeSymbol } from "./native-symbol";
+
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
 
 type Member = RpcOutput<"projectWorkspaces/roster">["bots"][number];
 export type ProjectGroupAttempt = { fingerprint: string; id: string };
@@ -155,6 +160,17 @@ export function ProjectGroupModal({
     }
   }
 
+  const isLight = isLightSurface(tokens?.background);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+
   return (
     <Modal
       transparent
@@ -165,7 +181,11 @@ export function ProjectGroupModal({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "flex-end", backgroundColor: tokens.overlay }}
+        style={{
+          flex: 1,
+          justifyContent: "flex-end",
+          backgroundColor: tokens?.overlay ?? (isLight ? "rgba(24, 22, 18, 0.24)" : "rgba(8, 10, 14, 0.45)"),
+        }}
       >
         <Pressable
           accessibilityLabel={text("关闭", "Close")}
@@ -177,24 +197,25 @@ export function ProjectGroupModal({
           accessibilityViewIsModal
           style={{
             maxHeight: "90%",
-            backgroundColor: tokens.background,
+            backgroundColor: canvasBg,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
+            borderTopWidth: hairline,
+            borderColor: cardBorder,
             paddingTop: 10,
             paddingHorizontal: 20,
-            paddingBottom: Math.max(insets.bottom, 16),
-            gap: 12,
+            paddingBottom: Math.max(insets.bottom, 18),
+            gap: 14,
           }}
         >
           <View
             accessible={false}
             style={{
               alignSelf: "center",
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: tokens.mutedForeground,
-              opacity: 0.35,
+              width: 38,
+              height: 5,
+              borderRadius: 999,
+              backgroundColor: isLight ? "rgba(38, 35, 31, 0.18)" : "rgba(245, 244, 240, 0.22)",
             }}
           />
           <View
@@ -207,11 +228,11 @@ export function ProjectGroupModal({
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               <Text
                 accessibilityRole="header"
-                style={{ fontSize: 20, fontWeight: "700", color: tokens.foreground }}
+                style={{ fontSize: 20, fontWeight: "700", color: fg }}
               >
                 {text("新建项目群聊", "New project group")}
               </Text>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+              <Text style={{ color: mutedFg, fontSize: 13 }}>
                 {text(
                   `选择 ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} 个项目 Bot，已选 ${selected.length} 个`,
                   `Choose ${GROUP_MEMBER_MIN}–${GROUP_MEMBER_MAX} project bots · ${selected.length} selected`,
@@ -223,16 +244,19 @@ export function ProjectGroupModal({
               accessibilityLabel={text("取消", "Cancel")}
               disabled={busy}
               onPress={onClose}
-              style={{
+              style={({ pressed }) => ({
                 width: 36,
                 height: 36,
                 borderRadius: 18,
-                backgroundColor: native.fill,
+                backgroundColor: chipBg,
+                borderWidth: hairline,
+                borderColor: chipBorder,
                 alignItems: "center",
                 justifyContent: "center",
-              }}
+                opacity: pressed ? 0.72 : 1,
+              })}
             >
-              <NativeSymbol ios="xmark" android="close" size={16} color={tokens.foreground} />
+              <NativeSymbol ios="xmark" android="close" size={16} color={fg} />
             </Pressable>
           </View>
 
@@ -244,23 +268,24 @@ export function ProjectGroupModal({
           >
             <GlassSurface
               shape="roundedRectangle"
-              cornerRadius={16}
-              style={{ borderRadius: 16, overflow: "hidden" }}
+              cornerRadius={20}
+              style={{ borderRadius: 20, overflow: "hidden" }}
               fallbackStyle={{
-                backgroundColor: tokens.card,
-                borderWidth: 1,
-                borderColor: tokens.border,
+                backgroundColor: cardBg,
+                borderRadius: 20,
+                borderWidth: hairline,
+                borderColor: cardBorder,
               }}
             >
               {loading ? (
-                <View style={{ padding: 20, alignItems: "center", gap: 8 }}>
-                  <ActivityIndicator />
-                  <Text style={{ color: tokens.mutedForeground }}>
+                <View style={{ padding: 22, alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator color={mutedFg} />
+                  <Text style={{ color: mutedFg }}>
                     {text("正在加载…", "Loading…")}
                   </Text>
                 </View>
               ) : items.length === 0 ? (
-                <Text style={{ padding: 18, color: tokens.mutedForeground }}>
+                <Text style={{ padding: 20, color: mutedFg }}>
                   {text(
                     "此项目暂无可选 Bot，请先新建项目 Bot。",
                     "No project bots available yet. Create project bots first.",
@@ -282,15 +307,16 @@ export function ProjectGroupModal({
                         )
                       }
                       style={({ pressed }) => ({
-                        minHeight: 52,
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
+                        minHeight: 54,
+                        paddingHorizontal: 16,
+                        paddingVertical: 11,
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 12,
-                        borderBottomWidth: index < items.length - 1 ? StyleSheet.hairlineWidth : 0,
-                        borderBottomColor: tokens.border,
-                        opacity: rowDisabled ? 0.5 : pressed ? 0.7 : 1,
+                        backgroundColor: checked ? chipBg : "transparent",
+                        borderBottomWidth: index < items.length - 1 ? hairline : 0,
+                        borderBottomColor: cardBorder,
+                        opacity: rowDisabled ? 0.5 : pressed ? 0.72 : 1,
                       })}
                     >
                       <BotAvatar
@@ -302,7 +328,7 @@ export function ProjectGroupModal({
                       />
                       <Text
                         numberOfLines={1}
-                        style={{ flex: 1, color: tokens.foreground, fontSize: 16 }}
+                        style={{ flex: 1, color: fg, fontSize: 16 }}
                       >
                         {item.name}
                       </Text>
@@ -310,7 +336,7 @@ export function ProjectGroupModal({
                         ios={checked ? "checkmark.circle.fill" : "circle"}
                         android={checked ? "checkmark-circle" : "ellipse-outline"}
                         size={22}
-                        color={checked ? tokens.primary : tokens.mutedForeground}
+                        color={checked ? (tokens?.primary ?? fg) : mutedFg}
                       />
                     </Pressable>
                   );
@@ -348,12 +374,13 @@ export function ProjectGroupModal({
 
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={14}
-            style={{ borderRadius: 14 }}
+            cornerRadius={16}
+            style={{ borderRadius: 16 }}
             fallbackStyle={{
-              backgroundColor: tokens.card,
-              borderWidth: 1,
-              borderColor: tokens.border,
+              backgroundColor: cardBg,
+              borderRadius: 16,
+              borderWidth: hairline,
+              borderColor: cardBorder,
             }}
           >
             <TextInput
@@ -362,18 +389,19 @@ export function ProjectGroupModal({
               maxLength={GROUP_NAME_MAX_LENGTH}
               editable={!busy}
               placeholder={text("群聊名称（可选）", "Group name (optional)")}
-              placeholderTextColor={tokens.mutedForeground}
+              placeholderTextColor={mutedFg}
               returnKeyType="done"
               style={{
-                color: tokens.foreground,
-                minHeight: 46,
+                color: fg,
+                minHeight: 48,
                 paddingHorizontal: 14,
-                paddingVertical: 10,
+                paddingVertical: 11,
+                fontSize: 16,
               }}
             />
           </GlassSurface>
           {error ? (
-            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+            <Text accessibilityRole="alert" style={{ color: destructive }}>
               {error}
             </Text>
           ) : null}

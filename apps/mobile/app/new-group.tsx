@@ -7,7 +7,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { BackHandler, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { BotChipPicker } from "../components/bot-chip-picker";
 import { GlassIconButton } from "../components/glass-icon-button";
@@ -18,7 +18,7 @@ import { SheetCloseButton } from "../components/sheet-close-button";
 import type { MobileBot } from "../lib/api";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { addToSearchInbox, searchInboxSession } from "../lib/search-inbox";
@@ -109,6 +109,16 @@ export default function NewGroup() {
       if (mounted.current) setPending(false);
     }
   }
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const porcelainSurface = isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+
   return (
     <>
       <Stack.Screen
@@ -125,6 +135,11 @@ export default function NewGroup() {
                 accessibilityLabel={t("Back")}
                 ios="chevron.left"
                 android="chevron-back"
+                fallbackStyle={{
+                  backgroundColor: porcelainSurface,
+                  borderWidth: hairline,
+                  borderColor: porcelainBorder,
+                }}
                 onPress={goBack}
               />
             ),
@@ -176,7 +191,7 @@ export default function NewGroup() {
       <KeyboardAvoidingView
         behavior="padding"
         automaticOffset
-        style={{ flex: 1, backgroundColor: tokens.background }}
+        style={{ flex: 1, backgroundColor: tokens?.background ?? "#F3F1EC" }}
       >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -211,9 +226,13 @@ export default function NewGroup() {
               </View>
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={11}
-                style={{ borderRadius: 11 }}
-                fallbackStyle={{ backgroundColor: native.fill }}
+                cornerRadius={20}
+                style={{ borderRadius: 20 }}
+                fallbackStyle={{
+                  backgroundColor: porcelainSurface,
+                  borderWidth: hairline,
+                  borderColor: porcelainBorder,
+                }}
               >
                 <TextInput
                   accessibilityLabel={t("Group name")}
@@ -231,13 +250,13 @@ export default function NewGroup() {
                   returnKeyType="done"
                   onSubmitEditing={() => void create()}
                   style={{
-                    height: 56,
-                    borderRadius: 11,
+                    height: 58,
+                    borderRadius: 20,
                     color: tokens.foreground,
                     fontSize: 22,
                     fontWeight: "600",
                     textAlign: "center",
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 16,
                   }}
                 />
               </GlassSurface>

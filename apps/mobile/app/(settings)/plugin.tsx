@@ -7,6 +7,7 @@ import type {
   PluginPreview,
 } from "@rakazo/contracts";
 import { PluginPreviewSchema } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import {
   catalogItemKey,
   connectCatalogItem,
@@ -371,32 +372,33 @@ export default function PluginScreen() {
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
       >
-        <View style={styles.hero}>
-          <PluginIcon logo={params.logo} name={params.name} site={params.site} size={56} />
-          <View style={styles.grow}>
-            <Text numberOfLines={2} style={styles.name}>
-              {params.name}
-            </Text>
-            <Pressable
-              accessibilityRole="link"
-              hitSlop={8}
-              onPress={() =>
-                void Linking.openURL(sourceHref(params.installedSource, detail?.resolvedSha))
-              }
-              style={styles.sourceLink}
-            >
-              <Text style={styles.secondary}>{t("View source")}</Text>
-              <NativeSymbol
-                android="open-outline"
-                color={native.secondaryLabel}
-                ios="arrow.up.right"
-                size={12}
-              />
-            </Pressable>
+        <View style={styles.heroCard}>
+          <View style={styles.hero}>
+            <PluginIcon logo={params.logo} name={params.name} site={params.site} size={56} />
+            <View style={styles.grow}>
+              <Text numberOfLines={2} style={styles.name}>
+                {params.name}
+              </Text>
+              <Pressable
+                accessibilityRole="link"
+                hitSlop={8}
+                onPress={() =>
+                  void Linking.openURL(sourceHref(params.installedSource, detail?.resolvedSha))
+                }
+                style={styles.sourceLink}
+              >
+                <Text style={styles.sourceLinkText}>{t("View source")}</Text>
+                <NativeSymbol
+                  android="open-outline"
+                  color={native.secondaryLabel}
+                  ios="arrow.up.right"
+                  size={11}
+                />
+              </Pressable>
+            </View>
           </View>
+          {description ? <Text style={styles.description}>{description}</Text> : null}
         </View>
-
-        {description ? <Text style={styles.description}>{description}</Text> : null}
         <McpOAuthReturn flow={mcpReturn} onCompleted={() => void load().catch(() => undefined)} />
         {install ? (
           <SpaceAvailabilityPicker
@@ -587,8 +589,11 @@ export default function PluginScreen() {
 }
 
 function ConnectorSymbol() {
+  const styles = useThemedStyles(createStyles);
   return (
-    <NativeSymbol android="flash-outline" color={native.secondaryLabel} ios="powerplug" size={15} />
+    <View style={styles.symbolBadge}>
+      <NativeSymbol android="flash-outline" color={styles.symbolTint.color} ios="powerplug" size={14} />
+    </View>
   );
 }
 
@@ -605,17 +610,58 @@ function ConnectedMark({ label }: { label: string }) {
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 20, gap: 20 },
+    content: { padding: 16, paddingBottom: 36, gap: 20 },
+    heroCard: {
+      gap: 14,
+      padding: 18,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
     hero: { flexDirection: "row", alignItems: "center", gap: 14 },
-    grow: { flex: 1, gap: 3, minWidth: 0 },
+    grow: { flex: 1, gap: 4, minWidth: 0 },
     name: { color: native.label, fontSize: 22, lineHeight: 28, fontWeight: "600" },
-    sourceLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
+    sourceLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      alignSelf: "flex-start",
+      backgroundColor: chipBg,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+    },
+    sourceLinkText: { color: isLight ? "#5E584F" : native.secondaryLabel, fontSize: 12.5, fontWeight: "500" },
     description: { color: native.secondaryLabel, fontSize: 15, lineHeight: 21 },
-    section: { gap: 8 },
+    section: { gap: 10 },
     sectionTitle: {
       color: native.label,
       fontSize: 17,
@@ -630,21 +676,52 @@ function createStyles() {
       gap: 12,
     },
     count: { color: native.secondaryLabel, fontWeight: "400" },
-    card: { borderRadius: 14, backgroundColor: native.fill, overflow: "hidden" },
-    item: { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+    card: {
+      borderRadius: 20,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+      overflow: "hidden",
+    },
+    symbolBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      borderCurve: "continuous",
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    symbolTint: { color: isLight ? "#6E675E" : "#B8B3AA" },
+    item: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
     itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     itemActions: {
       flexDirection: "row",
       flexWrap: "wrap",
       alignItems: "center",
       gap: 8,
-      paddingLeft: 27,
+      paddingLeft: 44,
     },
-    divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: native.separator },
+    divider: { borderTopWidth: hairline, borderTopColor: native.separator },
     title: { color: native.label, fontSize: 17, lineHeight: 22, fontWeight: "500" },
     secondary: { color: native.secondaryLabel, fontSize: 14, lineHeight: 20 },
     more: { color: native.label, fontSize: 14, textAlign: "right" },
-    errorRow: { gap: 8 },
+    errorRow: {
+      gap: 10,
+      padding: 16,
+      borderRadius: 18,
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+    },
     error: { color: tokens.destructive, fontSize: 14 },
   });
 }

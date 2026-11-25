@@ -5,23 +5,30 @@ import type { ViewProps } from "react-native";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
 import { errorText } from "../lib/user-error";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
 
 const styles = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  badge: { alignItems: "center", borderRadius: 8, height: 28, justifyContent: "center", width: 28 },
-  badgeText: { fontSize: 12, fontWeight: "600" },
+  badge: {
+    alignItems: "center",
+    borderRadius: 10,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  badgeText: { fontSize: 12.5, fontWeight: "600" },
   card: {
     maxWidth: 576,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 8,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 10,
   },
-  description: { ...typeScale.secondary, opacity: 0.75 },
+  description: { ...typeScale.secondary, opacity: 0.78 },
   header: { alignItems: "center", flexDirection: "row", gap: 12 },
   headline: { flex: 1, gap: 2 },
   summary: typeScale.caption,
@@ -55,6 +62,19 @@ export function McpApprovalCard({
   const status = block.status && block.status !== "pending" ? block.status : localStatus;
   const summary = block.endpoint ?? `stdio (${block.transport})`;
 
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const pillBg = isLight ? "#F8F6F2" : "#2A303B";
+  const pillBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
+
   async function submit(action: "approve" | "dismiss") {
     if (readOnly || status !== "pending" || pendingAction !== null) return;
     setPendingAction(action);
@@ -76,13 +96,37 @@ export function McpApprovalCard({
   }
 
   return (
-    <View
+    <GlassSurface
+      shape="roundedRectangle"
+      cornerRadius={20}
       accessibilityLabel={t("Connect MCP server {name}", { name: block.name })}
-      style={[styles.card, { backgroundColor: native.fill }]}
+      style={[
+        styles.card,
+        {
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
+        },
+      ]}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderWidth: hairline,
+        borderColor: cardBorder,
+      }}
     >
       <View style={styles.header}>
-        <View style={[styles.badge, { backgroundColor: native.fillPressed }]}>
-          <Text style={[styles.badgeText, { color: tokens.foreground }]}>M</Text>
+        <View
+          style={[
+            styles.badge,
+            {
+              backgroundColor: pillBg,
+              borderWidth: hairline,
+              borderColor: pillBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.badgeText, { color: softTaupe }]}>M</Text>
         </View>
         <View style={styles.headline}>
           <Text
@@ -133,6 +177,6 @@ export function McpApprovalCard({
           </View>
         </>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }

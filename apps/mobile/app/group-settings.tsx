@@ -1,7 +1,8 @@
 import { GROUP_MEMBER_MAX, GROUP_MEMBER_MIN, GROUP_NAME_MAX_LENGTH } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, Text, TextInput } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { BotMemberPicker } from "../components/bot-member-picker";
 import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
@@ -11,10 +12,20 @@ import { rpc } from "../lib/api";
 import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import { confirmDeleteGroup } from "../lib/bot-lifecycle";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
 import { projectRequestOptions, projectScopeKey } from "../lib/project-scope";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 export default function GroupSettingsScreen() {
   const sideInsets = useSideInsets();
@@ -117,23 +128,50 @@ export default function GroupSettingsScreen() {
     }, scoped);
   }
 
+  const themedScope = useScopedTheme();
+  const isLight = themedScope ? themedScope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = themedScope
+    ? (themedScope.tokens?.card ?? "#FFFEFC")
+    : isLight
+      ? "#FFFEFC"
+      : "#242933";
+  const cardBorder = themedScope
+    ? (themedScope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.06)"
+      : "rgba(245, 244, 240, 0.09)";
+
   return (
     <>
       <Stack.Screen options={glassHeaderOptions(t("Group settings"))} />
       <ScrollView
         style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
-        contentContainerStyle={{ padding: 24 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 36 }}
         automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>{t("Name")}</Text>
+        <Text style={{ color: tokens.mutedForeground, fontSize: 14, paddingStart: 4 }}>
+          {t("Name")}
+        </Text>
         <GlassSurface
           shape="roundedRectangle"
-          cornerRadius={11}
-          style={{ marginTop: 8, borderRadius: 11 }}
-          fallbackStyle={{ backgroundColor: native.fill }}
+          cornerRadius={18}
+          style={{
+            marginTop: 8,
+            borderRadius: 18,
+            borderCurve: "continuous",
+            borderWidth: hairline,
+            borderColor: cardBorder,
+            shadowColor: "#26231F",
+            shadowOpacity: isLight ? 0.028 : 0.16,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 5 },
+            elevation: 1,
+          }}
+          fallbackStyle={{ backgroundColor: cardBg, borderRadius: 18 }}
         >
           <TextInput
             accessibilityLabel={t("Group name")}
@@ -143,7 +181,13 @@ export default function GroupSettingsScreen() {
             placeholder={t("Group name")}
             placeholderTextColor={tokens.mutedForeground}
             returnKeyType="done"
-            style={{ minHeight: 48, padding: 14, color: tokens.foreground, fontSize: 17 }}
+            style={{
+              minHeight: 50,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              color: tokens.foreground,
+              fontSize: 17,
+            }}
           />
         </GlassSurface>
         {group ? (

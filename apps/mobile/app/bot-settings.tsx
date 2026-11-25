@@ -15,6 +15,7 @@ import {
   parseModelOptionKey,
   resolveSelectableModelId,
 } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
@@ -52,10 +53,20 @@ import { afterChatNotifyChange } from "../lib/live-notifications";
 import { native, useMobileTokens } from "../lib/native";
 import { projectRequestOptions, projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { createQueuedSave } from "../lib/queued-save";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { thinkingLevelLabel } from "../lib/thinking-level";
 import { errorText } from "../lib/user-error";
 import { stopVoicePlayback } from "../lib/voice";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 type BotSettingsParams = {
   botId: string;
@@ -108,6 +119,21 @@ function BotSettingsScreen({
 }) {
   const sideInsets = useSideInsets();
   const tokens = useMobileTokens();
+  const themedScope = useScopedTheme();
+  const isLight = themedScope ? themedScope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = themedScope
+    ? (themedScope.tokens?.card ?? "#FFFEFC")
+    : isLight
+      ? "#FFFEFC"
+      : "#242933";
+  const cardBorder = themedScope
+    ? (themedScope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   const { t } = useI18n();
   const router = useRouter();
   const updateBot = useCallback(
@@ -621,9 +647,11 @@ function BotSettingsScreen({
                   position: "absolute",
                   right: 0,
                   bottom: 0,
-                  padding: 4,
+                  padding: 5,
                   borderRadius: 12,
-                  backgroundColor: tokens.card,
+                  backgroundColor: cardBg,
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
                 }}
               >
                 <NativeSymbol ios="pencil" android="pencil" size={12} color={tokens.foreground} />
@@ -865,13 +893,29 @@ function BotSettingsScreen({
                   </View>
                 ) : null}
               </View>
-              <GrowingTextInput
-                label={t("Instructions")}
-                maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
-                value={instructions}
-                onChangeText={setInstructions}
-                backgroundColor={native.fill}
-              />
+              <View
+                style={{
+                  borderRadius: 20,
+                  borderCurve: "continuous",
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
+                  backgroundColor: cardBg,
+                  shadowColor: "#26231F",
+                  shadowOpacity: isLight ? 0.028 : 0.16,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 5 },
+                  elevation: 1,
+                  overflow: "hidden",
+                }}
+              >
+                <GrowingTextInput
+                  label={t("Instructions")}
+                  maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
+                  value={instructions}
+                  onChangeText={setInstructions}
+                  backgroundColor={cardBg}
+                />
+              </View>
             </View>
             <SettingsGroup label={t("How other bots see it")}>
               <GrowingTextInput
@@ -885,9 +929,21 @@ function BotSettingsScreen({
             </SettingsGroup>
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={12}
-                style={{ paddingHorizontal: 16, borderRadius: 12 }}
-                fallbackStyle={{ backgroundColor: native.fill }}
+                cornerRadius={20}
+                style={{
+                  paddingHorizontal: 16,
+                  borderRadius: 20,
+                  borderCurve: "continuous",
+                  borderWidth: hairline,
+                  borderColor: cardBorder,
+                  shadowColor: "#26231F",
+                  shadowOpacity: isLight ? 0.028 : 0.16,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 5 },
+                  elevation: 1,
+                  overflow: "hidden",
+                }}
+                fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
               >
                 <Pressable
                   accessibilityRole="button"
@@ -1039,11 +1095,12 @@ function BotSettingsScreen({
                       setColor((current) => avatarColor(current));
                     }}
                     style={{
-                      padding: 4,
-                      borderRadius: 14,
-                      borderWidth: 2,
+                      padding: 6,
+                      borderRadius: 16,
+                      backgroundColor: avatarShape(color) === null ? cardBg : chipBg,
+                      borderWidth: avatarShape(color) === null ? 2 : hairline,
                       borderColor:
-                        avatarShape(color) === null ? tokens.foreground : "transparent",
+                        avatarShape(color) === null ? tokens.foreground : chipBorder,
                     }}
                   >
                     <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
@@ -1059,11 +1116,12 @@ function BotSettingsScreen({
                         setColor((current) => withAvatarShape(current, shape));
                       }}
                       style={{
-                        padding: 4,
-                        borderRadius: 14,
-                        borderWidth: 2,
+                        padding: 6,
+                        borderRadius: 16,
+                        backgroundColor: avatarShape(color) === shape ? cardBg : chipBg,
+                        borderWidth: avatarShape(color) === shape ? 2 : hairline,
                         borderColor:
-                          avatarShape(color) === shape ? tokens.foreground : "transparent",
+                          avatarShape(color) === shape ? tokens.foreground : chipBorder,
                       }}
                     >
                       <BotAvatar
@@ -1119,14 +1177,36 @@ const styles = StyleSheet.create({
 });
 
 function SettingsGroup({ label, children }: { label: string; children: ReactNode }) {
+  const tokens = useMobileTokens();
+  const scope = useScopedTheme();
+  const isLight = scope ? scope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = scope ? (scope.tokens?.card ?? "#FFFEFC") : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? (scope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
   return (
     <View style={{ gap: 8 }}>
       <SettingsSectionHeading>{label}</SettingsSectionHeading>
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={12}
-        style={{ padding: 16, gap: 12, borderRadius: 12 }}
-        fallbackStyle={{ backgroundColor: native.fill }}
+        cornerRadius={20}
+        style={{
+          padding: 16,
+          gap: 12,
+          borderRadius: 20,
+          borderCurve: "continuous",
+          borderWidth: hairline,
+          borderColor: cardBorder,
+          shadowColor: "#26231F",
+          shadowOpacity: isLight ? 0.028 : 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 5 },
+          elevation: 1,
+        }}
+        fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
       >
         {children}
       </GlassSurface>

@@ -1,5 +1,6 @@
 import type { ComputerStatus } from "@rakazo/contracts";
 import { ProjectWorkspaceIdInput } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { displayName } from "@rakazo/core";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
@@ -33,9 +34,10 @@ import {
 } from "../lib/companion-activity";
 import { captureScreenSendScope, screenSendScopeCurrent, sendReviewedScreenText } from "../lib/companion-screen-send";
 import { startCompanionScreenAuto, stopCompanionScreenAuto, useCompanionScreenAuto } from "../lib/companion-screen-auto";
+import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
-import { native, useMobileTokens, useThemedStyles } from "../lib/native";
+import { native, useThemedStyles } from "../lib/native";
 import { createQueuedSave } from "../lib/queued-save";
 import { useBotRoutines } from "../lib/routine-store";
 import { currentSessionGeneration } from "../lib/session";
@@ -62,7 +64,6 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
   const { t } = useI18n();
   const router = useRouter();
   const styles = useThemedStyles(createStyles);
-  const tokens = useMobileTokens();
   const stacked = useStackedSettings();
   const { botId = "", name: nameParam } = useLocalSearchParams<{ botId?: string; name?: string }>();
   const [bot, setBot] = useState<MobileBot | null>(null);
@@ -384,7 +385,7 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           ...(Platform.OS === "ios" ? { headerTitle: "" } : null),
         }}
       />
-      <View style={styles.identity}>
+      <View style={styles.identityCard}>
         {bot ? (
           <BotAvatar
             color={bot.color}
@@ -412,7 +413,11 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
             accessibilityRole="button"
             title={companionMatches ? "停止灵动岛陪伴" : "开启灵动岛陪伴"}
             value={companionBusy ? "处理中" : undefined}
-            leading={<NativeSymbol ios="sparkles" android="sparkles-outline" color={tokens.mutedForeground} />}
+            leading={
+              <View style={styles.leadingBadge}>
+                <NativeSymbol ios="sparkles" android="sparkles-outline" size={16} color={styles.leadingIcon.color} />
+              </View>
+            }
             onPress={toggleCompanion}
           />
         ) : null}
@@ -457,7 +462,9 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           chevron="right"
           title={t("Routines")}
           leading={
-            <NativeSymbol ios="clock" android="time-outline" color={tokens.mutedForeground} />
+            <View style={styles.leadingBadge}>
+              <NativeSymbol ios="clock" android="time-outline" size={16} color={styles.leadingIcon.color} />
+            </View>
           }
           // Counts the routines that are switched on; nothing until the first read lands.
           value={
@@ -473,7 +480,9 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           chevron="right"
           title={t("Artifacts")}
           leading={
-            <NativeSymbol ios="folder" android="folder-outline" color={tokens.mutedForeground} />
+            <View style={styles.leadingBadge}>
+              <NativeSymbol ios="folder" android="folder-outline" size={16} color={styles.leadingIcon.color} />
+            </View>
           }
           onPress={() => router.push({ pathname: "/artifacts", params: { botId } })}
         />
@@ -483,11 +492,14 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           chevron="right"
           title={t("Computer")}
           leading={
-            <NativeSymbol
-              ios="desktopcomputer"
-              android="desktop-outline"
-              color={tokens.mutedForeground}
-            />
+            <View style={styles.leadingBadge}>
+              <NativeSymbol
+                ios="desktopcomputer"
+                android="desktop-outline"
+                size={16}
+                color={styles.leadingIcon.color}
+              />
+            </View>
           }
           value={
             computer?.state === "running"
@@ -502,7 +514,11 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           accessibilityRole="button"
           chevron="right"
           title={t("Project")}
-          leading={<NativeSymbol ios="folder" android="folder-outline" color={tokens.mutedForeground} />}
+          leading={
+            <View style={styles.leadingBadge}>
+              <NativeSymbol ios="folder" android="folder-outline" size={16} color={styles.leadingIcon.color} />
+            </View>
+          }
           onPress={() => router.push({ pathname: "/projects/[workspaceId]", params: { workspaceId: projectId, scope } })}
         />}
       </SettingsGroup>
@@ -520,14 +536,53 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
   );
 }
 
-function createStyles() {
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.groupedPage },
-    content: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 28 },
+    content: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36, gap: 22 },
     compactContent: { paddingHorizontal: 8 },
-    identity: { alignItems: "center", gap: 8 },
-    edit: { alignSelf: "center", marginTop: 4 },
+    identityCard: {
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 24,
+      paddingHorizontal: 20,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
+    edit: { alignSelf: "center", marginTop: 2 },
     avatarSpace: { width: 96, height: 96 },
     name: { color: native.label, fontSize: 22, fontWeight: "600", textAlign: "center" },
+    leadingBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#F8F6F2" : "#2A303B",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    leadingIcon: { color: isLight ? "#6E675E" : "#B8B3AA" },
   });
 }

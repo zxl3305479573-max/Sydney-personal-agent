@@ -137,21 +137,22 @@ function SplitFrame({ children }: { children: ReactNode }) {
   const paneSpace = useRef<string | null>(null);
   // Capture the space when any route opens, including another entity on the same route.
   useEffect(() => {
-    paneSpace.current = pathname === "/" ? null : selectedSpaceId();
+    paneSpace.current = pathname === "/" || pathname === "/chats" ? null : selectedSpaceId();
   }, [routeKey]);
   const { split, inboxShown, inboxWidth, foldGap, foldActive, windowWidth } = useSplitView();
   const tokens = useMobileTokens();
-  const home = pathname === "/";
+  const chatsHome = pathname === "/chats";
   useEffect(() => {
-    if (home) setInboxHidden(false);
-  }, [home]);
+    if (chatsHome) setInboxHidden(false);
+  }, [chatsHome]);
   const projectRoute =
+    pathname === "/" ||
     pathname === "/projects" ||
     pathname.startsWith("/projects/") ||
     pathname === "/integrations" ||
     pathname === "/github";
   const showsInbox =
-    split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
+    split && (chatsHome || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname) && !projectRoute;
   // Dragging resizes the list natively; the width is kept when the finger lifts.
   const paneWidth = useSharedValue(inboxWidth);
   const dragStart = useRef(inboxWidth);
@@ -184,8 +185,8 @@ function SplitFrame({ children }: { children: ReactNode }) {
         >
           <InboxPane
             onSelectSpace={(spaceId) => {
-              if (closesSplitPane(pathname, paneSpace.current, spaceId)) {
-                router.dismissTo("/");
+              if (pathname !== "/chats" && closesSplitPane(pathname, paneSpace.current, spaceId)) {
+                router.replace("/chats");
               }
             }}
           />
@@ -439,6 +440,10 @@ function LayoutContent() {
                       <Stack.Screen
                         name="index"
                         options={{ headerShown: false, title: "Sydney" }}
+                      />
+                      <Stack.Screen
+                        name="chats"
+                        options={{ headerShown: false, title: t("Chats") }}
                       />
                       <Stack.Screen
                         name="search"

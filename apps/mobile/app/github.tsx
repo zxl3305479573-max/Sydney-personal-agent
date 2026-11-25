@@ -20,6 +20,7 @@ import { MenuPicker } from "../components/menu-picker";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
+import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
 import { useHideMainNavigation } from "../lib/main-navigation";
 import { useMobileTokens } from "../lib/native";
@@ -28,6 +29,11 @@ import { projectScopeKey, subscribeProjectScope } from "../lib/project-scope";
 import { useSideInsets } from "../lib/side-insets";
 import type { GithubSection } from "../lib/use-github";
 import { useGithub } from "../lib/use-github";
+
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
 
 export default function GithubScreen() {
   const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
@@ -59,23 +65,57 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   const [topic, setTopic] = usePageState(scopeKey, ["github-view", "draftTopic"], "");
   useFocusEffect(useCallback(() => () => setToken(""), []));
   const connected = github.status?.status === "connected";
-  const headingStyle = { color: tokens.foreground, ...typeScale.headline };
-  const bodyStyle = { color: tokens.foreground, ...typeScale.secondary };
-  const mutedStyle = { color: tokens.mutedForeground, ...typeScale.caption };
+  const isLight = isLightSurface(tokens?.background);
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const accentTaupe = isLight ? "#6E675E" : "#B8B3AA";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? accentTaupe;
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+  const cardShadow = {
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
+  const cardFallbackStyle = {
+    backgroundColor: cardBg,
+    experimental_backgroundImage: cardGradient(isLight, "sage"),
+    overflow: "hidden" as const,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: cardBorder,
+    ...cardShadow,
+  } as const;
+  const headingStyle = { color: fg, ...typeScale.headline };
+  const bodyStyle = { color: fg, ...typeScale.secondary };
+  const mutedStyle = { color: mutedFg, ...typeScale.caption };
   const inputStyle = {
-    color: tokens.foreground,
-    borderColor: tokens.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    minHeight: 46,
-    padding: 12,
-    fontSize: 17,
+    color: fg,
+    backgroundColor: cardBg,
+    borderColor: cardBorder,
+    borderWidth: 0.5,
+    borderRadius: 16,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
   };
   const sections: Array<{ id: GithubSection; label: string }> = [
     { id: "profile", label: text("个人主页", "Profile") },
     { id: "repositories", label: text("我的仓库", "My repositories") },
     { id: "explore", label: text("开源探索", "Explore") },
   ];
+  const contributionFill = (count: number) => {
+    if (!count) return isLight ? "#EDE9E0" : "#2A303B";
+    if (count >= 8) return isLight ? "#5B7A62" : "#769E80";
+    if (count >= 4) return isLight ? "#7E9B84" : "#61846A";
+    return isLight ? "#A7BEAA" : "#4A6652";
+  };
   const repoRows = (repos: GithubRepoSummary[]) =>
     github.visible(repos).map((repo) => {
       const metadata = [
@@ -96,16 +136,42 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
           accessibilityState={{ disabled: github.busy }}
           onPress={() => github.selectRepo(repo)}
           disabled={github.busy}
-          style={({ pressed }) => ({ opacity: github.busy ? 0.5 : pressed ? 0.7 : 1 })}
+          style={({ pressed }) => ({ opacity: github.busy ? 0.5 : pressed ? 0.72 : 1 })}
         >
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={14}
-            style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}
-            fallbackStyle={{ backgroundColor: tokens.card, borderRadius: 14 }}
+            cornerRadius={20}
+            gradient="sage"
+            style={{
+              borderRadius: 20,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+            }}
+            fallbackStyle={cardFallbackStyle}
           >
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Text style={{ color: tokens.foreground, ...typeScale.cardTitle }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: chipBg,
+                borderWidth: 0.5,
+                borderColor: chipBorder,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <NativeSymbol
+                ios={repo.isPrivate ? "lock.fill" : "book.closed.fill"}
+                android={repo.isPrivate ? "lock-closed-outline" : "git-branch-outline"}
+                size={18}
+                color={accentTaupe}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+              <Text style={{ color: fg, ...typeScale.cardTitle }}>
                 {repo.fullName}
               </Text>
               {repo.description ? <Text style={bodyStyle}>{repo.description}</Text> : null}
@@ -114,8 +180,8 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             <NativeSymbol
               ios="chevron.right"
               android="chevron-forward"
-              size={14}
-              color={tokens.mutedForeground}
+              size={15}
+              color={mutedFg}
             />
           </GlassSurface>
         </Pressable>
@@ -137,7 +203,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, backgroundColor: tokens.background }}
+      style={{ flex: 1, backgroundColor: canvasBg }}
     >
       <MainNavigationHeader
         onBack={github.selectedRepo ? () => github.selectRepo(null) : undefined}
@@ -147,14 +213,24 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
         style={sideInsets}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 16, paddingBottom: 36, gap: 18 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 36, gap: 14 }}
         refreshControl={
           <RefreshControl refreshing={github.refreshing} onRefresh={github.pullToRefresh} />
         }
       >
         <View
           accessibilityRole="tablist"
-          style={{ flexDirection: "row", width: "100%", minHeight: 44, gap: 4 }}
+          style={{
+            flexDirection: "row",
+            width: "100%",
+            minHeight: 44,
+            backgroundColor: isLight ? "#EAE6DE" : "#1E222A",
+            borderRadius: 24,
+            padding: 3,
+            gap: 3,
+            borderWidth: 0.5,
+            borderColor: chipBorder,
+          }}
         >
           {sections.map((section) => (
             <Pressable
@@ -180,13 +256,19 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                   minHeight: 44,
                   alignItems: "center",
                   justifyContent: "center",
-                  borderRadius: 22,
+                  borderRadius: 21,
                   paddingHorizontal: 4,
                   paddingVertical: 8,
+                  borderWidth: 0.5,
+                  borderColor: selected ? cardBorder : "transparent",
                   backgroundColor: selected
-                    ? tokens.primary
+                    ? isLight
+                      ? "#FFFEFC"
+                      : "#2D3340"
                     : pressed
-                      ? tokens.accent
+                      ? isLight
+                        ? "rgba(38, 35, 31, 0.05)"
+                        : "rgba(245, 244, 240, 0.06)"
                       : "transparent",
                   opacity: github.busy ? 0.45 : pressed ? 0.72 : 1,
                 };
@@ -195,9 +277,13 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
               <Text
                 style={{
                   color:
-                    github.section === section.id ? tokens.primaryForeground : tokens.foreground,
-                  fontSize: 17,
-                  fontWeight: github.section === section.id ? "600" : "400",
+                    github.section === section.id
+                      ? isLight
+                        ? "#26231F"
+                        : "#F5F4F0"
+                      : mutedFg,
+                  fontSize: 15.5,
+                  fontWeight: github.section === section.id ? "600" : "500",
                   textAlign: "center",
                 }}
               >
@@ -207,13 +293,24 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
           ))}
         </View>
         {github.error ? (
-          <View accessibilityLiveRegion="polite" style={{ gap: 8 }}>
-            <Text style={{ color: tokens.destructive }}>{github.error}</Text>
+          <GlassSurface
+            accessibilityLiveRegion="polite"
+            shape="roundedRectangle"
+            cornerRadius={20}
+            style={{ borderRadius: 20, padding: 18, gap: 10 }}
+            fallbackStyle={cardFallbackStyle}
+          >
+            <Text style={{ color: destructive }}>{github.error}</Text>
             <NativeActionButton label={text("重试", "Retry")} onPress={github.refresh} />
-          </View>
+          </GlassSurface>
         ) : null}
         {github.status ? (
-          <View style={{ gap: 10 }}>
+          <GlassSurface
+            shape="roundedRectangle"
+            cornerRadius={22}
+            style={{ borderRadius: 22, padding: 18, gap: 12 }}
+            fallbackStyle={{ ...cardFallbackStyle, borderRadius: 22 }}
+          >
             <Text style={headingStyle}>
               {connected && github.status?.status === "connected"
                 ? `@${github.status.login}`
@@ -222,7 +319,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             {connected && github.status?.status === "connected" ? (
               <>
                 {github.status.highRiskScopes.length ? (
-                  <Text style={{ color: tokens.destructive }}>
+                  <Text style={{ color: destructive }}>
                     {text("此令牌包含高权限：", "This token has elevated permissions: ")}
                     {github.status.highRiskScopes.join(", ")}
                   </Text>
@@ -252,7 +349,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             ) : (
               <>
                 {github.status?.status === "invalid" ? (
-                  <Text style={{ color: tokens.destructive }}>{github.status.message}</Text>
+                  <Text style={{ color: destructive }}>{github.status.message}</Text>
                 ) : null}
                 <Text style={mutedStyle}>
                   {text(
@@ -263,7 +360,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                 <TextInput
                   accessibilityLabel="GitHub Personal Access Token"
                   placeholder="GitHub Personal Access Token"
-                  placeholderTextColor={tokens.mutedForeground}
+                  placeholderTextColor={mutedFg}
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -272,7 +369,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                   value={token}
                   onChangeText={setToken}
                   editable={!github.busy}
-                  style={inputStyle}
+                  style={{ ...inputStyle, backgroundColor: chipBg, borderColor: chipBorder }}
                 />
                 <NativeActionButton
                   label={text("连接 GitHub", "Connect GitHub")}
@@ -286,10 +383,20 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
                 />
               </>
             )}
-          </View>
+          </GlassSurface>
         ) : null}
-        <View
-          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+        <GlassSurface
+          shape="roundedRectangle"
+          cornerRadius={18}
+          style={{
+            borderRadius: 18,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+          fallbackStyle={{ ...cardFallbackStyle, borderRadius: 18 }}
         >
           <Text style={bodyStyle}>{text("隐藏私有仓库", "Hide private repositories")}</Text>
           <NativeSwitch
@@ -298,7 +405,7 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             disabled={github.busy}
             onValueChange={github.setHidePrivate}
           />
-        </View>
+        </GlassSurface>
         {github.selectedRepo ? (
           <>
             <NativeActionButton
@@ -306,7 +413,17 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
               prominence="plain"
               onPress={() => github.selectRepo(null)}
             />
-            <Text style={headingStyle}>{github.selectedRepo.fullName}</Text>
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={22}
+              style={{ borderRadius: 22, padding: 18, gap: 8 }}
+              fallbackStyle={{ ...cardFallbackStyle, borderRadius: 22 }}
+            >
+              <Text style={headingStyle}>{github.selectedRepo.fullName}</Text>
+              {github.selectedRepo.description ? (
+                <Text style={bodyStyle}>{github.selectedRepo.description}</Text>
+              ) : null}
+            </GlassSurface>
             <GithubBotAnalysis
               key={github.selectedRepo.id}
               repo={github.selectedRepo}
@@ -314,238 +431,296 @@ function GithubBrowser({ scopeKey }: { scopeKey: string }) {
             />
             {detail ? (
               <>
-                <Text style={headingStyle}>README</Text>
-                <Text selectable style={bodyStyle}>
-                  {detail.readme?.content ?? text("暂无 README", "No README available")}
-                </Text>
-                {detail.readme?.truncated ? (
-                  <Text style={mutedStyle}>{text("内容已截断", "Content is truncated")}</Text>
-                ) : null}
-                <Text style={headingStyle}>{text("近期提交", "Recent commits")}</Text>
-                {detail.recentCommits.map((commit) => (
-                  <Text key={commit.sha} selectable style={bodyStyle}>
-                    {commit.shortSha} · {commit.message}
+                <GlassSurface
+                  shape="roundedRectangle"
+                  cornerRadius={20}
+                  style={{ borderRadius: 20, padding: 18, gap: 10 }}
+                  fallbackStyle={cardFallbackStyle}
+                >
+                  <Text style={headingStyle}>README</Text>
+                  <Text selectable style={bodyStyle}>
+                    {detail.readme?.content ?? text("暂无 README", "No README available")}
                   </Text>
-                ))}
-                <Text style={headingStyle}>{text("最新版本", "Latest release")}</Text>
-                <Text selectable style={bodyStyle}>
-                  {detail.latestRelease
-                    ? `${detail.latestRelease.tagName}\n${detail.latestRelease.body}`
-                    : text("暂无版本", "No release available")}
-                </Text>
-                <Text selectable style={mutedStyle}>
-                  {detail.repo.cloneUrl}
-                </Text>
+                  {detail.readme?.truncated ? (
+                    <Text style={mutedStyle}>{text("内容已截断", "Content is truncated")}</Text>
+                  ) : null}
+                </GlassSurface>
+                <GlassSurface
+                  shape="roundedRectangle"
+                  cornerRadius={20}
+                  style={{ borderRadius: 20, padding: 18, gap: 10 }}
+                  fallbackStyle={cardFallbackStyle}
+                >
+                  <Text style={headingStyle}>{text("近期提交", "Recent commits")}</Text>
+                  {detail.recentCommits.map((commit) => (
+                    <View
+                      key={commit.sha}
+                      style={{
+                        backgroundColor: chipBg,
+                        borderRadius: 12,
+                        paddingHorizontal: 12,
+                        paddingVertical: 9,
+                        borderWidth: 0.5,
+                        borderColor: chipBorder,
+                      }}
+                    >
+                      <Text selectable style={bodyStyle}>
+                        {commit.shortSha} · {commit.message}
+                      </Text>
+                    </View>
+                  ))}
+                </GlassSurface>
+                <GlassSurface
+                  shape="roundedRectangle"
+                  cornerRadius={20}
+                  style={{ borderRadius: 20, padding: 18, gap: 10 }}
+                  fallbackStyle={cardFallbackStyle}
+                >
+                  <Text style={headingStyle}>{text("最新版本", "Latest release")}</Text>
+                  <Text selectable style={bodyStyle}>
+                    {detail.latestRelease
+                      ? `${detail.latestRelease.tagName}\n${detail.latestRelease.body}`
+                      : text("暂无版本", "No release available")}
+                  </Text>
+                  <Text selectable style={mutedStyle}>
+                    {detail.repo.cloneUrl}
+                  </Text>
+                </GlassSurface>
               </>
             ) : null}
           </>
         ) : github.section === "profile" ? (
           connected && overview ? (
             <>
-              <Text style={headingStyle}>{overview.profile.name ?? overview.profile.login}</Text>
-              {overview.profile.bio ? <Text style={bodyStyle}>{overview.profile.bio}</Text> : null}
-              <Text style={mutedStyle}>
-                {text("公开仓库", "Public repositories")}: {overview.profile.publicRepos} ·{" "}
-                {text("关注者", "Followers")}: {overview.profile.followers}
-              </Text>
-              <ScrollView horizontal contentContainerStyle={{ gap: 10 }}>
-                <NativeActionButton
-                  label={text("近一年", "Past year")}
-                  prominence="plain"
-                  selected={github.year === undefined}
-                  onPress={() => github.selectYear(undefined)}
-                />
-                {overview.calendar.availableYears.map((year) => (
-                  <NativeActionButton
-                    key={year}
-                    label={String(year)}
-                    prominence="plain"
-                    selected={github.year === year}
-                    onPress={() => github.selectYear(year)}
-                  />
-                ))}
-              </ScrollView>
-              <Text style={bodyStyle}>
-                {text("贡献", "Contributions")}: {overview.calendar.totalContributions}
-              </Text>
-              <ScrollView horizontal>
-                <View style={{ flexDirection: "row", gap: 3 }}>
-                  {overview.calendar.weeks.map((week) => (
-                    <View key={week.contributionDays[0]?.date} style={{ gap: 3 }}>
-                      {week.contributionDays.map((day) => (
-                        <View
-                          key={day.date}
-                          accessible
-                          accessibilityLabel={`${day.date}: ${day.contributionCount}`}
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: 2,
-                            backgroundColor: day.contributionCount ? tokens.primary : tokens.border,
-                            opacity: day.contributionCount
-                              ? Math.min(1, 0.3 + day.contributionCount / 10)
-                              : 1,
-                          }}
-                        />
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-              {overview.calendar.restrictedContributionsCount ? (
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={22}
+                style={{ borderRadius: 22, padding: 18, gap: 8 }}
+                fallbackStyle={{ ...cardFallbackStyle, borderRadius: 22 }}
+              >
+                <Text style={headingStyle}>{overview.profile.name ?? overview.profile.login}</Text>
+                {overview.profile.bio ? <Text style={bodyStyle}>{overview.profile.bio}</Text> : null}
                 <Text style={mutedStyle}>
-                  {text(
-                    "贡献统计包含私有贡献，隐藏仓库不会改变此统计。",
-                    "Contribution totals include private contributions; hiding repositories does not change these totals.",
-                  )}
+                  {text("公开仓库", "Public repositories")}: {overview.profile.publicRepos} ·{" "}
+                  {text("关注者", "Followers")}: {overview.profile.followers}
                 </Text>
-              ) : null}
+              </GlassSurface>
+              <GlassSurface
+                shape="roundedRectangle"
+                cornerRadius={22}
+                style={{ borderRadius: 22, padding: 18, gap: 12 }}
+                fallbackStyle={{ ...cardFallbackStyle, borderRadius: 22 }}
+              >
+                <ScrollView horizontal contentContainerStyle={{ gap: 10 }}>
+                  <NativeActionButton
+                    label={text("近一年", "Past year")}
+                    prominence="plain"
+                    selected={github.year === undefined}
+                    onPress={() => github.selectYear(undefined)}
+                  />
+                  {overview.calendar.availableYears.map((year) => (
+                    <NativeActionButton
+                      key={year}
+                      label={String(year)}
+                      prominence="plain"
+                      selected={github.year === year}
+                      onPress={() => github.selectYear(year)}
+                    />
+                  ))}
+                </ScrollView>
+                <Text style={bodyStyle}>
+                  {text("贡献", "Contributions")}: {overview.calendar.totalContributions}
+                </Text>
+                <ScrollView horizontal>
+                  <View style={{ flexDirection: "row", gap: 3 }}>
+                    {overview.calendar.weeks.map((week) => (
+                      <View key={week.contributionDays[0]?.date} style={{ gap: 3 }}>
+                        {week.contributionDays.map((day) => (
+                          <View
+                            key={day.date}
+                            accessible
+                            accessibilityLabel={`${day.date}: ${day.contributionCount}`}
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 3,
+                              backgroundColor: contributionFill(day.contributionCount),
+                            }}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+                {overview.calendar.restrictedContributionsCount ? (
+                  <Text style={mutedStyle}>
+                    {text(
+                      "贡献统计包含私有贡献，隐藏仓库不会改变此统计。",
+                      "Contribution totals include private contributions; hiding repositories does not change these totals.",
+                    )}
+                  </Text>
+                ) : null}
+              </GlassSurface>
               {repoRows(overview.pinnedRepos.length ? overview.pinnedRepos : overview.recentRepos)}
             </>
           ) : github.status && !connected ? (
-            <Text style={mutedStyle}>
-              {text(
-                "连接后查看个人主页，或切换到开源探索。",
-                "Connect to view your profile, or explore public repositories.",
-              )}
-            </Text>
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={20}
+              style={{ borderRadius: 20, padding: 18 }}
+              fallbackStyle={cardFallbackStyle}
+            >
+              <Text style={mutedStyle}>
+                {text(
+                  "连接后查看个人主页，或切换到开源探索。",
+                  "Connect to view your profile, or explore public repositories.",
+                )}
+              </Text>
+            </GlassSurface>
           ) : null
         ) : (
           <>
-            <TextInput
-              accessibilityLabel={text("搜索仓库", "Search repositories")}
-              placeholder={text("搜索仓库", "Search repositories")}
-              placeholderTextColor={tokens.mutedForeground}
-              value={query}
-              onChangeText={setQuery}
-              maxLength={github.section === "explore" ? 200 : 120}
-              autoCapitalize="none"
-              returnKeyType="search"
-              onSubmitEditing={submitSearch}
-              style={inputStyle}
-            />
-            <TextInput
-              accessibilityLabel={text("编程语言", "Language")}
-              placeholder={text("编程语言（可选）", "Language (optional)")}
-              placeholderTextColor={tokens.mutedForeground}
-              value={language}
-              onChangeText={setLanguage}
-              maxLength={48}
-              autoCapitalize="none"
-              style={inputStyle}
-            />
-            {github.section === "explore" ? (
-              <>
-                <TextInput
-                  accessibilityLabel="Topic"
-                  placeholder="Topic"
-                  placeholderTextColor={tokens.mutedForeground}
-                  value={topic}
-                  onChangeText={setTopic}
-                  maxLength={64}
-                  autoCapitalize="none"
-                  style={inputStyle}
-                />
-                <MenuPicker
-                  label={text("最低 Star", "Minimum stars")}
-                  choices={[
-                    { key: "", label: text("不限", "Any") },
-                    { key: "100", label: "100+" },
-                    { key: "1000", label: "1k+" },
-                    { key: "10000", label: "10k+" },
-                  ]}
-                  value={String(github.exploreFilters.minStars ?? "")}
-                  onChange={(key) =>
-                    github.filterExplore({ minStars: key ? Number(key) : undefined })
-                  }
-                />
-                <MenuPicker
-                  label={text("最近更新", "Last updated")}
-                  choices={[
-                    { key: "", label: text("不限", "Any time") },
-                    { key: "30", label: text("30 天内", "Within 30 days") },
-                    { key: "365", label: text("一年内", "Within a year") },
-                  ]}
-                  value={String(github.exploreFilters.pushedWithinDays ?? "")}
-                  onChange={(key) =>
-                    github.filterExplore({ pushedWithinDays: key ? Number(key) : undefined })
-                  }
-                />
-                <MenuPicker
-                  label={text("排序", "Sort")}
-                  choices={[
-                    { key: "best-match", label: text("相关度", "Best match") },
-                    { key: "stars", label: "Stars" },
-                    { key: "forks", label: "Forks" },
-                    { key: "updated", label: text("更新时间", "Updated") },
-                  ]}
-                  value={github.exploreFilters.sort}
-                  onChange={(key) => {
-                    if (["best-match", "stars", "forks", "updated"].includes(key))
-                      github.filterExplore({ sort: key as typeof github.exploreFilters.sort });
-                  }}
-                />
-              </>
-            ) : (
-              <>
-                <MenuPicker
-                  label={text("归属", "Affiliation")}
-                  choices={[
-                    { key: "all", label: text("全部", "All") },
-                    { key: "owner", label: text("我的", "Owned") },
-                    { key: "collaborator", label: text("协作", "Collaborator") },
-                    { key: "organization_member", label: text("组织", "Organization") },
-                  ]}
-                  value={github.repositoryFilters.affiliation}
-                  onChange={(key) => {
-                    if (["all", "owner", "collaborator", "organization_member"].includes(key))
-                      github.filterRepositories({
-                        affiliation: key as typeof github.repositoryFilters.affiliation,
-                      });
-                  }}
-                />
-                <MenuPicker
-                  label={text("可见性", "Visibility")}
-                  choices={[
-                    { key: "all", label: text("全部", "All") },
-                    { key: "public", label: text("公开", "Public") },
-                    ...(!github.hidePrivate
-                      ? [{ key: "private", label: text("私有", "Private") }]
-                      : []),
-                    { key: "fork", label: "Fork" },
-                    { key: "archived", label: text("归档", "Archived") },
-                  ]}
-                  value={github.hidePrivate ? "public" : github.repositoryFilters.visibility}
-                  onChange={(key) => {
-                    if (["all", "public", "private", "fork", "archived"].includes(key))
-                      github.filterRepositories({
-                        visibility: key as typeof github.repositoryFilters.visibility,
-                      });
-                  }}
-                />
-                <MenuPicker
-                  label={text("排序", "Sort")}
-                  choices={[
-                    { key: "pushed", label: text("最近推送", "Recently pushed") },
-                    { key: "updated", label: text("最近更新", "Recently updated") },
-                    { key: "full_name", label: text("名称", "Name") },
-                    { key: "stars", label: "Stars" },
-                  ]}
-                  value={github.repositoryFilters.sort}
-                  onChange={(key) => {
-                    if (["pushed", "updated", "full_name", "stars"].includes(key))
-                      github.filterRepositories({
-                        sort: key as typeof github.repositoryFilters.sort,
-                      });
-                  }}
-                />
-              </>
-            )}
-            <NativeActionButton
-              label={text("搜索", "Search")}
-              onPress={submitSearch}
-              disabled={github.busy}
-            />
+            <GlassSurface
+              shape="roundedRectangle"
+              cornerRadius={22}
+              style={{ borderRadius: 22, padding: 16, gap: 12 }}
+              fallbackStyle={{ ...cardFallbackStyle, borderRadius: 22 }}
+            >
+              <TextInput
+                accessibilityLabel={text("搜索仓库", "Search repositories")}
+                placeholder={text("搜索仓库", "Search repositories")}
+                placeholderTextColor={mutedFg}
+                value={query}
+                onChangeText={setQuery}
+                maxLength={github.section === "explore" ? 200 : 120}
+                autoCapitalize="none"
+                returnKeyType="search"
+                onSubmitEditing={submitSearch}
+                style={{ ...inputStyle, backgroundColor: chipBg, borderColor: chipBorder }}
+              />
+              <TextInput
+                accessibilityLabel={text("编程语言", "Language")}
+                placeholder={text("编程语言（可选）", "Language (optional)")}
+                placeholderTextColor={mutedFg}
+                value={language}
+                onChangeText={setLanguage}
+                maxLength={48}
+                autoCapitalize="none"
+                style={{ ...inputStyle, backgroundColor: chipBg, borderColor: chipBorder }}
+              />
+              {github.section === "explore" ? (
+                <>
+                  <TextInput
+                    accessibilityLabel="Topic"
+                    placeholder="Topic"
+                    placeholderTextColor={mutedFg}
+                    value={topic}
+                    onChangeText={setTopic}
+                    maxLength={64}
+                    autoCapitalize="none"
+                    style={{ ...inputStyle, backgroundColor: chipBg, borderColor: chipBorder }}
+                  />
+                  <MenuPicker
+                    label={text("最低 Star", "Minimum stars")}
+                    choices={[
+                      { key: "", label: text("不限", "Any") },
+                      { key: "100", label: "100+" },
+                      { key: "1000", label: "1k+" },
+                      { key: "10000", label: "10k+" },
+                    ]}
+                    value={String(github.exploreFilters.minStars ?? "")}
+                    onChange={(key) =>
+                      github.filterExplore({ minStars: key ? Number(key) : undefined })
+                    }
+                  />
+                  <MenuPicker
+                    label={text("最近更新", "Last updated")}
+                    choices={[
+                      { key: "", label: text("不限", "Any time") },
+                      { key: "30", label: text("30 天内", "Within 30 days") },
+                      { key: "365", label: text("一年内", "Within a year") },
+                    ]}
+                    value={String(github.exploreFilters.pushedWithinDays ?? "")}
+                    onChange={(key) =>
+                      github.filterExplore({ pushedWithinDays: key ? Number(key) : undefined })
+                    }
+                  />
+                  <MenuPicker
+                    label={text("排序", "Sort")}
+                    choices={[
+                      { key: "best-match", label: text("相关度", "Best match") },
+                      { key: "stars", label: "Stars" },
+                      { key: "forks", label: "Forks" },
+                      { key: "updated", label: text("更新时间", "Updated") },
+                    ]}
+                    value={github.exploreFilters.sort}
+                    onChange={(key) => {
+                      if (["best-match", "stars", "forks", "updated"].includes(key))
+                        github.filterExplore({ sort: key as typeof github.exploreFilters.sort });
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <MenuPicker
+                    label={text("归属", "Affiliation")}
+                    choices={[
+                      { key: "all", label: text("全部", "All") },
+                      { key: "owner", label: text("我的", "Owned") },
+                      { key: "collaborator", label: text("协作", "Collaborator") },
+                      { key: "organization_member", label: text("组织", "Organization") },
+                    ]}
+                    value={github.repositoryFilters.affiliation}
+                    onChange={(key) => {
+                      if (["all", "owner", "collaborator", "organization_member"].includes(key))
+                        github.filterRepositories({
+                          affiliation: key as typeof github.repositoryFilters.affiliation,
+                        });
+                    }}
+                  />
+                  <MenuPicker
+                    label={text("可见性", "Visibility")}
+                    choices={[
+                      { key: "all", label: text("全部", "All") },
+                      { key: "public", label: text("公开", "Public") },
+                      ...(!github.hidePrivate
+                        ? [{ key: "private", label: text("私有", "Private") }]
+                        : []),
+                      { key: "fork", label: "Fork" },
+                      { key: "archived", label: text("归档", "Archived") },
+                    ]}
+                    value={github.hidePrivate ? "public" : github.repositoryFilters.visibility}
+                    onChange={(key) => {
+                      if (["all", "public", "private", "fork", "archived"].includes(key))
+                        github.filterRepositories({
+                          visibility: key as typeof github.repositoryFilters.visibility,
+                        });
+                    }}
+                  />
+                  <MenuPicker
+                    label={text("排序", "Sort")}
+                    choices={[
+                      { key: "pushed", label: text("最近推送", "Recently pushed") },
+                      { key: "updated", label: text("最近更新", "Recently updated") },
+                      { key: "full_name", label: text("名称", "Name") },
+                      { key: "stars", label: "Stars" },
+                    ]}
+                    value={github.repositoryFilters.sort}
+                    onChange={(key) => {
+                      if (["pushed", "updated", "full_name", "stars"].includes(key))
+                        github.filterRepositories({
+                          sort: key as typeof github.repositoryFilters.sort,
+                        });
+                    }}
+                  />
+                </>
+              )}
+              <NativeActionButton
+                label={text("搜索", "Search")}
+                onPress={submitSearch}
+                disabled={github.busy}
+              />
+            </GlassSurface>
             {github.section === "explore" && github.search?.authenticated === false ? (
               <Text style={mutedStyle}>
                 {text("当前使用 GitHub 匿名查询额度。", "Using GitHub's anonymous request quota.")}

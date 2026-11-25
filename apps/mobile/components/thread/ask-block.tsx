@@ -104,17 +104,33 @@ export function AskBlock({
     }
   }
 
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const fieldBg = isLight ? "#F8F6F2" : "#2A303B";
+  const fieldBorder = isLight ? "rgba(38, 35, 31, 0.09)" : "rgba(245, 244, 240, 0.12)";
+
   return (
     <GlassSurface
       shape="roundedRectangle"
-      cornerRadius={18}
-      fallbackStyle={{ backgroundColor: tokens.card }}
+      cornerRadius={20}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderWidth: hairline,
+        borderColor: cardBorder,
+      }}
       style={{
         width: secretInput ? "100%" : "90%",
-        borderRadius: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        gap: 10,
+        borderRadius: 20,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        gap: 12,
       }}
     >
       <Text
@@ -191,7 +207,12 @@ export function AskBlock({
             style={[
               askInputStyles.field,
               secretInput ? { alignSelf: "stretch" } : undefined,
-              { borderColor: tokens.border, color: tokens.foreground },
+              {
+                backgroundColor: fieldBg,
+                borderWidth: hairline,
+                borderColor: fieldBorder,
+                color: tokens.foreground,
+              },
             ]}
           />
           <View style={askInputStyles.buttons}>
@@ -249,11 +270,10 @@ export function AskBlock({
 
 const askInputStyles = StyleSheet.create({
   field: {
-    minHeight: 42,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   button: {
     flex: 1,
@@ -265,6 +285,6 @@ const askInputStyles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "flex-start",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
 });

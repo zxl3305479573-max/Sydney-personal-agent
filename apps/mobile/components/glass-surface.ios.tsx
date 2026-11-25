@@ -1,6 +1,8 @@
 import { Capsule, Circle, Host, RoundedRectangle } from "@expo/ui/swift-ui";
 import { foregroundStyle, glassEffect } from "@expo/ui/swift-ui/modifiers";
+import type { ViewStyle } from "react-native";
 import { StyleSheet, View } from "react-native";
+import { cardGradient, inferLightFromStyle } from "../lib/card-gradient";
 import { useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { getActiveUiMode } from "../lib/ui-mode";
@@ -11,6 +13,7 @@ export function GlassSurface({
   shape = "capsule",
   cornerRadius,
   tint,
+  gradient,
   style,
   fallbackStyle,
   children,
@@ -20,12 +23,23 @@ export function GlassSurface({
   const policy = getActiveUiMode().glassPolicy;
   const radius = cornerRadius ?? policy.defaultCornerRadius ?? 22;
   const resolvedTint = tint ?? (policy.mode === "tinted-liquid" ? policy.defaultTint : undefined);
-  if (!chatTitle || !iosAtLeast(26) || policy.mode === "solid-fallback")
+  if (!chatTitle || !iosAtLeast(26) || policy.mode === "solid-fallback") {
+    const applyGradient =
+      !chatTitle && gradient !== false && (shape === "roundedRectangle" || gradient !== undefined);
+    const isLight =
+      inferLightFromStyle(fallbackStyle) ?? inferLightFromStyle(style) ?? scheme === "light";
+    const gradientLayer: ViewStyle | null = applyGradient
+      ? { experimental_backgroundImage: cardGradient(isLight, gradient || "pearl") }
+      : null;
     return (
-      <View {...viewProps} style={[style, fallbackStyle]}>
+      <View
+        {...viewProps}
+        style={gradientLayer ? [gradientLayer, style, fallbackStyle] : [style, fallbackStyle]}
+      >
         {children}
       </View>
     );
+  }
   const modifiers = [
     foregroundStyle("#00000000"),
     glassEffect({

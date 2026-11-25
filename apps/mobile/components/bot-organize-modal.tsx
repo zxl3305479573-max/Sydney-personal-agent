@@ -108,42 +108,45 @@ export function BotOrganizeModal({
             : styles.sheet
       }
     >
+      {!Sheet ? <View style={styles.grabber} /> : null}
       <Text style={styles.title} numberOfLines={1}>
         {bot.name}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        disabled={saving}
-        onPress={() => void save(() => onUpdate({ pinned: !bot.pinned }))}
-        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-      >
-        <NativeSymbol
-          ios={bot.pinned ? "pin.slash" : "pin"}
-          android={bot.pinned ? "pin-outline" : "pin"}
-          size={18}
-        />
-        <Text style={styles.actionLabel}>{bot.pinned ? t("Unpin") : t("Pin")}</Text>
-      </Pressable>
-      {typeof bot.notifyOnFinish === "boolean" ? (
+      <View style={Sheet ? styles.nativeCardGroup : styles.cardGroup}>
         <Pressable
           accessibilityRole="button"
           disabled={saving}
-          onPress={() => void save(() => onUpdate({ notifyOnFinish: !bot.notifyOnFinish }))}
+          onPress={() => void save(() => onUpdate({ pinned: !bot.pinned }))}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
           <NativeSymbol
-            ios={bot.notifyOnFinish ? "bell.slash" : "bell"}
-            android={bot.notifyOnFinish ? "notifications-off-outline" : "notifications-outline"}
+            ios={bot.pinned ? "pin.slash" : "pin"}
+            android={bot.pinned ? "pin-outline" : "pin"}
             size={18}
           />
-          <Text style={styles.actionLabel}>
-            {bot.notifyOnFinish ? t("Silence notifications") : t("Resume notifications")}
-          </Text>
+          <Text style={styles.actionLabel}>{bot.pinned ? t("Unpin") : t("Pin")}</Text>
         </Pressable>
-      ) : null}
+        {typeof bot.notifyOnFinish === "boolean" ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={() => void save(() => onUpdate({ notifyOnFinish: !bot.notifyOnFinish }))}
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+          >
+            <NativeSymbol
+              ios={bot.notifyOnFinish ? "bell.slash" : "bell"}
+              android={bot.notifyOnFinish ? "notifications-off-outline" : "notifications-outline"}
+              size={18}
+            />
+            <Text style={styles.actionLabel}>
+              {bot.notifyOnFinish ? t("Silence notifications") : t("Resume notifications")}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.sectionLabel}>{t("Move to")}</Text>
       <ScrollView
-        style={styles.sectionOptions}
+        style={[styles.sectionOptions, Sheet ? styles.nativeCardGroup : styles.cardGroup]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled={Sheet ? true : undefined}
       >
@@ -193,7 +196,7 @@ export function BotOrganizeModal({
           />
         </View>
       ) : (
-        <>
+        <View style={[Sheet ? styles.nativeCardGroup : styles.cardGroup, { marginTop: 8 }]}>
           <Pressable
             disabled={saving}
             onPress={startCreate}
@@ -228,7 +231,7 @@ export function BotOrganizeModal({
               <Text style={[styles.actionLabel, styles.destructive]}>{t("Delete section")}</Text>
             </Pressable>
           ) : null}
-        </>
+        </View>
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <NativeActionButton
@@ -344,6 +347,18 @@ function SectionOption({
 
 function createBotOrganizeStyles() {
   const tokens = mobileTokens();
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const porcelainCard = isLight ? "#FFFEFC" : "#242933";
+  const porcelainBorder =
+    tokens?.border ?? (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)");
+  const creamChip = isLight ? "#F8F6F2" : "#2A303B";
+  const creamChipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const softTaupe = isLight ? "#6E675E" : "#B8B3AA";
   return StyleSheet.create({
     overlay: {
       flex: 1,
@@ -355,35 +370,65 @@ function createBotOrganizeStyles() {
       flexShrink: 1,
       borderTopLeftRadius: 22,
       borderTopRightRadius: 22,
-      backgroundColor: native.fillPressed,
-      paddingHorizontal: 16,
-      paddingTop: 18,
+      backgroundColor: porcelainCard,
+      borderWidth: hairline,
+      borderColor: porcelainBorder,
+      paddingHorizontal: 18,
+      paddingTop: 12,
       paddingBottom: 28,
     },
-    formSheet: { flex: 1, backgroundColor: tokens.background, paddingTop: 18 },
+    grabber: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: 12,
+      backgroundColor: softTaupe,
+      opacity: 0.28,
+    },
+    formSheet: { flex: 1, backgroundColor: tokens?.background ?? "#F3F1EC", paddingTop: 14 },
     // The keyboard shrinks the section list so the name field stays visible.
     formSheetContent: { flexShrink: 1 },
     nativeSheet: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
       paddingBottom: 28,
+    },
+    cardGroup: {
+      backgroundColor: porcelainCard,
+      borderRadius: 20,
+      borderWidth: hairline,
+      borderColor: porcelainBorder,
+      padding: 4,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.025 : 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
+    nativeCardGroup: {
+      backgroundColor: creamChip,
+      borderRadius: 20,
+      borderWidth: hairline,
+      borderColor: creamChipBorder,
+      padding: 4,
     },
     title: {
       color: native.label,
       fontSize: 18,
       fontWeight: "600",
       paddingHorizontal: 8,
-      paddingBottom: 10,
+      paddingBottom: 12,
     },
     action: {
       minHeight: 46,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      borderRadius: 11,
-      paddingHorizontal: 10,
+      borderRadius: 16,
+      paddingHorizontal: 12,
     },
     pressed: {
-      backgroundColor: native.fill,
+      backgroundColor: creamChip,
     },
     actionLabel: {
       flex: 1,
@@ -395,8 +440,8 @@ function createBotOrganizeStyles() {
       fontSize: 13,
       fontWeight: "600",
       paddingHorizontal: 10,
-      paddingTop: 12,
-      paddingBottom: 6,
+      paddingTop: 14,
+      paddingBottom: 8,
     },
     sectionOptions: {
       maxHeight: 230,
@@ -407,29 +452,31 @@ function createBotOrganizeStyles() {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      borderRadius: 11,
-      paddingHorizontal: 10,
+      borderRadius: 16,
+      paddingHorizontal: 12,
     },
     newSectionRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
+      paddingHorizontal: 4,
+      paddingVertical: 8,
     },
     // The sheet surface is the card fill, so the field sits on the screen background.
     nativeSheetInput: {
       backgroundColor: tokens.background,
-      borderWidth: 1,
-      borderColor: tokens.border,
+      borderWidth: hairline,
+      borderColor: porcelainBorder,
     },
     newSectionInput: {
       flex: 1,
-      height: 40,
-      borderRadius: 10,
-      backgroundColor: native.fill,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: porcelainCard,
+      borderWidth: hairline,
+      borderColor: porcelainBorder,
       color: native.label,
-      paddingHorizontal: 12,
+      paddingHorizontal: 14,
       fontSize: 16,
     },
     destructive: { color: tokens.destructive },

@@ -42,34 +42,61 @@ export function ProjectWorkspaceList({
   onAdd,
   onRemove,
 }: ProjectWorkspaceListProps) {
-  useResolvedAppearance();
+  const appearance = useResolvedAppearance();
+  const isLight = appearance === "light";
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const selectedBg = isLight ? "#F8F6F2" : "#2A303B";
+  const labelColor = native.label ?? (isLight ? "#26231F" : "#F5F4F0");
+  const secondaryColor = native.secondaryLabel ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const surfaceShadow = {
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
+
   return (
     <View style={{ gap: 12 }}>
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={14}
-        style={{ borderRadius: 14, overflow: "hidden" }}
-        fallbackStyle={{ backgroundColor: native.fill }}
+        cornerRadius={20}
+        style={{ borderRadius: 20, overflow: "hidden" }}
+        fallbackStyle={{
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          borderWidth: 0.5,
+          borderColor: cardBorder,
+          ...surfaceShadow,
+        }}
       >
         {state.status === "loading" ? (
-          <View accessibilityLiveRegion="polite" style={{ padding: 16, gap: 8 }}>
+          <View accessibilityLiveRegion="polite" style={{ padding: 18, gap: 8 }}>
             <ActivityIndicator />
-            <Text style={{ color: native.secondaryLabel }}>{labels.loading}</Text>
+            <Text style={{ color: secondaryColor }}>{labels.loading}</Text>
           </View>
         ) : state.status === "error" ? (
-          <Text accessibilityRole="alert" style={{ padding: 16, color: native.label }}>
+          <Text accessibilityRole="alert" style={{ padding: 18, color: labelColor }}>
             {labels.error}
           </Text>
         ) : state.workspaces.length === 0 ? (
-          <Text style={{ padding: 16, color: native.secondaryLabel }}>{labels.empty}</Text>
+          <Text style={{ padding: 18, color: secondaryColor }}>{labels.empty}</Text>
         ) : (
-          state.workspaces.map((workspace) => {
+          state.workspaces.map((workspace, index) => {
             const selected = workspace.id === selectedId;
             const status = labels.connectionStatus[workspace.connectionStatus];
             return (
               <View
                 key={workspace.id}
-                style={{ flexDirection: "row", alignItems: "center", paddingRight: 8 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingRight: 10,
+                  backgroundColor: selected ? selectedBg : "transparent",
+                  borderBottomWidth: index < state.workspaces.length - 1 ? 0.5 : 0,
+                  borderBottomColor: cardBorder,
+                }}
               >
                 <Pressable
                   accessibilityRole="button"
@@ -80,19 +107,18 @@ export function ProjectWorkspaceList({
                   style={({ pressed }) => ({
                     flex: 1,
                     minWidth: 0,
-                    minHeight: 64,
+                    minHeight: 66,
                     alignSelf: "stretch",
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
+                    paddingHorizontal: 18,
+                    paddingVertical: 12,
                     gap: 4,
-                    backgroundColor: selected ? native.fillPressed : "transparent",
                     opacity: pending ? 0.5 : pressed ? 0.65 : 1,
                   })}
                 >
-                  <Text style={{ color: native.label, ...typeScale.cardTitle }}>
+                  <Text style={{ color: labelColor, ...typeScale.cardTitle }}>
                     {workspace.name}
                   </Text>
-                  <Text style={{ color: native.secondaryLabel }}>
+                  <Text style={{ color: secondaryColor }}>
                     {status}
                     {selected ? ` · ${labels.selected}` : null}
                   </Text>
@@ -113,7 +139,7 @@ export function ProjectWorkspaceList({
                     opacity: pending ? 0.5 : pressed ? 0.65 : 1,
                   })}
                 >
-                  <Text style={{ color: native.label }}>
+                  <Text style={{ color: labelColor }}>
                     {labels.remove}
                   </Text>
                 </Pressable>
@@ -124,9 +150,15 @@ export function ProjectWorkspaceList({
       </GlassSurface>
       <GlassSurface
         shape="roundedRectangle"
-        cornerRadius={14}
-        style={{ borderRadius: 14, overflow: "hidden" }}
-        fallbackStyle={{ backgroundColor: native.fill }}
+        cornerRadius={18}
+        style={{ borderRadius: 18, overflow: "hidden" }}
+        fallbackStyle={{
+          backgroundColor: cardBg,
+          borderRadius: 18,
+          borderWidth: 0.5,
+          borderColor: cardBorder,
+          ...surfaceShadow,
+        }}
       >
         <Pressable
           accessibilityRole="button"
@@ -134,13 +166,13 @@ export function ProjectWorkspaceList({
           disabled={pending}
           onPress={onAdd}
           style={({ pressed }) => ({
-            minHeight: 48,
+            minHeight: 52,
             justifyContent: "center",
-            paddingHorizontal: 16,
+            paddingHorizontal: 18,
             opacity: pending ? 0.5 : pressed ? 0.65 : 1,
           })}
         >
-          <Text style={{ color: native.label, ...typeScale.cardTitle }}>{labels.add}</Text>
+          <Text style={{ color: labelColor, ...typeScale.cardTitle }}>{labels.add}</Text>
         </Pressable>
       </GlassSurface>
     </View>

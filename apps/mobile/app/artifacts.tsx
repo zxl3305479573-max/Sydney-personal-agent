@@ -1,3 +1,4 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +21,7 @@ import { formatActivityRelativeTime } from "../lib/activity";
 import type { MobileBot } from "../lib/api";
 import { rpc } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
+import { cardGradient } from "../lib/card-gradient";
 import type { MobileArtifactSummary } from "../lib/artifacts";
 import {
   listSpaceArtifacts,
@@ -318,9 +320,11 @@ export default function ArtifactsScreen() {
               <ActivityIndicator color={native.secondaryLabel} />
             </View>
           ) : (
-            <Text style={styles.empty}>
-              {queryActive ? t("No matching artifacts") : t("No artifacts yet")}
-            </Text>
+            <View style={styles.emptyCard}>
+              <Text style={styles.empty}>
+                {queryActive ? t("No matching artifacts") : t("No artifacts yet")}
+              </Text>
+            </View>
           )
         }
         ListFooterComponent={
@@ -401,6 +405,7 @@ function ArtifactRow({
           ios={isCode ? "chevron.left.forwardslash.chevron.right" : "doc.text"}
           android={isCode ? "code-slash-outline" : "document-text-outline"}
           size={16}
+          color={styles.rowIconTint.color}
         />
       </View>
       <View style={styles.rowBody}>
@@ -432,8 +437,23 @@ function ArtifactRow({
   );
 }
 
-function createStyles() {
-  const tokens = mobileTokens();
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
     centered: { alignItems: "center", justifyContent: "center", paddingTop: 40 },
@@ -444,7 +464,8 @@ function createStyles() {
       flexGrow: 0,
       gap: 8,
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingTop: 10,
+      paddingBottom: 12,
     },
     chip: {
       flexDirection: "row",
@@ -452,44 +473,91 @@ function createStyles() {
       flexGrow: 0,
       flexShrink: 0,
       gap: 6,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
+      paddingVertical: 7,
+      paddingHorizontal: 13,
       borderRadius: 999,
-      backgroundColor: native.fill,
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
     },
-    chipActive: { backgroundColor: tokens.primary },
-    chipLabel: { color: native.label, fontSize: 13, fontWeight: "600" },
-    chipLabelActive: { color: tokens.primaryForeground },
+    chipActive: {
+      backgroundColor: isLight ? "#5E584F" : "#353C4A",
+      borderColor: isLight ? "#5E584F" : "rgba(245, 244, 240, 0.16)",
+    },
+    chipLabel: { color: isLight ? "#5E584F" : native.label, fontSize: 13, fontWeight: "600" },
+    chipLabelActive: { color: "#FFFEFC" },
     listView: { flex: 1 },
     list: { paddingBottom: 32 },
+    emptyCard: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      paddingVertical: 32,
+      paddingHorizontal: 24,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: cardBg,
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+      alignItems: "center",
+    },
     empty: {
       color: native.secondaryLabel,
       fontSize: 15,
       textAlign: "center",
-      paddingHorizontal: 24,
-      paddingTop: 8,
+      paddingHorizontal: 12,
     },
     footer: { paddingVertical: 20 },
-    row: { flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-    rowPressed: { opacity: 0.6 },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginHorizontal: 16,
+      marginBottom: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      backgroundColor: cardBg,
+      experimental_backgroundImage: cardGradient(isLight, "pearl"),
+      overflow: "hidden",
+      borderRadius: 18,
+      borderCurve: "continuous",
+      borderWidth: hairline,
+      borderColor: cardBorder,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
+    },
+    rowPressed: { opacity: 0.75 },
     rowIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: native.fill,
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      borderCurve: "continuous",
+      backgroundColor: chipBg,
+      borderWidth: hairline,
+      borderColor: chipBorder,
       alignItems: "center",
       justifyContent: "center",
     },
-    rowBody: { flex: 1, minWidth: 0, gap: 3 },
+    rowIconTint: { color: isLight ? "#6E675E" : "#B8B3AA" },
+    rowBody: { flex: 1, minWidth: 0, gap: 4 },
     rowTop: { flexDirection: "row", alignItems: "center", gap: 6 },
     rowName: { flex: 1, minWidth: 0, color: native.label, fontSize: 15, fontWeight: "600" },
     badge: {
-      color: native.secondaryLabel,
+      color: isLight ? "#6E675E" : "#B8B3AA",
       fontSize: 10.5,
       fontWeight: "700",
-      backgroundColor: native.fill,
-      borderRadius: 6,
-      paddingHorizontal: 6,
+      backgroundColor: chipBg,
+      borderRadius: 999,
+      borderWidth: hairline,
+      borderColor: chipBorder,
+      paddingHorizontal: 7,
       paddingVertical: 2,
       overflow: "hidden",
     },

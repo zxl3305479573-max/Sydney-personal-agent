@@ -1,6 +1,7 @@
 import { MenuView } from "@expo/ui/community/menu";
 import type { AccountSecurity, UsageSummary } from "@rakazo/contracts";
 import { accountDisplay, displayName } from "@rakazo/core";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { useQuery } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import type { Href } from "expo-router";
@@ -869,8 +870,19 @@ export default function Account() {
   );
 }
 
-function createAccountStyles() {
-  const tokens = mobileTokens();
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createAccountStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: {
       flex: 1,
@@ -879,9 +891,9 @@ function createAccountStyles() {
     content: {
       flexGrow: 1,
       paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 32,
-      gap: 24,
+      paddingTop: 18,
+      paddingBottom: 36,
+      gap: 22,
     },
     compactContent: {
       paddingHorizontal: 8,
@@ -891,23 +903,35 @@ function createAccountStyles() {
     },
     about: {
       alignItems: "center",
-      gap: 16,
-      paddingTop: 8,
-      paddingBottom: 22,
+      gap: 14,
+      paddingVertical: 20,
+      paddingHorizontal: 16,
+      borderRadius: 22,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
     },
     versionFooter: {
       alignItems: "center",
+      gap: 2,
     },
     versionLine: {
       color: native.secondaryLabel,
       fontSize: 13,
+      lineHeight: 18,
       textAlign: "center",
     },
     error: {
       color: tokens.destructive,
       fontSize: 15,
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 12,
     },
   });
 }

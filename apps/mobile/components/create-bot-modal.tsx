@@ -32,7 +32,7 @@ import { loadBotAvatarLibrary, removeBotAvatar, saveBotAvatar } from "../lib/bot
 import { BUILT_IN_BOT_AVATARS, bundledBotAvatar, pickBotAvatar } from "../lib/create-bot-avatar";
 import type { InboxBotIdentity } from "../lib/create-inbox-bot";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { currentSessionGeneration } from "../lib/session";
 import { errorText } from "../lib/user-error";
 import { GlassSurface } from "./glass-surface";
@@ -239,9 +239,10 @@ export function CreateBotModal({
   for (let index = 0; index < SYDNEY_PERSONALITIES.length; index += 2) {
     personalityRows.push(SYDNEY_PERSONALITIES.slice(index, index + 2));
   }
+  const selectedRing = tokens.ring ?? tokens.primary;
   const choiceStyle = (selected: boolean) => ({
-    borderWidth: selected ? 2 : 1,
-    borderColor: selected ? tokens.primary : tokens.border,
+    borderWidth: selected ? 1.5 : 1,
+    borderColor: selected ? selectedRing : tokens.border,
     borderRadius: 16,
     padding: 12,
     backgroundColor: tokens.card,
@@ -251,7 +252,7 @@ export function CreateBotModal({
     height: 68,
     borderRadius: 20,
     borderWidth: selected ? 2 : 1,
-    borderColor: selected ? tokens.primary : tokens.border,
+    borderColor: selected ? selectedRing : tokens.border,
     backgroundColor: tokens.card,
     alignItems: "center" as const,
     justifyContent: "center" as const,
@@ -294,24 +295,25 @@ export function CreateBotModal({
             accessible={false}
             style={{
               alignSelf: "center",
-              width: 36,
-              height: 4,
-              borderRadius: 2,
+              width: 38,
+              height: 5,
+              borderRadius: 2.5,
               backgroundColor: tokens.mutedForeground,
-              opacity: 0.35,
+              opacity: 0.32,
               marginBottom: 10,
             }}
           />
           <View
             style={{
               flexDirection: "row",
-              alignItems: "flex-start",
+              alignItems: "center",
               justifyContent: "space-between",
+              gap: 12,
               paddingHorizontal: 20,
               paddingBottom: 12,
             }}
           >
-            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
               <Text style={{ color: tokens.foreground, fontSize: 22, fontWeight: "700" }}>
                 {text("新建 Bot", "New bot")}
               </Text>
@@ -325,15 +327,20 @@ export function CreateBotModal({
               disabled={disabled}
               onPress={close}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: native.fill,
+                minHeight: 34,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: tokens.border,
+                backgroundColor: tokens.card,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <NativeSymbol ios="xmark" android="close" size={16} color={tokens.foreground} />
+              <Text style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}>
+                {text("关闭", "Close")}
+              </Text>
             </Pressable>
           </View>
 
@@ -346,11 +353,12 @@ export function CreateBotModal({
             <View style={{ alignItems: "center", paddingTop: 4 }}>
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={28}
+                cornerRadius={30}
                 style={{
-                  width: 112,
-                  height: 112,
-                  borderRadius: 28,
+                  width: 104,
+                  height: 104,
+                  borderRadius: 30,
+                  padding: 6,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
@@ -360,7 +368,20 @@ export function CreateBotModal({
                   borderColor: tokens.border,
                 }}
               >
-                <Image source={preview} style={{ width: 84, height: 84, borderRadius: 42 }} />
+                <View
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: 24,
+                    borderWidth: 1,
+                    borderColor: tokens.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Image source={preview} style={{ width: 82, height: 82, borderRadius: 41 }} />
+                </View>
               </GlassSurface>
             </View>
 
@@ -439,12 +460,12 @@ export function CreateBotModal({
 
               <GlassSurface
                 shape="roundedRectangle"
-                cornerRadius={14}
-                style={{ borderRadius: 14, marginTop: 2 }}
+                cornerRadius={16}
+                style={{ borderRadius: 16, marginTop: 2 }}
                 fallbackStyle={{
                   backgroundColor: tokens.card,
-                  borderWidth: 1,
-                  borderColor: tokens.border,
+                  borderWidth: personal ? 1.5 : 1,
+                  borderColor: personal ? selectedRing : tokens.border,
                 }}
               >
                 <Pressable

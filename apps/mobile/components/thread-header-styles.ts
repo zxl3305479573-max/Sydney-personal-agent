@@ -6,7 +6,19 @@ import { HEADER_CONTROL_SIZE } from "../lib/native-controls";
 
 export function createThreadHeaderStyles() {
   const tokens = mobileTokens();
-  const transparentBackground = transparentColor(tokens.background);
+  const bg = tokens?.background ?? "#F3F1EC";
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const transparentBackground = transparentColor(bg);
+  const customGlassFill =
+    tokens?.glassFill &&
+    tokens.glassFill !== "#FFFFFF" &&
+    tokens.glassFill !== "#272C36"
+      ? tokens.glassFill
+      : undefined;
+  const porcelainPill = customGlassFill ?? (isLight ? "#FFFEFC" : "#242933");
   return StyleSheet.create({
     titleCapsule: {
       flexDirection: "row",
@@ -19,7 +31,12 @@ export function createThreadHeaderStyles() {
       borderRadius: 999,
     },
     titleCapsuleFill: {
-      backgroundColor: tokens.glassFill,
+      backgroundColor: porcelainPill,
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
     },
     title: {
       // A long name gives way to the avatars beside it and ends in "…".
@@ -37,7 +54,7 @@ export function createThreadHeaderStyles() {
       top: 0,
       left: 0,
       right: 0,
-      experimental_backgroundImage: `linear-gradient(to bottom, ${tokens.background} 0%, ${tokens.background} 60%, ${transparentBackground} 100%)`,
+      experimental_backgroundImage: `linear-gradient(to bottom, ${bg} 0%, ${bg} 60%, ${transparentBackground} 100%)`,
     },
   });
 }

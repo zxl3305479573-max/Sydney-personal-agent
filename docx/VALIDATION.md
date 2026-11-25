@@ -1,5 +1,17 @@
 # 验证记录
 
+## 手机 App 个人中枢首页与全界面风格统一离线校验（2026-11-24）
+
+关联 PA-019／PA-020／PA-021／PA-022／PA-023／PA-024，基线为 `cursor/integrate-remote-branches-7334`（`148a4f5af`）。PC 端源码（`apps/web`、`apps/desktop`、`packages/ui-web`）已恢复为 `HEAD` 零改动；变更范围严格收敛于 `apps/mobile`（75 个修改／新增源码与测试文件，含统一微光渐变令牌 `card-gradient.ts`）和 `packages/ui-tokens`（`index.ts` 与 `tokens.css`）。当前 `ui` 工作树无本地 `node_modules`，按规范仅运行受控 Node 离线门禁：
+
+- **已执行并通过**：
+  - `node scratch/verify-ui.mjs`（Node `v24.15.0` 直接导入 `packages/ui-tokens/src/index.ts` 并复用本机 pnpm 存储中的 `@babel/parser@7.29.2`）：**138 项对比度与令牌不变量全部通过**（含 `tokens.css === renderTokensCss()`、调浅后的 `#FFFFFF` 卡片与 `#F3F1EC` 清透奶白画布分离度优于 `#FFFFFF/#F2F2F7`、深浅共 35 组前景色／背景色 WCAG AA `>= 4.5:1`、次级／弱化文本阶梯及 `sign-in.tsx` 标签对比度）；**76 个修改与新增 `.ts`/`.tsx` 文件全部通过 TypeScript + JSX AST 解析**；**`tokens.css` 通过括号配对校验**；**全仓新增及修改代码字体违规扫描为 `0`（`fontViolations=0`）**。
+  - `git diff --check`：通过，无空白字符或冲突标记异常。
+  - `git status --short apps/web apps/desktop packages/ui-web`：空输出，确认 PC 端零改动。
+- **未执行项（不声称已通过）**：
+  - 未在当前无 `node_modules` 的工作树执行 `vitest`（含新增 `apps/mobile/lib/home-hub.test.tsx` 与更新的 `apps/mobile/lib/main-navigation.test.tsx` 等现有移动端测试套件）、`tsc --noEmit` 和 `biome check`。
+  - 未执行 iOS OTA／未签名 IPA 打包及 iPhone 真机在全模块页面上的视觉、深浅色切换、Dynamic Type 大字号、分屏与侧滑返回实测。
+
 ## PostgreSQL 记忆共享迁移与 RLS（2026-11-22）
 
 本机 `.env` 指向 `127.0.0.1:54318/rakazo` 的 `rakazo-dev-postgres` 容器。目标生产数据库地址不在本机配置中，本轮没有连接或修改生产数据库。

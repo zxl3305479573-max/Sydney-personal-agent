@@ -29,18 +29,18 @@ function HeaderTextButton({
       disabled={disabled}
       hitSlop={8}
       onPress={onPress}
-      style={{
+      style={({ pressed }) => ({
         backgroundColor: "transparent",
         paddingVertical: 8,
         paddingStart: edge === "trailing" ? 20 : 0,
         paddingEnd: edge === "leading" ? 20 : 0,
         justifyContent: "center",
-        opacity: disabled ? 0.4 : 1,
-      }}
+        opacity: disabled ? 0.4 : pressed ? 0.65 : 1,
+      })}
     >
       <Text
         style={{
-          color: native.label,
+          color: emphasis ? native.label : native.secondaryLabel,
           fontSize: 17,
           fontWeight: emphasis ? "600" : "400",
         }}

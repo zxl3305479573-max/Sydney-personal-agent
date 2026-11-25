@@ -8,7 +8,14 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { usePageState } from "../lib/page-state";
 import { projectScopeKey } from "../lib/project-scope";
+import { GlassSurface } from "./glass-surface";
 import { NativeActionButton } from "./native-action-button";
+import { NativeSymbol } from "./native-symbol";
+
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
 
 export function ProjectCloudDirectory({
   projectId,
@@ -91,7 +98,16 @@ export function ProjectCloudDirectory({
     "读取、修改文本并新建 Markdown",
     "Read and update text files, and create Markdown",
   );
-  const caption = { color: tokens.mutedForeground, fontSize: 13 };
+  const isLight = isLightSurface(tokens?.background);
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const accentTaupe = isLight ? "#6E675E" : "#B8B3AA";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? accentTaupe;
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+  const caption = { color: mutedFg, fontSize: 13.5, lineHeight: 19 };
   async function change() {
     const focused = lifecycle.current;
     if (
@@ -138,19 +154,59 @@ export function ProjectCloudDirectory({
   }
 
   return (
-    <View
-      style={{ gap: 10, padding: 16, borderWidth: 1, borderColor: tokens.border, borderRadius: 16 }}
+    <GlassSurface
+      shape="roundedRectangle"
+      cornerRadius={20}
+      style={{ borderRadius: 20, padding: 18, gap: 12 }}
+      fallbackStyle={{
+        backgroundColor: cardBg,
+        borderRadius: 20,
+        borderWidth: 0.5,
+        borderColor: cardBorder,
+        shadowColor: "#26231F",
+        shadowOpacity: isLight ? 0.028 : 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 5 },
+        elevation: 1,
+      }}
     >
-      <Text accessibilityRole="header" style={{ color: tokens.foreground, fontWeight: "600" }}>
-        {text("云电脑目录", "Cloud computer folder")}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 11,
+            backgroundColor: chipBg,
+            borderWidth: 0.5,
+            borderColor: chipBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <NativeSymbol ios="icloud" android="cloud-outline" size={17} color={accentTaupe} />
+        </View>
+        <Text accessibilityRole="header" style={{ color: fg, fontSize: 16, fontWeight: "600" }}>
+          {text("云电脑目录", "Cloud computer folder")}
+        </Text>
+      </View>
       {binding ? (
         <>
-          <Text selectable style={caption}>
-            {selected?.name ?? text("绑定的云电脑", "Bound cloud computer")} · {binding.path} ·{" "}
-            {binding.intent === "read-only" ? readOnly : readWrite} ·{" "}
-            {status.status === "online" ? text("在线", "Online") : text("不可用", "Unavailable")}
-          </Text>
+          <View
+            style={{
+              backgroundColor: chipBg,
+              borderRadius: 14,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderWidth: 0.5,
+              borderColor: chipBorder,
+            }}
+          >
+            <Text selectable style={{ color: fg, fontSize: 14, lineHeight: 20 }}>
+              {selected?.name ?? text("绑定的云电脑", "Bound cloud computer")} · {binding.path} ·{" "}
+              {binding.intent === "read-only" ? readOnly : readWrite} ·{" "}
+              {status.status === "online" ? text("在线", "Online") : text("不可用", "Unavailable")}
+            </Text>
+          </View>
           <NativeActionButton
             label={text("撤销云电脑目录", "Revoke cloud folder")}
             prominence="secondary"
@@ -183,18 +239,22 @@ export function ProjectCloudDirectory({
               "Existing folder path relative to the dedicated workspace",
             )}
             placeholder={text("目录相对路径", "Relative folder path")}
-            placeholderTextColor={tokens.mutedForeground}
+            placeholderTextColor={mutedFg}
             autoCapitalize="none"
             autoCorrect={false}
             editable={!busy}
             value={path}
             onChangeText={setPath}
             style={{
-              borderWidth: 1,
-              borderRadius: 12,
-              borderColor: tokens.border,
-              color: tokens.foreground,
-              padding: 12,
+              backgroundColor: chipBg,
+              borderWidth: 0.5,
+              borderRadius: 16,
+              borderColor: chipBorder,
+              color: fg,
+              minHeight: 46,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              fontSize: 15,
             }}
           />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -232,13 +292,13 @@ export function ProjectCloudDirectory({
         </Text>
       )}
       {failed ? (
-        <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+        <Text accessibilityRole="alert" style={{ color: destructive }}>
           {text(
             "云电脑目录操作未确认，请核对电脑、路径及现有绑定。",
             "Folder operation unconfirmed. Check the computer, path, and active binding.",
           )}
         </Text>
       ) : null}
-    </View>
+    </GlassSurface>
   );
 }

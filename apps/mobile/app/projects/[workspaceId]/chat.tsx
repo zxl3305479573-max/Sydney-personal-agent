@@ -40,6 +40,11 @@ import { useProjectReplyVoice } from "../../../lib/use-project-reply-voice";
 import type { ProjectChatTarget } from "../../../lib/use-project-thread";
 import { useProjectThread } from "../../../lib/use-project-thread";
 
+function isLightSurface(background?: string): boolean {
+  if (!background || !background.startsWith("#") || background.length < 7) return true;
+  return Number.parseInt(background.slice(1, 3), 16) >= 128;
+}
+
 export default function ProjectChatRoute() {
   const params = useLocalSearchParams<{
     workspaceId: string;
@@ -122,8 +127,29 @@ function ProjectChat({
     router.push({ pathname: "/bot-settings", params: { botId, projectId, scope } });
   };
   const missing = chat.consent?.recipients.filter((recipient) => !recipient.allowed) ?? [];
-  const errorStyle = { color: tokens.destructive, fontSize: 14 };
-  const mutedStyle = { color: tokens.mutedForeground, fontSize: 13 };
+  const isLight = isLightSurface(tokens?.background);
+  const canvasBg = tokens?.background ?? (isLight ? "#F3F1EC" : "#15171C");
+  const cardBg = isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const fg = tokens?.foreground ?? (isLight ? "#26231F" : "#F5F4F0");
+  const mutedFg = tokens?.mutedForeground ?? (isLight ? "#6E675E" : "#B8B3AA");
+  const destructive = tokens?.destructive ?? (isLight ? "#C4272D" : "#FF8F8C");
+  const porcelainCardStyle = {
+    backgroundColor: cardBg,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: cardBorder,
+    padding: 16,
+    shadowColor: "#26231F",
+    shadowOpacity: isLight ? 0.028 : 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 1,
+  } as const;
+  const errorStyle = { color: destructive, fontSize: 14 };
+  const mutedStyle = { color: mutedFg, fontSize: 13 };
   const disabled = !enabled || archived || !chat.snapshot || chat.sending || chat.consenting;
   const send = async () => {
     if (disabled || missing.length) return;
@@ -137,7 +163,7 @@ function ProjectChat({
     <KeyboardAvoidingView
       behavior="padding"
       {...threadKeyboardAvoidance({ os: Platform.OS, floatingHeader, nativeHeaderHeight })}
-      style={{ flex: 1, backgroundColor: tokens.background }}
+      style={{ flex: 1, backgroundColor: canvasBg }}
     >
       <View style={{ flex: 1 }}>
         <Stack.Screen
@@ -167,7 +193,7 @@ function ProjectChat({
                   readOnly: false,
                   hasBot: true,
                   t,
-                  color: tokens.foreground,
+                  color: fg,
                   onGroupSettings: openBotSettings,
                   onBotActions: () => details.canManage ? setActionsOpen(true) : openBotSettings(),
                   menuActions: details.canManage ? actionMenu.actions : [{ text: t("Settings"), onPress: openBotSettings }],
@@ -188,14 +214,16 @@ function ProjectChat({
         >
           {archived ? <NativeActionButton label={t("Restore")} onPress={() => actionMenu.actions.find((action) => action.text === t("Restore"))?.onPress()} /> : null}
           {!enabled ? (
-            <Text accessibilityRole="alert" style={errorStyle}>
-              {text(
-                "项目入口已失效，请返回项目列表重新选择。",
-                "This project link is no longer active. Reopen it from Projects.",
-              )}
-            </Text>
+            <View style={{ ...porcelainCardStyle, gap: 8 }}>
+              <Text accessibilityRole="alert" style={errorStyle}>
+                {text(
+                  "项目入口已失效，请返回项目列表重新选择。",
+                  "This project link is no longer active. Reopen it from Projects.",
+                )}
+              </Text>
+            </View>
           ) : null}
-          {enabled && chat.loading ? <ActivityIndicator color={tokens.primary} /> : null}
+          {enabled && chat.loading ? <ActivityIndicator color={mutedFg} /> : null}
           {enabled && details.identityError ? (
             <Text accessibilityRole="alert" style={errorStyle}>
               {text(
@@ -205,7 +233,7 @@ function ProjectChat({
             </Text>
           ) : null}
           {chat.readError && enabled ? (
-            <View style={{ gap: 8 }}>
+            <View style={{ ...porcelainCardStyle, gap: 10 }}>
               <Text accessibilityRole="alert" style={errorStyle}>
                 {text(
                   "会话同步中断，已显示的内容可能不是最新状态。",
@@ -257,9 +285,9 @@ function ProjectChat({
                       }}
                     >
                       {approval ? (
-                        <View style={{ gap: 8 }}>
+                        <View style={{ ...porcelainCardStyle, gap: 10 }}>
                           <Text style={mutedStyle}>{senderName}</Text>
-                          <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
+                          <Text style={{ color: fg, fontWeight: "600", fontSize: 15 }}>
                             {approval.title}
                           </Text>
                           <Text selectable style={mutedStyle}>
@@ -319,10 +347,22 @@ function ProjectChat({
             </Text>
           ) : null}
           {enabled && chat.snapshot?.run ? (
-            <Text style={mutedStyle}>
-              {text("任务状态：", "Run status: ")}
-              {chat.snapshot.run.status}
-            </Text>
+            <View
+              style={{
+                alignSelf: "flex-start",
+                backgroundColor: chipBg,
+                borderRadius: 999,
+                borderWidth: 0.5,
+                borderColor: chipBorder,
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+              }}
+            >
+              <Text style={mutedStyle}>
+                {text("任务状态：", "Run status: ")}
+                {chat.snapshot.run.status}
+              </Text>
+            </View>
           ) : null}
           {enabled
             ? projectActiveRuns(chat.snapshot).map((run) => {
@@ -365,18 +405,29 @@ function ProjectChat({
             </Text>
           ) : null}
           {missing.length ? (
-            <View style={{ gap: 10 }}>
-              <Text style={{ color: tokens.foreground, fontWeight: "600" }}>
+            <View style={{ ...porcelainCardStyle, gap: 12 }}>
+              <Text style={{ color: fg, fontWeight: "600", fontSize: 16 }}>
                 {text("发送前确认 AI 数据共享", "Review AI data sharing before sending")}
               </Text>
               {missing.map((recipient) => (
-                <Text key={recipient.key} selectable style={mutedStyle}>
-                  {recipient.name}
-                  {"\n"}
-                  {recipient.detail}
-                  {"\n"}
-                  {AI_DATA_DISCLOSURES[recipient.use]}
-                </Text>
+                <View
+                  key={recipient.key}
+                  style={{
+                    backgroundColor: chipBg,
+                    borderRadius: 14,
+                    padding: 12,
+                    borderWidth: 0.5,
+                    borderColor: chipBorder,
+                  }}
+                >
+                  <Text selectable style={mutedStyle}>
+                    {recipient.name}
+                    {"\n"}
+                    {recipient.detail}
+                    {"\n"}
+                    {AI_DATA_DISCLOSURES[recipient.use]}
+                  </Text>
+                </View>
               ))}
               <NativeActionButton
                 label={text("允许这些接收方", "Allow these recipients")}

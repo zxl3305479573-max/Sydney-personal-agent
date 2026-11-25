@@ -1,15 +1,26 @@
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassSurface } from "../components/glass-surface";
 import { glassHeaderOptions } from "../components/glass-title";
 import { NativeActionButton } from "../components/native-action-button";
 import { RoutineRunHistory } from "../components/routine-run-history";
 import { useI18n } from "../lib/i18n";
-import { native, useMobileTokens } from "../lib/native";
+import { useMobileTokens } from "../lib/native";
 import { routineStatusLine } from "../lib/routine";
 import { loadBotRoutines, useBotRoutines } from "../lib/routine-store";
+import { useScopedTheme } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
 import { errorText } from "../lib/user-error";
+
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
 
 export default function RoutineDetail() {
   const sideInsets = useSideInsets();
@@ -43,16 +54,37 @@ export default function RoutineDetail() {
             : null;
   const loading = !routine && !error;
 
+  const scope = useScopedTheme();
+  const isLight = scope ? scope.appearance === "light" : isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
+  const cardBg = scope ? (scope.tokens?.card ?? "#FFFEFC") : isLight ? "#FFFEFC" : "#242933";
+  const cardBorder = scope
+    ? (scope.tokens?.border ?? "rgba(38, 35, 31, 0.06)")
+    : isLight
+      ? "rgba(38, 35, 31, 0.055)"
+      : "rgba(245, 244, 240, 0.09)";
+  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+
   return (
     <ScrollView
       style={[{ flex: 1, backgroundColor: tokens.background }, sideInsets]}
-      contentContainerStyle={{ padding: 24, gap: 18 }}
+      contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 36 }}
       contentInsetAdjustmentBehavior="automatic"
     >
       <Stack.Screen options={glassHeaderOptions(routine?.name ?? t("Routine"))} />
       {loading ? <ActivityIndicator color={tokens.mutedForeground} /> : null}
       {error ? (
-        <View style={{ gap: 12 }}>
+        <View
+          style={{
+            gap: 12,
+            padding: 20,
+            borderRadius: 20,
+            backgroundColor: cardBg,
+            borderWidth: hairline,
+            borderColor: cardBorder,
+          }}
+        >
           <Text
             accessibilityRole="alert"
             style={{ color: tokens.destructive, fontSize: 15, lineHeight: 22 }}
@@ -72,29 +104,65 @@ export default function RoutineDetail() {
         <>
           <GlassSurface
             shape="roundedRectangle"
-            cornerRadius={16}
-            fallbackStyle={{ backgroundColor: native.fill }}
+            cornerRadius={20}
+            fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
             style={{
-              borderRadius: 16,
-              padding: 18,
+              borderRadius: 20,
+              borderCurve: "continuous",
+              padding: 16,
+              borderWidth: hairline,
+              borderColor: cardBorder,
+              shadowColor: "#26231F",
+              shadowOpacity: isLight ? 0.028 : 0.16,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 5 },
+              elevation: 1,
             }}
           >
-            <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
-              {routineStatusLine(routine)}
-            </Text>
+            <View
+              style={{
+                alignSelf: "flex-start",
+                backgroundColor: chipBg,
+                borderRadius: 999,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderWidth: hairline,
+                borderColor: chipBorder,
+              }}
+            >
+              <Text style={{ color: isLight ? "#5E584F" : tokens.mutedForeground, fontSize: 14 }}>
+                {routineStatusLine(routine)}
+              </Text>
+            </View>
           </GlassSurface>
-          <View style={{ gap: 8 }}>
+          <View style={{ gap: 10 }}>
             <Text
               accessibilityRole="header"
-              style={{ color: tokens.foreground, fontSize: 17, lineHeight: 22, fontWeight: "600" }}
+              style={{
+                color: tokens.foreground,
+                fontSize: 17,
+                lineHeight: 22,
+                fontWeight: "600",
+                paddingStart: 4,
+              }}
             >
               {t("Prompt")}
             </Text>
             <GlassSurface
               shape="roundedRectangle"
-              cornerRadius={16}
-              style={{ borderRadius: 16 }}
-              fallbackStyle={{ backgroundColor: native.fill }}
+              cornerRadius={20}
+              style={{
+                borderRadius: 20,
+                borderCurve: "continuous",
+                borderWidth: hairline,
+                borderColor: cardBorder,
+                shadowColor: "#26231F",
+                shadowOpacity: isLight ? 0.028 : 0.16,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 5 },
+                elevation: 1,
+              }}
+              fallbackStyle={{ backgroundColor: cardBg, borderRadius: 20 }}
             >
               <Text
                 selectable

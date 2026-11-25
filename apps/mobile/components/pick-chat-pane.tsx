@@ -29,7 +29,12 @@ export function PickChatPane() {
         },
       ]}
     >
-      <Text style={styles.emptyPane}>{t("Pick a chat")}</Text>
+      <View style={styles.emptyPaneCard}>
+        <View style={styles.emptyPaneBadge}>
+          <View style={styles.emptyPaneBadgeDot} />
+        </View>
+        <Text style={styles.emptyPane}>{t("Pick a chat")}</Text>
+      </View>
     </View>
   );
 }

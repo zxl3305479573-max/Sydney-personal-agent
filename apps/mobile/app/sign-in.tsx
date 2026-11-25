@@ -55,7 +55,7 @@ export default function SignIn() {
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
   const { fontScale } = useWindowDimensions();
-  const secondaryText = appearance === "light" ? "#52525A" : tokens.mutedForeground;
+  const secondaryText = appearance === "light" ? "#4A453E" : tokens.mutedForeground;
   const inputHeight = Math.max(48, 16 * fontScale + 24);
   const router = useRouter();
   const { mode: requestedMode } = useLocalSearchParams<{ mode?: string | string[] }>();
@@ -283,37 +283,14 @@ export default function SignIn() {
             >
               <View
                 style={{
-                  position: "absolute",
-                  width: "100%",
-                  height: 1,
-                  backgroundColor: tokens.border,
+                  width: 360,
+                  height: 360,
+                  borderRadius: 180,
+                  backgroundColor: appearance === "light" ? tokens.card : tokens.ring,
+                  opacity: appearance === "light" ? 0.65 : 0.08,
+                  transform: [{ translateY: -40 }],
                 }}
               />
-              <View
-                style={{
-                  position: "absolute",
-                  width: 1,
-                  height: "100%",
-                  backgroundColor: tokens.border,
-                }}
-              />
-              {Array.from({ length: 14 }, (_, index) => {
-                const diameter = 448 + index * 120;
-                return (
-                  <View
-                    key={diameter}
-                    style={{
-                      position: "absolute",
-                      width: diameter,
-                      height: diameter,
-                      borderRadius: diameter / 2,
-                      borderWidth: 1,
-                      borderColor: tokens.border,
-                      opacity: index % 3 === 2 ? 1 : 0.55,
-                    }}
-                  />
-                );
-              })}
             </View>
             <ScrollView
               contentContainerStyle={{ flexGrow: 1 }}
@@ -332,12 +309,25 @@ export default function SignIn() {
                   columnGap: 16,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Image
-                    source={require("../../../packages/ui-tokens/assets/Sydney.icon/Assets/sydney-mark.png")}
-                    accessibilityIgnoresInvertColors
-                    style={{ width: 28, height: 28, tintColor: tokens.foreground }}
-                  />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: tokens.border,
+                      backgroundColor: tokens.card,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Image
+                      source={require("../../../packages/ui-tokens/assets/Sydney.icon/Assets/sydney-mark.png")}
+                      accessibilityIgnoresInvertColors
+                      style={{ width: 20, height: 20, tintColor: tokens.foreground }}
+                    />
+                  </View>
                   <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "500" }}>
                     Sydney
                   </Text>
@@ -382,16 +372,17 @@ export default function SignIn() {
               >
                 <GlassSurface
                   shape="roundedRectangle"
-                  cornerRadius={16}
+                  cornerRadius={22}
                   fallbackStyle={{ backgroundColor: tokens.card }}
                   style={{
                     width: "100%",
                     maxWidth: 420,
                     alignSelf: "center",
                     padding: 24,
-                    borderRadius: 16,
+                    borderRadius: 22,
                     borderWidth: 1,
                     borderColor: tokens.border,
+                    backgroundColor: tokens.card,
                   }}
                 >
                   <Text

@@ -33,7 +33,8 @@ export function chatRouteHeader(
   const params = (route.params ?? {}) as ChatTitleParams;
   const { groupId, botId } = params;
   const readOnly = params.readOnly === "1";
-  const color = mobileTokens().foreground;
+  const tokens = mobileTokens();
+  const color = tokens?.foreground ?? "#26231F";
   return {
     headerTitleAlign: "center",
     ...threadEdgeOptions(),
@@ -90,6 +91,24 @@ export function threadHeaderLeft({
     };
   }
   const label = inboxHidden ? t("Show chats") : t("Hide chats");
+  const tokens = mobileTokens();
+  const bg = tokens?.background;
+  const isLight =
+    typeof bg === "string" && /^#[\da-f]{6}/i.test(bg)
+      ? Number.parseInt(bg.slice(1, 3), 16) > 128
+      : true;
+  const fallbackPillStyle = {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: isLight ? "#FFFEFC" : "#242933",
+    borderWidth: 0.5,
+    borderColor:
+      tokens?.border ??
+      (isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)"),
+  };
   return {
     headerBackVisible: false,
     ...(iosAtLeast(26)
@@ -111,11 +130,12 @@ export function threadHeaderLeft({
         accessibilityLabel={label}
         hitSlop={8}
         onPress={() => setInboxHidden(!inboxHidden)}
+        style={fallbackPillStyle}
       >
         <NativeSymbol
           ios={inboxHidden ? "sidebar.left" : "arrow.up.left.and.arrow.down.right"}
           android={inboxHidden ? "contract-outline" : "expand-outline"}
-          size={21}
+          size={19}
           color={color}
         />
       </Pressable>

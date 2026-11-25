@@ -1,4 +1,5 @@
 import type { AgentSkill } from "@rakazo/contracts";
+import type { ColorTokens } from "@rakazo/ui-tokens";
 import type { NativeStackNavigationOptions } from "expo-router";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -198,20 +199,40 @@ export default function SkillScreen() {
   );
 }
 
-function createStyles() {
+function isLightPalette(tokens?: Partial<ColorTokens> | null): boolean {
+  const bg = tokens?.background;
+  if (typeof bg === "string" && bg.startsWith("#") && bg.length >= 7) {
+    const red = Number.parseInt(bg.slice(1, 3), 16);
+    if (!Number.isNaN(red)) return red >= 128;
+  }
+  return true;
+}
+
+function createStyles(passedTokens?: ColorTokens) {
+  const tokens = passedTokens ?? mobileTokens();
+  const isLight = isLightPalette(tokens);
+  const hairline = StyleSheet.hairlineWidth ?? 0.5;
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.page },
-    content: { padding: 16, gap: 14 },
+    content: { padding: 16, paddingBottom: 36, gap: 14 },
     editor: {
       minHeight: 320,
-      borderRadius: 12,
-      backgroundColor: native.fill,
+      borderRadius: 20,
+      borderCurve: "continuous",
+      backgroundColor: isLight ? "#FFFEFC" : "#242933",
+      borderWidth: hairline,
+      borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
+      shadowColor: "#26231F",
+      shadowOpacity: isLight ? 0.028 : 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 1,
       color: native.label,
-      padding: 14,
+      padding: 16,
       fontSize: 14,
       lineHeight: 20,
       fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     },
-    error: { color: mobileTokens().destructive, fontSize: 13 },
+    error: { color: tokens.destructive, fontSize: 13 },
   });
 }
