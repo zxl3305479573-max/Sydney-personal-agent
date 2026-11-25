@@ -1,5 +1,16 @@
 # 验证记录
 
+## 全分支整合收口：`backend` 分支合入 `main` 与跨包回归（2026-11-25）
+
+关联 PA-018／PA-021／PA-022／PA-023／P2／P3。将本地 `backend` 分支（`ceac00bb5`，完整覆盖 `butterflyray` 全部有效改动并额外包含 PA-022 非空项目删除、P2/P3 任务执行审计、MCP 原生回调并发修复与 Native Linux 驱动状态持久化）推送至 `origin/backend` 并合入集成分支与 `main`（合并提交 `a121af6f9`）。解决 `infra/native-linux/driver.py` 常量冲突，补齐 5 处合入后类型与真实字段缺陷（含 `packages/db/src/project-workspace-deletion.ts` 补齐 `lease.fence`/`runId`、`packages/adapters/src/native-linux-sandbox.ts` 请求基对象类型窄化、`apps/mobile/lib/startup.ts` 补齐 `"notifications"` 启动步骤等）并修复 18 项测试替身与共享记忆断言差异（含顺手修复 `packages/db/src/groups.test.ts` 的 `query.join is not a function`）。
+
+- **已执行并通过**：
+  - Prisma 客户端生成与四包类型检查：`packages/db`、`packages/adapters`、`apps/api`、`apps/mobile` `tsc --noEmit` 全部 **0 错误通过**。
+  - Python Native Linux 驱动单测：`python -m unittest infra/native-linux/test_driver.py` **37 项（33 通过、4 项 Linux 专属跳过）通过**。
+  - 跨包 Vitest 回归（22 个文件：`project-workspace`、`account-deletion-response`、`groups`、`project-account-lifecycle`、`project-workspace-deletion`、`project-workspace-read`、`task-execution`、`background-job-handlers`、`executor-lazy-computer`、`executor`、`mcp-oauth`、`native-linux-sandbox`、`run-project-policy`、`run-tools-project-files`、`run-tools`、`account-deletion-claim-recovery`、`api/project-workspace-deletion`、`project-workspace-thread`、`project-workspaces`、`tasks`、`thread-read`、`web/Projects`）：**604 项通过、2 项既有跳过、0 失败**。
+  - `git diff --check` 通过。
+- **未执行项**：未在授权生产服务器执行新增 PostgreSQL 迁移、后台 API／Worker 重建部署及真机验收；历史旧原型 `codex/linux-computer-onboarding` 与已由 `ui` 替代的旧双端方案 `razorbill` 未混入主分支。
+
 ## 个人中枢首页「后台陪伴」组件（2026-11-25）
 
 关联 PA-021。
