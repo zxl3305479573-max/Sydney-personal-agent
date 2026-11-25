@@ -1,5 +1,25 @@
 # 验证记录
 
+## iPhone 1.0.25 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **发布前本机复验**：
+  - `apps/mobile/sydney-release.json`（递增至 `1.0.25`，三语各 4 条更新说明）Biome 检查 0 错误，`git diff --check` 0 警告。
+  - 发布配置与版本定向 Vitest（4 个文件、82 项全部通过）：`app-version.test.ts`（6）、`app-config.test.ts`（34）、`client-update.test.ts`（14）、`account-screen.test.tsx`（28）。
+- **Git 提交与 GitHub Actions OTA 结果**：
+  - 源码提交 `0b732a55b4690567aff138b3a01ea58cf81a58bd`（位于 `097cc0f84` 之上）已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - `mobile-ios-update.yml` [Run 45627076267](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45627076267)（分支 `main`、提交 `0b732a55b`、runtime `sydney-ios-ip-1`）：**completed / success**。
+  - 更新组 ID：`b87e5bcd-d422-4072-b014-7ef8ae6ca6c4`；iOS 更新 ID：`01a212f7-2607-7da8-882a-0b7b34c10044`；发布时间：`2026-11-25T13:48:36.743Z`。
+- **线上 Expo 清单与产物校验**：
+  - `https://u.expo.dev/c33e1434-f7d0-4c40-8839-78b050d41388`（`expo-platform: ios`、`expo-runtime-version: sydney-ios-ip-1`、`expo-channel-name: sideload`）返回 **HTTP `200`**（`multipart/mixed`），`id` 为 `01a212f7-2607-7da8-882a-0b7b34c10044`，`sydneyMobileRelease.version` 为 `1.0.25`、`releasedOn` 为 `2026-11-25`，`zh-CN`/`zh-TW`/`en` 说明各 4 条。
+  - 启动包（`launchAsset`）：**HTTP `200`**，大小 **`10,910,472` 字节**，SHA-256 为 `e1c3316d86c226e2dcde8272b395f4ce527c5ab87adad94c6dbd9a1a46ab05cf`，与清单摘要一致。
+  - 静态资源：按清单 `extensions.assetRequestHeaders` 逐项拉取，**`56 / 56` 全部 HTTP `200` 且 SHA-256 匹配**。
+- **同期其他 GitHub Actions 观测（不做推定通过）**：
+  - `desktop-macos-screenshot` Run `45626341617`（`main`／`097cc0f84`）：**completed / success**。
+  - 核验时点 `ci` Run `45627072657`（`main`／`0b732a55b`）与 `iOS unsigned sideload build` Run `45627071926`（`0b732a55b`）仍处于 `in_progress`；前序 `ci` Run `45626341696`（`097cc0f84`）为 `failure`，本次未将整仓 CI 标记为通过。
+- **未执行项**：iPhone 真机在「设置 → 检查更新」下载重启、核对「设置 → 关于」为 `1.0.25`、以及暖瓷首页／后台陪伴／消息通知设置／开屏动画／全界面点击动效与系统「减弱动态效果」实机验收仍待用户真机复核。
+
 ## 手机 App 全界面点击动效统一（2026-11-25）
 
 关联 PA-021。

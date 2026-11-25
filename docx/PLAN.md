@@ -1,5 +1,16 @@
 # Sydney 开发总计划
 
+## iPhone 1.0.25 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
+
+状态：源码提交推送、GitHub Actions `sideload` OTA 发布与线上清单／启动包／全量资源核验完成；真实 iPhone 下载重启与交互验收待执行。
+
+范围与交付物：
+- 提交推送：`097cc0f84`（含移动端全界面点击动效统一、`StartupSplash` 开屏动画与 GitHub CI 修复）与 `0b732a55b`（将 `apps/mobile/sydney-release.json` 递增至 `1.0.25` 并补充三语更新说明）均已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+- iPhone OTA 分发：通过 `.github/workflows/mobile-ios-update.yml` 触发 [Run 45627076267](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45627076267)（分支 `main`、提交 `0b732a55b`）并成功发布至 `sideload` 通道，runtime 沿用 `sydney-ios-ip-1`（原生底座仍为 `1.0.12`，无需重签重装 IPA）。更新组 `b87e5bcd-d422-4072-b014-7ef8ae6ca6c4`，iOS 更新 ID `01a212f7-2607-7da8-882a-0b7b34c10044`。
+- 验证结果：`sydney-release.json` Biome 检查与 4 个发布配置／版本单测（82 项）通过；线上 Expo 清单返回 HTTP `200`，核对版本 `1.0.25`／三语说明各 4 条，启动包 `10,910,472` 字节及全部 `56/56` 项静态资源 HTTP `200` 且 SHA-256 全部匹配。详细证据与同期 CI 状态见 [验证记录](VALIDATION.md#iphone-1025-侧载-ota-发布2026-11-25)，升级与回退路径见 [运维手册](OPERATIONS.md#iphone-1025-侧载-ota2026-11-25)。
+
+依赖与验收条件：沿用既有 `sideload`／`sydney-ios-ip-1` 通道与仓库凭据，不部署后台／数据库迁移或改动项目设备开关；iPhone 真机在「设置 → 检查更新」下载重启、核对「关于」显示 `1.0.25` 并实测暖瓷首页／后台陪伴、通知设置、开屏启动动画与全界面点击动效仍待设备验收。
+
 ## 手机 App 全界面点击动效统一（PA-021，2026-11-25）
 
 状态：源码实现与移动端全量离线验证已完成（iPhone 真机触控手感、阴影／圆角裁切、系统「减弱动态效果」与侧载 OTA 生效待真机验收）。
