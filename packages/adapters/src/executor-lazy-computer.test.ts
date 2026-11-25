@@ -359,21 +359,19 @@ afterEach(() => {
 });
 
 describe("run computer provisioning", () => {
-  it("stops a managed attempt before model and connector setup when control is unavailable", async () => {
-    const { prisma, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
+  it("stops a managed run before acquiring a computer lease or creating an attempt when control is unavailable", async () => {
+    const { prisma, run, finalizeRun, runtimeRun, enqueue } = await runRoutine([], {
       managedControlBlocked: true,
     });
     expect(prisma.task.findFirst).toHaveBeenCalled();
+    expect(prisma.bot.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(prisma.attempt.create).not.toHaveBeenCalled();
     expect(prisma.task.findUniqueOrThrow).not.toHaveBeenCalled();
     expect(prisma.connection.findMany).not.toHaveBeenCalled();
     expect(runtimeRun).not.toHaveBeenCalled();
-    expect(finalizeRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        runId: "run-1",
-        outcome: "failed",
-        error: "Managed task was stopped or its control state was unavailable.",
-      }),
-    );
+    expect(finalizeRun).not.toHaveBeenCalled();
+    expect(run.status).toBe("failed");
+    expect(run.error).toBe("Managed task was stopped or its control state was unavailable.");
     expect(enqueue).not.toHaveBeenCalledWith(expect.objectContaining({ name: "run.continue" }));
   });
 

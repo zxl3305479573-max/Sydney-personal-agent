@@ -1143,10 +1143,11 @@ describe("MCP OAuth", () => {
           .map((value) => JSON.parse(value))
           .some((value) => value.oauth?.tokens?.access_token === "access-token"),
       ).toBe(true);
-      expect(prisma.mcpServer.update).toHaveBeenCalledWith({
+      expect(tx.mcpServer.update).toHaveBeenCalledWith({
         where: { id: "server-1" },
-        data: { revision: { increment: 1 } },
+        data: { secretId: "secret-3", revision: { increment: 1 } },
       });
+      expect(prisma.mcpServer.update).not.toHaveBeenCalled();
     },
   );
 
@@ -2297,9 +2298,10 @@ describe("MCP OAuth", () => {
           access_token: "issued-access",
           refresh_token: "issued-refresh",
         });
+        expect(prisma.mcpServer.update).toHaveBeenCalledTimes(1);
         expect(prisma.mcpServer.update).toHaveBeenCalledWith({
           where: { id: "server-1" },
-          data: { revision: { increment: 1 } },
+          data: { secretId: "session-secret", revision: { increment: 1 } },
         });
       });
 
@@ -2524,7 +2526,9 @@ describe("MCP OAuth", () => {
       oauthCiphertext: "session-first",
       createdAt: new Date(),
     });
-    const prisma = {
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      $queryRaw: vi.fn().mockResolvedValue([]),
       mcpServer: {
         findFirst: vi.fn().mockResolvedValue({
           id: "server-1",
@@ -2537,9 +2541,14 @@ describe("MCP OAuth", () => {
         findFirst: vi.fn().mockResolvedValue({ id: "secret-1", ciphertext: "encrypted" }),
         create: vi.fn().mockResolvedValue({}),
         deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+        count: vi.fn().mockResolvedValue(1),
       },
+    };
+    const prisma = {
+      mcpServer: tx.mcpServer,
+      secret: tx.secret,
       mcpOAuthSession: sessions,
-      $transaction: vi.fn().mockResolvedValue([]),
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const secrets = {
       load: vi.fn((ciphertext: string) =>
@@ -2570,9 +2579,10 @@ describe("MCP OAuth", () => {
       },
     });
     expect(new URLSearchParams(tokenRequestBody).get("code_verifier")).toBe("persisted-verifier");
+    expect(prisma.mcpServer.update).toHaveBeenCalledTimes(1);
     expect(prisma.mcpServer.update).toHaveBeenCalledWith({
       where: { id: "server-1" },
-      data: { revision: { increment: 1 } },
+      data: { secretId: "secret-2", revision: { increment: 1 } },
     });
   });
 
@@ -2951,4 +2961,652 @@ describe("MCP setup with an existing access token", () => {
       expect(secrets.put).not.toHaveBeenCalled();
     },
   );
+
+  it("stages dynamic client re-registration for a new callback URI without overwriting an existing grant until completion", async () => {
+    const webCallback = "https://web.example.test/mcp/oauth/callback";
+    const apiCallback = "https://api.example.test/api/mcp/oauth/callback";
+    const registeredRequests: Array<Record<string, unknown>> = [];
+    const values = new Map<string, string>();
+    let nextRecord = 0;
+    const secrets = {
+      put: vi.fn(async (plaintext: string) => {
+        nextRecord += 1;
+        values.set(`cipher-${nextRecord}`, plaintext);
+        return { id: `secret-${nextRecord}`, ciphertext: `cipher-${nextRecord}` };
+      }),
+      load: vi.fn(async (ciphertext: string) => {
+        const value = values.get(ciphertext);
+        if (value === undefined) throw new Error("secret not found");
+        return value;
+      }),
+      delete: vi.fn(async (ciphertext: string) => {
+        values.delete(ciphertext);
+      }),
+    };
+    const initialMaterial: OAuthMaterial = {
+      oauth: {
+        redirectUri: webCallback,
+        clientRedirectUri: webCallback,
+        clientInformation: { client_id: "web-client", redirect_uris: [webCallback] },
+        tokens: { access_token: "live-web-token", token_type: "Bearer" },
+      },
+    };
+    const initialSecret = await secrets.put(JSON.stringify(initialMaterial));
+    const secretRows = [initialSecret];
+    const server = {
+      id: "server-1",
+      endpoint: "https://mcp.example.test/mcp",
+      secretId: initialSecret.id as string | null,
+      enabled: true,
+      revision: 2,
+    };
+    type StoredSessionRow = {
+      id: string;
+      serverId: string;
+      spaceId: string;
+      userId: string;
+      endpoint: string;
+      redirectUri: string;
+      oauthCiphertext: string;
+      createdAt: Date;
+    };
+    const storedSessions = new Map<string, StoredSessionRow>();
+    const tables = {
+      mcpServer: {
+        findFirst: vi.fn(async () => ({ ...server })),
+        update: vi.fn(async ({ data }: { data: { secretId?: string | null; revision?: { increment: number } } }) => {
+          if ("secretId" in data) server.secretId = data.secretId ?? null;
+          if (data.revision?.increment) server.revision += data.revision.increment;
+          return { ...server };
+        }),
+      },
+      secret: {
+        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
+          secretRows.find((row) => row.id === where.id) ?? null,
+        ),
+        create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
+          secretRows.push({ id: data.id, ciphertext: data.ciphertext });
+          return data;
+        }),
+        deleteMany: vi.fn(async ({ where }: { where: { id: string } }) => {
+          const idx = secretRows.findIndex((row) => row.id === where.id);
+          if (idx >= 0) secretRows.splice(idx, 1);
+          return { count: idx >= 0 ? 1 : 0 };
+        }),
+        count: vi.fn(async () => 0),
+      },
+      mcpServerSpace: { count: vi.fn(async () => 0) },
+      botSecret: { count: vi.fn(async () => 0) },
+      integrationProviderConfig: { count: vi.fn(async () => 0) },
+      mcpOAuthSession: {
+        count: vi.fn(async () => storedSessions.size),
+        create: vi.fn(async ({ data }: { data: Omit<StoredSessionRow, "createdAt"> }) => {
+          const row: StoredSessionRow = { ...data, createdAt: new Date() };
+          storedSessions.set(data.id, row);
+          return row;
+        }),
+        findFirst: vi.fn(async ({ where }: { where: { id: string } }) => storedSessions.get(where.id) ?? null),
+        deleteMany: vi.fn(async ({ where }: { where: { id?: string; serverId?: string } }) => {
+          if (where.id) {
+            const existed = storedSessions.delete(where.id);
+            return { count: existed ? 1 : 0 };
+          }
+          if (where.serverId) {
+            let count = 0;
+            for (const [id, row] of storedSessions) {
+              if (row.serverId === where.serverId) {
+                storedSessions.delete(id);
+                count += 1;
+              }
+            }
+            return { count };
+          }
+          return { count: 0 };
+        }),
+      },
+    };
+    const prisma = {
+      ...tables,
+      $transaction: async <T>(callback: (tx: unknown) => Promise<T>) =>
+        callback({ ...tables, $queryRaw: vi.fn(async () => []), $executeRaw: vi.fn(async () => 1) }),
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const url = logicalHref(input, init);
+        if (url === "https://mcp.example.test/mcp" && request.method === "POST") {
+          return new Response("expired", {
+            status: 401,
+            headers: {
+              "WWW-Authenticate":
+                'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+            },
+          });
+        }
+        if (url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return Response.json({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+          });
+        }
+        if (url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return Response.json({
+            issuer: "https://auth.example.test",
+            authorization_endpoint: "https://auth.example.test/authorize",
+            token_endpoint: "https://auth.example.test/token",
+            registration_endpoint: "https://auth.example.test/register",
+            response_types_supported: ["code"],
+            grant_types_supported: ["authorization_code", "refresh_token"],
+            code_challenge_methods_supported: ["S256"],
+          });
+        }
+        if (url === "https://auth.example.test/register" && request.method === "POST") {
+          const payload = (await request.json()) as Record<string, unknown>;
+          registeredRequests.push(payload);
+          return Response.json({
+            client_id: "native-client",
+            redirect_uris: payload.redirect_uris,
+          });
+        }
+        if (url === "https://auth.example.test/token" && request.method === "POST") {
+          const form = new URLSearchParams(await request.text());
+          expect(form.get("client_id")).toBe("native-client");
+          expect(form.get("redirect_uri")).toBe(apiCallback);
+          return Response.json({ access_token: "native-access", token_type: "Bearer" });
+        }
+        throw new Error(`Unexpected ${request.method} ${url}`);
+      }),
+    );
+
+    const broker = new McpOAuthBroker(prisma as never, secrets as never, TEST_NETWORK);
+    const readLive = async () => {
+      const row = secretRows.find((candidate) => candidate.id === server.secretId);
+      return row ? (JSON.parse(await secrets.load(row.ciphertext)) as OAuthMaterial) : {};
+    };
+
+    const started = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: apiCallback,
+    });
+    expect(started.status).toBe("authorization_required");
+    if (started.status !== "authorization_required") throw new Error("expected authorization_required");
+    expect(registeredRequests).toEqual([expect.objectContaining({ redirect_uris: [apiCallback] })]);
+    // Before completion, live credentials keep the original working grant and web client.
+    expect(await readLive()).toEqual(initialMaterial);
+
+    const overlapping = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: apiCallback,
+    });
+    expect(overlapping.status).toBe("authorization_required");
+    if (overlapping.status !== "authorization_required") throw new Error("expected authorization_required");
+
+    await broker.complete({
+      sessionId: started.sessionId,
+      code: "code-1",
+      state: started.sessionId,
+      spaceId: "workspace-1",
+      userId: "user-1",
+    });
+    const afterFirst = await readLive();
+    expect(afterFirst.oauth).toMatchObject({
+      redirectUri: apiCallback,
+      clientRedirectUri: apiCallback,
+      clientInformation: { client_id: "native-client", redirect_uris: [apiCallback] },
+      tokens: { access_token: "native-access", token_type: "Bearer" },
+    });
+    expect(afterFirst.oauth?.sessionRevision).toBeUndefined();
+
+    // The stale overlapping session sees the bumped revision and cannot overwrite the fresh grant.
+    await expect(
+      broker.complete({
+        sessionId: overlapping.sessionId,
+        code: "code-2",
+        state: overlapping.sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+      }),
+    ).rejects.toThrow("MCP OAuth state changed");
+
+    // Disconnect clears any pending sessions so an abandoned authorization cannot reconnect later.
+    const third = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: apiCallback,
+    });
+    expect(third.status).toBe("authorization_required");
+    if (third.status !== "authorization_required") throw new Error("expected authorization_required");
+    await broker.disconnect({ serverId: "server-1", spaceId: "workspace-1", userId: "user-1" });
+    expect(storedSessions.size).toBe(0);
+    await expect(
+      broker.complete({
+        sessionId: third.sessionId,
+        code: "code-3",
+        state: third.sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+      }),
+    ).rejects.toThrow("MCP OAuth session is invalid or expired");
+  });
+
+  it("atomically bumps server revision inside the credential lock so concurrent complete() calls cannot overwrite each other", async () => {
+    const callback = "https://api.example.test/api/mcp/oauth/callback";
+    const values = new Map<string, string>();
+    let nextRecord = 0;
+    const secrets = {
+      put: vi.fn(async (plaintext: string) => {
+        nextRecord += 1;
+        values.set(`cipher-${nextRecord}`, plaintext);
+        return { id: `secret-${nextRecord}`, ciphertext: `cipher-${nextRecord}` };
+      }),
+      load: vi.fn(async (ciphertext: string) => {
+        const value = values.get(ciphertext);
+        if (value === undefined) throw new Error("secret not found");
+        return value;
+      }),
+      delete: vi.fn(async (ciphertext: string) => {
+        values.delete(ciphertext);
+      }),
+    };
+    const secretRows: Array<{ id: string; ciphertext: string }> = [];
+    const server = {
+      id: "server-1",
+      endpoint: "https://mcp.example.test/mcp",
+      secretId: null as string | null,
+      spaceId: "workspace-1",
+      allSpaces: false,
+      enabled: true,
+      revision: 2,
+    };
+    type StoredSessionRow = {
+      id: string;
+      serverId: string;
+      spaceId: string;
+      userId: string;
+      endpoint: string;
+      redirectUri: string;
+      oauthCiphertext: string;
+      createdAt: Date;
+    };
+    const storedSessions = new Map<string, StoredSessionRow>();
+    let lockTail: Promise<void> = Promise.resolve();
+    const tables = {
+      mcpServer: {
+        findFirst: vi.fn(async () => ({ ...server })),
+        update: vi.fn(
+          async ({
+            data,
+          }: {
+            data: { secretId?: string | null; revision?: { increment: number } };
+          }) => {
+            if ("secretId" in data) server.secretId = data.secretId ?? null;
+            if (data.revision?.increment) server.revision += data.revision.increment;
+            return { ...server };
+          },
+        ),
+      },
+      secret: {
+        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
+          secretRows.find((row) => row.id === where.id) ?? null,
+        ),
+        create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
+          secretRows.push({ id: data.id, ciphertext: data.ciphertext });
+          return data;
+        }),
+        deleteMany: vi.fn(async ({ where }: { where: { id: string } }) => {
+          const idx = secretRows.findIndex((row) => row.id === where.id);
+          if (idx >= 0) secretRows.splice(idx, 1);
+          return { count: idx >= 0 ? 1 : 0 };
+        }),
+        count: vi.fn(
+          async ({ where }: { where: { ciphertext: string } }) =>
+            secretRows.filter((row) => row.ciphertext === where.ciphertext).length,
+        ),
+      },
+      mcpServerSpace: { count: vi.fn(async () => 0) },
+      botSecret: { count: vi.fn(async () => 0) },
+      vaultCredential: { count: vi.fn(async () => 0) },
+      integrationProviderConfig: { count: vi.fn(async () => 0) },
+      mcpOAuthSession: {
+        count: vi.fn(async () => storedSessions.size),
+        create: vi.fn(async ({ data }: { data: Omit<StoredSessionRow, "createdAt"> }) => {
+          const row: StoredSessionRow = { ...data, createdAt: new Date() };
+          storedSessions.set(data.id, row);
+          return row;
+        }),
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) => storedSessions.get(where.id) ?? null,
+        ),
+        deleteMany: vi.fn(async ({ where }: { where: { id?: string; serverId?: string } }) => {
+          if (where.id) return { count: storedSessions.delete(where.id) ? 1 : 0 };
+          return { count: 0 };
+        }),
+      },
+    };
+    const prisma = {
+      ...tables,
+      $transaction: async <T>(callback: (tx: unknown) => Promise<T>) => {
+        let release: (() => void) | undefined;
+        const tx = {
+          ...tables,
+          $queryRaw: vi.fn(async () => []),
+          $executeRaw: vi.fn(async () => {
+            const wait = lockTail;
+            let unlock!: () => void;
+            lockTail = new Promise<void>((resolve) => {
+              unlock = resolve;
+            });
+            release = unlock;
+            await wait;
+            return 1;
+          }),
+        };
+        try {
+          return await callback(tx);
+        } finally {
+          release?.();
+        }
+      },
+    };
+
+    let tokenRequests = 0;
+    let releaseTokens!: () => void;
+    const bothExchanging = new Promise<void>((resolve) => {
+      releaseTokens = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const url = logicalHref(input, init);
+        if (url === "https://mcp.example.test/mcp" && request.method === "POST") {
+          return new Response("unauthorized", {
+            status: 401,
+            headers: {
+              "WWW-Authenticate":
+                'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+            },
+          });
+        }
+        if (url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return Response.json({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+          });
+        }
+        if (url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return Response.json({
+            issuer: "https://auth.example.test",
+            authorization_endpoint: "https://auth.example.test/authorize",
+            token_endpoint: "https://auth.example.test/token",
+            registration_endpoint: "https://auth.example.test/register",
+            response_types_supported: ["code"],
+            grant_types_supported: ["authorization_code", "refresh_token"],
+            code_challenge_methods_supported: ["S256"],
+          });
+        }
+        if (url === "https://auth.example.test/register" && request.method === "POST") {
+          const payload = (await request.json()) as Record<string, unknown>;
+          return Response.json({ client_id: "native-client", redirect_uris: payload.redirect_uris });
+        }
+        if (url === "https://auth.example.test/token" && request.method === "POST") {
+          const form = new URLSearchParams(await request.text());
+          const code = form.get("code") ?? "unknown";
+          tokenRequests += 1;
+          if (tokenRequests === 2) releaseTokens();
+          await bothExchanging;
+          return Response.json({ access_token: `token-${code}`, token_type: "Bearer" });
+        }
+        throw new Error(`Unexpected ${request.method} ${url}`);
+      }),
+    );
+
+    const broker = new McpOAuthBroker(prisma as never, secrets as never, TEST_NETWORK);
+    const first = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: callback,
+    });
+    const second = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: callback,
+    });
+    if (first.status !== "authorization_required" || second.status !== "authorization_required") {
+      throw new Error("expected two authorization sessions");
+    }
+
+    const results = await Promise.allSettled([
+      broker.complete({
+        sessionId: first.sessionId,
+        code: "first",
+        state: first.sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+      }),
+      broker.complete({
+        sessionId: second.sessionId,
+        code: "second",
+        state: second.sessionId,
+        spaceId: "workspace-1",
+        userId: "user-1",
+      }),
+    ]);
+
+    const fulfilled = results.filter((entry) => entry.status === "fulfilled");
+    const rejected = results.filter((entry) => entry.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      message: expect.stringContaining("MCP OAuth state changed"),
+    });
+    expect(tables.mcpServer.update).toHaveBeenCalledTimes(1);
+    expect(tables.mcpServer.update).toHaveBeenCalledWith({
+      where: { id: "server-1" },
+      data: { secretId: expect.any(String), revision: { increment: 1 } },
+    });
+    expect(server.revision).toBe(3);
+    expect(secretRows).toHaveLength(1);
+    const stored = JSON.parse(await secrets.load(secretRows[0]!.ciphertext)) as OAuthMaterial;
+    expect(["token-first", "token-second"]).toContain(stored.oauth?.tokens?.access_token);
+  });
+
+  it("bumps server revision under the credential lock on disconnect() even when secretId is null to block an in-flight complete()", async () => {
+    const callback = "https://api.example.test/api/mcp/oauth/callback";
+    const values = new Map<string, string>();
+    let nextRecord = 0;
+    const secrets = {
+      put: vi.fn(async (plaintext: string) => {
+        nextRecord += 1;
+        values.set(`cipher-${nextRecord}`, plaintext);
+        return { id: `secret-${nextRecord}`, ciphertext: `cipher-${nextRecord}` };
+      }),
+      load: vi.fn(async (ciphertext: string) => {
+        const value = values.get(ciphertext);
+        if (value === undefined) throw new Error("secret not found");
+        return value;
+      }),
+      delete: vi.fn(async (ciphertext: string) => {
+        values.delete(ciphertext);
+      }),
+    };
+    const secretRows: Array<{ id: string; ciphertext: string }> = [];
+    const server = {
+      id: "server-1",
+      endpoint: "https://mcp.example.test/mcp",
+      secretId: null as string | null,
+      spaceId: "workspace-1",
+      allSpaces: false,
+      enabled: true,
+      revision: 1,
+    };
+    type StoredSessionRow = {
+      id: string;
+      serverId: string;
+      spaceId: string;
+      userId: string;
+      endpoint: string;
+      redirectUri: string;
+      oauthCiphertext: string;
+      createdAt: Date;
+    };
+    const storedSessions = new Map<string, StoredSessionRow>();
+    const tables = {
+      mcpServer: {
+        findFirst: vi.fn(async () => ({ ...server })),
+        update: vi.fn(
+          async ({
+            data,
+          }: {
+            data: { secretId?: string | null; revision?: { increment: number } };
+          }) => {
+            if ("secretId" in data) server.secretId = data.secretId ?? null;
+            if (data.revision?.increment) server.revision += data.revision.increment;
+            return { ...server };
+          },
+        ),
+      },
+      secret: {
+        findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
+          secretRows.find((row) => row.id === where.id) ?? null,
+        ),
+        create: vi.fn(async ({ data }: { data: { id: string; ciphertext: string } }) => {
+          secretRows.push({ id: data.id, ciphertext: data.ciphertext });
+          return data;
+        }),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+        count: vi.fn(
+          async ({ where }: { where: { ciphertext: string } }) =>
+            secretRows.filter((row) => row.ciphertext === where.ciphertext).length,
+        ),
+      },
+      mcpServerSpace: { count: vi.fn(async () => 0) },
+      botSecret: { count: vi.fn(async () => 0) },
+      vaultCredential: { count: vi.fn(async () => 0) },
+      integrationProviderConfig: { count: vi.fn(async () => 0) },
+      mcpOAuthSession: {
+        count: vi.fn(async () => storedSessions.size),
+        create: vi.fn(async ({ data }: { data: Omit<StoredSessionRow, "createdAt"> }) => {
+          const row: StoredSessionRow = { ...data, createdAt: new Date() };
+          storedSessions.set(data.id, row);
+          return row;
+        }),
+        findFirst: vi.fn(
+          async ({ where }: { where: { id: string } }) => storedSessions.get(where.id) ?? null,
+        ),
+        deleteMany: vi.fn(async ({ where }: { where: { id?: string; serverId?: string } }) => {
+          if (where.id) return { count: storedSessions.delete(where.id) ? 1 : 0 };
+          if (where.serverId) {
+            let count = 0;
+            for (const [id, row] of storedSessions) {
+              if (row.serverId === where.serverId) {
+                storedSessions.delete(id);
+                count += 1;
+              }
+            }
+            return { count };
+          }
+          return { count: 0 };
+        }),
+      },
+    };
+    const prisma = {
+      ...tables,
+      $transaction: async <T>(callback: (tx: unknown) => Promise<T>) =>
+        callback({ ...tables, $queryRaw: vi.fn(async () => []), $executeRaw: vi.fn(async () => 1) }),
+    };
+
+    let markTokenExchangeStarted!: () => void;
+    const tokenExchangeStarted = new Promise<void>((resolve) => {
+      markTokenExchangeStarted = resolve;
+    });
+    let releaseTokenExchange!: () => void;
+    const tokenExchangeReleased = new Promise<void>((resolve) => {
+      releaseTokenExchange = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const url = logicalHref(input, init);
+        if (url === "https://mcp.example.test/mcp" && request.method === "POST") {
+          return new Response("unauthorized", {
+            status: 401,
+            headers: {
+              "WWW-Authenticate":
+                'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+            },
+          });
+        }
+        if (url === "https://mcp.example.test/.well-known/oauth-protected-resource/mcp") {
+          return Response.json({
+            resource: "https://mcp.example.test/mcp",
+            authorization_servers: ["https://auth.example.test"],
+          });
+        }
+        if (url === "https://auth.example.test/.well-known/oauth-authorization-server") {
+          return Response.json({
+            issuer: "https://auth.example.test",
+            authorization_endpoint: "https://auth.example.test/authorize",
+            token_endpoint: "https://auth.example.test/token",
+            registration_endpoint: "https://auth.example.test/register",
+            response_types_supported: ["code"],
+            grant_types_supported: ["authorization_code", "refresh_token"],
+            code_challenge_methods_supported: ["S256"],
+          });
+        }
+        if (url === "https://auth.example.test/register" && request.method === "POST") {
+          const payload = (await request.json()) as Record<string, unknown>;
+          return Response.json({ client_id: "native-client", redirect_uris: payload.redirect_uris });
+        }
+        if (url === "https://auth.example.test/token" && request.method === "POST") {
+          markTokenExchangeStarted();
+          await tokenExchangeReleased;
+          return Response.json({ access_token: "stale-inflight-token", token_type: "Bearer" });
+        }
+        throw new Error(`Unexpected ${request.method} ${url}`);
+      }),
+    );
+
+    const broker = new McpOAuthBroker(prisma as never, secrets as never, TEST_NETWORK);
+    const started = await broker.begin({
+      serverId: "server-1",
+      spaceId: "workspace-1",
+      userId: "user-1",
+      redirectUri: callback,
+    });
+    if (started.status !== "authorization_required") {
+      throw new Error("expected authorization_required");
+    }
+
+    const inFlight = broker.complete({
+      sessionId: started.sessionId,
+      code: "inflight-code",
+      state: started.sessionId,
+      spaceId: "workspace-1",
+      userId: "user-1",
+    });
+    await tokenExchangeStarted;
+    expect(storedSessions.size).toBe(0);
+    expect(server.secretId).toBeNull();
+
+    // Disconnect arrives before any secret row exists; it must still bump revision under lock.
+    await broker.disconnect({ serverId: "server-1", spaceId: "workspace-1", userId: "user-1" });
+    expect(server.revision).toBe(2);
+    expect(server.secretId).toBeNull();
+
+    releaseTokenExchange();
+    await expect(inFlight).rejects.toThrow("MCP OAuth state changed");
+    expect(server.secretId).toBeNull();
+    expect(server.revision).toBe(2);
+    expect(secretRows).toHaveLength(0);
+  });
 });

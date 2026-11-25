@@ -1,5 +1,8 @@
+import errno
 import importlib.util
+import io
 import json
+import os
 import pathlib
 import socket
 import sys
@@ -7,7 +10,8 @@ import tempfile
 import time
 import types
 import unittest
-from contextlib import ExitStack
+import uuid
+from contextlib import ExitStack, redirect_stderr
 from unittest.mock import MagicMock, patch
 
 if sys.platform == "win32":
@@ -28,6 +32,7 @@ class NativeDriverPolicyTests(unittest.TestCase):
         self.driver.control = None
         self.driver.control_fences = {}
         self.driver.revoked_controls = {}
+        self.driver.seen_request_ids = MODULE.OrderedDict()
         self.driver.processes = {}
 
     def control_request(self, lease="human", fence=1, expiry=2000, action=None):
@@ -156,7 +161,7 @@ class NativeDriverPolicyTests(unittest.TestCase):
              patch.object(self.driver, "write_file") as writing, \
              patch.object(self.driver, "export_files", return_value=[]) as exporting:
             for method in ("list", "read", "write", "export"):
-                self.driver.dispatch({**request, "method": method}, None)
+                self.driver.dispatch({**request, "method": method, "requestId": str(uuid.uuid4())}, None)
             listing.assert_called_once()
             reading.assert_called_once()
             writing.assert_called_once()
@@ -323,6 +328,418 @@ class NativeDriverPolicyTests(unittest.TestCase):
         response = json.loads(connection.sendall.call_args.args[0])
         self.assertEqual(response, {"ok": False, "error": "native_driver_generation_changed"})
         control_input.assert_not_called()
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_side_effect_lease_methods_require_valid_request_id(self, _clock):
+        base = {
+            "botId": "bot",
+            "generation": "generation",
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "path": "notes.txt",
+            "content": "eA==",
+            "command": {"argv": ["/bin/true"], "timeoutMs": 1000},
+            "request": {"actions": [{"kind": "wait", "ms": 0}], "observe": False},
+        }
+        with patch.object(self.driver, "write_file") as write_file, \
+             patch.object(self.driver, "act") as act, \
+             patch.object(self.driver, "run_command") as run_command:
+            for method in ("write", "act", "execute"):
+                for bad_id in (None, "", "not-a-uuid", 12345, "550e8400-e29b-41d4-a716-44665544000g"):
+                    payload = {**base, "method": method}
+                    if bad_id is not None:
+                        payload["requestId"] = bad_id
+                    with self.subTest(method=method, request_id=bad_id), self.assertRaises(MODULE.Refused):
+                        self.driver.dispatch(payload, None)
+            write_file.assert_not_called()
+            act.assert_not_called()
+            run_command.assert_not_called()
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_replayed_request_id_is_rejected_and_multistep_act_succeeds_once(self, _clock):
+        req_id = str(uuid.uuid4())
+        write_request = {
+            "method": "write",
+            "botId": "bot",
+            "generation": "generation",
+            "requestId": req_id,
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "path": "notes.txt",
+            "content": "eA==",
+        }
+        with patch.object(self.driver, "write_file") as write_file:
+            self.driver.dispatch(write_request, None)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.dispatch(write_request, None)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.dispatch({**write_request, "requestId": req_id.upper()}, None)
+            write_file.assert_called_once()
+
+        act_id = str(uuid.uuid4())
+        act_request = {
+            "method": "act",
+            "botId": "bot",
+            "generation": "generation",
+            "requestId": act_id,
+            "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            "request": {
+                "actions": [{"kind": "wait", "ms": 0}, {"kind": "wait", "ms": 0}],
+                "observe": True,
+                "settleMs": 0,
+            },
+        }
+        png = b"\x89PNG\r\n\x1a\n" + bytes(8) + MODULE.struct.pack(">II", 2, 3)
+        with patch.object(self.driver, "desktop_command", return_value=png):
+            result = self.driver.dispatch(act_request, None)
+            self.assertEqual(result["completed"], 2)
+            self.assertIn("observation", result)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.dispatch(act_request, None)
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_read_only_observe_without_lease_remains_compatible_without_request_id(self, _clock):
+        png = b"\x89PNG\r\n\x1a\n" + bytes(8) + MODULE.struct.pack(">II", 2, 3)
+        with patch.object(self.driver, "desktop_command", return_value=png):
+            first = self.driver.dispatch(
+                {"method": "observe", "botId": "bot", "generation": "generation"}, None,
+            )
+            self.assertEqual((first["width"], first["height"]), (2, 3))
+
+            req_id = str(uuid.uuid4())
+            leased = {
+                "method": "observe",
+                "botId": "bot",
+                "generation": "generation",
+                "requestId": req_id,
+                "run": {"id": "run", "fence": 1, "expiresAt": 2000},
+            }
+            self.driver.dispatch(leased, None)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.dispatch(leased, None)
+
+    def test_seen_request_ids_cache_is_bounded(self):
+        ids = [str(uuid.uuid4()) for _ in range(3)]
+        with patch.object(MODULE, "MAX_SEEN_REQUEST_IDS", 2):
+            for req_id in ids:
+                self.driver.consume_request_id({"requestId": req_id}, required=True)
+            self.assertEqual(len(self.driver.seen_request_ids), 2)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.consume_request_id({"requestId": ids[1]}, required=True)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                self.driver.consume_request_id({"requestId": ids[2]}, required=True)
+            self.assertEqual(self.driver.consume_request_id({"requestId": ids[0]}, required=True), ids[0])
+
+    def test_resolve_command_cwd_restricts_to_bot_home(self):
+        with tempfile.TemporaryDirectory() as root:
+            bot_home = os.path.join(root, "bot")
+            sub_dir = os.path.join(bot_home, "sub")
+            other_dir = os.path.join(root, "other")
+            regular_file = os.path.join(bot_home, "file.txt")
+            os.makedirs(sub_dir)
+            os.makedirs(other_dir)
+            with open(regular_file, "w", encoding="utf-8") as handle:
+                handle.write("ok")
+
+            home_real = os.path.realpath(bot_home)
+            sub_real = os.path.realpath(sub_dir)
+            other_real = os.path.realpath(other_dir)
+            bot_home_posix = pathlib.Path(bot_home).as_posix()
+            sub_dir_posix = pathlib.Path(sub_dir).as_posix()
+            other_dir_posix = pathlib.Path(other_dir).as_posix()
+
+            with patch.object(self.driver, "environment", return_value={"home": bot_home}):
+                self.assertEqual(self.driver.resolve_command_cwd("bot", None), home_real)
+                self.assertEqual(self.driver.resolve_command_cwd("bot", ""), home_real)
+                self.assertEqual(self.driver.resolve_command_cwd("bot", "."), home_real)
+                self.assertEqual(self.driver.resolve_command_cwd("bot", "sub"), sub_real)
+                self.assertEqual(self.driver.resolve_command_cwd("bot", bot_home_posix), home_real)
+                self.assertEqual(self.driver.resolve_command_cwd("bot", sub_dir_posix), sub_real)
+
+                for bad_cwd in (
+                    "sub\0bad",
+                    "sub\\dir",
+                    "../other",
+                    "sub/../../other",
+                    "sub/../sub",
+                    "/etc",
+                    other_dir_posix,
+                    "missing-dir",
+                    "file.txt",
+                    123,
+                ):
+                    with self.subTest(cwd=bad_cwd), self.assertRaises(MODULE.Refused):
+                        self.driver.resolve_command_cwd("bot", bad_cwd)
+
+                escape_target = os.path.join(home_real, "escape-link")
+                real_realpath = os.path.realpath
+
+                def fake_realpath(path):
+                    if path == escape_target:
+                        return other_real
+                    return real_realpath(path)
+
+                with patch.object(MODULE.os.path, "realpath", side_effect=fake_realpath):
+                    with self.assertRaises(MODULE.Refused):
+                        self.driver.resolve_command_cwd("bot", "escape-link")
+
+
+class NativeDriverStatePersistenceTests(unittest.TestCase):
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_state_persists_fences_control_fences_and_request_ids_across_restarts(self, _clock):
+        req_1 = "11111111-1111-4111-8111-111111111111"
+        req_2 = "22222222-2222-4222-8222-222222222222"
+        with tempfile.TemporaryDirectory() as root:
+            driver1 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            state_file = os.path.join(root, MODULE.STATE_FILENAME)
+            self.assertEqual(driver1.state_path, os.path.abspath(state_file))
+            self.assertFalse(os.path.exists(state_file))
+
+            driver1.consume_request_id({"requestId": req_1}, required=True)
+            self.assertEqual(
+                driver1.authorize_run({
+                    "botId": "bot",
+                    "run": {"id": "run-1", "fence": 5, "expiresAt": 2000},
+                }),
+                "run-1",
+            )
+            driver1.active = None
+            driver1.authorize_control({
+                "botId": "bot",
+                "control": {"leaseId": "human-1", "fence": 3, "expiresAt": 2000},
+            })
+
+            self.assertTrue(os.path.isfile(state_file))
+            self.assertEqual(
+                [name for name in os.listdir(root) if name.endswith(".tmp")],
+                [],
+            )
+            with open(state_file, "r", encoding="utf-8") as handle:
+                persisted = json.load(handle)
+            self.assertEqual(persisted["version"], MODULE.STATE_VERSION)
+            self.assertEqual(persisted["fences"], {"run-1": 5})
+            self.assertEqual(
+                persisted["control_fences"],
+                {"bot": {"fence": 3, "leaseId": "human-1"}},
+            )
+            self.assertEqual(persisted["seen_request_ids"], [req_1])
+
+            driver2 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                driver2.consume_request_id({"requestId": req_1}, required=True)
+            with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                driver2.consume_request_id({"requestId": req_1.upper()}, required=True)
+            with self.assertRaisesRegex(MODULE.Refused, "Stale run fence"):
+                driver2.authorize_run({
+                    "botId": "bot",
+                    "run": {"id": "run-1", "fence": 4, "expiresAt": 2000},
+                })
+            with self.assertRaisesRegex(MODULE.Refused, "Revoked human control lease"):
+                driver2.authorize_control({
+                    "botId": "bot",
+                    "control": {"leaseId": "human-old", "fence": 2, "expiresAt": 2000},
+                })
+            with self.assertRaisesRegex(MODULE.Refused, "Human control fence mismatch"):
+                driver2.authorize_control({
+                    "botId": "bot",
+                    "control": {"leaseId": "human-other", "fence": 3, "expiresAt": 2000},
+                })
+
+            self.assertEqual(driver2.consume_request_id({"requestId": req_2}, required=True), req_2)
+            self.assertEqual(
+                driver2.authorize_run({
+                    "botId": "bot",
+                    "run": {"id": "run-1", "fence": 6, "expiresAt": 2000},
+                }),
+                "run-1",
+            )
+            driver2.active = None
+            driver2.authorize_control({
+                "botId": "bot",
+                "control": {"leaseId": "human-2", "fence": 4, "expiresAt": 2000},
+            })
+
+            driver3 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            self.assertEqual(driver3.fences, {"run-1": 6})
+            self.assertEqual(
+                driver3.control_fences,
+                {"bot": {"fence": 4, "leaseId": "human-2"}},
+            )
+            self.assertEqual(list(driver3.seen_request_ids.keys()), [req_1, req_2])
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_save_only_runs_when_state_mutates_and_supports_custom_state_path(self, _clock):
+        with tempfile.TemporaryDirectory() as root:
+            custom_state = os.path.join(root, "custom", "state.json")
+            driver = MODULE.Driver(root, 1000, ":10", "/tmp/xauth", state_path=custom_state)
+            with patch.object(driver, "_save_state_locked", wraps=driver._save_state_locked) as save:
+                req = {"botId": "bot", "run": {"id": "run-1", "fence": 2, "expiresAt": 2000}}
+                driver.authorize_run(req)
+                driver.authorize_run(req)
+                self.assertEqual(save.call_count, 1)
+
+                driver.active = None
+                ctrl = {"botId": "bot", "control": {"leaseId": "human-1", "fence": 2, "expiresAt": 2000}}
+                driver.authorize_control(ctrl)
+                driver.authorize_control(ctrl)
+                self.assertEqual(save.call_count, 2)
+
+            self.assertTrue(os.path.isfile(custom_state))
+            self.assertFalse(os.path.exists(os.path.join(root, MODULE.STATE_FILENAME)))
+
+    def test_seen_request_ids_stay_bounded_across_restarts(self):
+        ids = [str(uuid.uuid4()) for _ in range(6)]
+        with tempfile.TemporaryDirectory() as root, patch.object(MODULE, "MAX_SEEN_REQUEST_IDS", 3):
+            driver1 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            for req_id in ids[:5]:
+                driver1.consume_request_id({"requestId": req_id}, required=True)
+
+            driver2 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            self.assertEqual(list(driver2.seen_request_ids.keys()), ids[2:5])
+            for retained in ids[2:5]:
+                with self.assertRaisesRegex(MODULE.Refused, "Replayed"):
+                    driver2.consume_request_id({"requestId": retained}, required=True)
+            self.assertEqual(driver2.consume_request_id({"requestId": ids[0]}, required=True), ids[0])
+
+            # Also verify oversized persisted lists are trimmed to the newest MAX_SEEN_REQUEST_IDS on load
+            state_file = os.path.join(root, MODULE.STATE_FILENAME)
+            with open(state_file, "w", encoding="utf-8") as handle:
+                json.dump({
+                    "version": MODULE.STATE_VERSION,
+                    "fences": {},
+                    "control_fences": {},
+                    "seen_request_ids": [item.upper() for item in ids],
+                }, handle)
+            driver3 = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            self.assertEqual(list(driver3.seen_request_ids.keys()), ids[-3:])
+
+    def test_corrupt_or_invalid_state_file_warns_and_falls_back_to_empty_state(self):
+        valid_uuid = str(uuid.uuid4())
+        bad_payloads = [
+            ("invalid-json", b"{not valid json"),
+            ("invalid-utf8", b"\xff\xfe\xfd"),
+            ("non-object-root", json.dumps(["bad"]).encode("utf-8")),
+            ("wrong-version", json.dumps({
+                "version": 99, "fences": {}, "control_fences": {}, "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("bool-version", json.dumps({
+                "version": True, "fences": {}, "control_fences": {}, "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("missing-key", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {},
+            }).encode("utf-8")),
+            ("negative-fence", json.dumps({
+                "version": 1, "fences": {"run-1": -1}, "control_fences": {}, "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("bool-fence", json.dumps({
+                "version": 1, "fences": {"run-1": True}, "control_fences": {}, "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("bad-control-fence-type", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {"bot": "bad"}, "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("bad-control-fence-value", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {"bot": {"fence": -2, "leaseId": "h1"}},
+                "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("bad-control-fence-lease", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {"bot": {"fence": 2, "leaseId": "../bad"}},
+                "seen_request_ids": [],
+            }).encode("utf-8")),
+            ("non-list-seen", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {}, "seen_request_ids": {valid_uuid: True},
+            }).encode("utf-8")),
+            ("bad-seen-entry", json.dumps({
+                "version": 1, "fences": {}, "control_fences": {}, "seen_request_ids": [valid_uuid, "not-a-uuid"],
+            }).encode("utf-8")),
+        ]
+        with tempfile.TemporaryDirectory() as root:
+            state_file = os.path.join(root, MODULE.STATE_FILENAME)
+            for name, raw_bytes in bad_payloads:
+                with self.subTest(case=name):
+                    with open(state_file, "wb") as handle:
+                        handle.write(raw_bytes)
+                    stderr_buf = io.StringIO()
+                    with redirect_stderr(stderr_buf):
+                        driver = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+                    self.assertEqual(driver.fences, {})
+                    self.assertEqual(driver.control_fences, {})
+                    self.assertEqual(len(driver.seen_request_ids), 0)
+                    self.assertIn("sydney-driver:", stderr_buf.getvalue())
+
+    @patch.object(MODULE.time, "time", return_value=1.0)
+    def test_symlink_state_file_is_refused_on_load_and_save(self, _clock):
+        req_id = "33333333-3333-4333-8333-333333333333"
+        fresh_id = "44444444-4444-4444-8444-444444444444"
+        with tempfile.TemporaryDirectory() as root:
+            state_file = os.path.abspath(os.path.join(root, MODULE.STATE_FILENAME))
+            original_payload = {
+                "version": MODULE.STATE_VERSION,
+                "fences": {"run-1": 9},
+                "control_fences": {"bot": {"fence": 7, "leaseId": "human-1"}},
+                "seen_request_ids": [req_id],
+            }
+            with open(state_file, "w", encoding="utf-8") as handle:
+                json.dump(original_payload, handle)
+
+            real_islink = os.path.islink
+
+            def fake_islink(path):
+                if os.path.abspath(path) == state_file:
+                    return True
+                return real_islink(path)
+
+            stderr_buf = io.StringIO()
+            with patch.object(MODULE.os.path, "islink", side_effect=fake_islink), \
+                 redirect_stderr(stderr_buf):
+                driver = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+
+            self.assertEqual(driver.fences, {})
+            self.assertEqual(driver.control_fences, {})
+            self.assertEqual(len(driver.seen_request_ids), 0)
+            self.assertIn("symlink", stderr_buf.getvalue())
+
+            # Saving must also refuse to overwrite a symlink and roll back in-memory mutation
+            save_stderr = io.StringIO()
+            with patch.object(MODULE.os.path, "islink", side_effect=fake_islink), \
+                 redirect_stderr(save_stderr):
+                with self.assertRaisesRegex(MODULE.Refused, "symlink"):
+                    driver.consume_request_id({"requestId": fresh_id}, required=True)
+                with self.assertRaisesRegex(MODULE.Refused, "symlink"):
+                    driver.authorize_run({
+                        "botId": "bot",
+                        "run": {"id": "run-1", "fence": 1, "expiresAt": 2000},
+                    })
+                with self.assertRaisesRegex(MODULE.Refused, "symlink"):
+                    driver.authorize_control({
+                        "botId": "bot",
+                        "control": {"leaseId": "human-1", "fence": 1, "expiresAt": 2000},
+                    })
+
+            self.assertEqual(driver.fences, {})
+            self.assertEqual(driver.control_fences, {})
+            self.assertEqual(len(driver.seen_request_ids), 0)
+            self.assertIn("symlink", save_stderr.getvalue())
+            self.assertEqual(
+                [name for name in os.listdir(root) if name.endswith(".tmp")],
+                [],
+            )
+            with open(state_file, "r", encoding="utf-8") as handle:
+                self.assertEqual(json.load(handle), original_payload)
+
+            # ELOOP from O_NOFOLLOW during open must also warn and fall back cleanly
+            real_open = os.open
+
+            def fake_open(path, *args, **kwargs):
+                if os.path.abspath(path) == state_file:
+                    raise OSError(errno.ELOOP, "Too many levels of symbolic links")
+                return real_open(path, *args, **kwargs)
+
+            eloop_stderr = io.StringIO()
+            with patch.object(MODULE.os, "open", side_effect=fake_open), \
+                 redirect_stderr(eloop_stderr):
+                eloop_driver = MODULE.Driver(root, 1000, ":10", "/tmp/xauth")
+            self.assertEqual(eloop_driver.fences, {})
+            self.assertEqual(eloop_driver.control_fences, {})
+            self.assertEqual(len(eloop_driver.seen_request_ids), 0)
+            self.assertIn("unable to open state file", eloop_stderr.getvalue())
 
 
 if __name__ == "__main__":

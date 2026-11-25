@@ -144,7 +144,12 @@ import { markExpectedFailure, requestLogging } from "@rakazo/logging/hono";
 import { MarkdownMemoryStore } from "@rakazo/memory";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { assertAccountDeletionAllowed, deleteAccountContent } from "./account-deletion.js";
+import {
+  assertAccountDeletionAllowed,
+  assertMemberRemovalAllowed,
+  deleteAccountContent,
+  withPreDestructiveAccountDeletionClaim,
+} from "./account-deletion.js";
 import { mountAccountExportRoute } from "./account-export.js";
 import { mountAccountImportRoute } from "./account-import.js";
 import { mountAppAssociation, nativePasskeys } from "./app-association.js";
@@ -588,10 +593,15 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         : undefined,
     extraOrigins: authExtraOrigins(env),
     androidAppCertFingerprints: env.passkeyAndroidCertFingerprints,
+    beforeRemoveMember: async (userId, organizationId) => {
+      await assertMemberRemovalAllowed(prisma, userId, organizationId);
+    },
     beforeDeleteUser: async (userId) => {
-      await assertAccountDeletionAllowed(prisma, userId);
-      // First, so a provider failure aborts deletion before anything is destroyed.
-      await billing?.cancelForDeletedUser(userId);
+      const { claimedNow } = await assertAccountDeletionAllowed(prisma, userId);
+      await withPreDestructiveAccountDeletionClaim(prisma, userId, claimedNow, async () => {
+        // First, so a provider failure aborts deletion before anything is destroyed.
+        await billing?.cancelForDeletedUser(userId);
+      });
       await deleteAccountContent(
         {
           prisma,

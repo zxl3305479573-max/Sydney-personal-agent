@@ -6,7 +6,11 @@ import path from "node:path";
 import type { AdapterContext, ComputerRef } from "@rakazo/adapter-kit";
 import { computerHomeKey } from "@rakazo/db";
 import { expect, it, vi } from "vitest";
-import { createNativeLinuxTransport, NativeLinuxSandbox } from "./native-linux-sandbox.js";
+import {
+  buildNativeDriverRequest,
+  createNativeLinuxTransport,
+  NativeLinuxSandbox,
+} from "./native-linux-sandbox.js";
 
 async function closeServer(server: net.Server) {
   if (!server.listening) return;
@@ -284,6 +288,7 @@ it.skipIf(process.platform === "win32")(
           path: "file.txt",
           botId: "attacker",
           generation: "attacker",
+          requestId: "attacker",
           run: { id: "attacker", fence: 0 },
         },
         context,
@@ -291,13 +296,18 @@ it.skipIf(process.platform === "win32")(
       );
       [socket] = (await once(server, "connection")) as [net.Socket];
       const [data] = (await once(socket, "data")) as [Buffer];
-      expect(JSON.parse(data.toString("utf8"))).toMatchObject({
+      const parsed = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
+      expect(parsed).toMatchObject({
         method: "write",
         botId: "bot",
         generation: "0123456789abcdef",
         run: { id: "run", fence: 2 },
         path: "file.txt",
       });
+      expect(parsed.requestId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(parsed.requestId).not.toBe("attacker");
       socket.end('{"ok":true,"value":null}\n');
       await expect(response).resolves.toBeNull();
     } finally {
@@ -418,4 +428,71 @@ it("revalidates each operation and refuses a lost lease", async () => {
   );
   expect(validate).toHaveBeenCalledTimes(2);
   expect(transport).toHaveBeenCalledTimes(1);
+});
+
+it("attaches unique UUID requestIds to run-leased requests and strips forged reserved fields", () => {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const leasedContext: AdapterContext = {
+    ...context,
+    nativeRunLease: { ...context.nativeRunLease!, expiresAt: Date.now() + 5000 },
+  };
+  const first = buildNativeDriverRequest(
+    "write",
+    {
+      path: "notes.txt",
+      requestId: "forged-id",
+      botId: "attacker",
+      generation: "attacker",
+      run: { id: "attacker", fence: 0 },
+    },
+    leasedContext,
+    computer,
+  );
+  const second = buildNativeDriverRequest("write", { path: "notes.txt" }, leasedContext, computer);
+  expect(first.requestId).toMatch(uuidPattern);
+  expect(second.requestId).toMatch(uuidPattern);
+  expect(first.requestId).not.toBe("forged-id");
+  expect(first.requestId).not.toBe(second.requestId);
+  expect(first).toMatchObject({
+    method: "write",
+    botId: "bot",
+    generation: "0123456789abcdef",
+    run: { id: "run", fence: 2 },
+    path: "notes.txt",
+  });
+
+  const preview = buildNativeDriverRequest(
+    "observe",
+    { requestId: "forged-id", run: { id: "attacker", fence: 1 } },
+    { ...context, nativeRunLease: undefined },
+    computer,
+  );
+  expect(preview.requestId).toBeUndefined();
+  expect(preview.run).toBeUndefined();
+});
+
+it("rejects unsafe command cwd values before invoking transport and allows relative subdirs", async () => {
+  const transport = vi.fn().mockResolvedValue({ stdout: "", stderr: "", code: 0 });
+  const sandbox = new NativeLinuxSandbox(async () => Date.now() + 5000, transport);
+  const consume = async (cwd: string) => {
+    for await (const _event of sandbox.execute(computer, { argv: ["true"], cwd }, context)) {
+      void _event;
+    }
+  };
+
+  for (const badCwd of [
+    "notes\0bad",
+    "../other-bot",
+    "sub/../../other-bot",
+    "a/../b",
+    "/etc",
+    "sub\\dir",
+  ]) {
+    await expect(consume(badCwd)).rejects.toThrow("native_invalid_cwd");
+  }
+  expect(transport).not.toHaveBeenCalled();
+
+  await expect(consume(".")).resolves.toBeUndefined();
+  await expect(consume("notes/sub")).resolves.toBeUndefined();
+  expect(transport).toHaveBeenCalledTimes(2);
 });

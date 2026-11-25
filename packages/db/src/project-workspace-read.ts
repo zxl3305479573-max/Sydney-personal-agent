@@ -6,6 +6,7 @@ import {
   ProjectWorkspaceRosterInput,
   ProjectWorkspaceRosterSchema,
   ProjectWorkspaceSchema,
+  RenameProjectWorkspaceInput,
 } from "@rakazo/contracts";
 import type { PrismaClient } from "./client.js";
 import { Prisma } from "./client.js";
@@ -77,6 +78,13 @@ type WorkspaceRow = {
   updatedAt: Date;
 };
 
+export class ProjectWorkspaceConflictError extends Error {
+  constructor(message = "Project creation request conflicts with an existing resource") {
+    super(message);
+    this.name = "ProjectWorkspaceConflictError";
+  }
+}
+
 export async function createProjectWorkspace(
   prisma: PrismaClient,
   actor: Pick<Actor, "spaceId" | "userId">,
@@ -104,11 +112,51 @@ export async function createProjectWorkspace(
             AND "userId" = ${actor.userId} AND "deletingAt" IS NULL
         `);
         if (!existing[0] || existing[0].name !== name)
-          throw new Error("Project creation request conflicts with an existing resource");
+          throw new ProjectWorkspaceConflictError();
         return existing[0];
       }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }),
     ),
   );
+  return ProjectWorkspaceSchema.parse({
+    id: row.id,
+    name: row.name,
+    locationType: null,
+    connectionStatus: "unknown",
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  });
+}
+
+export async function renameProjectWorkspace(
+  prisma: PrismaClient,
+  actor: Pick<Actor, "spaceId" | "userId">,
+  input: { id: string; name: string },
+): Promise<ProjectWorkspace | null> {
+  const { id, name } = RenameProjectWorkspaceInput.parse(input);
+  if (!actor?.spaceId || !actor.userId) throw new Error("Invalid workspace scope");
+  const now = new Date();
+  const row = await runAsTenant({ ...actor, projectWorkspaceId: id }, () =>
+    withTransactionRetry(() =>
+      prisma.$transaction(async (tx) => {
+        await lockSpaceForContentCreation(tx, actor);
+        const rows = await tx.$queryRaw<WorkspaceRow[]>(Prisma.sql`
+          UPDATE "project_workspaces" w
+          SET "name" = ${name}, "updatedAt" = ${now}
+          WHERE w."id" = ${id} AND w."spaceId" = ${actor.spaceId}
+            AND w."userId" = ${actor.userId} AND w."deletingAt" IS NULL
+            AND EXISTS (
+              SELECT 1 FROM "space_members" m
+              JOIN "spaces" s ON s."id" = m."spaceId"
+              WHERE m."spaceId" = w."spaceId" AND m."userId" = w."userId"
+                AND s."deletingAt" IS NULL
+            )
+          RETURNING w."id", w."name", w."createdAt", w."updatedAt"
+        `);
+        return rows[0] ?? null;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }),
+    ),
+  );
+  if (!row) return null;
   return ProjectWorkspaceSchema.parse({
     id: row.id,
     name: row.name,
@@ -133,6 +181,7 @@ export async function removeEmptyProjectWorkspace(
         DELETE FROM "project_workspaces" w
         WHERE w."id" = ${id} AND w."spaceId" = ${actor.spaceId}
           AND w."userId" = ${actor.userId} AND w."deletingAt" IS NULL
+          AND w."deletionClaimId" IS NULL
           AND NOT EXISTS (SELECT 1 FROM "bots" b WHERE b."projectWorkspaceId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "chat_groups" g WHERE g."projectWorkspaceId" = w."id")
           AND NOT EXISTS (SELECT 1 FROM "threads" t WHERE t."projectWorkspaceId" = w."id")

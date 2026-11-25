@@ -13,6 +13,9 @@ import { useI18n } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { projectScopeKey, subscribeProjectScope } from "../../lib/project-scope";
 import { useSideInsets } from "../../lib/side-insets";
+import { errorText } from "../../lib/user-error";
+
+type ProjectRemoveMode = "remove" | "removeEmpty" | null;
 
 export default function ProjectDetail() {
   const { workspaceId, scope } = useLocalSearchParams<{ workspaceId: string; scope?: string }>();
@@ -42,7 +45,7 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
   const [roster, setRoster] = useState<RpcOutput<"projectWorkspaces/roster"> | null>(null);
   const [failed, setFailed] = useState(false);
-  const [canRemove, setCanRemove] = useState(false);
+  const [removeMode, setRemoveMode] = useState<ProjectRemoveMode>(null);
   const [canCreateBot, setCanCreateBot] = useState(false);
   const [creatingBot, setCreatingBot] = useState(false);
   const [canCreateGroup, setCanCreateGroup] = useState(false);
@@ -67,7 +70,7 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
     const current = () => active && scopeKey === projectScopeKey() && !isSpaceSelectionPending();
     setRoster(null);
     setFailed(false);
-    setCanRemove(false);
+    setRemoveMode(null);
     setCanCreateBot(false);
     setCanCreateGroup(false);
     void (async () => {
@@ -76,8 +79,18 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
         if (!current()) return;
         const options = { requestContext, signal: controller.signal, skipSpaceAuthRecovery: true };
         void rpc("projectWorkspaces/capabilities", undefined, options)
-          .then((capabilities) => { if (current()) setCanRemove(capabilities.removeEmpty === true); })
-          .catch(() => { if (current()) setCanRemove(false); });
+          .then((capabilities) => {
+            if (current()) {
+              setRemoveMode(
+                capabilities.remove === true
+                  ? "remove"
+                  : capabilities.removeEmpty === true
+                    ? "removeEmpty"
+                    : null,
+              );
+            }
+          })
+          .catch(() => { if (current()) setRemoveMode(null); });
         void rpc("projectWorkspaces/conversationCapabilities", undefined, options)
           .then((capabilities) => { if (current()) setCanCreateBot(capabilities.createBot === true); })
           .catch(() => { if (current()) setCanCreateBot(false); });
@@ -113,8 +126,8 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
     return null;
   }
 
-  async function removeProject() {
-    if (!workspaceId || !canRemove || removeInFlight.current || !focused.current ||
+  async function removeProject(mode: "remove" | "removeEmpty") {
+    if (!workspaceId || removeMode !== mode || removeInFlight.current || !focused.current ||
       scopeChanged || scopeKey !== projectScopeKey() || isSpaceSelectionPending()) return;
     removeInFlight.current = true;
     setRemoving(true);
@@ -123,15 +136,33 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
     try {
       const requestContext = await captureApiRequestContext();
       if (!current()) return;
-      await rpc("projectWorkspaces/removeEmpty", { id: workspaceId, confirmRemoveAppData: true }, {
-        requestContext, skipSpaceAuthRecovery: true,
-      });
+      if (mode === "remove") {
+        await rpc("projectWorkspaces/remove", { id: workspaceId, confirmRemoveAppData: true }, {
+          requestContext, skipSpaceAuthRecovery: true,
+        });
+      } else {
+        await rpc("projectWorkspaces/removeEmpty", { id: workspaceId, confirmRemoveAppData: true }, {
+          requestContext, skipSpaceAuthRecovery: true,
+        });
+      }
       if (current()) router.dismissTo("/projects");
-    } catch {
-      if (current()) setRemoveError(text(
-        "无法删除项目；项目可能包含内容，或请求结果尚未确认。请刷新后查看。",
-        "Could not remove the project. It may contain data or the result may be unknown; refresh to check.",
-      ));
+    } catch (cause) {
+      if (current()) {
+        setRemoveError(
+          mode === "remove"
+            ? errorText(
+                cause,
+                text(
+                  "无法删除项目，请求结果可能尚未确认。请刷新后查看。",
+                  "Could not remove the project. The result may be unknown; refresh to check.",
+                ),
+              )
+            : text(
+                "无法删除项目；项目可能包含内容，或请求结果尚未确认。请刷新后查看。",
+                "Could not remove the project. It may contain data or the result may be unknown; refresh to check.",
+              ),
+        );
+      }
     } finally {
       removeInFlight.current = false;
       if (current()) setRemoving(false);
@@ -139,13 +170,22 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
   }
 
   function confirmRemoveProject() {
-    if (!canRemove || removing || !focused.current) return;
+    if (!removeMode || removing || !focused.current) return;
+    const mode = removeMode;
     Alert.alert(
-      text("删除空项目？", "Remove empty project?"),
-      text("只删除空项目记录，不删除电脑中的文件。", "Only an empty project record is removed; files on your computer are not deleted."),
+      mode === "remove" ? text("删除项目？", "Remove project?") : text("删除空项目？", "Remove empty project?"),
+      mode === "remove"
+        ? text(
+            "将永久删除此项目及其中在 Sydney 中的小伙伴、群聊和聊天记录，不会删除你电脑中的本地文件。",
+            "This removes the project along with its bots, group chats, and chat history in Sydney. Local files on your computer are not deleted.",
+          )
+        : text(
+            "只删除空项目记录，不删除电脑中的文件。",
+            "Only an empty project record is removed; files on your computer are not deleted.",
+          ),
       [
         { text: text("取消", "Cancel"), style: "cancel" },
-        { text: text("删除", "Remove"), style: "destructive", onPress: () => void removeProject() },
+        { text: text("删除", "Remove"), style: "destructive", onPress: () => void removeProject(mode) },
       ],
     );
   }
@@ -199,7 +239,12 @@ function ProjectContents({ workspaceId, scopeKey, scopeChanged }: {
               onPrevious={() => setGroupCursors((old) => old.at(-1) === afterGroupId ? old.slice(0, -1) : old)}
               onNext={(cursor) => setGroupCursors((old) => old.at(-1) === afterGroupId ? [...old, cursor] : old)} />
             </>}
-            {canRemove ? <NativeActionButton label={removing ? text("正在删除…", "Removing…") : text("删除空项目", "Remove empty project")}
+            {removeMode ? <NativeActionButton
+              label={removing
+                ? text("正在删除…", "Removing…")
+                : removeMode === "remove"
+                  ? text("删除项目", "Remove project")
+                  : text("删除空项目", "Remove empty project")}
               disabled={removing} prominence="quiet" onPress={confirmRemoveProject} /> : null}
             {removeError ? <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>{removeError}</Text> : null}
           </>

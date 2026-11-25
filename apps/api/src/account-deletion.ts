@@ -8,11 +8,13 @@ import {
 import { accountHasProjectWorkspacesAuthError } from "@rakazo/auth";
 import type { PrismaClient } from "@rakazo/db";
 import {
-  claimSpacesLeavingWithAccount,
+  assertMemberHasNoProjectWorkspacesInOrg,
   claimProjectAccountDeletion,
+  claimSpacesLeavingWithAccount,
   deleteSpaceLeavingWithAccount,
   ProjectAccountHasWorkspacesError,
   recordComputerRunEnd,
+  releaseProjectAccountDeletionClaim,
   runAsSystem,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -45,9 +47,55 @@ export async function assertAccountHasNoProjectWorkspaces(
 export async function assertAccountDeletionAllowed(
   prisma: PrismaClient,
   userId: string,
+): Promise<{ claimedNow: boolean }> {
+  try {
+    return await claimProjectAccountDeletion(prisma, userId);
+  } catch (error) {
+    if (error instanceof ProjectAccountHasWorkspacesError) {
+      throw accountHasProjectWorkspacesAuthError();
+    }
+    throw error;
+  }
+}
+
+export async function releaseAccountDeletionClaim(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<void> {
+  await releaseProjectAccountDeletionClaim(prisma, userId);
+}
+
+/**
+ * Runs a pre-destructive account deletion step (such as billing cancellation) while holding a
+ * deletion claim. If this request created the claim and the step fails, the claim is released
+ * best-effort before rethrowing the original error; an already-existing claim stays intact so
+ * retries converge cleanly.
+ */
+export async function withPreDestructiveAccountDeletionClaim<T>(
+  prisma: PrismaClient,
+  userId: string,
+  claimedNow: boolean,
+  step: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await step();
+  } catch (error) {
+    if (claimedNow) {
+      await releaseAccountDeletionClaim(prisma, userId).catch((releaseError) =>
+        getLogger().error("account deletion claim release failed", releaseError),
+      );
+    }
+    throw error;
+  }
+}
+
+export async function assertMemberRemovalAllowed(
+  prisma: PrismaClient,
+  userId: string,
+  organizationId: string,
 ): Promise<void> {
   try {
-    await claimProjectAccountDeletion(prisma, userId);
+    await assertMemberHasNoProjectWorkspacesInOrg(prisma, userId, organizationId);
   } catch (error) {
     if (error instanceof ProjectAccountHasWorkspacesError) {
       throw accountHasProjectWorkspacesAuthError();

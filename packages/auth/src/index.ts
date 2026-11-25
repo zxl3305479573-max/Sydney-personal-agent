@@ -92,6 +92,7 @@ export interface AuthEnv {
   logger?: BetterAuthOptions["logger"];
   onEmailError?: (error: unknown) => void;
   beforeDeleteUser?: (userId: string) => Promise<void>;
+  beforeRemoveMember?: (userId: string, organizationId: string) => Promise<void>;
   /** Runs when a session row is deleted. Delivery also drops a token whose session is missing or expired. */
   afterDeleteSession?: (session: AuthSession) => Promise<void>;
   /** Runs when a password change replaces the caller's own session instead of ending it. */
@@ -452,10 +453,16 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         allowUserToCreateOrganization: false,
         disableOrganizationDeletion: true,
         creatorRole: "owner",
+        organizationHooks: {
+          beforeRemoveMember: async ({ member }) => {
+            await env.beforeRemoveMember?.(member.userId, member.organizationId);
+          },
+        },
       }),
     ],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (isBlockedAuthPath(ctx.path)) throw new APIError("NOT_FOUND");
         if (
           ctx.path === "/sign-in/social" &&
           ctx.body?.provider === "oidc" &&

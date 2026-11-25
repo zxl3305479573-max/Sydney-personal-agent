@@ -9,8 +9,10 @@ import {
   createManagedTask,
   dispatchManagedTask,
   guardManagedRun,
+  preflightManagedRun,
   reconcileManagedTaskEffect,
   renewManagedTaskMandate,
+  rollbackManagedModelReservation,
   TaskExecutionError,
   verifyManagedTaskCompletion,
 } from "./task-execution.js";
@@ -148,30 +150,41 @@ function harness(
   options: {
     control?: { intent: "continue" | "pause" | "cancel"; quiesced: boolean };
     version?: number;
+    currentRunId?: string | null;
     runStatus?: string;
     effect?: { id: string; status: string } | null;
     runLease?: { leaseOwner: string; leaseFence: number; leaseExpiresAt: Date | null };
     queuedCancelCount?: number;
     mandate?: object;
+    deadline?: number | null;
+    modelCalls?: number;
+    reservedTokens?: number;
+    toolCalls?: Array<{ id: string; tool: string; reservedTokens: number }>;
+    maxToolCalls?: number;
+    maxModelCalls?: number;
+    maxReservedTokens?: number;
+    activeLease?: { id: string } | null;
+    activeComputer?: { id: string } | null;
+    attemptCount?: number;
   } = {},
 ) {
   let savedState: TaskExecutionState = {
     format: 1 as const,
     version: options.version ?? 2,
-    currentRunId: "run-1",
+    currentRunId: options.currentRunId === undefined ? "run-1" : options.currentRunId,
     control: options.control ?? { intent: "continue" as const, quiesced: false },
     completionEvidence: null,
     budget: {
       maxRuns: 3,
-      maxToolCalls: 20,
-      maxModelCalls: 8,
-      maxReservedTokens: 100_000,
+      maxToolCalls: options.maxToolCalls ?? 20,
+      maxModelCalls: options.maxModelCalls ?? 8,
+      maxReservedTokens: options.maxReservedTokens ?? 100_000,
       timeoutMs: 900_000,
     },
-    deadline: null,
-    modelCalls: 0,
-    reservedTokens: 0,
-    toolCalls: [],
+    deadline: options.deadline === undefined ? null : options.deadline,
+    modelCalls: options.modelCalls ?? 0,
+    reservedTokens: options.reservedTokens ?? 0,
+    toolCalls: options.toolCalls ?? [],
   };
   const task = {
     id: "task-1",
@@ -205,6 +218,15 @@ function harness(
       updateMany: vi.fn(async () => ({ count: options.queuedCancelCount ?? 0 })),
       findMany: vi.fn(async () => [{ id: "run-1", ...actor }]),
     },
+    computerExecutionLease: {
+      findFirst: vi.fn(async () => options.activeLease ?? null),
+    },
+    computer: {
+      findFirst: vi.fn(async () => options.activeComputer ?? null),
+    },
+    attempt: {
+      count: vi.fn(async () => options.attemptCount ?? 1),
+    },
     externalEffect: {
       findFirst: vi.fn(async () => options.effect ?? null),
       update: vi.fn(async () => ({})),
@@ -225,8 +247,17 @@ function harness(
 describe("managed task state transitions", () => {
   it("atomically cancels a queued Run without claiming its work is quiescent", async () => {
     const db = harness({ queuedCancelCount: 1 });
-    await runAsTenant(actor, () => controlManagedTask(db.prisma, actor, "task-1", "cancel", 2));
+    const result = await runAsTenant(actor, () =>
+      controlManagedTask(db.prisma, actor, "task-1", "cancel", 2),
+    );
 
+    expect(result).toEqual({
+      ok: true,
+      runId: "run-1",
+      threadId: "thread-1",
+      eventSeq: 42,
+      cancelledQueuedRun: true,
+    });
     expect(db.tx.run.updateMany).toHaveBeenCalledWith({
       where: {
         id: "run-1",
@@ -257,12 +288,38 @@ describe("managed task state transitions", () => {
     expect(db.state().version).toBe(3);
   });
 
-  it("keeps stop unconfirmed if the worker claims the Run first", async () => {
+  it("keeps stop unconfirmed and still returns runId/threadId if the worker claims the Run first", async () => {
     const db = harness({ queuedCancelCount: 0 });
-    await runAsTenant(actor, () => controlManagedTask(db.prisma, actor, "task-1", "cancel", 2));
+    const result = await runAsTenant(actor, () =>
+      controlManagedTask(db.prisma, actor, "task-1", "cancel", 2),
+    );
 
+    expect(result).toEqual({
+      ok: true,
+      runId: "run-1",
+      threadId: "thread-1",
+      eventSeq: null,
+      cancelledQueuedRun: false,
+    });
     expect(db.tx.externalEffect.deleteMany).not.toHaveBeenCalled();
     expect(db.state().control).toEqual({ intent: "cancel", quiesced: false });
+  });
+
+  it("returns runId and threadId when pausing an active managed task", async () => {
+    const db = harness();
+    const result = await runAsTenant(actor, () =>
+      controlManagedTask(db.prisma, actor, "task-1", "pause", 2),
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      runId: "run-1",
+      threadId: "thread-1",
+      eventSeq: null,
+      cancelledQueuedRun: false,
+    });
+    expect(db.state().control).toEqual({ intent: "pause", quiesced: false });
+    expect(db.state().version).toBe(3);
   });
 
   it("does not allow a cancelled task to continue", async () => {
@@ -448,6 +505,186 @@ describe("managed task state transitions", () => {
         ),
       ).rejects.toThrow(new TaskExecutionError("lease_expired"));
     });
+    expect(db.tx.task.update).not.toHaveBeenCalled();
+  });
+
+  it("confirms stop for a queued-cancelled Run with zero attempts", async () => {
+    const db = harness({
+      control: { intent: "cancel", quiesced: false },
+      runStatus: "cancelled",
+      attemptCount: 0,
+    });
+    const result = await runAsTenant(actor, () =>
+      confirmManagedTaskStopped(db.prisma, actor, "task-1", "run-1", 2),
+    );
+
+    expect(result).toEqual({ ok: true, quiesced: true, version: 3 });
+    expect(db.state().control).toEqual({ intent: "cancel", quiesced: true });
+    expect(db.state().version).toBe(3);
+  });
+
+  it("confirms stop when attempts ran only with idle server-side background work evidence and no active computer leases", async () => {
+    const db = harness({
+      control: { intent: "pause", quiesced: false },
+      runStatus: "failed",
+      attemptCount: 2,
+    });
+    const result = await runAsTenant(actor, () =>
+      confirmManagedTaskStopped(db.prisma, actor, "task-1", "run-1", 2, {
+        backgroundWork: "idle",
+      }),
+    );
+
+    expect(result).toEqual({ ok: true, quiesced: true, version: 3 });
+    expect(db.state().control).toEqual({ intent: "pause", quiesced: true });
+    expect(db.state().version).toBe(3);
+  });
+
+  it.each(["unknown", "active", "unused"] as const)(
+    "rejects stop confirmation when attempts ran and backgroundWork is %s",
+    async (backgroundWork) => {
+      const db = harness({
+        control: { intent: "pause", quiesced: false },
+        runStatus: "failed",
+        attemptCount: 1,
+      });
+      await runAsTenant(actor, async () => {
+        await expect(
+          confirmManagedTaskStopped(db.prisma, actor, "task-1", "run-1", 2, { backgroundWork }),
+        ).rejects.toThrow(new TaskExecutionError("stop_evidence_unavailable"));
+      });
+      expect(db.tx.task.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects stop confirmation when an active computer execution lease or legacy execution binding exists", async () => {
+    const leased = harness({
+      control: { intent: "cancel", quiesced: false },
+      runStatus: "cancelled",
+      attemptCount: 0,
+      activeLease: { id: "lease-1" },
+    });
+    await runAsTenant(actor, async () => {
+      await expect(
+        confirmManagedTaskStopped(leased.prisma, actor, "task-1", "run-1", 2, {
+          backgroundWork: "idle",
+        }),
+      ).rejects.toThrow(new TaskExecutionError("stop_evidence_unavailable"));
+    });
+    expect(leased.tx.task.update).not.toHaveBeenCalled();
+
+    const boundComputer = harness({
+      control: { intent: "pause", quiesced: false },
+      runStatus: "failed",
+      attemptCount: 0,
+      activeComputer: { id: "comp-1" },
+    });
+    await runAsTenant(actor, async () => {
+      await expect(
+        confirmManagedTaskStopped(boundComputer.prisma, actor, "task-1", "run-1", 2, {
+          backgroundWork: "idle",
+        }),
+      ).rejects.toThrow(new TaskExecutionError("stop_evidence_unavailable"));
+    });
+    expect(boundComputer.tx.task.update).not.toHaveBeenCalled();
+  });
+
+  it("checks managed run preconditions without mutating usage during preflightManagedRun", async () => {
+    const now = Date.now();
+    const mandate = {
+      id: "mandate-1",
+      ...actor,
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      runId: "run-1",
+      source: "authenticated_user" as const,
+      issuedAt: now,
+      expiresAt: now + 60_000,
+      scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+    };
+    const input = {
+      runId: "run-1",
+      workerId: "worker-1",
+      fence: 2,
+      action: { tool: "read_file", action: "execute", resource: "workspace" },
+    };
+
+    const allowedDb = harness({
+      runStatus: "running",
+      runLease: { leaseOwner: "worker-1", leaseFence: 2, leaseExpiresAt: new Date(now + 60_000) },
+      mandate,
+    });
+    await expect(
+      runAsTenant(actor, () => preflightManagedRun(allowedDb.prisma, actor, "task-1", input, 0)),
+    ).resolves.toEqual({ allowed: true });
+    expect(allowedDb.tx.$queryRaw).not.toHaveBeenCalled();
+    expect(allowedDb.tx.task.update).not.toHaveBeenCalled();
+    expect(allowedDb.state().toolCalls).toEqual([]);
+
+    const pausedDb = harness({
+      control: { intent: "pause", quiesced: false },
+      runStatus: "running",
+      runLease: { leaseOwner: "worker-1", leaseFence: 2, leaseExpiresAt: new Date(now + 60_000) },
+      mandate,
+    });
+    await expect(
+      runAsTenant(actor, () => preflightManagedRun(pausedDb.prisma, actor, "task-1", input, 0)),
+    ).resolves.toEqual({
+      allowed: false,
+      code: "control_blocked",
+      reason: "control_blocked",
+    });
+    expect(pausedDb.tx.task.update).not.toHaveBeenCalled();
+
+    const cappedDb = harness({
+      runStatus: "running",
+      runLease: { leaseOwner: "worker-1", leaseFence: 2, leaseExpiresAt: new Date(now + 60_000) },
+      mandate,
+      maxToolCalls: 1,
+      toolCalls: [{ id: "call-0", tool: "read_file", reservedTokens: 0 }],
+    });
+    await expect(
+      runAsTenant(actor, () => preflightManagedRun(cappedDb.prisma, actor, "task-1", input, 0)),
+    ).resolves.toEqual({
+      allowed: false,
+      code: "tool_calls_exceeded",
+      reason: "tool_calls_exceeded",
+    });
+    expect(cappedDb.tx.task.update).not.toHaveBeenCalled();
+  });
+
+  it("rolls back model call reservation with zero floor and ignores mismatched runId", async () => {
+    const db = harness({ modelCalls: 2, reservedTokens: 500 });
+    const rolled = await runAsTenant(actor, () =>
+      rollbackManagedModelReservation(db.prisma, actor, "task-1", {
+        runId: "run-1",
+        reservedTokens: 200,
+      }),
+    );
+    expect(rolled).toEqual({ rolledBack: true, modelCalls: 1, reservedTokens: 300 });
+    expect(db.state().modelCalls).toBe(1);
+    expect(db.state().reservedTokens).toBe(300);
+    expect(db.state().version).toBe(2);
+
+    const floored = await runAsTenant(actor, () =>
+      rollbackManagedModelReservation(db.prisma, actor, "task-1", {
+        runId: "run-1",
+        reservedTokens: 1_000,
+      }),
+    );
+    expect(floored).toEqual({ rolledBack: true, modelCalls: 0, reservedTokens: 0 });
+    expect(db.state().modelCalls).toBe(0);
+    expect(db.state().reservedTokens).toBe(0);
+
+    db.tx.task.update.mockClear();
+    const ignored = await runAsTenant(actor, () =>
+      rollbackManagedModelReservation(db.prisma, actor, "task-1", {
+        runId: "run-other",
+        reservedTokens: 100,
+      }),
+    );
+    expect(ignored).toEqual({ rolledBack: false });
     expect(db.tx.task.update).not.toHaveBeenCalled();
   });
 });

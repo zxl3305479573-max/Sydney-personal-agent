@@ -1,5 +1,6 @@
 import type { Actor } from "@rakazo/contracts";
 import type { PrismaClient } from "@rakazo/db";
+import { runAsTenant } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { ThreadTarget } from "./thread-target.js";
 import { markThreadRead, markThreadUnreadFrom } from "./thread-target.js";
@@ -51,12 +52,33 @@ describe("markThreadRead", () => {
         id: "thread-1",
         spaceId: "space-1",
         userId: "user-1",
+        projectWorkspaceId: null,
         lastReadSeq: 3,
         nextMessageSeq: 7,
       },
       data: { unread: false, lastReadSeq: 6 },
     });
     await expect(markThreadRead(store.prisma, actor, target)).resolves.toBeNull();
+  });
+
+  it("propagates the active project workspace scope when marking a project thread read", async () => {
+    const store = threadStore({ unread: true, lastReadSeq: 3, nextMessageSeq: 7 });
+    await expect(
+      runAsTenant({ spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId: "project-1" }, () =>
+        markThreadRead(store.prisma, actor, target),
+      ),
+    ).resolves.toBe(3);
+    expect(store.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "thread-1",
+        spaceId: "space-1",
+        userId: "user-1",
+        projectWorkspaceId: "project-1",
+        lastReadSeq: 3,
+        nextMessageSeq: 7,
+      },
+      data: { unread: false, lastReadSeq: 6 },
+    });
   });
 
   it("clears a chat marked unread by hand without inventing a divider", async () => {

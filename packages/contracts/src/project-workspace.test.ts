@@ -37,6 +37,31 @@ describe("project workspace contracts", () => {
     expect(schema.safeParse({ ...valid, artifactIds: ["file-a"] }).success).toBe(false);
   });
 
+  it("enforces strict scoped targets on project threadHead, messages, stop, markRead, and rename", () => {
+    const target = { projectId: "project-a", botId: "bot-a" };
+    for (const proc of ["threadHead", "messages", "stop", "markRead"] as const) {
+      const schema = appContract.projectWorkspaces[proc]["~orpc"].inputSchema!;
+      expect(schema.safeParse(target).success).toBe(true);
+      expect(schema.safeParse({ projectId: "project-a", groupId: "group-a" }).success).toBe(true);
+      expect(schema.safeParse({ ...target, groupId: "group-a" }).success).toBe(false);
+      expect(schema.safeParse({ projectId: "project-a" }).success).toBe(false);
+      expect(schema.safeParse({ ...target, userId: "forged" }).success).toBe(false);
+    }
+    const messagesSchema = appContract.projectWorkspaces.messages["~orpc"].inputSchema!;
+    expect(messagesSchema.safeParse({ ...target, before: 10 }).success).toBe(true);
+    expect(messagesSchema.safeParse({ ...target, before: -1 }).success).toBe(false);
+    const renameSchema = appContract.projectWorkspaces.rename["~orpc"].inputSchema!;
+    expect(renameSchema.safeParse({ id: "project-a", name: "Renamed" }).success).toBe(true);
+    expect(renameSchema.safeParse({ id: "project-a", name: " ", userId: "forged" }).success).toBe(false);
+    const removeSchema = appContract.projectWorkspaces.remove["~orpc"].inputSchema!;
+    expect(removeSchema.safeParse({ id: "project-a", confirmRemoveAppData: true }).success).toBe(true);
+    expect(removeSchema.safeParse({ id: "project-a", confirmRemoveAppData: false }).success).toBe(false);
+    expect(removeSchema.safeParse({ id: "project-a", confirmRemoveAppData: true, deleteLocalFiles: true }).success).toBe(false);
+    const capabilitiesOutput = appContract.projectWorkspaces.capabilities["~orpc"].outputSchema!;
+    expect(capabilitiesOutput.safeParse({ create: true, removeEmpty: true, remove: true }).success).toBe(true);
+    expect(capabilitiesOutput.safeParse({ create: true, removeEmpty: true }).success).toBe(false);
+  });
+
   it("exports the schema through the package entry", () => {
     expect(PublicProjectWorkspaceSchema).toBe(ProjectWorkspaceSchema);
   });

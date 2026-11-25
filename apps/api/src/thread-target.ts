@@ -34,6 +34,8 @@ import {
   answerWaitingRunWithTextInTransaction,
   appendEventInTransaction,
   clearEndedRunState,
+  conversationProjectId,
+  conversationScopeWhere,
   createGroupRepos,
   createRepos,
   createThreadMessageInTransaction,
@@ -41,6 +43,7 @@ import {
   expireComputerExecutionLeases,
   IsolationError,
   lockOwnedGroup,
+  lockProjectWorkspaceForMutation,
   primaryActiveRun,
   resolveConversationExecutionScope,
   retireWaitingQuestionInTransaction,
@@ -762,8 +765,12 @@ export async function sendThreadMessage(
     throw new ORPCError("BAD_REQUEST", { message: "replyQuote requires replyToMessageId." });
   }
 
+  const projectWorkspaceId = conversationProjectId(actor);
   const commit = () =>
     deps.prisma.$transaction(async (tx) => {
+      if (projectWorkspaceId !== null) {
+        await lockProjectWorkspaceForMutation(tx, actor, projectWorkspaceId);
+      }
       let routineRuns: Array<{ id: string; status: string }> = [];
       let replyToMessageId: string | undefined;
       let replyQuote: string | undefined;
@@ -1632,7 +1639,7 @@ export async function markThreadRead(
   actor: Actor,
   target: ThreadTarget,
 ): Promise<number | null> {
-  const where = { id: target.threadId, spaceId: actor.spaceId, userId: actor.userId };
+  const where = { id: target.threadId, ...conversationScopeWhere(actor) };
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const thread = await prisma.thread.findFirst({
       where,
@@ -1688,7 +1695,7 @@ export async function markThreadUnreadFrom(
   });
   if (!message) throw new ORPCError("NOT_FOUND");
   const result = await prisma.thread.updateMany({
-    where: { id: target.threadId, spaceId: actor.spaceId, userId: actor.userId },
+    where: { id: target.threadId, ...conversationScopeWhere(actor) },
     data: { unread: true, lastReadSeq: message.seq - 1 },
   });
   if (result.count > 1) throw new IsolationError();
@@ -1703,8 +1710,7 @@ export async function setThreadUnreadState(
   const result = await prisma.thread.updateMany({
     where: {
       id: target.threadId,
-      spaceId: actor.spaceId,
-      userId: actor.userId,
+      ...conversationScopeWhere(actor),
       unread: { not: unread },
     },
     data: { unread },

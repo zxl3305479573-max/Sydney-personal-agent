@@ -4287,3 +4287,917 @@ describe("cross-chat history grant", () => {
     },
   );
 });
+
+describe("managed task control and model budget", () => {
+  function managedExecutionState(
+    overrides: Partial<{
+      currentRunId: string | null;
+      intent: "continue" | "pause" | "cancel";
+      deadline: number | null;
+      maxReservedTokens: number;
+      maxModelCalls: number;
+      modelCalls: number;
+      reservedTokens: number;
+    }> = {},
+  ) {
+    return {
+      format: 1 as const,
+      version: 1,
+      currentRunId: overrides.currentRunId === undefined ? "run-1" : overrides.currentRunId,
+      control: { intent: overrides.intent ?? ("continue" as const), quiesced: false },
+      completionEvidence: null,
+      budget: {
+        maxRuns: 3,
+        maxToolCalls: 10,
+        maxModelCalls: overrides.maxModelCalls ?? 10,
+        maxReservedTokens: overrides.maxReservedTokens ?? 10_000,
+        timeoutMs: 60_000,
+      },
+      deadline: overrides.deadline === undefined ? null : overrides.deadline,
+      modelCalls: overrides.modelCalls ?? 0,
+      reservedTokens: overrides.reservedTokens ?? 0,
+      toolCalls: [] as Array<{ id: string; tool: string; reservedTokens: number }>,
+    };
+  }
+
+  it.each([
+    ["pause intent", { intent: "pause" as const }],
+    ["cancel intent", { intent: "cancel" as const }],
+    ["mismatched currentRunId", { currentRunId: "run-other" }],
+    ["expired deadline", { deadline: Date.now() - 1_000 }],
+  ])(
+    "stops a managed run before computer lease or attempt creation on %s",
+    async (_label, stateOverrides) => {
+      const run = {
+        id: "run-1",
+        botId: "bot-1",
+        threadId: "thread-1",
+        taskId: "task-1",
+        userId: "user-1",
+        spaceId: "ws-1",
+        projectWorkspaceId: null,
+        status: "queued",
+        trigger: "managed_task",
+        routineId: null,
+        sourceMessageId: null,
+        checkpoint: null,
+        leaseFence: 0,
+      };
+      const runUpdateMany = vi.fn(async () => ({ count: 1 }));
+      const taskFindFirst = vi.fn(async () => ({
+        executionState: managedExecutionState(stateOverrides),
+      }));
+      const botFindUniqueOrThrow = vi.fn();
+      const computerFindUniqueOrThrow = vi.fn();
+      const attemptCreate = vi.fn();
+      const runtimeRun = vi.fn();
+      const finalizeRun = vi.fn();
+      const enqueue = vi.fn();
+      const endRun = vi.fn();
+      const prisma = {
+        run: {
+          findUnique: vi.fn(async () => run),
+          findUniqueOrThrow: vi.fn(async () => ({ status: "leased", startedAt: null })),
+          updateMany: runUpdateMany,
+        },
+        task: { findFirst: taskFindFirst },
+        bot: { findUniqueOrThrow: botFindUniqueOrThrow },
+        computer: { findUniqueOrThrow: computerFindUniqueOrThrow },
+        attempt: { create: attemptCreate },
+      } as unknown as PrismaClient;
+      const executor = createRunExecutor({
+        prisma,
+        runtime: { describe: () => ({ capabilities: { scripted: false } }), run: runtimeRun },
+        connector: { endRun },
+        events: { append: vi.fn(), finalizeRun },
+        jobs: { enqueue },
+        secrets: [],
+      } as unknown as Parameters<typeof createRunExecutor>[0]);
+
+      await executor.continueRun("run-1", "worker-1");
+
+      expect(taskFindFirst).toHaveBeenCalledOnce();
+      expect(botFindUniqueOrThrow).not.toHaveBeenCalled();
+      expect(computerFindUniqueOrThrow).not.toHaveBeenCalled();
+      expect(attemptCreate).not.toHaveBeenCalled();
+      expect(runtimeRun).not.toHaveBeenCalled();
+      expect(finalizeRun).not.toHaveBeenCalled();
+      expect(enqueue).not.toHaveBeenCalled();
+      expect(runUpdateMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: {
+            id: "run-1",
+            status: "running",
+            leaseOwner: "worker-1",
+            leaseFence: 1,
+          },
+          data: expect.objectContaining({
+            status: "failed",
+            error: "Managed task was stopped or its control state was unavailable.",
+            completedAt: expect.any(Date),
+            leaseOwner: null,
+            leaseExpiresAt: null,
+          }),
+        }),
+      );
+      expect(endRun).toHaveBeenCalledWith("run-1");
+    },
+  );
+
+  it("wraps runtime resolveModel with managedCallObserver for managed_task runs", async () => {
+    const mandate = {
+      id: "mandate-1",
+      userId: "user-1",
+      spaceId: "ws-1",
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      runId: "run-1",
+      source: "authenticated_user" as const,
+      issuedAt: 1,
+      expiresAt: Date.now() + 60_000,
+      scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+    };
+    let executionState = managedExecutionState({ maxReservedTokens: 500 });
+    const run = {
+      id: "run-1",
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      userId: "user-1",
+      spaceId: "ws-1",
+      projectWorkspaceId: null,
+      status: "queued" as string,
+      trigger: "managed_task",
+      taskMandate: mandate,
+      routineId: null,
+      modelProvider: null as string | null,
+      modelId: null as string | null,
+      thinkingLevel: null,
+      modelPinned: false,
+      sourceMessageId: null,
+      checkpoint: null,
+      clientNonce: null,
+      leaseOwner: null as string | null,
+      leaseFence: 0,
+      leaseExpiresAt: null as Date | null,
+      wakeAt: null as Date | null,
+      startedAt: null as Date | null,
+    };
+    const taskUpdate = vi.fn(
+      async ({ data }: { data: { executionState: typeof executionState } }) => {
+        executionState = data.executionState;
+        return {};
+      },
+    );
+    const preference = modelPreference({
+      provider: "xai",
+      secretId: "secret-xai",
+      modelId: "grok-4.6",
+    });
+    let resolvedHelperModel:
+      | {
+          provider: string;
+          id: string;
+          callObserver?: {
+            beforeCall: (call: {
+              callId: string;
+              operationKind: "subagent";
+              provider: string;
+              modelId: string;
+              inputTokensEstimate: number;
+              maxOutputTokens: number;
+            }) => Promise<string | undefined>;
+            afterCall: (reservationId: string, usage: Record<string, unknown>) => Promise<void>;
+            onRequestId?: (reservationId: string, providerRequestId: string) => void | Promise<void>;
+          };
+        }
+      | undefined;
+    let firstReservation: string | undefined;
+    let overflowError: unknown;
+    const runtimeRun = vi.fn(async function* (request: {
+      resolveModel?: (
+        provider: string,
+        modelId: string,
+      ) => Promise<{
+        provider: string;
+        id: string;
+        callObserver?: {
+          beforeCall: (call: {
+            callId: string;
+            operationKind: "subagent";
+            provider: string;
+            modelId: string;
+            inputTokensEstimate: number;
+            maxOutputTokens: number;
+          }) => Promise<string | undefined>;
+          afterCall: (reservationId: string, usage: Record<string, unknown>) => Promise<void>;
+          onRequestId?: (reservationId: string, providerRequestId: string) => void | Promise<void>;
+        };
+      }>;
+    }) {
+      resolvedHelperModel = await request.resolveModel?.("xai", "grok-4.6");
+      firstReservation = await resolvedHelperModel?.callObserver?.beforeCall({
+        callId: "helper-call-1",
+        operationKind: "subagent",
+        provider: "xai",
+        modelId: "grok-4.6",
+        inputTokensEstimate: 120,
+        maxOutputTokens: 80,
+      });
+      await resolvedHelperModel?.callObserver?.onRequestId?.(
+        firstReservation ?? "",
+        "provider-req-1",
+      );
+      await resolvedHelperModel?.callObserver?.afterCall(firstReservation ?? "", {});
+      try {
+        await resolvedHelperModel?.callObserver?.beforeCall({
+          callId: "helper-call-2",
+          operationKind: "subagent",
+          provider: "xai",
+          modelId: "grok-4.6",
+          inputTokensEstimate: 300,
+          maxOutputTokens: 100,
+        });
+      } catch (error) {
+        overflowError = error;
+      }
+      yield { type: "done" as const, text: "Done." };
+    });
+    const prisma = {
+      run: {
+        findUnique: vi.fn(async () => run),
+        findUniqueOrThrow: vi.fn(async () => run),
+        findFirst: vi.fn(async (args?: { where?: { status?: unknown } }) =>
+          args?.where?.status === "queued"
+            ? null
+            : { bot: { notifyOnFinish: false }, thread: { groupId: null } },
+        ),
+        updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          Object.assign(run, data);
+          return { count: 1 };
+        }),
+      },
+      bot: {
+        findUniqueOrThrow: vi.fn(async (args: { select?: { computerId?: boolean } }) =>
+          args.select?.computerId
+            ? {
+                computerId: "computer-1",
+                computerSwitching: false,
+                computer: { scope: "private" },
+              }
+            : {
+                id: "bot-1",
+                userId: "user-1",
+                name: "Assistant",
+                description: "Test assistant",
+                instructions: "",
+                modelProvider: null,
+                modelId: null,
+                thinkingLevel: null,
+                memoryScope: "isolated",
+                disabledBuiltinTools: [],
+                fleetManagement: false,
+                crossSpaceCommunication: false,
+                computer: { id: "computer-1", scope: "private", kind: "e2b", homeKey: "home-1" },
+              },
+        ),
+        findMany: vi.fn(async () => []),
+      },
+      chatGroup: { findMany: vi.fn(async () => []) },
+      mcpServer: { findMany: vi.fn(async () => []) },
+      user: { findUnique: vi.fn(async () => ({ timezone: "UTC" })) },
+      event: { count: vi.fn(async () => 0) },
+      computer: {
+        findUniqueOrThrow: vi.fn(async () => ({ scope: "private", state: "running" })),
+      },
+      attempt: {
+        create: vi.fn(async () => ({ id: "attempt-1" })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      thread: {
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "thread-1",
+          groupId: null,
+          externalConversationId: null,
+          historyCompactionSummary: null,
+          historyCompactedUpToSeq: null,
+          historyCompactionGeneration: 0,
+          nextMessageSeq: 1,
+        })),
+      },
+      message: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => null),
+        findUnique: vi.fn(async () => null),
+        count: vi.fn(async () => 0),
+      },
+      task: {
+        findUniqueOrThrow: vi.fn(async () => ({ id: "task-1", prompt: "Audit repo" })),
+        findFirst: vi.fn(async () => ({ executionState })),
+      },
+      connection: { findMany: vi.fn(async () => []) },
+      userModelPreference: {
+        findFirst: vi.fn(
+          async (args: { where?: { credential?: { provider?: string }; modelId?: string } }) => {
+            if (args.where?.credential?.provider !== "xai") return null;
+            if (args.where.modelId && args.where.modelId !== "grok-4.6") return null;
+            return preference;
+          },
+        ),
+      },
+      userModelCredential: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => null),
+      },
+      deploymentSettings: {
+        findUnique: vi.fn(async () => ({
+          defaultModelProvider: "openrouter",
+          defaultModelId: "deepseek/deepseek-v4-flash-0731",
+        })),
+      },
+      taughtSkill: { findMany: vi.fn(async () => []) },
+      secret: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => ({ id: "secret-xai", ciphertext: "fixture-ciphertext" })),
+        findUnique: vi.fn(async () => null),
+      },
+      vaultCredential: { findMany: vi.fn(async () => []) },
+      agentSkill: { findMany: vi.fn(async () => []) },
+      scratchpadItem: { findMany: vi.fn(async () => []) },
+      externalEffect: { findMany: vi.fn(async () => []) },
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          $queryRaw: vi.fn(async () => [{ id: "task-1" }]),
+          task: {
+            findMany: vi.fn(async () => [
+              {
+                id: "task-1",
+                userId: "user-1",
+                spaceId: "ws-1",
+                projectWorkspaceId: null,
+                botId: "bot-1",
+                threadId: "thread-1",
+                prompt: "Audit repo",
+                status: "running",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                executionState,
+              },
+            ]),
+            update: taskUpdate,
+          },
+          run: {
+            findFirst: vi.fn(async () => ({
+              id: run.id,
+              status: run.status,
+              leaseOwner: run.leaseOwner,
+              leaseFence: run.leaseFence,
+              leaseExpiresAt: run.leaseExpiresAt,
+              taskMandate: mandate,
+            })),
+          },
+        }),
+      ),
+    } as unknown as PrismaClient;
+    const executor = createRunExecutor({
+      prisma,
+      billingEnabled: false,
+      deploymentModelKey: "fake-deployment-key",
+      secretStore: { load: vi.fn(async () => "fixture-xai-key"), put: vi.fn() },
+      runtime: { describe: () => ({ capabilities: { scripted: false } }), run: runtimeRun },
+      sandbox: { describe: () => ({ id: "e2b", capabilities: { graphical: false } }) },
+      memoryProviders: { resolve: vi.fn(async () => null) },
+      memory: { read: vi.fn(async () => ({ documents: [] })) },
+      events: {
+        append: vi.fn(async () => undefined),
+        finalizeRun: vi.fn(async () => ({ continuationRunId: null })),
+      },
+      jobs: { enqueue: vi.fn(async () => undefined) },
+      notifications: { send: vi.fn(async () => undefined) },
+      secrets: [],
+    } as unknown as Parameters<typeof createRunExecutor>[0]);
+
+    await executor.continueRun("run-1", "worker-1");
+
+    expect(runtimeRun).toHaveBeenCalledOnce();
+    expect(resolvedHelperModel).toMatchObject({ provider: "xai", id: "grok-4.6" });
+    expect(resolvedHelperModel?.callObserver).toBeDefined();
+    expect(firstReservation).toBe("managed-task-call");
+    expect(taskUpdate).toHaveBeenCalledOnce();
+    expect(executionState.modelCalls).toBe(1);
+    expect(executionState.reservedTokens).toBe(200);
+    expect(overflowError).toBeInstanceOf(Error);
+    expect((overflowError as Error).message).toBe("budget_exceeded");
+  });
+
+  it("rolls back managed model reservation when downstream billing observer throws", async () => {
+    const mandate = {
+      id: "mandate-1",
+      userId: "user-1",
+      spaceId: "ws-1",
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      runId: "run-1",
+      source: "authenticated_user" as const,
+      issuedAt: 1,
+      expiresAt: Date.now() + 60_000,
+      scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+    };
+    let executionState = managedExecutionState({ maxReservedTokens: 500 });
+    const observedSnapshots: Array<{ modelCalls: number; reservedTokens: number }> = [];
+    const run = {
+      id: "run-1",
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      userId: "user-1",
+      spaceId: "ws-1",
+      projectWorkspaceId: null,
+      status: "queued" as string,
+      trigger: "managed_task",
+      taskMandate: mandate,
+      routineId: null,
+      modelProvider: null as string | null,
+      modelId: null as string | null,
+      thinkingLevel: null,
+      modelPinned: false,
+      sourceMessageId: null,
+      checkpoint: null,
+      clientNonce: null,
+      leaseOwner: null as string | null,
+      leaseFence: 0,
+      leaseExpiresAt: null as Date | null,
+      wakeAt: null as Date | null,
+      startedAt: null as Date | null,
+    };
+    const taskUpdate = vi.fn(
+      async ({ data }: { data: { executionState: typeof executionState } }) => {
+        executionState = data.executionState;
+        observedSnapshots.push({
+          modelCalls: executionState.modelCalls,
+          reservedTokens: executionState.reservedTokens,
+        });
+        return {};
+      },
+    );
+    let billingFailure: unknown;
+    const runtimeRun = vi.fn(async function* (request: {
+      model: {
+        callObserver?: {
+          beforeCall: (call: {
+            callId: string;
+            operationKind: "answer";
+            provider: string;
+            modelId: string;
+            inputTokensEstimate: number;
+            maxOutputTokens: number;
+          }) => Promise<string | undefined>;
+        };
+      };
+    }) {
+      try {
+        await request.model.callObserver?.beforeCall({
+          callId: "main-call-1",
+          operationKind: "answer",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-flash-0731",
+          inputTokensEstimate: 120,
+          maxOutputTokens: 80,
+        });
+      } catch (error) {
+        billingFailure = error;
+      }
+      yield { type: "done" as const, text: "Done." };
+    });
+    const prisma = {
+      run: {
+        findUnique: vi.fn(async () => run),
+        findUniqueOrThrow: vi.fn(async () => run),
+        findFirst: vi.fn(async (args?: { where?: { status?: unknown } }) =>
+          args?.where?.status === "queued"
+            ? null
+            : { bot: { notifyOnFinish: false }, thread: { groupId: null } },
+        ),
+        updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          Object.assign(run, data);
+          return { count: 1 };
+        }),
+      },
+      bot: {
+        findUniqueOrThrow: vi.fn(async (args: { select?: { computerId?: boolean } }) =>
+          args.select?.computerId
+            ? {
+                computerId: "computer-1",
+                computerSwitching: false,
+                computer: { scope: "private" },
+              }
+            : {
+                id: "bot-1",
+                userId: "user-1",
+                name: "Assistant",
+                description: "Test assistant",
+                instructions: "",
+                modelProvider: null,
+                modelId: null,
+                thinkingLevel: null,
+                memoryScope: "isolated",
+                disabledBuiltinTools: [],
+                fleetManagement: false,
+                crossSpaceCommunication: false,
+                computer: { id: "computer-1", scope: "private", kind: "e2b", homeKey: "home-1" },
+              },
+        ),
+        findMany: vi.fn(async () => []),
+      },
+      space: {
+        findUnique: vi.fn(async () => ({
+          organizationId: "org-1",
+          organization: {
+            modelCredits: { mode: "credits", balanceMicros: 1_000_000n, byokFreeUntil: null },
+            billing: { status: "active" },
+          },
+        })),
+        findFirst: vi.fn(async () => ({
+          organization: { modelCredits: { mode: "credits", balanceMicros: 1_000_000n } },
+        })),
+      },
+      member: {
+        findUnique: vi.fn(async () => ({ role: "owner" })),
+      },
+      modelCreditAccount: {
+        upsert: vi.fn(async () => ({
+          organizationId: "org-1",
+          mode: "credits",
+          balanceMicros: 1_000_000n,
+        })),
+      },
+      chatGroup: { findMany: vi.fn(async () => []) },
+      mcpServer: { findMany: vi.fn(async () => []) },
+      user: { findUnique: vi.fn(async () => ({ timezone: "UTC" })) },
+      event: { count: vi.fn(async () => 0) },
+      computer: {
+        findUniqueOrThrow: vi.fn(async () => ({ scope: "private", state: "running" })),
+      },
+      attempt: {
+        create: vi.fn(async () => ({ id: "attempt-1" })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      thread: {
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "thread-1",
+          groupId: null,
+          externalConversationId: null,
+          historyCompactionSummary: null,
+          historyCompactedUpToSeq: null,
+          historyCompactionGeneration: 0,
+          nextMessageSeq: 1,
+        })),
+      },
+      message: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => null),
+        findUnique: vi.fn(async () => null),
+        count: vi.fn(async () => 0),
+      },
+      task: {
+        findUniqueOrThrow: vi.fn(async () => ({ id: "task-1", prompt: "Audit repo" })),
+        findFirst: vi.fn(async () => ({ executionState })),
+      },
+      connection: { findMany: vi.fn(async () => []) },
+      userModelPreference: { findFirst: vi.fn(async () => null) },
+      userModelCredential: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => null),
+      },
+      deploymentSettings: {
+        findUnique: vi.fn(async () => ({
+          defaultModelProvider: "openrouter",
+          defaultModelId: "deepseek/deepseek-v4-flash-0731",
+        })),
+      },
+      taughtSkill: { findMany: vi.fn(async () => []) },
+      secret: {
+        findMany: vi.fn(async () => []),
+        findFirst: vi.fn(async () => null),
+        findUnique: vi.fn(async () => null),
+      },
+      vaultCredential: { findMany: vi.fn(async () => []) },
+      agentSkill: { findMany: vi.fn(async () => []) },
+      scratchpadItem: { findMany: vi.fn(async () => []) },
+      externalEffect: { findMany: vi.fn(async () => []) },
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          $queryRaw: vi.fn(async () => [{ id: "task-1" }]),
+          task: {
+            findMany: vi.fn(async () => [
+              {
+                id: "task-1",
+                userId: "user-1",
+                spaceId: "ws-1",
+                projectWorkspaceId: null,
+                botId: "bot-1",
+                threadId: "thread-1",
+                prompt: "Audit repo",
+                status: "running",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                executionState,
+              },
+            ]),
+            update: taskUpdate,
+          },
+          run: {
+            findFirst: vi.fn(async () => ({
+              id: run.id,
+              status: run.status,
+              leaseOwner: run.leaseOwner,
+              leaseFence: run.leaseFence,
+              leaseExpiresAt: run.leaseExpiresAt,
+              taskMandate: mandate,
+            })),
+          },
+        }),
+      ),
+    } as unknown as PrismaClient;
+    const executor = createRunExecutor({
+      prisma,
+      billingEnabled: true,
+      deploymentModelKey: "fake-deployment-key",
+      secretStore: { load: vi.fn(), put: vi.fn() },
+      runtime: { describe: () => ({ capabilities: { scripted: false } }), run: runtimeRun },
+      sandbox: { describe: () => ({ id: "e2b", capabilities: { graphical: false } }) },
+      memoryProviders: { resolve: vi.fn(async () => null) },
+      memory: { read: vi.fn(async () => ({ documents: [] })) },
+      events: {
+        append: vi.fn(async () => undefined),
+        finalizeRun: vi.fn(async () => ({ continuationRunId: null })),
+      },
+      jobs: { enqueue: vi.fn(async () => undefined) },
+      notifications: { send: vi.fn(async () => undefined) },
+      secrets: [],
+    } as unknown as Parameters<typeof createRunExecutor>[0]);
+
+    await executor.continueRun("run-1", "worker-1");
+
+    expect(billingFailure).toBeInstanceOf(Error);
+    expect((billingFailure as Error).message).toContain("no reliable price");
+    expect(observedSnapshots).toEqual([
+      { modelCalls: 1, reservedTokens: 200 },
+      { modelCalls: 0, reservedTokens: 0 },
+    ]);
+    expect(executionState.modelCalls).toBe(0);
+    expect(executionState.reservedTokens).toBe(0);
+  });
+
+  it("rolls back managed model reservation when run aborts immediately after guardManagedRun and preserves the original error even if rollback fails", async () => {
+    const mandate = {
+      id: "mandate-1",
+      userId: "user-1",
+      spaceId: "ws-1",
+      botId: "bot-1",
+      threadId: "thread-1",
+      taskId: "task-1",
+      runId: "run-1",
+      source: "authenticated_user" as const,
+      issuedAt: 1,
+      expiresAt: Date.now() + 60_000,
+      scopes: [{ tool: "read_file", action: "execute", resource: "workspace" }],
+    };
+
+    const runScenario = async (failRollback: boolean) => {
+      const shutdownController = new AbortController();
+      let executionState = managedExecutionState({ maxReservedTokens: 500 });
+      const run = {
+        id: "run-1",
+        botId: "bot-1",
+        threadId: "thread-1",
+        taskId: "task-1",
+        userId: "user-1",
+        spaceId: "ws-1",
+        projectWorkspaceId: null,
+        status: "queued" as string,
+        trigger: "managed_task",
+        taskMandate: mandate,
+        routineId: null,
+        modelProvider: null as string | null,
+        modelId: null as string | null,
+        thinkingLevel: null,
+        modelPinned: false,
+        sourceMessageId: null,
+        checkpoint: null,
+        clientNonce: null,
+        leaseOwner: null as string | null,
+        leaseFence: 0,
+        leaseExpiresAt: null as Date | null,
+        wakeAt: null as Date | null,
+        startedAt: null as Date | null,
+      };
+      let updateCount = 0;
+      const taskUpdate = vi.fn(
+        async ({ data }: { data: { executionState: typeof executionState } }) => {
+          updateCount += 1;
+          if (updateCount === 1) {
+            executionState = data.executionState;
+            shutdownController.abort(new Error("worker stopping after guard"));
+            return {};
+          }
+          if (failRollback) throw new Error("rollback db error");
+          executionState = data.executionState;
+          return {};
+        },
+      );
+      let caughtError: unknown;
+      const runtimeRun = vi.fn(async function* (request: {
+        model: {
+          callObserver?: {
+            beforeCall: (call: {
+              callId: string;
+              operationKind: "answer";
+              provider: string;
+              modelId: string;
+              inputTokensEstimate: number;
+              maxOutputTokens: number;
+            }) => Promise<string | undefined>;
+          };
+        };
+      }) {
+        try {
+          await request.model.callObserver?.beforeCall({
+            callId: "main-call-abort",
+            operationKind: "answer",
+            provider: "openrouter",
+            modelId: "deepseek/deepseek-v4-flash-0731",
+            inputTokensEstimate: 150,
+            maxOutputTokens: 50,
+          });
+        } catch (error) {
+          caughtError = error;
+        }
+        yield { type: "done" as const, text: "Done." };
+      });
+      const prisma = {
+        run: {
+          findUnique: vi.fn(async () => run),
+          findUniqueOrThrow: vi.fn(async () => run),
+          findFirst: vi.fn(async (args?: { where?: { status?: unknown } }) =>
+            args?.where?.status === "queued"
+              ? null
+              : { bot: { notifyOnFinish: false }, thread: { groupId: null } },
+          ),
+          updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+            Object.assign(run, data);
+            return { count: 1 };
+          }),
+        },
+        bot: {
+          findUniqueOrThrow: vi.fn(async (args: { select?: { computerId?: boolean } }) =>
+            args.select?.computerId
+              ? {
+                  computerId: "computer-1",
+                  computerSwitching: false,
+                  computer: { scope: "private" },
+                }
+              : {
+                  id: "bot-1",
+                  userId: "user-1",
+                  name: "Assistant",
+                  description: "Test assistant",
+                  instructions: "",
+                  modelProvider: null,
+                  modelId: null,
+                  thinkingLevel: null,
+                  memoryScope: "isolated",
+                  disabledBuiltinTools: [],
+                  fleetManagement: false,
+                  crossSpaceCommunication: false,
+                  computer: { id: "computer-1", scope: "private", kind: "e2b", homeKey: "home-1" },
+                },
+          ),
+          findMany: vi.fn(async () => []),
+        },
+        chatGroup: { findMany: vi.fn(async () => []) },
+        mcpServer: { findMany: vi.fn(async () => []) },
+        user: { findUnique: vi.fn(async () => ({ timezone: "UTC" })) },
+        event: { count: vi.fn(async () => 0) },
+        computer: {
+          findUniqueOrThrow: vi.fn(async () => ({ scope: "private", state: "running" })),
+        },
+        attempt: {
+          create: vi.fn(async () => ({ id: "attempt-1" })),
+          updateMany: vi.fn(async () => ({ count: 1 })),
+        },
+        thread: {
+          findUniqueOrThrow: vi.fn(async () => ({
+            id: "thread-1",
+            groupId: null,
+            externalConversationId: null,
+            historyCompactionSummary: null,
+            historyCompactedUpToSeq: null,
+            historyCompactionGeneration: 0,
+            nextMessageSeq: 1,
+          })),
+        },
+        message: {
+          findMany: vi.fn(async () => []),
+          findFirst: vi.fn(async () => null),
+          findUnique: vi.fn(async () => null),
+          count: vi.fn(async () => 0),
+        },
+        task: {
+          findUniqueOrThrow: vi.fn(async () => ({ id: "task-1", prompt: "Audit repo" })),
+          findFirst: vi.fn(async () => ({ executionState })),
+        },
+        connection: { findMany: vi.fn(async () => []) },
+        userModelPreference: { findFirst: vi.fn(async () => null) },
+        userModelCredential: {
+          findMany: vi.fn(async () => []),
+          findFirst: vi.fn(async () => null),
+        },
+        deploymentSettings: {
+          findUnique: vi.fn(async () => ({
+            defaultModelProvider: "openrouter",
+            defaultModelId: "deepseek/deepseek-v4-flash-0731",
+          })),
+        },
+        taughtSkill: { findMany: vi.fn(async () => []) },
+        secret: {
+          findMany: vi.fn(async () => []),
+          findFirst: vi.fn(async () => null),
+          findUnique: vi.fn(async () => null),
+        },
+        vaultCredential: { findMany: vi.fn(async () => []) },
+        agentSkill: { findMany: vi.fn(async () => []) },
+        scratchpadItem: { findMany: vi.fn(async () => []) },
+        externalEffect: { findMany: vi.fn(async () => []) },
+        $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            $queryRaw: vi.fn(async () => [{ id: "task-1" }]),
+            task: {
+              findMany: vi.fn(async () => [
+                {
+                  id: "task-1",
+                  userId: "user-1",
+                  spaceId: "ws-1",
+                  projectWorkspaceId: null,
+                  botId: "bot-1",
+                  threadId: "thread-1",
+                  prompt: "Audit repo",
+                  status: "running",
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  executionState,
+                },
+              ]),
+              update: taskUpdate,
+            },
+            run: {
+              findFirst: vi.fn(async () => ({
+                id: run.id,
+                status: run.status,
+                leaseOwner: run.leaseOwner,
+                leaseFence: run.leaseFence,
+                leaseExpiresAt: run.leaseExpiresAt,
+                taskMandate: mandate,
+              })),
+            },
+          }),
+        ),
+      } as unknown as PrismaClient;
+      const executor = createRunExecutor({
+        prisma,
+        billingEnabled: false,
+        deploymentModelKey: "fake-deployment-key",
+        shutdownSignal: shutdownController.signal,
+        secretStore: { load: vi.fn(), put: vi.fn() },
+        runtime: { describe: () => ({ capabilities: { scripted: false } }), run: runtimeRun },
+        sandbox: { describe: () => ({ id: "e2b", capabilities: { graphical: false } }) },
+        memoryProviders: { resolve: vi.fn(async () => null) },
+        memory: { read: vi.fn(async () => ({ documents: [] })) },
+        events: {
+          append: vi.fn(async () => undefined),
+          finalizeRun: vi.fn(async () => ({ continuationRunId: null })),
+        },
+        jobs: { enqueue: vi.fn(async () => undefined) },
+        notifications: { send: vi.fn(async () => undefined) },
+        secrets: [],
+      } as unknown as Parameters<typeof createRunExecutor>[0]);
+
+      await executor.continueRun("run-1", "worker-1");
+      return { caughtError, executionState, taskUpdate };
+    };
+
+    const rolledBack = await runScenario(false);
+    expect(rolledBack.caughtError).toBeInstanceOf(Error);
+    expect((rolledBack.caughtError as Error).message).toBe("worker stopping after guard");
+    expect(rolledBack.taskUpdate).toHaveBeenCalledTimes(2);
+    expect(rolledBack.executionState.modelCalls).toBe(0);
+    expect(rolledBack.executionState.reservedTokens).toBe(0);
+
+    const rollbackFailed = await runScenario(true);
+    expect(rollbackFailed.caughtError).toBeInstanceOf(Error);
+    expect((rollbackFailed.caughtError as Error).message).toBe("worker stopping after guard");
+    expect(rollbackFailed.taskUpdate).toHaveBeenCalledTimes(2);
+  });
+});

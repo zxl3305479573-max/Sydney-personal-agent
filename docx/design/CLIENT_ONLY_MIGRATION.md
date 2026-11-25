@@ -1,5 +1,15 @@
 # 手机与桌面客户端迁移方案
 
+2026-11-24 MCP 原生回调客户端绑定与并发候选（源码已更新，离线/实机验证待执行）：
+`StoredMcpOAuthProvider` 与 `McpOAuthBroker` 为动态注册 OAuth 客户端记录
+`clientRedirectUri`，回调 URI 变化且旧客户端不兼容时在 `begin()` 隔离暂存副本中
+重新注册，失败或取消不再破坏现网有效 grant；`complete()` 通过 `incrementRevisionOnIssue`
+在 `lockMaterial` 锁内校验 `expectedRevision` 并原子提交新密文与 `revision + 1`（移除锁外
+二次更新并校验 `committedTokens`）；`disconnect()` 同步清理内存与数据库 pending 会话，
+并在 `lockMaterial` 锁内统一递增 `revision`（含 `secretId === null` 或密文行不可读场景），
+阻止断开后在途授权落盘与并发乱序覆盖。`SYDNEY_MCP_NATIVE_CALLBACK_ORIGIN` 仍保持默认
+关闭，真实服务商、预注册客户端登记、Caddy 日志与设备验收前不可启用。
+
 2026-11-16 桌面代理服务头候选：代理可从与远端来源匹配的桌面设置
 读取经过既有契约校验的自定义头，并用于 HTTP 与屏幕 WebSocket；仅
 HTTPS 或 loopback HTTP 可携带配置头，匿名画面不转发页面 Cookie/

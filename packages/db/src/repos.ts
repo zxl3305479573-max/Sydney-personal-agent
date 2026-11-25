@@ -29,6 +29,7 @@ import { ensureComputerRecord, parseComputerMode } from "./computers.js";
 import { createThreadMessageInTransaction } from "./messages.js";
 import { withNewestThreadMessages } from "./preview-messages.js";
 import { conversationProjectId } from "./project-workspace-context.js";
+import { lockProjectWorkspaceForMutation } from "./project-workspace-deletion.js";
 import { BotSectionNameConflictError, IsolationError } from "./scope.js";
 import { lockSpaceForContentCreation } from "./spaces.js";
 import {
@@ -588,6 +589,9 @@ export function createRepos(
             spaceId: actor.spaceId,
             userId: actor.userId,
           });
+          if (projectWorkspaceId !== null) {
+            await lockProjectWorkspaceForMutation(tx, actor, projectWorkspaceId);
+          }
           const positions = await tx.bot.aggregate({
             where: { spaceId: actor.spaceId, userId: actor.userId, projectWorkspaceId },
             _max: { position: true },

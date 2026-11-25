@@ -1,5 +1,56 @@
 # 运维手册
 
+## Native Linux 驱动状态持久化与受管任务/账号删除恢复变更（2026-11-24，待服务器验证）
+
+1. **Native Linux 驱动新增持久化状态文件（数据路径与权限，待 Linux 实机验证）**：
+   - `infra/native-linux/driver.py` 默认在驱动根目录 `root` 下维护 `<root>/.driver-state.json`（可通过构造参数 `state_path` 覆盖，不新增全局环境变量），持久化 `fences`、`control_fences`（`{ fence, leaseId }`）与最近 `4096` 条 `seen_request_ids`。
+   - **安全与权限**：目录权限 `0o700`，落盘采用同目录唯一临时文件（`0o600` + `O_NOFOLLOW`）`fsync` 后 `os.replace` 原子替换；加载与写入均拒绝符号链接（加载降级空表并向 `stderr` 输出 `sydney-driver:` 告警；写入遇软链直接 `Refused` 并回滚内存）。JSON 损坏或格式非法时告警降级为空表而不阻断启动。
+   - **边界**：该文件仅防驱动正常重启后的旧 `requestId` 或低版本 fence 重放，**不改变**同桌面 UID 进程隔离边界，也不代表 `inspectBackgroundWork` 能证明脱组子进程已静止。
+   - **备份/清理注意**：如需清空驱动运行期防重放与 fence 状态（例如重建宿主机桌面目录），须在停止 `driver.py` 后清理 `.driver-state.json`；不得把该文件改为软链。
+2. **受管任务控制与 `confirmStop` 运维语义（待服务器验证）**：
+   - `tasks.control`（`pause`/`cancel`）与 `tasks.revoke` 现会联动取消对应 `run.continue` 队列作业、唤醒线程订阅，并在非排队取消的 `cancel`/`revoke` 下尽力通知沙箱停止工作与过期电脑执行租约。
+   - `tasks.confirmStop` 仅在服务端证实 Run 已终态、无活跃电脑租约/遗留 `executionRunId`，且满足“从未执行过 Attempt（排队期取消）”或“服务端探针返回 `idle`”时置 `quiesced = true`；对 Native Linux 返回 `active`/`unknown` 或探针异常继续 fail-closed 返回 `stop_evidence_unavailable`，禁止运维侧以手动确认替代服务端证据。
+3. **PA-022 账号删除失败恢复与双端兼容（待服务器验证）**：
+   - `beforeDeleteUser` 在破坏性清理前的 `billing.cancelForDeletedUser` 阶段若失败且声明系本次新写入，会自动释放 `user.projectDeletionClaimedAt` 避免账号被永久锁死无法建项目；一旦进入 `deleteAccountContent` 后仍保留声明直至重试完成。
+   - 手机端与 Web 端现优先依据 `projectWorkspaces.capabilities.remove` 调用 `projectWorkspaces.remove`（仅删除服务端项目应用数据，绝不删用户本地目录），面对旧后端自动降级 `removeEmpty`，支持灰度滚动升级。
+
+## PA-022 非空项目删除认领迁移与恢复说明（2026-11-24，待服务器验证）
+
+新增迁移 `packages/db/prisma/migrations/20261124140000_project_workspace_deletion_claim/migration.sql`，
+为 `project_workspaces` 增加可空列 `deletionClaimId TEXT`，用于支持非空项目工作区删除的
+认领令牌、5 分钟超时接管与断点续跑清理。
+
+- **上线顺序（待验证）**：在已应用 `20261124120000_enable_project_conversation_scope` 的前提下，
+  运行 `pnpm --filter @rakazo/api db:migrate` 应用 `20261124140000_project_workspace_deletion_claim`，
+  随后重启 API 与 Worker。
+- **失败恢复**：非空项目删除一旦进入取消在途运行或 `destroyBot` 阶段即不可撤销；若 API 进程
+  中途崩溃或超时，项目会保留 `deletingAt`（普通租户读写与后台作业立即被阻断），5 分钟认领
+  过期后再次调用 `projectWorkspaces.remove` 会自动接管并从剩余 Bot 续跑完成删除。
+- **数据边界**：`projectWorkspaces.remove` 仅清理服务端应用数据（项目内 Bot、群聊、会话、
+  任务、运行、Bot 记忆与专用沙箱），不触碰用户本地目录；若延期表（`artifacts`、`cloud_agents`、
+  `purchases`）存在项目残留行，终态删除将返回 `CONFLICT` 拒绝盲删。
+- **回滚限制**：回滚需先回退使用 `deletionClaimId` 的 API 版本，再视需要删除该可空列；
+  上述迁移与恢复流程均未在真实 PostgreSQL 与生产环境执行验证。
+
+## PA-022 项目会话数据库迁移说明（2026-11-24，待服务器验证）
+
+新增迁移 `packages/db/prisma/migrations/20261124120000_enable_project_conversation_scope/migration.sql`，
+用于在已应用 `20261119120000`–`20261119190000` 迁移（包含复合外键、RESTRICTIVE RLS、
+父子范围一致性触发器与记忆 RLS）的前提下，解除 `bots`、`chat_groups`、`threads`、
+`tasks`、`runs` 五张核心会话表的 `*_project_scope_disabled` CHECK 约束。
+`artifacts`、`cloud_agents`、`purchases` 三张延期表仍保留 `*_project_scope_disabled`
+约束，项目内暂不允许写入附件、云代理或支付记录。
+
+- **上线顺序（待验证）**：先完成数据库备份并确认 `20261119120000`–`20261119190000`
+  已全部应用，再运行 `pnpm --filter @rakazo/api db:migrate`（或容器启动迁移）应用
+  `20261124120000_enable_project_conversation_scope`，随后重启 API 与 Worker。
+- **配置回退**：若需临时关闭项目创建或项目内会话入口，可在部署环境显式设置
+  `SYDNEY_PROJECT_CREATE_EXPERIMENT=false` 与
+  `SYDNEY_PROJECT_CONVERSATION_CREATE_EXPERIMENT=false` 并重启 API（不删除已落库数据）。
+- **数据库回滚限制**：一旦库中已存在 `projectWorkspaceId IS NOT NULL` 的会话记录，
+  不可直接重新添加 `CHECK ("projectWorkspaceId" IS NULL)`，须先清理或按备份恢复；
+  上述迁移与回滚均未在真实 PostgreSQL 执行验证。
+
 ## 手机默认后台地址迁移（2026-11-16，源码待安装验收）
 
 后续 iOS 侧载包以构建时的 `EXPO_PUBLIC_API_URL` 为默认后台；当前
