@@ -9,11 +9,21 @@ export type ThreadAnswerContext = {
   isCurrentTarget: (botId: string | undefined, groupId: string | undefined) => boolean;
   refresh: () => Promise<unknown>;
   markRead: () => void;
+  onAnswered?: (runId: string, dismiss?: boolean) => void;
 };
 
 /** Sends an ask answer or dismissal; resolves once the server accepts it. */
 export async function answerThreadMessage(
-  { botId, groupId, readOnly, rpc, isCurrentTarget, refresh, markRead }: ThreadAnswerContext,
+  {
+    botId,
+    groupId,
+    readOnly,
+    rpc,
+    isCurrentTarget,
+    refresh,
+    markRead,
+    onAnswered,
+  }: ThreadAnswerContext,
   message: Pick<MobileMessage, "id" | "runId">,
   answer: string,
   fields?: readonly LoginFieldInput[],
@@ -31,6 +41,7 @@ export async function answerThreadMessage(
     ...(remember === false ? { remember } : {}),
     ...(dismiss ? { dismiss: true as const } : {}),
   });
+  onAnswered?.(message.runId, dismiss);
   // The answer is saved once the server accepts it; a failed refresh only delays the card.
   if (isCurrentTarget(botId, groupId)) await refresh().catch(() => undefined);
 }

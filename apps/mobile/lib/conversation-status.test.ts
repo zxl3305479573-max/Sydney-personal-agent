@@ -10,10 +10,13 @@ import {
 const t = (text: string) => text;
 
 describe("conversation status helpers", () => {
-  it("prioritizes waiting > running > leased > queued > failed > idle", () => {
+  it("prioritizes takeover > running > leased > waiting_input > queued > failed > idle", () => {
     expect(aggregateConversationStatus(["idle", "queued", "running", "waiting_input"])).toBe(
-      "waiting_input",
+      "running",
     );
+    expect(aggregateConversationStatus(["leased", "waiting_input"])).toBe("leased");
+    expect(aggregateConversationStatus(["queued", "waiting_input"])).toBe("waiting_input");
+    expect(aggregateConversationStatus(["running", "waiting_takeover"])).toBe("waiting_takeover");
     expect(aggregateConversationStatus(["waiting_input", "waiting_takeover"])).toBe(
       "waiting_takeover",
     );

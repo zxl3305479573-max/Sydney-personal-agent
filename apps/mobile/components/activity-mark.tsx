@@ -1,5 +1,5 @@
 import type { BotAvatarSet } from "@rakazo/contracts";
-import { avatarPhotoDot } from "@rakazo/core";
+import { avatarPhotoDot, isRunWorking } from "@rakazo/core";
 import { MAX_FONT_SCALE, typeScale } from "@rakazo/ui-tokens";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useAvatarOnScreen } from "../lib/avatar-life";
+import { conversationStatusTone } from "../lib/conversation-status";
 import { useMobileTokens } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
 
@@ -88,6 +89,14 @@ export function ActivityMark({
   const bot = bots[index % bots.length];
   if (!bot) return null;
   const photo = bot.color.startsWith("data:image/");
+  const tone = conversationStatusTone(bot.status);
+  const working = bot.status === undefined || isRunWorking(bot.status) || Boolean(bot.composing);
+  const labelColor =
+    tone === "waiting"
+      ? (tokens.warning ?? tokens.mutedForeground)
+      : tone === "failed"
+        ? (tokens.destructive ?? tokens.mutedForeground)
+        : tokens.mutedForeground;
   return (
     <Animated.View
       exiting={reducedMotion ? undefined : FadeOut.duration(ROW_MS)}
@@ -100,7 +109,7 @@ export function ActivityMark({
           exiting={bots.length > 1 ? CROSSFADE.exiting : undefined}
           style={{ position: "absolute" }}
         >
-          {photo ? (
+          {photo && working ? (
             <PhotoDots typing={bot.composing ?? false} paused={!onScreen} />
           ) : (
             <BotAvatar
@@ -109,9 +118,9 @@ export function ActivityMark({
               identity={bot.id}
               size={MARK_SIZE}
               status={bot.status}
-              motion="running"
+              motion={working ? "running" : "static"}
               composing={bot.composing ?? false}
-              pokeable
+              pokeable={working}
             />
           )}
         </Animated.View>
@@ -120,7 +129,12 @@ export function ActivityMark({
         <Text
           numberOfLines={1}
           maxFontSizeMultiplier={MAX_FONT_SCALE}
-          style={{ flexShrink: 1, color: tokens.mutedForeground, ...typeScale.secondary }}
+          style={{
+            flexShrink: 1,
+            color: labelColor,
+            ...typeScale.secondary,
+            ...(tone === "waiting" ? { fontWeight: "500" as const } : null),
+          }}
         >
           {label}
         </Text>

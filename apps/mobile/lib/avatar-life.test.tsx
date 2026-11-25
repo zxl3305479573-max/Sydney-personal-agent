@@ -98,6 +98,7 @@ vi.mock("react-native", () => ({
       },
       children,
     ),
+  Text: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
   Pressable: ({ children, onPress }: { children?: ReactNode; onPress?: () => void }) =>
     createElement("button", { type: "button", onClick: onPress }, children),
   Image: () => null,
@@ -463,5 +464,17 @@ describe("activity mark", () => {
     expect(container.querySelector("[data-fill]")).not.toBeNull();
     act(() => vi.advanceTimersByTime(2000));
     expect(dots()).toBe(3);
+  });
+
+  it("shows waiting bot status label at the bottom-left without pulsing photo dots", () => {
+    const photoWaiting = {
+      id: "bot-wait",
+      color: "data:image/png;base64,AAAA",
+      status: "waiting_input",
+    };
+    render(<ActivityMark bots={[photoWaiting]} atBottom label="Needs input" />);
+    expect(container.textContent).toContain("Needs input");
+    expect(container.querySelectorAll("[data-opacity]")).toHaveLength(0);
+    expect(container.querySelector("button")).toBeNull();
   });
 });

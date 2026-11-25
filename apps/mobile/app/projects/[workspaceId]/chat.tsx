@@ -1,6 +1,7 @@
 import { AI_DATA_DISCLOSURES, ProjectWorkspaceIdInput } from "@rakazo/contracts";
 import {
   DEFAULT_BOT_AVATAR_COLOR,
+  isRunWorking,
   liveMessageComposing,
   pendingProjectApproval,
   projectActiveRuns,
@@ -23,6 +24,7 @@ import { BotActionsModal } from "../../../components/bot-actions-modal";
 import { BotAvatar } from "../../../components/bot-avatar";
 import { ChatTitleContent } from "../../../components/chat-title-content";
 import { glassHeaderOptions } from "../../../components/glass-title";
+import { GroupAvatar } from "../../../components/group-avatar";
 import { NativeActionButton } from "../../../components/native-action-button";
 import { MessageTextCard } from "../../../components/thread/message-bubble";
 import { ThreadComposerDock } from "../../../components/thread/thread-composer-dock";
@@ -32,7 +34,6 @@ import { threadHeaderRight } from "../../../components/thread-header-right";
 import {
   conversationStatusColor,
   conversationStatusLabel,
-  isConversationActiveStatus,
 } from "../../../lib/conversation-status";
 import { useI18n } from "../../../lib/i18n";
 import { useMobileTokens } from "../../../lib/native";
@@ -125,19 +126,27 @@ function ProjectChat({
   const activeRuns = projectActiveRuns(chat.snapshot);
   const rawConversationStatus = chat.snapshot ? threadSnapshotStatus(chat.snapshot) : undefined;
   const headerStatus =
-    chat.sending && !isConversationActiveStatus(rawConversationStatus)
+    chat.sending &&
+    !isRunWorking(rawConversationStatus) &&
+    rawConversationStatus !== "waiting_takeover"
       ? "queued"
       : rawConversationStatus;
   const composing = (chat.snapshot?.messages ?? []).some(
     (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
   );
-  const runStatusLabel = chat.snapshot?.run
-    ? conversationStatusLabel(chat.snapshot.run.status, t, { includeTerminal: true }) ||
-      chat.snapshot.run.status
+  const activeStatusLabel = headerStatus
+    ? conversationStatusLabel(headerStatus, t, { composing })
     : "";
-  const runStatusColor = chat.snapshot?.run
-    ? conversationStatusColor(chat.snapshot.run.status, tokens ?? {})
-    : undefined;
+  const runStatusLabel =
+    activeStatusLabel ||
+    (chat.snapshot?.run
+      ? conversationStatusLabel(chat.snapshot.run.status, t, { includeTerminal: true }) ||
+        chat.snapshot.run.status
+      : "");
+  const runStatusColor = conversationStatusColor(
+    activeStatusLabel ? headerStatus : chat.snapshot?.run?.status,
+    tokens ?? {},
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -416,26 +425,49 @@ function ProjectChat({
               )}
             </Text>
           ) : null}
-          {enabled && chat.snapshot?.run && runStatusLabel ? (
+          {enabled && (activeStatusLabel || (chat.snapshot?.run && runStatusLabel)) ? (
             <View
               style={{
                 alignSelf: "flex-start",
-                backgroundColor: chipBg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                backgroundColor: activeStatusLabel ? "transparent" : chipBg,
                 borderRadius: 999,
-                borderWidth: 0.5,
+                borderWidth: activeStatusLabel ? 0 : 0.5,
                 borderColor: chipBorder,
-                paddingHorizontal: 12,
+                paddingHorizontal: activeStatusLabel ? 0 : 12,
                 paddingVertical: 5,
               }}
             >
+              {activeStatusLabel ? (
+                groupId ? (
+                  <GroupAvatar
+                    members={groupIdentity?.members ?? chat.snapshot?.members ?? []}
+                    size={28}
+                    status={headerStatus}
+                  />
+                ) : (
+                  <BotAvatar
+                    color={botIdentity?.color ?? DEFAULT_BOT_AVATAR_COLOR}
+                    avatarSet={botIdentity?.avatarSet}
+                    identity={botId}
+                    size={28}
+                    status={headerStatus}
+                    motion={isRunWorking(headerStatus) ? "running" : "static"}
+                    composing={composing}
+                  />
+                )
+              ) : null}
               <Text
                 style={[
                   mutedStyle,
                   runStatusColor ? { color: runStatusColor, fontWeight: "500" } : null,
                 ]}
               >
-                {text("任务状态：", "Run status: ")}
-                {runStatusLabel}
+                {activeStatusLabel
+                  ? activeStatusLabel
+                  : `${text("任务状态：", "Run status: ")}${runStatusLabel}`}
               </Text>
             </View>
           ) : null}

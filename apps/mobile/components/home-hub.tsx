@@ -17,11 +17,7 @@ import { readableGutters } from "../lib/adaptive-layout";
 import type { MobileBot, MobileMe } from "../lib/api";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient } from "../lib/card-gradient";
-import {
-  aggregateConversationStatus,
-  conversationStatusLabel,
-  isConversationActiveStatus,
-} from "../lib/conversation-status";
+import { conversationStatusLabel, isConversationActiveStatus } from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
@@ -193,11 +189,7 @@ export function HomeHub({
   const activeChatsCount = useMemo(
     () =>
       bots.filter((bot) => isConversationActiveStatus(bot.status)).length +
-      groups.filter((group) =>
-        isConversationActiveStatus(
-          group.status ?? aggregateConversationStatus((group.members ?? []).map((m) => m.status)),
-        ),
-      ).length,
+      groups.filter((group) => isConversationActiveStatus(group.status)).length,
     [bots, groups],
   );
   const resolvedActiveRuns = Math.max(activeRunsCount ?? 0, activeChatsCount);

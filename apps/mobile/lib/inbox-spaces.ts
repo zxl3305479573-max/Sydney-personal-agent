@@ -9,7 +9,7 @@ import {
   selectedSpaceId,
   selectSpace,
 } from "./api";
-import { aggregateConversationStatus, conversationStatusTone } from "./conversation-status";
+import { conversationStatusTone } from "./conversation-status";
 import { t } from "./i18n";
 import { mobileLogoAvatarActivity } from "./logo-avatar-activity";
 import type { InboxSignal } from "./offscreen-unreads";
@@ -60,10 +60,7 @@ function chatSignal(chat: PinnedChat): InboxSignal {
         : 0,
     };
   }
-  const groupStatus =
-    chat.group.status ??
-    aggregateConversationStatus((chat.group.members ?? []).map((member) => member.status));
-  const tone = conversationStatusTone(groupStatus);
+  const tone = conversationStatusTone(chat.group.status);
   return {
     unread: chat.group.unread ? 1 : 0,
     attention: tone === "waiting" || tone === "failed" ? 1 : 0,

@@ -210,19 +210,25 @@ it("keeps accepted work when an older refresh omits the run", () => {
   expect(refreshed.activeRuns).toEqual(accepted.activeRuns);
 });
 
-it("keeps status live across separate screens after roster reconciliation and rejects older rosters", () => {
+it("keeps status live across separate screens without leaking member DM status into groups", () => {
   threadSessionCache.remember(scope, snapshot("running", 10));
   const newerReq = threadSessionCache.getRequestRevision();
   const olderReq = newerReq - 1;
   threadSessionCache.reconcileRoster(scope, newerReq, {
     bots: [{ id: "bot-a", status: "running", unread: false }],
-    groups: [{ id: "group-a", unread: true, members: [{ status: "waiting_input" }] }],
+    groups: [
+      { id: "group-a", unread: true, members: [{ status: "waiting_input" }] },
+      { id: "group-b", status: "waiting_input", unread: false, members: [{ status: "idle" }] },
+    ],
   });
   // Another mounted tab whose local state still holds an older "idle" / unread: true snapshot reads live truth.
   expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");
   expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
-  expect(threadSessionCache.groupStatus(scope, "group-a", [])).toBe("waiting_input");
+  // DM member waiting_input must NEVER bleed into group-a's status.
+  expect(threadSessionCache.groupStatus(scope, "group-a", "idle")).toBe("idle");
   expect(threadSessionCache.unreadState(scope, { groupId: "group-a" }, false)).toBe(true);
+  // Explicit thread-scoped group status IS preserved.
+  expect(threadSessionCache.groupStatus(scope, "group-b", "idle")).toBe("waiting_input");
 
   // An older roster poll returning late cannot clobber the newer synced roster.
   threadSessionCache.reconcileRoster(scope, olderReq, {
@@ -230,6 +236,79 @@ it("keeps status live across separate screens after roster reconciliation and re
   });
   expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");
   expect(threadSessionCache.unreadState(scope, { botId: "bot-a" }, true)).toBe(false);
+});
+
+it("updates an existing waiting_input run to queued on send receipt and prioritizes running over waiting_input", () => {
+  const waitingSnap = snapshot("waiting_input", 10);
+  threadSessionCache.remember(scope, waitingSnap);
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("waiting_input");
+
+  // Pending send immediately flips waiting_input -> queued.
+  threadSessionCache.markSendPending(scope, { botId: "bot-a" }, "nonce-answer");
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
+
+  // Server answers the same waiting_input run id -> transitions to queued in place.
+  const resumed = applySendActivity(waitingSnap, { botId: "bot-a" }, {
+    threadId: "thread-a",
+    cursor: 11,
+    runs: [{ id: "run-a", botId: "bot-a", status: "queued" }],
+  })!;
+  expect(resumed.run?.status).toBe("queued");
+  expect(resumed.activeRuns).toEqual([
+    expect.objectContaining({ id: "run-a", status: "queued", sendCursor: 11 }),
+  ]);
+  threadSessionCache.remember(scope, resumed);
+  threadSessionCache.clearSendPending(scope, { botId: "bot-a" }, "nonce-answer");
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("queued");
+
+  // Legacy receipt without activity also transitions the existing waiting_input run to queued.
+  const legacyResumed = applyAcceptedSend(waitingSnap, { botId: "bot-a" }, { runId: "run-a" })!;
+  expect(legacyResumed.run?.status).toBe("queued");
+  expect(legacyResumed.activeRuns?.[0]?.status).toBe("queued");
+
+  // While a new run is actively running alongside an older unanswered waiting_input card, show running.
+  const mixedSnap: MobileSnapshot = {
+    botId: "bot-a",
+    threadId: "thread-a",
+    cursor: 12,
+    messages: [],
+    olderCursor: null,
+    run: { id: "run-b", botId: "bot-a", status: "running" },
+    activeRuns: [
+      { id: "run-a", botId: "bot-a", status: "waiting_input" },
+      { id: "run-b", botId: "bot-a", status: "running" },
+    ],
+  };
+  threadSessionCache.remember(scope, mixedSnap);
+  expect(threadSessionCache.botStatus(scope, "bot-a", "idle")).toBe("running");
+});
+
+it("keeps a group's own cached active status on legacy servers without group.status until it settles", () => {
+  const groupSnap: MobileSnapshot = {
+    groupId: "group-live",
+    threadId: "thread-g1",
+    cursor: 5,
+    messages: [],
+    olderCursor: null,
+    run: { id: "run-g1", botId: "bot-a", status: "running" },
+    activeRuns: [{ id: "run-g1", botId: "bot-a", status: "running" }],
+  };
+  threadSessionCache.remember(scope, groupSnap);
+  expect(threadSessionCache.groupStatus(scope, "group-live", "idle")).toBe("running");
+
+  // Legacy server poll omits group.status while member is still active and group has no new unread reply.
+  const poll1 = threadSessionCache.getRequestRevision();
+  threadSessionCache.reconcileRoster(scope, poll1, {
+    groups: [{ id: "group-live", unread: false, members: [{ status: "running" }] }],
+  });
+  expect(threadSessionCache.groupStatus(scope, "group-live", "idle")).toBe("running");
+
+  // Once all members become idle, the legacy cached override clears to idle.
+  const poll2 = threadSessionCache.getRequestRevision();
+  threadSessionCache.reconcileRoster(scope, poll2, {
+    groups: [{ id: "group-live", unread: false, members: [{ status: "idle" }] }],
+  });
+  expect(threadSessionCache.groupStatus(scope, "group-live", "idle")).toBe("idle");
 });
 
 it("shows queued status during in-flight sends and handles legacy receipts without activity", () => {

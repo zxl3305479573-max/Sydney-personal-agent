@@ -263,7 +263,39 @@ export function useThreadSend({
       remember?: false,
     ) =>
       answerThreadMessage(
-        { botId, groupId, readOnly, rpc, isCurrentTarget, refresh, markRead: markCaughtUp },
+        {
+          botId,
+          groupId,
+          readOnly,
+          rpc,
+          isCurrentTarget,
+          refresh,
+          markRead: markCaughtUp,
+          onAnswered: (runId, wasDismissed) => {
+            const current = history.snapRef.current;
+            if (!current || !isCurrentTarget(botId, groupId)) return;
+            const nextStatus = wasDismissed ? "cancelled" : "queued";
+            const active = current.activeRuns ?? (current.run ? [current.run] : []);
+            const nextActiveRuns = wasDismissed
+              ? active.filter((run) => run.id !== runId)
+              : active.map((run) =>
+                  run.id === runId && run.status === "waiting_input"
+                    ? { ...run, status: nextStatus }
+                    : run,
+                );
+            const nextRun =
+              current.run?.id === runId
+                ? wasDismissed
+                  ? (nextActiveRuns[0] ?? null)
+                  : { ...current.run, status: nextStatus }
+                : current.run;
+            history.commitSnap({
+              ...current,
+              run: nextRun,
+              activeRuns: nextActiveRuns,
+            });
+          },
+        },
         message,
         answer,
         fields,

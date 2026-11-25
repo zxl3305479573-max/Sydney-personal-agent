@@ -34,9 +34,9 @@ describe("primaryActiveRun", () => {
     [["queued", "waiting_input"], "waiting_input"],
     [["queued", "leased"], "leased"],
     [["queued", "leased", "running"], "running"],
-    [["running", "waiting_input"], "waiting_input"],
+    [["running", "waiting_input"], "running"],
     [["running", "waiting_takeover"], "waiting_takeover"],
-    [["leased", "waiting_input"], "waiting_input"],
+    [["leased", "waiting_input"], "leased"],
     [["leased", "waiting_takeover"], "waiting_takeover"],
     [[], undefined],
   ])("prioritizes %j as %s", (statuses, expected) => {

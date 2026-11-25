@@ -14,11 +14,7 @@ import Animated, {
 import type { MobileBot, MobileBotSection, MobileGroup } from "../lib/api";
 import { AvatarRow } from "../lib/avatar-life";
 import type { ConversationStatusTone } from "../lib/conversation-status";
-import {
-  aggregateConversationStatus,
-  conversationStatusLabel,
-  conversationStatusTone,
-} from "../lib/conversation-status";
+import { conversationStatusLabel, conversationStatusTone } from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import { formatThreadTime } from "../lib/inbox";
 import type { InboxGroup, PinnedChat } from "../lib/inbox-spaces";
@@ -238,11 +234,7 @@ export const PinnedTiles = memo(function PinnedTiles({
         const id = chat.kind === "bot" ? chat.bot.id : chat.group.id;
         const name = chat.kind === "bot" ? chat.bot.name : chat.group.name;
         const unread = chat.kind === "bot" ? chat.bot.unread : chat.group.unread;
-        const status =
-          chat.kind === "bot"
-            ? chat.bot.status
-            : (chat.group.status ??
-              aggregateConversationStatus((chat.group.members ?? []).map((m) => m.status)));
+        const status = chat.kind === "bot" ? chat.bot.status : chat.group.status;
         const statusLabel = conversationStatusLabel(status, t);
         const actions = inboxRowActionList(chat.kind === "bot" ? chat.bot : chat.group);
         const runAction = (action: InboxRowAction) =>
@@ -431,8 +423,8 @@ export const GroupRow = memo(function GroupRow({
   onAction?: (action: InboxRowAction, group: MobileGroup | SpaceGroup) => void;
 } & RowMenuProps) {
   const { t } = useI18n();
-  const groupStatus =
-    group.status ?? aggregateConversationStatus(group.members.map((member) => member.status));
+  // Never infer group conversation status from member bots' global/DM statuses.
+  const groupStatus = group.status;
   const statusLabel = conversationStatusLabel(groupStatus, t);
   const statusTone = statusLabel ? conversationStatusTone(groupStatus) : undefined;
   const messagePreview = previewSnippet(group.preview, 40);

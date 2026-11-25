@@ -5050,6 +5050,38 @@ describe("mobile thread event reduction", () => {
     expect(legacy?.activeRuns?.[0]?.userId).toBe("owner-2");
   });
 
+  it("promotes a waiting_input or queued run back to running on live progress or tool call", () => {
+    const waiting: MobileSnapshot = {
+      ...snapshot(),
+      run: { id: "run-1", botId: "bot-1", status: "waiting_input" },
+      activeRuns: [{ id: "run-1", botId: "bot-1", status: "waiting_input" }],
+    };
+    const progressed = applyMobileThreadEvent(waiting, {
+      type: "thread.progress",
+      runId: "run-1",
+      botId: "bot-1",
+      seq: 11,
+      payload: { text: "Executing task" },
+    });
+    expect(progressed?.run?.status).toBe("running");
+    expect(progressed?.activeRuns?.[0]?.status).toBe("running");
+
+    const queued: MobileSnapshot = {
+      ...snapshot(),
+      run: { id: "run-2", botId: "bot-1", status: "queued" },
+      activeRuns: [{ id: "run-2", botId: "bot-1", status: "queued" }],
+    };
+    const toolCalled = applyMobileThreadEvent(queued, {
+      type: "agent.tool.called",
+      runId: "run-2",
+      botId: "bot-1",
+      seq: 12,
+      payload: { name: "search" },
+    });
+    expect(toolCalled?.run?.status).toBe("running");
+    expect(toolCalled?.activeRuns?.[0]?.status).toBe("running");
+  });
+
   it("records the owner of an inserted waiting group run without changing another run", () => {
     const initial: MobileSnapshot = {
       ...snapshot(),

@@ -204,7 +204,7 @@ function ProjectContents({
     const items = roster?.groups ?? [];
     if (!cacheScope) return items;
     return items.map((group) => {
-      const status = threadSessionCache.groupStatus(cacheScope, group.id, group.members ?? []);
+      const status = threadSessionCache.groupStatus(cacheScope, group.id, group.status ?? "idle");
       const unread = threadSessionCache.unreadState(
         cacheScope,
         { groupId: group.id },

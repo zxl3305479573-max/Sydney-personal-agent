@@ -1,4 +1,5 @@
 import { ActivityIndicator, Text, View } from "react-native";
+import { conversationStatusTone } from "../../lib/conversation-status";
 import { useI18n } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import type { ActivityMarkBot } from "../activity-mark";
@@ -6,7 +7,7 @@ import { ActivityMark } from "../activity-mark";
 import { MotionPressable } from "../motion-pressable";
 import { ScrollToBottomButton } from "../scroll-to-bottom-button";
 
-/** The bots still working on a reply, under the newest message. */
+/** The bots still working or waiting on the user, shown at the bottom-left under the newest message. */
 export function ThreadWorkingFooter({
   bots,
   label,
@@ -18,13 +19,16 @@ export function ThreadWorkingFooter({
 }) {
   const { t } = useI18n();
   if (bots.length === 0) return null;
+  const firstBot = bots[0];
+  const waiting = bots.every((bot) => conversationStatusTone(bot.status) === "waiting");
+  const accessibilityLabel = waiting
+    ? `${firstBot?.name ?? t("Agent")}, ${label}`
+    : bots.length === 1
+      ? t("{name} is working", { name: firstBot?.name ?? t("Agent") })
+      : t("{count} agents working", { count: bots.length });
   return (
     <View
-      accessibilityLabel={
-        bots.length === 1
-          ? t("{name} is working", { name: bots[0]?.name ?? t("Agent") })
-          : t("{count} agents working", { count: bots.length })
-      }
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="text"
       style={{ minHeight: 40, marginTop: 12, justifyContent: "center" }}
     >

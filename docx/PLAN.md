@@ -35,6 +35,18 @@
 
 依赖与验收条件：不新增或重装依赖，不启动本机 Docker／PostgreSQL／桌面服务，不调用子代理，不擅自提交或推送。本机以全仓 `pnpm lint`（0 error）、20 个 `tsconfig.json` 零错误、`intl:extract` 幂等、以及各包离线单测全绿为准；PostgreSQL 集成、Electron smoke、macOS 截图和 Linux 专属 POSIX／符号链接测试以推送后 GitHub Actions 实跑结果为准。
 
+## 移动端群聊状态隔离、执行态优先级与对话左下角状态修复（PA-018／PA-021／PA-022，2026-11-25）
+
+状态：源码实现、干净隔离工作树离线验证与主分支推送已完成（iPhone 真机单聊等待输入防串群、任务执行态切换与对话内左下角状态显示及 OTA 待真机验收）。
+
+范围与交付物：
+- 群聊状态与单聊严格隔离：`apps/mobile/lib/thread-session-cache.ts`、`apps/mobile/components/{group-avatar,chat-header-title,home-hub,inbox-rows}.tsx`、`apps/mobile/app/index.tsx`、`apps/mobile/lib/inbox-spaces.ts`、`apps/mobile/app/projects/[workspaceId].tsx`、`apps/mobile/components/thread/thread-screen.tsx`：全面移除从 `group.members[].status`（成员 Bot 全局／单聊状态）聚合推断群聊状态的逻辑，改为严格读取该群聊自身的线程快照或显式线程级 `group.status`；在旧服务端省略 `group.status` 时仅保留该群聊自身缓存的活跃态直至收口。
+- 执行态优先于等待输入与及时切换：`apps/mobile/lib/conversation-status.ts`、`packages/db/src/thread-listing.ts`、`apps/mobile/lib/thread-session-cache.ts`、`apps/mobile/lib/api.ts`、`apps/mobile/lib/{thread-answer,thread-send}.ts`、`apps/mobile/lib/locales/{zh,zh-TW}.ts`：统一状态优先级为 `waiting_takeover > running > leased > waiting_input > queued > failed > idle`（修复历史未处理 `waiting_input` 压过当前 `running`/`leased` 任务的反转问题）；修复同 ID Run 回执丢弃、发送中未覆盖 `waiting_input`、`thread.progress`/`agent.tool.called` 未提权运行态及 AskCard 作答等待 `refresh()` 延迟；中文执行中文案统一为「正在执行…」（繁中「正在執行…」）。
+- 对话窗口左下角当前 Bot 状态显示：`apps/mobile/components/activity-mark.tsx`、`apps/mobile/components/thread/{thread-list-controls,thread-rows,thread-screen}.tsx`、`apps/mobile/app/projects/[workspaceId]/chat.tsx`：恢复并扩展普通单聊／群聊及项目聊天的左下角 28pt 头像与实时状态显示，覆盖发送中、`queued`、`leased`、`running`、工具进度以及 `waiting_input`／`waiting_takeover`（等待态使用静态头像与琥珀色文案，图片头像不脉动）。
+- 18 个定向 Vitest 文件（565 项）全部通过，`@rakazo/mobile` 与 `@rakazo/db` 全包 `tsc --noEmit` 均 0 错误，详见 [验证记录](VALIDATION.md#移动端群聊状态隔离执行态优先级与对话左下角状态修复2026-11-25)。
+
+依赖与验收条件：不新增第三方依赖、不修改后台协议或数据库表结构（保持 `working-bot.postgres.test.ts` 对 `group.members[].status` 与 `waiting_input > queued` 的后端语义兼容）；真实 iPhone 端单聊／群聊状态隔离、执行态切换与左下角展示待真机与 OTA 验收。
+
 ## 移动端未读状态、对话状态显示与退出对话持续态修复（PA-018／PA-021／PA-022，2026-11-25）
 
 状态：源码实现与本机定向离线验证已完成（iPhone 真机往返退页、切前后台、旧后台实测与 OTA 待真机验收）。

@@ -5,7 +5,6 @@ import { useSyncExternalStore } from "react";
 import type { MobileBot, MobileGroup } from "../lib/api";
 import type { ChatTitleRoute } from "../lib/chat-settings-route";
 import { chatTitleRoute } from "../lib/chat-settings-route";
-import { aggregateConversationStatus } from "../lib/conversation-status";
 import { useI18n } from "../lib/i18n";
 import { useInboxBot, useInboxGroup } from "../lib/search-inbox";
 import { ChatTitleContent } from "./chat-title-content";
@@ -77,11 +76,8 @@ export function ChatHeaderTitle({
     .map((candidate) => safeDisplayName(candidate, ""))
     .find(Boolean);
   const initialGroupStatus =
-    inGroup && inboxGroup
-      ? (("status" in inboxGroup && typeof inboxGroup.status === "string"
-          ? inboxGroup.status
-          : undefined) ??
-        aggregateConversationStatus((inboxGroup.members ?? []).map((member) => member.status)))
+    inGroup && inboxGroup && "status" in inboxGroup && typeof inboxGroup.status === "string"
+      ? inboxGroup.status
       : undefined;
   const title: ChatTitle = published ?? {
     bot: inboxBot,

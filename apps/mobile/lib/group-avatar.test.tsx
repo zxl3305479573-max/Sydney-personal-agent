@@ -77,10 +77,15 @@ describe("mobile group avatar", () => {
     expect(container.querySelectorAll("[data-member]")).toHaveLength(2);
     expect(container.textContent).toContain("+4");
   });
-  it("draws one unified status or unread marker for multi-member groups", () => {
+  it("draws one unified status or unread marker from group status only, never member DM status", () => {
     render([member(0), member(1)], { unread: true });
     expect(container.querySelectorAll('[data-bg="#3FA266"]')).toHaveLength(1);
-    render([member(0, "waiting_input"), member(1)]);
+    // A member bot busy/waiting in its 1-to-1 DM must NOT paint a status badge on the group avatar.
+    render([member(0, "waiting_input"), member(1, "running")]);
+    expect(container.querySelectorAll('[data-bg="#E89E30"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-bg="#3FA266"]')).toHaveLength(0);
+    // Explicit group thread status still draws one unified marker.
+    render([member(0), member(1)], { status: "waiting_input" });
     expect(container.querySelectorAll('[data-bg="#E89E30"]')).toHaveLength(1);
   });
 });

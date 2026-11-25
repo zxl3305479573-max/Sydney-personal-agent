@@ -1,5 +1,24 @@
 # 验证记录
 
+## 移动端群聊状态隔离、执行态优先级与对话左下角状态修复（2026-11-25）
+
+关联 PA-018／PA-021／PA-022。
+
+- **首轮发现与修复**：
+  - `thread-screen.tsx` 中 `activeGroupBots` 成员条目数组因 `snap.members` 可选导致条件类型推导为 `never[]`（9 条 TS 错误），收窄为 `NonNullable<NonNullable<typeof snap>["members"]>[number] & { status: string }` 后清零。
+  - `projects/[workspaceId]/chat.tsx` 移除了未使用导入 `isConversationActiveStatus`。
+  - `activity-mark.tsx` 为 `bot.status === undefined` 补齐默认 `working = true` 兼容；`avatar-life.test.tsx` 补齐 `react-native` `Text` 替身、`chat-header-title.test.tsx` 对齐 `ChatTitleLabel` 替身空串断言并移除多余类型断言、`thread-session-cache.test.tsx` 对齐 `snapshot()` 夹具的 `thread-a`/`run-a` 标识。
+- **干净隔离工作树（基于 `356949cd7`）最终已执行并通过**：
+  - 定向 Vitest（**18 个文件、565 项测试全部通过、0 失败**）：
+    - 移动端 17 文件（551 项）：`apps/mobile/lib/conversation-status.test.ts`（2）、`apps/mobile/lib/thread-session-cache.test.tsx`（19）、`apps/mobile/lib/api.test.ts`（334）、`apps/mobile/lib/thread-answer.test.ts`（11）、`apps/mobile/lib/thread-sender-colors.test.tsx`（7）、`apps/mobile/lib/group-avatar.test.tsx`（4）、`apps/mobile/lib/chat-header-title.test.tsx`（12）、`apps/mobile/lib/home-hub.test.tsx`（4）、`apps/mobile/lib/avatar-life.test.tsx`（26）、`apps/mobile/lib/chat-title-label.test.tsx`（4）、`apps/mobile/lib/inbox-spaces.test.ts`（33）、`apps/mobile/lib/thread-read.test.tsx`（5）、`apps/mobile/lib/use-project-thread.test.tsx`（10）、`apps/mobile/lib/project-pages-state.test.tsx`（7）、`apps/mobile/lib/avatar-clock.test.tsx`（4）、`apps/mobile/lib/bot-avatar-render.test.tsx`（18）、`apps/mobile/lib/thread-feedback.test.tsx`（51）。
+    - 数据库包 1 文件（14 项）：`packages/db/src/thread-listing.test.ts`（14）。
+  - 全包 TypeScript 类型检查：
+    - `pnpm --filter @rakazo/mobile exec tsc --noEmit`：**0 错误通过**。
+    - `pnpm --filter @rakazo/db exec tsc --noEmit`：**0 错误通过**。
+  - Biome lint（全部 28 个触碰的源码与测试文件）：**0 错误**（仅保留 3 条既有机动文件未改行 warning 与 `app/index.tsx` 1 条既有无用 Fragment info）。
+  - `git diff --check`（全部 31 个提交文件含 `docx/`）：**0 警告通过**。
+- **未执行项**：未执行真实 PostgreSQL 集成测试（`apps/api/src/working-bot.postgres.test.ts` 等）、未启动 Docker／服务端／桌面构建、未执行 iPhone 真机 OTA 实测。
+
 ## iPhone 1.0.25 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。

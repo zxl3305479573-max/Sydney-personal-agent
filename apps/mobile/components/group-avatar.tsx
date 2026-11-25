@@ -4,7 +4,7 @@ import type { ColorTokens } from "@rakazo/ui-tokens";
 import { memo } from "react";
 import type { ViewStyle } from "react-native";
 import { StyleSheet, Text, View } from "react-native";
-import { aggregateConversationStatus, conversationStatusTone } from "../lib/conversation-status";
+import { conversationStatusTone } from "../lib/conversation-status";
 import { native, useThemedStyles } from "../lib/native";
 import { BotAvatar } from "./bot-avatar";
 import { NativeSymbol } from "./native-symbol";
@@ -29,7 +29,8 @@ export const GroupAvatar = memo(function GroupAvatar({
   unread?: boolean;
 }) {
   const styles = useThemedStyles(createGroupAvatarStyles);
-  const effectiveStatus = status ?? aggregateConversationStatus(members.map((m) => m.status));
+  // Group status must come strictly from the group's own thread, never from member bots' DM status.
+  const effectiveStatus = status;
   const statusTone = conversationStatusTone(effectiveStatus);
   const dot = avatarWorkingDot(size);
   const markerStyle =

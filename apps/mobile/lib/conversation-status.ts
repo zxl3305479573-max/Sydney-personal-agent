@@ -7,30 +7,34 @@ export function isConversationActiveStatus(status: string | null | undefined): b
   return isRunWorking(status) || isRunWaitingOnUser(status);
 }
 
-/** Pick the highest-priority visible status across runs or group members. */
+/**
+ * Pick the highest-priority visible status across runs in a single conversation.
+ * Active execution (`running`/`leased`) takes precedence over lingering `waiting_input` cards
+ * so a bot executing a task shows "Working…" instead of staying stuck on "Needs input".
+ */
 export function aggregateConversationStatus(
   statuses: Iterable<string | null | undefined>,
   fallback = "idle",
 ): string {
   let hasWaitingTakeover = false;
-  let hasWaitingInput = false;
   let hasRunning = false;
   let hasLeased = false;
+  let hasWaitingInput = false;
   let hasQueued = false;
   let hasFailed = false;
   for (const status of statuses) {
     if (!status) continue;
     if (status === "waiting_takeover") hasWaitingTakeover = true;
-    else if (status === "waiting_input") hasWaitingInput = true;
     else if (status === "running") hasRunning = true;
     else if (status === "leased") hasLeased = true;
+    else if (status === "waiting_input") hasWaitingInput = true;
     else if (status === "queued") hasQueued = true;
     else if (status === "failed") hasFailed = true;
   }
   if (hasWaitingTakeover) return "waiting_takeover";
-  if (hasWaitingInput) return "waiting_input";
   if (hasRunning) return "running";
   if (hasLeased) return "leased";
+  if (hasWaitingInput) return "waiting_input";
   if (hasQueued) return "queued";
   if (hasFailed) return "failed";
   return fallback;

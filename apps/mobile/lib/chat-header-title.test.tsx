@@ -260,7 +260,7 @@ it("shows a group identity even with no roster, and never on a one-to-one chat",
   expect(seats()).toBeNull();
 });
 
-it("shows localized conversation status in the header title for bots and groups", () => {
+it("shows localized conversation status in the header title for bots and groups without leaking DM status", () => {
   setSearchInbox(
     inbox(
       [helper],
@@ -268,7 +268,14 @@ it("shows localized conversation status in the header title for bots and groups"
         {
           id: "group-1",
           name: "Team",
+          // Member's DM waiting_input must NOT leak into the group header before group snapshot loads.
           members: [{ ...member("b1"), status: "waiting_input" }],
+        },
+        {
+          id: "group-2",
+          name: "Active Team",
+          status: "waiting_input",
+          members: [member("b1")],
         },
       ],
     ),
@@ -276,6 +283,9 @@ it("shows localized conversation status in the header title for bots and groups"
   render({ botId: "bot-1" }, "thread-status-bot");
   expect(name()?.getAttribute("data-status-label")).toBe("Working…");
 
-  render({ groupId: "group-1", name: "Team" }, "thread-status-group");
+  render({ groupId: "group-1", name: "Team" }, "thread-status-group-isolated");
+  expect(name()?.getAttribute("data-status-label")).toBe("");
+
+  render({ groupId: "group-2", name: "Active Team" }, "thread-status-group");
   expect(name()?.getAttribute("data-status-label")).toBe("Needs input");
 });

@@ -1,5 +1,10 @@
 import type { RpcOutput } from "@rakazo/contracts";
-import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
+import {
+  ACTIVE_RUN_STATUSES,
+  isRunWorking,
+  liveActivityLine,
+  liveMessageComposing,
+} from "@rakazo/core";
 import type { MobileSnapshot } from "./api";
 import { aggregateConversationStatus, isConversationActiveStatus } from "./conversation-status";
 
@@ -97,7 +102,21 @@ export function threadSnapshotStatus(snapshot: MobileSnapshot): string {
     active.map((run) => run.status),
     "",
   );
-  if (activeStatus) return activeStatus;
+  const hasLiveExecution =
+    Boolean(liveActivityLine(snapshot.messages ?? [])) ||
+    (snapshot.messages ?? []).some(
+      (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
+    );
+  if (activeStatus) {
+    if (
+      hasLiveExecution &&
+      (activeStatus === "queued" || activeStatus === "leased" || activeStatus === "waiting_input")
+    ) {
+      return "running";
+    }
+    return activeStatus;
+  }
+  if (hasLiveExecution) return "running";
   return aggregateConversationStatus([snapshot.run?.status], "idle");
 }
 
@@ -121,21 +140,45 @@ export function applySendActivity(
   const active = (base.activeRuns ?? (base.run ? [base.run] : [])).filter((run) =>
     ACTIVE_RUN_STATUSES.some((status) => status === run.status),
   );
-  const received = activity.runs.filter(
-    (run) =>
-      ACTIVE_RUN_STATUSES.some((status) => status === run.status) &&
-      !active.some((existing) => existing.id === run.id),
+  const incoming = activity.runs.filter((run) =>
+    ACTIVE_RUN_STATUSES.some((status) => status === run.status),
   );
-  if (!received.length) return previous;
+  if (!incoming.length) return previous;
+  const incomingById = new Map(incoming.map((run) => [run.id, run]));
+  let changed = false;
+  const mergedActive = active.map((existing) => {
+    const next = incomingById.get(existing.id);
+    if (!next) return existing;
+    incomingById.delete(existing.id);
+    if (existing.status !== next.status || (existing.sendCursor ?? -1) < activity.cursor) {
+      changed = true;
+      return { ...existing, ...next, sendCursor: activity.cursor };
+    }
+    return existing;
+  });
+  for (const added of incomingById.values()) {
+    changed = true;
+    mergedActive.push({ ...added, sendCursor: activity.cursor });
+  }
+  if (!changed) return previous;
+  const updatedBaseRun =
+    base.run && mergedActive.find((candidate) => candidate.id === base.run?.id);
+  const nextRun =
+    updatedBaseRun && (updatedBaseRun.status !== "waiting_input" || mergedActive.length === 1)
+      ? updatedBaseRun
+      : base.run?.status === "failed"
+        ? base.run
+        : (mergedActive.find((candidate) => candidate.status === "running") ??
+          mergedActive.find((candidate) => candidate.status === "leased") ??
+          mergedActive.find((candidate) => candidate.status === "queued") ??
+          mergedActive[0] ??
+          null);
   return {
     ...base,
     threadId: activity.threadId,
     cursor: activity.cursor,
-    run:
-      base.run && (active.includes(base.run) || base.run.status === "failed")
-        ? base.run
-        : received[0]!,
-    activeRuns: [...active, ...received.map((run) => ({ ...run, sendCursor: activity.cursor }))],
+    run: nextRun,
+    activeRuns: mergedActive,
   };
 }
 
@@ -167,22 +210,43 @@ export function applyAcceptedSend(
     ACTIVE_RUN_STATUSES.some((status) => status === run.status),
   );
   const sendCursor = (base.cursor ?? -1) + 1;
-  const synthetic = runIds
-    .filter((id) => !active.some((existing) => existing.id === id))
-    .map((id) => ({
+  const receiptIds = new Set(runIds);
+  let changed = false;
+  const mergedActive = active.map((existing) => {
+    if (!receiptIds.has(existing.id)) return existing;
+    receiptIds.delete(existing.id);
+    if (existing.status === "waiting_input") {
+      changed = true;
+      return { ...existing, status: "queued", sendCursor };
+    }
+    return existing;
+  });
+  for (const id of receiptIds) {
+    changed = true;
+    mergedActive.push({
       id,
       ...(target.botId ? { botId: target.botId } : {}),
       status: "queued" as const,
       sendCursor,
-    }));
-  if (!synthetic.length) return previous;
+    });
+  }
+  if (!changed) return previous;
+  const updatedBaseRun =
+    base.run && mergedActive.find((candidate) => candidate.id === base.run?.id);
+  const nextRun =
+    updatedBaseRun && (updatedBaseRun.status !== "waiting_input" || mergedActive.length === 1)
+      ? updatedBaseRun
+      : base.run?.status === "failed"
+        ? base.run
+        : (mergedActive.find((candidate) => candidate.status === "running") ??
+          mergedActive.find((candidate) => candidate.status === "leased") ??
+          mergedActive.find((candidate) => candidate.status === "queued") ??
+          mergedActive[0] ??
+          null);
   return {
     ...base,
-    run:
-      base.run && (active.includes(base.run) || base.run.status === "failed")
-        ? base.run
-        : synthetic[0]!,
-    activeRuns: [...active, ...synthetic],
+    run: nextRun,
+    activeRuns: mergedActive,
   };
 }
 
@@ -191,10 +255,25 @@ export function retainAcceptedRuns(previous: MobileSnapshot | null, next: Mobile
   const runs = previous?.activeRuns?.filter((run) => (run.sendCursor ?? -1) > (next.cursor ?? -1));
   if (!runs?.length) return next;
   const active = next.activeRuns ?? (next.run ? [next.run] : []);
+  const byId = new Map(active.map((run) => [run.id, run]));
+  for (const run of runs) {
+    const existing = byId.get(run.id);
+    if (!existing || (existing.status === "waiting_input" && run.status !== "waiting_input")) {
+      byId.set(run.id, run);
+    }
+  }
+  const mergedActive = [...byId.values()];
   return {
     ...next,
-    run: next.run ?? runs[0]!,
-    activeRuns: [...active, ...runs.filter((run) => !active.some(({ id }) => id === run.id))],
+    run:
+      next.run && next.run.status !== "waiting_input"
+        ? next.run
+        : (mergedActive.find((run) => run.status === "running") ??
+          mergedActive.find((run) => run.status === "leased") ??
+          mergedActive.find((run) => run.status === "queued") ??
+          next.run ??
+          runs[0]!),
+    activeRuns: mergedActive,
   };
 }
 
@@ -205,7 +284,7 @@ function resolveStatus(key: string, fallback: string): string {
     ? threadSnapshotStatus(cached.snapshot)
     : (synced?.status ?? fallback);
   if (pendingSends.get(key)?.size) {
-    return isConversationActiveStatus(base) ? base : "queued";
+    return isRunWorking(base) || base === "waiting_takeover" ? base : "queued";
   }
   return base;
 }
@@ -329,16 +408,12 @@ export const threadSessionCache = {
   botStatus(scope: ThreadSessionScope, botId: string, fallback: string): string {
     return resolveStatus(threadKey(scope, { botId }), fallback);
   },
-  groupStatus(
-    scope: ThreadSessionScope,
-    groupId: string,
-    fallback: string | ReadonlyArray<{ status?: string }> = "idle",
-  ): string {
-    const fallbackStatus =
-      typeof fallback === "string"
-        ? fallback
-        : aggregateConversationStatus(fallback.map((member) => member.status));
-    return resolveStatus(threadKey(scope, { groupId }), fallbackStatus);
+  /**
+   * Resolves a group conversation's own status.
+   * Never derives group status from member bots' global/DM statuses.
+   */
+  groupStatus(scope: ThreadSessionScope, groupId: string, fallback = "idle"): string {
+    return resolveStatus(threadKey(scope, { groupId }), fallback);
   },
   reconcileRoster(
     scope: ThreadSessionScope,
@@ -347,9 +422,26 @@ export const threadSessionCache = {
   ) {
     const key = scopeKey(scope);
     let changed = false;
-    for (const cached of threads.values()) {
+    const rosterGroupsByKey = roster?.groups
+      ? new Map(roster.groups.map((group) => [threadKey(scope, { groupId: group.id }), group]))
+      : null;
+    for (const [entryKey, cached] of threads.entries()) {
       if (cached.scope !== key || cached.revision > requestRevision || !cached.overrideStatus)
         continue;
+      if (cached.snapshot.groupId && rosterGroupsByKey) {
+        const groupRow = rosterGroupsByKey.get(entryKey);
+        if (groupRow && groupRow.status === undefined) {
+          // Older servers omit thread-scoped group.status (only returning members' global bot status).
+          // Keep the group's own cached active status until all members are idle or a new unread reply arrives.
+          const cachedActive = isConversationActiveStatus(threadSnapshotStatus(cached.snapshot));
+          const allMembersIdle =
+            !groupRow.members ||
+            groupRow.members.every((member) => !isConversationActiveStatus(member.status));
+          if (cachedActive && !allMembersIdle && !groupRow.unread) {
+            continue;
+          }
+        }
+      }
       cached.overrideStatus = false;
       changed = true;
     }
@@ -388,11 +480,8 @@ export const threadSessionCache = {
             const entryKey = threadKey(scope, { groupId: group.id });
             seenGroups!.add(entryKey);
             const prev = syncedRoster.get(entryKey);
-            const nextStatus =
-              group.status ??
-              (group.members
-                ? aggregateConversationStatus(group.members.map((member) => member.status))
-                : undefined);
+            // Group status comes strictly from thread-scoped group.status, never member DM status.
+            const nextStatus = group.status;
             const nextUnread = group.unread;
             if (!prev || prev.status !== nextStatus || prev.unread !== nextUnread) {
               syncedRoster.set(entryKey, {

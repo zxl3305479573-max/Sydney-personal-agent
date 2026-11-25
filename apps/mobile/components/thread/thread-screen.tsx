@@ -13,6 +13,7 @@ import {
   displayName as safeDisplayName,
 } from "@rakazo/core";
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
+import { botColors } from "@rakazo/ui-tokens";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
@@ -44,6 +45,7 @@ import { canStartCompanionVoice, companionVoiceLinkMatches } from "../../lib/com
 import { composerDraftScope } from "../../lib/composer-draft";
 import {
   aggregateConversationStatus,
+  conversationStatusLabel,
   isConversationActiveStatus,
 } from "../../lib/conversation-status";
 import { cronLabels } from "../../lib/cron";
@@ -390,14 +392,18 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   const groupMembers = threadGroupMembers(groupId, snap, mentionGroups);
   const rawBotStatus = snap ? threadSnapshotStatus(snap) : titleBot?.status;
   const currentBotStatus = rawBotStatus;
+  // Group conversation status comes strictly from the group's own thread snapshot or group.status,
+  // never from member bots' global/DM statuses.
   const rawGroupStatus = snap
     ? threadSnapshotStatus(snap)
-    : aggregateConversationStatus(
-        (groupMembers ?? inboxGroup?.members ?? []).map((member) => member.status),
-      );
+    : inboxGroup && "status" in inboxGroup && typeof inboxGroup.status === "string"
+      ? inboxGroup.status
+      : undefined;
   const rawHeaderStatus = inGroup ? rawGroupStatus : rawBotStatus;
   const currentConversationStatus =
-    hasSendingAttempt && !isConversationActiveStatus(rawHeaderStatus) ? "queued" : rawHeaderStatus;
+    hasSendingAttempt && !isRunWorking(rawHeaderStatus) && rawHeaderStatus !== "waiting_takeover"
+      ? "queued"
+      : rawHeaderStatus;
   // Only reply text being written replaces the footer; earlier sentences above a tool call don't.
   const hasLiveProgress = visibleMessages.some(
     (message) => message.id.startsWith("progress:") && liveMessageComposing(message.blocks),
@@ -409,20 +415,25 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   );
   const activeGroupBots = useMemo(() => {
     if (!inGroup) return [];
-    const seen = new Set<string>();
     const active = snap?.activeRuns ?? (snap?.run ? [snap.run] : []);
-    return active.flatMap((run) => {
-      if (!run.botId || seen.has(run.botId) || !isActiveStatus(run.status)) return [];
-      const member = snap?.members?.find((candidate) => candidate.botId === run.botId);
-      if (!member) return [];
-      seen.add(run.botId);
-      return [{ ...member, status: run.status }];
-    });
+    const statusesByBot = new Map<string, string[]>();
+    for (const run of active) {
+      if (!run.botId || !isActiveStatus(run.status)) continue;
+      const list = statusesByBot.get(run.botId);
+      if (list) list.push(run.status);
+      else statusesByBot.set(run.botId, [run.status]);
+    }
+    const entries: Array<
+      NonNullable<NonNullable<typeof snap>["members"]>[number] & { status: string }
+    > = [];
+    for (const [memberBotId, statuses] of statusesByBot.entries()) {
+      const member = snap?.members?.find((candidate) => candidate.botId === memberBotId);
+      if (!member) continue;
+      entries.push({ ...member, status: aggregateConversationStatus(statuses) });
+    }
+    return entries.sort((left, right) => Number(isRunWorking(right.status)) - Number(isRunWorking(left.status)));
   }, [inGroup, snap?.activeRuns, snap?.members, snap?.run]);
-  // A bot waiting on the user (an ask card, a computer takeover) can still be stopped, but its
-  // card is the state: no typing dots under it.
-  const workingGroupBots = activeGroupBots.filter((bot) => isRunWorking(bot.status));
-  const working = inGroup ? activeGroupBots.length > 0 : isActiveStatus(currentBotStatus);
+  const working = inGroup ? activeGroupBots.length > 0 : isActiveStatus(currentConversationStatus);
 
   const speakFinishedReplyRef = useAutoSpeakReply({
     botId,
@@ -692,34 +703,77 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
     highlightedMessageId: scroll.highlightedMessageId,
   });
 
-  const workingBots =
-    !inGroup && titleBot && isRunWorking(currentBotStatus) && !hasLiveProgress
-      ? [
+  const composingIds = useMemo(
+    () => new Set(composingBots ? composingBots.split(",") : []),
+    [composingBots],
+  );
+  const footerBots = useMemo(() => {
+    if (!inGroup) {
+      if (!isConversationActiveStatus(currentConversationStatus) || hasLiveProgress) return [];
+      const id = titleBot?.id ?? botId;
+      if (!id) return [];
+      return [
+        {
+          id,
+          name: titleBot?.name ?? displayName,
+          color: titleBot?.color || botColors[3],
+          avatarSet: titleBot?.avatarSet,
+          status: currentConversationStatus,
+        },
+      ];
+    }
+    const liveGroupBots = activeGroupBots
+      .filter((bot) => !composingIds.has(bot.botId))
+      .map((bot) => ({
+        id: bot.botId,
+        name: bot.name,
+        color: bot.color,
+        avatarSet: bot.avatarSet,
+        status: bot.status,
+      }));
+    if (liveGroupBots.length > 0) return liveGroupBots;
+    if (hasSendingAttempt && !hasLiveProgress) {
+      const firstMember = (groupMembers ?? inboxGroup?.members)?.[0];
+      if (firstMember) {
+        return [
           {
-            id: titleBot.id,
-            name: titleBot.name,
-            color: titleBot.color,
-            avatarSet: titleBot.avatarSet,
-            status: currentBotStatus,
+            id: firstMember.botId,
+            name: firstMember.name,
+            color: firstMember.color || botColors[3],
+            avatarSet: firstMember.avatarSet,
+            status: "queued",
           },
-        ]
-      : inGroup
-        ? workingGroupBots.map((bot) => ({
-            id: bot.botId,
-            name: bot.name,
-            color: bot.color,
-            avatarSet: bot.avatarSet,
-            status: bot.status,
-          }))
-        : [];
+        ];
+      }
+    }
+    return [];
+  }, [
+    inGroup,
+    currentConversationStatus,
+    hasLiveProgress,
+    titleBot,
+    botId,
+    displayName,
+    activeGroupBots,
+    composingIds,
+    hasSendingAttempt,
+    groupMembers,
+    inboxGroup?.members,
+  ]);
+  const footerStatus = inGroup
+    ? aggregateConversationStatus(footerBots.map((bot) => bot.status))
+    : currentConversationStatus;
+  const footerLabel =
+    (isRunWorking(footerStatus) ? activityLine : undefined) ??
+    (conversationStatusLabel(footerStatus, t) || t("Working…"));
   const workingFooter = (
     <ThreadWorkingFooter
-      bots={workingBots.map((bot) => ({
+      bots={footerBots.map((bot) => ({
         ...bot,
-        composing: composingBots.split(",").includes(bot.id),
+        composing: composingIds.has(bot.id),
       }))}
       atBottom={!scroll.state.detached}
-      label={activityLine ?? t("Working…")}
+      label={footerLabel}
     />
   );
 

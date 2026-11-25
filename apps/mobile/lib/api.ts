@@ -2043,6 +2043,40 @@ function updateMemberStatus(
   );
 }
 
+/**
+ * Live progress or tool output proves the emitting run is executing right now.
+ * If `run.started` was missed on reconnect or resume from `waiting_input`, promote
+ * the matching run to `running` instead of leaving the UI stuck on "Needs input".
+ */
+function promoteRunRunning(
+  prev: MobileSnapshot,
+  event: Pick<ThreadEvent, "runId" | "botId">,
+): Pick<MobileSnapshot, "run" | "activeRuns" | "members"> {
+  const runId = event.runId;
+  if (!runId) return { run: prev.run, activeRuns: prev.activeRuns, members: prev.members };
+  const canPromote = (status: string) =>
+    status === "queued" || status === "leased" || status === "waiting_input";
+  const nextRun =
+    prev.run && prev.run.id === runId && canPromote(prev.run.status)
+      ? { ...prev.run, status: "running", error: null }
+      : prev.run;
+  const activeNeedsUpdate = Boolean(
+    prev.activeRuns?.some((candidate) => candidate.id === runId && canPromote(candidate.status)),
+  );
+  const nextActiveRuns = activeNeedsUpdate
+    ? prev.activeRuns?.map((candidate) =>
+        candidate.id === runId && canPromote(candidate.status)
+          ? { ...candidate, status: "running", error: null }
+          : candidate,
+      )
+    : prev.activeRuns;
+  const nextMembers =
+    nextRun !== prev.run || activeNeedsUpdate
+      ? updateMemberStatus(prev.members, event.botId, "running")
+      : prev.members;
+  return { run: nextRun, activeRuns: nextActiveRuns, members: nextMembers };
+}
+
 export function applyMobileThreadEvent(
   prev: MobileSnapshot | null,
   event: ThreadEvent,
@@ -2297,8 +2331,10 @@ export function applyMobileThreadEvent(
       ...(event.botId ? { botId: event.botId } : {}),
       ...(event.runId ? { runId: event.runId } : {}),
     };
+    const promoted = promoteRunRunning(prev, event);
     return {
       ...prev,
+      ...promoted,
       cursor: event.seq ?? prev.cursor,
       messages: [...remaining, streaming],
     };
@@ -2316,8 +2352,10 @@ export function applyMobileThreadEvent(
       ...(event.botId ? { botId: event.botId } : {}),
       ...(event.runId ? { runId: event.runId } : {}),
     };
+    const promoted = promoteRunRunning(prev, event);
     return {
       ...prev,
+      ...promoted,
       cursor: event.seq ?? prev.cursor,
       messages: [...remaining, streaming],
     };

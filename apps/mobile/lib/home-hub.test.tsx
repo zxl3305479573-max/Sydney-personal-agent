@@ -334,7 +334,7 @@ describe("HomeHub personal hub", () => {
     expect(state.push).toHaveBeenLastCalledWith("/chat-appearance");
   });
 
-  it("surfaces active spotlight status and counts active group conversations", () => {
+  it("surfaces active spotlight status and counts active groups only by group status, not member DM status", () => {
     act(() =>
       root.render(
         <HomeHub
@@ -342,9 +342,19 @@ describe("HomeHub personal hub", () => {
           bots={[sampleBot({ status: "waiting_input" })]}
           groups={[
             sampleGroup({
+              id: "g-dm-leak",
               unread: false,
-              members: [{ botId: "b-1", name: "Ops", color: "#3B82F6", status: "running" }],
+              // Member bot is waiting_input in DM, but this group itself has no active status.
+              members: [{ botId: "b-1", name: "Ops", color: "#3B82F6", status: "waiting_input" }],
             }),
+            {
+              ...sampleGroup({
+                id: "g-active",
+                unread: false,
+                members: [{ botId: "b-2", name: "Build", color: "#3B82F6" }],
+              }),
+              status: "running",
+            },
           ]}
           now={fixedEvening}
           lastSyncedAt={fixedEvening}

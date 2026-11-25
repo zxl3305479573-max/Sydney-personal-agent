@@ -392,7 +392,11 @@ function PersonalHomeHubScreen() {
           userId,
           spaceId: group.spaceId ?? me.spaceId,
         };
-        const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+        const status = threadSessionCache.groupStatus(
+          scope,
+          group.id,
+          "status" in group && typeof group.status === "string" ? group.status : "idle",
+        );
         const unread = threadSessionCache.unreadState(scope, { groupId: group.id }, group.unread);
         return status === "idle" && unread === group.unread ? group : { ...group, status, unread };
       }),
@@ -423,7 +427,11 @@ function PersonalHomeHubScreen() {
                   : { ...bot, status, unread };
               }),
               groups: space.groups.map((group) => {
-                const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+                const status = threadSessionCache.groupStatus(
+          scope,
+          group.id,
+          "status" in group && typeof group.status === "string" ? group.status : "idle",
+        );
                 const unread = threadSessionCache.unreadState(
                   scope,
                   { groupId: group.id },
@@ -1002,7 +1010,11 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
               : { ...bot, status, unread };
           }),
           groups: space.groups.map((group) => {
-            const status = threadSessionCache.groupStatus(scope, group.id, group.members);
+            const status = threadSessionCache.groupStatus(
+          scope,
+          group.id,
+          "status" in group && typeof group.status === "string" ? group.status : "idle",
+        );
             const unread = unreadOverrides.has(`group:${group.id}`)
               ? group.unread
               : threadSessionCache.unreadState(scope, { groupId: group.id }, group.unread);

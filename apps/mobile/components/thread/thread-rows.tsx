@@ -13,6 +13,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import type { ListRenderItemInfo } from "react-native";
 import { StyleSheet, View } from "react-native";
 import type { MobileBot, MobileMessage, MobileSnapshot } from "../../lib/api";
+import { aggregateConversationStatus } from "../../lib/conversation-status";
 import { useI18n } from "../../lib/i18n";
 import { messageAvatarBotId } from "../../lib/message-row-layout";
 import { threadHeaderFloats } from "../../lib/thread-edges";
@@ -138,8 +139,12 @@ export function useThreadRows({
           (currentBot?.id === activityBotId ? currentBot : undefined))
         : undefined;
       const activityStatus = activityBotId
-        ? (snap?.activeRuns?.find((run) => run.botId === activityBotId)?.status ??
-          (snap?.run?.botId === activityBotId ? snap.run.status : currentBotStatus))
+        ? aggregateConversationStatus(
+            (snap?.activeRuns ?? [])
+              .filter((run) => run.botId === activityBotId)
+              .map((run) => run.status),
+            "",
+          ) || (snap?.run?.botId === activityBotId ? snap.run.status : currentBotStatus)
         : undefined;
       return (
         <MessageRow
