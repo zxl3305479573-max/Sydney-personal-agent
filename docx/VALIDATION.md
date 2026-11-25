@@ -1,5 +1,16 @@
 # 验证记录
 
+## 工作区提交、主分支合并与 iPhone OTA（2026-11-25）
+
+关联 PA-021、PA-023、REL-01。本轮按用户授权提交、推送现有工作区改动，将完整集成分支合入 `main`，并从合并提交发布现有 iPhone 侧载版本。
+
+- 提交 `92b1ee8359f30819a5765cf6318dcc340c69934f` 已推送到 `cursor/integrate-remote-branches-7334`，包含既有 17 文件 CI 清理及文档；[PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 已合并，合并提交 `6c47e8836a89d25be17bbcf94103d2d7485da192` 与集成分支的源码树无差异。该 PR 共 48 个提交、848 个文件，覆盖此前尚未合入主分支的客户端及配套共享逻辑，不仅是最后一笔 CI 清理。
+- `git diff --check` 通过。`.github/scripts/changed-areas.test.py` 的默认 Bash 调用及在 Bash 中调用 Windows Python 的尝试均未完成；定位到 Windows 子进程选中缺少 `/bin/bash` 的 WSL 转发后，仅在本次运行的 Python 子进程调用中将 `bash` 指向已有 `D:\cxdownload\Git\bin\bash.exe`，3 项测试通过，耗时 91.347 秒。未修改测试断言、安装依赖或启动本机服务。
+- [iOS OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 成功，发布日志中的提交为 `6c47e8836a89d25be17bbcf94103d2d7485da192`，branch／channel 为 `sideload`，runtime 为 `sydney-ios-ip-1`。更新组 `abb1e9a2-e636-4857-8589-662987a4c5b6`，iOS 更新 ID `01a2125e-c869-7ab4-a278-e6b0e178a73c`。本次重新发布已有可见版本 `1.0.24`，版本说明日期继续为 `2026-11-22`，原生版本保持 `1.0.12`。
+- 线上 multipart 清单返回 HTTP `200`，更新 ID、更新组、runtime、三语版本说明及 55 项资源与发布结果一致。首次不带清单资源授权头请求 CDN 返回 `403`；读取 multipart `extensions.assetRequestHeaders` 并按每个资源携带其授权头后，启动包与 55 项资源共 56 项全部 HTTP `200`，SHA-256 与清单的 base64url 摘要全部一致。启动包大小 10,644,616 字节，SHA-256 `7182984b27b5192824e6a0a9d75a688f77030f573b5cb2d3aed5cf4cb2324fb5`。授权信息只在内存中使用，没有写入仓库或记录内容。
+- 合并后自动启动的[常规 CI Run 45599990966](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45599990966) 已有类型检查、三个单测分片和两个 PostgreSQL 集成分片失败。已读日志包含 `query.join is not a function`、品牌及参数断言不一致，以及注册夹具 `INVALID_ORIGIN`。不能据此声称整仓 CI 通过，未扩展到这些问题的修复。独立的[macOS 截图 Run 45599990970](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45599990970) 在图标核对失败后没有生成目标截图。CI 的服务器镜像构建仍有任务进行中；本窗口未主动部署后台或执行生产迁移。
+- 未执行：全工作区本机构建、Windows 新包、iOS 原生签名包、App Store／Android 发布、生产数据库迁移与回退、iPhone 实际下载重启和真机视觉／交互验收。OTA 分发成功与真机生效分别记录。
+
 ## GitHub CI 移除退役 Web E2E（2026-11-24）
 
 本轮删除 GitHub Actions 的 Web Playwright E2E、夜间 Web 截图和 PR 截图报告发布工作流，以及只被这些工作流使用的报告辅助代码。`apps/web` 仍保留为 Windows 包内界面构建来源，桌面 Electron E2E 与移动端截图工作流未删除。

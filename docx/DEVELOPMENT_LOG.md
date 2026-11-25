@@ -1,5 +1,7 @@
 # 开发过程记录
 
+2026-11-25（PA-021／PA-023／REL-01 工作区提交合并与手机发布）：按用户明确授权，将既有 17 文件退役 Web E2E CI 清理和配套文档提交为 `92b1ee835` 并推送。PR #10 将当前集成分支累计 48 个提交合入 `main`，合并提交 `6c47e8836a89d25be17bbcf94103d2d7485da192`，合并源码树与集成分支一致。通过既有 `mobile-ios-update.yml` 从 `main` 重新发布 iPhone `1.0.24`，Run `45600236960` 成功，更新 ID `01a2125e-c869-7ab4-a278-e6b0e178a73c`。线上清单、10,644,616 字节启动包与 55 项资源均核验通过。默认 Bash 调用因本机 WSL 缺少 `/bin/bash` 失败，显式使用本机 Git Bash 后 3 项区域判断测试通过，没有修改测试逻辑。常规 CI 类型检查、单测、PostgreSQL 集成检查及 macOS 截图失败，未顺带扩展修复；本批没有新产品代码或版本号递增，不构建原生包、不提交商店审核、不部署后台和迁移。真机更新生效待验，详细证据与操作入口见验证、运维记录。
+
 2026-11-24（GitHub CI 移除退役 Web E2E）：用户确认没有 Web 端后，清理独立 Web Playwright E2E 工作流、夜间 Web 截图工作流、PR 截图报告发布工作流及其仅供该链路使用的报告脚本、提取器、生成器和测试。同步移除 `ci.yml` 的 Web E2E 调用、`changed-areas.sh` 的 `e2e` 输出和对应 Python 测试断言。`apps/web`、桌面 Electron E2E、移动端截图发布和本地 `test:e2e` 入口保留，因为它们仍服务于 Windows 包界面或其他验证范围。定向验证结果记录在 `VALIDATION.md`。
 
 2026-11-22（PA-018／PA-021／PA-022 PostgreSQL 迁移本机验证）：本机 `.env` 指向 `rakazo-dev-postgres` 的 `127.0.0.1:54318/rakazo`，没有连接生产数据库。清理一个未被 Git 跟踪且缺少 `migration.sql` 的本机空迁移目录后，按 Prisma 完整迁移顺序补齐 18 条待执行迁移，包含 `20261122120000_shared_memory_across_projects`。最终 `prisma migrate status` 报告数据库结构已最新；`memory_documents`、`memory_revisions` 的 RLS 和目标 restrictive policy 存在。使用 `rakazo_app` 角色验证当前用户／Space 可读样本记忆，换用其他用户／Space 后两张表均返回 0 条。生产迁移、备份、并发冲突和服务重启仍待执行。
