@@ -607,7 +607,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
     }
   });
 
-  it("hides home memory documents and revisions from project scope", async () => {
+  it("hides home bot memory and revisions from project scope while sharing user memory", async () => {
     const botMemoryId = `workspace-bot-memory-${randomUUID()}`;
     const userMemoryId = `workspace-user-memory-${randomUUID()}`;
     const revisionId = `workspace-memory-revision-${randomUUID()}`;
@@ -640,7 +640,7 @@ describePostgres("project workspace metadata (PostgreSQL)", () => {
       );
       expect(await runAsTenant(tenant(first), revisions)).toEqual([{ id: revisionId }]);
       const projectTenant = { ...tenant(first), projectWorkspaceId: first.workspaceId };
-      expect(await runAsTenant(projectTenant, documents)).toEqual([]);
+      expect(await runAsTenant(projectTenant, documents)).toEqual([{ id: userMemoryId }]);
       expect(await runAsTenant(projectTenant, revisions)).toEqual([]);
       await expect(
         runAsTenant(

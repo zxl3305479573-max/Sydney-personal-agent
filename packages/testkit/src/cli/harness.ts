@@ -68,7 +68,8 @@ async function main() {
     runtimeUrl.password = "rakazo-test-runtime";
     const databaseUrl = runtimeUrl.toString();
     const apiPort = Number(process.env.API_PORT ?? 3110);
-    const webPort = Number(process.env.WEB_PORT ?? 5180);
+    // Integration suites send origin http://127.0.0.1:5173 (DEFAULT_WEB_ORIGIN); E2E serves Vite on 5180.
+    const webPort = Number(process.env.WEB_PORT ?? (integration ? 5173 : 5180));
     const webOrigin = `http://127.0.0.1:${webPort}`;
 
     process.env.DATABASE_URL = databaseUrl;

@@ -1035,7 +1035,9 @@ describe("encrypted production backups", { timeout: 20_000 }, () => {
       write(key, identity);
       const drill = f.run("infra/compose/backup-drill.sh", [snapshot, key]);
       expect(drill.status, drill.stderr).toBe(0);
-      expect(drill.stdout).toContain("decrypts and verifies");
+      expect(drill.stdout).toContain(
+        "checksums and archive listings checked; restore not performed",
+      );
       write(key, "# public key: age1someoneelse\n");
       expect(f.run("infra/compose/backup-drill.sh", [snapshot, key]).status).not.toBe(0);
 

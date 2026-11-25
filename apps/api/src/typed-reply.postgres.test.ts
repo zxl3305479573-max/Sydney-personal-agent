@@ -191,6 +191,16 @@ describe.skipIf(!enabled)("typed replies to waiting cards (PostgreSQL)", () => {
         { kind: "ask", text: "Any preference?", status: "pending" },
         target.threadId,
       );
+      if (kind === "bot") {
+        // Keep `latest` behind a newer message on the private thread without attaching peerBotId
+        // to botId's DM thread (disallowed by the DM task-owner trigger).
+        await createThreadMessage(system, {
+          threadId: target.threadId,
+          role: "bot",
+          botId,
+          blocks: [{ kind: "text", text: "Trailing update" }],
+        });
+      }
       const peer = await waitingCard(
         question,
         kind === "group" ? target.threadId : groupTarget.threadId,

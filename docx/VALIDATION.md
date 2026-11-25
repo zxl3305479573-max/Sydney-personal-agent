@@ -1,5 +1,31 @@
 # 验证记录
 
+## GitHub CI 第二批残留失败项修复（2026-11-25）
+
+针对第一批修复推送后最新 GitHub Actions `ci` Run `45628028108`（提交 `fa84bb2ad`）的剩余 5 类失败项实施定向修复、本机离线验证，并按用户确认基于 `d4b92a19b` 在隔离 worktree 独立提交推送。
+
+- **第一批推送后 GitHub Actions 已实跑转绿项（Run `45628028108`、`45626341617`、`45626327009`）**：
+  - `Lint and typecheck`：**success**（全仓 Biome 0 错误、全部 `tsconfig` 0 错误、Web `intl:extract` 幂等）。
+  - `Unit tests (1/3)` 与 `Unit tests (3/3)`：**success**。
+  - `desktop-macos-screenshot`（Run `45626341617`）：**success**（`Sydney-partner.app` 启动与截图通过）。
+  - `iOS unsigned sideload build`（Run `45626327009`）与全部 9 个服务端镜像构建发布任务：**success**。
+  - 第一批修复的 5 个 PostgreSQL 集成套件（`history-retrieval`、`cloud-agent`、`working-bot`、`takeover-chat`、`run-wakeup`）在 Run `45628028108` 均不再报错。
+- **本批本机已执行并通过**：
+  - **定向 Biome 检查**（`pnpm exec biome check` 仅作用于本批 6 个修改文件：`packages/testkit/src/backup-scripts.test.ts`、`packages/testkit/src/cli/harness.ts`、`packages/db/src/row-security.ts`、`packages/db/src/row-security.postgres.test.ts`、`packages/db/src/project-workspace.postgres.test.ts`、`apps/api/src/typed-reply.postgres.test.ts`）：**6 个文件 0 错误、0 格式差异**（退出码 `0`）。
+  - **TypeScript 类型检查**：`pnpm exec tsc --noEmit -p packages/db/tsconfig.json`、`packages/testkit/tsconfig.json`、`apps/api/tsconfig.json` **全部 0 错误通过**（退出码 `0`）。
+  - **定向离线 Vitest 回归**（6 个文件、66 项全部通过、0 失败）：
+    - `packages/db/src/row-security.test.ts`（9 项）
+    - `packages/db/src/project-directory.test.ts`（6 项）
+    - `packages/db/src/project-workspace-context.test.ts`（8 项）
+    - `packages/db/src/project-workspace-read.test.ts`（17 项）
+    - `packages/db/src/project-workspace-deletion.test.ts`（5 项）
+    - `apps/api/src/project-directories.test.ts`（21 项）
+  - **隔离 worktree 差异空白检查**（`git diff --check` 覆盖全部 10 个待提交文件）：**0 警告通过**。
+- **未执行项（待推送后由 GitHub Actions Linux+PostgreSQL Runner 验收）**：
+  - `packages/testkit/src/backup-scripts.test.ts`（依赖 Linux `bash`／`age`／`pg_restore`，对应 `Unit tests (2/3)`）。
+  - `Postgres journeys (1/2)` 与 `Postgres journeys (2/2)`（`packages/db/src/row-security.postgres.test.ts`、`packages/db/src/project-workspace.postgres.test.ts`、`apps/api/src/typed-reply.postgres.test.ts` 及 `packages/testkit` 全部 PostgreSQL 集成套件）。
+  - 未启动本机 Docker／PostgreSQL／桌面服务，未重装依赖，未触碰主工作区其他并发窗口的 `apps/mobile` 与 `thread-listing` 改动。
+
 ## 移动端群聊状态隔离、执行态优先级与对话左下角状态修复（2026-11-25）
 
 关联 PA-018／PA-021／PA-022。

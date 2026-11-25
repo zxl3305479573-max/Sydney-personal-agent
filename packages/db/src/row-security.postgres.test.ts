@@ -644,16 +644,26 @@ describePostgres("row-level security (PostgreSQL)", () => {
   });
 
   it("routes every bypass policy through the key check", async () => {
+    const bypass = "( SELECT app_rls_bypass() AS app_rls_bypass)";
     const policies = await owner.prisma.$queryRaw<
-      Array<{ policyname: string; qual: string; with_check: string | null }>
+      Array<{ policyname: string; qual: string | null; with_check: string | null }>
     >`
       SELECT policyname, qual, with_check FROM pg_policies WHERE schemaname = 'public'
         AND (policyname LIKE '%\\_system' OR qual LIKE '%rls\\_%' OR with_check LIKE '%rls\\_%')`;
     expect(policies.length).toBeGreaterThan(50);
+    const hasOnlyKeyedBypass = (expr: string | null) =>
+      expr === null || !expr.replaceAll(bypass, "").includes("rls_");
     expect(
-      policies.filter(
-        (p) => p.qual !== "( SELECT app_rls_bypass() AS app_rls_bypass)" || p.with_check !== null,
-      ),
+      policies.filter((p) => {
+        if (p.policyname.endsWith("_system")) {
+          return p.qual !== bypass || (p.with_check !== null && p.with_check !== bypass);
+        }
+        return (
+          !(p.qual?.includes(bypass) || p.with_check?.includes(bypass)) ||
+          !hasOnlyKeyedBypass(p.qual) ||
+          !hasOnlyKeyedBypass(p.with_check)
+        );
+      }),
     ).toEqual([]);
   });
 
