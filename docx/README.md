@@ -1,5 +1,7 @@
 # Sydney 开发文档入口
 
+2026-11-25 已提交推送当前 CI 清理，并通过 [PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 将完整集成分支合入 `main`（`6c47e8836`）。[iPhone OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 已成功从该提交重新发布 `1.0.24`，线上启动包与 55 项资源全部校验通过；整仓 CI 与 macOS 截图未通过，真机生效待验。[本批验证](VALIDATION.md#工作区提交主分支合并与-iphone-ota2026-11-25) · [手机更新与回退](OPERATIONS.md#main-合并后的-iphone-1024-ota2026-11-25)
+
 Bot 状态恢复、未读绿标和普通／项目 Bot 持久记忆共享的验收见 [Bot 状态与记忆评测](BOT_STATE_MEMORY_EVALUATION.md)。
 
 Windows `0.4.3` 与 iPhone `1.0.23` 已于 2026-11-22 提交、推送并发布。源码提交 `7d2829aa3` 已推送到集成分支；Windows 发行页、安装包三项资产、iPhone 启动包及 55 项资源均已核验。Bot、项目和 GitHub 状态缓存、应用对接按钮及手机界面材质改动已进入客户端版本；双端真机视觉、手势、覆盖安装与保留数据回退仍待验。[Windows 发行页](https://github.com/zxl3305479573-max/Sydney-personal-agent/releases/tag/sydney-desktop-v0.4.3) · [本批验证](VALIDATION.md#app-0431023-全量提交与发布2026-11-22) · [更新与回退](OPERATIONS.md#sydney-windows-043iphone-1023-发布通道2026-11-22)
@@ -13,7 +15,7 @@ Windows `0.4.2`／iPhone `1.0.22` 已发布。源码 `24687d3c6` 已提交推送
 欢迎卡片被自由输入跳过后残留“等待输入”的时序修复 `d7db91355` 已提交推送并上线 API／Worker。172 项定向回归、隔离数据库／HTTP 和生产回读通过，3 条遗留欢迎任务已收口、首页均 idle。手机无需新增 OTA，iPhone 实际显示待用户复核。[计划](PLAN.md#bot-欢迎卡片与自由输入等待收口pa-018pa-0212026-11-21) · [验证](VALIDATION.md#欢迎卡片自由输入等待收口2026-11-21)
 
 
-更新日期：2026-11-22。
+更新日期：2026-11-25。
 
 `1.0.21` 已发布，修复 iPhone 项目头像和名称同步，补齐项目 Bot／群聊资料、归档、恢复、清空与删除。后台健康，线上启动包及 55 项资源通过，iPhone 实际交互待验。[验证](VALIDATION.md#项目-bot-同步与聊天管理2026-11-21) · [更新与回退](OPERATIONS.md#项目聊天管理与-iphone-10212026-11-21)
 

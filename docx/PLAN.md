@@ -1,5 +1,15 @@
 # Sydney 开发总计划
 
+## 工作区提交、主分支合并与 iPhone OTA（2026-11-25）
+
+关联需求：PA-021、PA-023、REL-01。范围为提交现有退役 Web E2E CI 清理、将当前集成分支合入 `main`，并沿用 iPhone `sideload`／`sydney-ios-ip-1` 发布通道。没有新的手机客户端产品改动，保留可见版本 `1.0.24` 和原生底座版本 `1.0.12`。
+
+状态：源码提交、推送、主分支合并与 iPhone OTA 分发完成；整仓 CI 未通过，真机生效待验。清理提交 `92b1ee835` 已推送；[PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 已将集成分支的 48 个提交合入 `main`，合并提交 `6c47e8836a89d25be17bbcf94103d2d7485da192`，合并结果与集成分支源码树一致。[iOS OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 成功，更新 ID `01a2125e-c869-7ab4-a278-e6b0e178a73c`、更新组 `abb1e9a2-e636-4857-8589-662987a4c5b6` 已在线回读。
+
+交付物与验收：保留中文分点提交说明、PR 和源提交记录；定向复验 CI 区域判断；发布工作流成功后核对线上清单、版本、runtime、启动包及资源摘要；同步开发、验证、运维和文档入口。依赖既有 GitHub／Expo 仓库发布配置。真机更新、原生签名安装、App Store／Android 发布和生产数据库迁移不由本次 OTA 验收推定完成。
+
+验证结果：显式选择本机 Git Bash 后，区域判断 3 项测试通过；线上清单为 `1.0.24`／`sydney-ios-ip-1`，启动包与 55 项资源全部 HTTP `200` 且 SHA-256 匹配。常规 CI Run `45599990966` 的类型检查、单测和 PostgreSQL 集成检查失败，macOS 截图 Run `45599990970` 失败；这些问题另行处理，本次未扩展修复或将整仓检查标为通过。详细证据见[验证记录](VALIDATION.md#工作区提交主分支合并与-iphone-ota2026-11-25)。
+
 ## GitHub CI 移除退役 Web E2E（2026-11-24）
 
 状态：源码改动和定向验证完成。用户确认生产 Web 已退役，删除 GitHub Actions 中独立的 Web Playwright E2E、夜间 Web 截图和 PR 报告发布链路；保留 `apps/web` 作为 Windows 包内界面构建来源，保留桌面 Electron E2E、移动端截图和本地测试入口。
