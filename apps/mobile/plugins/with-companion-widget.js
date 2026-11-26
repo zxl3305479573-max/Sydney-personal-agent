@@ -63,7 +63,8 @@ function withCompanionWidget(config) {
       }
       destination.files.push(productBuildFile);
       const sourceFiles = FILES.map((file) => `${TARGET}/${file}`);
-      const group = project.addPbxGroup([...sourceFiles, `${TARGET}/Info.plist`], TARGET);
+      const group = project.addPbxGroup([...sourceFiles, `${TARGET}/Info.plist`], TARGET, "");
+      if (group.pbxGroup) delete group.pbxGroup.path;
       project.addToPbxGroup(group.uuid, project.getFirstProject().firstProject.mainGroup);
       project.addBuildPhase(sourceFiles, "PBXSourcesBuildPhase", "Sources", target.uuid);
       project.addBuildPhase([], "PBXFrameworksBuildPhase", "Frameworks", target.uuid);

@@ -102,7 +102,9 @@ describe("isolated companion widget plugin", () => {
     ]);
     const group = Object.values(objects.PBXGroup).find(
       (entry: any) => entry?.name === "SydneyCompanionWidget",
-    ) as { children: { value: string }[] };
+    ) as { children: { value: string }[]; path?: string };
+    expect("path" in group).toBe(false);
+    expect(project.writeSync()).not.toContain("path = undefined");
     const groupPaths = group.children.map((entry) =>
       objects.PBXFileReference[entry.value].path.replaceAll('"', ""),
     );
