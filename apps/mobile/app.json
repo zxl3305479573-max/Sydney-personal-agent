@@ -4,7 +4,7 @@
     "slug": "rakazo",
     "owner": "inbox-zero",
     "scheme": "rakazo",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -90,7 +90,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.rakazo.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": true,
       "icon": "../../packages/ui-tokens/assets/Sydney.icon",
       "config": {
@@ -100,7 +100,7 @@
         "NSCameraUsageDescription": "Sydney uses the camera so you can attach photos to a bot message.",
         "NSPhotoLibraryUsageDescription": "Sydney uses your photo library so you can attach images to a bot message.",
         "NSLocalNetworkUsageDescription": "Sydney connects to a self-hosted Sydney server on your local network.",
-        "NSLocationWhenInUseUsageDescription": "Sydney uses your location to show where you are on the map and plan navigation routes.",
+        "NSLocationWhenInUseUsageDescription": "Sydney uses your location for accurate local weather, showing where you are on the map, and planning navigation routes.",
         "LSApplicationQueriesSchemes": ["iosamap", "amapuri"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true

@@ -18,6 +18,7 @@ import { MotionPressable } from "../components/motion-pressable";
 import { NativeSymbol } from "../components/native-symbol";
 import type { MapPlace, TravelMode } from "../lib/amap-navigation";
 import { openInAmapNavigation, travelModeLabel } from "../lib/amap-navigation";
+import { isNativeLocationAvailable, requestDeviceGpsLocation } from "../lib/device-location";
 import { useI18n } from "../lib/i18n";
 import type { GeoPoint, UserLocation } from "../lib/map-location";
 import {
@@ -97,9 +98,6 @@ export default function MapScreen() {
     async (preferGps = true) => {
       setLocating(true);
       setStatusNotice(null);
-      if (preferGps) {
-        canvasRef.current?.requestGpsLocation();
-      }
       const saved = await loadSavedMapLocation();
       if (saved && !myLocation) {
         setMyLocation(saved);
@@ -108,6 +106,37 @@ export default function MapScreen() {
           canvasRef.current?.centerOn(saved, saved.source === "gps" ? 15 : 13);
         }
       }
+
+      if (preferGps && isNativeLocationAvailable()) {
+        const gpsResult = await requestDeviceGpsLocation({
+          requestPermission: true,
+          force: true,
+        });
+        if (gpsResult.status === "ok") {
+          applyLocation(gpsResult.location, true);
+          if (!gpsResult.location.label) {
+            void reverseGeocodeLocation(gpsResult.location).then((address) => {
+              if (address) {
+                applyLocation({ ...gpsResult.location, label: address }, false);
+              }
+            });
+          }
+          setLocating(false);
+          return;
+        }
+        if (gpsResult.status === "denied") {
+          setStatusNotice(
+            copy(
+              "未开启定位权限，请在系统「设置 → Sydney → 位置」中允许使用期间访问，或点击地图手动校准。",
+              "未開啟定位權限，請在系統「設定 → Sydney → 位置」中允許使用期間存取，或點擊地圖手動校準。",
+              "Location permission denied. Enable it in Settings → Sydney → Location, or tap the map to pin your spot.",
+            ),
+          );
+        }
+      } else if (preferGps) {
+        canvasRef.current?.requestGpsLocation();
+      }
+
       const approx = await resolveApproxIpLocation({ force: !preferGps });
       if (approx) {
         setMyLocation((prev) => {
@@ -122,7 +151,7 @@ export default function MapScreen() {
       }
       setLocating(false);
     },
-    [myLocation],
+    [applyLocation, copy, myLocation],
   );
 
   useEffect(() => {
@@ -229,7 +258,9 @@ export default function MapScreen() {
           initialCenteredRef.current = true;
           canvasRef.current?.centerOn(myLocation, myLocation.source === "gps" ? 15 : 13);
         }
-        canvasRef.current?.requestGpsLocation();
+        if (!isNativeLocationAvailable()) {
+          canvasRef.current?.requestGpsLocation();
+        }
         return;
       }
       if (event.type === "location") {

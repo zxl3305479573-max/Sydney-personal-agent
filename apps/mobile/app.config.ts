@@ -72,12 +72,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     const updateRuntime = process.env.SYDNEY_OTA_RUNTIME_VERSION;
     const updatesRequested = updateProject || updateOwner || updateRuntime;
     if (
-      companionExperiment &&
-      (bundleIdentifier.toLowerCase() === "xin.zxlup.sydney" || updatesRequested)
-    ) {
-      throw new Error("The companion experiment requires a separate bundle ID and no OTA updates.");
-    }
-    if (
       updatesRequested &&
       (!updateProject ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(updateProject) ||

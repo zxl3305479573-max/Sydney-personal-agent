@@ -160,7 +160,7 @@ export default function WeatherDetailScreen() {
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
                   <NativeSymbol
-                    ios="location"
+                    ios={weather.locationSource === "gps" ? "location.fill" : "location"}
                     android="location-outline"
                     size={14}
                     color={softAccentInk}
@@ -172,10 +172,39 @@ export default function WeatherDetailScreen() {
                       fontSize: 14,
                       lineHeight: 18,
                       fontWeight: "500",
+                      flexShrink: 1,
                     }}
                   >
                     {weather.locationLabel || copy("当前位置", "目前位置", "Current location")}
                   </Text>
+                  {weather.locationSource ? (
+                    <View
+                      testID="weather-location-source"
+                      style={{
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                        borderRadius: 999,
+                        backgroundColor: chipBackground,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: chipBorder,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: softAccentInk,
+                          fontSize: 10.5,
+                          lineHeight: 14,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {weather.locationSource === "gps"
+                          ? copy("手机定位", "手機定位", "GPS")
+                          : weather.locationSource === "manual"
+                            ? copy("手动校准", "手動校準", "Pinned")
+                            : copy("网络定位", "網路定位", "IP")}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <MotionPressable
                   preset="control"

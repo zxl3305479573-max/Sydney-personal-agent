@@ -1,24 +1,24 @@
 {
-  "version": "1.0.28",
+  "version": "1.0.29",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "首页问候语右侧天气胶囊支持点击进入独立天气详情页，查看所在城市、体感温度、湿度、风速、未来 12 小时逐小时与 7 天预报。",
-      "全面升级后台陪伴体验：常规侧载版支持应用内跨页悬浮胶囊与独立陪伴控制页、运行中无缝切换伙伴、后台本地提醒与可选本机语音播报。",
-      "新增首页地图卡片与交互式地图导航页，支持中国大陆坐标校准、地名搜索、路径预估及驾车／公交／步行／骑行四模式一键拉起高德地图导航。",
-      "配合服务端更新，用户在存在待审批卡片时发送新指令将自动取消旧审批并退出「等待输入」，不再持续挂起。"
+      "新增 iOS 原生手机 GPS 定位模块（CoreLocation + CLGeocoder），天气与地图统一优先使用手机精准定位与系统中文区县名称，摆脱网络 IP 漂移。",
+      "主侧载 IPA 正式内置 iOS 灵动岛与锁屏实时活动扩展（SydneyCompanionWidget），同时保留 sideload OTA 热更新通道（重装新 IPA 1.0.13 后生效）。",
+      "重构应用内后台陪伴为真正悬浮在页面之上的可拖动胶囊，并支持一键收起为可拖动贴边吸附的悬浮球，不再挤压底栏。",
+      "天气详情页新增定位来源标识（手机定位／手动校准／网络定位），并在地图定位更新或手动校准后自动同步刷新当地天气。"
     ],
     "zh-TW": [
-      "首頁問候語右側天氣膠囊支援點擊進入獨立天氣詳情頁，檢視所在城市、體感溫度、濕度、風速、未來 12 小時逐小時與 7 天預報。",
-      "全面升級後台陪伴體驗：常規側載版支援應用內跨頁懸浮膠囊與獨立陪伴控制頁、執行中無縫切換夥伴、背景本機提醒與可選本機語音播報。",
-      "新增首頁地圖卡片與互動式地圖導航頁，支援中國大陸座標校準、地名搜尋、路徑預估及駕車／公車／步行／騎行四模式一鍵開啟高德地圖導航。",
-      "配合伺服端更新，使用者在存在待審批卡片時發送新指令將自動取消舊審批並退出「等待輸入」，不再持續掛起。"
+      "新增 iOS 原生手機 GPS 定位模組（CoreLocation + CLGeocoder），天氣與地圖統一優先使用手機精準定位與系統中文區縣名稱，擺脫網路 IP 漂移。",
+      "主側載 IPA 正式內建 iOS 動態島與鎖定畫面即時動態擴充（SydneyCompanionWidget），同時保留 sideload OTA 熱更新通道（重裝新 IPA 1.0.13 後生效）。",
+      "重構應用內背景陪伴為真正懸浮於頁面上方的可拖曳膠囊，並支援一鍵收合為可拖曳貼邊吸附的懸浮球，不再擠壓底欄。",
+      "天氣詳情頁新增定位來源標示（手機定位／手動校準／網路定位），並在地圖定位更新或手動校準後自動同步更新當地天氣。"
     ],
     "en": [
-      "Tap the live weather pill beside the Home greeting to open the new Weather detail screen with city, feels-like, humidity, wind, 12-hour hourly, and 7-day forecasts.",
-      "Upgrade background companion with dual-mode live activity and in-app floating pill across tabs, a dedicated Companion console, live bot switching, local alerts, and optional speech readout.",
-      "Add the Home map card and interactive Map & Amap navigation screen with Mainland China coordinate calibration, place search, route estimates, and 4-mode Amap handoff.",
-      "Paired with the backend update, sending a new instruction while an approval card is pending automatically cancels the old approval so chats no longer stay stuck waiting for input."
+      "Add native iOS CoreLocation GPS and CLGeocoder bridge so Weather and Map prioritize real phone GPS coordinates and local district names instead of drifting network IP.",
+      "Bundle the iOS Dynamic Island and Lock Screen Live Activity extension (SydneyCompanionWidget) in the main sideload IPA while keeping sideload OTA enabled (requires installing IPA 1.0.13).",
+      "Upgrade the in-app companion bar into a true absolute-positioned draggable floating pill with one-tap collapse into a snap-to-edge floating orb above the tab bar.",
+      "Show the active location source badge (GPS / Pinned / IP) on the Weather detail screen and automatically resync weather whenever GPS or manual map calibration updates."
     ]
   }
 }

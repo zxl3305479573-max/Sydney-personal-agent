@@ -617,14 +617,15 @@ function LayoutContent() {
                     </Stack>
                   </SplitFrame>
                 </BottomSafeAreaClaimedContext.Provider>
-                <CompanionFloatingBar
-                  style={{
-                    marginTop: 6,
-                    marginBottom: voicePlaying ? 0 : showMainNavigation ? 8 : insets.bottom + 8,
-                  }}
-                />
                 <VoicePlayerBar
                   style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
+                />
+                <CompanionFloatingBar
+                  topInset={insets.top + 8}
+                  bottomOffset={
+                    (showMainNavigation ? insets.bottom + 68 : insets.bottom + 14) +
+                    (voicePlaying ? 62 : 0)
+                  }
                 />
               </View>
               <ComputerUpdateProgress />

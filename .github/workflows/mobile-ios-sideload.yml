@@ -18,9 +18,9 @@ on:
         required: true
         default: xin.zxlup.sydney
       companion_experiment:
-        description: Build isolated Live Activity experiment (requires a separate bundle ID)
+        description: Embed iOS Live Activity companion extension (Dynamic Island)
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -33,12 +33,12 @@ jobs:
       CI: "1"
       SYDNEY_SIDELOAD_IOS: "1"
       EXPO_PUBLIC_SYDNEY_SIDELOAD: "1"
-      SYDNEY_COMPANION_EXPERIMENT: ${{ inputs.companion_experiment && '1' || '0' }}
+      SYDNEY_COMPANION_EXPERIMENT: ${{ github.event_name == 'workflow_dispatch' && !inputs.companion_experiment && '0' || '1' }}
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url || 'https://124.221.182.39' }}
       SYDNEY_IOS_BUNDLE_ID: ${{ inputs.bundle_id || 'xin.zxlup.sydney' }}
-      SYDNEY_OTA_PROJECT_ID: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_PROJECT_ID || '' }}
-      SYDNEY_OTA_OWNER: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_OWNER || '' }}
-      SYDNEY_OTA_RUNTIME_VERSION: ${{ !inputs.companion_experiment && (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_RUNTIME_VERSION || '' }}
+      SYDNEY_OTA_PROJECT_ID: ${{ (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_PROJECT_ID || '' }}
+      SYDNEY_OTA_OWNER: ${{ (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_OWNER || '' }}
+      SYDNEY_OTA_RUNTIME_VERSION: ${{ (inputs.api_url || 'https://124.221.182.39') == 'https://124.221.182.39' && (inputs.bundle_id || 'xin.zxlup.sydney') == 'xin.zxlup.sydney' && vars.SYDNEY_OTA_RUNTIME_VERSION || '' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -49,8 +49,7 @@ jobs:
           set -euo pipefail
           if [[ -n "$SYDNEY_OTA_PROJECT_ID$SYDNEY_OTA_OWNER$SYDNEY_OTA_RUNTIME_VERSION" &&
                 ( "$EXPO_PUBLIC_API_URL" != "https://124.221.182.39" ||
-                  "$SYDNEY_IOS_BUNDLE_ID" != "xin.zxlup.sydney" ||
-                  "$SYDNEY_COMPANION_EXPERIMENT" == "1" ) ]]; then
+                  "$SYDNEY_IOS_BUNDLE_ID" != "xin.zxlup.sydney" ) ]]; then
             echo "OTA-enabled sideload builds require the production IP target and xin.zxlup.sydney bundle ID." >&2
             exit 1
           fi
@@ -125,6 +124,8 @@ jobs:
           executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
           xcrun lipo -verify_arch arm64 "$app/$executable"
           test -f "$app/main.jsbundle"
+          location_prompt=$(/usr/libexec/PlistBuddy -c 'Print :NSLocationWhenInUseUsageDescription' "$app/Info.plist")
+          test -n "$location_prompt"
           if [[ "$SYDNEY_COMPANION_EXPERIMENT" == "1" ]]; then
             extension="$app/PlugIns/SydneyCompanionWidget.appex"
             test -d "$extension"

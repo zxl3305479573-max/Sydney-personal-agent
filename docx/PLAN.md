@@ -1,5 +1,18 @@
 # Sydney 开发总计划
 
+## 手机端原生 GPS 定位、灵动岛常驻扩展与真悬浮陪伴胶囊（PA-021／REL-01，2026-11-25）
+
+状态：源码实现、本机定向离线验证与构建配置就绪；待推送触发 GitHub Actions `iOS unsigned sideload build` 打包含原生定位与灵动岛扩展的 `1.0.13` 新 IPA，并同步发布 `1.0.29` OTA 后由真机侧载验收。
+
+范围与交付物：
+- **原生 iOS 手机 GPS 定位模块（零新增第三方依赖）**：新增 `apps/mobile/modules/sydney-location`（`package.json`、`expo-module.config.json`、`ios/SydneyLocation.podspec`、`ios/SydneyLocationModule.swift`）及 TypeScript 桥接 `apps/mobile/lib/device-location.ts`，通过 iOS 原生 `CoreLocation`（`CLLocationManager`）获取手机真 GPS 坐标并经 `CLGeocoder` 返回系统中文城市／区县名，不再受代理／运营商 IP 偏移影响；同步更新 `apps/mobile/app.json`（原生版本递增至 `1.0.13` / `buildNumber: "2"` 并完善中英西三语 `NSLocationWhenInUseUsageDescription`）与 `apps/mobile/locales/es.json`。
+- **天气与地图统一优先使用手机真 GPS**：升级 `apps/mobile/lib/home-weather.ts`、`apps/mobile/app/weather.tsx`、`apps/mobile/components/home-map-card.tsx` 与 `apps/mobile/app/map.tsx`，天气与地图按「手机原生 GPS → 已保存 GPS／手动校准点 → 网络 IP 回退」优先级统一定位；天气详情页新增定位来源标识（手机定位／手动校准／网络定位），并在地图获得新 GPS 或手动校准后自动刷新当地天气；地图页在无定位权限时给出明确系统设置引导。
+- **主侧载 IPA 开启 iOS 灵动岛扩展（并保留 OTA）**：放宽 `apps/mobile/app.config.ts` 限制，更新 `.github/workflows/mobile-ios-sideload.yml` 默认嵌入 `SydneyCompanionWidget.appex`（`NSSupportsLiveActivities = true`、`SydneyCompanionEnabled = true`、`xin.zxlup.sydney.companion`）并追加 `NSLocationWhenInUseUsageDescription` 构建门禁，同时保留 `sideload` / `sydney-ios-ip-1` OTA 通道；同步更新 `.github/workflows/mobile-ios-update.yml` 与 `apps/mobile/sydney-release.json`（`1.0.29`）。
+- **应用内真悬浮可拖动陪伴胶囊**：修复 `apps/mobile/app/_layout.tsx` 此前将 `<CompanionFloatingBar>` 放在普通流底栏下方的问题，改为 `position: "absolute"` 绝对定位悬浮在底栏与页面之上；重构 `apps/mobile/components/companion-floating-bar.tsx` 支持上下拖动、一键收起为可全屏拖拽并自动左右贴边吸附的 52pt 圆形悬浮球，以及轻点展开／直达对话／进控制页／一键停止。
+- 验证结果：新增 `apps/mobile/lib/device-location.test.ts` 并扩展 `home-weather.test.ts`、`companion-floating-bar.test.tsx`、`app-config.test.ts`；18 个本批代码／配置／测试文件 Biome 0 错误、16 个 Vitest 套件（84 项）全绿、`git diff --check` 0 警告，本批改动零 TypeScript 错误（同工作区并发窗口正在编辑的 `computer.tsx` 未触碰也不混入提交）。详见 [验证记录](VALIDATION.md#手机端原生-gps-定位灵动岛常驻扩展与真悬浮陪伴胶囊2026-11-25)。
+
+依赖与验收条件：原生 GPS（`CoreLocation`）与灵动岛（`SydneyCompanionWidget.appex`）必须安装本次新构建的 `1.0.13` 侧载 IPA 方可生效；装好新 IPA 后后续 JS 更新继续走 `sideload` OTA。真机 GPS 权限弹窗、灵动岛常驻、应用内拖拽贴边与高德导航拉起待实机验收。
+
 ## 生产后端上线与 iPhone 1.0.28 侧载 OTA 发布（PA-018／PA-021／PA-022／REL-01，2026-11-25）
 
 状态：源码提交推送、GitHub CI 全绿（含 Postgres 集成测试与镜像发布）、生产后端部署上线（228 项迁移 + API／Worker／API 画面桥切换）及 iPhone `1.0.28` 侧载 OTA 线上核验均已完成；真实 iPhone 下载重启与新指令自动取消审批卡实机交互待设备验收。

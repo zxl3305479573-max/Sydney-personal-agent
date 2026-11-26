@@ -62,6 +62,8 @@ vi.mock("react-native", () => {
   const flatten = (style: unknown): CSSProperties =>
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
   return {
+    Dimensions: { get: () => ({ width: 390, height: 844 }) },
+    PanResponder: { create: () => ({ panHandlers: {} }) },
     StyleSheet: { hairlineWidth: 1 },
     View: ({
       children,
@@ -197,10 +199,30 @@ describe("CompanionFloatingBar (CMP-03)", () => {
       latestReply: "任务已完成",
     });
 
-    await act(async () => root.render(createElement(CompanionFloatingBar)));
-    expect(container.querySelector('[data-testid="companion-floating-bar"]')).not.toBeNull();
+    await act(async () => root.render(createElement(CompanionFloatingBar, { bottomOffset: 84 })));
+    const floatingBar = container.querySelector<HTMLDivElement>(
+      '[data-testid="companion-floating-bar"]',
+    );
+    expect(floatingBar).not.toBeNull();
+    expect(floatingBar?.style.position).toBe("absolute");
     expect(container.textContent).toContain("Sydney");
     expect(container.textContent).toContain("任务已完成");
+
+    // Collapsing switches into a compact floating orb and tapping expands back.
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-floating-bar-collapse"]')
+        ?.click(),
+    );
+    expect(container.querySelector('[data-testid="companion-floating-orb-expand"]')).not.toBeNull();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-floating-orb-expand"]')
+        ?.click(),
+    );
+    expect(
+      container.querySelector('[data-testid="companion-floating-bar-open-chat"]'),
+    ).not.toBeNull();
 
     await act(async () =>
       container

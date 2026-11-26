@@ -1,5 +1,23 @@
 # 验证记录
 
+## 手机端原生 GPS 定位、灵动岛常驻扩展与真悬浮陪伴胶囊（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/lib/device-location.ts` 初版顶层静态导入 `expo-modules-core` 导致纯 Vitest 节点解析 React Native Flow 语法失败；对照 `expo-modules-core/src/requireNativeModule.ts` 改为直接读取 Expo JSI 主机对象 `globalThis.expo?.modules?.SydneyLocation` 后通过。
+  - `companion-floating-bar.test.tsx` 缺少 `Dimensions`/`PanResponder` 替身、`home-hub.test.tsx` 缺少 `./map-location` 新增导出替身；补齐并完成 4 文件 Biome 自动格式化后全部通过。
+- **终轮已执行并通过（本机离线校验）**：
+  - **Biome 检查**（覆盖本批全部 18 个 TS/TSX/JSON 文件）：**18 / 18 文件 0 错误、0 格式差异**。
+  - **定向 Vitest 回归（16 个文件、84 项测试全部通过、0 失败）**：
+    - 定位与天气／地图：`device-location.test.ts`（3）、`home-weather.test.ts`（6，含原生 GPS 优先不请求 GeoJS IP 用例）、`weather-screen.test.tsx`（2）、`map-location.test.ts`（4）、`map-screen.test.tsx`（2）。
+    - 陪伴悬浮、插件与配置：`companion-floating-bar.test.tsx`（2，含 `position: "absolute"` 悬浮、收起为悬浮球及展开断言）、`companion-plugin.test.ts`（2）、`companion-autolinking.test.ts`（2）、`companion-session.test.ts`（5）、`home-companion-card.test.tsx`（2）、`home-hub.test.tsx`（6）、`app-config.test.ts`（34，含主侧载同时开启灵动岛与 OTA 断言）、`app-version.test.ts`（6）、`permission-prompts.test.ts`（1）、`scroll-hygiene.test.ts`（1）、`screen-theme-coverage.test.ts`（6）。
+  - **TypeScript 核查**：`tsc --noEmit -p apps/mobile/tsconfig.json` 中本批改动文件 **0 错误**（输出仅余同工作区另一并发窗口正在编辑的 `apps/mobile/app/computer.tsx(226,7)`，未触碰且不纳入本批提交）。
+  - **差异空白检查**：本批全部文件 `git diff --check`：**0 警告通过**。
+- **待执行 / 待在线与真机验证**：
+  - Xcode 27 编译 `SydneyLocationModule.swift` + `SydneyCompanionWidget.appex` 生成 `1.0.13` 未签名 IPA（由推送后 GitHub Actions `mobile-ios-sideload.yml` 实跑验证）。
+  - 真实 iPhone 侧载安装新 IPA 后验证：系统定位授权弹窗、天气／地图精准 GPS 坐标与中文区县名、灵动岛与锁屏实时活动常驻，以及应用内悬浮胶囊拖拽／悬浮球贴边吸附。
+
 ## 生产后端上线与 iPhone 1.0.28 侧载 OTA 发布（2026-11-25）
 
 关联 PA-018／PA-021／PA-022／REL-01。

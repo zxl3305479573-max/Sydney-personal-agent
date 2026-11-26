@@ -7,6 +7,7 @@ vi.mock("react-native", () => ({
   },
 }));
 
+import { resetDeviceLocationCacheForTest, setNativeLocationModuleForTest } from "./device-location";
 import {
   fetchLiveHomeWeather,
   homeWeatherLabel,
@@ -16,16 +17,21 @@ import {
   mapWwoWeatherCondition,
   resetHomeWeatherCacheForTest,
 } from "./home-weather";
+import { resetMapLocationCacheForTest } from "./map-location";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
+  resetMapLocationCacheForTest();
+  resetDeviceLocationCacheForTest();
+  setNativeLocationModuleForTest(null);
   resetHomeWeatherCacheForTest();
 });
 
 afterEach(() => {
+  setNativeLocationModuleForTest(undefined);
   vi.unstubAllGlobals();
 });
 
@@ -144,5 +150,47 @@ describe("home weather mapping & live fetch", () => {
     resetHomeWeatherCacheForTest();
     fetchMock.mockRejectedValue(new Error("network down"));
     await expect(fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 9, 0))).resolves.toBeNull();
+  });
+
+  it("prioritizes native phone GPS over network IP geolocation", async () => {
+    setNativeLocationModuleForTest({
+      isAvailable: () => true,
+      authorizationStatus: () => "authorized",
+      getCurrentLocation: vi.fn(async () => ({
+        latitude: 30.2741,
+        longitude: 120.1551,
+        accuracyMeters: 15,
+        city: "杭州市",
+        district: "西湖区",
+        region: "浙江省",
+        label: "杭州市 · 西湖区",
+      })),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        current: {
+          time: "2026-11-25T14:00",
+          temperature_2m: 20.4,
+          apparent_temperature: 19.6,
+          relative_humidity_2m: 58,
+          wind_speed_10m: 7.2,
+          weather_code: 1,
+          is_day: 1,
+        },
+      }),
+    });
+
+    const result = await fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 14, 0));
+    expect(result).toMatchObject({
+      temperatureC: 20,
+      condition: "sunny",
+      locationLabel: "杭州市 · 西湖区",
+      locationSource: "gps",
+    });
+    // Must call Open-Meteo directly with phone GPS coords without hitting GeoJS IP endpoint.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("latitude=30.2741");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("longitude=120.1551");
   });
 });

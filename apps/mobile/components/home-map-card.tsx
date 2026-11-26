@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import type { ViewStyle } from "react-native";
 import { StyleSheet, Text, View } from "react-native";
+import { isNativeLocationAvailable, requestDeviceGpsLocation } from "../lib/device-location";
 import { useI18n } from "../lib/i18n";
 import type { UserLocation } from "../lib/map-location";
 import {
@@ -36,10 +37,17 @@ export function HomeMapCard({ cardStyle, location: locationOverride }: HomeMapCa
   useEffect(() => {
     if (locationOverride !== undefined) return;
     let active = true;
-    void loadSavedMapLocation().then((saved) => {
-      if (!active || saved) return;
-      void resolveApproxIpLocation();
-    });
+    void (async () => {
+      const saved = await loadSavedMapLocation();
+      if (!active) return;
+      if (isNativeLocationAvailable()) {
+        const gps = await requestDeviceGpsLocation({ requestPermission: true });
+        if (!active || gps.status === "ok") return;
+      }
+      if (!saved) {
+        await resolveApproxIpLocation();
+      }
+    })();
     return () => {
       active = false;
     };

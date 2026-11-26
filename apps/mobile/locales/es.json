@@ -6,6 +6,6 @@
     "NSMicrophoneUsageDescription": "Sydney usa el micrófono para las llamadas de voz con tus bots.",
     "NSSpeechRecognitionUsageDescription": "Sydney convierte lo que dices en mensajes durante las llamadas de voz.",
     "NSFaceIDUsageDescription": "Permite que Sydney acceda a tus datos biométricos de Face ID.",
-    "NSLocationWhenInUseUsageDescription": "Sydney usa tu ubicación para mostrar tu posición en el mapa y abrir indicaciones en Amap."
+    "NSLocationWhenInUseUsageDescription": "Sydney usa tu ubicación para mostrar el clima local preciso, situarte en el mapa y abrir indicaciones en Amap."
   }
 }

@@ -2,6 +2,14 @@ import type Ionicons from "@react-native-vector-icons/ionicons";
 import type { ComponentProps } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
+import { isNativeLocationAvailable, requestDeviceGpsLocation } from "./device-location";
+import type { LocationSource } from "./map-location";
+import {
+  getCachedUserLocation,
+  haversineDistanceMeters,
+  loadSavedMapLocation,
+  subscribeUserLocation,
+} from "./map-location";
 
 export type HomeWeatherCondition = "sunny" | "cloudy" | "rainy" | "snowy";
 
@@ -26,6 +34,7 @@ export type HomeWeatherSnapshot = {
   isDay: boolean;
   fetchedAt: number;
   locationLabel?: string | null;
+  locationSource?: LocationSource;
   apparentTemperatureC?: number | null;
   humidityPercent?: number | null;
   windSpeedKmh?: number | null;
@@ -59,6 +68,7 @@ let cachedCoords: {
   latitude: number;
   longitude: number;
   locationLabel: string | null;
+  source: LocationSource;
   fetchedAt: number;
 } | null = null;
 let inFlightFetch: Promise<HomeWeatherSnapshot | null> | null = null;
@@ -164,18 +174,68 @@ async function fetchJsonWithTimeout(
   }
 }
 
-async function resolveApproxCoords(
+async function resolveWeatherCoords(
   nowMs: number,
-  signal?: AbortSignal,
-): Promise<{ latitude: number; longitude: number; locationLabel: string | null } | null> {
-  if (cachedCoords && nowMs - cachedCoords.fetchedAt < COORDS_TTL_MS) {
+  options?: { force?: boolean; signal?: AbortSignal },
+): Promise<{
+  latitude: number;
+  longitude: number;
+  locationLabel: string | null;
+  source: LocationSource;
+} | null> {
+  const force = Boolean(options?.force);
+
+  // Priority 1: Native device GPS (CoreLocation + CLGeocoder) for accurate weather regardless of VPN/carrier IP.
+  if (isNativeLocationAvailable()) {
+    const gps = await requestDeviceGpsLocation({ requestPermission: true, force, nowMs });
+    if (gps.status === "ok") {
+      const label = gps.location.label ?? gps.location.city ?? gps.location.region ?? null;
+      cachedCoords = {
+        latitude: gps.location.latitude,
+        longitude: gps.location.longitude,
+        locationLabel: label,
+        source: "gps",
+        fetchedAt: nowMs,
+      };
+      return {
+        latitude: gps.location.latitude,
+        longitude: gps.location.longitude,
+        locationLabel: label,
+        source: "gps",
+      };
+    }
+  }
+
+  // Priority 2: Previously obtained device GPS or user-calibrated map pin (more accurate than network IP).
+  const existing = getCachedUserLocation() ?? (await loadSavedMapLocation());
+  if (existing && (existing.source === "gps" || existing.source === "manual")) {
+    const label = existing.label ?? existing.city ?? existing.region ?? null;
+    cachedCoords = {
+      latitude: existing.latitude,
+      longitude: existing.longitude,
+      locationLabel: label,
+      source: existing.source,
+      fetchedAt: nowMs,
+    };
+    return {
+      latitude: existing.latitude,
+      longitude: existing.longitude,
+      locationLabel: label,
+      source: existing.source,
+    };
+  }
+
+  if (!force && cachedCoords && nowMs - cachedCoords.fetchedAt < COORDS_TTL_MS) {
     return {
       latitude: cachedCoords.latitude,
       longitude: cachedCoords.longitude,
       locationLabel: cachedCoords.locationLabel,
+      source: cachedCoords.source,
     };
   }
-  const raw = await fetchJsonWithTimeout(GEO_URL, signal);
+
+  // Priority 3: Network IP approximate fallback when native GPS is unavailable or denied.
+  const raw = await fetchJsonWithTimeout(GEO_URL, options?.signal);
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
   const latitude = Number(record.latitude);
@@ -185,8 +245,8 @@ async function resolveApproxCoords(
   const city = typeof record.city === "string" ? record.city.trim() : "";
   const region = typeof record.region === "string" ? record.region.trim() : "";
   const locationLabel = city || region || null;
-  cachedCoords = { latitude, longitude, locationLabel, fetchedAt: nowMs };
-  return { latitude, longitude, locationLabel };
+  cachedCoords = { latitude, longitude, locationLabel, source: "ip", fetchedAt: nowMs };
+  return { latitude, longitude, locationLabel, source: "ip" };
 }
 
 function parseOpenMeteoHourly(
@@ -265,16 +325,16 @@ function parseOpenMeteoDaily(dailyRaw: unknown): HomeWeatherDailyItem[] {
 
 async function fetchFromOpenMeteo(
   now: Date,
-  signal?: AbortSignal,
+  options?: { force?: boolean; signal?: AbortSignal },
 ): Promise<HomeWeatherSnapshot | null> {
-  const coords = await resolveApproxCoords(now.getTime(), signal);
+  const coords = await resolveWeatherCoords(now.getTime(), options);
   if (!coords) return null;
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
     coords.latitude.toFixed(4),
   )}&longitude=${encodeURIComponent(
     coords.longitude.toFixed(4),
   )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto`;
-  const raw = await fetchJsonWithTimeout(url, signal);
+  const raw = await fetchJsonWithTimeout(url, options?.signal);
   if (!raw || typeof raw !== "object") return null;
   const body = raw as Record<string, unknown>;
   const current = body.current as Record<string, unknown> | undefined;
@@ -296,6 +356,7 @@ async function fetchFromOpenMeteo(
     isDay,
     fetchedAt: now.getTime(),
     locationLabel: coords.locationLabel,
+    locationSource: coords.source,
     apparentTemperatureC: finiteRounded(current.apparent_temperature),
     humidityPercent: finiteRounded(current.relative_humidity_2m),
     windSpeedKmh: finiteRounded(current.wind_speed_10m),
@@ -373,6 +434,7 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
     isDay: isDaytimeHour(now),
     fetchedAt: now.getTime(),
     locationLabel: parseWttrLocation(body),
+    locationSource: "ip",
     apparentTemperatureC: finiteRounded(record.FeelsLikeC),
     humidityPercent: finiteRounded(record.humidity),
     windSpeedKmh: finiteRounded(record.windspeedKmph),
@@ -386,9 +448,10 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
 export async function fetchLiveHomeWeather(
   signal?: AbortSignal,
   now: Date = new Date(),
+  force = false,
 ): Promise<HomeWeatherSnapshot | null> {
   try {
-    const primary = await fetchFromOpenMeteo(now, signal);
+    const primary = await fetchFromOpenMeteo(now, { force, signal });
     if (primary) {
       cachedWeather = primary;
       return primary;
@@ -420,7 +483,9 @@ export function resetHomeWeatherCacheForTest(): void {
 
 /**
  * Keeps live weather and local clock in sync on the HomeHub & Weather Detail screens:
- * - refreshes immediately when stale (> 5m), every 15m while active, on foreground resume, and on manual refresh;
+ * - prioritizes native phone GPS (CoreLocation) and user-calibrated map pins over network IP;
+ * - refreshes immediately when stale (> 5m), when device location updates meaningfully, every 15m
+ *   while active, on foreground resume, and on manual refresh;
  * - updates day/night indicator every minute so icons shift smoothly as time changes.
  */
 export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date }): {
@@ -453,7 +518,7 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
       }
       if (mountedRef.current) setLoading(true);
       if (!inFlightFetch) {
-        inFlightFetch = fetchLiveHomeWeather(undefined, new Date()).finally(() => {
+        inFlightFetch = fetchLiveHomeWeather(undefined, new Date(), force).finally(() => {
           inFlightFetch = null;
         });
       }
@@ -492,6 +557,21 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
   useEffect(() => {
     if (!enabled) return;
     void refreshWeather(false);
+    const unsubscribeLocation = subscribeUserLocation(() => {
+      const nextLoc = getCachedUserLocation();
+      if (!nextLoc || (nextLoc.source !== "gps" && nextLoc.source !== "manual")) return;
+      const movedFar =
+        !cachedCoords ||
+        cachedCoords.source === "ip" ||
+        haversineDistanceMeters(
+          { latitude: cachedCoords.latitude, longitude: cachedCoords.longitude },
+          { latitude: nextLoc.latitude, longitude: nextLoc.longitude },
+        ) > 1_000;
+      if (movedFar) {
+        cachedCoords = null;
+        void refreshWeather(true);
+      }
+    });
     const poll = setInterval(() => {
       if (AppState.currentState === "active") {
         void refreshWeather(true);
@@ -504,6 +584,7 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
       }
     });
     return () => {
+      unsubscribeLocation();
       clearInterval(poll);
       appSub.remove();
     };

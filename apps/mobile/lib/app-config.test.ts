@@ -31,17 +31,21 @@ const passkeys = {
 };
 
 describe("mobile app config", () => {
-  it("only enables the companion widget for an isolated sideload without OTA", () => {
+  it("enables the companion widget only for sideload builds (and supports main sideload with OTA)", () => {
     vi.stubEnv("SYDNEY_COMPANION_EXPERIMENT", "1");
     expect(() => appConfig(context(config))).toThrow("isolated sideload");
     vi.stubEnv("SYDNEY_SIDELOAD_IOS", "1");
     vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.zxlup.sydney");
-    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://pc.zxlup.xin");
-    expect(() => appConfig(context(config))).toThrow("separate bundle ID");
-    vi.stubEnv("SYDNEY_IOS_BUNDLE_ID", "xin.example.companion");
-    expect(appConfig(context(config)).plugins).toContain("./plugins/with-companion-widget");
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://124.221.182.39");
     vi.stubEnv("SYDNEY_OTA_PROJECT_ID", "7e638919-de89-4bea-a7a3-3a2d6902640e");
-    expect(() => appConfig(context(config))).toThrow("separate bundle ID");
+    vi.stubEnv("SYDNEY_OTA_OWNER", "sydney");
+    vi.stubEnv("SYDNEY_OTA_RUNTIME_VERSION", "sydney-ios-ip-1");
+    const withOta = appConfig(context(config));
+    expect(withOta.plugins).toContain("./plugins/with-companion-widget");
+    expect(withOta.runtimeVersion).toBe("sydney-ios-ip-1");
+    expect(withOta.updates).toMatchObject({
+      url: "https://u.expo.dev/7e638919-de89-4bea-a7a3-3a2d6902640e",
+    });
   });
 
   it.each([
