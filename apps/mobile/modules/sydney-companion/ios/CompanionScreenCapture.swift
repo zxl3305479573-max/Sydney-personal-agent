@@ -50,7 +50,7 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     activeStream = nil
     lock.unlock()
     let picker = SCContentSharingPicker.shared
-    let configuration = SCContentSharingPickerConfiguration()
+    var configuration = SCContentSharingPickerConfiguration()
     configuration.showsMicrophoneControl = false
     configuration.showsCameraControl = false
     picker.defaultConfiguration = configuration
@@ -159,9 +159,11 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
       }
       let config = SCStreamConfiguration()
       config.capturesAudio = false
+      #if os(macOS)
       config.captureMicrophone = false
       config.minimumFrameInterval = CMTime(seconds: 5, preferredTimescale: 600)
       config.queueDepth = 3
+      #endif
       let current = SCStream(filter: filter, configuration: config, delegate: self)
       do {
         try current.addStreamOutput(self, type: .screen, sampleHandlerQueue: self.frameQueue)
