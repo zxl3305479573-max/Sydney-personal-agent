@@ -51,6 +51,7 @@ import { messagingRoutes } from "./routes/messaging.js";
 import { mobileBridgeRoutes } from "./routes/mobile-bridge.js";
 import { modelsRoutes } from "./routes/models.js";
 import { paymentWalletRoutes } from "./routes/payment-wallet.js";
+import { personalFinanceRoutes } from "./routes/personal-finance.js";
 import { personalityRoutes } from "./routes/personalities.js";
 import { projectWorkspaceRoutes } from "./routes/project-workspaces.js";
 import { routinesRoutes } from "./routes/routines.js";
@@ -183,5 +184,6 @@ export function createRouter(deps: RouterDeps) {
     ...paymentWalletRoutes(ctx),
     ...githubRoutes(ctx),
     ...mobileBridgeRoutes(ctx),
+    ...personalFinanceRoutes(ctx),
   });
 }

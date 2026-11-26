@@ -45,6 +45,8 @@ export const MobileBridgePermissionsSchema = z.object({
   reminders: z.boolean().default(true),
   contacts: z.boolean().default(true),
   clipboard: z.boolean().default(true),
+  /** Allow owner's bots to read bill summaries and record bills (never exposes card numbers/CVV). */
+  financeLedger: z.boolean().default(true),
   /** When true, fresh app actions auto-run while the mobile app is in the foreground. */
   foregroundAutoExecute: z.boolean().default(true),
 });
@@ -65,6 +67,7 @@ export const DEFAULT_MOBILE_BRIDGE_PERMISSIONS: MobileBridgePermissions = {
   reminders: true,
   contacts: true,
   clipboard: true,
+  financeLedger: true,
   foregroundAutoExecute: true,
 };
 
@@ -250,6 +253,7 @@ export const MobileAppScreenRouteSchema = z.enum([
   "/weather",
   "/companion",
   "/computer",
+  "/finance",
   "/(settings)/notifications",
   "/(settings)/bot-permissions",
 ]);

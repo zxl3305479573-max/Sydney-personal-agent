@@ -121,6 +121,49 @@ vi.mock("./map-location", () => ({
   locationSummaryText: (loc: { label?: string } | null) => loc?.label ?? "点击查看当前位置",
   locationSourceLabel: () => "网络大致定位",
 }));
+vi.mock("./personal-finance", () => ({
+  usePersonalFinance: () => ({
+    loaded: true,
+    syncing: false,
+    syncMode: "cloud",
+    methods: [],
+    bills: [],
+    summary: {
+      month: "2026-11",
+      currency: "CNY",
+      totalExpenseCents: 0,
+      totalIncomeCents: 0,
+      totalTransferCents: 0,
+      netCents: 0,
+      billCount: 0,
+      byCategory: [],
+      byPaymentMethod: [],
+    },
+    syncedAt: null,
+    hideAmounts: false,
+    error: null,
+  }),
+  refreshPersonalFinance: vi.fn(async () => undefined),
+  setFinanceHideAmounts: vi.fn(async () => undefined),
+}));
+vi.mock("react-native-svg", () => {
+  const mk =
+    (tag: string) =>
+    ({ children }: { children?: ReactNode }) => <span data-svg={tag}>{children}</span>;
+  return {
+    __esModule: true,
+    default: mk("Svg"),
+    Circle: mk("Circle"),
+    Defs: mk("Defs"),
+    Ellipse: mk("Ellipse"),
+    G: mk("G"),
+    LinearGradient: mk("LinearGradient"),
+    Path: mk("Path"),
+    RadialGradient: mk("RadialGradient"),
+    Rect: mk("Rect"),
+    Stop: mk("Stop"),
+  };
+});
 vi.mock("react-native", () => {
   const flatten = (style: unknown): CSSProperties =>
     Object.assign({}, ...[style].flat(Number.POSITIVE_INFINITY).filter(Boolean));
@@ -132,7 +175,10 @@ vi.mock("react-native", () => {
       currentState: "active",
       addEventListener: () => ({ remove: () => undefined }),
     },
-    StyleSheet: { hairlineWidth: 1 },
+    StyleSheet: {
+      hairlineWidth: 1,
+      absoluteFill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+    },
     useWindowDimensions: () => ({ width: 393, height: 852, fontScale: 1 }),
     RefreshControl: () => null,
     ScrollView: ({
@@ -376,6 +422,21 @@ describe("HomeHub personal hub", () => {
 
     tap("home-hub-map-card");
     expect(state.push).toHaveBeenLastCalledWith("/map");
+
+    tap("home-hub-finance-card");
+    expect(state.push).toHaveBeenLastCalledWith("/finance");
+
+    tap("home-hub-finance-add-bill");
+    expect(state.push).toHaveBeenLastCalledWith({
+      pathname: "/finance",
+      params: { tab: "bills", action: "add-bill" },
+    });
+
+    tap("home-hub-finance-methods");
+    expect(state.push).toHaveBeenLastCalledWith({
+      pathname: "/finance",
+      params: { tab: "methods" },
+    });
 
     const liveMap = container.querySelector('[data-testid="home-map-canvas-mock"]');
     expect(liveMap).not.toBeNull();

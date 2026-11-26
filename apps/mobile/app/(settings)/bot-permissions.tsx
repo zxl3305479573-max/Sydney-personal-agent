@@ -361,9 +361,9 @@ export default function BotPermissionsScreen() {
               "App screens & notification status",
             )}
             detail={copy(
-              "允许跳转地图、天气、云电脑等内置页面",
-              "允許跳轉地圖、天氣、雲電腦等內建頁面",
-              "Open map, weather, cloud computer, and settings screens",
+              "允许跳转地图、天气、账单与云电脑等内置页面",
+              "允許跳轉地圖、天氣、帳單與雲電腦等內建頁面",
+              "Open map, weather, bills, cloud computer, and settings screens",
             )}
             trailing={
               <NativeSwitch
@@ -371,6 +371,22 @@ export default function BotPermissionsScreen() {
                 disabled={subDisabled}
                 value={permissions.appNavigation}
                 onValueChange={(appNavigation) => void patchPermissions({ appNavigation })}
+              />
+            }
+          />
+          <SettingsRow
+            title={copy("账单协同记账", "帳單協同記帳", "Bill ledger assistant")}
+            detail={copy(
+              "允许 Bot 记账单和查月度统计；银行卡号、有效期与安全码绝不向 Bot 暴露",
+              "允許 Bot 記帳單和查月度統計；銀行卡號、有效期與安全碼絕不向 Bot 暴露",
+              "Let bots log bills & read spending summaries; card numbers and CVV stay strictly hidden",
+            )}
+            trailing={
+              <NativeSwitch
+                accessibilityLabel={copy("账单协同记账", "帳單協同記帳", "Bill ledger assistant")}
+                disabled={subDisabled}
+                value={permissions.financeLedger}
+                onValueChange={(financeLedger) => void patchPermissions({ financeLedger })}
               />
             }
           />

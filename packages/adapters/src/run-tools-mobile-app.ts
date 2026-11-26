@@ -1074,6 +1074,7 @@ const SCREEN_TITLES: Record<MobileAppScreenRoute, string> = {
   "/weather": "打开天气详情",
   "/companion": "打开后台陪伴",
   "/computer": "打开云电脑",
+  "/finance": "打开账单与支付",
   "/(settings)/notifications": "打开通知设置",
   "/(settings)/bot-permissions": "打开 Bot 应用权限",
 };

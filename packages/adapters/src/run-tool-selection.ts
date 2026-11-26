@@ -6,6 +6,8 @@ import {
   GITHUB_TOOL_NAMES,
   MOBILE_APP_READ_ONLY_TOOL_NAMES,
   MOBILE_APP_TOOL_NAMES,
+  PERSONAL_FINANCE_READ_ONLY_TOOL_NAMES,
+  PERSONAL_FINANCE_TOOL_NAMES,
 } from "@rakazo/contracts";
 import { isBackgroundRunTrigger, isOwnerStartedRun } from "@rakazo/core";
 import { builtinAgentTools } from "./builtin-tools.js";
@@ -47,9 +49,13 @@ export const READ_ONLY_AGENT_TOOLS = new Set([
   "purchase_status",
   ...GITHUB_TOOL_NAMES,
   ...MOBILE_APP_READ_ONLY_TOOL_NAMES,
+  ...PERSONAL_FINANCE_READ_ONLY_TOOL_NAMES,
 ]);
 
-const MOBILE_APP_TOOL_NAMES_SET: ReadonlySet<string> = new Set(MOBILE_APP_TOOL_NAMES);
+const MOBILE_APP_TOOL_NAMES_SET: ReadonlySet<string> = new Set([
+  ...MOBILE_APP_TOOL_NAMES,
+  ...PERSONAL_FINANCE_TOOL_NAMES,
+]);
 
 /** Offered only to a user who connected a wallet. */
 const PURCHASE_TOOL_NAMES = new Set(["request_purchase", "purchase_status", "paid_request"]);

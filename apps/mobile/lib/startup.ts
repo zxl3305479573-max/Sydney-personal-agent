@@ -9,6 +9,7 @@ type StartupStep =
   | "notifications"
   | "companion"
   | "weatherScene"
+  | "finance"
   | "inbox"
   | "language";
 

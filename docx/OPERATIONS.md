@@ -1,5 +1,18 @@
 # 运维手册
 
+## 个人账单与加密支付方式迁移及回退（待部署，2026-11-26）
+
+- **状态**：源码与离线校验已完成，尚未提交推送、尚未部署至生产服务器（以下生产命令与部署效果均**待验证**）。
+- **数据库迁移**：新增纯增量迁移 `packages/db/prisma/migrations/20261126120000_personal_finance/migration.sql`（新建 `user_payment_methods` 与 `user_finance_bills` 表、启用 RLS 并向 `rakazo_app` 授予增删改查权限；不含 `DROP` 或 `RENAME`，与当前线上旧版 API 零停机兼容）。
+- **密钥与数据路径**：
+  - 服务端支付方式敏感字段复用既有 `ENCRYPTION_KEY`（`EncryptedSecretStore` AES-256-GCM，`recordId = payment-method:<userId>:<id>`），零新增环境变量；切勿丢失 `ENCRYPTION_KEY`，否则已保存的银行卡／敏感支付信息将无法解密。
+  - 手机端非敏感缓存位于应用文档目录 `personal-finance-v1/overview.json`，离线降级期敏感信息按卡单独存于系统 Keychain（`sydney.pf.sec.<id>`），后端升级上线并同步后自动清除本地密钥副本，退出账号时随 `registerSessionDiskCache` 自动清理。
+- **权限与降级策略**：
+  - 手机端若先发纯 JS OTA、后端尚未升级，应用在探测 `personalFinance/overview` 返回 404 时会自动切换为「本地安全区保存」模式，用户可正常记账与保存卡片；待后端部署并执行 `prisma migrate deploy` 后，下次打开自动调用 `personalFinance/importLocal` 幂等上云。
+  - Bot 协同记账开关位于手机「设置 → Bot 应用权限 → 账单协同记账」（`financeLedger`，默认开启）；关闭后立即阻断 `finance_list_bills`、`finance_get_summary` 与 `finance_record_bill`。银行卡敏感密文在架构层无任何 Bot 读取工具。
+- **回退方案（待验证）**：
+  - 若需回退后端版本，保留 `user_payment_methods` 与 `user_finance_bills` 两表不执行 `DROP TABLE` 即可安全回滚至旧镜像（零数据损失）；手机端可通过既有 `sideload` OTA 通道回退上一版。
+
 ## 生产后端 `4449e0033` 上线与 iPhone 1.0.34 侧载 OTA（2026-11-25）
 
 - **后端部署与健康核验**：提交 `4449e0033c3b0f0686c137900807713b42062728` 经 `CI` [Run 45777045011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045011) 一次全绿并由 `deploy-production`（Job `139765399121`）上线，零新增数据库迁移与环境变量；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均返回 HTTP `200`，自有 Bot 新增手机共享屏幕读取工具 `app_get_phone_screen`（受 `companion` 权限门控，不再误调用云电脑 `computer_observe`）。

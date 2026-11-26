@@ -82,6 +82,10 @@ import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { loadNotificationPreferences } from "../lib/notification-preferences";
 import { useNotificationResponses } from "../lib/open-notification";
+import {
+  clearPersonalFinanceSessionCache,
+  loadPersonalFinanceCache,
+} from "../lib/personal-finance";
 import { clearQueries } from "../lib/query";
 import {
   getCachedRemoteImagesEnabled,
@@ -132,6 +136,7 @@ registerSessionDiskCache(() => void clearAppBadge());
 registerSessionDiskCache(() => {
   clearBotNotificationProfiles();
   dismissBotNotificationBanner();
+  clearPersonalFinanceSessionCache();
 });
 // Keep the splash up until the saved appearance applies, so the first frame isn't in the OS scheme.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -412,6 +417,7 @@ function LayoutContent() {
       trackMobileStartup("notifications", loadNotificationPreferences()),
       trackMobileStartup("companion", loadCompanionPreferences()),
       trackMobileStartup("weatherScene", loadWeatherScenePreferences()),
+      trackMobileStartup("finance", loadPersonalFinanceCache()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])
@@ -621,6 +627,16 @@ function LayoutContent() {
                         name="map"
                         options={glassHeaderOptions(
                           locale.startsWith("zh") ? "地图与导航" : "Map & Navigation",
+                        )}
+                      />
+                      <Stack.Screen
+                        name="finance"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh")
+                            ? locale === "zh-TW"
+                              ? "帳單與支付"
+                              : "账单与支付"
+                            : "Bills & Wallet",
                         )}
                       />
                       <Stack.Screen name="computer" options={{ title: t("Computer") }} />

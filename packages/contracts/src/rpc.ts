@@ -176,6 +176,17 @@ import { ModelHeadersSchema } from "./model-headers.js";
 import { ModelRoleSchema, ModelRoleUpdateSchema, ModelRoleViewSchema } from "./model-roles.js";
 import { PaymentWalletStatusSchema } from "./payments.js";
 import {
+  FinanceBillSchema,
+  PaymentMethodSensitivePayloadSchema,
+  PaymentMethodSummarySchema,
+  PersonalFinanceImportInputSchema,
+  PersonalFinanceImportOutputSchema,
+  PersonalFinanceOverviewInputSchema,
+  PersonalFinanceOverviewSchema,
+  UpsertFinanceBillInputSchema,
+  UpsertPaymentMethodInputSchema,
+} from "./personal-finance.js";
+import {
   CreatePersonalityInput,
   PersonalityPresetSchema,
   UpdatePersonalityInput,
@@ -1727,6 +1738,20 @@ export const appContract = {
     updatePermissions: oc.input(MobileBridgePermissionsPatchSchema).output(MobileBridgeStateSchema),
     syncSnapshot: oc.input(MobileBridgeSnapshotSchema).output(MobileBridgeStateSchema),
     ackAction: oc.input(MobileBridgeAckActionInputSchema).output(z.object({ ok: z.literal(true) })),
+  },
+  personalFinance: {
+    overview: oc
+      .input(PersonalFinanceOverviewInputSchema.optional())
+      .output(PersonalFinanceOverviewSchema),
+    upsertMethod: oc.input(UpsertPaymentMethodInputSchema).output(PaymentMethodSummarySchema),
+    /** Requires recent identity confirmation on the calling session. */
+    revealMethod: oc.input(z.object({ id: Id })).output(PaymentMethodSensitivePayloadSchema),
+    removeMethod: oc.input(z.object({ id: Id })).output(z.object({ ok: z.literal(true) })),
+    upsertBill: oc.input(UpsertFinanceBillInputSchema).output(FinanceBillSchema),
+    removeBill: oc.input(z.object({ id: Id })).output(z.object({ ok: z.literal(true) })),
+    importLocal: oc
+      .input(PersonalFinanceImportInputSchema)
+      .output(PersonalFinanceImportOutputSchema),
   },
 };
 

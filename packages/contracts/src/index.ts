@@ -35,6 +35,7 @@ export * from "./nav-links.js";
 export * from "./network-host.js";
 export * from "./openai-compatible-ui.js";
 export * from "./payments.js";
+export * from "./personal-finance.js";
 export * from "./personality.js";
 export * from "./personality-catalog.js";
 export * from "./personality-catalog-labels.js";

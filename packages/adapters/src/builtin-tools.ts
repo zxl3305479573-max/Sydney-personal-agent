@@ -28,6 +28,7 @@ import { BROWSER_ACT_KINDS } from "./browser-tools.js";
 import { githubBuiltinTools } from "./github-tools.js";
 import { projectDeviceTools } from "./run-project-policy.js";
 import { mobileAppBuiltinTools } from "./run-tools-mobile-app.js";
+import { personalFinanceBuiltinTools } from "./run-tools-personal-finance.js";
 import { messageUserMaxLength } from "./user-progress.js";
 import { MAX_WEB_FETCH_OFFSET } from "./web-limits.js";
 
@@ -1737,6 +1738,7 @@ export const builtinAgentTools: ConnectorTool[] = [
     },
   },
   ...mobileAppBuiltinTools,
+  ...personalFinanceBuiltinTools,
 ];
 
 /** Agent-connection tools, exposed only when the messaging surface is enabled. */

@@ -60,6 +60,8 @@ model User {
   approvalRules               UserActionApprovalRule[]
   autoReviewPreference        UserActionAutoReviewPreference?
   mobileBridge                UserMobileBridge?
+  paymentMethods              UserPaymentMethod[]
+  financeBills                UserFinanceBill[]
   createdSpaces               Space[]                      @relation("SpaceCreator")
   botSecrets BotSecret[]
   vaultCredentials VaultCredential[]
@@ -2416,4 +2418,55 @@ model CapabilityInstallSpace {
   @@id([installId, spaceId])
   @@index([spaceId, userId])
   @@map("capability_install_spaces")
+}
+
+model UserPaymentMethod {
+  id               String            @id @default(cuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind             String
+  label            String
+  institution      String?
+  accountMask      String?
+  last4            String?
+  holderName       String?
+  currency         String            @default("CNY")
+  billingDay       Int?
+  repaymentDay     Int?
+  creditLimitCents Int?
+  balanceCents     Int?
+  isDefault        Boolean           @default(false)
+  accentColor      String?
+  /// Record-bound AES-256-GCM ciphertext of PaymentMethodSensitivePayload (never exposed to bots).
+  secretCiphertext String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  bills            UserFinanceBill[]
+
+  @@index([userId, isDefault, updatedAt])
+  @@map("user_payment_methods")
+}
+
+model UserFinanceBill {
+  id                 String             @id @default(cuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  direction          String
+  amountCents        Int
+  currency           String             @default("CNY")
+  category           String
+  title              String
+  note               String?
+  occurredAt         DateTime
+  paymentMethodId    String?
+  paymentMethod      UserPaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  paymentMethodLabel String?
+  status             String             @default("paid")
+  source             String             @default("manual")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([userId, occurredAt])
+  @@index([userId, paymentMethodId])
+  @@map("user_finance_bills")
 }

@@ -25,6 +25,7 @@ import { cloudAgentTool, connectorTool, integrationTools } from "./run-tools-int
 import { memoryTools } from "./run-tools-memory.js";
 import { messagingTools } from "./run-tools-messaging.js";
 import { mobileAppTools } from "./run-tools-mobile-app.js";
+import { personalFinanceTools } from "./run-tools-personal-finance.js";
 import { preferenceTools } from "./run-tools-preferences.js";
 import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
 import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
@@ -65,6 +66,7 @@ const TOOL_HANDLERS = new Map<string, ToolHandler>([
   ...Object.entries(purchaseTools),
   ...Object.entries(preferenceTools),
   ...Object.entries(mobileAppTools),
+  ...Object.entries(personalFinanceTools),
   ...Object.entries(projectFileHandlers),
   [PROJECT_CLOUD_COMMAND, runProjectCloudCommand],
   [PROJECT_WINDOWS_TERMINAL, runProjectWindowsTerminal],

@@ -63,6 +63,16 @@ export const AUDITED_PROCEDURES: Record<string, AuditedProcedure> = {
   // Starting a sign-in replaces any wallet already connected.
   "paymentWallet.connect": { type: "credential.changed", kind: "payment_wallet" },
   "paymentWallet.disconnect": { type: "credential.deleted", kind: "payment_wallet" },
+  "personalFinance.upsertMethod": {
+    type: "credential.changed",
+    kind: "payment_method",
+    fields: ["kind"],
+  },
+  "personalFinance.removeMethod": {
+    type: "credential.deleted",
+    kind: "payment_method",
+    fields: ["id"],
+  },
   "github.connect": { type: "credential.changed", kind: "github" },
   "github.disconnect": { type: "credential.deleted", kind: "github" },
   "deployment.update": {

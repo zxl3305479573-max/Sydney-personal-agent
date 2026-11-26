@@ -473,6 +473,7 @@ export function themeScopeForRoute(routeName: string): ThemeScope {
       "vault",
       "voice",
       "wallet",
+      "finance",
       "paywall",
     ].includes(route)
   )

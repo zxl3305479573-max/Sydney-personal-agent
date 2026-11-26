@@ -29,12 +29,14 @@ import {
 import { useI18n } from "../lib/i18n";
 import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { refreshPersonalFinance } from "../lib/personal-finance";
 import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { sydneyReleaseFromManifest } from "../lib/sydney-release";
 import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { BotAvatar } from "./bot-avatar";
 import { HomeCompanionCard } from "./home-companion-card";
+import { HomeFinanceCard } from "./home-finance-card";
 import { HomeMapCard } from "./home-map-card";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
@@ -206,6 +208,7 @@ export function HomeHub({
     ? () => {
         onRefresh();
         if (weather === undefined) void refreshWeather(true);
+        void refreshPersonalFinance();
       }
     : undefined;
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
@@ -742,6 +745,9 @@ export function HomeHub({
 
       {/* Map & Amap Navigation Widget Card */}
       <HomeMapCard cardStyle={cardSurface("sage")} />
+
+      {/* Personal Bills & Payment Methods Vault Entry Card */}
+      <HomeFinanceCard cardStyle={cardSurface("champagne")} />
 
       {/* Full-Width Card 1: Chats & Companions Hub */}
       <View style={[cardSurface("champagne"), { padding: 20, overflow: "hidden" }]}>

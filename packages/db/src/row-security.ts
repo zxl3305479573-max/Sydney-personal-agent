@@ -185,6 +185,8 @@ export const ROW_SECURITY_MODELS: ReadonlySet<string> = new Set([
   "UserActionApprovalRule",
   "UserActionAutoReviewPreference",
   "UserMobileBridge",
+  "UserPaymentMethod",
+  "UserFinanceBill",
   "SecurityEvent",
   "AuditEvent",
 ]);

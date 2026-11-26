@@ -211,6 +211,7 @@ describe("mobile bridge & AppActionCard", () => {
       reminders: true,
       contacts: true,
       clipboard: true,
+      financeLedger: true,
       foregroundAutoExecute: true,
     });
     expect(full.calendar?.events[0]?.title).toBe("站会");
@@ -234,6 +235,7 @@ describe("mobile bridge & AppActionCard", () => {
       reminders: false,
       contacts: false,
       clipboard: false,
+      financeLedger: false,
       foregroundAutoExecute: true,
     });
     expect(restricted.calendar).toBeUndefined();

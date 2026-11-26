@@ -35,6 +35,7 @@ export * from "./mobile-bridge.js";
 export * from "./model-credentials.js";
 export * from "./model-credits.js";
 export * from "./model-roles.js";
+export * from "./personal-finance.js";
 export {
   AccountHasProjectWorkspacesError as ProjectAccountHasWorkspacesError,
   assertMemberHasNoProjectWorkspacesInOrg,
