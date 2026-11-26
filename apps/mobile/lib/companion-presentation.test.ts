@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companionPresentation } from "./companion-presentation";
+import { callLiveActivityPresentation, companionPresentation } from "./companion-presentation";
 
 describe("companion presentation", () => {
   it("shows the requested presence text and hides replies without permission", () => {
@@ -35,5 +35,47 @@ describe("companion presentation", () => {
         showReply: true,
       }),
     ).toEqual({ title: "Bot", status: "连接已断开", reply: null });
+  });
+
+  it("formats rich and legacy call Dynamic Island labels with privacy opt-in", () => {
+    expect(
+      callLiveActivityPresentation({
+        botName: "Sydney",
+        phase: "listening",
+        caption: "你好，帮我查一下天气",
+        showReply: true,
+        richNativeStatus: true,
+      }),
+    ).toEqual({ title: "Sydney", status: "通话 · 正在听", reply: "你好，帮我查一下天气" });
+
+    expect(
+      callLiveActivityPresentation({
+        botName: "Sydney",
+        phase: "speaking",
+        caption: "今天晴转多云",
+        showReply: false,
+        richNativeStatus: true,
+      }),
+    ).toEqual({ title: "Sydney", status: "通话 · 说话中", reply: null });
+
+    expect(
+      callLiveActivityPresentation({
+        botName: "Sydney",
+        phase: "muted",
+        caption: null,
+        showReply: true,
+        richNativeStatus: true,
+      }),
+    ).toEqual({ title: "Sydney", status: "通话 · 已静音", reply: null });
+
+    expect(
+      callLiveActivityPresentation({
+        botName: "Sydney",
+        phase: "speaking",
+        caption: "Legacy fallback",
+        showReply: true,
+        richNativeStatus: false,
+      }),
+    ).toEqual({ title: "Sydney", status: "正在听", reply: "Legacy fallback" });
   });
 });

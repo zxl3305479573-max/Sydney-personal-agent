@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -10,7 +11,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotionPressable } from "../components/motion-pressable";
 import { NativeSymbol } from "../components/native-symbol";
 import { cardGradient } from "../lib/card-gradient";
-import { homeWeatherLabel, homeWeatherSymbol, useHomeWeather } from "../lib/home-weather";
+import type { HomeWeatherDailyItem, HomeWeatherHourlyItem } from "../lib/home-weather";
+import {
+  getWeatherHourlyForDate,
+  homeWeatherLabel,
+  homeWeatherSymbol,
+  useHomeWeather,
+} from "../lib/home-weather";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useScreenBackground } from "../lib/scoped-theme-context";
@@ -44,6 +51,31 @@ function formatDayLabel(dateIso: string, index: number, locale: string): string 
   }
 }
 
+function formatMonthDay(dateIso: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso);
+  if (!match) return dateIso;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (locale.startsWith("zh")) {
+    return `${month}月${day}日`;
+  }
+  const parsed = new Date(`${dateIso}T12:00:00`);
+  if (!Number.isNaN(parsed.getTime())) {
+    try {
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsed);
+    } catch {
+      return `${month}/${day}`;
+    }
+  }
+  return `${month}/${day}`;
+}
+
+function formatShortNumericDate(dateIso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso);
+  if (!match) return "";
+  return `${Number(match[2])}/${Number(match[3])}`;
+}
+
 export default function WeatherDetailScreen() {
   const tokens = useMobileTokens();
   const appearance = useResolvedAppearance();
@@ -56,13 +88,21 @@ export default function WeatherDetailScreen() {
     chinese ? (traditional ? zhHant : zhHans) : en;
 
   const { weather, loading, error, refreshWeather } = useHomeWeather();
+  const [selectedDateIso, setSelectedDateIso] = useState<string | null>(null);
+  const [selectedHourIso, setSelectedHourIso] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const hourlyScrollRef = useRef<ScrollView | null>(null);
+  const scrollOffsetYRef = useRef(0);
 
   const isLight = appearance === "light";
   const softAccentInk = isLight ? "#6E675E" : "#B8B3AA";
   const chipBackground = isLight ? "#F8F6F2" : "#2A303B";
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
+  const selectedSurface = isLight ? "#EFECE5" : "#333A47";
+  const selectedBorder = isLight ? "rgba(38, 35, 31, 0.22)" : "rgba(245, 244, 240, 0.26)";
   const trackBg = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
   const trackFill = isLight ? "#7A7368" : "#A6ACB8";
+  const selectedTrackFill = isLight ? "#26231F" : "#F5F4F0";
 
   const cardSurface = {
     backgroundColor: isLight ? "#FFFEFC" : "#242933",
@@ -72,20 +112,136 @@ export default function WeatherDetailScreen() {
     borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
   } as const;
 
-  const symbol = weather ? homeWeatherSymbol(weather.condition, weather.isDay) : null;
-  const conditionText = weather ? homeWeatherLabel(weather.condition, locale) : null;
   const hourly = weather?.hourly ?? [];
   const daily = weather?.daily ?? [];
+  const selectedDayIndex =
+    selectedDateIso != null ? daily.findIndex((day) => day.dateIso === selectedDateIso) : 0;
+  const effectiveDayIndex = selectedDayIndex >= 0 ? selectedDayIndex : 0;
+  const isTodaySelected = effectiveDayIndex === 0;
+  const selectedDay = daily[effectiveDayIndex] ?? null;
+
+  const activeHourly = weather
+    ? isTodaySelected
+      ? hourly
+      : getWeatherHourlyForDate(weather, selectedDay?.dateIso ?? null)
+    : [];
+
+  const selectedHour =
+    selectedHourIso != null
+      ? (activeHourly.find((slot) => slot.timeIso === selectedHourIso) ?? null)
+      : null;
+
+  const isLiveView = isTodaySelected && !selectedHour;
+
+  const displayCondition = weather
+    ? selectedHour
+      ? selectedHour.condition
+      : !isTodaySelected && selectedDay
+        ? selectedDay.condition
+        : weather.condition
+    : null;
+  const displayIsDay = weather
+    ? selectedHour
+      ? selectedHour.isDay
+      : !isTodaySelected
+        ? true
+        : weather.isDay
+    : true;
+  const symbol = displayCondition ? homeWeatherSymbol(displayCondition, displayIsDay) : null;
+  const conditionText = displayCondition ? homeWeatherLabel(displayCondition, locale) : null;
+
+  const displayHighC = weather
+    ? !isTodaySelected && selectedDay
+      ? selectedDay.highC
+      : (weather.highC ?? selectedDay?.highC ?? null)
+    : null;
+  const displayLowC = weather
+    ? !isTodaySelected && selectedDay
+      ? selectedDay.lowC
+      : (weather.lowC ?? selectedDay?.lowC ?? null)
+    : null;
+
+  const displayApparentC = weather
+    ? selectedHour
+      ? (selectedHour.apparentTemperatureC ??
+        (!isTodaySelected ? selectedDay?.apparentTemperatureC : weather.apparentTemperatureC) ??
+        null)
+      : !isTodaySelected && selectedDay
+        ? (selectedDay.apparentTemperatureC ?? null)
+        : (weather.apparentTemperatureC ?? null)
+    : null;
+  const displayHumidityPercent = weather
+    ? selectedHour
+      ? (selectedHour.humidityPercent ??
+        (!isTodaySelected ? selectedDay?.humidityPercent : weather.humidityPercent) ??
+        null)
+      : !isTodaySelected && selectedDay
+        ? (selectedDay.humidityPercent ?? null)
+        : (weather.humidityPercent ?? null)
+    : null;
+  const displayWindSpeedKmh = weather
+    ? selectedHour
+      ? (selectedHour.windSpeedKmh ??
+        (!isTodaySelected ? selectedDay?.windSpeedKmh : weather.windSpeedKmh) ??
+        null)
+      : !isTodaySelected && selectedDay
+        ? (selectedDay.windSpeedKmh ?? null)
+        : (weather.windSpeedKmh ?? null)
+    : null;
+
+  const selectedTimeLabel = !isLiveView
+    ? !isTodaySelected && selectedDay
+      ? selectedHour
+        ? `${formatDayLabel(selectedDay.dateIso, effectiveDayIndex, locale)} · ${formatMonthDay(selectedDay.dateIso, locale)} ${selectedHour.hourLabel}`
+        : `${formatDayLabel(selectedDay.dateIso, effectiveDayIndex, locale)} · ${formatMonthDay(selectedDay.dateIso, locale)}`
+      : selectedHour
+        ? `${copy("今天", "今天", "Today")} · ${selectedHour.hourLabel}`
+        : null
+    : null;
+
+  const hourlyHeading =
+    !isTodaySelected && selectedDay
+      ? `${formatDayLabel(selectedDay.dateIso, effectiveDayIndex, locale)} · ${copy("逐小时预报", "逐小時預報", "Hourly forecast")}`
+      : copy("逐小时预报", "逐小時預報", "Hourly forecast");
+
   const weekMin = daily.length > 0 ? Math.min(...daily.map((day) => day.lowC)) : 0;
   const weekMax = daily.length > 0 ? Math.max(...daily.map((day) => day.highC)) : 1;
   const weekSpan = Math.max(1, weekMax - weekMin);
 
+  const handleSelectDay = (day: HomeWeatherDailyItem, index: number) => {
+    setSelectedDateIso(index === 0 ? null : day.dateIso);
+    setSelectedHourIso(null);
+    hourlyScrollRef.current?.scrollTo?.({ x: 0, animated: false });
+    if (scrollOffsetYRef.current > 60) {
+      scrollViewRef.current?.scrollTo?.({ y: 0, animated: true });
+    }
+  };
+
+  const handleBackToToday = () => {
+    setSelectedDateIso(null);
+    setSelectedHourIso(null);
+    hourlyScrollRef.current?.scrollTo?.({ x: 0, animated: false });
+  };
+
+  const handleSelectHour = (slot: HomeWeatherHourlyItem, index: number) => {
+    if (isTodaySelected && index === 0) {
+      setSelectedHourIso(null);
+      return;
+    }
+    setSelectedHourIso((prev) => (prev === slot.timeIso ? null : slot.timeIso));
+  };
+
   return (
     <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: screenBackground }}>
       <ScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         style={insets}
         contentInsetAdjustmentBehavior="automatic"
+        scrollEventThrottle={100}
+        onScroll={(event) => {
+          scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+        }}
         contentContainerStyle={{
           paddingHorizontal: 18,
           paddingTop: 14,
@@ -148,7 +304,7 @@ export default function WeatherDetailScreen() {
           </View>
         ) : (
           <>
-            {/* Hero Current Weather Card */}
+            {/* Hero Weather Card */}
             <View testID="weather-hero-card" style={[cardSurface, { padding: 22, gap: 16 }]}>
               <View
                 style={{
@@ -243,6 +399,80 @@ export default function WeatherDetailScreen() {
                 </MotionPressable>
               </View>
 
+              {selectedTimeLabel ? (
+                <View
+                  testID="weather-selected-time-banner"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 14,
+                    backgroundColor: selectedSurface,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: selectedBorder,
+                  }}
+                >
+                  <View
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
+                  >
+                    <NativeSymbol
+                      ios="calendar"
+                      android="calendar-outline"
+                      size={13}
+                      color={tokens.foreground}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: tokens.foreground,
+                        fontSize: 13,
+                        lineHeight: 17,
+                        fontWeight: "600",
+                        flexShrink: 1,
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {selectedTimeLabel}
+                    </Text>
+                  </View>
+                  <MotionPressable
+                    preset="control"
+                    testID="weather-back-today-button"
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isTodaySelected
+                        ? copy("回到现在", "回到現在", "Back to now")
+                        : copy("回到今天", "回到今天", "Back to today")
+                    }
+                    onPress={handleBackToToday}
+                    style={{
+                      paddingHorizontal: 9,
+                      paddingVertical: 3,
+                      borderRadius: 999,
+                      backgroundColor: chipBackground,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: chipBorder,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: tokens.foreground,
+                        fontSize: 11.5,
+                        lineHeight: 15,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {isTodaySelected
+                        ? copy("回到现在", "回到現在", "Now")
+                        : copy("回到今天", "回到今天", "Today")}
+                    </Text>
+                  </MotionPressable>
+                </View>
+              ) : null}
+
               <View
                 style={{
                   flexDirection: "row",
@@ -251,22 +481,57 @@ export default function WeatherDetailScreen() {
                   gap: 12,
                 }}
               >
-                <View style={{ gap: 4 }}>
-                  <Text
-                    style={{
-                      color: tokens.foreground,
-                      fontSize: 56,
-                      lineHeight: 62,
-                      fontWeight: "700",
-                      fontVariant: ["tabular-nums"],
-                    }}
-                  >
-                    {`${weather.temperatureC}°`}
-                  </Text>
+                <View style={{ gap: 4, flexShrink: 1 }}>
+                  {selectedHour ? (
+                    <Text
+                      style={{
+                        color: tokens.foreground,
+                        fontSize: 56,
+                        lineHeight: 62,
+                        fontWeight: "700",
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {`${selectedHour.temperatureC}°`}
+                    </Text>
+                  ) : !isTodaySelected && selectedDay ? (
+                    <Text
+                      style={{
+                        color: tokens.foreground,
+                        fontSize: 50,
+                        lineHeight: 56,
+                        fontWeight: "700",
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {`${selectedDay.highC}°`}
+                      <Text
+                        style={{
+                          color: tokens.mutedForeground,
+                          fontSize: 28,
+                          fontWeight: "500",
+                        }}
+                      >
+                        {` / ${selectedDay.lowC}°`}
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text
+                      style={{
+                        color: tokens.foreground,
+                        fontSize: 56,
+                        lineHeight: 62,
+                        fontWeight: "700",
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {`${weather.temperatureC}°`}
+                    </Text>
+                  )}
                   <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
                     {conditionText}
                   </Text>
-                  {weather.highC != null && weather.lowC != null ? (
+                  {displayHighC != null && displayLowC != null ? (
                     <Text
                       style={{
                         color: tokens.mutedForeground,
@@ -276,9 +541,9 @@ export default function WeatherDetailScreen() {
                       }}
                     >
                       {copy(
-                        `最高 ${weather.highC}° · 最低 ${weather.lowC}°`,
-                        `最高 ${weather.highC}° · 最低 ${weather.lowC}°`,
-                        `H ${weather.highC}° · L ${weather.lowC}°`,
+                        `最高 ${displayHighC}° · 最低 ${displayLowC}°`,
+                        `最高 ${displayHighC}° · 最低 ${displayLowC}°`,
+                        `H ${displayHighC}° · L ${displayLowC}°`,
                       )}
                     </Text>
                   ) : null}
@@ -308,29 +573,26 @@ export default function WeatherDetailScreen() {
             </View>
 
             {/* Key Metrics Row */}
-            <View style={{ flexDirection: "row", gap: 10 }}>
+            <View testID="weather-metrics-row" style={{ flexDirection: "row", gap: 10 }}>
               {[
                 {
                   key: "feels",
                   label: copy("体感温度", "體感溫度", "Feels like"),
-                  value:
-                    weather.apparentTemperatureC != null
-                      ? `${weather.apparentTemperatureC}°`
-                      : "--",
+                  value: displayApparentC != null ? `${displayApparentC}°` : "--",
                   ios: "thermometer.medium",
                   android: "thermometer-outline" as const,
                 },
                 {
                   key: "humidity",
                   label: copy("相对湿度", "相對濕度", "Humidity"),
-                  value: weather.humidityPercent != null ? `${weather.humidityPercent}%` : "--",
+                  value: displayHumidityPercent != null ? `${displayHumidityPercent}%` : "--",
                   ios: "drop",
                   android: "water-outline" as const,
                 },
                 {
                   key: "wind",
                   label: copy("风速", "風速", "Wind"),
-                  value: weather.windSpeedKmh != null ? `${weather.windSpeedKmh} km/h` : "--",
+                  value: displayWindSpeedKmh != null ? `${displayWindSpeedKmh} km/h` : "--",
                   ios: "wind",
                   android: "speedometer-outline" as const,
                 },
@@ -370,8 +632,11 @@ export default function WeatherDetailScreen() {
             </View>
 
             {/* Hourly Forecast */}
-            {hourly.length > 0 ? (
-              <View style={[cardSurface, { paddingVertical: 16, gap: 12 }]}>
+            {activeHourly.length > 0 ? (
+              <View
+                testID="weather-hourly-card"
+                style={[cardSurface, { paddingVertical: 16, gap: 12 }]}
+              >
                 <Text
                   style={{
                     paddingHorizontal: 18,
@@ -380,44 +645,56 @@ export default function WeatherDetailScreen() {
                     fontWeight: "600",
                   }}
                 >
-                  {copy("逐小时预报", "逐小時預報", "Hourly forecast")}
+                  {hourlyHeading}
                 </Text>
                 <ScrollView
+                  ref={hourlyScrollRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
                 >
-                  {hourly.map((slot, index) => {
+                  {activeHourly.map((slot, index) => {
                     const slotSymbol = homeWeatherSymbol(slot.condition, slot.isDay);
+                    const isSlotSelected = selectedHour
+                      ? selectedHour.timeIso === slot.timeIso
+                      : isTodaySelected && index === 0;
+                    const slotTimeLabel =
+                      isTodaySelected && index === 0 ? copy("现在", "現在", "Now") : slot.hourLabel;
                     return (
-                      <View
+                      <MotionPressable
                         key={slot.timeIso}
+                        preset="card"
+                        testID={`weather-hourly-${slot.timeIso}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSlotSelected }}
+                        accessibilityLabel={`${slotTimeLabel} ${slot.temperatureC}°C ${homeWeatherLabel(slot.condition, locale)}`}
+                        onPress={() => handleSelectHour(slot, index)}
                         style={{
                           width: 60,
                           paddingVertical: 10,
                           borderRadius: 16,
-                          backgroundColor: chipBackground,
-                          borderWidth: StyleSheet.hairlineWidth,
-                          borderColor: chipBorder,
+                          backgroundColor: isSlotSelected ? selectedSurface : chipBackground,
+                          borderWidth: isSlotSelected ? 1 : StyleSheet.hairlineWidth,
+                          borderColor: isSlotSelected ? selectedBorder : chipBorder,
                           alignItems: "center",
                           gap: 8,
                         }}
                       >
                         <Text
                           style={{
-                            color: index === 0 ? tokens.foreground : tokens.mutedForeground,
+                            color: isSlotSelected ? tokens.foreground : tokens.mutedForeground,
                             fontSize: 12,
-                            fontWeight: index === 0 ? "600" : "400",
+                            fontWeight: isSlotSelected ? "600" : "400",
                             fontVariant: ["tabular-nums"],
                           }}
                         >
-                          {index === 0 ? copy("现在", "現在", "Now") : slot.hourLabel}
+                          {slotTimeLabel}
                         </Text>
                         <NativeSymbol
                           ios={slotSymbol.ios}
                           android={slotSymbol.android}
                           size={18}
-                          color={softAccentInk}
+                          color={isSlotSelected ? tokens.foreground : softAccentInk}
                         />
                         <Text
                           style={{
@@ -429,7 +706,7 @@ export default function WeatherDetailScreen() {
                         >
                           {`${slot.temperatureC}°`}
                         </Text>
-                      </View>
+                      </MotionPressable>
                     );
                   })}
                 </ScrollView>
@@ -438,50 +715,100 @@ export default function WeatherDetailScreen() {
 
             {/* Daily Forecast */}
             {daily.length > 0 ? (
-              <View style={[cardSurface, { padding: 18, gap: 12 }]}>
-                <Text style={{ color: tokens.mutedForeground, fontSize: 13.5, fontWeight: "600" }}>
-                  {copy("未来天气", "未來天氣", "Forecast")}
-                </Text>
-                <View style={{ gap: 12 }}>
+              <View
+                testID="weather-daily-card"
+                style={[cardSurface, { paddingHorizontal: 12, paddingVertical: 16, gap: 10 }]}
+              >
+                <View
+                  style={{
+                    paddingHorizontal: 6,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <Text
+                    style={{ color: tokens.mutedForeground, fontSize: 13.5, fontWeight: "600" }}
+                  >
+                    {copy("未来天气", "未來天氣", "Forecast")}
+                  </Text>
+                  <Text style={{ color: softAccentInk, fontSize: 11.5 }}>
+                    {copy("点击切换日期", "點擊切換日期", "Tap a day")}
+                  </Text>
+                </View>
+                <View style={{ gap: 4 }}>
                   {daily.map((day, index) => {
                     const daySymbol = homeWeatherSymbol(day.condition, true);
                     const startPct = ((day.lowC - weekMin) / weekSpan) * 100;
                     const widthPct = Math.max(12, ((day.highC - day.lowC) / weekSpan) * 100);
+                    const isSelected = effectiveDayIndex === index;
+                    const dayLabel = formatDayLabel(day.dateIso, index, locale);
+                    const shortDate = formatShortNumericDate(day.dateIso);
+                    const dayConditionLabel = homeWeatherLabel(day.condition, locale);
                     return (
-                      <View
+                      <MotionPressable
                         key={day.dateIso}
+                        preset="row"
+                        testID={`weather-daily-${day.dateIso}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`${dayLabel} ${formatMonthDay(day.dateIso, locale)} ${dayConditionLabel} ${day.lowC}° - ${day.highC}°`}
+                        onPress={() => handleSelectDay(day, index)}
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
                           gap: 10,
+                          paddingHorizontal: 8,
+                          paddingVertical: 9,
+                          borderRadius: 14,
+                          backgroundColor: isSelected ? selectedSurface : "transparent",
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: isSelected ? selectedBorder : "transparent",
                         }}
                       >
-                        <Text
-                          style={{
-                            width: 46,
-                            color: index === 0 ? tokens.foreground : tokens.mutedForeground,
-                            fontSize: 14,
-                            fontWeight: index === 0 ? "600" : "400",
-                          }}
-                        >
-                          {formatDayLabel(day.dateIso, index, locale)}
-                        </Text>
+                        <View style={{ width: 50, gap: 1 }}>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: isSelected ? tokens.foreground : tokens.mutedForeground,
+                              fontSize: 14,
+                              lineHeight: 18,
+                              fontWeight: isSelected ? "600" : "400",
+                            }}
+                          >
+                            {dayLabel}
+                          </Text>
+                          {shortDate ? (
+                            <Text
+                              style={{
+                                color: softAccentInk,
+                                fontSize: 11,
+                                lineHeight: 13,
+                                fontVariant: ["tabular-nums"],
+                              }}
+                            >
+                              {shortDate}
+                            </Text>
+                          ) : null}
+                        </View>
                         <View style={{ width: 24, alignItems: "center" }}>
                           <NativeSymbol
                             ios={daySymbol.ios}
                             android={daySymbol.android}
                             size={17}
-                            color={softAccentInk}
+                            color={isSelected ? tokens.foreground : softAccentInk}
                           />
                         </View>
                         <Text
                           style={{
                             width: 38,
-                            color: tokens.mutedForeground,
+                            color: isSelected ? tokens.foreground : tokens.mutedForeground,
                             fontSize: 13,
+                            fontWeight: isSelected ? "500" : "400",
                           }}
                         >
-                          {homeWeatherLabel(day.condition, locale)}
+                          {dayConditionLabel}
                         </Text>
                         <Text
                           style={{
@@ -511,7 +838,7 @@ export default function WeatherDetailScreen() {
                               top: 0,
                               bottom: 0,
                               borderRadius: 3,
-                              backgroundColor: trackFill,
+                              backgroundColor: isSelected ? selectedTrackFill : trackFill,
                             }}
                           />
                         </View>
@@ -527,7 +854,7 @@ export default function WeatherDetailScreen() {
                         >
                           {`${day.highC}°`}
                         </Text>
-                      </View>
+                      </MotionPressable>
                     );
                   })}
                 </View>

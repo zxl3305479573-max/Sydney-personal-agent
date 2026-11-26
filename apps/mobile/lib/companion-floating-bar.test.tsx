@@ -178,6 +178,14 @@ describe("CompanionFloatingBar (CMP-03)", () => {
         pathname: "/companion",
       }),
     ).toBe(false);
+    expect(
+      shouldShowCompanionFloatingBar({
+        activeBotId: "bot-1",
+        showFloatingBar: true,
+        callActive: false,
+        pathname: "/companion-capture",
+      }),
+    ).toBe(false);
   });
 
   it("renders across screens, opens chat/console, respects privacy, and stops companion", async () => {
@@ -232,6 +240,16 @@ describe("CompanionFloatingBar (CMP-03)", () => {
     expect(state.push).toHaveBeenCalledWith({
       pathname: "/thread",
       params: { botId: "bot-1", name: "Sydney", spaceId: "space-1" },
+    });
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-floating-bar-capture"]')
+        ?.click(),
+    );
+    expect(state.push).toHaveBeenCalledWith({
+      pathname: "/companion-capture",
+      params: { botId: "bot-1", source: "clipboard", spaceId: "space-1" },
     });
 
     await act(async () =>

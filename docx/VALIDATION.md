@@ -1,5 +1,81 @@
 # 验证记录
 
+## 手机端 Bot 消息通知弹窗展示对应 Bot 头像（2026-11-25）
+
+关联 PA-021。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/lib/bot-local-notification.test.ts` 的无参 `vi.fn(async () => undefined)` 在严格元组检查下触发 4 处 `TS2493`，已补齐参数签名 `(..._args: unknown[])`；
+  - `apps/mobile/lib/bot-notification-banner.test.tsx` 校验 `shouldPlaySound: true` 前未开启默认关闭的 `sound` 偏好，已显式设置 `sound: true`；
+  - 对 4 个改动文件执行 Biome 自动排序与格式化。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖全部 14 个新增／改动 TS/TSX/JSON 文件）：**14 / 14 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest**（`pnpm exec vitest run --maxWorkers=1`）：**14 个文件、123 / 123 项全部通过**（`app-config.test.ts` 34、`inbox-render.test.tsx` 18、`live-notifications-android.test.ts` 14、`live-notifications.test.ts` 12、`companion-thread-watch.test.tsx` 11、`home-hub.test.tsx` 7、`notification-preferences.test.ts` 7、`companion-session.test.ts` 6、`screen-theme-coverage.test.ts` 6、`bot-local-notification.test.ts` 2、`bot-notification-banner.test.tsx` 2、`companion-plugin.test.ts` 2、`permission-prompts.test.ts` 1、`scroll-hygiene.test.ts` 1）。
+  - **空白与补丁检查**（`git diff --check` 覆盖全部 16 个源码／配置／Swift／测试文件）：**0 警告**。
+- **未执行项（待 CI／真机验收）**：
+  - 本机为 Windows 环境，未执行 macOS Xcode 对 `SydneyCompanionModule.swift` 与 `SydneyCompanion.podspec` 的实际 Swift 编译打包（需经 `mobile-ios-sideload.yml` 构建新侧载 IPA 校验）。
+  - 真实 iPhone 上多 Bot 切换时的前台头像弹窗动画、触控跳转与后台／锁屏系统通知头像展示效果待真机验收；未提交或推送。
+
+## 移除手机端开屏启动动画 StartupSplash（2026-11-25）
+
+关联 PA-021。
+
+- **已执行并通过**：
+  - 全仓扫描 `apps/mobile` 确认无任何 `StartupSplash`／`startup-splash`／`SPLASH_LOGO_` 残留引用；
+  - **Biome 检查**（`apps/mobile/app/_layout.tsx`）：`0` 错误；
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：`0` 错误；
+  - **定向 Vitest**（`screen-theme-coverage.test.ts` 6 项、`scroll-hygiene.test.ts` 1 项）：**2 / 2 文件、7 / 7 项通过**；
+  - **`git diff --check`**：`0` 警告。
+- **未执行项**：真机冷启动直进首页效果待发版后实测；未提交或推送。
+
+## 手机端零重签截屏一键分享＋同步输入＋语音回复与灵动岛快捷操作（2026-11-25）
+
+关联 PA-021，专项评测见 [COMPANION_MAP_EVALUATION.md](COMPANION_MAP_EVALUATION.md#模块-d零重签截屏一键分享同步输入语音回复与灵动岛快捷操作预置pa-021)。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/lib/companion-capture.ts` 引用 `PickedAttachment.size` 触发 `TS2339` 且存在 1 处 `useOptionalChain` 提示，已改为 `estimateBase64Bytes(first.contentBase64)` 并收紧可选链，同时改为在 `pickScreenshotFromLibrary` 内按需动态加载 `./pick-attachments` 避免牵连只读取深链生成器的测试；
+  - `apps/mobile/lib/companion-capture-screen.test.tsx` 通过 `importOriginal` 加载 `companion-capture.ts` 时触发 `./session` 的 `ExpoSecureStore` 原生加载失败，已补充 `./session` 替身；
+  - `apps/mobile/lib/companion-console.test.tsx` 新增断言前已勾选语音播报开关，点击「截屏提问」会附带 `speak: "1"`，已同步精确断言；
+  - `apps/mobile/app/companion-capture.tsx` 原使用动态 `import("../lib/voice")` 在 Vitest 中被 `catch` 吞掉导致自动语音朗读用例未命中，改为静态导入 `getVoicePlaybackState`/`speakWithDeviceVoice`/`stopSpeaking`（主包早已包含 `lib/voice.ts`）并补齐 `speak=0` 显式关闭判断后通过。
+- **终轮已执行并通过**：
+  - **定向与全仓守卫 Vitest**（`.\node_modules\.bin\vitest run ...`）：**15 / 15 文件、161 / 161 项全部通过**（`companion-capture.test.ts` 5 项、`companion-capture-screen.test.tsx` 2 项、`companion-floating-bar.test.tsx` 2 项、`companion-console.test.tsx` 1 项、`home-companion-card.test.tsx` 2 项、`companion-session.test.ts` 6 项、`companion-thread-watch.test.tsx` 11 项、`companion-voice-guard.test.ts` 3 项、`companion-plugin.test.ts` 2 项、`home-hub.test.tsx` 7 项、`bot-profile.test.tsx` 74 项、`scroll-hygiene.test.ts` 1 项、`screen-theme-coverage.test.ts` 6 项、`theme-pack.test.ts` 5 项、`app-config.test.ts` 34 项）。
+  - **TypeScript 类型检查**（`.\node_modules\.bin\tsc --noEmit -p apps/mobile/tsconfig.json`）：**0 错误**。
+  - **Biome 检查**（`.\node_modules\.bin\biome check` 覆盖本批 12 个新增／改动 TS/TSX 文件）：**12 / 12 文件 0 错误、0 警告**。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待 CI／真机验收）**：
+  - 本机为 Windows 环境，未执行 macOS Xcode 对 `apps/mobile/ios-companion-widget/CompanionWidget.swift` 的 Swift 编译与新 IPA 打包（需后续触发 `mobile-ios-sideload.yml` 构建并重装侧载 IPA 后方可在灵动岛长按展开看到「发消息 / 截屏提问 / 语音对话」三按钮）；
+  - 真实 iPhone 上 Apple 快捷指令＋背面轻点／操作按钮触发截屏 → 自动拷贝剪贴板 → 打开 `rakazo://companion-capture?source=clipboard&speak=1` → 同步输入文字上传分析并自动语音播报，以及 iOS 16+ `ClipboardPasteButton` 零弹窗粘贴手感，均待发布 OTA 后真机验收（`DEV-02`）；未提交或推送。
+
+## 手机端天气详情页未来日期／时段切换交互（2026-11-25）
+
+关联 PA-021。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/lib/home-weather.ts` 的 `extractDateIso` 在 `noUncheckedIndexedAccess` 下返回 `match[1]` 触发 `TS2322`，已收窄为 `match?.[1] ?? null`；
+  - 修正 `apps/mobile/app/weather.tsx` 与 `apps/mobile/lib/home-weather.test.ts` 共 2 处 Biome 换行格式差异。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖 `home-weather.ts`、`home-weather.test.ts`、`weather.tsx`、`weather-screen.test.tsx`）：**4 / 4 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest**（`pnpm exec vitest run --maxWorkers=1`）：**6 个文件、28 / 28 项全部通过**（`home-hub.test.tsx` 7 项、`home-weather.test.ts` 7 项、`weather-screen.test.tsx` 4 项、`mobile-bridge.test.tsx` 3 项、`screen-theme-coverage.test.ts` 6 项、`scroll-hygiene.test.ts` 1 项）。
+  - **空白与补丁检查**（`git diff --check` 覆盖本批 4 个代码与测试文件）：**0 警告**。
+- **未执行项（待真机验收）**：
+  - 真实联网 Open-Meteo 7 天逐小时／每日响应与真实 iPhone 上点击「未来天气」及「逐小时预报」的触控反馈、平滑滚动与深浅色选中视觉待 OTA／实机验收；未提交或推送。
+
+## 首页实时高清地图卡片、Retina 清晰度修复、语音通话灵动岛同步与灵动岛全黑／多 Bot 头像内容修复（2026-11-25）
+
+关联 PA-021。
+
+- **已执行并通过**：
+  - **高德瓦片实测探针**：直接抓取并校验高德 `webrd01`（`z=14–19`、`scale=2&style=8`）真实返回 PNG，确认 `z=14–18` 均为有效 `256×256` 2× 大字号瓦片（`z=19` 为 `179 B` 空瓦片），验证了 `MAX_Z = 18` 与 Retina `z+1` 超采样至 `128pt` 网格的精确性。
+  - **Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖全部 19 个改动／新增 TS/TSX 文件）：**19 / 19 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest**（`pnpm exec vitest run --maxWorkers=1`）：首轮 19 个关联测试文件（151 项）全绿；补齐原生原子化 `startCall` 与 `thread-voice.ts` 头像读取后复验 9 个通话／灵动岛测试文件 **137 / 137 项通过**；修复 `/map` 搜索框置顶后复验 3 个关联测试文件（`map-screen.test.tsx`、`screen-theme-coverage.test.ts`、`scroll-hygiene.test.ts`）**9 / 9 项通过**，全部改动 TS/TSX 文件 Biome `0` 错误、`@rakazo/mobile` `tsc --noEmit` `0` 错误。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待 CI／真机验收）**：
+  - 本机为 Windows 环境，未执行 macOS Xcode 对 `CompanionActivityAttributes.swift`、`SydneyCompanionModule.swift`、`CompanionWidget.swift` 与 `SydneyCompanionWidget/Info.plist` 的实际 Swift 编译打包（需触发 GitHub Actions `mobile-ios-sideload.yml` 构建新侧载 IPA 校验并重装真机）。
+  - 真实 iPhone 上的地图 Retina 锐度观感、首页实时地图卡片滚动与点击进 `/map` 手感、以及不同 Bot 切换陪伴／语音通话时灵动岛头像、文字内容与实时计时器显示待真机实测（同时需确认侧载签名工具正确签署 `PlugIns/SydneyCompanionWidget.appex`）。
+
 ## 手机首页顶栏同步状态胶囊优化与 iPhone 1.0.31 侧载 OTA（2026-11-25）
 
 关联 PA-021／REL-01。

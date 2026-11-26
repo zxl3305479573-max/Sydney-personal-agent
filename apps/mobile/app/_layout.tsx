@@ -25,6 +25,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppErrorBoundary } from "../components/app-error-boundary";
+import { BotNotificationBanner } from "../components/bot-notification-banner";
 import { CallCard } from "../components/CallCard";
 import { chatRouteHeader } from "../components/chat-route-header";
 import { CodeCopyButton } from "../components/code-copy-button";
@@ -36,7 +37,6 @@ import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
 import { ScopedThemeRoute, ScopedThemeScreen } from "../components/scoped-theme";
-import { StartupSplash } from "../components/startup-splash";
 import { UpdateDownloadBanner } from "../components/update-download-banner";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
@@ -60,6 +60,9 @@ import { loadUiMode } from "../lib/ui-mode";
 import { UiModeProvider } from "../lib/ui-mode-provider";
 import "../lib/companion-activity";
 import { InboxPane } from "../components/inbox-screens";
+import { dismissBotNotificationBanner } from "../lib/bot-notification-banner-state";
+import { clearBotNotificationProfiles } from "../lib/bot-notification-registry";
+import { useCallLiveActivity } from "../lib/call-live-activity";
 import { loadCompanionPreferences, setCompanionOpenThreadBotId } from "../lib/companion-session";
 import { useCompanionThreadWatch } from "../lib/companion-thread-watch";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
@@ -124,6 +127,10 @@ registerSessionDiskCache(clearSavedChats);
 registerSessionDiskCache(clearQueries);
 installClientUpdates();
 registerSessionDiskCache(() => void clearAppBadge());
+registerSessionDiskCache(() => {
+  clearBotNotificationProfiles();
+  dismissBotNotificationBanner();
+});
 // Keep the splash up until the saved appearance applies, so the first frame isn't in the OS scheme.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -320,6 +327,7 @@ function LayoutContent() {
   }, [pathname, globalParams.botId]);
   const router = useRouter();
   useCompanionThreadWatch(ready);
+  useCallLiveActivity(ready);
   useMobileBridgeSync(ready, router);
   const navigationHidden = useMainNavigationHidden();
   const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
@@ -341,9 +349,8 @@ function LayoutContent() {
   }, [ready, screen]);
   const [appearanceReady, setAppearanceReady] = useState(false);
   const [splashHidden, setSplashHidden] = useState(false);
-  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
-  useStartupUpdatePrompt(splashHidden && splashAnimationDone);
-  useFirstLaunchNotificationPrompt(splashHidden && splashAnimationDone && ready, pathname);
+  useStartupUpdatePrompt(splashHidden);
+  useFirstLaunchNotificationPrompt(splashHidden && ready, pathname);
   const resolved = useResolvedAppearance();
   const tokens = useMobileTokens();
   const loadRemoteImages = useSyncExternalStore(
@@ -592,6 +599,12 @@ function LayoutContent() {
                         )}
                       />
                       <Stack.Screen
+                        name="companion-capture"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh") ? "截屏与提问" : "Screenshot & Ask",
+                        )}
+                      />
+                      <Stack.Screen
                         name="weather"
                         options={glassHeaderOptions(
                           locale.startsWith("zh")
@@ -633,13 +646,10 @@ function LayoutContent() {
               </View>
               <ComputerUpdateProgress />
               <UpdateDownloadBanner />
+              <BotNotificationBanner />
               <MessageMenuHost />
               <MessageActionSheetHost />
               <CallCard />
-              <StartupSplash
-                ready={splashHidden && ready}
-                onFinished={() => setSplashAnimationDone(true)}
-              />
             </ThemeProvider>
           </ChatContentProviders>
         ) : (

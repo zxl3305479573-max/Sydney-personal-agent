@@ -1,5 +1,7 @@
 # Sydney 开发文档入口
 
+手机端零重签「截屏一键分享＋同步输入＋自动语音回复」（`/companion-capture`、Apple 快捷指令／背面轻点 3 步引导、悬浮胶囊与首页／控制页快捷入口）及灵动岛展开三按钮（发消息／截屏提问／语音对话，`CompanionWidget.swift`）已完成源码实现与 15 文件 161 项离线验证，未提交或推送；真机快捷指令与新版 IPA 灵动岛实测待验。[专项评测](COMPANION_MAP_EVALUATION.md#模块-d零重签截屏一键分享同步输入语音回复与灵动岛快捷操作预置pa-021) · [阶段计划](PLAN.md#手机端零重签截屏一键分享同步输入语音回复与灵动岛快捷操作pa-0212026-11-25) · [本批验证](VALIDATION.md#手机端零重签截屏一键分享同步输入语音回复与灵动岛快捷操作2026-11-25)
+
 手机 App 后台陪伴双模式（应用内跨页悬浮胶囊／断连重连／本地通知／可选播报／`/companion` 控制中心＋实验灵动岛兼容）与首页地图组件／`/map` 交互式定位导航（支持跳转高德地图 App 与网页回退）已完成源码实现与 21 文件 199 项离线验证，未提交或推送；真机与新 IPA 项待验。[专项评测](COMPANION_MAP_EVALUATION.md) · [阶段计划](PLAN.md#手机-app-后台陪伴完善与首页地图高德导航组件pa-0212026-11-25) · [本批验证](VALIDATION.md#手机-app-后台陪伴完善与首页地图高德导航组件2026-11-25)
 
 2026-11-25 已提交推送当前 CI 清理，并通过 [PR #10](https://github.com/zxl3305479573-max/Sydney-personal-agent/pull/10) 将完整集成分支合入 `main`（`6c47e8836`）。[iPhone OTA Run 45600236960](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45600236960) 已成功从该提交重新发布 `1.0.24`，线上启动包与 55 项资源全部校验通过；整仓 CI 与 macOS 截图未通过，真机生效待验。[本批验证](VALIDATION.md#工作区提交主分支合并与-iphone-ota2026-11-25) · [手机更新与回退](OPERATIONS.md#main-合并后的-iphone-1024-ota2026-11-25)

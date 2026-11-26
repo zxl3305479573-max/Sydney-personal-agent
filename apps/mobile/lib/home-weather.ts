@@ -19,6 +19,9 @@ export type HomeWeatherHourlyItem = {
   temperatureC: number;
   condition: HomeWeatherCondition;
   isDay: boolean;
+  apparentTemperatureC?: number | null;
+  humidityPercent?: number | null;
+  windSpeedKmh?: number | null;
 };
 
 export type HomeWeatherDailyItem = {
@@ -26,6 +29,9 @@ export type HomeWeatherDailyItem = {
   highC: number;
   lowC: number;
   condition: HomeWeatherCondition;
+  apparentTemperatureC?: number | null;
+  humidityPercent?: number | null;
+  windSpeedKmh?: number | null;
 };
 
 export type HomeWeatherSnapshot = {
@@ -41,6 +47,7 @@ export type HomeWeatherSnapshot = {
   highC?: number | null;
   lowC?: number | null;
   hourly?: HomeWeatherHourlyItem[];
+  hourlyByDate?: Record<string, HomeWeatherHourlyItem[]>;
   daily?: HomeWeatherDailyItem[];
 };
 
@@ -157,6 +164,49 @@ function extractHourLabel(timeIso: string): string {
   return timeIso.slice(-5) || timeIso;
 }
 
+function extractDateIso(timeIso: string): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(timeIso);
+  return match?.[1] ?? null;
+}
+
+function averageFinite(values: Array<number | null | undefined>): number | null {
+  let sum = 0;
+  let count = 0;
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      sum += value;
+      count += 1;
+    }
+  }
+  return count > 0 ? Math.round(sum / count) : null;
+}
+
+function maxFinite(values: Array<number | null | undefined>): number | null {
+  let best: number | null = null;
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      best = best === null ? value : Math.max(best, value);
+    }
+  }
+  return best;
+}
+
+function representativeDaytimeApparent(slots: HomeWeatherHourlyItem[]): number | null {
+  const daytime = slots.filter((slot) => slot.isDay);
+  const pool = daytime.length > 0 ? daytime : slots;
+  return maxFinite(pool.map((slot) => slot.apparentTemperatureC));
+}
+
+export function getWeatherHourlyForDate(
+  weather: HomeWeatherSnapshot,
+  dateIso: string | null,
+): HomeWeatherHourlyItem[] {
+  if (!dateIso) return weather.hourly ?? [];
+  const grouped = weather.hourlyByDate?.[dateIso];
+  if (grouped && grouped.length > 0) return grouped;
+  return (weather.hourly ?? []).filter((slot) => slot.timeIso.startsWith(dateIso));
+}
+
 async function fetchJsonWithTimeout(
   url: string,
   signal?: AbortSignal,
@@ -260,11 +310,17 @@ function parseOpenMeteoHourly(
   hourlyRaw: unknown,
   currentTimeIso: string | undefined,
   now: Date,
-): HomeWeatherHourlyItem[] {
-  if (!hourlyRaw || typeof hourlyRaw !== "object") return [];
+): {
+  hourly: HomeWeatherHourlyItem[];
+  hourlyByDate: Record<string, HomeWeatherHourlyItem[]>;
+} {
+  if (!hourlyRaw || typeof hourlyRaw !== "object") return { hourly: [], hourlyByDate: {} };
   const hourly = hourlyRaw as Record<string, unknown>;
   const times = Array.isArray(hourly.time) ? hourly.time : [];
   const temps = Array.isArray(hourly.temperature_2m) ? hourly.temperature_2m : [];
+  const apparents = Array.isArray(hourly.apparent_temperature) ? hourly.apparent_temperature : [];
+  const humidities = Array.isArray(hourly.relative_humidity_2m) ? hourly.relative_humidity_2m : [];
+  const winds = Array.isArray(hourly.wind_speed_10m) ? hourly.wind_speed_10m : [];
   const codes = Array.isArray(hourly.weather_code) ? hourly.weather_code : [];
   const days = Array.isArray(hourly.is_day) ? hourly.is_day : [];
 
@@ -273,13 +329,10 @@ function parseOpenMeteoHourly(
       ? currentTimeIso.slice(0, 13)
       : `${now.getFullYear()}-${padTwo(now.getMonth() + 1)}-${padTwo(now.getDate())}T${padTwo(now.getHours())}`;
 
-  let startIndex = times.findIndex(
-    (entry) => typeof entry === "string" && entry.slice(0, 13) >= currentHourPrefix,
-  );
-  if (startIndex < 0) startIndex = 0;
+  const allItems: HomeWeatherHourlyItem[] = [];
+  const hourlyByDate: Record<string, HomeWeatherHourlyItem[]> = {};
 
-  const items: HomeWeatherHourlyItem[] = [];
-  for (let i = startIndex; i < times.length && items.length < 12; i += 1) {
+  for (let i = 0; i < times.length; i += 1) {
     const timeIso = times[i];
     const temp = finiteRounded(temps[i]);
     const code = Number(codes[i]);
@@ -292,24 +345,48 @@ function parseOpenMeteoHourly(
         : Number.isFinite(hourNum)
           ? hourNum >= 6 && hourNum < 18
           : isDaytimeHour(now);
-    items.push({
+    const item: HomeWeatherHourlyItem = {
       timeIso,
       hourLabel: extractHourLabel(timeIso),
       temperatureC: temp,
       condition: mapWmoWeatherCondition(code),
       isDay,
-    });
+      apparentTemperatureC: finiteRounded(apparents[i]),
+      humidityPercent: finiteRounded(humidities[i]),
+      windSpeedKmh: finiteRounded(winds[i]),
+    };
+    allItems.push(item);
+    const dateIso = extractDateIso(timeIso);
+    if (dateIso) {
+      const bucket = hourlyByDate[dateIso] ?? [];
+      bucket.push(item);
+      hourlyByDate[dateIso] = bucket;
+    }
   }
-  return items;
+
+  let startIndex = allItems.findIndex((entry) => entry.timeIso.slice(0, 13) >= currentHourPrefix);
+  if (startIndex < 0) startIndex = 0;
+
+  return {
+    hourly: allItems.slice(startIndex, startIndex + 12),
+    hourlyByDate,
+  };
 }
 
-function parseOpenMeteoDaily(dailyRaw: unknown): HomeWeatherDailyItem[] {
+function parseOpenMeteoDaily(
+  dailyRaw: unknown,
+  hourlyByDate: Record<string, HomeWeatherHourlyItem[]>,
+): HomeWeatherDailyItem[] {
   if (!dailyRaw || typeof dailyRaw !== "object") return [];
   const daily = dailyRaw as Record<string, unknown>;
   const times = Array.isArray(daily.time) ? daily.time : [];
   const highs = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
   const lows = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min : [];
   const codes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
+  const apparentMaxs = Array.isArray(daily.apparent_temperature_max)
+    ? daily.apparent_temperature_max
+    : [];
+  const windMaxs = Array.isArray(daily.wind_speed_10m_max) ? daily.wind_speed_10m_max : [];
 
   const items: HomeWeatherDailyItem[] = [];
   for (let i = 0; i < times.length && items.length < 7; i += 1) {
@@ -320,11 +397,17 @@ function parseOpenMeteoDaily(dailyRaw: unknown): HomeWeatherDailyItem[] {
     if (typeof dateIso !== "string" || highC === null || lowC === null || !Number.isFinite(code)) {
       continue;
     }
+    const dayHours = hourlyByDate[dateIso] ?? [];
     items.push({
       dateIso,
       highC,
       lowC,
       condition: mapWmoWeatherCondition(code),
+      apparentTemperatureC:
+        finiteRounded(apparentMaxs[i]) ?? representativeDaytimeApparent(dayHours),
+      humidityPercent: averageFinite(dayHours.map((slot) => slot.humidityPercent)),
+      windSpeedKmh:
+        finiteRounded(windMaxs[i]) ?? maxFinite(dayHours.map((slot) => slot.windSpeedKmh)),
     });
   }
   return items;
@@ -340,7 +423,7 @@ async function fetchFromOpenMeteo(
     coords.latitude.toFixed(4),
   )}&longitude=${encodeURIComponent(
     coords.longitude.toFixed(4),
-  )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto`;
+  )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,wind_speed_10m_max&forecast_days=7&timezone=auto`;
   const raw = await fetchJsonWithTimeout(url, options?.signal);
   if (!raw || typeof raw !== "object") return null;
   const body = raw as Record<string, unknown>;
@@ -351,12 +434,12 @@ async function fetchFromOpenMeteo(
   if (temp === null || !Number.isFinite(code)) return null;
   const isDay =
     current.is_day === 1 || current.is_day === 0 ? current.is_day === 1 : isDaytimeHour(now);
-  const hourly = parseOpenMeteoHourly(
+  const { hourly, hourlyByDate } = parseOpenMeteoHourly(
     body.hourly,
     typeof current.time === "string" ? current.time : undefined,
     now,
   );
-  const daily = parseOpenMeteoDaily(body.daily);
+  const daily = parseOpenMeteoDaily(body.daily, hourlyByDate);
   return {
     temperatureC: temp,
     condition: mapWmoWeatherCondition(code),
@@ -370,6 +453,7 @@ async function fetchFromOpenMeteo(
     highC: daily[0]?.highC ?? null,
     lowC: daily[0]?.lowC ?? null,
     hourly,
+    hourlyByDate,
     daily,
   };
 }
@@ -397,6 +481,7 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
   const daysRaw = Array.isArray(body.weather) ? body.weather : [];
   const daily: HomeWeatherDailyItem[] = [];
   const hourly: HomeWeatherHourlyItem[] = [];
+  const hourlyByDate: Record<string, HomeWeatherHourlyItem[]> = {};
 
   for (const item of daysRaw) {
     if (!item || typeof item !== "object") continue;
@@ -407,31 +492,44 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
     const dayHours = Array.isArray(day.hourly) ? day.hourly : [];
     const midday = dayHours[Math.floor(dayHours.length / 2)] as Record<string, unknown> | undefined;
     const dayCode = Number(midday?.weatherCode ?? code);
+    const daySlots: HomeWeatherHourlyItem[] = [];
+    for (const slotRaw of dayHours) {
+      if (!slotRaw || typeof slotRaw !== "object") continue;
+      const slot = slotRaw as Record<string, unknown>;
+      const slotTemp = finiteRounded(slot.tempC);
+      const slotCode = Number(slot.weatherCode);
+      const rawTime = Number(slot.time ?? 0);
+      const hour = Math.max(0, Math.min(23, Math.floor(rawTime / 100)));
+      if (slotTemp === null || !Number.isFinite(slotCode)) continue;
+      const parsedSlot: HomeWeatherHourlyItem = {
+        timeIso: `${dateIso}T${padTwo(hour)}:00`,
+        hourLabel: `${padTwo(hour)}:00`,
+        temperatureC: slotTemp,
+        condition: mapWwoWeatherCondition(slotCode),
+        isDay: hour >= 6 && hour < 18,
+        apparentTemperatureC: finiteRounded(slot.FeelsLikeC),
+        humidityPercent: finiteRounded(slot.humidity),
+        windSpeedKmh: finiteRounded(slot.windspeedKmph),
+      };
+      daySlots.push(parsedSlot);
+      if (hourly.length < 12) {
+        hourly.push(parsedSlot);
+      }
+    }
+    if (dateIso && daySlots.length > 0) {
+      hourlyByDate[dateIso] = daySlots;
+    }
     if (dateIso && highC !== null && lowC !== null) {
       daily.push({
         dateIso,
         highC,
         lowC,
         condition: mapWwoWeatherCondition(Number.isFinite(dayCode) ? dayCode : code),
+        apparentTemperatureC:
+          finiteRounded(midday?.FeelsLikeC) ?? representativeDaytimeApparent(daySlots),
+        humidityPercent: averageFinite(daySlots.map((slot) => slot.humidityPercent)),
+        windSpeedKmh: maxFinite(daySlots.map((slot) => slot.windSpeedKmh)),
       });
-    }
-    if (hourly.length < 12) {
-      for (const slotRaw of dayHours) {
-        if (hourly.length >= 12 || !slotRaw || typeof slotRaw !== "object") break;
-        const slot = slotRaw as Record<string, unknown>;
-        const slotTemp = finiteRounded(slot.tempC);
-        const slotCode = Number(slot.weatherCode);
-        const rawTime = Number(slot.time ?? 0);
-        const hour = Math.max(0, Math.min(23, Math.floor(rawTime / 100)));
-        if (slotTemp === null || !Number.isFinite(slotCode)) continue;
-        hourly.push({
-          timeIso: `${dateIso}T${padTwo(hour)}:00`,
-          hourLabel: `${padTwo(hour)}:00`,
-          temperatureC: slotTemp,
-          condition: mapWwoWeatherCondition(slotCode),
-          isDay: hour >= 6 && hour < 18,
-        });
-      }
     }
   }
 
@@ -448,6 +546,7 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
     highC: daily[0]?.highC ?? null,
     lowC: daily[0]?.lowC ?? null,
     hourly,
+    hourlyByDate,
     daily,
   };
 }

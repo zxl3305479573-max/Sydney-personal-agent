@@ -203,5 +203,36 @@ describe("isolated companion widget plugin", () => {
         "utf8",
       ),
     );
+    const widgetPlist = fs.readFileSync(
+      path.join(root, "SydneyCompanionWidget", "Info.plist"),
+      "utf8",
+    );
+    expect(widgetPlist).toContain("NSSupportsLiveActivities");
+    const widgetSwift = fs.readFileSync(
+      path.join(root, "SydneyCompanionWidget", "CompanionWidget.swift"),
+      "utf8",
+    );
+    expect(widgetSwift).toContain(".foregroundStyle(.white)");
+    expect(widgetSwift).toContain(".activityBackgroundTint(");
+    expect(widgetSwift).not.toContain("GeometryReader");
+    const hostSwift = fs.readFileSync(
+      path.join(currentDirectory, "../modules/sydney-companion/ios/SydneyCompanionModule.swift"),
+      "utf8",
+    );
+    expect(hostSwift).toContain('Function("supportsBotNotifications")');
+    expect(hostSwift).toContain('AsyncFunction("scheduleBotNotification")');
+    expect(hostSwift).toContain("INSendMessageIntent");
+    expect(hostSwift).toContain("UNNotificationAttachment");
+    expect(hostSwift).toContain("renderBotNotificationAvatarPNG");
+    const podspec = fs.readFileSync(
+      path.join(currentDirectory, "../modules/sydney-companion/ios/SydneyCompanion.podspec"),
+      "utf8",
+    );
+    expect(podspec).toContain("'Intents'");
+    expect(podspec).toContain("'UserNotifications'");
+    const appJson = JSON.parse(
+      fs.readFileSync(path.join(currentDirectory, "../app.json"), "utf8"),
+    ) as { expo?: { ios?: { infoPlist?: { NSUserActivityTypes?: string[] } } } };
+    expect(appJson.expo?.ios?.infoPlist?.NSUserActivityTypes).toContain("INSendMessageIntent");
   });
 });

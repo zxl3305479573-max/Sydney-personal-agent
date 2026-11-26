@@ -43,6 +43,7 @@ import {
 } from "../lib/app-badge";
 import { AvatarViewportScope, createAvatarViewport } from "../lib/avatar-life";
 import { isPaywallShown } from "../lib/billing";
+import { registerBotNotificationProfiles } from "../lib/bot-notification-registry";
 import { isConversationActiveStatus } from "../lib/conversation-status";
 import type { CreateAction } from "../lib/create-chooser";
 import type { InboxBotIdentity } from "../lib/create-inbox-bot";
@@ -212,6 +213,10 @@ function PersonalHomeHubScreen() {
       setGroups(saved.groups);
       setSpaces(saved.spaces);
       setMe(saved.me);
+      registerBotNotificationProfiles([
+        ...saved.bots,
+        ...saved.spaces.flatMap((space) => space.bots),
+      ]);
       const savedSpace = saved.spaces.find((space) => space.id === saved.me.spaceId);
       if (savedSpace?.name) setSpaceName(savedSpace.name);
     });
@@ -256,6 +261,10 @@ function PersonalHomeHubScreen() {
       setGroups((current) => retainInboxValue(current, navigation.current.groups));
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
+      registerBotNotificationProfiles([
+        ...navigation.current.bots,
+        ...navigation.spaces.flatMap((space) => space.bots),
+      ]);
       setSpaceName(navigation.current.name);
       for (const space of navigation.spaces) {
         threadSessionCache.reconcileRoster(
@@ -758,6 +767,10 @@ function Home({
       setGroups((current) => retainInboxValue(current, navigation.current.groups));
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
+      registerBotNotificationProfiles([
+        ...navigation.current.bots,
+        ...navigation.spaces.flatMap((space) => space.bots),
+      ]);
       for (const space of navigation.spaces) {
         threadSessionCache.reconcileRoster(
           { apiBase, sessionGeneration: generation, userId: nextMe.userId, spaceId: space.id },
@@ -854,6 +867,10 @@ function Home({
       setGroups(saved.groups);
       setSpaces(saved.spaces);
       setMe(saved.me);
+      registerBotNotificationProfiles([
+        ...saved.bots,
+        ...saved.spaces.flatMap((space) => space.bots),
+      ]);
     });
     return () => {
       cancelled = true;

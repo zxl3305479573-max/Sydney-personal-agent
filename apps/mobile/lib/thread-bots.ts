@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MobileBot, MobileGroup } from "./api";
 import { rpc } from "./api";
+import { registerBotNotificationProfiles } from "./bot-notification-registry";
 import { retainUnchangedBotRoster } from "./bot-roster";
 import { loadSavedInbox } from "./saved-chats";
 
@@ -41,6 +42,7 @@ export function useThreadBots({
       if (generation < mentionBotsAppliedGeneration.current) return;
       if (targetBotId !== activeBotId.current) return;
       mentionBotsAppliedGeneration.current = generation;
+      registerBotNotificationProfiles(bots);
       setMentionBots((current) => retainUnchangedBotRoster(current, bots));
       if (targetBotId) {
         const next = bots.find((bot) => bot.id === targetBotId);

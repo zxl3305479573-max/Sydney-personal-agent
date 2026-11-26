@@ -416,14 +416,17 @@ export default function MapScreen() {
         }
         tileProvider={tileProvider}
         dark={!isLight}
+        initialCenter={myLocation}
+        initialZoom={myLocation?.source === "gps" ? 16 : 14}
         onEvent={handleMapEvent}
       />
 
-      {/* Top floating search bar */}
+      {/* Top floating search bar (headerTransparent is false, so y=0 already sits below the nav bar) */}
       <View
+        testID="map-search-overlay"
         style={{
           position: "absolute",
-          top: Math.max(insets.top, 12) + 52,
+          top: 12,
           left: 14,
           right: 14,
           gap: 8,

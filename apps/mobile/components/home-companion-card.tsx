@@ -217,6 +217,7 @@ export function HomeCompanionCard({
           botAvatarSet: targetBot.avatarSet,
           spaceId,
           showReply: session.preferences.showReply,
+          initialReply: "preview" in targetBot ? targetBot.preview : null,
         });
       }
     } catch (error) {
@@ -247,6 +248,7 @@ export function HomeCompanionCard({
         botAvatarSet: nextBot.avatarSet,
         spaceId,
         showReply: session.preferences.showReply,
+        initialReply: "preview" in nextBot ? nextBot.preview : null,
       });
     } catch (error) {
       setErrorText(
@@ -483,6 +485,50 @@ export function HomeCompanionCard({
               : copy("开启陪伴", "開啟陪伴", "Start companion")}
           </Text>
         </MotionPressable>
+
+        {targetBot ? (
+          <MotionPressable
+            preset="control"
+            testID="home-hub-companion-capture"
+            accessibilityRole="button"
+            accessibilityLabel={copy("截屏提问", "截圖提問", "Screenshot & Ask")}
+            disabled={busy}
+            onPress={() =>
+              router.push({
+                pathname: "/companion-capture",
+                params: {
+                  botId: targetBot.id,
+                  source: "clipboard",
+                  ...(spaceId ? { spaceId } : {}),
+                },
+              })
+            }
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              paddingHorizontal: 12,
+              paddingVertical: 9,
+              borderRadius: 999,
+              backgroundColor: chipBackground,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: chipBorder,
+              opacity: busy ? 0.45 : 1,
+            }}
+          >
+            <NativeSymbol
+              ios="camera.viewfinder"
+              android="scan-outline"
+              size={13}
+              color={tokens.foreground}
+            />
+            <Text
+              style={{ color: tokens.foreground, fontSize: 13, lineHeight: 18, fontWeight: "500" }}
+            >
+              {copy("截屏提问", "截圖提問", "Capture")}
+            </Text>
+          </MotionPressable>
+        ) : null}
 
         {isActive && targetBot ? (
           <MotionPressable

@@ -2,8 +2,8 @@ import type { EventSubscription } from "expo-modules-core";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { companionAvatar } from "./companion-avatar";
 import { registerCompanionStop } from "./companion-lifecycle";
-import type { CompanionStatus } from "./companion-presentation";
-import { companionPresentation } from "./companion-presentation";
+import type { CallLiveActivityPhase, CompanionStatus } from "./companion-presentation";
+import { callLiveActivityPresentation, companionPresentation } from "./companion-presentation";
 
 type ActiveCompanion = {
   id: string;
@@ -24,6 +24,7 @@ export type CompanionScreenState =
 
 type CompanionNativeModule = {
   isAvailable(): boolean;
+  supportsCallStatus?(): boolean;
   activeBotId(): string | null;
   activeActivity(): ActiveCompanion | null;
   start(
@@ -33,6 +34,16 @@ type CompanionNativeModule = {
     showReply: boolean,
     avatar: string | null,
   ): Promise<string>;
+  startCall?(
+    botId: string,
+    botName: string,
+    spaceId: string | null,
+    showReply: boolean,
+    avatar: string | null,
+    status: string,
+    reply: string | null,
+    callStartedAtMs: number,
+  ): Promise<string>;
   stopActivity(id: string): Promise<void>;
   stop(): Promise<void>;
   update(
@@ -41,6 +52,15 @@ type CompanionNativeModule = {
     spaceId: string | null,
     status: string,
     reply: string | null,
+  ): Promise<void>;
+  updateCall?(
+    id: string,
+    botId: string,
+    spaceId: string | null,
+    status: string,
+    reply: string | null,
+    callActive: boolean,
+    callStartedAtMs: number | null,
   ): Promise<void>;
   screenState(): Promise<string>;
   presentScreen(botId: string, spaceId: string | null): Promise<void>;
@@ -56,6 +76,7 @@ const native = requireOptionalNativeModule<CompanionNativeModule>("SydneyCompani
 let operations: Promise<void> = Promise.resolve();
 let lastUpdate = "";
 let revision = 0;
+let callOwnedActivityId: string | null = null;
 const listeners = new Set<() => void>();
 
 export function companionActivityRevision(): number {
@@ -86,6 +107,18 @@ function enqueue(operation: () => Promise<void>): Promise<void> {
 
 export function companionAvailable(): boolean {
   return native?.isAvailable() ?? false;
+}
+
+export function companionSupportsCallStatus(): boolean {
+  return Boolean(
+    companionAvailable() &&
+      typeof native?.supportsCallStatus === "function" &&
+      native.supportsCallStatus(),
+  );
+}
+
+export function isCallOwnedCompanionActivity(activityId: string | null | undefined): boolean {
+  return Boolean(activityId && callOwnedActivityId && activityId === callOwnedActivityId);
 }
 
 export function activeCompanionBotId(): string | null {
@@ -130,6 +163,7 @@ export async function startCompanion(
     await native.stopScreen();
     if (!isCurrent()) throw new Error("会话已切换，请重新开启陪伴。");
     try {
+      callOwnedActivityId = null;
       const id = await native.start(botId, presentation.title, spaceId, showReply, artwork);
       if (!isScopeCurrent()) {
         await native.stopActivity(id);
@@ -147,10 +181,158 @@ export async function stopCompanion(isCurrent?: () => boolean) {
   await enqueue(async () => {
     if (isCurrent && !isCurrent()) throw new Error("会话已切换，请重新操作陪伴。");
     try {
+      callOwnedActivityId = null;
       await native.stop();
     } finally {
       activityChanged();
     }
+  });
+}
+
+export async function startCallLiveActivity(input: {
+  botId: string;
+  botName: string;
+  spaceId: string | null;
+  showReply: boolean;
+  avatar: { color: string; avatarSet?: string | null };
+  phase?: CallLiveActivityPhase;
+  caption?: string | null;
+  callStartedAtMs?: number;
+  isCurrent?: () => boolean;
+}): Promise<string | null> {
+  if (!native || !companionAvailable()) return null;
+  const richNativeStatus = companionSupportsCallStatus();
+  const phase = input.phase ?? "listening";
+  const startedAtMs = input.callStartedAtMs ?? Date.now();
+  const presentation = callLiveActivityPresentation({
+    botName: input.botName,
+    phase,
+    caption: input.caption ?? null,
+    showReply: input.showReply,
+    richNativeStatus,
+  });
+  const artwork = companionAvatar({ botId: input.botId, ...input.avatar });
+  let createdId: string | null = null;
+  await enqueue(async () => {
+    if (input.isCurrent && !input.isCurrent()) return;
+    lastUpdate = "";
+    const id =
+      richNativeStatus && typeof native.startCall === "function"
+        ? await native.startCall(
+            input.botId,
+            presentation.title,
+            input.spaceId,
+            input.showReply,
+            artwork,
+            presentation.status,
+            presentation.reply,
+            startedAtMs,
+          )
+        : await native.start(
+            input.botId,
+            presentation.title,
+            input.spaceId,
+            input.showReply,
+            artwork,
+          );
+    if (input.isCurrent && !input.isCurrent()) {
+      await native.stopActivity(id);
+      return;
+    }
+    callOwnedActivityId = id;
+    createdId = id;
+    if (richNativeStatus && typeof native.startCall === "function") {
+      lastUpdate = JSON.stringify([
+        "call",
+        id,
+        presentation.status,
+        presentation.reply,
+        startedAtMs,
+      ]);
+    }
+    activityChanged();
+  });
+  return createdId;
+}
+
+export async function stopCallOwnedLiveActivity(activityId?: string): Promise<void> {
+  if (!native || !companionAvailable()) return;
+  await enqueue(async () => {
+    const targetId = activityId ?? callOwnedActivityId;
+    if (!targetId || targetId !== callOwnedActivityId) return;
+    callOwnedActivityId = null;
+    lastUpdate = "";
+    try {
+      await native.stopActivity(targetId);
+    } finally {
+      activityChanged();
+    }
+  });
+}
+
+export function updateCallLiveActivity(input: {
+  botId: string;
+  spaceId: string | null;
+  phase: CallLiveActivityPhase;
+  caption: string | null;
+  callStartedAtMs: number;
+  activityId?: string;
+  isCurrent?: () => boolean;
+}): Promise<void> {
+  if (!native || !companionAvailable()) return Promise.resolve();
+  const active = native.activeActivity();
+  if (
+    !active ||
+    active.botId !== input.botId ||
+    active.spaceId !== (input.spaceId ?? "") ||
+    (input.activityId && active.id !== input.activityId)
+  ) {
+    return Promise.resolve();
+  }
+  const richNativeStatus = companionSupportsCallStatus();
+  const presentation = callLiveActivityPresentation({
+    botName: "",
+    phase: input.phase,
+    caption: input.caption,
+    showReply: active.showReply,
+    richNativeStatus,
+  });
+  const key = JSON.stringify([
+    "call",
+    active.id,
+    presentation.status,
+    presentation.reply,
+    richNativeStatus ? input.callStartedAtMs : 0,
+  ]);
+  if (key === lastUpdate) return Promise.resolve();
+  lastUpdate = key;
+  return enqueue(async () => {
+    if ((input.isCurrent && !input.isCurrent()) || native.activeActivity()?.id !== active.id) {
+      if (lastUpdate === key) lastUpdate = "";
+      return;
+    }
+    if (richNativeStatus && typeof native.updateCall === "function") {
+      await native.updateCall(
+        active.id,
+        input.botId,
+        input.spaceId,
+        presentation.status,
+        presentation.reply,
+        true,
+        input.callStartedAtMs,
+      );
+    } else {
+      await native.update(
+        active.id,
+        input.botId,
+        input.spaceId,
+        presentation.status,
+        presentation.reply,
+      );
+    }
+  }).catch((error) => {
+    if (lastUpdate === key) lastUpdate = "";
+    throw error;
   });
 }
 

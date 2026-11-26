@@ -230,11 +230,14 @@ export function useThreadVoiceCall({
         return;
       }
       const botName = displayName ?? t("Bot");
+      const targetBot =
+        mentionBotsRef.current.find((bot) => bot.id === targetBotId) ??
+        mentionBots.find((bot) => bot.id === targetBotId);
       const startedCallId = startCall({
         botId: targetBotId,
         botName,
-        botColor: mentionBots.find((bot) => bot.id === targetBotId)?.color,
-        botAvatarSet: mentionBots.find((bot) => bot.id === targetBotId)?.avatarSet,
+        botColor: targetBot?.color,
+        botAvatarSet: targetBot?.avatarSet,
         transcribe: plan.transcribe,
         greeting: callGreeting(botName, callerName, switchedHere),
         session: setupSession,

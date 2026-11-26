@@ -76,9 +76,13 @@ vi.mock("./call-session", () => ({
     };
   },
 }));
+vi.mock("./call-live-activity", () => ({
+  isCallLiveActivityControlling: () => false,
+}));
 vi.mock("./companion-activity", () => ({
   activeCompanionIdentity: () => fixture.active,
   companionActivityRevision: () => 0,
+  isCallOwnedCompanionActivity: () => false,
   subscribeCompanionActivity: () => () => undefined,
   companionScreenState: fixture.captureState,
   subscribeCompanionScreenState: (listener: typeof fixture.captureListener) => {

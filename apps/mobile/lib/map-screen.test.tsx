@@ -231,12 +231,31 @@ describe("MapCanvas protocol & MapScreen navigation (MAP-03)", () => {
     expect(html).not.toContain("jsdelivr");
     expect(html).toContain("is.autonavi.com");
     expect(html).toContain("tile.openstreetmap.org");
+    expect(html).toContain("Math.min(window.devicePixelRatio || 1, 3)");
+    expect(html).toContain("Math.ceil(zoom) + retinaBoost");
+
+    const previewHtml = buildMapCanvasHtml({
+      dark: true,
+      tileProvider: "amap",
+      interactive: false,
+      initialCenter: { latitude: 31.2304, longitude: 121.4737 },
+      initialZoom: 16,
+      initialOrigin: { latitude: 31.2304, longitude: 121.4737, label: "上海市" },
+    });
+    expect(previewHtml).toContain("pointer-events: none;");
+    expect(previewHtml).toContain("31.2304");
+    expect(previewHtml).toContain("121.4737");
+    expect(previewHtml).toContain("var zoom = 16;");
   });
 
   it("displays current location, calibrates origin, selects destination, switches mode, and launches Amap navigation", async () => {
     await act(async () => root.render(createElement(MapScreen)));
     expect(container.textContent).toContain("我的位置：北京市");
     expect(container.textContent).toContain("网络大致定位");
+    const searchOverlay = container.querySelector<HTMLDivElement>(
+      '[data-testid="map-search-overlay"]',
+    );
+    expect(searchOverlay?.style.top).toBe("12px");
 
     // Calibrate current location by tapping map in calibrate mode
     await act(async () =>

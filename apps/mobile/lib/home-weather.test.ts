@@ -10,12 +10,12 @@ vi.mock("react-native", () => ({
 import { resetDeviceLocationCacheForTest, setNativeLocationModuleForTest } from "./device-location";
 import {
   fetchLiveHomeWeather,
+  getWeatherHourlyForDate,
   homeWeatherLabel,
   homeWeatherSymbol,
   isDaytimeHour,
   mapWmoWeatherCondition,
   mapWwoWeatherCondition,
-  nextMinuteDelayMs,
   resetHomeWeatherCacheForTest,
 } from "./home-weather";
 import { resetMapLocationCacheForTest } from "./map-location";
@@ -195,9 +195,143 @@ describe("home weather mapping & live fetch", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("longitude=120.1551");
   });
 
-  it("aligns the home clock timer to exact wall-clock minute boundaries", () => {
-    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 14, 50, 200))).toBe(9_825);
-    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 15, 0, 0))).toBe(60_025);
-    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 15, 59, 990))).toBe(50);
+  it("parses per-day hourly forecasts and daily metrics across Open-Meteo and wttr.in", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ latitude: "31.2304", longitude: "121.4737", city: "Shanghai" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          current: {
+            time: "2026-11-25T14:00",
+            temperature_2m: 22.1,
+            apparent_temperature: 21.0,
+            relative_humidity_2m: 52,
+            wind_speed_10m: 11.2,
+            weather_code: 0,
+            is_day: 1,
+          },
+          hourly: {
+            time: ["2026-11-25T14:00", "2026-11-25T15:00", "2026-11-26T09:00", "2026-11-26T14:00"],
+            temperature_2m: [22.1, 21.2, 15.4, 18.7],
+            apparent_temperature: [21.0, 20.1, 14.2, 17.6],
+            relative_humidity_2m: [52, 56, 80, 84],
+            wind_speed_10m: [11.2, 12.4, 16.2, 19.4],
+            weather_code: [0, 2, 61, 63],
+            is_day: [1, 1, 1, 1],
+          },
+          daily: {
+            time: ["2026-11-25", "2026-11-26"],
+            temperature_2m_max: [24.0, 19.2],
+            temperature_2m_min: [15.1, 12.3],
+            apparent_temperature_max: [23.1, 17.8],
+            wind_speed_10m_max: [14.2, 20.1],
+            weather_code: [0, 61],
+          },
+        }),
+      });
+
+    const openMeteo = await fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 14, 0));
+    expect(openMeteo?.daily?.[1]).toMatchObject({
+      dateIso: "2026-11-26",
+      highC: 19,
+      lowC: 12,
+      condition: "rainy",
+      apparentTemperatureC: 18,
+      humidityPercent: 82,
+      windSpeedKmh: 20,
+    });
+    expect(openMeteo ? getWeatherHourlyForDate(openMeteo, "2026-11-26") : []).toEqual([
+      {
+        timeIso: "2026-11-26T09:00",
+        hourLabel: "09:00",
+        temperatureC: 15,
+        condition: "rainy",
+        isDay: true,
+        apparentTemperatureC: 14,
+        humidityPercent: 80,
+        windSpeedKmh: 16,
+      },
+      {
+        timeIso: "2026-11-26T14:00",
+        hourLabel: "14:00",
+        temperatureC: 19,
+        condition: "rainy",
+        isDay: true,
+        apparentTemperatureC: 18,
+        humidityPercent: 84,
+        windSpeedKmh: 19,
+      },
+    ]);
+
+    resetHomeWeatherCacheForTest();
+    fetchMock.mockRejectedValueOnce(new Error("geo offline")).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        current_condition: [
+          {
+            temp_C: "18",
+            FeelsLikeC: "17",
+            humidity: "60",
+            windspeedKmph: "10",
+            weatherCode: "113",
+          },
+        ],
+        weather: [
+          {
+            date: "2026-11-25",
+            maxtempC: "20",
+            mintempC: "12",
+            hourly: [
+              {
+                time: "900",
+                tempC: "16",
+                FeelsLikeC: "15",
+                humidity: "65",
+                windspeedKmph: "9",
+                weatherCode: "113",
+              },
+            ],
+          },
+          {
+            date: "2026-11-26",
+            maxtempC: "14",
+            mintempC: "8",
+            hourly: [
+              {
+                time: "900",
+                tempC: "11",
+                FeelsLikeC: "9",
+                humidity: "78",
+                windspeedKmph: "14",
+                weatherCode: "296",
+              },
+              {
+                time: "1500",
+                tempC: "13",
+                FeelsLikeC: "11",
+                humidity: "82",
+                windspeedKmph: "21",
+                weatherCode: "296",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const wttr = await fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 14, 0));
+    expect(wttr?.daily?.[1]).toMatchObject({
+      dateIso: "2026-11-26",
+      highC: 14,
+      lowC: 8,
+      condition: "rainy",
+      apparentTemperatureC: 11,
+      humidityPercent: 80,
+      windSpeedKmh: 21,
+    });
+    expect(wttr ? getWeatherHourlyForDate(wttr, "2026-11-26") : []).toHaveLength(2);
   });
 });

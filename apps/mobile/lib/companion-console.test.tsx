@@ -30,6 +30,9 @@ vi.mock("expo-router", () => ({
     useEffect(() => cb(), [cb]);
   },
 }));
+vi.mock("expo-clipboard", () => ({
+  setStringAsync: vi.fn(async () => true),
+}));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
 }));
@@ -289,5 +292,16 @@ describe("CompanionConsoleScreen (CMP-03)", () => {
         ?.click(),
     );
     expect(mocks.confirmVoice).toHaveBeenCalledOnce();
+
+    expect(container.textContent).toContain("背面轻点 / 快捷指令一键截屏");
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-console-capture"]')
+        ?.click(),
+    );
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/companion-capture",
+      params: { botId: "bot-1", source: "clipboard", spaceId: "space-1", speak: "1" },
+    });
   });
 });

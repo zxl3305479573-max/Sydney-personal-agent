@@ -342,7 +342,16 @@ describe("HomeCompanionCard (CMP-03)", () => {
       expect.objectContaining({ botId: "bot-2", botName: "Claude" }),
     );
 
-    // Opens dedicated /companion console
+    // Opens dedicated /companion console and /companion-capture sheet
+    const captureBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-companion-capture"]',
+    );
+    await act(async () => captureBtn?.click());
+    expect(fixture.push).toHaveBeenCalledWith({
+      pathname: "/companion-capture",
+      params: { botId: "bot-2", source: "clipboard", spaceId: "space-1" },
+    });
+
     const consoleBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="home-hub-companion-console"]',
     );

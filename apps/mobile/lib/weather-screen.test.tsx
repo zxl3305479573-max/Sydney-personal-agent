@@ -47,11 +47,13 @@ vi.mock("../components/motion-pressable", () => ({
     onPress,
     testID,
     accessibilityLabel,
+    accessibilityState,
   }: {
     children?: ReactNode;
     onPress?: () => void;
     testID?: string;
     accessibilityLabel?: string;
+    accessibilityState?: { selected?: boolean };
   }) =>
     createElement(
       "button",
@@ -59,6 +61,7 @@ vi.mock("../components/motion-pressable", () => ({
         type: "button",
         "data-testid": testID,
         "aria-label": accessibilityLabel,
+        "aria-selected": accessibilityState?.selected ? "true" : "false",
         onClick: onPress,
       },
       children,
@@ -118,6 +121,9 @@ beforeEach(() => {
         temperatureC: 22,
         condition: "sunny",
         isDay: true,
+        apparentTemperatureC: 21,
+        humidityPercent: 52,
+        windSpeedKmh: 11,
       },
       {
         timeIso: "2026-11-25T15:00",
@@ -125,11 +131,76 @@ beforeEach(() => {
         temperatureC: 21,
         condition: "cloudy",
         isDay: true,
+        apparentTemperatureC: 20,
+        humidityPercent: 58,
+        windSpeedKmh: 13,
       },
     ],
+    hourlyByDate: {
+      "2026-11-25": [
+        {
+          timeIso: "2026-11-25T14:00",
+          hourLabel: "14:00",
+          temperatureC: 22,
+          condition: "sunny",
+          isDay: true,
+          apparentTemperatureC: 21,
+          humidityPercent: 52,
+          windSpeedKmh: 11,
+        },
+        {
+          timeIso: "2026-11-25T15:00",
+          hourLabel: "15:00",
+          temperatureC: 21,
+          condition: "cloudy",
+          isDay: true,
+          apparentTemperatureC: 20,
+          humidityPercent: 58,
+          windSpeedKmh: 13,
+        },
+      ],
+      "2026-11-26": [
+        {
+          timeIso: "2026-11-26T09:00",
+          hourLabel: "09:00",
+          temperatureC: 15,
+          condition: "rainy",
+          isDay: true,
+          apparentTemperatureC: 14,
+          humidityPercent: 80,
+          windSpeedKmh: 16,
+        },
+        {
+          timeIso: "2026-11-26T14:00",
+          hourLabel: "14:00",
+          temperatureC: 18,
+          condition: "cloudy",
+          isDay: true,
+          apparentTemperatureC: 17,
+          humidityPercent: 76,
+          windSpeedKmh: 14,
+        },
+      ],
+    },
     daily: [
-      { dateIso: "2026-11-25", highC: 24, lowC: 15, condition: "sunny" },
-      { dateIso: "2026-11-26", highC: 19, lowC: 12, condition: "rainy" },
+      {
+        dateIso: "2026-11-25",
+        highC: 24,
+        lowC: 15,
+        condition: "sunny",
+        apparentTemperatureC: 23,
+        humidityPercent: 55,
+        windSpeedKmh: 12,
+      },
+      {
+        dateIso: "2026-11-26",
+        highC: 19,
+        lowC: 12,
+        condition: "rainy",
+        apparentTemperatureC: 17,
+        humidityPercent: 82,
+        windSpeedKmh: 19,
+      },
     ],
   };
   container = document.createElement("div");
@@ -163,6 +234,97 @@ describe("WeatherDetailScreen", () => {
     );
     await act(async () => refreshBtn?.click());
     expect(fixture.refreshWeather).toHaveBeenCalledWith(true);
+  });
+
+  it("switches hero, metrics, and hourly forecast when tapping a future day and returns to today", async () => {
+    await act(async () => root.render(createElement(WeatherDetailScreen)));
+
+    const todayBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-daily-2026-11-25"]',
+    );
+    const tomorrowBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-daily-2026-11-26"]',
+    );
+    expect(todayBtn?.getAttribute("aria-selected")).toBe("true");
+    expect(tomorrowBtn?.getAttribute("aria-selected")).toBe("false");
+
+    // Tap tomorrow in 「未来天气」
+    await act(async () => tomorrowBtn?.click());
+
+    expect(todayBtn?.getAttribute("aria-selected")).toBe("false");
+    expect(tomorrowBtn?.getAttribute("aria-selected")).toBe("true");
+
+    const hero = container.querySelector('[data-testid="weather-hero-card"]');
+    const metrics = container.querySelector('[data-testid="weather-metrics-row"]');
+    const hourlyCard = container.querySelector('[data-testid="weather-hourly-card"]');
+
+    expect(hero?.textContent).toContain("周四 · 11月26日");
+    expect(hero?.textContent).toContain("19° / 12°");
+    expect(hero?.textContent).toContain("下雨");
+    expect(hero?.textContent).toContain("最高 19° · 最低 12°");
+    expect(hero?.querySelector('[data-symbol="cloud.rain"]')).not.toBeNull();
+
+    expect(metrics?.textContent).toContain("17°");
+    expect(metrics?.textContent).toContain("82%");
+    expect(metrics?.textContent).toContain("19 km/h");
+
+    expect(hourlyCard?.textContent).toContain("周四 · 逐小时预报");
+    expect(hourlyCard?.textContent).toContain("09:00");
+    expect(hourlyCard?.textContent).toContain("14:00");
+    expect(hourlyCard?.textContent).not.toContain("现在");
+
+    // Tap a specific hour on tomorrow to inspect that hour's exact weather
+    const tomorrow14Btn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-hourly-2026-11-26T14:00"]',
+    );
+    await act(async () => tomorrow14Btn?.click());
+    expect(hero?.textContent).toContain("周四 · 11月26日 14:00");
+    expect(hero?.textContent).toContain("18°");
+    expect(hero?.textContent).toContain("阴天");
+    expect(metrics?.textContent).toContain("76%");
+    expect(metrics?.textContent).toContain("14 km/h");
+
+    // Tap the same hour again to return to tomorrow's full-day summary
+    await act(async () => tomorrow14Btn?.click());
+    expect(hero?.textContent).toContain("19° / 12°");
+    expect(hero?.textContent).toContain("下雨");
+
+    // Tap 「回到今天」 to return to live today weather
+    const backTodayBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-back-today-button"]',
+    );
+    await act(async () => backTodayBtn?.click());
+    expect(container.querySelector('[data-testid="weather-selected-time-banner"]')).toBeNull();
+    expect(hero?.textContent).toContain("22°");
+    expect(hero?.textContent).toContain("天晴");
+    expect(metrics?.textContent).toContain("52%");
+    expect(hourlyCard?.textContent).toContain("现在");
+    expect(todayBtn?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("switches to a selected hour on today and returns to live weather on reset", async () => {
+    await act(async () => root.render(createElement(WeatherDetailScreen)));
+
+    const hour15Btn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-hourly-2026-11-25T15:00"]',
+    );
+    await act(async () => hour15Btn?.click());
+
+    const hero = container.querySelector('[data-testid="weather-hero-card"]');
+    const metrics = container.querySelector('[data-testid="weather-metrics-row"]');
+    expect(hero?.textContent).toContain("今天 · 15:00");
+    expect(hero?.textContent).toContain("21°");
+    expect(hero?.textContent).toContain("阴天");
+    expect(metrics?.textContent).toContain("58%");
+    expect(metrics?.textContent).toContain("13 km/h");
+
+    const backNowBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-back-today-button"]',
+    );
+    await act(async () => backNowBtn?.click());
+    expect(hero?.textContent).toContain("22°");
+    expect(hero?.textContent).toContain("天晴");
+    expect(metrics?.textContent).toContain("52%");
   });
 
   it("shows a retry button when weather data failed to load", async () => {

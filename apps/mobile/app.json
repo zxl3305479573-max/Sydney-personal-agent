@@ -4,7 +4,7 @@
     "slug": "rakazo",
     "owner": "inbox-zero",
     "scheme": "rakazo",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -90,7 +90,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.rakazo.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "supportsTablet": true,
       "icon": "../../packages/ui-tokens/assets/Sydney.icon",
       "config": {
@@ -107,6 +107,7 @@
         "NSRemindersFullAccessUsageDescription": "Sydney reads and creates reminders when you authorize your bots to manage your to-dos.",
         "NSContactsUsageDescription": "Sydney searches your contacts when you authorize your bots to look up contact details for you.",
         "LSApplicationQueriesSchemes": ["iosamap", "amapuri"],
+        "NSUserActivityTypes": ["INSendMessageIntent"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }

@@ -17,7 +17,14 @@ import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
 const FALLBACK_COLOR = botColors[3];
-const HIDDEN_ROUTES = new Set(["/sign-in", "/server", "/paywall", "/companion", "/image"]);
+const HIDDEN_ROUTES = new Set([
+  "/sign-in",
+  "/server",
+  "/paywall",
+  "/companion",
+  "/companion-capture",
+  "/image",
+]);
 const ORB_SIZE = 52;
 const EDGE_MARGIN = 14;
 
@@ -359,6 +366,38 @@ export function CompanionFloatingBar({
         }}
       >
         <NativeSymbol ios="minus" android="remove" size={14} color={tokens.mutedForeground} />
+      </MotionPressable>
+
+      <MotionPressable
+        preset="icon"
+        testID="companion-floating-bar-capture"
+        accessibilityRole="button"
+        accessibilityLabel={copy("截屏提问", "截圖提問", "Screenshot & Ask")}
+        onPress={() =>
+          router.push({
+            pathname: "/companion-capture",
+            params: {
+              botId: active.botId,
+              source: "clipboard",
+              ...(active.spaceId ? { spaceId: active.spaceId } : {}),
+            },
+          })
+        }
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: iconBg,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <NativeSymbol
+          ios="camera.viewfinder"
+          android="scan-outline"
+          size={15}
+          color={tokens.foreground}
+        />
       </MotionPressable>
 
       <MotionPressable

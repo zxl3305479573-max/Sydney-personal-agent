@@ -20,6 +20,7 @@ import {
   subscribeCompanionScreenState,
   takeCompanionScreenText,
 } from "../lib/companion-activity";
+import { buildCompanionCaptureUrl } from "../lib/companion-capture";
 import {
   startCompanionScreenAuto,
   stopCompanionScreenAuto,
@@ -68,6 +69,7 @@ export default function CompanionConsoleScreen() {
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [screenState, setScreenState] = useState<CompanionScreenState>("unsupported");
   const [busy, setBusy] = useState(false);
+  const [copiedShortcut, setCopiedShortcut] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const focusedRef = useRef(false);
 
@@ -195,6 +197,7 @@ export default function CompanionConsoleScreen() {
           botAvatarSet: targetBot.avatarSet,
           spaceId: selectedSpaceId(),
           showReply: prefs.showReply,
+          initialReply: "preview" in targetBot ? targetBot.preview : null,
         });
       }
     } catch (error) {
@@ -219,6 +222,7 @@ export default function CompanionConsoleScreen() {
         botAvatarSet: bot.avatarSet,
         spaceId: selectedSpaceId(),
         showReply: prefs.showReply,
+        initialReply: bot.preview ?? null,
       });
     } catch (error) {
       setErrorMessage(errorText(error, t("Try again.")));
@@ -239,6 +243,8 @@ export default function CompanionConsoleScreen() {
           botAvatarSet: targetBot.avatarSet,
           spaceId: active.spaceId,
           showReply: next,
+          initialReply:
+            session.runtime.latestReply ?? ("preview" in targetBot ? targetBot.preview : null),
         });
       } catch (error) {
         setErrorMessage(errorText(error, t("Try again.")));
@@ -432,6 +438,24 @@ export default function CompanionConsoleScreen() {
         },
       ],
     );
+  };
+
+  const shortcutUrl = buildCompanionCaptureUrl({
+    source: "clipboard",
+    speak: true,
+  });
+
+  const handleCopyShortcutUrl = async () => {
+    try {
+      const Clipboard = await import("expo-clipboard");
+      await Clipboard.setStringAsync(shortcutUrl);
+      setCopiedShortcut(true);
+      setTimeout(() => setCopiedShortcut(false), 2_000);
+    } catch {
+      setErrorMessage(
+        copy("复制失败，请手动抄写链接。", "複製失敗，請手動抄寫連結。", "Copy failed."),
+      );
+    }
   };
 
   const liveReplyPreview =
@@ -644,6 +668,44 @@ export default function CompanionConsoleScreen() {
 
                 <MotionPressable
                   preset="control"
+                  testID="companion-console-capture"
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/companion-capture",
+                      params: {
+                        botId: targetBot.id,
+                        source: "clipboard",
+                        speak: "1",
+                        ...(selectedSpaceId() ? { spaceId: selectedSpaceId()! } : {}),
+                      },
+                    })
+                  }
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 999,
+                    backgroundColor: chipBg,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: chipBorder,
+                  }}
+                >
+                  <NativeSymbol
+                    ios="camera.viewfinder"
+                    android="scan-outline"
+                    size={14}
+                    color={tokens.foreground}
+                  />
+                  <Text style={{ color: tokens.foreground, fontSize: 13.5, fontWeight: "500" }}>
+                    {copy("截屏提问", "截圖提問", "Screenshot & Ask")}
+                  </Text>
+                </MotionPressable>
+
+                <MotionPressable
+                  preset="control"
                   testID="companion-console-voice-call"
                   accessibilityRole="button"
                   onPress={() =>
@@ -826,6 +888,49 @@ export default function CompanionConsoleScreen() {
               "Manage notification permissions and sound",
             )}
             onPress={() => router.push("/notifications")}
+          />
+        </SettingsGroup>
+
+        {/* Shortcuts / Back Tap Screenshot Companion */}
+        <SettingsGroup
+          label={copy(
+            "背面轻点 / 快捷指令一键截屏",
+            "背面輕點 / 捷徑一鍵截圖",
+            "Back Tap / Shortcuts Screenshot",
+          )}
+          footer={copy(
+            "在 iPhone「快捷指令」新建 3 步流程：① 截屏 → ② 拷贝到剪贴板 → ③ 打开下方 URL（如需先输文字可加「请求输入」并拼接 &prompt=文本），然后在「设置 → 辅助功能 → 触控 → 轻点背面」或「操作按钮」绑定该快捷指令，即可在任意应用一键截屏并同步输入发给陪伴伙伴且语音回复。",
+            "在 iPhone「捷徑」新建 3 步流程：① 截圖 → ② 拷貝到剪貼簿 → ③ 開啟下方 URL（如需先輸文字可加「要求輸入」並拼接 &prompt=文本），再於「設定 → 輔助使用 → 觸控 → 背面輕點」或「動作按鈕」綁定該捷徑，即可在任意 App 一鍵截圖並同步輸入發給陪伴夥伴且語音回覆。",
+            "In Apple Shortcuts, add 3 actions: 1) Take Screenshot -> 2) Copy to Clipboard -> 3) Open the URL below. Bind it to Back Tap or Action Button to send screenshots with optional text from any app and hear spoken replies.",
+          )}
+        >
+          <SettingsRow
+            accessibilityRole="button"
+            title={copy("复制快捷指令链接", "複製捷徑連結", "Copy Shortcuts URL")}
+            detail={shortcutUrl}
+            value={copiedShortcut ? copy("已复制", "已複製", "Copied") : undefined}
+            onPress={() => void handleCopyShortcutUrl()}
+          />
+          <SettingsRow
+            accessibilityRole="button"
+            chevron="right"
+            title={copy("立即打开截屏提问", "立即開啟截圖提問", "Open Screenshot & Ask")}
+            detail={copy(
+              "粘贴最新截屏、同时输入问题并发给当前陪伴伙伴",
+              "貼上最新截圖、同時輸入問題並發給目前陪伴夥伴",
+              "Paste screenshot, type a prompt, and send to active companion",
+            )}
+            onPress={() =>
+              router.push({
+                pathname: "/companion-capture",
+                params: {
+                  source: "clipboard",
+                  speak: "1",
+                  ...(targetBot ? { botId: targetBot.id } : {}),
+                  ...(selectedSpaceId() ? { spaceId: selectedSpaceId()! } : {}),
+                },
+              })
+            }
           />
         </SettingsGroup>
 

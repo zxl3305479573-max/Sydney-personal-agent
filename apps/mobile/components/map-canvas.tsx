@@ -35,7 +35,10 @@ export type MapCanvasProps = {
   route: MapCanvasRoute | null;
   tileProvider: MapTileProvider;
   dark: boolean;
-  onEvent: (event: MapCanvasEvent) => void;
+  interactive?: boolean;
+  initialCenter?: GeoPoint | null;
+  initialZoom?: number;
+  onEvent?: (event: MapCanvasEvent) => void;
 };
 
 export const MAP_CANVAS_BASE_URL = "https://sydney-map.local/";
@@ -99,10 +102,31 @@ export function parseMapCanvasMessage(raw: string): MapCanvasEvent | null {
 export function buildMapCanvasHtml(options: {
   dark: boolean;
   tileProvider: MapTileProvider;
+  interactive?: boolean;
+  initialCenter?: GeoPoint | null;
+  initialZoom?: number;
+  initialOrigin?: MapCanvasMarker | null;
 }): string {
   const bg = options.dark ? "#1B1F27" : "#EFECE6";
-  const tileFilter = options.dark ? "brightness(0.82) contrast(1.06) saturate(0.85)" : "none";
+  const tileFilter = options.dark ? "brightness(0.84) contrast(1.06) saturate(0.88)" : "none";
   const initialProvider = options.tileProvider === "osm" ? "osm" : "amap";
+  const interactive = options.interactive !== false;
+  const centerPoint =
+    options.initialCenter && isValidGeoPoint(options.initialCenter)
+      ? { lat: options.initialCenter.latitude, lng: options.initialCenter.longitude }
+      : { lat: 39.9042, lng: 116.4074 };
+  const initialZoom =
+    typeof options.initialZoom === "number" && Number.isFinite(options.initialZoom)
+      ? Math.max(3, Math.min(18, options.initialZoom))
+      : 14;
+  const initialOrigin =
+    options.initialOrigin && isValidGeoPoint(options.initialOrigin)
+      ? {
+          latitude: options.initialOrigin.latitude,
+          longitude: options.initialOrigin.longitude,
+          label: options.initialOrigin.label,
+        }
+      : null;
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -111,9 +135,9 @@ export function buildMapCanvasHtml(options: {
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; }
-  html, body, #root { width: 100%; height: 100%; overflow: hidden; background: ${bg}; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+  html, body, #root { width: 100%; height: 100%; overflow: hidden; background: ${bg}; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; ${interactive ? "" : "pointer-events: none;"} }
   #tiles { position: absolute; inset: 0; overflow: hidden; }
-  .tile { position: absolute; width: 256px; height: 256px; pointer-events: none; filter: ${tileFilter}; image-rendering: auto; }
+  .tile { position: absolute; left: 0; top: 0; pointer-events: none; filter: ${tileFilter}; image-rendering: -webkit-optimize-contrast; image-rendering: auto; will-change: transform; backface-visibility: hidden; }
   #overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 </style>
 </head>
@@ -126,10 +150,11 @@ export function buildMapCanvasHtml(options: {
 (function () {
   var PI = Math.PI, A = 6378245.0, EE = 0.00669342162296594323;
   var TILE = 256, MIN_Z = 3, MAX_Z = 18;
+  var interactive = ${JSON.stringify(interactive)};
   var provider = ${JSON.stringify(initialProvider)};
-  var center = { lat: 39.9042, lng: 116.4074 };
-  var zoom = 14;
-  var originMarker = null;
+  var center = ${JSON.stringify(centerPoint)};
+  var zoom = ${JSON.stringify(initialZoom)};
+  var originMarker = ${JSON.stringify(initialOrigin)};
   var destMarker = null;
   var routeData = null;
   var tileErrors = 0;
@@ -231,31 +256,35 @@ export function buildMapCanvasHtml(options: {
   function render() {
     var w = root.clientWidth || 360;
     var h = root.clientHeight || 640;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
     if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
     }
 
-    var zInt = Math.max(MIN_Z, Math.min(MAX_Z, Math.round(zoom)));
-    var scaleFactor = Math.pow(2, zoom - zInt);
-    var tileSize = TILE * scaleFactor;
-    var maxIndex = Math.pow(2, zInt);
+    // Amap scale=2 tiles are 256x256 with 2x-sized typography meant for 128pt Retina cells.
+    // Oversampling z+1 on Retina displays eliminates 3x upscaling blur while keeping crisp native label proportions.
+    var retinaBoost = provider === "amap" && dpr >= 1.5 ? 1 : 0;
+    var zTile = Math.max(MIN_Z, Math.min(MAX_Z, Math.ceil(zoom) + retinaBoost));
+    var tileSize = TILE * Math.pow(2, zoom - zTile);
+    var maxIndex = Math.pow(2, zTile);
     var dispCenter = displayCoord(center.lat, center.lng);
     var cPx = project(dispCenter.lat, dispCenter.lng, zoom);
     var left = cPx.x - w / 2;
     var top = cPx.y - h / 2;
+    var pad = interactive ? 1 : 0;
 
-    var minTX = Math.floor(left / tileSize) - 1;
-    var maxTX = Math.floor((left + w) / tileSize) + 1;
-    var minTY = Math.max(0, Math.floor(top / tileSize) - 1);
-    var maxTY = Math.min(maxIndex - 1, Math.floor((top + h) / tileSize) + 1);
+    var minTX = Math.floor(left / tileSize) - pad;
+    var maxTX = Math.floor((left + w) / tileSize) + pad;
+    var minTY = Math.max(0, Math.floor(top / tileSize) - pad);
+    var maxTY = Math.min(maxIndex - 1, Math.floor((top + h) / tileSize) + pad);
+    function snap(px) { return Math.round(px * dpr) / dpr; }
 
     var needed = new Set();
     for (var tx = minTX; tx <= maxTX; tx++) {
       var wrappedX = ((tx % maxIndex) + maxIndex) % maxIndex;
       for (var ty = minTY; ty <= maxTY; ty++) {
-        var key = provider + ":" + zInt + ":" + tx + ":" + ty;
+        var key = provider + ":" + zTile + ":" + tx + ":" + ty;
         needed.add(key);
         var img = tileNodes.get(key);
         if (!img) {
@@ -270,13 +299,17 @@ export function buildMapCanvasHtml(options: {
               post({ type: "tileFallback", provider: provider });
             }
           };
-          img.src = tileUrl(zInt, wrappedX, ty);
+          img.src = tileUrl(zTile, wrappedX, ty);
           tilesEl.appendChild(img);
           tileNodes.set(key, img);
         }
-        img.style.width = Math.ceil(tileSize + 0.5) + "px";
-        img.style.height = Math.ceil(tileSize + 0.5) + "px";
-        img.style.transform = "translate3d(" + Math.round(tx * tileSize - left) + "px," + Math.round(ty * tileSize - top) + "px,0)";
+        var x0 = snap(tx * tileSize - left);
+        var y0 = snap(ty * tileSize - top);
+        var x1 = snap((tx + 1) * tileSize - left);
+        var y1 = snap((ty + 1) * tileSize - top);
+        img.style.width = (x1 - x0) + "px";
+        img.style.height = (y1 - y0) + "px";
+        img.style.transform = "translate3d(" + x0 + "px," + y0 + "px,0)";
       }
     }
     tileNodes.forEach(function (node, key) {
@@ -297,10 +330,15 @@ export function buildMapCanvasHtml(options: {
         if (i === 0) ctx.moveTo(pt.x, pt.y);
         else ctx.lineTo(pt.x, pt.y);
       }
-      ctx.lineWidth = 5;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = routeData.estimated ? "rgba(42, 111, 219, 0.72)" : "#2563EB";
+      if (!routeData.estimated) {
+        ctx.lineWidth = 7.5;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+        ctx.stroke();
+      }
+      ctx.lineWidth = 4.5;
+      ctx.strokeStyle = routeData.estimated ? "rgba(37, 99, 235, 0.78)" : "#2563EB";
       if (routeData.estimated) ctx.setLineDash([8, 8]);
       ctx.stroke();
       ctx.restore();
@@ -311,10 +349,10 @@ export function buildMapCanvasHtml(options: {
       ctx.save();
       ctx.beginPath();
       ctx.arc(op.x, op.y, 16, 0, PI * 2);
-      ctx.fillStyle = "rgba(37, 99, 235, 0.20)";
+      ctx.fillStyle = "rgba(37, 99, 235, 0.22)";
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(op.x, op.y, 7.5, 0, PI * 2);
+      ctx.arc(op.x, op.y, 7, 0, PI * 2);
       ctx.fillStyle = "#2563EB";
       ctx.fill();
       ctx.lineWidth = 2.5;
@@ -349,68 +387,70 @@ export function buildMapCanvasHtml(options: {
 
   function clampZoom(z) { return Math.max(MIN_Z, Math.min(MAX_Z, z)); }
 
-  var drag = null;
-  var pinch = null;
-  var lastTapTime = 0;
+  if (interactive) {
+    var drag = null;
+    var pinch = null;
+    var lastTapTime = 0;
 
-  function touchDist(t1, t2) {
-    var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  root.addEventListener("touchstart", function (e) {
-    if (e.touches.length === 1) {
-      var t = e.touches[0];
-      var dispC = displayCoord(center.lat, center.lng);
-      var cPx = project(dispC.lat, dispC.lng, zoom);
-      drag = { x: t.clientX, y: t.clientY, startX: t.clientX, startY: t.clientY, cx: cPx.x, cy: cPx.y, moved: false };
-      pinch = null;
-    } else if (e.touches.length === 2) {
-      drag = null;
-      pinch = { dist: touchDist(e.touches[0], e.touches[1]), zoom: zoom };
+    function touchDist(t1, t2) {
+      var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
     }
-  }, { passive: true });
 
-  root.addEventListener("touchmove", function (e) {
-    if (e.touches.length === 1 && drag) {
-      var t = e.touches[0];
-      var dx = t.clientX - drag.startX, dy = t.clientY - drag.startY;
-      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) drag.moved = true;
-      var disp = unproject(drag.cx - dx, drag.cy - dy, zoom);
-      center = wgsFromDisplay(disp.lat, disp.lng);
-      render();
-    } else if (e.touches.length === 2 && pinch) {
-      var d = touchDist(e.touches[0], e.touches[1]);
-      if (pinch.dist > 0) {
-        zoom = clampZoom(pinch.zoom + Math.log2(d / pinch.dist));
-        render();
-      }
-    }
-  }, { passive: true });
-
-  root.addEventListener("touchend", function (e) {
-    if (drag && !drag.moved && e.touches.length === 0) {
-      var now = Date.now();
-      var rect = root.getBoundingClientRect();
-      var tapX = drag.startX - rect.left;
-      var tapY = drag.startY - rect.top;
-      if (now - lastTapTime < 280) {
-        zoom = clampZoom(zoom + 1);
-        render();
-        lastTapTime = 0;
-      } else {
-        lastTapTime = now;
+    root.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 1) {
+        var t = e.touches[0];
         var dispC = displayCoord(center.lat, center.lng);
         var cPx = project(dispC.lat, dispC.lng, zoom);
-        var w = root.clientWidth || 360;
-        var h = root.clientHeight || 640;
-        var dispTap = unproject(cPx.x - w / 2 + tapX, cPx.y - h / 2 + tapY, zoom);
-        var wgsTap = wgsFromDisplay(dispTap.lat, dispTap.lng);
-        post({ type: "tap", latitude: wgsTap.lat, longitude: wgsTap.lng });
+        drag = { x: t.clientX, y: t.clientY, startX: t.clientX, startY: t.clientY, cx: cPx.x, cy: cPx.y, moved: false };
+        pinch = null;
+      } else if (e.touches.length === 2) {
+        drag = null;
+        pinch = { dist: touchDist(e.touches[0], e.touches[1]), zoom: zoom };
       }
-    }
-    if (e.touches.length === 0) { drag = null; pinch = null; }
-  }, { passive: true });
+    }, { passive: true });
+
+    root.addEventListener("touchmove", function (e) {
+      if (e.touches.length === 1 && drag) {
+        var t = e.touches[0];
+        var dx = t.clientX - drag.startX, dy = t.clientY - drag.startY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) drag.moved = true;
+        var disp = unproject(drag.cx - dx, drag.cy - dy, zoom);
+        center = wgsFromDisplay(disp.lat, disp.lng);
+        render();
+      } else if (e.touches.length === 2 && pinch) {
+        var d = touchDist(e.touches[0], e.touches[1]);
+        if (pinch.dist > 0) {
+          zoom = clampZoom(pinch.zoom + Math.log2(d / pinch.dist));
+          render();
+        }
+      }
+    }, { passive: true });
+
+    root.addEventListener("touchend", function (e) {
+      if (drag && !drag.moved && e.touches.length === 0) {
+        var now = Date.now();
+        var rect = root.getBoundingClientRect();
+        var tapX = drag.startX - rect.left;
+        var tapY = drag.startY - rect.top;
+        if (now - lastTapTime < 280) {
+          zoom = clampZoom(zoom + 1);
+          render();
+          lastTapTime = 0;
+        } else {
+          lastTapTime = now;
+          var dispC = displayCoord(center.lat, center.lng);
+          var cPx = project(dispC.lat, dispC.lng, zoom);
+          var w = root.clientWidth || 360;
+          var h = root.clientHeight || 640;
+          var dispTap = unproject(cPx.x - w / 2 + tapX, cPx.y - h / 2 + tapY, zoom);
+          var wgsTap = wgsFromDisplay(dispTap.lat, dispTap.lng);
+          post({ type: "tap", latitude: wgsTap.lat, longitude: wgsTap.lng });
+        }
+      }
+      if (e.touches.length === 0) { drag = null; pinch = null; }
+    }, { passive: true });
+  }
 
   window.addEventListener("resize", render);
 
@@ -483,15 +523,38 @@ export function buildMapCanvasHtml(options: {
 }
 
 export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(
-  { origin, destination, route, tileProvider, dark, onEvent },
+  {
+    origin,
+    destination,
+    route,
+    tileProvider,
+    dark,
+    interactive = true,
+    initialCenter,
+    initialZoom,
+    onEvent,
+  },
   ref,
 ) {
   const webViewRef = useRef<WebView>(null);
   const readyRef = useRef(false);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const seedRef = useRef({ initialCenter, initialZoom, origin, tileProvider });
+  seedRef.current = { initialCenter, initialZoom, origin, tileProvider };
 
-  const html = useMemo(() => buildMapCanvasHtml({ dark, tileProvider }), [dark]);
+  const html = useMemo(() => {
+    readyRef.current = false;
+    const seed = seedRef.current;
+    return buildMapCanvasHtml({
+      dark,
+      tileProvider: seed.tileProvider,
+      interactive,
+      initialCenter: seed.initialCenter ?? seed.origin,
+      initialZoom: seed.initialZoom,
+      initialOrigin: seed.origin,
+    });
+  }, [dark, interactive]);
 
   const sendJs = (script: string) => {
     webViewRef.current?.injectJavaScript(`${script};true;`);
@@ -534,14 +597,14 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   }));
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents={interactive ? "auto" : "none"}>
       <WebView
         ref={webViewRef}
         testID="map-canvas-webview"
         source={{ html, baseUrl: MAP_CANVAS_BASE_URL }}
         style={styles.webview}
         javaScriptEnabled
-        geolocationEnabled
+        geolocationEnabled={interactive}
         domStorageEnabled={false}
         allowFileAccess={false}
         allowFileAccessFromFileURLs={false}
@@ -560,7 +623,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
             readyRef.current = true;
             syncState();
           }
-          onEventRef.current(parsed);
+          onEventRef.current?.(parsed);
         }}
       />
     </View>

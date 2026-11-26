@@ -1,21 +1,24 @@
 {
-  "version": "1.0.31",
+  "version": "1.0.32",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "优化首页顶栏同步状态胶囊：移除容易与系统时钟混淆的英文「sync · 时间」旧同步时间戳，改为清晰的「已同步 / N 运行中 / 同步中… / 重试同步」中文状态，轻点可随时刷新。",
-      "修复首页内部时钟定时器未对齐整分钟的问题，按整分钟 00 秒精准刷新日期与问候时段，切回前台即时校准。",
-      "修复首页轮询在偶发失败后需手动切页才能恢复的问题，点击状态胶囊或下拉刷新成功后自动恢复后台轮询。"
+      "首页地图卡片升级为实时 Retina 高清地图预览，优化高德底图清晰度并修复地图页搜索框布局；移除开屏启动动画，进入主页更快更顺畅。",
+      "天气详情页支持点击下方「未来天气」任意日期及逐小时卡片，联动切换对应日期与时段的温度、体感、湿度、风速及逐小时预报。",
+      "语音通话状态全面同步至 iOS 灵动岛，修复灵动岛全黑与多 Bot 头像／消息内容显示，新增「截屏提问」图文语音同发页面与灵动岛长按快捷操作。",
+      "Bot 消息通知弹窗改用对应 Bot 头像展示（前台定制 Bot 头像通知条 + iOS 原生头像通知附件／通信意图），不再全部显示 App Logo。"
     ],
     "zh-TW": [
-      "優化首頁頂欄同步狀態膠囊：移除容易與系統時鐘混淆的英文「sync · 時間」舊同步時間戳，改為清晰的「已同步 / N 運行中 / 同步中… / 重試同步」狀態，輕點即可手動重新整理。",
-      "修復首頁內部時鐘定時器未對齊整分鐘的問題，依整分鐘 00 秒精準更新日期與問候時段，切回前景即時校準。",
-      "修復首頁輪詢在偶發失敗後需手動切頁才能恢復的問題，點擊狀態膠囊或下拉重新整理成功後自動恢復輪詢。"
+      "首頁地圖卡片升級為即時 Retina 高清地圖預覽，優化高德底圖清晰度並修復地圖頁搜尋框佈局；移除開屏啟動動畫，進入主頁更快更順暢。",
+      "天氣詳情頁支援點擊下方「未來天氣」任意日期及逐小時卡片，連動切換對應日期與時段的溫度、體感、濕度、風速及逐小時預報。",
+      "語音通話狀態全面同步至 iOS 靈動島，修復靈動島全黑與多 Bot 頭像／訊息內容顯示，新增「截圖提問」圖文語音同發頁面與靈動島長按快捷操作。",
+      "Bot 訊息通知彈窗改用對應 Bot 頭像顯示（前景客製 Bot 頭像通知條 + iOS 原生頭像通知附件／通訊意圖），不再全部顯示 App Logo。"
     ],
     "en": [
-      "Replace the home header's confusing 'sync · HH:MM' timestamp pill with clear localized status labels (Synced / N active / Syncing… / Retry sync) and a one-tap refresh icon.",
-      "Align the home screen clock timer to exact wall-clock minute boundaries (:00) and re-sync immediately on foreground return so date and greeting never lag behind the device clock.",
-      "Automatically resume home foreground polling after a successful manual refresh following a prior failure."
+      "Upgrade the home map card to a live Retina-sharp map preview with crisp AMap rendering and fixed search bar placement, and remove the JS startup splash animation for faster launch.",
+      "Tap any day in Future Forecast or any hourly card on the Weather detail screen to switch hero weather, feels-like/humidity/wind metrics, and that day's hourly forecast.",
+      "Sync voice calls directly to iOS Dynamic Island, fix black Live Activity contrast and per-bot avatars/messages, and add Screenshot & Ask quick capture with expanded Dynamic Island actions.",
+      "Show each bot's own avatar on bot message notifications (in-app foreground bot avatar banner plus iOS native avatar attachment / communication intent) instead of the generic app logo."
     ]
   }
 }

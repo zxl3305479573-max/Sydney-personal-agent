@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const bridge = vi.hoisted(() => ({
   isAvailable: vi.fn(() => true),
+  supportsCallStatus: vi.fn(() => false),
   activeBotId: vi.fn(() => "bot-1" as string | null),
   activeActivity: vi.fn(() => ({
     id: "activity-1",
@@ -18,6 +19,18 @@ const bridge = vi.hoisted(() => ({
       _avatar: string | null,
     ) => "created-activity",
   ),
+  startCall: vi.fn(
+    async (
+      _botId: string,
+      _name: string,
+      _spaceId: string | null,
+      _showReply: boolean,
+      _avatar: string | null,
+      _status: string,
+      _reply: string | null,
+      _callStartedAtMs: number,
+    ) => "created-call-activity",
+  ),
   stopActivity: vi.fn(async (_id: string) => {}),
   stop: vi.fn(async () => {}),
   update: vi.fn(
@@ -27,6 +40,17 @@ const bridge = vi.hoisted(() => ({
       _spaceId: string | null,
       _status: string,
       _reply: string | null,
+    ) => {},
+  ),
+  updateCall: vi.fn(
+    async (
+      _id: string,
+      _botId: string,
+      _spaceId: string | null,
+      _status: string,
+      _reply: string | null,
+      _callActive: boolean,
+      _callStartedAtMs: number | null,
     ) => {},
   ),
   screenState: vi.fn(async () => "idle"),
@@ -45,18 +69,23 @@ import {
   activeCompanionIdentity,
   companionAvailable,
   companionScreenState,
+  isCallOwnedCompanionActivity,
   presentCompanionScreen,
+  startCallLiveActivity,
   startCompanion,
+  stopCallOwnedLiveActivity,
   stopCompanion,
   stopCompanionScreen,
   subscribeCompanionScreenState,
   takeCompanionScreenText,
+  updateCallLiveActivity,
   updateCompanion,
 } from "./companion-activity";
 
 beforeEach(() => {
   vi.clearAllMocks();
   bridge.isAvailable.mockReturnValue(true);
+  bridge.supportsCallStatus.mockReturnValue(false);
   bridge.activeActivity.mockReturnValue({
     id: "activity-1",
     botId: "bot-1",
@@ -303,5 +332,88 @@ describe("companion native bridge", () => {
     await expect(presentCompanionScreen("bot-1", null)).rejects.toThrow("不支持");
     expect(await takeCompanionScreenText()).toBeNull();
     expect(bridge.presentScreen).not.toHaveBeenCalled();
+  });
+
+  it("tracks call-owned Live Activity and uses rich native updateCall or legacy OTA fallback", async () => {
+    bridge.start.mockResolvedValueOnce("call-act-1");
+    const created = await startCallLiveActivity({
+      botId: "bot-1",
+      botName: "Sydney",
+      spaceId: "space-1",
+      showReply: true,
+      avatar: { color: "#4F7CAC" },
+    });
+    expect(created).toBe("call-act-1");
+    expect(isCallOwnedCompanionActivity("call-act-1")).toBe(true);
+    expect(isCallOwnedCompanionActivity("other-act")).toBe(false);
+
+    bridge.activeActivity.mockReturnValue({
+      id: "call-act-1",
+      botId: "bot-1",
+      spaceId: "space-1",
+      showReply: true,
+    });
+
+    // Legacy 1.0.14 IPA (supportsCallStatus=false): uses compatible update() whitelist.
+    await updateCallLiveActivity({
+      activityId: "call-act-1",
+      botId: "bot-1",
+      spaceId: "space-1",
+      phase: "speaking",
+      caption: "你好",
+      callStartedAtMs: 1_700_000_000_000,
+    });
+    expect(bridge.update).toHaveBeenCalledWith("call-act-1", "bot-1", "space-1", "正在听", "你好");
+    expect(bridge.updateCall).not.toHaveBeenCalled();
+
+    // New IPA (supportsCallStatus=true): uses rich updateCall() with live timer timestamp.
+    bridge.supportsCallStatus.mockReturnValue(true);
+    await updateCallLiveActivity({
+      activityId: "call-act-1",
+      botId: "bot-1",
+      spaceId: "space-1",
+      phase: "speaking",
+      caption: "你好",
+      callStartedAtMs: 1_700_000_000_000,
+    });
+    expect(bridge.updateCall).toHaveBeenCalledWith(
+      "call-act-1",
+      "bot-1",
+      "space-1",
+      "通话 · 说话中",
+      "你好",
+      true,
+      1_700_000_000_000,
+    );
+
+    await stopCallOwnedLiveActivity("call-act-1");
+    expect(bridge.stopActivity).toHaveBeenCalledWith("call-act-1");
+    expect(isCallOwnedCompanionActivity("call-act-1")).toBe(false);
+
+    // Atomic native startCall on new IPA skips redundant initial updateCall.
+    bridge.supportsCallStatus.mockReturnValue(true);
+    bridge.startCall.mockResolvedValueOnce("call-act-atomic");
+    const atomicId = await startCallLiveActivity({
+      botId: "bot-1",
+      botName: "Sydney",
+      spaceId: "space-1",
+      showReply: true,
+      avatar: { color: "#4F7CAC" },
+      phase: "listening",
+      caption: "你好呀",
+      callStartedAtMs: 1_700_000_005_000,
+    });
+    expect(atomicId).toBe("call-act-atomic");
+    expect(bridge.startCall).toHaveBeenCalledWith(
+      "bot-1",
+      "Sydney",
+      "space-1",
+      true,
+      expect.stringMatching(/^o\|4F7CAC\|/),
+      "通话 · 正在听",
+      "你好呀",
+      1_700_000_005_000,
+    );
+    await stopCallOwnedLiveActivity("call-act-atomic");
   });
 });

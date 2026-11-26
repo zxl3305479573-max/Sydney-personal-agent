@@ -44,6 +44,25 @@ vi.mock("../components/bot-avatar", () => ({
 vi.mock("../components/native-symbol", () => ({
   NativeSymbol: ({ ios }: { ios: string }) => <i data-symbol={ios} />,
 }));
+vi.mock("../components/map-canvas", () => ({
+  MapCanvas: ({
+    interactive,
+    origin,
+    initialZoom,
+  }: {
+    interactive?: boolean;
+    origin?: { latitude: number; longitude: number } | null;
+    initialZoom?: number;
+  }) => (
+    <div
+      data-testid="home-map-canvas-mock"
+      data-interactive={String(interactive ?? true)}
+      data-lat={origin ? String(origin.latitude) : ""}
+      data-lng={origin ? String(origin.longitude) : ""}
+      data-zoom={initialZoom ? String(initialZoom) : ""}
+    />
+  ),
+}));
 vi.mock("./companion-activity", () => ({
   companionAvailable: () => false,
   activeCompanionIdentity: () => null,
@@ -336,6 +355,12 @@ describe("HomeHub personal hub", () => {
 
     tap("home-hub-map-card");
     expect(state.push).toHaveBeenLastCalledWith("/map");
+
+    const liveMap = container.querySelector('[data-testid="home-map-canvas-mock"]');
+    expect(liveMap).not.toBeNull();
+    expect(liveMap?.getAttribute("data-interactive")).toBe("false");
+    expect(liveMap?.getAttribute("data-lat")).toBe("39.9042");
+    expect(liveMap?.getAttribute("data-lng")).toBe("116.4074");
   });
 
   it("renders English greeting and invites creating a bot when inbox is empty", () => {

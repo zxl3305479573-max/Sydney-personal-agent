@@ -1,6 +1,12 @@
+import type { BotAvatarSet } from "@rakazo/contracts";
 import { requireNativeModule } from "expo-modules-core";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import {
+  hasActiveBotNotificationBannerHost,
+  presentBotNotificationBanner,
+} from "./bot-notification-banner-state";
+import { resolveBotNotificationProfile } from "./bot-notification-registry";
 import { apiBaseWarning, normalizeApiBase } from "./endpoint";
 import { getActiveUiLocale, t } from "./i18n";
 import { getCachedNotificationPreferences } from "./notification-preferences-state";
@@ -86,6 +92,10 @@ export function notificationTargetsThread(
   );
 }
 
+function parseNotificationAvatarSet(value: unknown): BotAvatarSet | undefined {
+  return value === "organic" || value === "rakazo" || value === "fluid" ? value : undefined;
+}
+
 export function configureForegroundNotifications(): void {
   if (foregroundHandlerConfigured) return;
   foregroundHandlerConfigured = true;
@@ -114,6 +124,60 @@ export function configureForegroundNotifications(): void {
             ? prefs.needsAttention
             : prefs.messages;
       const show = prefs.enabled && categoryAllowed && !notificationTargetsThread(data, openThread);
+      if (show && hasActiveBotNotificationBannerHost()) {
+        const record =
+          data && typeof data === "object" && !Array.isArray(data)
+            ? (data as Record<string, unknown>)
+            : null;
+        const rawBotId = record ? (record.botId ?? record["rakazo.botId"]) : undefined;
+        const botId = typeof rawBotId === "string" ? rawBotId.trim() : "";
+        if (botId) {
+          const rawName = record ? (record.name ?? record["rakazo.name"]) : undefined;
+          const rawColor = record ? record.botColor : undefined;
+          const rawSpaceId = record ? (record.spaceId ?? record["rakazo.spaceId"]) : undefined;
+          const rawThreadId = record ? (record.threadId ?? record["rakazo.threadId"]) : undefined;
+          const rawGroupId = record ? (record.groupId ?? record["rakazo.groupId"]) : undefined;
+          const rawDeliveryId = record ? record.deliveryId : undefined;
+          const title =
+            typeof request.content.title === "string" ? request.content.title.trim() : "";
+          const body = typeof request.content.body === "string" ? request.content.body.trim() : "";
+          const profile = resolveBotNotificationProfile(botId, {
+            name:
+              typeof rawName === "string" && rawName.trim() ? rawName.trim() : title || undefined,
+            color: typeof rawColor === "string" && rawColor.trim() ? rawColor.trim() : undefined,
+            avatarSet: parseNotificationAvatarSet(record?.botAvatarSet),
+          });
+          presentBotNotificationBanner({
+            id:
+              typeof rawDeliveryId === "string" && rawDeliveryId.trim()
+                ? rawDeliveryId.trim()
+                : request.identifier || `${botId}:${Date.now()}`,
+            notificationId: request.identifier || undefined,
+            kind: kind ?? "message",
+            botId,
+            botName: profile.name || title || "Sydney",
+            botColor: profile.color || "#4F7CAC",
+            botAvatarSet: profile.avatarSet ?? null,
+            body: body || title,
+            ...(typeof rawSpaceId === "string" && rawSpaceId.trim()
+              ? { spaceId: rawSpaceId.trim() }
+              : {}),
+            ...(typeof rawThreadId === "string" && rawThreadId.trim()
+              ? { threadId: rawThreadId.trim() }
+              : {}),
+            ...(typeof rawGroupId === "string" && rawGroupId.trim()
+              ? { groupId: rawGroupId.trim() }
+              : {}),
+            createdAt: Date.now(),
+          });
+          return {
+            shouldShowBanner: false,
+            shouldShowList: true,
+            shouldPlaySound: prefs.sound,
+            shouldSetBadge: false,
+          };
+        }
+      }
       return {
         shouldShowBanner: show,
         shouldShowList: show,

@@ -1,5 +1,42 @@
 # Sydney 开发总计划
 
+## 手机端 Bot 消息通知弹窗展示对应 Bot 头像（PA-021，2026-11-25）
+
+状态：源码实现（前台定制头像通知弹窗、Bot 头像缓存注册表与 iOS 原生 `UNNotificationAttachment` + `INSendMessageIntent` 头像通知）与本机定向离线验证已完成；iOS 原生 Swift 编译打包（`mobile-ios-sideload.yml`）与真机前后台实测待执行（未提交或推送）。
+
+范围与交付物：
+- **Bot 头像缓存注册表**：新增纯 TypeScript 模块 `apps/mobile/lib/bot-notification-registry.ts`，在 `apps/mobile/components/inbox-screens.tsx`（含离线缓存与在线 `spaces/list`）、`apps/mobile/lib/companion-session.ts` 与 `apps/mobile/lib/thread-bots.ts` 加载 Bot 名单时同步缓存每个 Bot 的 `name`/`color`/`avatarSet`，并在账号退出／切换时随 `registerSessionDiskCache` 自动清理。
+- **前台 Bot 头像通知弹窗（OTA 即生效，零 App Logo）**：新增 `apps/mobile/lib/bot-notification-banner-state.ts` 与暖瓷顶部悬浮横幅 `apps/mobile/components/bot-notification-banner.tsx`（挂载于 `apps/mobile/app/_layout.tsx`），并在 `apps/mobile/lib/live-notifications.ts` 的前台处理钩子中拦截携带 `botId` 的 Bot 消息／待确认通知，改由 `<BotNotificationBanner />` 直接展示该 Bot 真实 `<BotAvatar>`（覆盖自定义上传图片、预设形状与有机头像）、名称、状态标签与消息摘要，点击直达对应单聊／群聊并同步清理系统通知栏条目，支持上滑／点击关闭与进对话自动收起，同时保留系统提示音与通知中心留痕（不干扰系统测试通知及无 `botId` 通知）。
+- **iOS 后台／锁屏系统通知原生 Bot 头像**：新增 `apps/mobile/lib/bot-local-notification.ts`（接入 `apps/mobile/lib/companion-thread-watch.ts`），并在 `apps/mobile/modules/sydney-companion/ios/SydneyCompanionModule.swift`（`SydneyCompanion.podspec` 链接 `Intents` 与 `UserNotifications`、`apps/mobile/app.json` 声明 `NSUserActivityTypes: ["INSendMessageIntent"]`，零新增受限 entitlement）新增 `supportsBotNotifications` 与 `scheduleBotNotification`：利用 CoreGraphics/UIKit 将各 Bot 头像编码（`r|data:image/...`、`s|...`、`o|...` 及区分颜色首字兜底）渲染为 `160×160` 圆形 PNG `UNNotificationAttachment`（免费个人侧载包亦可用），并同步构造 `INSendMessageIntent` + `INImage` 与 `UNNotificationContent.updating(from:)`（在具备 Communication Notifications 能力的签名包上由系统直接替换左侧 App Logo 为 Bot 圆形头像；老 IPA 自动平滑降级至 `expo-notifications`）。
+- **验证结果**：新增 `apps/mobile/lib/bot-local-notification.test.ts` 与 `apps/mobile/lib/bot-notification-banner.test.tsx`，扩展 `apps/mobile/lib/companion-plugin.test.ts`；14 个 TS/TSX/JSON 文件 Biome 0 错误、`@rakazo/mobile` `tsc --noEmit` 0 错误、14 个关联 Vitest 文件（123 项）全绿、`git diff --check` 0 警告，详见 [验证记录](VALIDATION.md#手机端-bot-消息通知弹窗展示对应-bot-头像2026-11-25)。
+
+依赖与验收条件：零新增第三方依赖、不修改后端或数据库；前台 Bot 头像通知弹窗纯 JS 可直接通过侧载 OTA 生效，iOS 后台／锁屏原生头像附件与 `INSendMessageIntent` 需经 GitHub Actions `xcode-27` 编译新侧载 IPA 并重装真机后验收（另注：苹果限制免费个人签名无 `com.apple.developer.usernotifications.communication` 权限，个人侧载包在后台锁屏通知将由 `UNNotificationAttachment` 展示对应 Bot 圆形头像，具备正式开发者 Communication Notifications 能力时系统将进一步替换左侧 App Logo）。
+
+## 手机端零重签截屏一键分享＋同步输入＋语音回复与灵动岛快捷操作（PA-021，2026-11-25）
+
+状态：源码实现、Stop That Shit 专项评测与本机定向离线验证已完成（真机 Apple 快捷指令／背面轻点截屏实测，以及 `CompanionWidget.swift` 经 macOS Xcode 重新打包侧载 IPA 后的灵动岛长按展开三按钮实测待设备验收；未提交或推送）。
+
+范围与交付物：
+- 专项评测文档：[COMPANION_MAP_EVALUATION.md](COMPANION_MAP_EVALUATION.md#模块-d零重签截屏一键分享同步输入语音回复与灵动岛快捷操作预置pa-021)（覆盖 `CMP-04`–`CMP-06` 与 `DEV-02` 真机边界）。
+- **截屏解析、上传同发与语音回复核心（零新增依赖）**：新增 `apps/mobile/lib/companion-capture.ts`，直接复用底座已内置的 `expo-clipboard`（`getImageAsync`）、按需懒加载 `pick-attachments.ts`（相册选图回退）及 `artifacts/create` → `threads/send`（`artifactIds` + `imageHandling: "confirm"` + 幂等 `clientNonce` + 会话代次校验）附件上传与发送协议，提供 `parseClipboardImageDataUri`、`buildCompanionCaptureUrl`、`readClipboardScreenshot`、`pickScreenshotFromLibrary`、`sendCompanionCapture` 与可取消实时等待 `waitForCompanionCaptureReply`。
+- **独立「截屏分享与同步输入」页面 `/companion-capture`**：新增 `apps/mobile/app/companion-capture.tsx`（同步注册至 `apps/mobile/app/_layout.tsx` 与 `apps/mobile/lib/theme-pack.ts`），支持通过 `rakazo://companion-capture?botId=...&spaceId=...&source=clipboard&speak=1&mode=capture|message&companionLink=1&companionToken=...` 唤起：校验灵动岛 `companionLink` 令牌、`source=clipboard` 自动读取剪贴板截屏、iOS 16+ 原生 `ClipboardPasteButton` 零弹窗粘贴与「读取剪贴板截屏 / 从相册选取」回退、截屏预览与同步多行文字输入（含快捷提问胶囊、`mode=message` 自动聚焦键盘）、临时切换目标 Bot、回复后自动语音朗读开关（复用 `speakWithDeviceVoice`）以及回复实时展示／朗读控制／打开完整对话。
+- **跨入口接入与 Apple 快捷指令／背面轻点引导**：在 `apps/mobile/components/companion-floating-bar.tsx`（同时将该路由加入隐藏表避免遮挡）、`apps/mobile/components/home-companion-card.tsx` 与 `apps/mobile/app/companion.tsx` 补齐「截屏提问」一键入口；在 `/companion` 新增「背面轻点 / 快捷指令一键截屏」分组，提供 3 步 Apple 快捷指令配置指引（截屏 → 拷贝至剪贴板 → 打开深链）与一键复制 `rakazo://companion-capture?source=clipboard&speak=1` 按钮。
+- **灵动岛长按展开快捷操作预置**：升级 `apps/mobile/ios-companion-widget/CompanionWidget.swift` 的 `DynamicIslandExpandedRegion(.bottom)` 非通话态为「发消息」（`mode=message`）、「截屏提问」（`mode=capture&source=clipboard&speak=1`）与「语音对话」（`companionVoice=1`）三个带 `companionToken` 的胶囊按钮（保留点击岛体进入完整对话及通话态「返回通话」按钮）。诚实边界：Apple WidgetKit 不支持在灵动岛内直接弹键盘，按钮点击即刻深链进入 `/companion-capture` 对应模式。
+- **验证结果**：新增 `apps/mobile/lib/companion-capture.test.ts`（5 项）与 `apps/mobile/lib/companion-capture-screen.test.tsx`（2 项）并扩展 `companion-floating-bar.test.tsx`、`home-companion-card.test.tsx`、`companion-console.test.tsx`；15 个定向与守卫 Vitest 文件（161 项，含 `scroll-hygiene`、`screen-theme-coverage`、`companion-plugin`、`bot-profile` 74 项）全绿、`@rakazo/mobile` 全包 `tsc --noEmit` 0 错误、12 文件 Biome check 0 错误、`git diff --check` 0 警告。详见 [验证记录](VALIDATION.md#手机端零重签截屏一键分享同步输入语音回复与灵动岛快捷操作2026-11-25)。
+
+依赖与验收条件：纯 JS 页面、悬浮条／首页入口及 Apple 快捷指令／背面轻点深链在 OTA 发布后即可直接用于现装侧载 IPA（零重签）；`CompanionWidget.swift` 的灵动岛长按三按钮需经 macOS Xcode 重新打包侧载 IPA 并重装后生效；未提交或推送。
+
+## 手机端天气详情页未来日期／时段切换交互（PA-021，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（真实 iPhone 触控与 OTA 发布后实机效果待设备验收；未提交或推送）。
+
+范围与交付物：
+- **按日完整预报数据解析**：扩展 `apps/mobile/lib/home-weather.ts`，在单次 Open-Meteo 气象请求与 `wttr.in` 降级链路中同步解析全部未来日期的逐小时分组数据 `hourlyByDate`（含各小时体感温度、相对湿度、风速）与每日聚合指标（`apparentTemperatureC`、`humidityPercent`、`windSpeedKmh`），保留既有 `hourly` 12 小时窗口以兼容首页与 `mobile-bridge.ts` 契约，并导出 `getWeatherHourlyForDate` 辅助函数。
+- **天气详情页交互切换**：升级 `apps/mobile/app/weather.tsx`，将「未来天气」每一天行改造为带暖瓷选中高亮与日期副标（如 `周四` + `11/26`）的 `MotionPressable`，点击任意未来日期后联动切换顶部主卡（日期标识横幅、高／低温、天气状态、图标与一键「回到今天」按钮）、三项核心指标（体感温度、相对湿度、风速）以及「逐小时预报」为该日对应时段内容；同时支持点选「逐小时预报」中的具体小时卡片查看该小时精确天气并再次点击或点「回到现在／回到今天」返回。
+- **验证结果**：扩展 `apps/mobile/lib/home-weather.test.ts` 与 `apps/mobile/lib/weather-screen.test.tsx`，4 个改动文件 Biome 0 错误、`@rakazo/mobile` 全包 `tsc --noEmit` 0 错误、6 个关联 Vitest 套件（28 项，含 `screen-theme-coverage` 与 `scroll-hygiene`）全绿、`git diff --check` 0 警告，详见 [验证记录](VALIDATION.md#手机端天气详情页未来日期时段切换交互2026-11-25)。
+
+依赖与验收条件：零新增第三方依赖、不触碰原生底座与后端接口（纯 JS 逻辑，后续可随侧载 OTA 下发）；真机点击手感、滚动联动与多日期联网数据展示待 iPhone 实机验收。
+
 ## 手机首页顶栏同步状态胶囊优化、整分钟时钟对齐与 iPhone 1.0.31 侧载 OTA（PA-021／REL-01，2026-11-25）
 
 状态：源码提交推送（`ffd53173a`）、本机离线校验与 iPhone `1.0.31` 侧载 OTA 发布（[Run 45761232138](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761232138)）及线上清单／启动包／`56/56` 静态资源核验均已完成；真实 iPhone 下载重启与交互验收待执行。

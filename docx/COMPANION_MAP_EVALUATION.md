@@ -35,3 +35,14 @@
 | 编号 | 评测场景 | 通过条件 | 当前状态 |
 | --- | --- | --- | --- |
 | **DEV-01** | iPhone 真机陪伴与高德跳转实测 | 侧载 OTA 生效后，真机验证悬浮胶囊触控、本地通知点击直达、语音播报、高德底图瓦片加载与手势缩放、`iosamap://` 拉起已安装高德地图 App 及未安装时回退网页；系统 GPS 定位弹窗待包含新 `Info.plist` 的 IPA 实测，灵动岛与 ScreenCaptureKit 待实验构建真机实测 | 待 iPhone 真机／新 IPA 验收 |
+
+### 模块 D：零重签截屏一键分享＋同步输入＋语音回复与灵动岛快捷操作预置（PA-021）
+
+依据 Stop That Shit 原则（零新增依赖，直接复用底座已内置的 `expo-clipboard`、`expo-image-picker`、`artifacts/create` → `threads/send` 附件链路与 `speakWithDeviceVoice`；诚实声明 iOS WidgetKit 不支持灵动岛内弹键盘、以及灵动岛扩展改动需通过新版 IPA 编译签名生效）编写。
+
+| 编号 | 评测场景 | 通过条件 | 当前状态 |
+| --- | --- | --- | --- |
+| **CMP-04** | 截屏解析、深链参数与附件同发语音回复链路 | `parseClipboardImageDataUri` 校验 `data:image/(jpeg|png|webp);base64,...` 格式与字节上限（`ATTACHMENT_MAX_BYTES`）；`buildCompanionCaptureUrl` 生成标准 `rakazo://companion-capture` 深链；`sendCompanionCapture` 支持截屏＋用户同步输入文字（或仅截屏默认提示词、或仅文字快捷发送），先调 `artifacts/create` 上传附件再调 `threads/send` 携带 `artifactIds` 与幂等 `clientNonce`，并做会话代次防越权；`waitForCompanionCaptureReply` 仅消费新回复并支持 `AbortSignal` 取消 | 已通过（`companion-capture.test.ts` 5/5） |
+| **CMP-05** | `/companion-capture` 交互与跨入口／快捷指令引导 | `/companion-capture` 支持自动读取剪贴板截屏（`source=clipboard`）、原生粘贴／重读剪贴板／相册选图回退、截屏预览与同步文字输入（含快捷提问胶囊）、临时切换目标 Bot、回复后自动语音朗读开关及实时展示与朗读 Bot 回复；`HomeCompanionCard`、`CompanionFloatingBar` 与 `/companion` 均接入一键入口，`/companion` 提供背面轻点／操作按钮 3 步 Apple 快捷指令配置与一键复制深链 | 已通过（`companion-capture-screen.test.tsx` 2/2 + `home-companion-card.test.tsx` 2/2 + `companion-floating-bar.test.tsx` 2/2 + `companion-console.test.tsx` 1/1） |
+| **CMP-06** | 灵动岛展开快捷按钮预置与全仓守卫零回归 | `CompanionWidget.swift` 长按展开视图升级为「发消息」「截屏提问」「语音对话」三个带 `companionToken` 校验的快捷入口（保留点击卡片主体进完整对话及 `isCall` 返回通话分支）；`app/companion-capture.tsx` 接入 `useScreenBackground` 与隐藏滚动条，通过 `scroll-hygiene.test.ts`、`screen-theme-coverage.test.ts` 与全部既有陪伴测试 | 已通过离线校验（`companion-capture-screen.test.tsx` 2/2 + `companion-plugin.test.ts` 2/2 + `scroll-hygiene.test.ts` 1/1 + `screen-theme-coverage.test.ts` 6/6 + 其余 11 个关联套件共 15 文件 161/161 项全绿；`@rakazo/mobile` `tsc --noEmit` 0 错误、12 文件 Biome 0 错误；Swift 编译待 macOS Xcode） |
+| **DEV-02** | iPhone 背面轻点／快捷指令截屏与新版 IPA 灵动岛实测 | 侧载 OTA 后实测背面轻点／操作按钮触发 Apple 快捷指令截屏 → 跳 `/companion-capture` → 同步输入文字发送并语音回复；灵动岛长按展开「发消息／截屏提问／语音对话」三按钮待 macOS Xcode 构建含本次 `CompanionWidget.swift` 的新版侧载 IPA 重装后真机实测 | 待 iPhone 真机／新版 IPA 验收 |

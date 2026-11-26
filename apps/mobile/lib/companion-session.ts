@@ -7,12 +7,15 @@ import {
   spaceSelectionSeq,
   subscribeSpaceSelection,
 } from "./api";
+import { registerBotNotificationProfiles } from "./bot-notification-registry";
 import {
   activeCompanionIdentity,
   companionAvailable,
+  isCallOwnedCompanionActivity,
   startCompanion,
   stopCompanion,
   subscribeCompanionActivity,
+  updateCompanion,
 } from "./companion-activity";
 import { registerCompanionStop } from "./companion-lifecycle";
 import { stopCompanionScreenAuto } from "./companion-screen-auto";
@@ -80,7 +83,7 @@ function syncFromNativeActivity(): void {
     return;
   }
   const nativeAct = activeCompanionIdentity();
-  if (!nativeAct) {
+  if (!nativeAct || isCallOwnedCompanionActivity(nativeAct.id)) {
     if (current?.mode === "live-activity") {
       activeScope = null;
       setActiveCompanionSessionState(null, { resetRuntime: true });
@@ -191,6 +194,7 @@ export type StartUnifiedCompanionInput = {
   botAvatarSet?: BotAvatarSet | null;
   spaceId?: string | null;
   showReply?: boolean;
+  initialReply?: string | null;
 };
 
 export async function startUnifiedCompanion(
@@ -250,6 +254,34 @@ export async function startUnifiedCompanion(
       spaceSelection: selection,
     };
     setActiveCompanionSessionState(session, { resetRuntime: true });
+    registerBotNotificationProfiles([
+      {
+        id: session.botId,
+        name: session.botName,
+        color: session.botColor,
+        avatarSet: session.botAvatarSet,
+      },
+    ]);
+    const seedReply = input.initialReply?.trim() || null;
+    if (seedReply) {
+      publishCompanionRuntimeState({
+        activityId: session.id,
+        botId: input.botId,
+        status: "present",
+        detailStatus: "present",
+        latestReply: seedReply,
+      });
+      if (showReply) {
+        void updateCompanion({
+          botId: input.botId,
+          spaceId,
+          activityId: session.id,
+          status: "present",
+          latestReply: seedReply,
+          isCurrent: isScopeCurrent,
+        }).catch(() => undefined);
+      }
+    }
     void updateCompanionPreferences({ preferredBotId: input.botId, showReply });
     return session;
   }
@@ -272,6 +304,24 @@ export async function startUnifiedCompanion(
     spaceSelection: selection,
   };
   setActiveCompanionSessionState(session, { resetRuntime: true });
+  registerBotNotificationProfiles([
+    {
+      id: session.botId,
+      name: session.botName,
+      color: session.botColor,
+      avatarSet: session.botAvatarSet,
+    },
+  ]);
+  const seedReply = input.initialReply?.trim() || null;
+  if (seedReply) {
+    publishCompanionRuntimeState({
+      activityId: session.id,
+      botId: input.botId,
+      status: "present",
+      detailStatus: "present",
+      latestReply: seedReply,
+    });
+  }
   void updateCompanionPreferences({ preferredBotId: input.botId, showReply });
   return session;
 }
@@ -287,6 +337,9 @@ export async function switchUnifiedCompanionBot(
       current.botColor !== input.botColor ||
       current.botAvatarSet !== (input.botAvatarSet ?? null)
     ) {
+      if (current.mode === "live-activity" && companionAvailable()) {
+        return startUnifiedCompanion(input);
+      }
       const refreshed: ActiveCompanionSession = {
         ...current,
         botName: input.botName,
@@ -294,6 +347,14 @@ export async function switchUnifiedCompanionBot(
         botAvatarSet: input.botAvatarSet ?? null,
       };
       setActiveCompanionSessionState(refreshed);
+      registerBotNotificationProfiles([
+        {
+          id: refreshed.botId,
+          name: refreshed.botName,
+          color: refreshed.botColor,
+          avatarSet: refreshed.botAvatarSet,
+        },
+      ]);
       return refreshed;
     }
     return current;

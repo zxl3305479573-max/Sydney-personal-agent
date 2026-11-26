@@ -419,7 +419,13 @@ export function themeScopeForRoute(routeName: string): ThemeScope {
   if (/^projects\/[^/]+\/chat$/.test(route)) return "projectThread";
   if (route === "projects" || route.startsWith("projects/")) return "projects";
   if (route === "group-thread") return "groupThread";
-  if (route === "thread" || route === "peer-chat" || route === "thread-model") return "thread";
+  if (
+    route === "thread" ||
+    route === "peer-chat" ||
+    route === "thread-model" ||
+    route === "companion-capture"
+  )
+    return "thread";
   if (route === "github" || route === "github-repo") return "github";
   if (route === "computer") return "computer";
   if (["sign-in", "server"].includes(route)) return "auth";

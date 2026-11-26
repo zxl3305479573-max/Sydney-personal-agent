@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   activityListeners: new Set<() => void>(),
   startCompanion: vi.fn(),
   stopCompanion: vi.fn(),
+  updateCompanion: vi.fn(async () => undefined),
   stopCompanionScreenAuto: vi.fn(),
 }));
 
@@ -49,8 +50,10 @@ vi.mock("./session", () => ({
 vi.mock("./companion-activity", () => ({
   companionAvailable: () => state.nativeAvailable,
   activeCompanionIdentity: () => state.nativeActivity,
+  isCallOwnedCompanionActivity: () => false,
   startCompanion: state.startCompanion,
   stopCompanion: state.stopCompanion,
+  updateCompanion: state.updateCompanion,
   subscribeCompanionActivity: (listener: () => void) => {
     state.activityListeners.add(listener);
     return () => state.activityListeners.delete(listener);
@@ -147,6 +150,69 @@ describe("companion-session (CMP-01)", () => {
     await stopUnifiedCompanion();
     expect(state.stopCompanion).toHaveBeenCalledOnce();
     expect(getCompanionSessionState().active).toBeNull();
+  });
+
+  it("seeds Dynamic Island immediately with each bot's avatar and latest reply when starting or switching bots", async () => {
+    state.nativeAvailable = true;
+    await startUnifiedCompanion({
+      botId: "bot-a",
+      botName: "大肥鱼",
+      botColor: "#EAB308::shape_2",
+      spaceId: "space-1",
+      showReply: true,
+      initialReply: "任务已经全部整理好了",
+    });
+    expect(state.startCompanion).toHaveBeenCalledWith(
+      "bot-a",
+      "大肥鱼",
+      "space-1",
+      true,
+      expect.objectContaining({ color: "#EAB308::shape_2" }),
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(state.updateCompanion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botId: "bot-a",
+        spaceId: "space-1",
+        status: "present",
+        latestReply: "任务已经全部整理好了",
+      }),
+    );
+
+    await switchUnifiedCompanionBot({
+      botId: "bot-b",
+      botName: "Claude",
+      botColor: "data:image/png;base64,YWJj",
+      spaceId: "space-1",
+      showReply: true,
+      initialReply: "这是第二个伙伴的最新回复",
+    });
+    expect(state.startCompanion).toHaveBeenLastCalledWith(
+      "bot-b",
+      "Claude",
+      "space-1",
+      true,
+      expect.objectContaining({ color: "data:image/png;base64,YWJj" }),
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(state.updateCompanion).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        botId: "bot-b",
+        latestReply: "这是第二个伙伴的最新回复",
+      }),
+    );
+
+    // Updating the same bot's avatar refreshes the native Live Activity too.
+    await switchUnifiedCompanionBot({
+      botId: "bot-b",
+      botName: "Claude Pro",
+      botColor: "#2563EB",
+      spaceId: "space-1",
+      showReply: true,
+    });
+    expect(state.startCompanion).toHaveBeenCalledTimes(3);
   });
 
   it("rejects starting while workspace selection is pending", async () => {

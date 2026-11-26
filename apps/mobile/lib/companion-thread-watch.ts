@@ -1,3 +1,4 @@
+import type { BotAvatarSet } from "@rakazo/contracts";
 import {
   abortableDelay,
   isRetryableError,
@@ -19,17 +20,20 @@ import {
   subscribeThread,
 } from "./api";
 import { useAppForeground } from "./app-foreground";
+import { deliverBotLocalNotification } from "./bot-local-notification";
+import { resolveBotNotificationProfile } from "./bot-notification-registry";
+import { isCallLiveActivityControlling } from "./call-live-activity";
 import { getSnapshot as getCallSnapshot, subscribe as subscribeCall } from "./call-session";
 import type { CompanionScreenState } from "./companion-activity";
 import {
   activeCompanionIdentity,
   companionActivityRevision,
   companionScreenState,
+  isCallOwnedCompanionActivity,
   subscribeCompanionActivity,
   subscribeCompanionScreenState,
   updateCompanion,
 } from "./companion-activity";
-import { companionPresentation } from "./companion-presentation";
 import { companionScreenAutoSnapshot, useCompanionScreenAuto } from "./companion-screen-auto";
 import type { CompanionDetailStatus, CompanionMode } from "./companion-session-state";
 import {
@@ -55,6 +59,8 @@ export type CompanionWatchAlert = {
   kind: "message" | "attention";
   botId: string;
   botName: string;
+  botColor?: string;
+  botAvatarSet?: BotAvatarSet | null;
   spaceId: string | null;
   body: string;
   deliveryId: string;
@@ -83,27 +89,16 @@ async function defaultDeliverNotification(alert: CompanionWatchAlert): Promise<v
   if (alert.kind === "attention" && !notifPrefs.needsAttention) return;
   if (alert.kind === "message" && !notifPrefs.messages) return;
   try {
-    const Notifications = await import("expo-notifications");
-    const bounded = companionPresentation({
+    await deliverBotLocalNotification({
+      kind: alert.kind,
+      botId: alert.botId,
       botName: alert.botName,
-      status: "present",
-      latestReply: alert.body,
-      showReply: true,
-    });
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: bounded.title,
-        body: bounded.reply ?? alert.body,
-        sound: notifPrefs.sound ? "default" : false,
-        data: {
-          kind: alert.kind === "attention" ? "attention" : "message",
-          botId: alert.botId,
-          ...(alert.spaceId ? { spaceId: alert.spaceId } : {}),
-          name: alert.botName,
-          deliveryId: alert.deliveryId,
-        },
-      },
-      trigger: null,
+      botColor: alert.botColor,
+      botAvatarSet: alert.botAvatarSet,
+      spaceId: alert.spaceId,
+      body: alert.body,
+      deliveryId: alert.deliveryId,
+      playSound: notifPrefs.sound,
     });
   } catch {
     // Notification delivery is best-effort and never blocks companion tracking.
@@ -198,7 +193,7 @@ export function watchCompanionThread(input: {
       reconnecting: false,
     });
 
-    if (mode === "live-activity") {
+    if (mode === "live-activity" && !isCallLiveActivityControlling(input.activityId)) {
       void updateCompanion({
         botId: input.botId,
         spaceId: input.spaceId,
@@ -211,7 +206,14 @@ export function watchCompanionThread(input: {
     if (!options?.allowAlerts || !baselineCaptured) return;
     const prefs = getCachedCompanionPreferences();
     const viewingThisThread = getCompanionOpenThreadBotId() === input.botId;
-    const botName = input.botName || getActiveCompanionSession()?.botName || "Sydney";
+    const activeSession = getActiveCompanionSession();
+    const sessionMatch = activeSession?.botId === input.botId ? activeSession : null;
+    const botProfile = resolveBotNotificationProfile(input.botId, {
+      name: input.botName || sessionMatch?.botName,
+      color: sessionMatch?.botColor,
+      avatarSet: sessionMatch?.botAvatarSet,
+    });
+    const botName = botProfile.name || "Sydney";
 
     if (waiting && snapshot?.run?.id) {
       const attentionKey = `${snapshot.run.id}:${runStatus}`;
@@ -222,6 +224,8 @@ export function watchCompanionThread(input: {
             kind: "attention",
             botId: input.botId,
             botName,
+            ...(botProfile.color ? { botColor: botProfile.color } : {}),
+            ...(botProfile.avatarSet !== undefined ? { botAvatarSet: botProfile.avatarSet } : {}),
             spaceId: input.spaceId,
             body: "正在等待你的确认或回复",
             deliveryId: `companion-attention:${attentionKey}`,
@@ -237,6 +241,8 @@ export function watchCompanionThread(input: {
           kind: "message",
           botId: input.botId,
           botName,
+          ...(botProfile.color ? { botColor: botProfile.color } : {}),
+          ...(botProfile.avatarSet !== undefined ? { botAvatarSet: botProfile.avatarSet } : {}),
           spaceId: input.spaceId,
           body: prefs.showReply ? latestMessage.text : "发来了一条新回复",
           deliveryId: `companion-reply:${latestMessage.id}`,
@@ -394,7 +400,9 @@ export function useCompanionThreadWatch(ready: boolean): void {
     const nativeActivity = activeCompanionIdentity();
     const localSession = getActiveCompanionSession();
     const target =
-      nativeActivity && nativeActivity.spaceId === spaceId
+      nativeActivity &&
+      !isCallOwnedCompanionActivity(nativeActivity.id) &&
+      nativeActivity.spaceId === spaceId
         ? {
             id: nativeActivity.id,
             botId: nativeActivity.botId,
