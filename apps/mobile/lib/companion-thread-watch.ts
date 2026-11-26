@@ -30,6 +30,7 @@ import {
   companionActivityRevision,
   companionScreenState,
   isCallOwnedCompanionActivity,
+  isCompanionBackgroundVoiceActive,
   subscribeCompanionActivity,
   subscribeCompanionScreenState,
   updateCompanion,
@@ -107,6 +108,7 @@ async function defaultDeliverNotification(alert: CompanionWatchAlert): Promise<v
 
 async function defaultSpeakReply(botId: string, text: string, owner: symbol): Promise<void> {
   try {
+    if (isCompanionBackgroundVoiceActive()) return;
     const voice = await import("./voice");
     if (getCallSnapshot() || voice.getVoicePlaybackState().status !== "idle") return;
     await voice.speakWithDeviceVoice(text, botId, undefined, owner);

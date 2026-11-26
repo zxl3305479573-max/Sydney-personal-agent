@@ -67,6 +67,9 @@ type CompanionNativeModule = {
   stopScreen(): Promise<void>;
   takeScreenText(): Promise<string | null>;
   peekScreenSnapshot?(): Promise<{ state?: string; text?: string; capturedAt?: number } | null>;
+  getVoiceOutputMode?(): string | null;
+  setVoiceOutputMode?(mode: string): Promise<void>;
+  isBackgroundVoiceActive?(): boolean;
   addListener(
     event: "onScreenState",
     listener: (event: { state: string }) => void,
@@ -116,6 +119,34 @@ export function companionSupportsCallStatus(): boolean {
       typeof native?.supportsCallStatus === "function" &&
       native.supportsCallStatus(),
   );
+}
+
+export function nativeCompanionVoiceOutputMode(): "both" | "text" | "voice" | null {
+  if (!native || !companionAvailable() || typeof native.getVoiceOutputMode !== "function") {
+    return null;
+  }
+  try {
+    const mode = native.getVoiceOutputMode();
+    return mode === "both" || mode === "text" || mode === "voice" ? mode : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function syncCompanionVoiceOutputMode(mode: "both" | "text" | "voice"): Promise<void> {
+  if (!native || !companionAvailable() || typeof native.setVoiceOutputMode !== "function") return;
+  await native.setVoiceOutputMode(mode);
+}
+
+export function isCompanionBackgroundVoiceActive(): boolean {
+  if (!native || !companionAvailable() || typeof native.isBackgroundVoiceActive !== "function") {
+    return false;
+  }
+  try {
+    return Boolean(native.isBackgroundVoiceActive());
+  } catch {
+    return false;
+  }
 }
 
 export function isCallOwnedCompanionActivity(activityId: string | null | undefined): boolean {

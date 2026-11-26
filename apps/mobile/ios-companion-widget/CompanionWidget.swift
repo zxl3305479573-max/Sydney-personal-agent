@@ -38,6 +38,7 @@ struct CompanionWidget: Widget {
       let isCall = context.state.callActive == true
       let displayStatus = context.isStale && !isCall ? "状态待更新" : context.state.status
       let isBackgroundListening = !isCall && displayStatus.contains("正在听")
+      let isBackgroundSpeaking = !isCall && displayStatus.contains("播报")
       let accent = lockScreenStatusAccent(displayStatus, isCall: isCall)
       let cleanReply = cleanedReply(context.state.reply)
       HStack(alignment: .center, spacing: 12) {
@@ -46,7 +47,7 @@ struct CompanionWidget: Widget {
           botName: context.attributes.botName,
           botId: context.attributes.botId,
           status: displayStatus,
-          isCall: isCall || isBackgroundListening,
+          isCall: isCall || isBackgroundListening || isBackgroundSpeaking,
           size: 42,
           onDarkSurface: false
         )
@@ -88,12 +89,16 @@ struct CompanionWidget: Widget {
             Text(reply)
               .font(.subheadline)
               .foregroundStyle(.primary)
-              .lineLimit(3)
+              .lineLimit(4)
               .truncationMode(.tail)
               .lineSpacing(1.5)
               .unredacted()
           } else if !isCall {
-            Text(context.attributes.showReply ? "随时待命，点击打开对话" : "回复内容已隐藏")
+            Text(
+              isBackgroundSpeaking
+                ? "正在语音播报回复…"
+                : (context.attributes.showReply ? "随时待命，点击打开对话" : "回复内容已隐藏")
+            )
               .font(.footnote)
               .foregroundStyle(.secondary)
               .lineLimit(1)
@@ -109,6 +114,8 @@ struct CompanionWidget: Widget {
       let isCall = context.state.callActive == true
       let displayStatus = context.isStale && !isCall ? "状态待更新" : context.state.status
       let isBackgroundListening = !isCall && displayStatus.contains("正在听")
+      let isBackgroundSpeaking = !isCall && displayStatus.contains("播报")
+      let voiceOutputMode = normalizedVoiceOutputMode(context.state.voiceOutputMode)
       let accent = statusAccent(displayStatus, isCall: isCall)
       let cleanReply = cleanedReply(context.state.reply)
       return DynamicIsland {
@@ -118,8 +125,8 @@ struct CompanionWidget: Widget {
             botName: context.attributes.botName,
             botId: context.attributes.botId,
             status: displayStatus,
-            isCall: isCall || isBackgroundListening,
-            size: 32
+            isCall: isCall || isBackgroundListening || isBackgroundSpeaking,
+            size: 30
           )
           .padding(.leading, 4)
           .padding(.top, 2)
@@ -163,10 +170,10 @@ struct CompanionWidget: Widget {
           }
         }
         DynamicIslandExpandedRegion(.bottom) {
-          VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+          VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .center, spacing: 6) {
               Text(context.attributes.botName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13.5, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .unredacted()
@@ -176,24 +183,29 @@ struct CompanionWidget: Widget {
                   .foregroundStyle(accent)
                   .lineLimit(1)
                   .unredacted()
+              } else {
+                Spacer(minLength: 6)
+                voiceModeButton(attributes: context.attributes, mode: voiceOutputMode)
               }
             }
 
             if let reply = cleanReply {
               Text(reply)
-                .font(.system(size: 13))
-                .foregroundStyle(Color.white.opacity(0.95))
-                .lineLimit(2)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.white.opacity(0.96))
+                .lineLimit(3)
                 .truncationMode(.tail)
-                .lineSpacing(1.5)
+                .lineSpacing(1)
                 .unredacted()
             } else if !isCall {
               Text(
                 isBackgroundListening
                   ? "正在聆听，说完停顿片刻或点击发送…"
-                  : (context.attributes.showReply ? "随时待命，点下方按钮直接互动" : "回复内容已隐藏")
+                  : isBackgroundSpeaking
+                    ? "正在语音播报回复…"
+                    : (context.attributes.showReply ? "随时待命，点下方按钮直接互动" : "回复内容已隐藏")
               )
-              .font(.system(size: 12.5))
+              .font(.system(size: 12))
               .foregroundStyle(Color.islandSecondary)
               .lineLimit(2)
               .truncationMode(.tail)
@@ -204,12 +216,13 @@ struct CompanionWidget: Widget {
               attributes: context.attributes,
               accent: accent,
               isCall: isCall,
-              isBackgroundListening: isBackgroundListening
+              isBackgroundListening: isBackgroundListening,
+              isBackgroundSpeaking: isBackgroundSpeaking
             )
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal, 2)
-          .padding(.top, 2)
+          .padding(.top, 0)
           .padding(.bottom, 2)
         }
       } compactLeading: {
@@ -218,7 +231,7 @@ struct CompanionWidget: Widget {
           botName: context.attributes.botName,
           botId: context.attributes.botId,
           status: displayStatus,
-          isCall: isCall || isBackgroundListening,
+          isCall: isCall || isBackgroundListening || isBackgroundSpeaking,
           size: 24
         )
         .padding(.leading, 2)
@@ -251,7 +264,7 @@ struct CompanionWidget: Widget {
             .padding(.trailing, 3)
         }
       } minimal: {
-        if isCall || isBackgroundListening {
+        if isCall || isBackgroundListening || isBackgroundSpeaking {
           callSignalIcon(displayStatus, size: 13)
         } else {
           avatarBadge(
@@ -269,12 +282,63 @@ struct CompanionWidget: Widget {
     }
   }
 
+  private func normalizedVoiceOutputMode(_ raw: String?) -> String {
+    switch raw {
+    case "text", "voice", "both":
+      return raw!
+    default:
+      return "both"
+    }
+  }
+
+  @ViewBuilder
+  private func voiceModeButton(
+    attributes: CompanionActivityAttributes,
+    mode: String
+  ) -> some View {
+    let icon: String
+    let label: String
+    switch mode {
+    case "text":
+      icon = "text.bubble.fill"
+      label = "仅文字"
+    case "voice":
+      icon = "speaker.wave.2.fill"
+      label = "仅语音"
+    default:
+      icon = "speaker.wave.2.fill"
+      label = "文字+语音"
+    }
+    let badge = HStack(spacing: 3) {
+      Image(systemName: icon)
+        .font(.system(size: 9.5, weight: .semibold))
+      Text(label)
+        .font(.system(size: 10.5, weight: .semibold))
+        .lineLimit(1)
+    }
+    .foregroundStyle(Color.white.opacity(0.92))
+    .unredacted()
+    .padding(.horizontal, 7)
+    .padding(.vertical, 3)
+    .background(Color.islandPill, in: Capsule())
+
+    if #available(iOS 17.0, *) {
+      Button(intent: CompanionVoiceCycleOutputIntent(botId: attributes.botId, spaceId: attributes.spaceId)) {
+        badge
+      }
+      .buttonStyle(.plain)
+    } else {
+      badge
+    }
+  }
+
   @ViewBuilder
   private func actionRow(
     attributes: CompanionActivityAttributes,
     accent: Color,
     isCall: Bool,
-    isBackgroundListening: Bool
+    isBackgroundListening: Bool,
+    isBackgroundSpeaking: Bool
   ) -> some View {
     HStack(spacing: 8) {
       if isCall {
@@ -291,6 +355,23 @@ struct CompanionWidget: Widget {
           .buttonStyle(.plain)
           Button(intent: CompanionVoiceCancelIntent()) {
             actionLabel("取消", systemImage: "xmark", background: Color.islandPill)
+          }
+          .buttonStyle(.plain)
+        } else if let url = chatURL(attributes) {
+          Link(destination: url) {
+            actionLabel("打开对话", systemImage: "bubble.left.fill", background: Color.islandPill)
+          }
+        }
+      } else if isBackgroundSpeaking {
+        if #available(iOS 17.0, *) {
+          Button(intent: CompanionVoiceStopSpeakingIntent()) {
+            actionLabel("停止播报", systemImage: "speaker.slash.fill", background: accent.opacity(0.34))
+          }
+          .buttonStyle(.plain)
+        }
+        if #available(iOS 18.0, *) {
+          Button(intent: CompanionVoiceToggleIntent(botId: attributes.botId, spaceId: attributes.spaceId)) {
+            actionLabel("继续说", systemImage: "waveform", background: Color.islandPill)
           }
           .buttonStyle(.plain)
         } else if let url = chatURL(attributes) {
@@ -328,7 +409,7 @@ struct CompanionWidget: Widget {
       Image(systemName: systemImage)
         .font(.system(size: 11, weight: .semibold))
       Text(title)
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 11.5, weight: .semibold))
         .lineLimit(1)
         .minimumScaleFactor(0.85)
     }
@@ -336,7 +417,7 @@ struct CompanionWidget: Widget {
     .unredacted()
     .frame(maxWidth: .infinity)
     .padding(.horizontal, 6)
-    .padding(.vertical, 6.5)
+    .padding(.vertical, 6)
     .background(background, in: Capsule())
   }
 
@@ -362,7 +443,7 @@ struct CompanionWidget: Widget {
     }
     if status.contains("断开") || status.contains("待更新") { return .statusDisconnected }
     if status.contains("思考") { return .statusThinking }
-    if status.contains("听") { return .statusListening }
+    if status.contains("听") || status.contains("播报") { return .statusListening }
     return .statusPresent
   }
 
@@ -374,7 +455,7 @@ struct CompanionWidget: Widget {
     }
     if status.contains("断开") || status.contains("待更新") { return .red }
     if status.contains("思考") { return .orange }
-    if status.contains("听") { return .blue }
+    if status.contains("听") || status.contains("播报") { return .blue }
     return .green
   }
 
@@ -389,6 +470,8 @@ struct CompanionWidget: Widget {
   private func companionStatusIcon(_ status: String, size: CGFloat, tint: Color) -> some View {
     if status.contains("思考") {
       animatedSymbol("ellipsis", size: size, tint: tint)
+    } else if status.contains("播报") {
+      animatedSymbol("speaker.wave.2.fill", size: size, tint: tint)
     } else if status.contains("听") {
       animatedSymbol("waveform", size: size, tint: tint)
     } else if status.contains("断开") || status.contains("待更新") {
@@ -411,7 +494,7 @@ struct CompanionWidget: Widget {
         .foregroundStyle(tint)
     } else if status.contains("思考") {
       animatedSymbol("ellipsis", size: size, tint: tint)
-    } else if status.contains("说话") {
+    } else if status.contains("说话") || status.contains("播报") {
       animatedSymbol("speaker.wave.2.fill", size: size, tint: tint)
     } else {
       animatedSymbol("waveform", size: size, tint: tint)

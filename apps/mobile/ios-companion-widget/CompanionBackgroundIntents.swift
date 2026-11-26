@@ -90,15 +90,22 @@ struct SydneyAskScreenshotIntent: AppIntent {
         )
         return .result(value: fallback, dialog: "\(fallback)")
       }
+      if speakReply {
+        await updateActiveCompanionIsland(
+          botId: target.botId,
+          spaceId: target.spaceId,
+          status: "正在播报",
+          reply: replyText,
+          staleAfterSeconds: 90
+        )
+        await CompanionBackgroundSpeaker.shared.speakAndWait(replyText, activateSession: true)
+      }
       await updateActiveCompanionIsland(
         botId: target.botId,
         spaceId: target.spaceId,
         status: "我一直都在",
         reply: replyText
       )
-      if speakReply {
-        await CompanionBackgroundSpeaker.shared.speakAndWait(replyText, activateSession: true)
-      }
       return .result(value: replyText, dialog: "\(replyText)")
     } catch {
       let reason = companionErrorDescription(error)
@@ -240,10 +247,98 @@ struct SydneyCompanionShortcuts: AppShortcutsProvider {
   }
 }
 
+enum CompanionVoiceOutputMode: String {
+  case both
+  case text
+  case voice
+
+  var showsTextOnIsland: Bool { self == .both || self == .text }
+  var speaksAloud: Bool { self == .both || self == .voice }
+
+  var next: CompanionVoiceOutputMode {
+    switch self {
+    case .both: return .text
+    case .text: return .voice
+    case .voice: return .both
+    }
+  }
+
+  var listeningHint: String {
+    switch self {
+    case .both: return "正在听，回复将显示文字并语音播报…"
+    case .text: return "正在听，回复将直接显示在灵动岛…"
+    case .voice: return "正在听，回复将通过语音播报…"
+    }
+  }
+
+  static let allListeningHints: Set<String> = [
+    "正在听，请直接说话…",
+    CompanionVoiceOutputMode.both.listeningHint,
+    CompanionVoiceOutputMode.text.listeningHint,
+    CompanionVoiceOutputMode.voice.listeningHint,
+  ]
+}
+
+private struct CompanionStoredPrefs: Decodable {
+  let islandVoiceOutput: String?
+}
+
+func resolveStoredVoiceOutputMode() -> CompanionVoiceOutputMode {
+  if CompanionVoiceBridge.hasStoredOutputMode() {
+    return CompanionVoiceOutputMode(rawValue: CompanionVoiceBridge.currentOutputMode()) ?? .both
+  }
+  if let raw = companionSecureStoreItem("sydney.mobile.companionPrefs.v1")?.data(using: .utf8),
+    let prefs = try? JSONDecoder().decode(CompanionStoredPrefs.self, from: raw),
+    let mode = prefs.islandVoiceOutput.flatMap(CompanionVoiceOutputMode.init(rawValue:))
+  {
+    CompanionVoiceBridge.setOutputMode(mode.rawValue)
+    return mode
+  }
+  return .both
+}
+
+@MainActor
+func cycleCompanionVoiceOutputMode(botId: String?, spaceId: String?) async {
+  let next = resolveStoredVoiceOutputMode().next
+  CompanionVoiceBridge.setOutputMode(next.rawValue)
+
+  if #available(iOS 18.0, *) {
+    await CompanionBackgroundVoiceManager.shared.handleOutputModeChanged(to: next)
+  }
+
+  let activities = Activity<CompanionActivityAttributes>.activities
+  let activity =
+    activities.first(where: {
+      (botId == nil || $0.attributes.botId == botId)
+        && ($0.attributes.spaceId == spaceId || spaceId == nil)
+    }) ?? activities.first
+  guard let activity, activity.content.state.callActive != true else { return }
+
+  let current = activity.content.state
+  let updatedReply: String?
+  if current.status.contains("正在听"),
+    let currentReply = current.reply,
+    CompanionVoiceOutputMode.allListeningHints.contains(currentReply)
+  {
+    updatedReply = next.listeningHint
+  } else {
+    updatedReply = current.reply
+  }
+
+  let nextState = CompanionActivityAttributes.ContentState(
+    status: current.status,
+    reply: updatedReply,
+    callActive: current.callActive,
+    callStartedAt: current.callStartedAt,
+    voiceOutputMode: next.rawValue
+  )
+  await activity.update(ActivityContent(state: nextState, staleDate: activity.content.staleDate))
+}
+
 /// Manages true background voice dialogue directly from the Dynamic Island on iOS 18+:
 /// records speech with AVAudioEngine + SFSpeechRecognizer while keeping the current foreground app
 /// undisturbed, streams partial text to the Dynamic Island, sends to the active companion bot,
-/// renders the reply straight onto the Dynamic Island, and speaks the reply aloud.
+/// and delivers the reply as live Dynamic Island text, background speech broadcast, or both.
 @available(iOS 18.0, *)
 @MainActor
 final class CompanionBackgroundVoiceManager {
@@ -260,19 +355,67 @@ final class CompanionBackgroundVoiceManager {
   private var startedAt = Date()
   /// Counts in-flight send/reply/TTS cycles so iOS keeps the background audio session alive until finished.
   private var activeReplies = 0
+  private var overrideOutputMode: CompanionVoiceOutputMode?
+  private var isSpeakingReply = false
+  private var speakingBotId: String?
+  private var speakingSpaceId: String?
+  private var speakingReply: String?
+  private var voiceBusyClaimed = false
 
   var isRecording: Bool { request != nil }
 
-  func toggle(botId: String?, spaceId: String?) async throws {
-    if isRecording {
-      await finish()
-    } else {
-      try await start(botId: botId, spaceId: spaceId)
+  private func effectiveOutputMode() -> CompanionVoiceOutputMode {
+    overrideOutputMode ?? resolveStoredVoiceOutputMode()
+  }
+
+  private func resolvedChoice(_ choice: CompanionVoiceOutputChoice?) -> CompanionVoiceOutputMode? {
+    guard let choice else { return nil }
+    switch choice {
+    case .followSettings: return nil
+    case .both: return .both
+    case .text: return .text
+    case .voice: return .voice
     }
   }
 
-  func start(botId: String?, spaceId: String?) async throws {
+  private func syncVoiceBridgeBusy() {
+    let shouldBeBusy = isRecording || activeReplies > 0 || isSpeakingReply
+    if shouldBeBusy && !voiceBusyClaimed {
+      voiceBusyClaimed = true
+      CompanionVoiceBridge.beginBackgroundVoice()
+    } else if !shouldBeBusy && voiceBusyClaimed {
+      voiceBusyClaimed = false
+      CompanionVoiceBridge.endBackgroundVoice()
+    }
+  }
+
+  func toggle(
+    botId: String?,
+    spaceId: String?,
+    outputMode: CompanionVoiceOutputChoice? = nil
+  ) async throws {
+    if isRecording {
+      await finish()
+    } else if isSpeakingReply {
+      await stopSpeaking(restoreIdle: false)
+      try await start(botId: botId, spaceId: spaceId, outputMode: outputMode)
+    } else {
+      try await start(botId: botId, spaceId: spaceId, outputMode: outputMode)
+    }
+  }
+
+  func start(
+    botId: String?,
+    spaceId: String?,
+    outputMode: CompanionVoiceOutputChoice? = nil
+  ) async throws {
     CompanionBackgroundSpeaker.shared.stop()
+    isSpeakingReply = false
+    speakingBotId = nil
+    speakingSpaceId = nil
+    speakingReply = nil
+    overrideOutputMode = resolvedChoice(outputMode)
+    syncVoiceBridgeBusy()
 
     guard let target = resolveCompanionTarget(botId: botId, spaceId: spaceId) else {
       throw CompanionBackgroundError.noBot
@@ -364,14 +507,17 @@ final class CompanionBackgroundVoiceManager {
     session = loadedSession
     transcript = ""
     startedAt = Date()
+    syncVoiceBridgeBusy()
 
+    let mode = effectiveOutputMode()
     await updateActiveCompanionIsland(
       botId: target.botId,
       spaceId: target.spaceId,
       status: "正在听",
-      reply: "正在听，请直接说话…",
+      reply: mode.listeningHint,
       staleAfterSeconds: 90,
-      bypassPrivacyGate: true
+      bypassPrivacyGate: true,
+      voiceOutputMode: mode.rawValue
     )
 
     task = recognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
@@ -394,13 +540,16 @@ final class CompanionBackgroundVoiceManager {
       transcript = heard
       if let botId = targetBotId {
         let spaceId = targetSpaceId
+        let mode = effectiveOutputMode()
         Task {
           await updateActiveCompanionIsland(
             botId: botId,
             spaceId: spaceId,
             status: "正在听",
             reply: heard,
-            staleAfterSeconds: 90
+            staleAfterSeconds: 90,
+            bypassPrivacyGate: true,
+            voiceOutputMode: mode.rawValue
           )
         }
       }
@@ -423,6 +572,62 @@ final class CompanionBackgroundVoiceManager {
     }
   }
 
+  private func handleStreamingReply(_ partialText: String, botId: String, spaceId: String?) async {
+    guard !isRecording else { return }
+    let mode = effectiveOutputMode()
+    if mode.showsTextOnIsland {
+      await updateActiveCompanionIsland(
+        botId: botId,
+        spaceId: spaceId,
+        status: "思考中",
+        reply: partialText,
+        staleAfterSeconds: 90,
+        bypassPrivacyGate: true,
+        voiceOutputMode: mode.rawValue
+      )
+    } else {
+      await updateActiveCompanionIsland(
+        botId: botId,
+        spaceId: spaceId,
+        status: "思考中",
+        reply: "正在生成语音回复…",
+        staleAfterSeconds: 90,
+        bypassPrivacyGate: true,
+        voiceOutputMode: mode.rawValue
+      )
+    }
+  }
+
+  func handleOutputModeChanged(to next: CompanionVoiceOutputMode) async {
+    overrideOutputMode = nil
+    if next == .text && isSpeakingReply {
+      await stopSpeaking(restoreIdle: true)
+    }
+  }
+
+  func stopSpeaking(restoreIdle: Bool = true) async {
+    let botId = speakingBotId
+    let spaceId = speakingSpaceId
+    let reply = speakingReply
+    let wasSpeaking = isSpeakingReply || CompanionBackgroundSpeaker.shared.isSpeaking
+    isSpeakingReply = false
+    speakingBotId = nil
+    speakingSpaceId = nil
+    speakingReply = nil
+    CompanionBackgroundSpeaker.shared.stop()
+    syncVoiceBridgeBusy()
+    guard restoreIdle, wasSpeaking, !isRecording, let botId else { return }
+    let mode = effectiveOutputMode()
+    await updateActiveCompanionIsland(
+      botId: botId,
+      spaceId: spaceId,
+      status: "我一直都在",
+      reply: mode.showsTextOnIsland ? (reply ?? "已停止播报") : "已停止播报",
+      bypassPrivacyGate: true,
+      voiceOutputMode: mode.rawValue
+    )
+  }
+
   func finish(
     recognizerFailed: Bool = false,
     only expected: SFSpeechAudioBufferRecognitionRequest? = nil
@@ -438,19 +643,29 @@ final class CompanionBackgroundVoiceManager {
 
     stopListening(activeRequest)
     activeReplies += 1
+    syncVoiceBridgeBusy()
     keepMicrophoneOpen()
     defer {
       activeReplies -= 1
+      if isSpeakingReply && speakingBotId == botId {
+        isSpeakingReply = false
+        speakingBotId = nil
+        speakingSpaceId = nil
+        speakingReply = nil
+      }
       releaseUnusedMicrophone()
+      syncVoiceBridgeBusy()
     }
 
+    let initialMode = effectiveOutputMode()
     guard !spoken.isEmpty else {
       await updateActiveCompanionIsland(
         botId: botId,
         spaceId: spaceId,
         status: "我一直都在",
         reply: recognizerFailed ? "语音识别暂不可用，请重试。" : "没有听到说话内容。",
-        bypassPrivacyGate: true
+        bypassPrivacyGate: true,
+        voiceOutputMode: initialMode.rawValue
       )
       return
     }
@@ -460,7 +675,9 @@ final class CompanionBackgroundVoiceManager {
       spaceId: spaceId,
       status: "思考中",
       reply: "你：\(spoken)",
-      staleAfterSeconds: 90
+      staleAfterSeconds: 90,
+      bypassPrivacyGate: true,
+      voiceOutputMode: initialMode.rawValue
     )
 
     do {
@@ -471,32 +688,78 @@ final class CompanionBackgroundVoiceManager {
         with: loadedSession,
         timeout: 25
       )
-      if let replyText = try await awaitCompanionReply(for: delivery, timeoutSeconds: 45),
-        !replyText.isEmpty
-      {
-        await updateActiveCompanionIsland(
-          botId: botId,
-          spaceId: spaceId,
-          status: "我一直都在",
-          reply: replyText
-        )
-        await CompanionBackgroundSpeaker.shared.speakAndWait(replyText, activateSession: false)
+      let replyText = try await awaitCompanionReply(
+        for: delivery,
+        timeoutSeconds: 45,
+        onPartialText: { [weak self] partial in
+          await self?.handleStreamingReply(partial, botId: botId, spaceId: spaceId)
+        }
+      )
+      if let replyText, !replyText.isEmpty {
+        let finalMode = effectiveOutputMode()
+        if finalMode.speaksAloud {
+          isSpeakingReply = true
+          speakingBotId = botId
+          speakingSpaceId = spaceId
+          speakingReply = replyText
+          syncVoiceBridgeBusy()
+          await updateActiveCompanionIsland(
+            botId: botId,
+            spaceId: spaceId,
+            status: "正在播报",
+            reply: finalMode.showsTextOnIsland ? replyText : "正在语音播报回复…",
+            staleAfterSeconds: 90,
+            bypassPrivacyGate: true,
+            voiceOutputMode: finalMode.rawValue
+          )
+          await CompanionBackgroundSpeaker.shared.speakAndWait(replyText, activateSession: false)
+          let finishedNaturally = isSpeakingReply
+          isSpeakingReply = false
+          speakingBotId = nil
+          speakingSpaceId = nil
+          speakingReply = nil
+          syncVoiceBridgeBusy()
+          if finishedNaturally && !isRecording {
+            let postMode = effectiveOutputMode()
+            await updateActiveCompanionIsland(
+              botId: botId,
+              spaceId: spaceId,
+              status: "我一直都在",
+              reply: postMode.showsTextOnIsland ? replyText : "语音播报已完成",
+              bypassPrivacyGate: true,
+              voiceOutputMode: postMode.rawValue
+            )
+          }
+        } else {
+          await updateActiveCompanionIsland(
+            botId: botId,
+            spaceId: spaceId,
+            status: "我一直都在",
+            reply: replyText,
+            bypassPrivacyGate: true,
+            voiceOutputMode: finalMode.rawValue
+          )
+        }
       } else {
+        let fallbackMode = effectiveOutputMode()
         await updateActiveCompanionIsland(
           botId: botId,
           spaceId: spaceId,
           status: "我一直都在",
           reply: "消息已发送，回复稍后送达。",
-          bypassPrivacyGate: true
+          bypassPrivacyGate: true,
+          voiceOutputMode: fallbackMode.rawValue
         )
       }
     } catch {
+      let errorMode = effectiveOutputMode()
       await updateActiveCompanionIsland(
         botId: botId,
         spaceId: spaceId,
         status: "我一直都在",
         reply: companionErrorDescription(error),
-        bypassPrivacyGate: true
+        bypassPrivacyGate: true,
+        voiceOutputMode: errorMode.rawValue
       )
     }
   }
@@ -507,12 +770,14 @@ final class CompanionBackgroundVoiceManager {
     let spaceId = targetSpaceId
     stopListening(activeRequest)
     releaseUnusedMicrophone()
+    syncVoiceBridgeBusy()
     if let botId {
       await updateActiveCompanionIsland(
         botId: botId,
         spaceId: spaceId,
         status: "我一直都在",
-        reply: nil
+        reply: nil,
+        voiceOutputMode: effectiveOutputMode().rawValue
       )
     }
   }
@@ -553,15 +818,18 @@ final class CompanionBackgroundVoiceManager {
 }
 
 @MainActor
-private final class CompanionBackgroundSpeaker: NSObject, AVSpeechSynthesizerDelegate {
+final class CompanionBackgroundSpeaker: NSObject, AVSpeechSynthesizerDelegate {
   static let shared = CompanionBackgroundSpeaker()
 
   private let synthesizer = AVSpeechSynthesizer()
   private var continuation: CheckedContinuation<Void, Never>?
   private var timeoutTask: Task<Void, Never>?
 
+  var isSpeaking: Bool { synthesizer.isSpeaking }
+
   override init() {
     super.init()
+    synthesizer.usesApplicationAudioSession = true
     synthesizer.delegate = self
   }
 
@@ -582,18 +850,23 @@ private final class CompanionBackgroundSpeaker: NSObject, AVSpeechSynthesizerDel
   }
 
   func speakAndWait(_ rawText: String, activateSession: Bool) async {
-    let text = stripIslandMarkdown(rawText, maxChars: 240)
+    let text = cleanSpeechText(rawText, maxChars: 360)
     guard !text.isEmpty else { return }
     stop()
 
+    let audioSession = AVAudioSession.sharedInstance()
     if activateSession {
-      let audioSession = AVAudioSession.sharedInstance()
       try? audioSession.setCategory(
         .playback,
         mode: .spokenAudio,
         options: [.duckOthers, .allowBluetoothA2DP]
       )
       try? audioSession.setActive(true)
+    } else {
+      let outputs = audioSession.currentRoute.outputs
+      if !outputs.isEmpty && outputs.allSatisfy({ $0.portType == .builtInReceiver }) {
+        try? audioSession.overrideOutputAudioPort(.speaker)
+      }
     }
 
     let hasCJK = text.unicodeScalars.contains { scalar in
@@ -602,11 +875,12 @@ private final class CompanionBackgroundSpeaker: NSObject, AVSpeechSynthesizerDel
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: hasCJK ? "zh-CN" : "en-US")
     utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+    utterance.volume = 1.0
 
     await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
       continuation = cont
       synthesizer.speak(utterance)
-      let maxSeconds = min(60.0, max(12.0, Double(text.count) * 0.35 + 6.0))
+      let maxSeconds = min(75.0, max(12.0, Double(text.count) * 0.35 + 6.0))
       timeoutTask = Task { @MainActor [weak self] in
         try? await Task.sleep(nanoseconds: UInt64(maxSeconds * 1_000_000_000))
         guard !Task.isCancelled else { return }
@@ -696,12 +970,20 @@ private func resolveCompanionTarget(
   return (last, lastSpace?.isEmpty == false ? lastSpace : nil)
 }
 
-private func stripIslandMarkdown(_ raw: String, maxChars: Int = 115) -> String {
+private func stripIslandMarkdown(_ raw: String, maxChars: Int = 160) -> String {
+  var text = raw
+    .replacingOccurrences(of: #"```[^\n]*\n?"#, with: "", options: .regularExpression)
+    .replacingOccurrences(of: "```", with: "")
+    .replacingOccurrences(of: #"!\[([^\]]*)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
+    .replacingOccurrences(of: #"\[([^\]]+)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
+    .replacingOccurrences(of: #"(?m)^\s{0,3}#{1,6}\s+"#, with: "", options: .regularExpression)
+    .replacingOccurrences(of: #"(?m)^\s*>\s?"#, with: "", options: .regularExpression)
+    .replacingOccurrences(of: #"(?m)^\s*[-*+]\s+"#, with: "", options: .regularExpression)
   let options = AttributedString.MarkdownParsingOptions(
     interpretedSyntax: .inlineOnlyPreservingWhitespace
   )
-  var text =
-    (try? AttributedString(markdown: raw, options: options)).map { String($0.characters) } ?? raw
+  text =
+    (try? AttributedString(markdown: text, options: options)).map { String($0.characters) } ?? text
   text = text
     .replacingOccurrences(of: "**", with: "")
     .replacingOccurrences(of: "__", with: "")
@@ -717,13 +999,23 @@ private func stripIslandMarkdown(_ raw: String, maxChars: Int = 115) -> String {
   return String(trimmed.prefix(max(1, maxChars - 1))) + "…"
 }
 
+private func cleanSpeechText(_ raw: String, maxChars: Int = 360) -> String {
+  let withoutUrls = raw.replacingOccurrences(
+    of: #"https?://\S+"#,
+    with: "",
+    options: .regularExpression
+  )
+  return stripIslandMarkdown(withoutUrls, maxChars: maxChars)
+}
+
 private func updateActiveCompanionIsland(
   botId: String,
   spaceId: String?,
   status: String,
   reply: String?,
   staleAfterSeconds: TimeInterval? = nil,
-  bypassPrivacyGate: Bool = false
+  bypassPrivacyGate: Bool = false,
+  voiceOutputMode: String? = nil
 ) async {
   let activities = Activity<CompanionActivityAttributes>.activities
   let activity =
@@ -736,16 +1028,18 @@ private func updateActiveCompanionIsland(
   if let reply, !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
     (bypassPrivacyGate || activity.attributes.showReply)
   {
-    visibleReply = stripIslandMarkdown(reply, maxChars: 115)
+    visibleReply = stripIslandMarkdown(reply, maxChars: 160)
   } else {
     visibleReply = nil
   }
 
+  let resolvedMode = voiceOutputMode ?? resolveStoredVoiceOutputMode().rawValue
   let state = CompanionActivityAttributes.ContentState(
     status: status,
     reply: visibleReply,
     callActive: false,
-    callStartedAt: nil
+    callStartedAt: nil,
+    voiceOutputMode: resolvedMode
   )
   let staleDate = staleAfterSeconds.map { Date().addingTimeInterval($0) }
   await activity.update(ActivityContent(state: state, staleDate: staleDate))
@@ -799,17 +1093,17 @@ private func sendCompanionMessage(
 
 private func awaitCompanionReply(
   for delivery: CompanionDelivery,
-  timeoutSeconds: TimeInterval
+  timeoutSeconds: TimeInterval,
+  onPartialText: (@Sendable (String) async -> Void)? = nil
 ) async throws -> String? {
-  guard
-    try await delivery.session.waitForReply(
-      runId: delivery.runId,
-      botId: delivery.botId,
-      spaceId: delivery.spaceId,
-      timeoutSeconds: timeoutSeconds
-    )
-  else { return nil }
-  let thread: CompanionThreadSnapshot
+  let streamResult = try await delivery.session.waitForReply(
+    runId: delivery.runId,
+    botId: delivery.botId,
+    spaceId: delivery.spaceId,
+    timeoutSeconds: timeoutSeconds,
+    onPartialText: onPartialText
+  )
+  let thread: CompanionThreadSnapshot?
   do {
     thread = try await delivery.session.rpc(
       "threads/get",
@@ -819,21 +1113,31 @@ private func awaitCompanionReply(
     )
   } catch let error as URLError {
     if error.code == .cancelled { throw error }
-    return nil
+    thread = nil
+  } catch {
+    thread = nil
   }
-  if thread.run?.id == delivery.runId, thread.run?.status == "failed" {
-    throw CompanionBackgroundError.server(nil)
+  if let thread {
+    if thread.run?.id == delivery.runId, thread.run?.status == "failed" {
+      throw CompanionBackgroundError.server(nil)
+    }
+    let raw = thread.messages
+      .filter { $0.runId == delivery.runId && $0.role == "bot" }
+      .flatMap(\.blocks)
+      .compactMap(\.text)
+      .joined(separator: "\n\n")
+    if !raw.isEmpty {
+      return stripIslandMarkdown(raw, maxChars: 600)
+    }
+    if streamResult.completed,
+      thread.activeRuns?.contains(where: { $0.id == delivery.runId }) == true
+    {
+      throw CompanionBackgroundError.needsYou
+    }
   }
-  let raw = thread.messages
-    .filter { $0.runId == delivery.runId && $0.role == "bot" }
-    .flatMap(\.blocks)
-    .compactMap(\.text)
-    .joined(separator: "\n\n")
-  if raw.isEmpty, thread.activeRuns?.contains(where: { $0.id == delivery.runId }) == true {
-    throw CompanionBackgroundError.needsYou
-  }
-  guard !raw.isEmpty else { return nil }
-  return stripIslandMarkdown(raw, maxChars: 600)
+  let streamed = streamResult.streamedText.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !streamed.isEmpty else { return nil }
+  return stripIslandMarkdown(streamed, maxChars: 600)
 }
 
 /// Never forward session tokens or proxy credentials across HTTP redirects.
@@ -913,8 +1217,9 @@ private struct SydneyBackgroundSession {
     runId: String,
     botId: String,
     spaceId: String?,
-    timeoutSeconds: TimeInterval
-  ) async throws -> Bool {
+    timeoutSeconds: TimeInterval,
+    onPartialText: (@Sendable (String) async -> Void)? = nil
+  ) async throws -> (completed: Bool, streamedText: String) {
     var req = try makeRequest(
       "threads/subscribe",
       ["botId": botId, "cursor": 0],
@@ -930,6 +1235,9 @@ private struct SydneyBackgroundSession {
       delegateQueue: nil
     )
     defer { stream.invalidateAndCancel() }
+    var streamedText = ""
+    var lastReportedText = ""
+    var lastReportAt = Date.distantPast
     do {
       let (bytes, response) = try await stream.bytes(for: req)
       try checkResponse(response)
@@ -957,11 +1265,38 @@ private struct SydneyBackgroundSession {
             ).json,
             event.runId == runId
           else { continue }
+          if event.type == "thread.progress", event.payload?.activity != true {
+            if let delta = event.payload?.delta, !delta.isEmpty {
+              streamedText.append(delta)
+            } else if let text = event.payload?.text, !text.isEmpty {
+              streamedText = text
+            }
+          } else if (event.type == "thread.message.created"
+            || event.type == "thread.message.updated"),
+            (event.payload?.role ?? "bot") == "bot",
+            let blocks = event.payload?.blocks
+          {
+            let assembled = blocks
+              .filter { $0.kind == nil || $0.kind == "text" || $0.kind == "progress" }
+              .compactMap(\.text)
+              .joined(separator: "\n")
+            if !assembled.isEmpty {
+              streamedText = assembled
+            }
+          }
+          if let onPartialText, !streamedText.isEmpty, streamedText != lastReportedText {
+            let now = Date()
+            if now.timeIntervalSince(lastReportAt) >= 0.55 {
+              lastReportedText = streamedText
+              lastReportAt = now
+              await onPartialText(streamedText)
+            }
+          }
           if [
             "run.completed", "run.failed", "run.cancelled", "run.waiting_input",
             "computer.takeover.requested",
           ].contains(event.type) {
-            return true
+            return (true, streamedText)
           }
         } else {
           previousLf = byte == 10
@@ -976,7 +1311,7 @@ private struct SydneyBackgroundSession {
     } catch let error as URLError {
       if error.code == .cancelled { throw error }
     }
-    return false
+    return (false, streamedText)
   }
 
   private func makeRequest(
@@ -1103,8 +1438,20 @@ private struct CompanionArtifact: Decodable {
 }
 
 private struct CompanionReplyEvent: Decodable {
+  struct Payload: Decodable {
+    struct Block: Decodable {
+      let kind: String?
+      let text: String?
+    }
+    let delta: String?
+    let text: String?
+    let role: String?
+    let activity: Bool?
+    let blocks: [Block]?
+  }
   let runId: String?
   let type: String
+  let payload: Payload?
 }
 
 private struct CompanionThreadSnapshot: Decodable {

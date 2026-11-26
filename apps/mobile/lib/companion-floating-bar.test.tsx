@@ -272,6 +272,7 @@ describe("CompanionFloatingBar (CMP-03)", () => {
         showFloatingBar: true,
         notifyOnReply: true,
         speakReplies: false,
+        islandVoiceOutput: "both",
       });
     });
     expect(container.textContent).toContain("回复内容已隐藏");

@@ -253,6 +253,12 @@ describe("isolated companion widget plugin", () => {
     expect(widgetSwift).toContain("CompanionVoiceToggleIntent");
     expect(widgetSwift).toContain("CompanionVoiceFinishIntent");
     expect(widgetSwift).toContain("CompanionVoiceCancelIntent");
+    expect(widgetSwift).toContain("CompanionVoiceStopSpeakingIntent");
+    expect(widgetSwift).toContain("CompanionVoiceCycleOutputIntent");
+    expect(widgetSwift).toContain("停止播报");
+    expect(widgetSwift).toContain("仅文字");
+    expect(widgetSwift).toContain("仅语音");
+    expect(widgetSwift).toContain("文字+语音");
     expect(widgetSwift).not.toContain("GeometryReader");
     const liveIntentsSwift = fs.readFileSync(
       path.join(root, "SydneyCompanionWidget", "CompanionLiveIntents.swift"),
@@ -260,6 +266,9 @@ describe("isolated companion widget plugin", () => {
     );
     expect(liveIntentsSwift).toContain("AudioRecordingIntent");
     expect(liveIntentsSwift).toContain("LiveActivityIntent");
+    expect(liveIntentsSwift).toContain("CompanionVoiceOutputChoice");
+    expect(liveIntentsSwift).toContain("CompanionVoiceStopSpeakingIntent");
+    expect(liveIntentsSwift).toContain("CompanionVoiceCycleOutputIntent");
     expect(liveIntentsSwift).toContain("#if !SYDNEY_COMPANION_WIDGET");
     const backgroundIntentsSwift = fs.readFileSync(
       path.join(root, "Sydney", "CompanionBackgroundIntents.swift"),
@@ -274,6 +283,11 @@ describe("isolated companion widget plugin", () => {
     expect(backgroundIntentsSwift).toContain("cropDynamicIsland");
     expect(backgroundIntentsSwift).toContain("updateActiveCompanionIsland");
     expect(backgroundIntentsSwift).toContain("CompanionBackgroundVoiceManager");
+    expect(backgroundIntentsSwift).toContain("CompanionVoiceOutputMode");
+    expect(backgroundIntentsSwift).toContain("cycleCompanionVoiceOutputMode");
+    expect(backgroundIntentsSwift).toContain("thread.progress");
+    expect(backgroundIntentsSwift).toContain("正在播报");
+    expect(backgroundIntentsSwift).toContain("overrideOutputAudioPort(.speaker)");
     for (const key of [
       "rakazo.session_token",
       "rakazo.api_base",
@@ -281,6 +295,7 @@ describe("isolated companion widget plugin", () => {
       "rakazo.server_headers",
       "rakazo.last_bot_id",
       "rakazo.last_bot_space_id",
+      "sydney.mobile.companionPrefs.v1",
     ]) {
       expect(backgroundIntentsSwift).toContain(`companionSecureStoreItem("${key}")`);
     }
@@ -289,7 +304,12 @@ describe("isolated companion widget plugin", () => {
       "utf8",
     );
     expect(hostSwift).toContain('Function("supportsBotNotifications")');
+    expect(hostSwift).toContain('Function("getVoiceOutputMode")');
+    expect(hostSwift).toContain('Function("isBackgroundVoiceActive")');
+    expect(hostSwift).toContain('AsyncFunction("setVoiceOutputMode")');
     expect(hostSwift).toContain('AsyncFunction("scheduleBotNotification")');
+    expect(hostSwift).toContain("CompanionVoiceBridge");
+    expect(hostSwift).toContain('"正在播报"');
     expect(hostSwift).toContain("INSendMessageIntent");
     expect(hostSwift).toContain("UNNotificationAttachment");
     expect(hostSwift).toContain("renderBotNotificationAvatarPNG");

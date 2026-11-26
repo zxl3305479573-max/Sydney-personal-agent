@@ -3,6 +3,8 @@ import type { CompanionStatus } from "./companion-presentation";
 
 export type CompanionMode = "live-activity" | "in-app";
 
+export type CompanionVoiceOutputMode = "both" | "text" | "voice";
+
 export type CompanionDetailStatus =
   | "present"
   | "thinking"
@@ -17,6 +19,7 @@ export type CompanionPreferences = {
   showFloatingBar: boolean;
   notifyOnReply: boolean;
   speakReplies: boolean;
+  islandVoiceOutput: CompanionVoiceOutputMode;
 };
 
 export type ActiveCompanionSession = {
@@ -54,6 +57,7 @@ export const DEFAULT_COMPANION_PREFERENCES: CompanionPreferences = {
   showFloatingBar: true,
   notifyOnReply: true,
   speakReplies: false,
+  islandVoiceOutput: "both",
 };
 
 export const INITIAL_COMPANION_RUNTIME: CompanionRuntimeState = {
@@ -107,6 +111,12 @@ export function normalizeCompanionPreferences(input: unknown): CompanionPreferen
     typeof raw.preferredBotId === "string" && raw.preferredBotId.trim()
       ? raw.preferredBotId.trim()
       : null;
+  const islandVoiceOutput: CompanionVoiceOutputMode =
+    raw.islandVoiceOutput === "text" ||
+    raw.islandVoiceOutput === "voice" ||
+    raw.islandVoiceOutput === "both"
+      ? raw.islandVoiceOutput
+      : DEFAULT_COMPANION_PREFERENCES.islandVoiceOutput;
   return {
     preferredBotId,
     showReply:
@@ -123,6 +133,7 @@ export function normalizeCompanionPreferences(input: unknown): CompanionPreferen
       typeof raw.speakReplies === "boolean"
         ? raw.speakReplies
         : DEFAULT_COMPANION_PREFERENCES.speakReplies,
+    islandVoiceOutput,
   };
 }
 

@@ -1,5 +1,22 @@
 # 运维手册
 
+## iPhone `1.0.18`（build `7`）无签名侧载 IPA（2026-11-26）
+
+- **构建与产物（已出包并验证）**：提交 `cd413addc6262e96133ffbfc2efc90c3718b9e62` 经 `.github/workflows/mobile-ios-sideload.yml` [Run 45832850729](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832850729)（`xcode-27` / iOS 27.1 SDK，Job `139953851282`）于 `2026-11-26T14:10:23Z` 一次编译打包通过（关联 `CI` [Run 45832851798](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832851798) 全绿，线上 `/health` 与 `/ready` HTTP `200`）。
+  - 产物：[sydney-ios-unsigned-45832850729-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832850729/artifacts/15126070242)（Artifact ID `15126070242`，`27,569,902` 字节，zip SHA-256 `d823122eb89e2df44119b8d5102d4088020850c42ec76d3d1cbaa2c803cb63b8`，内含 `Sydney-unsigned.ipa` 与 `SHA256.txt`）。
+- **原生变更与安装方式**：
+  - 修复 `1.0.17` 中灵动岛与锁屏头像显示为纯灰圆（`SydneyCompanionModule.swift` 移除 112×112 HEIC 改为 8-bit sRGB JPEG 72×72→48×48，`CompanionWidget.swift` 提前解码 sRGB 位图并补充 `.widgetAccentedRenderingMode(.fullColor)` 与 `.unredacted()`）、锁屏／展开态名称与状态灰条占位、展开态第 3 行文字半截裁断及底部三按钮截出屏外（总高收紧至 ~`141pt`、回复清晰 2 行），并将收缩态灵动岛常态右侧改为 `EmptyView()`（仅展示圆形头像，不再显示 Bot 名称）。
+  - Bundle ID 保持 `xin.zxlup.sydney`，内置当前最新 `1.0.37` JS 包并保留 `sideload`（`sydney-ios-ip-1`）OTA 通道；下载解压后使用 **Sideloadly** 直接覆盖签名安装（保留 `SydneyCompanionWidget.appex`），无需卸载也不清数据。
+- **回退**：如需回退原生底座，可重新侧载 `1.0.17`（build `6`）IPA（Run `45821357736`，Artifact `15119421377`）。真机实测待设备验收。
+
+## iPhone 1.0.37 侧载 OTA 与生产后端 `7b9739d12` 上线（2026-11-26）
+
+- **生产后端上线（已生效并核验）**：提交 `ff347df69`＋`7b9739d12` 经 `CI` [Run 45831767355](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45831767355) 全绿并由 `deploy-production`（Job `139952951833`）部署上线；零新增依赖、零新增数据库迁移。实测 `GET https://pc.zxlup.xin/health` 与 `/ready` HTTP `200`，未认证 `POST https://pc.zxlup.xin/rpc/personalFinance/parseDraft` 返回 HTTP `401 UNAUTHORIZED`。
+- **iPhone `1.0.37` 侧载 OTA（已发布并全资源核验）**：通过 `.github/workflows/mobile-ios-update.yml` [Run 45830435815](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45830435815) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：
+  - 更新组 ID：`28a7bab5-3c23-42a6-be99-67d9fb4d00a3`；iOS 更新 ID：`01a21812-4a2b-78cd-b935-e9cfa3258ed5`（`createdAt: 2026-11-26T13:36:21.547Z`）；
+  - 线上 Expo 清单 HTTP `200`（`version: "1.0.37"`、`releasedOn: "2026-11-26"`）、启动包 `11,405,352` 字节（SHA-256 `9e71330d90e0a0fcc298146ee64a3573074ce5c9b055441acb5f512383659276`）及全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **兼容性与回退**：本次为纯后端与纯 JS 改动，**无需重新下载或重装 IPA**；已安装 `1.0.17`（或 `1.0.12`–`1.0.16`）侧载 IPA 在 App 内拉取 `1.0.37` OTA 重启后即可使用拍照／相册识图记账、实时语音记账、自动分类保存及全 Bot 免审批直接对话记账。回退可重发 `1.0.36`（更新 ID `01a217cb-abb2-709b-930d-5cbf6cd8f2fc`）。
+
 ## iPhone 1.0.36 侧载 OTA 与 1.0.17 无签名侧载 IPA（2026-11-26）
 
 - **iPhone `1.0.36` 侧载 OTA（已发布并全资源核验）**：提交 `1ee3026d5d3d8ada18e42e3e75403a5d44d6e47e` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45818264011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818264011) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：

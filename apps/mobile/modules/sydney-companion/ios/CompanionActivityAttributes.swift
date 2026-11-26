@@ -7,17 +7,20 @@ public struct CompanionActivityAttributes: ActivityAttributes {
     public var reply: String?
     public var callActive: Bool?
     public var callStartedAt: Date?
+    public var voiceOutputMode: String?
 
     public init(
       status: String,
       reply: String?,
       callActive: Bool? = nil,
-      callStartedAt: Date? = nil
+      callStartedAt: Date? = nil,
+      voiceOutputMode: String? = nil
     ) {
       self.status = status
       self.reply = reply
       self.callActive = callActive
       self.callStartedAt = callStartedAt
+      self.voiceOutputMode = voiceOutputMode
     }
   }
 

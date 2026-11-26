@@ -83,6 +83,7 @@ vi.mock("./companion-activity", () => ({
   activeCompanionIdentity: () => fixture.active,
   companionActivityRevision: () => 0,
   isCallOwnedCompanionActivity: () => false,
+  isCompanionBackgroundVoiceActive: () => false,
   subscribeCompanionActivity: () => () => undefined,
   companionScreenState: fixture.captureState,
   subscribeCompanionScreenState: (listener: typeof fixture.captureListener) => {
@@ -401,6 +402,7 @@ describe("independent companion thread updates", () => {
       showFloatingBar: true,
       notifyOnReply: true,
       speakReplies: true,
+      islandVoiceOutput: "both",
     });
     setActiveCompanionSessionState({
       id: "in-app-1",

@@ -1,5 +1,40 @@
 # 验证记录
 
+## 灵动岛语音对话支持直接显示输出文字与语音播报模式切换（2026-11-26）
+
+关联 PA-021。
+
+- **首轮发现与修正**：
+  - Biome 捕获 `apps/mobile/app/companion.tsx` 与 `apps/mobile/lib/companion-activity.ts` 2 处格式化换行，已自动格式化清零；
+  - `tsc --noEmit` 捕获 3 处既有测试夹具（`companion-floating-bar.test.tsx`、`companion-thread-watch.test.tsx`、`home-companion-card.test.tsx`）缺少新增的 `islandVoiceOutput` 字段，且 `companion-thread-watch.test.tsx` 替身需补充 `isCompanionBackgroundVoiceActive`，均已补齐。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖本次全部 12 个改动 TS/TSX 文件）：**12 / 12 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向与守卫 Vitest（`--maxWorkers=1`，17 个文件、159 / 159 项全部通过）**：`companion-session.test.ts`（7）、`companion-console.test.tsx`（1）、`companion-activity.test.ts`（13）、`companion-plugin.test.ts`（2）、`companion-presentation.test.ts`（5）、`companion-avatar.test.ts`（3）、`companion-floating-bar.test.tsx`（2）、`companion-thread-watch.test.tsx`（11）、`home-companion-card.test.tsx`（2）、`home-hub.test.tsx`（7）、`bot-profile.test.tsx`（74）、`companion-capture-screen.test.tsx`（2）、`mobile-bridge.test.tsx`（3）、`call-live-activity.test.ts`（4）、`screen-theme-coverage.test.ts`（6）、`scroll-hygiene.test.ts`（1）、`i18n.test.ts`（16）。
+  - **Swift 6 / iOS 16.4 静态核查**：复核 5 个 Swift 文件补丁，确认 `ActivityKit` `activity.content`（iOS 16.2+）、`LiveActivityIntent`（`@available(iOS 17.0, *)`）、`AudioRecordingIntent`（`@available(iOS 18.0, *)`）、`#if !SYDNEY_COMPANION_WIDGET` 扩展隔离、`@unchecked Sendable` + `NSLock` 的 `CompanionVoiceBridge` 并发安全性与 `CompanionActivityAttributes.ContentState` 向后兼容默认参数。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待编译出包与真机验收）**：
+  - macOS `xcode-27` 编译新版无签名侧载 IPA（`mobile-ios-sideload.yml`）；
+  - iPhone 真机经 `Sideloadly` 重签后实测三种输出模式（`文字+语音` / `仅文字` / `仅语音`）：展开态一键切换模式、流式文字直接显示在灵动岛、静音仅显示文字、`正在播报` 态扬声器响亮播报及「停止播报 / 继续说」打断体验。
+
+## iPhone 1.0.37 侧载 OTA 发布与生产后端 `personalFinance/parseDraft` 上线（2026-11-26）
+
+关联 PA-025、PA-021、REL-01。
+
+- **提交前本机复验（`ff347df69`，全部通过）**：
+  - **Biome 检查**（全部 22 个改动 TS/TSX/JSON 文件）：**22 / 22 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 6 包：`@rakazo/contracts`、`@rakazo/core`、`@rakazo/adapters`、`@rakazo/testkit`、`apps/api`、`apps/mobile`）：**6 / 6 包 0 错误**。
+  - **定向与守卫 Vitest（12 个离线套件、219 / 219 项全部通过；`authorization.test.ts` 33 项需 Postgres 已由 CI 覆盖）**：`personal-finance.test.ts`（contracts 6、mobile 2）、`run-tools-personal-finance.test.ts`（4）、`executor.test.ts`（162）、`personal-finance-router.test.ts`（4）、`finance-bill-sheet.test.tsx`（3）、`home-finance-card.test.tsx`（2）、`home-hub.test.tsx`（7）、`app-version.test.ts`（6）、`screen-theme-coverage.test.ts`（6）、`scroll-hygiene.test.ts`（1）、`i18n.test.ts`（16）。
+  - **`git diff --check`**：**0 警告**。
+- **CI 回归修复、全量 CI 与生产实测（全部通过）**：
+  - 首轮 `CI` Run `45830433506` 在 `Unit tests (1/3)` 暴露 `packages/adapters/src/run-project-policy.test.ts` 未同步 3 项 `finance_*` 工具；补齐后 `run-project-policy.test.ts` 34 / 34 通过且 Biome 0 错误，提交推送为 `7b9739d12`。
+  - **`CI`** [Run 45831767355](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45831767355)：**`completed / success`**（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)` 含 `authorization.test.ts`、`Checks`、`Publish server images`、`Publish compatible mobile update`、`deploy-production` Job `139952951833` 全绿）；
+  - **生产 HTTPS 实测**：`GET https://pc.zxlup.xin/health` HTTP `200`（`{"ok":true}`）、`GET https://pc.zxlup.xin/ready` HTTP `200`（`{"ok":true,"degraded":false}`）、未认证 `POST https://pc.zxlup.xin/rpc/personalFinance/parseDraft` HTTP `401`（`UNAUTHORIZED`）。
+- **`1.0.37` 侧载 OTA 与全资源核验（全部通过）**：
+  - `.github/workflows/mobile-ios-update.yml` [Run 45830435815](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45830435815)：**`completed / success`**（更新组 `28a7bab5-3c23-42a6-be99-67d9fb4d00a3`、iOS 更新 ID `01a21812-4a2b-78cd-b935-e9cfa3258ed5`、`createdAt: 2026-11-26T13:36:21.547Z`）；
+  - 在线回读 Expo 清单 HTTP `200`（`version: "1.0.37"`、`releasedOn: "2026-11-26"`）、启动包 `11,405,352` 字节（SHA-256 `9e71330d90e0a0fcc298146ee64a3573074ce5c9b055441acb5f512383659276`）及全部 **`62 / 62`** 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **未执行项（待真机验收）**：真实 iPhone 拉取 `1.0.37` OTA 后实测拍照识图、相册传图、语音输入自动保存及单聊／群聊／项目 Bot 对话直接记账。
+
 ## 修复灵动岛与锁屏实时活动头像灰圆／文字占位／展开态裁切，并精简收缩态仅显示头像（2026-11-26）
 
 关联 PA-021。
@@ -10,9 +45,12 @@
   - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
   - **定向 Vitest 回归（`--maxWorkers=1`，6 个文件、62 / 62 项全部通过）**：`companion-plugin.test.ts`（2 项，新增校验 `preferredRange = .standard`、`jpegData`、无 `UTType.heic`、`.widgetAccentedRenderingMode(.fullColor)`、`.unredacted()`、`decodeWidgetAvatarImage`、`EmptyView()`、无 `.fixedSize(horizontal: false, vertical: true)`）、`companion-activity.test.ts`（12 项）、`companion-presentation.test.ts`（5 项）、`companion-avatar.test.ts`（3 项）、`app-version.test.ts`（6 项）、`app-config.test.ts`（34 项）。
   - **空白与补丁检查**（`git diff --check` 覆盖本次全部改动文件）：**0 警告**。
-- **未执行项（本机为 Windows 环境，待发版与真机验收）**：
-  - GitHub Actions `xcode-27` / iOS 27.1 SDK 原生 Swift 编译与新版无签名侧载 IPA 打包；
-  - iPhone 真机经 `Sideloadly` 重签覆盖安装后验证：收缩态灵动岛仅显示清晰圆形头像（右侧无 Bot 名字）、展开态显示清晰头像／完整 Bot 名称／2 行不截断回复与全部 3 枚操作按钮、锁屏卡片清晰展示彩色头像与完整可读文字。
+- **云端 CI 与 `1.0.18`（build `7`）无签名侧载 IPA 实证（全部通过）**：
+  - 提交 `cd413addc6262e96133ffbfc2efc90c3718b9e62` 已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - **`CI`** [Run 45832851798](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832851798)：**`completed / success`**（含 `deploy-production` Job `139956382263`）；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`。
+  - **`iOS unsigned sideload build`（`mobile-ios-sideload.yml`）** [Run 45832850729](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832850729)（`xcode-27` / iOS 27.1 SDK，Job `139953851282`）：**`completed / success`**（`2026-11-26T13:49:13Z`–`14:10:23Z`），一次编译零报错通过并上传产物 [sydney-ios-unsigned-45832850729-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832850729/artifacts/15126070242)（Artifact ID `15126070242`，`27,569,902` 字节，SHA-256 `d823122eb89e2df44119b8d5102d4088020850c42ec76d3d1cbaa2c803cb63b8`）。
+- **未执行项（待真机验收）**：
+  - iPhone 真机经 `Sideloadly` 重签覆盖安装 `1.0.18`（build `7`）IPA 后验证：收缩态灵动岛仅显示清晰圆形头像（右侧无 Bot 名字）、展开态显示清晰头像／完整 Bot 名称／2 行不截断回复与全部 3 枚操作按钮、锁屏卡片清晰展示彩色头像与完整可读文字。
 
 ## iPhone 1.0.36 侧载 OTA 发布与 1.0.17 无签名侧载 IPA 构建（2026-11-26）
 

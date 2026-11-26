@@ -239,6 +239,7 @@ beforeEach(() => {
       showFloatingBar: true,
       notifyOnReply: true,
       speakReplies: false,
+      islandVoiceOutput: "both" as const,
       ...patch,
     };
     setCompanionPreferencesState(current);
@@ -285,6 +286,20 @@ describe("CompanionConsoleScreen (CMP-03)", () => {
     )!;
     await act(async () => speechSwitch.click());
     expect(mocks.updatePrefs).toHaveBeenCalledWith({ speakReplies: true });
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-voice-output-text"]')
+        ?.click(),
+    );
+    expect(mocks.updatePrefs).toHaveBeenCalledWith({ islandVoiceOutput: "text" });
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="companion-voice-output-voice"]')
+        ?.click(),
+    );
+    expect(mocks.updatePrefs).toHaveBeenCalledWith({ islandVoiceOutput: "voice" });
 
     await act(async () =>
       container

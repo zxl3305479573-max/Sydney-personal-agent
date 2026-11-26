@@ -1,21 +1,21 @@
 {
-  "version": "1.0.37",
+  "version": "1.0.38",
   "releasedOn": "2026-11-26",
   "notes": {
     "zh-CN": [
-      "记一笔升级智能记账：支持拍照识图、相册传图解析小票／付款截图、实时语音输入与自然语言口语解析，自动匹配分类与支付方式并默认开启「识别后自动保存」。",
-      "首页「账单与支付」卡片新增「拍照记」「语音记」快捷入口，账单页顶部新增「全部 Bot 对话记账」实时开关。",
-      "单聊、群聊与项目工作区全部 Bot 现均支持本人免审批直接对话记账（发文字或小票截图即可自动分类入账，银行卡号／CVV 密文仍严格隔离）。"
+      "灵动岛语音对话新增「文字 + 语音」「仅显示文字」「仅语音播报」三档输出模式，支持在陪伴页偏好与灵动岛展开态一键实时切换。",
+      "选择文字输出时可在灵动岛实时流式显示 Bot 回复内容（展开态 3 行、锁屏 4 行），静音模式不朗读。",
+      "语音播报新增「正在播报」动态波形与「停止播报 / 继续说」控制，并优化扬声器与耳机音频路由。"
     ],
     "zh-TW": [
-      "記一筆升級智慧記帳：支援拍照識圖、相簿傳圖解析收據／付款截圖、即時語音輸入與自然語言口語解析，自動比對分類與支付方式並預設開啟「辨識後自動儲存」。",
-      "首頁「帳單與支付」卡片新增「拍照記」「語音記」快捷入口，帳單頁頂部新增「全部 Bot 對話記帳」即時開關。",
-      "單聊、群聊與專案工作區全部 Bot 現均支援本人免審批直接對話記帳（傳文字或收據截圖即可自動分類入帳，銀行卡號／CVV 密文仍嚴格隔離）。"
+      "動態島語音對話新增「文字 + 語音」「僅顯示文字」「僅語音播報」三檔輸出模式，支援在陪伴頁偏好與動態島展開態一鍵即時切換。",
+      "選擇文字輸出時可在動態島即時串流顯示 Bot 回覆內容（展開態 3 行、鎖屏 4 行），靜音模式不朗讀。",
+      "語音播報新增「正在播報」動態波形與「停止播報 / 繼續說」控制，並最佳化揚聲器與耳機音訊路由。"
     ],
     "en": [
-      "Upgrade Quick Bill Entry with camera receipt scanning, photo library OCR, live voice dictation, and natural-language parsing with automatic categorization, payment method matching, and auto-save.",
-      "Add quick Scan and Voice entry buttons to the Home Hub Bills & Wallet card and a live All-Bots conversational ledger toggle on the Finance screen.",
-      "Enable approval-free conversational bill recording across all direct, group, and project workspace bots for the account owner while keeping card/CVV secrets strictly isolated."
+      "Add three Dynamic Island voice dialogue output modes (Text + Voice, Text only, Voice only) switchable from both the Companion console and directly on the Dynamic Island.",
+      "Stream bot reply text live onto the Dynamic Island (3 lines expanded, 4 lines Lock Screen) with silent text-only mode.",
+      "Add a live Speaking status with Stop Speaking and Continue controls plus improved speaker/headphone audio routing."
     ]
   }
 }

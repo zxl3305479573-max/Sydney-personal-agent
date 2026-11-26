@@ -31,6 +31,7 @@ import {
   screenSendScopeCurrent,
   sendReviewedScreenText,
 } from "../lib/companion-screen-send";
+import type { CompanionVoiceOutputMode } from "../lib/companion-session";
 import {
   companionStatusDisplay,
   loadCompanionPreferences,
@@ -95,6 +96,7 @@ export default function CompanionConsoleScreen() {
           .catch(() => undefined);
       };
       loadBots();
+      void loadCompanionPreferences();
 
       let offScreen: () => void = () => undefined;
       if (available) {
@@ -115,6 +117,7 @@ export default function CompanionConsoleScreen() {
       const appSub = AppState.addEventListener("change", (next) => {
         if (next === "active") {
           loadBots();
+          void loadCompanionPreferences();
           if (available) {
             void companionScreenState()
               .then((state) => {
@@ -878,6 +881,104 @@ export default function CompanionConsoleScreen() {
               />
             }
           />
+          <View
+            testID="companion-voice-output-group"
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              gap: 10,
+            }}
+          >
+            <View style={{ gap: 3 }}>
+              <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "500" }}>
+                {copy("灵动岛语音对话输出", "動態島語音對話輸出", "Dynamic Island voice output")}
+              </Text>
+              <Text style={{ color: tokens.mutedForeground, fontSize: 13, lineHeight: 18 }}>
+                {prefs.islandVoiceOutput === "text"
+                  ? copy(
+                      "仅在灵动岛实时显示输出文字，静音不语音播报；也可在灵动岛上随时切换",
+                      "僅在動態島即時顯示輸出文字，靜音不語音播報；也可在動態島上隨時切換",
+                      "Show reply text live on Dynamic Island silently; switch anytime on the island",
+                    )
+                  : prefs.islandVoiceOutput === "voice"
+                    ? copy(
+                        "后台直接语音播报回复，不在灵动岛展开全文；也可在灵动岛上随时切换",
+                        "背景直接語音播報回覆，不在動態島展開全文；也可在動態島上隨時切換",
+                        "Speak replies aloud in background without showing full text on the island",
+                      )
+                    : copy(
+                        "在灵动岛实时显示输出文字，并同步后台语音播报；也可在灵动岛上随时切换",
+                        "在動態島即時顯示輸出文字，並同步背景語音播報；也可在動態島上隨時切換",
+                        "Show reply text live on Dynamic Island and speak replies aloud together",
+                      )}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {(
+                [
+                  {
+                    value: "both" as CompanionVoiceOutputMode,
+                    label: copy("文字 + 语音", "文字 + 語音", "Text + Voice"),
+                    ios: "speaker.wave.2.fill",
+                    android: "volume-high-outline",
+                  },
+                  {
+                    value: "text" as CompanionVoiceOutputMode,
+                    label: copy("仅显示文字", "僅顯示文字", "Text only"),
+                    ios: "text.bubble.fill",
+                    android: "chatbubble-ellipses-outline",
+                  },
+                  {
+                    value: "voice" as CompanionVoiceOutputMode,
+                    label: copy("仅语音播报", "僅語音播報", "Voice only"),
+                    ios: "waveform",
+                    android: "mic-outline",
+                  },
+                ] as const
+              ).map((option) => {
+                const selected = prefs.islandVoiceOutput === option.value;
+                return (
+                  <MotionPressable
+                    key={option.value}
+                    preset="control"
+                    testID={`companion-voice-output-${option.value}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    onPress={() =>
+                      void updateCompanionPreferences({ islandVoiceOutput: option.value })
+                    }
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: selected ? (isLight ? "#2E2B27" : "#E7E4DD") : chipBg,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: selected ? "transparent" : chipBorder,
+                    }}
+                  >
+                    <NativeSymbol
+                      ios={option.ios}
+                      android={option.android}
+                      size={13}
+                      color={selected ? (isLight ? "#FAF8F4" : "#15171C") : tokens.foreground}
+                    />
+                    <Text
+                      style={{
+                        color: selected ? (isLight ? "#FAF8F4" : "#15171C") : tokens.foreground,
+                        fontSize: 13,
+                        fontWeight: selected ? "600" : "500",
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                  </MotionPressable>
+                );
+              })}
+            </View>
+          </View>
           <SettingsRow
             accessibilityRole="button"
             chevron="right"

@@ -1,8 +1,29 @@
 # Sydney 开发总计划
 
-## 修复灵动岛与锁屏实时活动头像灰圆／文字占位／展开态裁切，并精简收缩态仅显示头像（PA-021，2026-11-26）
+## 灵动岛语音对话支持直接显示输出文字与语音播报模式切换（PA-021，2026-11-26）
 
-状态：根因定位、原生 Swift 模块与灵动岛扩展修复及本机离线验证已完成（因改动涉及原生 Swift 扩展 `SydneyCompanionWidget.appex` 与 `SydneyCompanion` 模块，需待用户确认提交推送并经 macOS Xcode 重新打包侧载 IPA 后覆盖重签实机验收；未提交或推送）。
+状态：全链路 JS 偏好与控制台 UI、原生 Swift 实时流式文字输出／语音播报状态与音频路由优化、灵动岛展开态模式切换与停止播报按钮以及本机离线验证已完成（未提交或推送）；`/companion` 偏好设置可随 OTA 下发，灵动岛实时流式显示文字、输出模式切换、`正在播报` 状态与「停止播报」按钮属原生 Swift / Widget 扩展改动，待用户确认后提交推送并重编新版无签名侧载 IPA 经 `Sideloadly` 重签真机验收。
+
+范围与交付物：
+- **输出模式配置与双向同步（`apps/mobile/lib/companion-session-state.ts`、`companion-session.ts`、`companion-activity.ts`、`companion-thread-watch.ts`、`app/companion.tsx`）**：
+  - 在 `CompanionPreferences` 新增 `islandVoiceOutput: "both" | "text" | "voice"`（默认 `"both"`），支持「文字 + 语音」「仅显示文字」「仅语音播报」三档；
+  - 在 `/companion` 陪伴控制台「陪伴偏好」分组新增三档胶囊选择器，实时持久化到 `sydney.mobile.companionPrefs.v1` 并通过 `SydneyCompanionModule`（`getVoiceOutputMode` / `setVoiceOutputMode`）与灵动岛保持双向同步；
+  - 暴露 `isBackgroundVoiceActive()` 与原生 `CompanionVoiceBridge` 协调锁，防止用户在 App 前台测试灵动岛语音对话时被 JS SSE 覆盖状态或触发双声道重复朗读。
+- **原生后台语音对话流式文字输出与语音播报控制（`apps/mobile/modules/sydney-companion/ios/CompanionActivityAttributes.swift`、`SydneyCompanionModule.swift`、`apps/mobile/ios-companion-widget/CompanionLiveIntents.swift`、`CompanionBackgroundIntents.swift`）**：
+  - 在 `CompanionActivityAttributes.ContentState` 新增可选 `voiceOutputMode` 字段（零 App Group 即可把当前输出模式同步到灵动岛扩展），并在 `SydneyCompanionModule` 允许状态白名单新增 `"正在播报"` 与 `CompanionVoiceBridge`；
+  - 新增 `CompanionVoiceOutputChoice`（`AppEnum`，快捷指令可选）、`CompanionVoiceCycleOutputIntent`（灵动岛一键循环切换 `文字+语音` → `仅文字` → `仅语音`）与 `CompanionVoiceStopSpeakingIntent`（播报中一键「停止播报」）；
+  - 升级 `SydneyBackgroundSession.waitForReply` 与 `awaitCompanionReply` 解析 SSE `thread.progress` 增量及 `thread.message.created` / `updated`，每 `0.55s` 节流把 Bot 生成内容实时流式推上灵动岛（`only-text` / `both` 模式绕过静默锁屏隐私门控直接显示，且超时或流断开后仍补查 `threads/get` 并回落已收流式文本防丢字）；
+  - `text` 模式完全静音仅显示灵动岛文字，`voice` 模式进入 `"正在播报"` 状态后台语音播报、`both` 模式边显示文字边播报并在结束后保留文字；`CompanionBackgroundSpeaker` 清洗链接／Markdown（放宽至 `360` 字 / `75s`）、显式 `usesApplicationAudioSession = true` 与 `volume = 1.0`，仅在系统误走听筒（`.builtInReceiver`）时切换扬声器，保持蓝牙／耳机路由不被抢占。
+- **灵动岛与锁屏界面升级（`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：
+  - 展开态顶部名称同行右侧新增可点击输出模式胶囊（`文字+语音` / `仅文字` / `仅语音`），正文放宽至 3 行（`12.5pt`、锁屏 4 行，保持无 `.fixedSize` 防越界裁切）；
+  - 新增 `正在播报` 态动态 `speaker.wave.2.fill` 图标与专属操作栏「停止播报 + 继续说」（保留收缩态常态右侧 `EmptyView()` 仅留头像）。
+- **回归单测与离线校验**：同步更新 `companion-session.test.ts`、`companion-console.test.tsx`、`companion-activity.test.ts`、`companion-plugin.test.ts` 及 3 份夹具测试；12 个改动 TS/TSX 文件 Biome `0` 错误、`@rakazo/mobile` 全包 `tsc --noEmit` `0` 错误、17 个 Vitest 套件（159 / 159 项）全绿、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#灵动岛语音对话支持直接显示输出文字与语音播报模式切换2026-11-26)。
+
+依赖与验收条件：零新增第三方依赖与零新增受限权限；待用户确认后提交推送，并由 `mobile-ios-sideload.yml` 重新出包经 `Sideloadly` 覆盖重签后在 iPhone 真机验收。
+
+## 修复灵动岛与锁屏实时活动头像灰圆／文字占位／展开态裁切，并精简收缩态仅显示头像（PA-021／REL-01，2026-11-26）
+
+状态：根因定位、原生 Swift 模块与灵动岛扩展修复、本机离线验证、提交推送（`cd413addc6262e96133ffbfc2efc90c3718b9e62`）、全量 `CI` 与生产部署（Run `45832851798`，线上 `/health` 与 `/ready` HTTP `200`）以及新版 `1.0.18`（build `7`）无签名侧载 IPA 云端出包（Run `45832850729`，Artifact `15126070242`，`27,569,902` 字节）均已完成；iPhone 真机经 `Sideloadly` 覆盖重签 `1.0.18` IPA 后实测待设备验收。
 
 范围与交付物：
 - **修复头像灰圆占位（`apps/mobile/modules/sydney-companion/ios/SydneyCompanionModule.swift`、`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：
@@ -29,7 +50,7 @@
 
 ## 记一笔拍照识图、语音输入、自动分类保存与全 Bot 免审批直接对话记账（PA-025／PA-021，2026-11-26）
 
-状态：全链路源码实现与本机离线验证已完成（零新增第三方依赖、零新增数据库迁移）；后端上线部署、移动端 OTA 发布及真机拍照识图／语音输入／全 Bot 对话记账实测待执行（未提交或推送）。
+状态：全链路源码实现、提交推送（`ff347df69`、`7b9739d12`）、`CI` 全绿与生产后端上线（Run `45831767355`、`deploy-production` Job `139952951833`，实测 `/health` 与 `/ready` HTTP `200` 且未认证 `POST /rpc/personalFinance/parseDraft` HTTP `401`）以及 iPhone `1.0.37` 侧载 OTA 发布与全资源核验（Run `45830435815`，更新 ID `01a21812-4a2b-78cd-b935-e9cfa3258ed5`，启动包 `11,405,352` 字节与全部 `62 / 62` 静态资源 SHA-256 全部匹配）均已完成；真实 iPhone 拉取 `1.0.37` OTA 后的拍照识图／语音输入／全 Bot 直接记账实测待设备验收。
 
 范围与交付物：
 - **智能分类与语音／自然语言解析契约（`packages/contracts`）**：扩展 `packages/contracts/src/personal-finance.ts` 新增 `inferFinanceBillCategory()`（18 类中英商户／消费关键词自动归类）、`matchSavedPaymentMethod()`（支持卡名／机构／尾号／渠道别名智能匹配）、`parseNaturalBillText()`（支持阿拉伯数字与中文口语金额、相对日期、币种、收支方向与方式提取）及 `ParseFinanceBillDraftInputSchema`／`ParsedFinanceBillDraftSchema`，在 `packages/contracts/src/rpc.ts` 新增 `personalFinance/parseDraft` RPC 契约并补齐 `packages/testkit/src/authorization.test.ts` 认证穷举用例。

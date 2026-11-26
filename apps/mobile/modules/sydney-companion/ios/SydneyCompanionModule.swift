@@ -93,7 +93,71 @@ private func cleanReplyForIsland(_ value: String?) -> String? {
   }
   let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
   guard !trimmed.isEmpty else { return nil }
-  return String(trimmed.prefix(120))
+  return String(trimmed.prefix(160))
+}
+
+public enum CompanionVoiceBridge {
+  public static let userDefaultsKey = "sydney.companion.voiceOutputMode.v1"
+
+  private final class Storage: @unchecked Sendable {
+    let lock = NSLock()
+    var activeOperations = 0
+    var lastFinishedAt: TimeInterval = 0
+  }
+
+  private static let storage = Storage()
+
+  public static func normalizeOutputMode(_ raw: String?) -> String {
+    switch raw {
+    case "text", "voice", "both":
+      return raw!
+    default:
+      return "both"
+    }
+  }
+
+  public static func hasStoredOutputMode() -> Bool {
+    UserDefaults.standard.string(forKey: userDefaultsKey) != nil
+  }
+
+  public static func currentOutputMode() -> String {
+    normalizeOutputMode(UserDefaults.standard.string(forKey: userDefaultsKey))
+  }
+
+  @discardableResult
+  public static func setOutputMode(_ raw: String) -> String {
+    let normalized = normalizeOutputMode(raw)
+    UserDefaults.standard.set(normalized, forKey: userDefaultsKey)
+    return normalized
+  }
+
+  public static func beginBackgroundVoice() {
+    storage.lock.lock()
+    storage.activeOperations += 1
+    storage.lock.unlock()
+  }
+
+  public static func endBackgroundVoice() {
+    storage.lock.lock()
+    storage.activeOperations = max(0, storage.activeOperations - 1)
+    storage.lastFinishedAt = Date().timeIntervalSince1970
+    storage.lock.unlock()
+  }
+
+  public static func isBackgroundVoiceBusy() -> Bool {
+    storage.lock.lock()
+    let busy = storage.activeOperations > 0
+    storage.lock.unlock()
+    return busy
+  }
+
+  public static func isBackgroundVoiceActiveOrRecent(cooldownSeconds: TimeInterval = 3.0) -> Bool {
+    storage.lock.lock()
+    let busy = storage.activeOperations > 0
+    let recent = (Date().timeIntervalSince1970 - storage.lastFinishedAt) < cooldownSeconds
+    storage.lock.unlock()
+    return busy || recent
+  }
 }
 
 private func fallbackNotificationBotColor(_ seed: String) -> UIColor {
@@ -260,7 +324,7 @@ private func renderBotNotificationAvatarPNG(encoded: String?, botName: String, b
 
 public class SydneyCompanionModule: Module {
   private static let companionStatusLabels: Set<String> = [
-    "我一直都在", "正在听", "思考中", "连接已断开",
+    "我一直都在", "正在听", "思考中", "正在播报", "连接已断开",
   ]
   private static let callStatusLabels: Set<String> = [
     "通话中", "通话 · 正在听", "通话 · 思考中", "通话 · 说话中", "通话 · 已静音",
@@ -281,6 +345,30 @@ public class SydneyCompanionModule: Module {
 
     Function("supportsBotNotifications") { () -> Bool in
       true
+    }
+
+    Function("getVoiceOutputMode") { () -> String? in
+      CompanionVoiceBridge.hasStoredOutputMode() ? CompanionVoiceBridge.currentOutputMode() : nil
+    }
+
+    Function("isBackgroundVoiceActive") { () -> Bool in
+      CompanionVoiceBridge.isBackgroundVoiceActiveOrRecent()
+    }
+
+    AsyncFunction("setVoiceOutputMode") { (mode: String) async -> Void in
+      let normalized = CompanionVoiceBridge.setOutputMode(mode)
+      for activity in Activity<CompanionActivityAttributes>.activities
+      where activity.content.state.callActive != true {
+        let current = activity.content.state
+        let nextState = CompanionActivityAttributes.ContentState(
+          status: current.status,
+          reply: current.reply,
+          callActive: current.callActive,
+          callStartedAt: current.callStartedAt,
+          voiceOutputMode: normalized
+        )
+        await activity.update(ActivityContent(state: nextState, staleDate: activity.content.staleDate))
+      }
     }
 
     AsyncFunction("scheduleBotNotification") {
@@ -379,7 +467,11 @@ public class SydneyCompanionModule: Module {
       let attributes = CompanionActivityAttributes(
         botId: botId, botName: botName, spaceId: spaceId, showReply: showReply,
         avatar: activityAvatar(avatar), linkToken: UUID().uuidString)
-      let state = CompanionActivityAttributes.ContentState(status: "我一直都在", reply: nil)
+      let state = CompanionActivityAttributes.ContentState(
+        status: "我一直都在",
+        reply: nil,
+        voiceOutputMode: CompanionVoiceBridge.currentOutputMode()
+      )
       let activity = try Activity.request(
         attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
       return activity.id
@@ -549,18 +641,30 @@ public class SydneyCompanionModule: Module {
           $0.id == activityId && $0.attributes.botId == botId && $0.attributes.spaceId == spaceId
         })
       else { return }
-      let visibleReply = activity.attributes.showReply ? cleanReplyForIsland(reply) : nil
       let isCall = Self.callStatusLabels.contains(status)
+      if !isCall {
+        let currentStatus = activity.content.state.status
+        if CompanionVoiceBridge.isBackgroundVoiceBusy()
+          || currentStatus.contains("正在听")
+          || currentStatus.contains("播报")
+        {
+          return
+        }
+      }
+      let visibleReply = activity.attributes.showReply ? cleanReplyForIsland(reply) : nil
       let state = CompanionActivityAttributes.ContentState(
         status: status,
         reply: visibleReply,
         callActive: isCall ? true : false,
-        callStartedAt: nil
+        callStartedAt: nil,
+        voiceOutputMode: isCall ? nil : CompanionVoiceBridge.currentOutputMode()
       )
       let staleDate: Date? =
         isCall
           ? nil
-          : (status == "正在听" || status == "思考中" ? Date().addingTimeInterval(90) : nil)
+          : (status == "正在听" || status == "思考中" || status == "正在播报"
+              ? Date().addingTimeInterval(90)
+              : nil)
       await activity.update(ActivityContent(state: state, staleDate: staleDate))
     }
 
@@ -591,12 +695,15 @@ public class SydneyCompanionModule: Module {
         status: status,
         reply: visibleReply,
         callActive: callActive,
-        callStartedAt: startedAt
+        callStartedAt: startedAt,
+        voiceOutputMode: callActive ? nil : CompanionVoiceBridge.currentOutputMode()
       )
       let staleDate: Date? =
         callActive
           ? nil
-          : (status == "正在听" || status == "思考中" ? Date().addingTimeInterval(90) : nil)
+          : (status == "正在听" || status == "思考中" || status == "正在播报"
+              ? Date().addingTimeInterval(90)
+              : nil)
       await activity.update(ActivityContent(state: state, staleDate: staleDate))
     }
   }

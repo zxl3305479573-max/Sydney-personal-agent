@@ -16,9 +16,11 @@ import {
   activeCompanionIdentity,
   companionAvailable,
   isCallOwnedCompanionActivity,
+  nativeCompanionVoiceOutputMode,
   startCompanion,
   stopCompanion,
   subscribeCompanionActivity,
+  syncCompanionVoiceOutputMode,
   updateCompanion,
 } from "./companion-activity";
 import { registerCompanionStop } from "./companion-lifecycle";
@@ -30,6 +32,7 @@ import type {
   CompanionPreferences,
   CompanionRuntimeState,
   CompanionSessionState,
+  CompanionVoiceOutputMode,
 } from "./companion-session-state";
 import {
   DEFAULT_COMPANION_PREFERENCES,
@@ -55,6 +58,7 @@ export {
   type CompanionPreferences,
   type CompanionRuntimeState,
   type CompanionSessionState,
+  type CompanionVoiceOutputMode,
   DEFAULT_COMPANION_PREFERENCES,
   getActiveCompanionSession,
   getCachedCompanionPreferences,
@@ -201,6 +205,20 @@ export async function loadCompanionPreferences(): Promise<CompanionPreferences> 
   } catch {
     next = { ...DEFAULT_COMPANION_PREFERENCES };
   }
+  const nativeOutputMode = nativeCompanionVoiceOutputMode();
+  if (nativeOutputMode && nativeOutputMode !== next.islandVoiceOutput) {
+    next = { ...next, islandVoiceOutput: nativeOutputMode };
+    const payload = JSON.stringify(next);
+    writeChain = writeChain
+      .catch(() => undefined)
+      .then(async () => {
+        const SecureStore = await import("expo-secure-store");
+        await SecureStore.setItemAsync(STORAGE_KEY, payload);
+      })
+      .catch(() => undefined);
+  } else {
+    void syncCompanionVoiceOutputMode(next.islandVoiceOutput).catch(() => undefined);
+  }
   setCompanionPreferencesState(next, true);
   return next;
 }
@@ -210,6 +228,9 @@ export async function updateCompanionPreferences(
 ): Promise<CompanionPreferences> {
   const next: CompanionPreferences = { ...getCachedCompanionPreferences(), ...patch };
   setCompanionPreferencesState(next, true);
+  if (patch.islandVoiceOutput) {
+    void syncCompanionVoiceOutputMode(next.islandVoiceOutput).catch(() => undefined);
+  }
   const payload = JSON.stringify(next);
   writeChain = writeChain
     .catch(() => undefined)

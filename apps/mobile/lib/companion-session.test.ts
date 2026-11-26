@@ -21,6 +21,8 @@ const state = vi.hoisted(() => ({
   startCompanion: vi.fn(),
   stopCompanion: vi.fn(),
   updateCompanion: vi.fn(async () => undefined),
+  nativeVoiceOutputMode: null as "both" | "text" | "voice" | null,
+  syncVoiceOutputMode: vi.fn(async () => undefined),
   stopCompanionScreenAuto: vi.fn(),
 }));
 
@@ -51,6 +53,8 @@ vi.mock("./companion-activity", () => ({
   companionAvailable: () => state.nativeAvailable,
   activeCompanionIdentity: () => state.nativeActivity,
   isCallOwnedCompanionActivity: () => false,
+  nativeCompanionVoiceOutputMode: () => state.nativeVoiceOutputMode,
+  syncCompanionVoiceOutputMode: state.syncVoiceOutputMode,
   startCompanion: state.startCompanion,
   stopCompanion: state.stopCompanion,
   updateCompanion: state.updateCompanion,
@@ -89,6 +93,7 @@ beforeEach(() => {
   state.spaceSeq = 1;
   state.spacePending = false;
   state.apiBase = "https://api.example";
+  state.nativeVoiceOutputMode = null;
   state.store.clear();
   state.startCompanion.mockImplementation(
     async (botId: string, _name: string, spaceId: string | null, showReply: boolean) => {
@@ -239,7 +244,9 @@ describe("companion-session (CMP-01)", () => {
       showFloatingBar: false,
       notifyOnReply: false,
       speakReplies: true,
+      islandVoiceOutput: "text",
     });
+    expect(state.syncVoiceOutputMode).toHaveBeenCalledWith("text");
     resetCompanionSessionForTest();
     const loaded = await loadCompanionPreferences();
     expect(loaded).toEqual({
@@ -248,7 +255,14 @@ describe("companion-session (CMP-01)", () => {
       showFloatingBar: false,
       notifyOnReply: false,
       speakReplies: true,
+      islandVoiceOutput: "text",
     });
+
+    // When user cycles output mode natively on the Dynamic Island, loading preferences reconciles from native.
+    state.nativeVoiceOutputMode = "voice";
+    const syncedFromIsland = await loadCompanionPreferences();
+    expect(syncedFromIsland.islandVoiceOutput).toBe("voice");
+    state.nativeVoiceOutputMode = null;
 
     state.store.set("sydney.mobile.companionPrefs.v1", "{bad-json");
     const recovered = await loadCompanionPreferences();

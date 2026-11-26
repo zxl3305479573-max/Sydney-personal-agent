@@ -66,6 +66,9 @@ const bridge = vi.hoisted(() => ({
         capturedAt?: number | null;
       } | null,
   ),
+  getVoiceOutputMode: vi.fn(() => "both" as string | null),
+  setVoiceOutputMode: vi.fn(async (_mode: string) => {}),
+  isBackgroundVoiceActive: vi.fn(() => false),
   addListener: vi.fn((_event: string, _listener: (event: { state: string }) => void) => ({
     remove: vi.fn(),
   })),
@@ -79,6 +82,8 @@ import {
   companionAvailable,
   companionScreenState,
   isCallOwnedCompanionActivity,
+  isCompanionBackgroundVoiceActive,
+  nativeCompanionVoiceOutputMode,
   peekCompanionScreenSnapshot,
   presentCompanionScreen,
   startCallLiveActivity,
@@ -87,6 +92,7 @@ import {
   stopCompanion,
   stopCompanionScreen,
   subscribeCompanionScreenState,
+  syncCompanionVoiceOutputMode,
   takeCompanionScreenText,
   updateCallLiveActivity,
   updateCompanion,
@@ -453,5 +459,22 @@ describe("companion native bridge", () => {
       1_700_000_005_000,
     );
     await stopCallOwnedLiveActivity("call-act-atomic");
+  });
+
+  it("reads and syncs Dynamic Island voice output mode and background voice state safely", async () => {
+    bridge.getVoiceOutputMode.mockReturnValueOnce("text");
+    expect(nativeCompanionVoiceOutputMode()).toBe("text");
+    bridge.getVoiceOutputMode.mockReturnValueOnce("unexpected");
+    expect(nativeCompanionVoiceOutputMode()).toBeNull();
+
+    await syncCompanionVoiceOutputMode("voice");
+    expect(bridge.setVoiceOutputMode).toHaveBeenCalledWith("voice");
+
+    bridge.isBackgroundVoiceActive.mockReturnValueOnce(true);
+    expect(isCompanionBackgroundVoiceActive()).toBe(true);
+
+    bridge.isAvailable.mockReturnValue(false);
+    expect(nativeCompanionVoiceOutputMode()).toBeNull();
+    expect(isCompanionBackgroundVoiceActive()).toBe(false);
   });
 });
