@@ -1,5 +1,21 @@
 # 运维手册
 
+## 生产后端 `a77f15243` 部署与 iPhone 1.0.30 侧载 OTA ／ 1.0.14 IPA（2026-11-25）
+
+### 生产后端自动部署（`sydney-cloud-admin` / `https://pc.zxlup.xin`）
+
+- 提交 `a77f15243e5454bdae6ab643645a1fbc3bd0cfbd` 经 `CI` [Run 45754727594](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45754727594) 全绿构建并由 `deploy-production`（Job `139692418058`）零停机上线。
+- 数据库自动应用 1 项新增迁移 `20261125200000_user_mobile_bridge`（`public.user_mobile_bridges` 表及 RLS 策略），迁移总账本 `229 / 229` 全部完成；compose 环境变量白名单新增可选透传项 `AMAP_WEB_KEY`（未配置时自动降级 OSM Nominatim 搜索，不阻塞服务启动）。
+- 线上验证 `https://pc.zxlup.xin/health` 与 `https://pc.zxlup.xin/ready` 均返回 HTTP `200`。
+
+### iPhone 1.0.30 侧载 OTA 与 1.0.14 底座 IPA
+
+- **1.0.30 侧载 OTA**：提交 `a77f15243` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45754729004](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45754729004) 发布至 `sideload`／`sydney-ios-ip-1`：更新组 `631ef28b-c1e9-4665-a30c-9bf4f2b63f5e`、iOS 更新 ID `01a21618-8115-7ece-97cc-97f613c4b290`，线上清单 HTTP `200`、启动包 `11,129,488` 字节（SHA-256 `2011304f1b576710fcf9fa13019bf6460ae72f3a285c31e9d7981dc71529f946`）与全部 `56 / 56` 静态资源 SHA-256 校验通过。
+- **兼容性边界**：
+  - 既有 `1.0.12`／`1.0.13` 侧载 IPA 在 App 内「设置 → 检查更新」拉取 `1.0.30` OTA 重启后，**立即可用**：云电脑手动放大缩小与拖动查看、Bot 读取定位／天气／后台陪伴、高德地点搜索／路线估算／导航拉起（前台自动执行 + 后台一键卡片）及「设置 → Bot 应用权限」（含放宽后端审批开关）。
+  - 如需启用 **iPhone 原生日历、提醒事项、通讯录与剪贴板读写**，需覆盖安装新版 `1.0.14` 无签名侧载 IPA（含本地 Swift 模块 `SydneyDeviceBridge` 与 5 项新 `Info.plist` 权限描述；Bundle ID 保持 `xin.zxlup.sydney`、保留灵动岛扩展与 `sydney-ios-ip-1` OTA 通道；`deefb3d89` 对应 Run `45753551478` Artifact `15086914251` 已打包完成，`a77f15243` 对应 Run `45754727501` 收尾后可直接下载）。
+- **回退**：OTA 回退按既有 `sideload` 通道重新发布上一版 `1.0.29`（更新 ID `01a215be-ade4-7f8e-ba67-21d313eaa8d4`）；原生底座回退可重装 `1.0.13` IPA（Run `45748488829`）。真机实测待设备验收。
+
 ## iPhone 1.0.13 侧载 IPA（含原生 GPS 与灵动岛）与 1.0.29 OTA（2026-11-25）
 
 ### iPhone 1.0.13 无签名侧载底座 IPA

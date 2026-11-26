@@ -1,5 +1,26 @@
 # 验证记录
 
+## 生产后端上线与 iPhone 1.0.30 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01／ADR-0028。
+
+- **首轮 CI 暴露问题与修复**：
+  - 首轮推送 `deefb3d89` 的 CI（Run `45753551388`）中 `Lint and typecheck`、`Postgres journeys (1/2–2/2)`（含真实 PostgreSQL 迁移与 RLS／授权测试）与多架构镜像均通过，3 个单测分片暴露 3 处回归：
+    1. `apps/mobile/lib/thread-card-width.test.tsx`、`thread-sender-colors.test.tsx`、`message-mention-accessibility.test.tsx` 因 `message-bubble` → `AppActionCard` → `mobile-bridge` 静态导入 `expo-router` 与 `companion-session` 触发 Flow `typeof` 语法报错，已改为按需动态加载与注册路由器（`registerMobileBridgeRouter`）；
+    2. `infra/updater/src/compose-env.test.ts` 检出服务端读取 `AMAP_WEB_KEY`／`EXPO_PUBLIC_AMAP_WEB_KEY` 未列于 compose 白名单，已收敛为仅读取 `AMAP_WEB_KEY` 并补齐 `docker-compose.yml`／`docker-compose.prod.yml`／`docker-compose.images.yml`；
+    3. `packages/adapters/src/executor.test.ts` 的 `userTurnInstructions` 精确数组断言已同步补充移动 App 能力引导句。
+  - 修复后本机复验 6 套件 **219 / 219 项通过**（`executor.test.ts` 162、`thread-card-width.test.tsx` 30、`compose-env.test.ts` 14、`thread-sender-colors.test.tsx` 7、`message-mention-accessibility.test.tsx` 3、`mobile-bridge.test.tsx` 3），Biome 0 错误、`@rakazo/mobile` `tsc --noEmit` 0 错误、`git diff --check` 0 警告。
+- **终轮 GitHub CI 与生产部署实证**：
+  - 提交 `a77f15243e5454bdae6ab643645a1fbc3bd0cfbd` 推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - `CI` [Run 45754727594](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45754727594)：**completed / success**（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、全部服务端多架构镜像与 `deploy-production` Job `139692418058` 全绿）。
+  - 生产部署日志确认应用迁移 `20261125200000_user_mobile_bridge`（`229 / 229` 全部完成）并输出 `Deployed a77f15243e5454bdae6ab643645a1fbc3bd0cfbd successfully.`；线上复测 `https://pc.zxlup.xin/health` 与 `https://pc.zxlup.xin/ready` 均返回 **HTTP `200`**。
+- **iPhone `1.0.30` 侧载 OTA 与 `1.0.14` IPA 核验**：
+  - `mobile-ios-update.yml` [Run 45754729004](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45754729004)（`main`／`a77f15243`／`sydney-ios-ip-1`）：**completed / success**。
+  - 更新组 ID：`631ef28b-c1e9-4665-a30c-9bf4f2b63f5e`；iOS 更新 ID：`01a21618-8115-7ece-97cc-97f613c4b290`（`createdAt: 2026-11-26T04:23:54.389Z`）。
+  - 在线回读 Expo 清单 **HTTP `200`**，版本 `1.0.30`、`releasedOn: 2026-11-25`（中文说明 4 条）；启动包 HTTP `200`、大小 **`11,129,488` 字节**（SHA-256 `2011304f1b576710fcf9fa13019bf6460ae72f3a285c31e9d7981dc71529f946`，哈希匹配 `True`）；全部 **`56 / 56`** 项静态资源 HTTP `200` 且 SHA-256 全匹配（`0` 失败）。
+  - `mobile-ios-sideload.yml` Run `45753551478`（`deefb3d89`、`xcode-27`）已编译通过并产出 `1.0.14` 无签名 IPA（Artifact ID `15086914251`、`26,484,115` 字节，验证 `SydneyDeviceBridgeModule.swift` 与全部 5 项新权限描述可正常打包）；对应 `a77f15243` 的 Run `45754727501` 仍在收尾。
+- **未执行项（待真机验收）**：iPhone 真机拉取 `1.0.30` OTA 后实测云电脑缩放／拖动、Bot 读取定位／天气／高德导航与「设置 → Bot 应用权限」，以及安装 `1.0.14` IPA 后实测 iOS 日历／提醒事项／通讯录／剪贴板原生读写。
+
 ## 为自有 Bot 开通手机 App 全能力、iOS 系统数据桥接与统一权限中心（2026-11-25）
 
 关联 PA-021／ADR-0028。
