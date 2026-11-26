@@ -105,6 +105,12 @@ function bridgeFixture(
         botName: "大肥鱼-总管",
         updatedAt: Date.now(),
       },
+      phoneScreen: {
+        state: "capturing" as const,
+        text: "小红书 · 上海周末探店",
+        capturedAt: Date.now(),
+        updatedAt: Date.now(),
+      },
       calendar: {
         authorizationStatus: "authorized" as const,
         syncedAt: Date.now(),
@@ -237,6 +243,78 @@ describe("mobile app builtin tools", () => {
       textPreview: string;
     };
     expect(clip.textPreview).toBe("外滩18号");
+
+    const overview = (await mobileAppTools.app_get_context!(ctx, makeCall("app_get_context"))) as {
+      phoneScreen: { state: string; text: string | null } | null;
+    };
+    expect(overview.phoneScreen?.state).toBe("capturing");
+    expect(overview.phoneScreen?.text).toBe("小红书 · 上海周末探店");
+  });
+
+  it("reads shared phone screen via app_get_phone_screen and never redirects to cloud computer", async () => {
+    const ctx = makeContext();
+
+    mockGetBridge.mockResolvedValue(bridgeFixture());
+    const active = (await mobileAppTools.app_get_phone_screen!(
+      ctx,
+      makeCall("app_get_phone_screen"),
+    )) as { available: boolean; sharing: boolean; text: string; source: string };
+    expect(active).toMatchObject({
+      available: true,
+      sharing: true,
+      text: "小红书 · 上海周末探店",
+      source: "iphone_screen_share",
+    });
+
+    mockGetBridge.mockResolvedValue(
+      bridgeFixture(
+        {},
+        {
+          phoneScreen: {
+            state: "capturing",
+            text: null,
+            capturedAt: null,
+            updatedAt: Date.now(),
+          },
+        },
+      ),
+    );
+    const waitingText = (await mobileAppTools.app_get_phone_screen!(
+      ctx,
+      makeCall("app_get_phone_screen"),
+    )) as { available: boolean; sharing: boolean; message: string };
+    expect(waitingText.available).toBe(false);
+    expect(waitingText.sharing).toBe(true);
+    expect(waitingText.message).toContain("Do NOT call computer_observe");
+
+    mockGetBridge.mockResolvedValue(
+      bridgeFixture(
+        {},
+        {
+          phoneScreen: {
+            state: "idle",
+            text: null,
+            capturedAt: null,
+            updatedAt: Date.now(),
+          },
+        },
+      ),
+    );
+    const idle = (await mobileAppTools.app_get_phone_screen!(
+      ctx,
+      makeCall("app_get_phone_screen"),
+    )) as { available: boolean; sharing: boolean; state: string; message: string };
+    expect(idle.available).toBe(false);
+    expect(idle.sharing).toBe(false);
+    expect(idle.state).toBe("idle");
+    expect(idle.message).toContain("Do NOT call computer_observe");
+
+    mockGetBridge.mockResolvedValue(bridgeFixture({ companion: false }));
+    const blocked = await mobileAppTools.app_get_phone_screen!(
+      ctx,
+      makeCall("app_get_phone_screen"),
+    );
+    expect(blocked).toMatchObject({ error: expect.stringContaining("companion") });
   });
 
   it("publishes app_action card and enqueues pending action for Amap navigation and calendar writes", async () => {

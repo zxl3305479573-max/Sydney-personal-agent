@@ -2,6 +2,7 @@ import * as z from "zod";
 
 export const MOBILE_APP_READ_ONLY_TOOL_NAMES = [
   "app_get_context",
+  "app_get_phone_screen",
   "app_get_location",
   "app_get_weather",
   "app_map_search",
@@ -140,6 +141,24 @@ export const MobileCompanionSnapshotSchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 });
 
+export const MobilePhoneScreenStateSchema = z.enum([
+  "unsupported",
+  "idle",
+  "choosing",
+  "starting",
+  "capturing",
+  "paused",
+  "stopping",
+  "failed",
+]);
+
+export const MobilePhoneScreenSnapshotSchema = z.object({
+  state: MobilePhoneScreenStateSchema,
+  text: z.string().max(4000).nullable().optional(),
+  capturedAt: z.number().int().nonnegative().nullable().optional(),
+  updatedAt: z.number().int().nonnegative(),
+});
+
 export const MobileNotificationsSnapshotSchema = z.object({
   enabled: z.boolean(),
   sound: z.boolean().optional(),
@@ -216,6 +235,7 @@ export const MobileBridgeSnapshotSchema = z.object({
   location: MobileLocationSnapshotSchema.optional(),
   weather: MobileWeatherSnapshotSchema.optional(),
   companion: MobileCompanionSnapshotSchema.optional(),
+  phoneScreen: MobilePhoneScreenSnapshotSchema.optional(),
   notifications: MobileNotificationsSnapshotSchema.optional(),
   calendar: MobileCalendarSnapshotSchema.optional(),
   reminders: MobileRemindersSnapshotSchema.optional(),
@@ -353,6 +373,7 @@ export function filterMobileSnapshotByPermissions(
     ...(permissions.location && snapshot.location ? { location: snapshot.location } : {}),
     ...(permissions.weather && snapshot.weather ? { weather: snapshot.weather } : {}),
     ...(permissions.companion && snapshot.companion ? { companion: snapshot.companion } : {}),
+    ...(permissions.companion && snapshot.phoneScreen ? { phoneScreen: snapshot.phoneScreen } : {}),
     ...(permissions.appNavigation && snapshot.notifications
       ? { notifications: snapshot.notifications }
       : {}),

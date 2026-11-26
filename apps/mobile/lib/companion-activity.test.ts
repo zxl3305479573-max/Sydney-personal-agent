@@ -57,6 +57,14 @@ const bridge = vi.hoisted(() => ({
   presentScreen: vi.fn(async (_botId: string, _spaceId: string | null) => {}),
   stopScreen: vi.fn(async () => {}),
   takeScreenText: vi.fn(async () => "sample" as string | null),
+  peekScreenSnapshot: vi.fn(
+    async () =>
+      ({ state: "idle", text: null, capturedAt: null }) as {
+        state: string;
+        text?: string | null;
+        capturedAt?: number | null;
+      } | null,
+  ),
   addListener: vi.fn((_event: string, _listener: (event: { state: string }) => void) => ({
     remove: vi.fn(),
   })),
@@ -70,6 +78,7 @@ import {
   companionAvailable,
   companionScreenState,
   isCallOwnedCompanionActivity,
+  peekCompanionScreenSnapshot,
   presentCompanionScreen,
   startCallLiveActivity,
   startCompanion,
@@ -331,7 +340,35 @@ describe("companion native bridge", () => {
     expect(await companionScreenState()).toBe("unsupported");
     await expect(presentCompanionScreen("bot-1", null)).rejects.toThrow("不支持");
     expect(await takeCompanionScreenText()).toBeNull();
+    expect(await peekCompanionScreenSnapshot()).toBeNull();
     expect(bridge.presentScreen).not.toHaveBeenCalled();
+  });
+
+  it("peeks non-destructive screen snapshot on new IPA and falls back to screenState on legacy IPA", async () => {
+    bridge.peekScreenSnapshot.mockResolvedValueOnce({
+      state: "capturing",
+      text: "  实时共享屏幕文字  ",
+      capturedAt: 1_700_000_001_234.6,
+    });
+    expect(await peekCompanionScreenSnapshot()).toEqual({
+      state: "capturing",
+      text: "实时共享屏幕文字",
+      capturedAt: 1_700_000_001_235,
+    });
+
+    const originalPeek = bridge.peekScreenSnapshot;
+    // Simulate older IPA without peekScreenSnapshot native method.
+    (bridge as { peekScreenSnapshot?: unknown }).peekScreenSnapshot = undefined;
+    bridge.screenState.mockResolvedValueOnce("capturing");
+    try {
+      expect(await peekCompanionScreenSnapshot()).toEqual({
+        state: "capturing",
+        text: null,
+        capturedAt: null,
+      });
+    } finally {
+      bridge.peekScreenSnapshot = originalPeek;
+    }
   });
 
   it("tracks call-owned Live Activity and uses rich native updateCall or legacy OTA fallback", async () => {

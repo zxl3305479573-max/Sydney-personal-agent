@@ -66,6 +66,7 @@ type CompanionNativeModule = {
   presentScreen(botId: string, spaceId: string | null): Promise<void>;
   stopScreen(): Promise<void>;
   takeScreenText(): Promise<string | null>;
+  peekScreenSnapshot?(): Promise<{ state?: string; text?: string; capturedAt?: number } | null>;
   addListener(
     event: "onScreenState",
     listener: (event: { state: string }) => void,
@@ -378,6 +379,27 @@ export async function stopCompanionScreen(): Promise<void> {
 export async function takeCompanionScreenText(): Promise<string | null> {
   if (!native || !companionAvailable()) return null;
   return native.takeScreenText();
+}
+
+export async function peekCompanionScreenSnapshot(): Promise<{
+  state: CompanionScreenState;
+  text: string | null;
+  capturedAt: number | null;
+} | null> {
+  if (!native || !companionAvailable()) return null;
+  if (typeof native.peekScreenSnapshot === "function") {
+    const snap = await native.peekScreenSnapshot();
+    if (!snap) return null;
+    const state = validScreenState(typeof snap.state === "string" ? snap.state : "unsupported");
+    const text = typeof snap.text === "string" && snap.text.trim() ? snap.text.trim() : null;
+    const capturedAt =
+      typeof snap.capturedAt === "number" && Number.isFinite(snap.capturedAt)
+        ? Math.round(snap.capturedAt)
+        : null;
+    return { state, text, capturedAt };
+  }
+  const state = await companionScreenState();
+  return { state, text: null, capturedAt: null };
 }
 
 export function updateCompanion(input: {

@@ -466,6 +466,26 @@ public class SydneyCompanionModule: Module {
       return nil
     }
 
+    AsyncFunction("peekScreenSnapshot") { () async -> [String: Any]? in
+      #if compiler(>=6.4) && canImport(ScreenCaptureKit)
+      if #available(iOS 27.0, *),
+        Bundle.main.object(forInfoDictionaryKey: "SydneyCompanionEnabled") as? Bool == true {
+        let snap: (state: String, text: String?, capturedAt: Double?) = await MainActor.run {
+          (self.screenCapture as? CompanionScreenCapture)?.peekSnapshot() ?? ("idle", nil, nil)
+        }
+        var result: [String: Any] = ["state": snap.state]
+        if let text = snap.text {
+          result["text"] = text
+        }
+        if let capturedAt = snap.capturedAt {
+          result["capturedAt"] = capturedAt
+        }
+        return result
+      }
+      #endif
+      return nil
+    }
+
     Function("activeBotId") { () -> String? in
       Activity<CompanionActivityAttributes>.activities.first?.attributes.botId
     }

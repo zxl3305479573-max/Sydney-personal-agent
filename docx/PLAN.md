@@ -18,6 +18,20 @@
 
 依赖与验收条件：纯 JS／Reanimated／SVG 改动、零新增第三方依赖（既有 `1.0.12`–`1.0.15` 侧载 IPA 在 App 内「设置 → 检查更新」拉取 `1.0.33` OTA 重启即可生效，无需重装 IPA）；真实 iPhone 视觉帧率、浅／深色观感与各类天气特效体验待真机验收。
 
+## 手机首页顶栏「已同步」替换为按需显示的版本更新组件（PA-021，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（真实 iPhone 在有／无新版本 OTA 时的展示与点击更新流程待发版后实机验收；未提交或推送）。
+
+范围与交付物：
+- **首页顶栏按需更新胶囊**：修改 `apps/mobile/components/home-hub.tsx`，移除最上方原「已同步／N 运行中／同步中…／重试同步」状态胶囊（下拉刷新 `RefreshControl` 与项目卡片中的运行数环仍保持不变），改为接入既有 `useClientUpdateState()`、`sydneyReleaseFromManifest()` 与 `promptForAvailableUpdate()`：
+  - 无可用新版本且未在下载时渲染 `null`（不显示任何组件）；
+  - 检测到新版本时在原位置显示「可以更新」（英文 `Update`），点击弹出版本说明与更新确认弹窗；
+  - 下载中显示「更新中 XX%／更新中…」并禁用重复点击；
+  - 下载完成待重启时显示「重启更新」（英文 `Restart`），点击弹出立即安装并重启弹窗。
+- **回归测试与验证结果**：更新 `apps/mobile/lib/home-hub.test.tsx` 覆盖无更新不渲染、检测到新版本显示「可以更新」并触发弹窗、下载中展示进度且防重入、下载完成显示「重启更新」共 4 态；`home-hub.tsx` 与 `home-hub.test.tsx` Biome `0` 错误、`git diff --check` `0` 警告、4 个关联 Vitest 套件（30 项，含 `client-update`、`scroll-hygiene`、`screen-theme-coverage`）全绿、本批文件 TypeScript 0 错误（全包 `tsc --noEmit` 仅检出同工作区并发改动 `apps/mobile/app/_layout.tsx(414,26)` 的无关 `"weatherScene"` 报错，本批未触碰）。详见 [验证记录](VALIDATION.md#手机首页顶栏已同步替换为按需显示的版本更新组件2026-11-25)。
+
+依赖与验收条件：零新增依赖，直接复用 `apps/mobile/lib/client-update.ts` 与 `expo-updates` 状态机（纯 JS 改动，可随侧载 OTA 生效）；真实 iPhone 有／无新版本时的显隐与点击更新体验待真机验收。
+
 ## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：源码全量提交推送（`6b6ebe21e89416789cda2a4885c7f863ef4980db`）、GitHub CI（Run `45765000946`）全绿、新版 `1.0.15`（build `4`）无签名侧载 IPA 云端出包（Run `45764995008`）及 `1.0.32` 侧载 OTA 发布与线上全资源核验（Run `45767292012`）均已完成；真实 iPhone 侧载重装 `1.0.15` IPA、拉取 `1.0.32` OTA 与各项真机交互待设备验收。

@@ -17,6 +17,7 @@ import { readableGutters } from "../lib/adaptive-layout";
 import type { MobileBot, MobileMe } from "../lib/api";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient } from "../lib/card-gradient";
+import { promptForAvailableUpdate, useClientUpdateState } from "../lib/client-update";
 import { conversationStatusLabel, isConversationActiveStatus } from "../lib/conversation-status";
 import type { HomeWeatherSnapshot } from "../lib/home-weather";
 import {
@@ -30,6 +31,7 @@ import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { previewSnippet } from "../lib/preview";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
+import { sydneyReleaseFromManifest } from "../lib/sydney-release";
 import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
 import { BotAvatar } from "./bot-avatar";
 import { HomeCompanionCard } from "./home-companion-card";
@@ -292,17 +294,44 @@ export function HomeHub({
     experimental_backgroundImage: cardGradient(isLight, tone),
   });
 
-  const syncLabel = refreshing
-    ? copy("同步中…", "同步中…", "Syncing…")
-    : error
-      ? copy("重试同步", "重試同步", "Retry sync")
-      : resolvedActiveRuns > 0
-        ? copy(
-            `${resolvedActiveRuns} 运行中`,
-            `${resolvedActiveRuns} 運行中`,
-            `${resolvedActiveRuns} active`,
-          )
-        : copy("已同步", "已同步", "Synced");
+  const {
+    update: availableUpdate,
+    downloaded: updateDownloaded,
+    downloading: updateDownloading,
+    progress: updateProgress = 0,
+  } = useClientUpdateState();
+  const availableRelease = availableUpdate
+    ? sydneyReleaseFromManifest(availableUpdate.manifest)
+    : null;
+  const updatePercent = Math.round(Math.max(0, Math.min(1, updateProgress)) * 100);
+  const showUpdatePill = Boolean(availableUpdate || updateDownloading);
+  const updatePillLabel = updateDownloading
+    ? updatePercent > 0 && updatePercent < 100
+      ? copy(`更新中 ${updatePercent}%`, `更新中 ${updatePercent}%`, `Updating ${updatePercent}%`)
+      : copy("更新中…", "更新中…", "Updating…")
+    : updateDownloaded
+      ? copy("重启更新", "重啟更新", "Restart")
+      : copy("可以更新", "可以更新", "Update");
+  const updatePillA11yLabel = availableRelease
+    ? updateDownloaded
+      ? copy(
+          `版本 ${availableRelease.version} 已下载，点击重启更新`,
+          `版本 ${availableRelease.version} 已下載，點擊重啟更新`,
+          `Version ${availableRelease.version} ready, tap to restart`,
+        )
+      : copy(
+          `有新版本 ${availableRelease.version} 可以更新`,
+          `有新版本 ${availableRelease.version} 可以更新`,
+          `Version ${availableRelease.version} available to update`,
+        )
+    : updatePillLabel;
+  const handleOpenUpdate = () => {
+    if (!availableUpdate || updateDownloading) return;
+    promptForAvailableUpdate(
+      { id: availableUpdate.updateId, release: availableRelease },
+      updateDownloaded,
+    );
+  };
 
   const greetingText = buildGreeting(currentDate, locale, me, t("You"));
   const resolvedSpaceName = spaceName?.trim() || copy("个人空间", "個人空間", t("Personal"));
@@ -387,7 +416,7 @@ export function HomeHub({
         ) : undefined
       }
     >
-      {/* Header Row 1: Date + Sync Pill + Search + Settings */}
+      {/* Header Row 1: Date + Optional Update Pill + Search + Settings */}
       <View
         style={{
           minHeight: 36,
@@ -410,44 +439,58 @@ export function HomeHub({
           {formatHeaderDate(currentDate, locale)}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <MotionPressable
-            preset="control"
-            testID="home-hub-sync-pill"
-            accessibilityRole="button"
-            accessibilityLabel={syncLabel}
-            onPress={handleRefresh}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 5,
-              backgroundColor: tokens.card,
-              borderRadius: 999,
-              paddingHorizontal: 11,
-              paddingVertical: 5,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: tokens.border,
-            }}
-          >
-            <NativeSymbol
-              ios={resolvedActiveRuns > 0 && !refreshing && !error ? "sparkle" : "arrow.clockwise"}
-              android={
-                resolvedActiveRuns > 0 && !refreshing && !error ? "sparkles" : "refresh-outline"
-              }
-              size={11}
-              color={softAccentInk}
-            />
-            <Text
-              numberOfLines={1}
+          {showUpdatePill ? (
+            <MotionPressable
+              preset="control"
+              testID="home-hub-update-pill"
+              accessibilityRole="button"
+              accessibilityLabel={updatePillA11yLabel}
+              disabled={updateDownloading}
+              onPress={handleOpenUpdate}
               style={{
-                color: tokens.foreground,
-                fontSize: 12.5,
-                lineHeight: 16,
-                fontVariant: ["tabular-nums"],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                backgroundColor: tokens.card,
+                borderRadius: 999,
+                paddingHorizontal: 11,
+                paddingVertical: 5,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: tokens.border,
               }}
             >
-              {syncLabel}
-            </Text>
-          </MotionPressable>
+              <NativeSymbol
+                ios={
+                  updateDownloading
+                    ? "arrow.down.circle"
+                    : updateDownloaded
+                      ? "arrow.clockwise.circle.fill"
+                      : "arrow.down.circle.fill"
+                }
+                android={
+                  updateDownloading
+                    ? "download-outline"
+                    : updateDownloaded
+                      ? "refresh-circle"
+                      : "arrow-down-circle"
+                }
+                size={12}
+                color={tokens.foreground}
+              />
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: tokens.foreground,
+                  fontSize: 12.5,
+                  lineHeight: 16,
+                  fontWeight: "600",
+                  fontVariant: ["tabular-nums"],
+                }}
+              >
+                {updatePillLabel}
+              </Text>
+            </MotionPressable>
+          ) : null}
           <MotionPressable
             preset="icon"
             testID="home-hub-search-button"

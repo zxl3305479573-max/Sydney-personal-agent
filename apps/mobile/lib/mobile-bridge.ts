@@ -182,7 +182,10 @@ export async function collectMobileBridgeSnapshot(
   }
 
   if (permissions.companion) {
-    const companionMod = await import("./companion-session").catch(() => null);
+    const [companionMod, companionActivityMod] = await Promise.all([
+      import("./companion-session").catch(() => null),
+      import("./companion-activity").catch(() => null),
+    ]);
     if (companionMod) {
       const active = companionMod.getActiveCompanionSession();
       const prefs = companionMod.getCachedCompanionPreferences();
@@ -195,6 +198,15 @@ export async function collectMobileBridgeSnapshot(
         showReply: prefs.showReply,
         autoSpeak: prefs.speakReplies,
         status: runtime?.detailStatus ?? null,
+        updatedAt: now,
+      };
+    }
+    const screenSnap = await companionActivityMod?.peekCompanionScreenSnapshot().catch(() => null);
+    if (screenSnap) {
+      snapshot.phoneScreen = {
+        state: screenSnap.state,
+        text: screenSnap.text,
+        capturedAt: screenSnap.capturedAt,
         updatedAt: now,
       };
     }
@@ -506,6 +518,40 @@ export function useMobileBridgeSync(ready: boolean, router?: RouterLike): void {
         );
       })
       .catch(() => undefined);
+    let screenSyncTimer: ReturnType<typeof setInterval> | null = null;
+    const stopScreenSyncLoop = () => {
+      if (screenSyncTimer) {
+        clearInterval(screenSyncTimer);
+        screenSyncTimer = null;
+      }
+    };
+    const updateScreenSyncLoop = (state: string) => {
+      if (!active) return;
+      if (state === "capturing") {
+        void syncMobileBridgeNow({ force: true, includeNative: false });
+        if (!screenSyncTimer) {
+          screenSyncTimer = setInterval(() => {
+            if (!active) return;
+            void syncMobileBridgeNow({ force: true, includeNative: false });
+          }, 4_000);
+        }
+      } else {
+        stopScreenSyncLoop();
+        void syncMobileBridgeNow({ force: true, includeNative: false });
+      }
+    };
+    void import("./companion-activity")
+      .then((mod) => {
+        if (!active) return;
+        cleanups.push(mod.subscribeCompanionScreenState(updateScreenSyncLoop));
+        void mod
+          .companionScreenState()
+          .then((current) => {
+            if (active && current === "capturing") updateScreenSyncLoop(current);
+          })
+          .catch(() => undefined);
+      })
+      .catch(() => undefined);
     const poll = setInterval(() => {
       if (AppState.currentState && AppState.currentState !== "active") return;
       void loadMobileBridgeState().then(drainPending);
@@ -513,6 +559,7 @@ export function useMobileBridgeSync(ready: boolean, router?: RouterLike): void {
 
     return () => {
       active = false;
+      stopScreenSyncLoop();
       appSub.remove();
       for (const cleanup of cleanups) cleanup();
       clearInterval(poll);

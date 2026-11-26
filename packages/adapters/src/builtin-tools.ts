@@ -282,7 +282,7 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "computer_observe",
     description:
-      "Capture the current screen of this bot's computer for your own inspection. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop. Set share_with_user only when the user explicitly asks to see a screenshot; otherwise do not send screenshots to chat.",
+      "Capture the current screen of this bot's cloud computer desktop (NOT the user's phone or shared mobile screen — use app_get_phone_screen for the user's shared phone screen). Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop. Set share_with_user only when the user explicitly asks to see a screenshot; otherwise do not send screenshots to chat.",
     inputSchema: {
       type: "object",
       properties: { share_with_user: { type: "boolean" } },

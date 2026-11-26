@@ -62,6 +62,19 @@ vi.mock("./app-version", () => ({
 
 const startCompanionMock = vi.hoisted(() => vi.fn(async () => undefined));
 const stopCompanionMock = vi.hoisted(() => vi.fn(async () => undefined));
+const peekScreenSnapshotMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    state: "capturing" as const,
+    text: "微信聊天 · 周末一起吃火锅",
+    capturedAt: 1000,
+  })),
+);
+
+vi.mock("./companion-activity", () => ({
+  companionScreenState: async () => "capturing",
+  peekCompanionScreenSnapshot: peekScreenSnapshotMock,
+  subscribeCompanionScreenState: () => () => undefined,
+}));
 
 vi.mock("./companion-session", () => ({
   getActiveCompanionSession: () => null,
@@ -204,6 +217,11 @@ describe("mobile bridge & AppActionCard", () => {
     expect(full.reminders?.items[0]?.title).toBe("买牛奶");
     expect(full.contacts?.items[0]?.name).toBe("王五");
     expect(full.clipboard?.textPreview).toBe("测试剪贴板");
+    expect(full.phoneScreen).toMatchObject({
+      state: "capturing",
+      text: "微信聊天 · 周末一起吃火锅",
+      capturedAt: 1000,
+    });
 
     const restricted = await collectMobileBridgeSnapshot({
       enabled: true,
@@ -222,6 +240,7 @@ describe("mobile bridge & AppActionCard", () => {
     expect(restricted.reminders).toBeUndefined();
     expect(restricted.contacts).toBeUndefined();
     expect(restricted.clipboard).toBeUndefined();
+    expect(restricted.phoneScreen).toBeUndefined();
   });
 
   it("executes Amap navigation, open_screen, and native writes, and deduplicates foreground auto-execution", async () => {

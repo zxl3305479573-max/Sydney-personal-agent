@@ -13,6 +13,8 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
   private var lastFrameTime: TimeInterval = 0
   private var latestText: String?
   private var latestTextTime: TimeInterval = 0
+  private var snapshotText: String?
+  private var snapshotUpdatedAtMs: Double = 0
   private var stream: SCStream?
   private var activeStream: ObjectIdentifier?
   private var authorize: (() -> Bool)?
@@ -36,6 +38,8 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     lock.lock()
     generation += 1
     latestText = nil
+    snapshotText = nil
+    snapshotUpdatedAtMs = 0
     activeStream = nil
     lock.unlock()
   }
@@ -47,6 +51,8 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     generation += 1
     lastFrameTime = 0
     latestText = nil
+    snapshotText = nil
+    snapshotUpdatedAtMs = 0
     activeStream = nil
     lock.unlock()
     let picker = SCContentSharingPicker.shared
@@ -103,6 +109,15 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     let text = latestText
     latestText = nil
     return text
+  }
+
+  func peekSnapshot() -> (state: String, text: String?, capturedAt: Double?) {
+    lock.lock()
+    defer { lock.unlock() }
+    if phase == "capturing", let text = snapshotText, !text.isEmpty {
+      return (phase, text, snapshotUpdatedAtMs > 0 ? snapshotUpdatedAtMs : nil)
+    }
+    return (phase, nil, nil)
   }
 
   private func removePicker() {
@@ -203,6 +218,8 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
       self.lock.lock()
       self.generation += 1
       self.latestText = nil
+      self.snapshotText = nil
+      self.snapshotUpdatedAtMs = 0
       self.activeStream = nil
       self.lock.unlock()
       self.stream = nil
@@ -218,6 +235,8 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     if inactive {
       generation += 1
       latestText = nil
+      snapshotText = nil
+      snapshotUpdatedAtMs = 0
       phase = "paused"
     }
     lock.unlock()
@@ -247,7 +266,7 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     guard type == .screen, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
     lock.lock()
     let now = ProcessInfo.processInfo.systemUptime
-    guard phase == "capturing", activeStream == ObjectIdentifier(stream), now - lastFrameTime >= 5 else {
+    guard phase == "capturing", activeStream == ObjectIdentifier(stream), now - lastFrameTime >= 3 else {
       lock.unlock()
       return
     }
@@ -255,16 +274,21 @@ final class CompanionScreenCapture: NSObject, SCContentSharingPickerObserver, SC
     let currentGeneration = generation
     lock.unlock()
     let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .fast
-    request.usesLanguageCorrection = false
+    request.recognitionLevel = .accurate
+    request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+    request.usesLanguageCorrection = true
+    request.automaticallyDetectsLanguage = true
     do {
       try VNImageRequestHandler(cvPixelBuffer: pixelBuffer).perform([request])
       let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
         .joined(separator: "\n")
       lock.lock()
       if phase == "capturing", generation == currentGeneration, activeStream == ObjectIdentifier(stream) {
-        latestText = text.isEmpty ? nil : String(text.prefix(2000))
+        let bounded = text.isEmpty ? nil : String(text.prefix(4000))
+        latestText = bounded.map { String($0.prefix(2000)) }
         latestTextTime = ProcessInfo.processInfo.systemUptime
+        snapshotText = bounded
+        snapshotUpdatedAtMs = Date().timeIntervalSince1970 * 1000.0
         let capturedAt = latestTextTime
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
           guard let self else { return }

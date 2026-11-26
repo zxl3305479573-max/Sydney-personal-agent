@@ -11,10 +11,23 @@ const state = vi.hoisted(() => ({
   locale: "zh-CN",
   platform: "ios" as "ios" | "android",
   push: vi.fn(),
+  promptForAvailableUpdate: vi.fn(),
+  clientUpdate: {
+    update: undefined as undefined | { updateId: string; manifest?: unknown },
+    downloaded: false,
+    downloading: false,
+    progress: 0,
+    attempt: 0,
+    totalAttempts: 3,
+  },
 }));
 
 vi.mock("expo-router", () => ({
   useRouter: () => ({ push: state.push }),
+}));
+vi.mock("./client-update", () => ({
+  useClientUpdateState: () => state.clientUpdate,
+  promptForAvailableUpdate: state.promptForAvailableUpdate,
 }));
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }),
@@ -162,21 +175,24 @@ vi.mock("react-native", () => {
     Pressable: ({
       children,
       accessibilityLabel,
+      disabled,
       onPress,
       style,
       testID,
     }: {
       children?: ReactNode;
       accessibilityLabel?: string;
+      disabled?: boolean;
       onPress?: () => void;
       style?: unknown;
       testID?: string;
     }) => (
       <button
         type="button"
+        disabled={disabled}
         data-testid={testID}
         aria-label={accessibilityLabel}
-        onClick={onPress}
+        onClick={disabled ? undefined : onPress}
         style={flatten(typeof style === "function" ? style({ pressed: false }) : style)}
       >
         {children}
@@ -219,6 +235,14 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.locale = "zh-CN";
   state.platform = "ios";
+  state.clientUpdate = {
+    update: undefined,
+    downloaded: false,
+    downloading: false,
+    progress: 0,
+    attempt: 0,
+    totalAttempts: 3,
+  };
   vi.clearAllMocks();
   container = document.createElement("div");
   root = createRoot(container);
@@ -261,7 +285,9 @@ describe("HomeHub personal hub", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("11月24日 · 星期二");
-    expect(text).toContain("1 运行中");
+    expect(container.querySelector('[data-testid="home-hub-sync-pill"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-update-pill"]')).toBeNull();
+    expect(text).not.toContain("已同步");
     expect(text).not.toContain("sync ·");
     expect(text).not.toContain("20:15");
     expect(text).toContain("晚上好，Mina");
@@ -280,11 +306,6 @@ describe("HomeHub personal hub", () => {
     expect(text).toContain("连接应用");
     expect(text).toContain("例行与技能");
     expect(text).toContain("文件与换肤");
-
-    act(() =>
-      container.querySelector<HTMLButtonElement>('[data-testid="home-hub-sync-pill"]')!.click(),
-    );
-    expect(onRefresh).toHaveBeenCalledOnce();
 
     act(() =>
       container.querySelector<HTMLButtonElement>('[data-testid="home-hub-create-bot"]')!.click(),
@@ -380,7 +401,8 @@ describe("HomeHub personal hub", () => {
     );
 
     expect(container.textContent).toContain("Good morning, Mina");
-    expect(container.textContent).toContain("Synced");
+    expect(container.querySelector('[data-testid="home-hub-update-pill"]')).toBeNull();
+    expect(container.textContent).not.toContain("Synced");
     expect(container.textContent).not.toContain("sync ·");
     expect(container.textContent).not.toContain("09:05");
     expect(container.textContent).toContain(
@@ -436,27 +458,21 @@ describe("HomeHub personal hub", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("2 运行中");
+    const workspacesHeader = container.querySelector('[data-testid="home-hub-workspaces-header"]');
+    expect(workspacesHeader?.getAttribute("aria-label")).toContain("2 个运行中");
     expect(text).not.toContain("20:15");
     expect(text).toContain("Needs input · Claude · 2026-11-24 ›");
   });
 
-  it("shows localized idle synced and retry sync labels without raw English sync text", () => {
-    act(() =>
-      root.render(
-        <HomeHub
-          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
-          bots={[sampleBot({ status: "idle" })]}
-          groups={[]}
-          now={fixedEvening}
-        />,
-      ),
-    );
-    const pill = container.querySelector('[data-testid="home-hub-sync-pill"]');
-    expect(pill?.textContent).toBe("已同步");
-    expect(pill?.textContent).not.toContain("sync");
-    expect(pill?.textContent).not.toContain("20:15");
+  it("renders nothing in the top header when up to date, and shows update pill only when a new version is available or downloading", () => {
+    const release = {
+      version: "1.0.32",
+      releasedOn: "2026-11-25",
+      notes: { en: ["Fix"], "zh-CN": ["修复"], "zh-TW": ["修復"] },
+    };
+    const manifest = { extra: { expoClient: { extra: { sydneyMobileRelease: release } } } };
 
+    // 1. Up to date: renders nothing in that slot.
     act(() =>
       root.render(
         <HomeHub
@@ -464,13 +480,94 @@ describe("HomeHub personal hub", () => {
           bots={[sampleBot({ status: "idle" })]}
           groups={[]}
           now={fixedEvening}
-          error="Network offline"
         />,
       ),
     );
-    expect(container.querySelector('[data-testid="home-hub-sync-pill"]')?.textContent).toBe(
-      "重试同步",
+    expect(container.querySelector('[data-testid="home-hub-update-pill"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-sync-pill"]')).toBeNull();
+    expect(container.textContent).not.toContain("已同步");
+    expect(container.textContent).not.toContain("可以更新");
+
+    // 2. New version available: displays "可以更新" and opens update prompt on press.
+    state.clientUpdate = {
+      update: { updateId: "upd-32", manifest },
+      downloaded: false,
+      downloading: false,
+      progress: 0,
+      attempt: 0,
+      totalAttempts: 3,
+    };
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot({ status: "idle" })]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
     );
+    const availablePill = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-update-pill"]',
+    );
+    expect(availablePill?.textContent).toBe("可以更新");
+    expect(availablePill?.getAttribute("aria-label")).toContain("1.0.32");
+    act(() => availablePill?.click());
+    expect(state.promptForAvailableUpdate).toHaveBeenCalledWith({ id: "upd-32", release }, false);
+
+    // 3. Downloading: displays progress and disables repeated taps.
+    state.promptForAvailableUpdate.mockClear();
+    state.clientUpdate = {
+      update: { updateId: "upd-32", manifest },
+      downloaded: false,
+      downloading: true,
+      progress: 0.42,
+      attempt: 1,
+      totalAttempts: 3,
+    };
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot({ status: "idle" })]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
+    );
+    const downloadingPill = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-update-pill"]',
+    );
+    expect(downloadingPill?.textContent).toBe("更新中 42%");
+    expect(downloadingPill?.disabled).toBe(true);
+    act(() => downloadingPill?.click());
+    expect(state.promptForAvailableUpdate).not.toHaveBeenCalled();
+
+    // 4. Downloaded: displays "重启更新" and passes downloaded=true.
+    state.clientUpdate = {
+      update: { updateId: "upd-32", manifest },
+      downloaded: true,
+      downloading: false,
+      progress: 1,
+      attempt: 0,
+      totalAttempts: 3,
+    };
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot({ status: "idle" })]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
+    );
+    const readyPill = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-update-pill"]',
+    );
+    expect(readyPill?.textContent).toBe("重启更新");
+    act(() => readyPill?.click());
+    expect(state.promptForAvailableUpdate).toHaveBeenCalledWith({ id: "upd-32", release }, true);
   });
 
   it("renders temperature and weather icon only (no text label) beside the greeting and updates day/night icon by time", () => {

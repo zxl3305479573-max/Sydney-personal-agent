@@ -27,6 +27,38 @@
 - **未执行项（待真机验收）**：
   - 真实 iPhone 在 App 内更新至 `1.0.33` 重启后，实测浅色暖瓷与深色模式下全 App 各类天气特效观感（小／中／大雨分级、底栏／底边水花涟漪与飞溅水珠、雷阵雨双闪与分叉闪电、小／大雪飘落与薄霜、多云／薄雾／晴阳／星夜）及 60fps 帧率表现。
 
+## 修复手机开启共享屏幕时 Bot 误读云电脑屏幕（2026-11-25）
+
+关联 PA-021。
+
+- **已执行并通过**：
+  - **Biome 检查**（覆盖本次 11 个改动 TS/TSX 文件：`packages/contracts/src/mobile-bridge.ts`、`packages/adapters/src/builtin-tools.ts`、`packages/adapters/src/run-instructions.ts`、`packages/adapters/src/run-tools-mobile-app.ts`、`packages/adapters/src/run-tools-mobile-app.test.ts`、`packages/adapters/src/executor.test.ts`、`apps/mobile/lib/companion-activity.ts`、`apps/mobile/lib/companion-activity.test.ts`、`apps/mobile/lib/mobile-bridge.ts`、`apps/mobile/lib/mobile-bridge.test.tsx`、`apps/mobile/lib/companion-screen-send.ts`）：**11 / 11 文件 0 错误**。
+  - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 `@rakazo/contracts`、`@rakazo/core`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/mobile`）：**5 / 5 包 0 错误**。
+  - **定向 Vitest 回归**（`pnpm exec vitest run --maxWorkers=1`）：**7 个文件、209 / 209 项全部通过**：
+    - `packages/adapters/src/run-tools-mobile-app.test.ts`（6 / 6，含 `app_get_phone_screen` 共享中读取、等待识别、未共享禁调 `computer_observe`、`companion` 权限关闭拦截及 `app_get_context` 快照透出）；
+    - `packages/adapters/src/builtin-tool-bridge.test.ts`（7 / 7，验证 `listed` 工具定义仍在 `<= 31,800` 字节预算内且 `app_get_phone_screen` 归入 `mobile app` 索引）；
+    - `packages/adapters/src/executor.test.ts`（162 / 162，验证更新后的系统提示词快照）；
+    - `apps/mobile/lib/companion-activity.test.ts`（12 / 12，含 `peekCompanionScreenSnapshot` 新 IPA 与旧 IPA 降级）；
+    - `apps/mobile/lib/mobile-bridge.test.tsx`（3 / 3，含 `phoneScreen` 采集与 `companion: false` 裁剪）；
+    - `apps/mobile/lib/companion-screen-send.test.ts`（6 / 6）与 `apps/mobile/lib/companion-screen-auto.test.ts`（13 / 13）。
+  - **差异空白检查**（`git diff --check` 覆盖本次全部 15 个改动文件）：**0 警告**。
+- **未执行项（需后续发布与真机验证）**：
+  - 后端推送与生产部署（`app_get_phone_screen` 与更新后的路由提示词需部署到线上 API/Worker 生效）；
+  - macOS `xcode-27` 编译含 `CompanionScreenCapture.swift` / `SydneyCompanionModule.swift` 改动的侧载 IPA（实时中英双语 OCR 快照 `peekScreenSnapshot` 需新 IPA 生效；纯 OTA 仅能同步共享状态 `state: "capturing"`）；
+  - iPhone 真机开启「屏幕陪伴」后在对话与语音通话中向 Bot 询问当前手机屏幕内容，确认调用 `app_get_phone_screen` 而不再调用 `computer_observe`。
+
+## 手机首页顶栏「已同步」替换为按需显示的版本更新组件（2026-11-25）
+
+关联 PA-021。
+
+- **已执行并通过**：
+  - **Biome 检查**（`.\node_modules\.bin\biome check apps/mobile/components/home-hub.tsx apps/mobile/lib/home-hub.test.tsx`）：**2 / 2 文件 0 错误、0 警告**。
+  - **定向与全仓守卫 Vitest**（`.\node_modules\.bin\vitest run ...`）：**4 / 4 文件、30 / 30 项全部通过**（`home-hub.test.tsx` 7 项、`client-update.test.ts` 16 项、`screen-theme-coverage.test.ts` 6 项、`scroll-hygiene.test.ts` 1 项）。
+  - **TypeScript 类型检查**（`.\node_modules\.bin\tsc --noEmit -p apps/mobile/tsconfig.json`）：本批改动文件 `home-hub.tsx` 与 `home-hub.test.tsx` **0 错误**；同工作区另检出 1 处并发窗口的无关报错 `apps/mobile/app/_layout.tsx(414,26): Argument of type '"weatherScene"' is not assignable to parameter of type 'StartupStep'`（本批未改动 `_layout.tsx`）。
+  - **空白与补丁检查**（`git diff --check` 覆盖本批改动文件）：**0 警告**。
+- **未执行项（待真机验收）**：
+  - 真实 iPhone 上无新版本时顶栏留空、检测到新 OTA 版本时展示「可以更新」并点开更新弹窗／下载进度／「重启更新」的完整实机体验待发版后验收；未提交或推送。
+
 ## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。
