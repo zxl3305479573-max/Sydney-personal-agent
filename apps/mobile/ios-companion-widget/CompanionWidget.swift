@@ -47,7 +47,7 @@ struct CompanionWidget: Widget {
           botId: context.attributes.botId,
           status: displayStatus,
           isCall: isCall || isBackgroundListening,
-          size: 40,
+          size: 42,
           onDarkSurface: false
         )
         VStack(alignment: .leading, spacing: 3) {
@@ -56,21 +56,24 @@ struct CompanionWidget: Widget {
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(.primary)
               .lineLimit(1)
+              .unredacted()
             Spacer(minLength: 8)
             if isCall, let startedAt = context.state.callStartedAt {
               HStack(spacing: 4) {
                 callSignalIcon(displayStatus, size: 12, accent: accent)
                 Text(startedAt, style: .timer)
-                  .font(.caption.monospacedDigit().weight(.medium))
+                  .font(.caption.monospacedDigit().weight(.semibold))
                   .foregroundStyle(accent)
+                  .unredacted()
               }
             } else {
               HStack(spacing: 4) {
                 companionStatusIcon(displayStatus, size: 11, tint: accent)
                 Text(displayStatus)
-                  .font(.caption.weight(.medium))
+                  .font(.caption.weight(.semibold))
                   .foregroundStyle(accent)
                   .lineLimit(1)
+                  .unredacted()
               }
             }
           }
@@ -79,24 +82,27 @@ struct CompanionWidget: Widget {
               .font(.footnote.weight(.medium))
               .foregroundStyle(accent)
               .lineLimit(1)
+              .unredacted()
           }
           if let reply = cleanReply {
             Text(reply)
               .font(.subheadline)
-              .foregroundStyle(.primary.opacity(0.92))
+              .foregroundStyle(.primary)
               .lineLimit(3)
+              .truncationMode(.tail)
               .lineSpacing(1.5)
-              .privacySensitive()
+              .unredacted()
           } else if !isCall {
             Text(context.attributes.showReply ? "随时待命，点击打开对话" : "回复内容已隐藏")
               .font(.footnote)
               .foregroundStyle(.secondary)
               .lineLimit(1)
+              .unredacted()
           }
         }
       }
       .padding(.horizontal, 16)
-      .padding(.vertical, 14)
+      .padding(.vertical, 13)
       .nativeLockScreenActivitySurface()
       .widgetURL(chatURL(context.attributes))
     } dynamicIsland: { context in
@@ -113,78 +119,85 @@ struct CompanionWidget: Widget {
             botId: context.attributes.botId,
             status: displayStatus,
             isCall: isCall || isBackgroundListening,
-            size: 38
+            size: 32
           )
           .padding(.leading, 4)
           .padding(.top, 2)
         }
         DynamicIslandExpandedRegion(.trailing) {
           if isCall {
-            HStack(spacing: 5) {
-              callSignalIcon(displayStatus, size: 14)
+            HStack(spacing: 4) {
+              callSignalIcon(displayStatus, size: 12)
               if let startedAt = context.state.callStartedAt {
                 Text(startedAt, style: .timer)
-                  .font(.subheadline.monospacedDigit().weight(.semibold))
+                  .font(.caption.monospacedDigit().weight(.semibold))
                   .foregroundStyle(accent)
                   .multilineTextAlignment(.trailing)
+                  .unredacted()
               } else {
                 Text(compactCallLabel(displayStatus))
-                  .font(.caption.weight(.semibold))
+                  .font(.caption2.weight(.semibold))
                   .foregroundStyle(accent)
+                  .unredacted()
               }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(Color.islandPill, in: Capsule())
             .padding(.trailing, 2)
             .padding(.top, 2)
           } else {
-            HStack(spacing: 5) {
-              companionStatusIcon(displayStatus, size: 11, tint: accent)
+            HStack(spacing: 4) {
+              companionStatusIcon(displayStatus, size: 10, tint: accent)
               Text(displayStatus)
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(accent)
                 .lineLimit(1)
+                .unredacted()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(Color.islandPill, in: Capsule())
             .padding(.trailing, 2)
             .padding(.top, 2)
           }
         }
         DynamicIslandExpandedRegion(.bottom) {
-          VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
               Text(context.attributes.botName)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
+                .unredacted()
               if isCall {
                 Text(displayStatus)
-                  .font(.caption.weight(.semibold))
+                  .font(.caption2.weight(.semibold))
                   .foregroundStyle(accent)
                   .lineLimit(1)
+                  .unredacted()
               }
             }
 
             if let reply = cleanReply {
               Text(reply)
-                .font(.system(size: 14.5))
-                .foregroundStyle(Color.white.opacity(0.92))
-                .lineLimit(3)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .privacySensitive()
+                .font(.system(size: 13))
+                .foregroundStyle(Color.white.opacity(0.95))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .lineSpacing(1.5)
+                .unredacted()
             } else if !isCall {
               Text(
                 isBackgroundListening
                   ? "正在聆听，说完停顿片刻或点击发送…"
                   : (context.attributes.showReply ? "随时待命，点下方按钮直接互动" : "回复内容已隐藏")
               )
-              .font(.system(size: 13.5))
+              .font(.system(size: 12.5))
               .foregroundStyle(Color.islandSecondary)
               .lineLimit(2)
+              .truncationMode(.tail)
+              .unredacted()
             }
 
             actionRow(
@@ -196,8 +209,8 @@ struct CompanionWidget: Widget {
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal, 2)
-          .padding(.top, 6)
-          .padding(.bottom, 4)
+          .padding(.top, 2)
+          .padding(.bottom, 2)
         }
       } compactLeading: {
         avatarBadge(
@@ -221,35 +234,21 @@ struct CompanionWidget: Widget {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: 44, alignment: .trailing)
+                .unredacted()
             } else {
               Text(compactCallLabel(displayStatus))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(accent)
                 .lineLimit(1)
+                .unredacted()
             }
           }
           .padding(.trailing, 3)
         } else if displayStatus == "我一直都在" {
-          HStack(spacing: 5) {
-            Circle()
-              .fill(accent)
-              .frame(width: 6, height: 6)
-            Text(context.attributes.botName)
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(.white)
-              .lineLimit(1)
-              .frame(maxWidth: 80, alignment: .trailing)
-          }
-          .padding(.trailing, 3)
+          EmptyView()
         } else {
-          HStack(spacing: 4) {
-            companionStatusIcon(displayStatus, size: 12, tint: accent)
-            Text(compactCompanionStatus(displayStatus))
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(accent)
-              .lineLimit(1)
-          }
-          .padding(.trailing, 3)
+          companionStatusIcon(displayStatus, size: 12, tint: accent)
+            .padding(.trailing, 3)
         }
       } minimal: {
         if isCall || isBackgroundListening {
@@ -327,16 +326,17 @@ struct CompanionWidget: Widget {
   private func actionLabel(_ title: String, systemImage: String, background: Color) -> some View {
     HStack(spacing: 4) {
       Image(systemName: systemImage)
-        .font(.system(size: 11.5, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
       Text(title)
-        .font(.system(size: 12.5, weight: .semibold))
+        .font(.system(size: 12, weight: .semibold))
         .lineLimit(1)
         .minimumScaleFactor(0.85)
     }
     .foregroundStyle(.white)
+    .unredacted()
     .frame(maxWidth: .infinity)
-    .padding(.horizontal, 8)
-    .padding(.vertical, 9)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 6.5)
     .background(background, in: Capsule())
   }
 
@@ -383,12 +383,6 @@ struct CompanionWidget: Widget {
     if status.contains("思考") { return "思考" }
     if status.contains("说话") { return "说话" }
     return "通话"
-  }
-
-  private func compactCompanionStatus(_ status: String) -> String {
-    if status.contains("断开") { return "重连中" }
-    if status.contains("待更新") { return "待更新" }
-    return status
   }
 
   @ViewBuilder
@@ -467,6 +461,45 @@ struct CompanionWidget: Widget {
       }
     }
     .frame(width: size, height: size)
+    .unredacted()
+  }
+
+  private func decodeWidgetAvatarImage(_ encoded: String) -> UIImage? {
+    guard encoded.hasPrefix("p|"),
+      let data = Data(base64Encoded: String(encoded.dropFirst(2))),
+      let decoded = UIImage(data: data),
+      decoded.size.width > 0,
+      decoded.size.height > 0
+    else { return nil }
+    let side = min(max(decoded.size.width * decoded.scale, decoded.size.height * decoded.scale), 84)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    format.preferredRange = .standard
+    return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+      .image { context in
+        context.cgContext.interpolationQuality = .high
+        decoded.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+      }
+  }
+
+  @ViewBuilder
+  private func avatarPhoto(_ image: UIImage, size: CGFloat) -> some View {
+    let base = Image(uiImage: image)
+      .renderingMode(.original)
+      .resizable()
+      .interpolation(.high)
+      .antialiased(true)
+    if #available(iOS 18.0, *) {
+      base
+        .widgetAccentedRenderingMode(.fullColor)
+        .scaledToFill()
+        .frame(width: size, height: size)
+    } else {
+      base
+        .scaledToFill()
+        .frame(width: size, height: size)
+    }
   }
 
   @ViewBuilder
@@ -479,20 +512,14 @@ struct CompanionWidget: Widget {
   ) -> some View {
     let ringColor = onDarkSurface ? Color.white.opacity(0.28) : Color.primary.opacity(0.14)
     let ringWidth: CGFloat = onDarkSurface ? 0.9 : 0.6
-    if let encoded, encoded.hasPrefix("p|"),
-      let data = Data(base64Encoded: String(encoded.dropFirst(2))),
-      let image = UIImage(data: data) {
-      Image(uiImage: image)
-        .resizable()
-        .interpolation(.high)
-        .antialiased(true)
-        .scaledToFill()
-        .frame(width: size, height: size)
+    if let encoded, let image = decodeWidgetAvatarImage(encoded) {
+      avatarPhoto(image, size: size)
         .clipShape(Circle())
         .overlay(Circle().stroke(ringColor, lineWidth: ringWidth))
+        .unredacted()
         .accessibilityLabel(botName)
     } else if let encoded, let avatar = CompanionBotAvatar(encoded: encoded, size: size) {
-      avatar.accessibilityLabel(botName)
+      avatar.unredacted().accessibilityLabel(botName)
     } else {
       let initial = String(botName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1))
       ZStack {
@@ -504,6 +531,7 @@ struct CompanionWidget: Widget {
       }
       .frame(width: size, height: size)
       .overlay(Circle().stroke(ringColor, lineWidth: ringWidth))
+      .unredacted()
       .accessibilityLabel(botName)
     }
   }

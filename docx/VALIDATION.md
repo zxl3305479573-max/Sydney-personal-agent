@@ -1,5 +1,19 @@
 # 验证记录
 
+## 修复灵动岛与锁屏实时活动头像灰圆／文字占位／展开态裁切，并精简收缩态仅显示头像（2026-11-26）
+
+关联 PA-021。
+
+- **编码期静态自检与修正**：核对 Apple 官方 SwiftUI 签名 `Image.widgetAccentedRenderingMode(_:) -> some View`，将 `.interpolation(.high)` 与 `.antialiased(true)` 前置到 `Image` 链中再调用 `.widgetAccentedRenderingMode(.fullColor)`，避免 Xcode Swift 编译类型报错；确认 `SydneyCompanionModule.swift` 移除 `ImageIO` / `UniformTypeIdentifiers` 导入后无 `UTType` / `CGImageDestination` 残留引用。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`apps/mobile/app.json`、`apps/mobile/lib/companion-plugin.test.ts`）：**2 / 2 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest 回归（`--maxWorkers=1`，6 个文件、62 / 62 项全部通过）**：`companion-plugin.test.ts`（2 项，新增校验 `preferredRange = .standard`、`jpegData`、无 `UTType.heic`、`.widgetAccentedRenderingMode(.fullColor)`、`.unredacted()`、`decodeWidgetAvatarImage`、`EmptyView()`、无 `.fixedSize(horizontal: false, vertical: true)`）、`companion-activity.test.ts`（12 项）、`companion-presentation.test.ts`（5 项）、`companion-avatar.test.ts`（3 项）、`app-version.test.ts`（6 项）、`app-config.test.ts`（34 项）。
+  - **空白与补丁检查**（`git diff --check` 覆盖本次全部改动文件）：**0 警告**。
+- **未执行项（本机为 Windows 环境，待发版与真机验收）**：
+  - GitHub Actions `xcode-27` / iOS 27.1 SDK 原生 Swift 编译与新版无签名侧载 IPA 打包；
+  - iPhone 真机经 `Sideloadly` 重签覆盖安装后验证：收缩态灵动岛仅显示清晰圆形头像（右侧无 Bot 名字）、展开态显示清晰头像／完整 Bot 名称／2 行不截断回复与全部 3 枚操作按钮、锁屏卡片清晰展示彩色头像与完整可读文字。
+
 ## iPhone 1.0.36 侧载 OTA 发布与 1.0.17 无签名侧载 IPA 构建（2026-11-26）
 
 关联 PA-021、REL-01。

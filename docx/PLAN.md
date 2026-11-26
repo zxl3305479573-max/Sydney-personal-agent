@@ -1,5 +1,22 @@
 # Sydney 开发总计划
 
+## 修复灵动岛与锁屏实时活动头像灰圆／文字占位／展开态裁切，并精简收缩态仅显示头像（PA-021，2026-11-26）
+
+状态：根因定位、原生 Swift 模块与灵动岛扩展修复及本机离线验证已完成（因改动涉及原生 Swift 扩展 `SydneyCompanionWidget.appex` 与 `SydneyCompanion` 模块，需待用户确认提交推送并经 macOS Xcode 重新打包侧载 IPA 后覆盖重签实机验收；未提交或推送）。
+
+范围与交付物：
+- **修复头像灰圆占位（`apps/mobile/modules/sydney-companion/ios/SydneyCompanionModule.swift`、`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：
+  - 移除 `1.0.17` 引入的 `112×112` `UTType.heic` 编码（未设 `preferredRange = .standard` 易产生 16-bit Display P3 HEIC 缓冲区，在 WidgetKit 远程归档中退化为实心灰圆），改用标准 8-bit sRGB JPEG（`format.preferredRange = .standard`，`72×72 → 64×64 → 56×56 → 48×48`，上限 `1,850` 字节，兼顾 2×–3× 清晰度与 ActivityKit 4 KB 载荷上限）；
+  - 在 `CompanionWidget.swift` 新增 `decodeWidgetAvatarImage()` 提前解码为 8-bit sRGB 位图，并封装 `avatarPhoto()`（先执行 `.renderingMode(.original)` / `.resizable()` / `.interpolation(.high)` / `.antialiased(true)`，iOS 18+ 再施加 `.widgetAccentedRenderingMode(.fullColor)` 与 `.unredacted()`），彻底避免系统液态玻璃／着色模式将头像刷灰。
+- **修复锁屏与展开态 Bot 名称／状态灰条占位与展开态高度裁切（`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：
+  - 为头像、Bot 名称、状态与用户显式授权展示的回复补齐 `.unredacted()`（移除触发系统占位的隐私覆盖，保持 `showReply == false` 在原生层不写入回复的隐私边界），锁屏正文采用不透明 `.primary` 提升在复杂壁纸上的可读性；
+  - 重算展开态垂直高度预算（总高约 `141pt`，留足 Apple `160–170pt` 限高余量）：头像 `32pt`、状态胶囊紧凑内边距、`.bottom` `spacing: 6`、`botName` `14pt`、回复区移除强撑高度的 `.fixedSize(horizontal: false, vertical: true)` 改为清晰 2 行 `.lineLimit(2)` + `.truncationMode(.tail)`，确保文字完整不半截裁断且底部「发消息 / 截屏提问 / 语音对话」三枚按钮完整可见。
+- **收缩态灵动岛右侧去文字仅留头像（`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：
+  - 按用户要求将 `compactTrailing` 在常态（`我一直都在`）改为 `EmptyView()`，收缩态灵动岛左侧仅展示圆形 Bot 头像、右侧不再显示 Bot 名称；语音通话时保留通话图标与计时器，思考／聆听／断连等忙碌态仅展示紧凑状态图标。
+- **回归断言与本地验证**：同步更新 `apps/mobile/lib/companion-plugin.test.ts`，并将原生 iOS 底座版本递增至 `1.0.18`（`buildNumber: "7"`，`apps/mobile/app.json`）；Biome `0` 错误、`@rakazo/mobile` 全包 `tsc --noEmit` `0` 错误、关联 Vitest 套件全绿、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#修复灵动岛与锁屏实时活动头像灰圆文字占位展开态裁切并精简收缩态仅显示头像2026-11-26)。
+
+依赖与验收条件：零新增依赖与权限；推送后由 `mobile-ios-sideload.yml` 重新编译 `1.0.18`（build `7`）无签名侧载 IPA 并经 `Sideloadly` 覆盖重签后在 iPhone 真机验收。
+
 ## iPhone `1.0.36` 侧载 OTA 发布与 `1.0.17`（build `6`）无签名侧载 IPA 构建（PA-021／REL-01，2026-11-26）
 
 状态：全量提交推送（`1ee3026d5d3d8ada18e42e3e75403a5d44d6e47e`、`3d1e8f5108f54f0c94ef102ede9ca8ec5d89e364`）、`CI` 全绿与生产部署（Run `45818261388` 与 Run `45821366079`，线上 `/health` 与 `/ready` 均 HTTP `200`）、iPhone `1.0.36` 侧载 OTA 发布与线上全资源核验（Run `45818264011`，更新 ID `01a217cb-abb2-709b-930d-5cbf6cd8f2fc`，`62 / 62` 静态资源与启动包 SHA-256 全部匹配）以及新版 `1.0.17`（build `6`）无签名侧载 IPA 出包（Run `45821357736`，Artifact `15119421377`，`27,545,885` 字节，已验证 `SydneyCompanionWidget.appex` 与 `EXUpdatesEnabled=True`）均已完成；真机下载并通过 `Sideloadly` 覆盖重签 `1.0.17` IPA 后实测待设备验收。

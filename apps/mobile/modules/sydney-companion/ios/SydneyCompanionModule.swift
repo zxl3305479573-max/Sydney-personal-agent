@@ -1,10 +1,8 @@
 import ActivityKit
 import ExpoModulesCore
 import Foundation
-import ImageIO
 import Intents
 import UIKit
-import UniformTypeIdentifiers
 import UserNotifications
 
 private func decodeCustomAvatarImage(_ value: String) -> UIImage? {
@@ -26,29 +24,11 @@ private func decodeCustomAvatarImage(_ value: String) -> UIImage? {
   return image
 }
 
-private func encodeAvatarHEIC(_ image: UIImage, quality: CGFloat) -> Data? {
-  guard let cgImage = image.cgImage else { return nil }
-  let data = NSMutableData()
-  guard
-    let destination = CGImageDestinationCreateWithData(
-      data as CFMutableData,
-      UTType.heic.identifier as CFString,
-      1,
-      nil
-    )
-  else { return nil }
-  let options: [CFString: Any] = [
-    kCGImageDestinationLossyCompressionQuality: quality,
-  ]
-  CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-  guard CGImageDestinationFinalize(destination) else { return nil }
-  return data as Data
-}
-
 private func renderSquareAvatarThumbnail(_ image: UIImage, side: CGFloat) -> UIImage {
   let format = UIGraphicsImageRendererFormat()
   format.scale = 1
   format.opaque = true
+  format.preferredRange = .standard
   let scale = max(side / image.size.width, side / image.size.height)
   let width = image.size.width * scale
   let height = image.size.height * scale
@@ -75,26 +55,14 @@ private func activityAvatar(_ value: String?) -> String? {
   }
   guard let image = decodeCustomAvatarImage(value) else { return nil }
 
-  // HEIC fits 112x112 Retina avatars inside ActivityKit's 4 KB payload budget (~2.8 KB base64),
-  // avoiding the blurry 48x48 JPEG fallback while requiring zero App Group entitlements.
-  let heicCandidates: [(CGFloat, [CGFloat], Int)] = [
-    (112, [0.78, 0.68, 0.58, 0.48], 2100),
-    (96, [0.72, 0.60, 0.48, 0.36], 2100),
-    (72, [0.68, 0.54, 0.40], 2000),
-  ]
-  for (side, qualities, maxBytes) in heicCandidates {
-    let thumbnail = renderSquareAvatarThumbnail(image, side: side)
-    for quality in qualities {
-      if let heic = encodeAvatarHEIC(thumbnail, quality: quality), heic.count <= maxBytes {
-        return "p|" + heic.base64EncodedString()
-      }
-    }
-  }
-
+  // Standard 8-bit sRGB JPEG keeps ActivityKit payloads small (~2.4 KB base64) and ensures
+  // WidgetKit's remote view archiver renders full-color thumbnails reliably across Lock Screen
+  // and Dynamic Island (HEIC / wide-gamut buffers can drop to solid gray placeholders).
   let jpegCandidates: [(CGFloat, [CGFloat], Int)] = [
-    (96, [0.62, 0.48, 0.36], 2100),
-    (72, [0.58, 0.44, 0.32], 2000),
-    (48, [0.60, 0.45, 0.30, 0.20], 1800),
+    (72, [0.70, 0.58, 0.46, 0.36], 1850),
+    (64, [0.72, 0.58, 0.45, 0.34], 1800),
+    (56, [0.70, 0.55, 0.42], 1750),
+    (48, [0.65, 0.48, 0.32, 0.20], 1700),
   ]
   for (side, qualities, maxBytes) in jpegCandidates {
     let thumbnail = renderSquareAvatarThumbnail(image, side: side)

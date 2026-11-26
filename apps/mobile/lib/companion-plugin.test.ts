@@ -245,6 +245,11 @@ describe("isolated companion widget plugin", () => {
     expect(widgetSwift).toContain(".activityBackgroundTint(.clear)");
     expect(widgetSwift).toContain(".activityBackgroundTint(nil)");
     expect(widgetSwift).not.toContain("islandSurface");
+    expect(widgetSwift).toContain(".widgetAccentedRenderingMode(.fullColor)");
+    expect(widgetSwift).toContain(".unredacted()");
+    expect(widgetSwift).toContain("decodeWidgetAvatarImage");
+    expect(widgetSwift).toContain("EmptyView()");
+    expect(widgetSwift).not.toContain(".fixedSize(horizontal: false, vertical: true)");
     expect(widgetSwift).toContain("CompanionVoiceToggleIntent");
     expect(widgetSwift).toContain("CompanionVoiceFinishIntent");
     expect(widgetSwift).toContain("CompanionVoiceCancelIntent");
@@ -288,8 +293,9 @@ describe("isolated companion widget plugin", () => {
     expect(hostSwift).toContain("INSendMessageIntent");
     expect(hostSwift).toContain("UNNotificationAttachment");
     expect(hostSwift).toContain("renderBotNotificationAvatarPNG");
-    expect(hostSwift).toContain("encodeAvatarHEIC");
-    expect(hostSwift).toContain("UTType.heic");
+    expect(hostSwift).toContain("preferredRange = .standard");
+    expect(hostSwift).toContain("jpegData(compressionQuality:");
+    expect(hostSwift).not.toContain("UTType.heic");
     expect(hostSwift).toContain("cleanReplyForIsland");
     const podspec = fs.readFileSync(
       path.join(currentDirectory, "../modules/sydney-companion/ios/SydneyCompanion.podspec"),
