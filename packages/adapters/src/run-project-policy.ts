@@ -1,6 +1,6 @@
 import type { ConnectorTool } from "@rakazo/adapter-kit";
 import type { ProjectDirectoryIntent } from "@rakazo/contracts";
-import { PROJECT_WINDOWS_DIAGNOSTICS } from "@rakazo/contracts";
+import { PERSONAL_FINANCE_TOOL_NAMES, PROJECT_WINDOWS_DIAGNOSTICS } from "@rakazo/contracts";
 
 export const PROJECT_TEXT_ONLY_INSTRUCTION =
   "No project directory is connected. Text conversations, authorized project history and the user's shared memory are available. General computer control, file, browser, plugin, shared skill and external job access are unavailable. Explain this limit when the task needs those capabilities; never claim to have read or changed project files.";
@@ -185,6 +185,7 @@ const PROJECT_TEXT_TOOLS = new Set([
   "recall_memory",
   "forget_memory",
   "update_bot",
+  ...PERSONAL_FINANCE_TOOL_NAMES,
 ]);
 
 const PROJECT_PROFILE_FIELDS = new Set([

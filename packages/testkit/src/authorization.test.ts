@@ -552,6 +552,7 @@ describeWithDatabase("API authorization and resource isolation", () => {
       ],
       ["personalFinance/removeBill", { billId: "missing-bill" }],
       ["personalFinance/importLocal", { methods: [], bills: [] }],
+      ["personalFinance/parseDraft", { text: "午饭 35" }],
       ["onboarding/signupSurvey"],
       ["onboarding/start"],
       ["onboarding/promptFocus"],

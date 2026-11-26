@@ -12,7 +12,7 @@ import {
   summarizeFinanceMonth,
 } from "@rakazo/contracts";
 import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -23,9 +23,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { AutoSavedBillBanner } from "../components/finance-bill-sheet";
 import { FinanceBillSheet } from "../components/finance-bill-sheet";
 import { glassHeaderOptions } from "../components/glass-title";
 import { MotionPressable } from "../components/motion-pressable";
+import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
 import { PaymentMethodSheet } from "../components/payment-method-sheet";
 import { WalletCardFocusModal } from "../components/wallet-card-focus-modal";
@@ -33,6 +35,12 @@ import { WalletCardStack } from "../components/wallet-card-stack";
 import { readableGutters } from "../lib/adaptive-layout";
 import { cardGradient } from "../lib/card-gradient";
 import { useI18n } from "../lib/i18n";
+import {
+  getCachedMobileBridgeState,
+  loadMobileBridgeState,
+  subscribeMobileBridgeState,
+  updateMobileBridgePermissions,
+} from "../lib/mobile-bridge";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import {
   deleteFinanceBill,
@@ -67,7 +75,12 @@ function matchesMethodFilter(kind: PaymentMethodKind, filter: MethodFilter): boo
 }
 
 export default function PersonalFinanceScreen() {
-  const params = useLocalSearchParams<{ tab?: string; action?: string; cardId?: string }>();
+  const params = useLocalSearchParams<{
+    tab?: string;
+    action?: string;
+    cardId?: string;
+    mode?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
@@ -80,6 +93,16 @@ export default function PersonalFinanceScreen() {
   const copy = (cn: string, hant: string, en: string) => (zh ? (tw ? hant : cn) : en);
 
   const finance = usePersonalFinance();
+  const bridgeState = useSyncExternalStore(
+    subscribeMobileBridgeState,
+    getCachedMobileBridgeState,
+    getCachedMobileBridgeState,
+  );
+  const allBotsLedgerOn = Boolean(
+    bridgeState.permissions.enabled && bridgeState.permissions.financeLedger,
+  );
+  const [updatingBotToggle, setUpdatingBotToggle] = useState(false);
+
   const [activeTab, setActiveTab] = useState<FinanceTab>(
     params.tab === "methods" || params.cardId ? "methods" : "bills",
   );
@@ -91,9 +114,15 @@ export default function PersonalFinanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Modal sheets & focused card
+  const initialMode: "camera" | "voice" | null =
+    params.mode === "camera" || params.mode === "voice" ? params.mode : null;
   const [billSheetOpen, setBillSheetOpen] = useState(params.action === "add-bill");
+  const [billCaptureMode, setBillCaptureMode] = useState<"camera" | "voice" | null>(
+    params.action === "add-bill" ? initialMode : null,
+  );
   const [editingBill, setEditingBill] = useState<FinanceBill | null>(null);
   const [billPresetMethodId, setBillPresetMethodId] = useState<string | null>(null);
+  const [autoSavedNotice, setAutoSavedNotice] = useState<AutoSavedBillBanner | null>(null);
   const [methodSheetOpen, setMethodSheetOpen] = useState(params.action === "add-method");
   const [editingMethod, setEditingMethod] = useState<PaymentMethodSummary | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(params.cardId ?? null);
@@ -109,13 +138,14 @@ export default function PersonalFinanceScreen() {
       setActiveTab("bills");
       setEditingBill(null);
       setBillPresetMethodId(null);
+      setBillCaptureMode(params.mode === "camera" || params.mode === "voice" ? params.mode : null);
       setBillSheetOpen(true);
     } else if (params.action === "add-method") {
       setActiveTab("methods");
       setEditingMethod(null);
       setMethodSheetOpen(true);
     }
-  }, [params.tab, params.action, params.cardId]);
+  }, [params.tab, params.action, params.cardId, params.mode]);
 
   const focusedMethod = useMemo(
     () => (focusedCardId ? (finance.methods.find((m) => m.id === focusedCardId) ?? null) : null),
@@ -129,8 +159,21 @@ export default function PersonalFinanceScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshPersonalFinance({ month: selectedMonth });
+      void loadMobileBridgeState();
     }, [selectedMonth]),
   );
+
+  const handleToggleAllBotsLedger = async (next: boolean) => {
+    if (updatingBotToggle) return;
+    setUpdatingBotToggle(true);
+    try {
+      await updateMobileBridgePermissions(
+        next ? { enabled: true, financeLedger: true } : { financeLedger: false },
+      );
+    } finally {
+      setUpdatingBotToggle(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -390,6 +433,116 @@ export default function PersonalFinanceScreen() {
 
         {activeTab === "bills" ? (
           <>
+            {/* Auto-saved Photo / Voice Bill Confirmation Banner */}
+            {autoSavedNotice ? (
+              <View
+                testID="finance-autosaved-banner"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  borderRadius: 16,
+                  backgroundColor: safeBg,
+                }}
+              >
+                <NativeSymbol
+                  ios={autoSavedNotice.sourceLabel === "photo" ? "camera.fill" : "mic.fill"}
+                  android={
+                    autoSavedNotice.sourceLabel === "photo" ? "camera-outline" : "mic-outline"
+                  }
+                  size={15}
+                  color={safeInk}
+                />
+                <Text style={{ color: safeInk, fontSize: 12.5, fontWeight: "600", flex: 1 }}>
+                  {copy(
+                    `已自动分类并保存：${autoSavedNotice.title} ${formatCents(autoSavedNotice.amountCents, autoSavedNotice.currency)}（${billCategoryLabel(autoSavedNotice.category, locale)}）`,
+                    `已自動分類並儲存：${autoSavedNotice.title} ${formatCents(autoSavedNotice.amountCents, autoSavedNotice.currency)}（${billCategoryLabel(autoSavedNotice.category, locale)}）`,
+                    `Auto-classified & saved: ${autoSavedNotice.title} ${formatCents(autoSavedNotice.amountCents, autoSavedNotice.currency)} (${billCategoryLabel(autoSavedNotice.category, locale)})`,
+                  )}
+                </Text>
+                <MotionPressable
+                  preset="icon"
+                  accessibilityLabel={copy("关闭提示", "關閉提示", "Dismiss")}
+                  onPress={() => setAutoSavedNotice(null)}
+                >
+                  <NativeSymbol ios="xmark" android="close" size={13} color={safeInk} />
+                </MotionPressable>
+              </View>
+            ) : null}
+
+            {/* All-Bots Direct Chat Ledger Control Strip */}
+            <View
+              testID="finance-all-bots-card"
+              style={[
+                cardSurface,
+                {
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                },
+              ]}
+            >
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  backgroundColor: allBotsLedgerOn ? safeBg : chipBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <NativeSymbol
+                  ios="bubble.left.and.text.bubble.right.fill"
+                  android="chatbubbles-outline"
+                  size={16}
+                  color={allBotsLedgerOn ? safeInk : tokens.mutedForeground}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text
+                  style={{ color: tokens.foreground, fontSize: 13.5, fontWeight: "700" }}
+                  numberOfLines={1}
+                >
+                  {allBotsLedgerOn
+                    ? copy(
+                        "全部 Bot 对话记账 · 已全选",
+                        "全部 Bot 對話記帳 · 已全選",
+                        "All Bots Chat Ledger · ON",
+                      )
+                    : copy(
+                        "全部 Bot 对话记账 · 未开启",
+                        "全部 Bot 對話記帳 · 未開啟",
+                        "All Bots Chat Ledger · OFF",
+                      )}
+                </Text>
+                <Text
+                  style={{ color: tokens.mutedForeground, fontSize: 11.5, lineHeight: 16 }}
+                  numberOfLines={2}
+                >
+                  {copy(
+                    "单聊、群聊与项目中的所有 Bot 均可直接文字/发图帮你记账；银行卡号与 CVV 仍严格隔离。",
+                    "單聊、群聊與專案中的所有 Bot 均可直接文字/發圖幫你記帳；銀行卡號與 CVV 仍嚴格隔離。",
+                    "Every DM, group, and project bot can log bills directly from chat or receipt photos; cards & CVV stay private.",
+                  )}
+                </Text>
+              </View>
+              <NativeSwitch
+                accessibilityLabel={copy(
+                  "全部 Bot 对话记账全选",
+                  "全部 Bot 對話記帳全選",
+                  "Enable bill ledger for all bots",
+                )}
+                disabled={updatingBotToggle}
+                value={allBotsLedgerOn}
+                onValueChange={(next) => void handleToggleAllBotsLedger(next)}
+              />
+            </View>
+
             {/* Month Switcher + Hero Summary Card */}
             <View style={[cardSurface, { padding: 18, gap: 14 }]}>
               <View
@@ -1032,12 +1185,15 @@ export default function PersonalFinanceScreen() {
         visible={billSheetOpen}
         editing={editingBill}
         initialPaymentMethodId={billPresetMethodId}
+        initialCaptureMode={billCaptureMode}
         methods={finance.methods}
         onClose={() => {
           setBillSheetOpen(false);
           setEditingBill(null);
           setBillPresetMethodId(null);
+          setBillCaptureMode(null);
         }}
+        onAutoSaved={(saved) => setAutoSavedNotice(saved)}
         onSave={async (input) => {
           await saveFinanceBill(input);
         }}

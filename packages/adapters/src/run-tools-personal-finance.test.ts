@@ -1,5 +1,6 @@
 import type { MobileBridgePermissions } from "@rakazo/contracts";
 import { DEFAULT_MOBILE_BRIDGE_PERMISSIONS, PERSONAL_FINANCE_TOOL_NAMES } from "@rakazo/contracts";
+import { toolRequiresApproval } from "@rakazo/core";
 import { describe, expect, it, vi } from "vitest";
 import type { RunContext } from "./run-context.js";
 import type { ToolCall } from "./run-tool-gate.js";
@@ -169,6 +170,19 @@ describe("personal finance bot tools", () => {
     expect(result.bill.paymentMethodLabel).toBe("招商银行信用卡");
     expect(result.bill.source).toBe("bot");
     expect(bills).toHaveLength(2);
+
+    // Omitting category auto-classifies from title/merchant name.
+    const autoCat = (await personalFinanceTools.finance_record_bill!(
+      ctx,
+      makeCall("finance_record_bill", {
+        amount: 28,
+        title: "滴滴打车回公司",
+        paymentMethodName: "信用卡",
+      }),
+    )) as { recorded: boolean; bill: { category: string; paymentMethodLabel: string } };
+    expect(autoCat.recorded).toBe(true);
+    expect(autoCat.bill.category).toBe("transport");
+    expect(autoCat.bill.paymentMethodLabel).toBe("招商银行信用卡");
   });
 
   it("refuses access when not owner-started, from messaging channel, background trigger, or financeLedger disabled", async () => {
@@ -208,6 +222,35 @@ describe("personal finance bot tools", () => {
     }).map((t) => t.name);
     for (const name of PERSONAL_FINANCE_TOOL_NAMES) {
       expect(ownerTools).toContain(name);
+    }
+
+    // Project workspace bots and group bots owned by the user also receive full bill ledger tools.
+    const projectTools = selectBuiltinToolsForRun({
+      projectWorkspaceId: "proj-1",
+      graphicalToolsAllowed: false,
+      groupId: null,
+      trigger: "user",
+      semanticMemoryEnabled: false,
+      messagingChannelRun: false,
+    }).map((t) => t.name);
+    for (const name of PERSONAL_FINANCE_TOOL_NAMES) {
+      expect(projectTools).toContain(name);
+    }
+
+    const groupTools = selectBuiltinToolsForRun({
+      graphicalToolsAllowed: false,
+      groupId: "group-1",
+      trigger: "user",
+      semanticMemoryEnabled: false,
+      messagingChannelRun: false,
+    }).map((t) => t.name);
+    for (const name of PERSONAL_FINANCE_TOOL_NAMES) {
+      expect(groupTools).toContain(name);
+    }
+
+    // Owner-gated personal finance tools log bills directly in chat without approval popups.
+    for (const name of PERSONAL_FINANCE_TOOL_NAMES) {
+      expect(toolRequiresApproval(name, false, false)).toBe(false);
     }
 
     const channelTools = selectBuiltinToolsForRun({

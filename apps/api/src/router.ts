@@ -36,6 +36,7 @@ import type { NavLink } from "@rakazo/contracts";
 import type { BoardEvents, PrismaClient, ThreadEvents } from "@rakazo/db";
 import type { BillingService } from "./billing.js";
 import type { createCompanionScreenCoordinator } from "./companion-screen-coordinator.js";
+import type { FinanceBillDraftParser } from "./personal-finance-parser.js";
 import { accountRoutes } from "./routes/account.js";
 import { availabilityRoutes } from "./routes/availability.js";
 import { boardsRoutes } from "./routes/boards.js";
@@ -124,6 +125,7 @@ export interface RouterDeps {
   email?: TransactionalEmailProvider;
   onEmailError?: (error: unknown) => void;
   speechSummary?: VoiceDeps["speechSummary"];
+  financeBillParser?: FinanceBillDraftParser;
   env: {
     projectWorkspaceCreateExperiment?: boolean;
     projectConversationCreateExperiment?: boolean;

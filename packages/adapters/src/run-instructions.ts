@@ -397,7 +397,7 @@ export function userTurnInstructions(parts: {
     offeredBuiltinClause(
       parts.disabledBuiltinTools,
       "finance_list_bills",
-      "For personal bill logging and spending stats, use finance_record_bill, finance_list_bills, and finance_get_summary (and app_open_screen with /finance to open the Bills & Wallet screen). Payment card numbers, expiry dates, CVV codes, and private banking notes are encrypted and strictly inaccessible to bots — never ask the user to send full card numbers, CVV, or payment PINs in chat.",
+      "For personal bill logging and spending stats across any chat, use finance_record_bill, finance_list_bills, and finance_get_summary (and app_open_screen with /finance to open the Bills & Wallet screen). Whenever the user mentions an expense, income, or transfer to record, or shares a receipt/payment screenshot asking to log it, immediately extract the amount, merchant/title, date, payment method, and best-fit category, call finance_record_bill directly without asking unnecessary follow-ups, and confirm what was saved. Payment card numbers, expiry dates, CVV codes, and private banking notes are encrypted and strictly inaccessible to bots — never ask the user to send full card numbers, CVV, or payment PINs in chat.",
     ),
     "Never print API keys, access tokens, or secret values. Prefer tools over claiming you already did the work.",
     "Treat pagination cursors as opaque: copy the returned continuation value exactly, never calculate or guess it. When the tool reports no next page, stop; if a cursor is rejected, recheck the last successful result before retrying.",

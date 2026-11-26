@@ -17,7 +17,9 @@ import {
   FinanceCurrencySchema,
   FinanceMonthKeySchema,
   formatCents,
+  inferFinanceBillCategory,
   isMobilePermissionEnabled,
+  matchSavedPaymentMethod,
   parseAmountToCents,
 } from "@rakazo/contracts";
 import { isBackgroundRunTrigger } from "@rakazo/core";
@@ -42,32 +44,6 @@ function safeMethodReference(method: PaymentMethodSummary) {
     currency: method.currency,
     isDefault: method.isDefault,
   };
-}
-
-function defaultCategoryForDirection(direction: FinanceBillDirection): FinanceBillCategory {
-  if (direction === "income") return "other_income";
-  if (direction === "transfer") return "transfer";
-  return "other_expense";
-}
-
-function matchPaymentMethod(
-  methods: readonly PaymentMethodSummary[],
-  paymentMethodId?: string,
-  paymentMethodName?: string,
-): PaymentMethodSummary | null {
-  if (paymentMethodId) {
-    const exact = methods.find((m) => m.id === paymentMethodId);
-    if (exact) return exact;
-  }
-  const needle = paymentMethodName?.trim().toLowerCase();
-  if (!needle) return null;
-  const exactLabel = methods.find((m) => m.label.toLowerCase() === needle);
-  if (exactLabel) return exactLabel;
-  const fuzzy = methods.find((m) => {
-    const parts = [m.label, m.institution ?? "", m.last4 ?? ""].join(" ").toLowerCase();
-    return parts.includes(needle);
-  });
-  return fuzzy ?? null;
 }
 
 async function assertFinanceLedgerAllowed(
@@ -332,9 +308,14 @@ async function handleFinanceRecordBill(ctx: RunContext, call: ToolCall) {
     : "expense";
 
   const categoryParsed = FinanceBillCategorySchema.safeParse(call.args.category);
-  const category: FinanceBillCategory = categoryParsed.success
+  const rawCategory: FinanceBillCategory | null = categoryParsed.success
     ? categoryParsed.data
-    : defaultCategoryForDirection(direction);
+    : null;
+  const note = typeof call.args.note === "string" ? call.args.note.trim().slice(0, 400) : null;
+  const category: FinanceBillCategory =
+    !rawCategory || rawCategory === "other_expense" || rawCategory === "other_income"
+      ? inferFinanceBillCategory(title, note, direction)
+      : rawCategory;
 
   const currencyParsed = FinanceCurrencySchema.safeParse(call.args.currency ?? "CNY");
   const currency = currencyParsed.success ? currencyParsed.data : "CNY";
@@ -342,7 +323,6 @@ async function handleFinanceRecordBill(ctx: RunContext, call: ToolCall) {
   const statusParsed = FinanceBillStatusSchema.safeParse(call.args.status ?? "paid");
   const status: FinanceBillStatus = statusParsed.success ? statusParsed.data : "paid";
 
-  const note = typeof call.args.note === "string" ? call.args.note.trim().slice(0, 400) : null;
   const rawOccurredAt = typeof call.args.occurredAt === "string" ? call.args.occurredAt.trim() : "";
   const parsedDate = rawOccurredAt ? new Date(rawOccurredAt) : new Date();
   const occurredAt = Number.isNaN(parsedDate.getTime())
@@ -356,7 +336,7 @@ async function handleFinanceRecordBill(ctx: RunContext, call: ToolCall) {
     typeof call.args.paymentMethodName === "string"
       ? call.args.paymentMethodName.trim()
       : undefined;
-  const matchedMethod = matchPaymentMethod(methods, paymentMethodIdArg, paymentMethodNameArg);
+  const matchedMethod = matchSavedPaymentMethod(methods, paymentMethodNameArg, paymentMethodIdArg);
 
   const saved = await upsertUserFinanceBill(
     ctx.deps.prisma,

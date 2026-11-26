@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { FinanceBill } from "./personal-finance.js";
+import type { FinanceBill, PaymentMethodSummary } from "./personal-finance.js";
 import {
   daysUntilMonthlyDay,
   formatCardNumberGrouped,
   formatCents,
+  inferFinanceBillCategory,
   maskPaymentAccountNumber,
+  matchSavedPaymentMethod,
+  ParseFinanceBillDraftInputSchema,
   parseAmountToCents,
+  parseNaturalBillText,
   shiftMonthKey,
   summarizeFinanceMonth,
 } from "./personal-finance.js";
@@ -142,5 +146,84 @@ describe("personal-finance contracts", () => {
     expect(daysUntilMonthlyDay(31, new Date(2026, 1, 25))).toBe(3);
     expect(shiftMonthKey("2026-01", -1)).toBe("2025-12");
     expect(shiftMonthKey("2026-12", 1)).toBe("2027-01");
+  });
+
+  it("auto-classifies categories and parses spoken/text bills including Chinese numerals and payment aliases", () => {
+    expect(inferFinanceBillCategory("瑞幸咖啡生椰拿铁")).toBe("food");
+    expect(inferFinanceBillCategory("高德打车去机场")).toBe("transport");
+    expect(inferFinanceBillCategory("11月房租水电")).toBe("housing");
+    expect(inferFinanceBillCategory("Claude Pro 月订阅")).toBe("subscription");
+    expect(inferFinanceBillCategory("11月工资发放", null, "income")).toBe("salary");
+    expect(inferFinanceBillCategory("招行信用卡还款", null, "transfer")).toBe("card_repayment");
+
+    const methods: PaymentMethodSummary[] = [
+      {
+        id: "pm-wx",
+        kind: "wechat_pay",
+        label: "微信零钱",
+        institution: "腾讯",
+        accountMask: "138****5678",
+        last4: "5678",
+        holderName: null,
+        currency: "CNY",
+        billingDay: null,
+        repaymentDay: null,
+        creditLimitCents: null,
+        balanceCents: null,
+        isDefault: true,
+        accentColor: "emerald",
+        hasSensitiveDetails: false,
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+      },
+      {
+        id: "pm-cmb",
+        kind: "credit_card",
+        label: "招行经典白",
+        institution: "招商银行",
+        accountMask: "•••• 8842",
+        last4: "8842",
+        holderName: null,
+        currency: "CNY",
+        billingDay: 10,
+        repaymentDay: 28,
+        creditLimitCents: null,
+        balanceCents: null,
+        isDefault: false,
+        accentColor: "cobalt",
+        hasSensitiveDetails: true,
+        createdAt: "2026-11-01T00:00:00.000Z",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+      },
+    ];
+
+    expect(matchSavedPaymentMethod(methods, "微信支付")?.id).toBe("pm-wx");
+    expect(matchSavedPaymentMethod(methods, "尾号8842")?.id).toBe("pm-cmb");
+
+    const now = new Date(2026, 10, 26, 12, 0, 0);
+    const lunch = parseNaturalBillText("今天中午吃海底捞花了268块5，用微信支付", methods, now);
+    expect(lunch.direction).toBe("expense");
+    expect(lunch.amountCents).toBe(26850);
+    expect(lunch.category).toBe("food");
+    expect(lunch.paymentMethodId).toBe("pm-wx");
+    expect(lunch.title).toContain("海底捞");
+
+    const spokenTaxi = parseNaturalBillText("昨天打车去火车站花了三十五块五", methods, now);
+    expect(spokenTaxi.amountCents).toBe(3550);
+    expect(spokenTaxi.category).toBe("transport");
+    expect(new Date(spokenTaxi.occurredAt).getDate()).toBe(25);
+
+    const salary = parseNaturalBillText("收到11月工资 18500 元", methods, now);
+    expect(salary.direction).toBe("income");
+    expect(salary.category).toBe("salary");
+    expect(salary.amountCents).toBe(1850000);
+
+    expect(ParseFinanceBillDraftInputSchema.safeParse({}).success).toBe(false);
+    expect(
+      ParseFinanceBillDraftInputSchema.safeParse({
+        imageBase64: "AAAA",
+        imageMimeType: "image/jpeg",
+      }).success,
+    ).toBe(true);
   });
 });

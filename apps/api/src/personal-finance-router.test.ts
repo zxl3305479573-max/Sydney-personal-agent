@@ -1,8 +1,10 @@
 import { RPCHandler } from "@orpc/server/fetch";
+import type { AgentRunRequest, AgentRuntime, AgentRuntimeEvent } from "@rakazo/adapter-kit";
 import { EncryptedSecretStore } from "@rakazo/adapters";
 import type { Actor } from "@rakazo/contracts";
 import type { PrismaClient } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
+import { createFinanceBillDraftParser } from "./personal-finance-parser.js";
 import type { RouterDeps } from "./router.js";
 import { createRouter } from "./router.js";
 
@@ -306,5 +308,101 @@ describe("personalFinance RPC routes", () => {
     expect(overviewAfter.methods).toHaveLength(0);
     expect(overviewAfter.bills[0]?.paymentMethodId).toBeNull();
     expect(overviewAfter.bills[0]?.paymentMethodLabel).toBe("微信零钱");
+  });
+
+  it("parses spoken/text bills via personalFinance/parseDraft and matches saved payment methods", async () => {
+    const harness = createFinanceTestHarness({ identityConfirmed: true });
+    await harness.call("upsertMethod", {
+      kind: "wechat_pay",
+      label: "微信零钱",
+      isDefault: true,
+    });
+
+    const parsed = await harness.call("parseDraft", {
+      text: "昨天中午吃海底捞花了 268.5 元，用的微信支付",
+      nowIso: "2026-11-26T08:00:00.000Z",
+    });
+    expect(parsed.status).toBe(200);
+    expect(parsed.body.json).toMatchObject({
+      direction: "expense",
+      amountCents: 26850,
+      currency: "CNY",
+      category: "food",
+      paymentMethodLabel: "微信零钱",
+      parser: "local",
+    });
+  });
+
+  it("extracts receipt photo details via multimodal AI runtime without exposing card secrets", async () => {
+    const capturedRequests: AgentRunRequest[] = [];
+    const fakeRuntime = {
+      describe: () => ({ capabilities: { compaction: true } }),
+      async *run(request: AgentRunRequest): AsyncIterableIterator<AgentRuntimeEvent> {
+        capturedRequests.push(request);
+        yield {
+          type: "done",
+          text: '```json\n{"direction":"expense","amount":46.8,"currency":"CNY","category":"other_expense","title":"霸王茶姬","note":"伯牙绝弦x2","occurredAt":"2026-11-26","paymentMethodName":"8842"}\n```',
+        };
+      },
+    } as unknown as AgentRuntime;
+
+    const fakePrisma = {
+      userPaymentMethod: {
+        findMany: async () => [
+          {
+            id: "pm-cmb",
+            userId: "user-1",
+            kind: "credit_card",
+            label: "招行经典白",
+            institution: "招商银行",
+            accountMask: "•••• 8842",
+            last4: "8842",
+            holderName: null,
+            currency: "CNY",
+            billingDay: 10,
+            repaymentDay: 28,
+            creditLimitCents: null,
+            balanceCents: null,
+            isDefault: true,
+            accentColor: "cobalt",
+            secretCiphertext: "ENCRYPTED_NEVER_EXPOSED",
+            createdAt: new Date("2026-11-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+          },
+        ],
+      },
+    } as unknown as Parameters<typeof createFinanceBillDraftParser>[0]["prisma"];
+
+    const parser = createFinanceBillDraftParser({
+      prisma: fakePrisma,
+      runtime: fakeRuntime,
+      resolveModel: async () => ({ provider: "openai", id: "gpt-4o" }) as AgentRunRequest["model"],
+    });
+
+    const draft = await parser(
+      { userId: "user-1", spaceId: "space-1", email: "owner@test", name: "Owner" } as never,
+      {
+        imageBase64: Buffer.from("fake-jpeg-bytes").toString("base64"),
+        imageMimeType: "image/jpeg",
+        nowIso: "2026-11-26T08:00:00.000Z",
+      },
+    );
+
+    expect(capturedRequests).toHaveLength(1);
+    expect(capturedRequests[0]?.currentTurnImages).toHaveLength(1);
+    expect(capturedRequests[0]?.currentTurnImages?.[0]?.mimeType).toBe("image/jpeg");
+    expect(capturedRequests[0]?.instructions).not.toContain("ENCRYPTED_NEVER_EXPOSED");
+    expect(draft).toMatchObject({
+      direction: "expense",
+      amountCents: 4680,
+      currency: "CNY",
+      // Automatically upgraded from generic "other_expense" to "food" via 霸王茶姬 classifier
+      category: "food",
+      title: "霸王茶姬",
+      note: "伯牙绝弦x2",
+      paymentMethodId: "pm-cmb",
+      paymentMethodLabel: "招行经典白",
+      parser: "ai",
+    });
   });
 });

@@ -1,5 +1,25 @@
 # 运维手册
 
+## iPhone 1.0.36 侧载 OTA 与 1.0.17 无签名侧载 IPA（2026-11-26）
+
+- **iPhone `1.0.36` 侧载 OTA（已发布并全资源核验）**：提交 `1ee3026d5d3d8ada18e42e3e75403a5d44d6e47e` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45818264011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818264011) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：
+  - 更新组 ID：`7f78da97-6038-4170-bbee-ee147800f57a`；iOS 更新 ID：`01a217cb-abb2-709b-930d-5cbf6cd8f2fc`（`createdAt: 2026-11-26T12:19:13.458Z`）；
+  - 线上 Expo 清单 HTTP `200`（`version: "1.0.36"`、`releasedOn: "2026-11-26"`）、启动包 `11,385,464` 字节（SHA-256 `c8640a5d79d2cf7218eff5fb681c7e6be793eb49992278f995ec7741ef0dee13`）及全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 全匹配。
+- **`1.0.17`（build `6`）无签名侧载 IPA 构建（已出包并验证）**：
+  - 首轮 [Run 45818254239](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818254239) 因 `CompanionBackgroundIntents.swift:8` Swift 6 导入访问级别冲突失败；修复提交 `3d1e8f5108f54f0c94ef102ede9ca8ec5d89e364` 触发重编 [Run 45821357736](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821357736) 已于 `2026-11-26T12:57:19Z` 一次编译打包通过（`Longest IPA path: 122 characters; verified 9 asset directories; EXUpdatesEnabled=True`，关联 `CI` [Run 45821366079](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821366079) 亦全绿）；
+  - 产物：[sydney-ios-unsigned-45821357736-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821357736/artifacts/15119421377)（Artifact ID `15119421377`，`27,545,885` 字节，zip SHA-256 `2d6225ae2cfe50fdb5cd4858293dcfc1dcb49ac80e3a37cfff51c82f14b19930`），解压得 `Sydney-unsigned.ipa`，使用 **Sideloadly** 覆盖签名安装，确保 `SydneyCompanionWidget.appex` 与 AppIntents 一起签入。
+- **OTA 与重装 IPA 生效划分**：
+  - **仅拉取 `1.0.36` OTA 即可立即生效**：应用内通知弹窗（`BotNotificationBanner`）、悬浮陪伴胶囊与悬浮球（`CompanionFloatingBar`）、OTA 下载条、通话卡、云电脑更新条与语音播报条的 iOS 26 原生 Liquid Glass 样式；手机首页精简（移除重复「聊天与伙伴」「项目与执行台」卡片）；陪伴回复 Markdown 清洗与 `/companion` 快捷指令引导页。
+  - **需重新下载并重装 `1.0.17`（build `6`）IPA 才生效**：锁屏 Live Activity 原生液态玻璃外观（`CompanionWidget.swift`）；灵动岛高清 `112×112` HEIC 头像（`SydneyCompanionModule.swift`）与饱满展开排版（完整 Bot 名／3 行回复／宽按钮）；灵动岛免跳 App 后台语音对话（`CompanionLiveIntents.swift` + `CompanionBackgroundIntents.swift` + `UIBackgroundModes: audio`）；自动裁去灵动岛的「截屏提问 Sydney」与「后台发消息给 Sydney」系统快捷指令 `AppIntents`；以及上一版 `1.0.16` 起新增的原生手机共享屏幕双语 OCR 快照（`CompanionScreenCapture.swift` `peekScreenSnapshot`，若当前手机还是 `1.0.15` 或更老 IPA）。
+- **回退**：OTA 回退可重发上一版 `1.0.35`（更新 ID `01a217bd-afeb-7753-8847-d83d4058dd7a`）。
+
+## 记一笔拍照识图、语音输入与全 Bot 免审批记账（待部署，2026-11-26）
+
+- **状态**：源码与本机离线验证已完成，尚未提交推送或部署（以下线上效果均**待验证**）。
+- **无新增依赖与无新增数据库迁移**：新增 oRPC 接口 `personalFinance/parseDraft` 复用用户既有已连接多模态模型（经 `executor.resolveModel` 与 `runtime.run`，不新增任何环境变量或表结构），且仅向模型提供非敏感支付方式标签／尾号，绝不加载或解密 `secretCiphertext`。
+- **权限与安全边界**：`finance_list_bills`、`finance_get_summary`、`finance_record_bill` 现已对账号所有者本人发起的单聊、群聊与项目工作区全部 Bot 开放且免逐次审批弹窗（仍严格拦截非本人、外部消息渠道与后台定时触发，受「设置 → Bot 应用权限 → 账单协同记账」与 `/finance` 页「全部 Bot 对话记账」开关统一控制）；银行卡号、有效期、CVV 与私密备注的硬隔离保持不变。
+- **离线降级**：后端部署前若手机端先调用语音记账，`parseFinanceBillDraft` 遇 404／离线会自动降级为本地 `parseNaturalBillText` 解析；拍照／相册识图需后端部署 `personalFinance/parseDraft` 且账号已连接支持视觉的模型。
+
 ## iPhone 1.0.35 侧载 OTA 与生产后端 `b9f27050e` 上线（2026-11-26）
 
 - **iPhone `1.0.35` 侧载 OTA（已发布并全资源核验）**：提交 `b9f27050ea8d856b5fc713ca6e0836d7a38282e6`（叠加 `204784002` 与 `dc682981c`）已通过 `.github/workflows/mobile-ios-update.yml` [Run 45815897416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815897416) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：

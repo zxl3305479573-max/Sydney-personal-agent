@@ -1,5 +1,47 @@
 # 验证记录
 
+## iPhone 1.0.36 侧载 OTA 发布与 1.0.17 无签名侧载 IPA 构建（2026-11-26）
+
+关联 PA-021、REL-01。
+
+- **提交前本机复验（`1ee3026d5d3d8ada18e42e3e75403a5d44d6e47e`，全部通过）**：
+  - **Biome 检查**（全部 21 个改动 TS/TSX/JS/JSON 文件）：**21 / 21 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit -p apps/mobile/tsconfig.json`）：**0 错误**。
+  - **定向与守卫 Vitest（18 个文件、140 / 140 项全部通过）**：`app-version`（6）、`app-config`（34）、`home-hub`（7）、`companion-console`（1）、`companion-presentation`（5）、`companion-plugin`（2）、`companion-floating-bar`（2）、`companion-activity`（12）、`companion-session`（7）、`bot-notification-banner`（2）、`bot-local-notification`（2）、`live-notifications`（12）、`glass-surface`（6）、`call-card-keep-awake`（3）、`client-update`（16）、`screen-theme-coverage`（6）、`scroll-hygiene`（1）、`i18n`（16）。
+  - **`git diff --check`**：**0 警告**。
+- **线上 CI、生产健康与 `1.0.36` 侧载 OTA 核验（全部通过）**：
+  - **`CI`** [Run 45818261388](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818261388)：**`completed / success`**（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、镜像发布、`Publish compatible mobile update`、`deploy-production` 全绿）；线上 `GET https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`。
+  - **`1.0.36` 侧载 OTA** `.github/workflows/mobile-ios-update.yml` [Run 45818264011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818264011)：**`completed / success`**（更新组 `7f78da97-6038-4170-bbee-ee147800f57a`、iOS 更新 ID `01a217cb-abb2-709b-930d-5cbf6cd8f2fc`、`createdAt: 2026-11-26T12:19:13.458Z`）；在线回读 Expo `multipart/mixed` 清单 HTTP `200`（`version: "1.0.36"`、`releasedOn: "2026-11-26"`、三语各 3 条），携带 `assetRequestHeaders` 逐项核验启动包 `11,385,464` 字节（SHA-256 `c8640a5d79d2cf7218eff5fb681c7e6be793eb49992278f995ec7741ef0dee13`）及全部 **`62 / 62`** 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **`1.0.17`（build `6`）无签名侧载 IPA 云端编译暴露与修复**：
+  - 首轮 [Run 45818254239](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45818254239)（`xcode-27` / iOS 27.1 SDK）中 `SydneyCompanionWidget.appex` 与 `SydneyCompanion` Pod 均零错误通过，仅主 App 目标 `CompanionBackgroundIntents.swift:8` 报错 `ambiguous implicit access level for import of 'SydneyCompanion'; it is imported as 'internal' elsewhere`（源自 `ExpoModulesProvider.swift:41` 的 `internal import`）；
+  - 修复为 `internal import SydneyCompanion` 并在 `companion-plugin.test.ts` 补齐断言，经 Biome 0 错误与 `companion-plugin.test.ts` 2 / 2 通过后隔离提交为 `3d1e8f5108f54f0c94ef102ede9ca8ec5d89e364` 并推送双分支；
+  - 复编 [Run 45821357736](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821357736)（`1.0.17` build `6` IPA）：**`completed / success`**（`2026-11-26T12:57:19Z` 完成，`Longest IPA path: 122 characters; verified 9 asset directories; EXUpdatesEnabled=True`，产物 [sydney-ios-unsigned-45821357736-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821357736/artifacts/15119421377)，Artifact ID `15119421377`，`27,545,885` 字节，zip SHA-256 `2d6225ae2cfe50fdb5cd4858293dcfc1dcb49ac80e3a37cfff51c82f14b19930`）；
+  - 关联 `CI` [Run 45821366079](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45821366079)：**`completed / success`**。
+- **未执行项（待真机验收）**：
+  - 真实 iPhone 拉取 `1.0.36` OTA 与 `Sideloadly` 覆盖重签 `1.0.17` IPA 后的锁屏液态玻璃、灵动岛高清头像、后台免跳转语音对话及自动裁岛截屏提问实测待设备验收。
+
+## 记一笔拍照识图、语音输入、自动分类保存与全 Bot 免审批直接对话记账（2026-11-26）
+
+关联 PA-025、PA-021。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/components/finance-bill-sheet.tsx` 第 365 行改为可选链 `if (!image?.contentBase64) return;` 清零 Biome 警告；
+  - `apps/mobile/lib/finance-bill-sheet.test.tsx` 同步 `billCategoryLabel("transport", "zh-CN")` 真实译文「交通」。
+- **终轮已执行并通过**：
+  - **Biome 严格检查**（覆盖全部 22 个改动／新增 TS/TSX 文件）：**22 / 22 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 6 个工作区包：`@rakazo/contracts`、`@rakazo/core`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/testkit`、`@rakazo/mobile`）：**6 / 6 包 0 错误**。
+  - **定向与守卫 Vitest（13 个文件、223 / 223 项全部通过）**：
+    - `packages/contracts/src/personal-finance.test.ts`（6 项：含 18 类中英自动分类、中文口语数字解析、相对日期、渠道别名匹配与 `parseDraft` 契约校验）；
+    - `packages/adapters/src/run-tools-personal-finance.test.ts`（4 项：含缺省分类自动归类、支付渠道别名匹配、项目工作区／群聊／单聊全 Bot 工具可见性及 `toolRequiresApproval === false` 免审批校验）；
+    - `packages/adapters/src/builtin-tool-bridge.test.ts`（7 项）、`packages/adapters/src/executor.test.ts`（162 项）；
+    - `apps/api/src/personal-finance-router.test.ts`（4 项：含 `personalFinance/parseDraft` 本地解析与真实多模态 `AgentRuntime` 图片入参解析、确认 `secretCiphertext` 零暴露及泛化分类自动升级）；
+    - `apps/mobile/lib/finance-bill-sheet.test.tsx`（3 项：拍照识图自动分类并自动保存、关闭自动保存后相册传图回填核对、实时语音听写解析并自动保存）；
+    - `apps/mobile/lib/home-finance-card.test.tsx`（2 项，含「拍照记」「语音记」路由）、`wallet-card-stack.test.tsx`（3 项）、`personal-finance.test.ts`（2 项）、`home-hub.test.tsx`（7 项，`TZ=UTC`）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）、`i18n.test.ts`（16 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待部署与真机验收）**：
+  - 后端生产部署（上线 `personalFinance/parseDraft` 接口及全 Bot 免审批／项目工作区记账权限）与 iPhone 侧载 OTA 发布；
+  - 真机实测相机拍照识别小票／相册上传微信支付宝付款截图自动分类保存、iOS 麦克风语音记账，以及在单聊／群聊／项目对话中直接口述或发小票图让任意 Bot 直接记账。
+
 ## 锁屏实时活动状态与应用内弹窗／悬浮状态全面采用 iOS 原生液态玻璃样式（2026-11-26）
 
 关联 PA-021。

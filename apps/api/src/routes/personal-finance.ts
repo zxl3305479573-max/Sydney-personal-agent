@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { createAdapterContext } from "@rakazo/adapter-kit";
+import { parseNaturalBillText } from "@rakazo/contracts";
 import type { PaymentMethodSecretOps } from "@rakazo/db";
 import {
   getUserPersonalFinanceOverview,
@@ -218,6 +219,32 @@ export function personalFinanceRoutes(ctx: RouterContext) {
         }
 
         return { importedMethods, importedBills };
+      }),
+      parseDraft: authed.personalFinance.parseDraft.handler(async ({ context, input }) => {
+        try {
+          if (deps.financeBillParser) {
+            return await deps.financeBillParser(context.actor, input, context.signal);
+          }
+          if (input.text?.trim()) {
+            const methods = await listUserPaymentMethods(deps.prisma, context.actor.userId);
+            const now =
+              input.nowIso && !Number.isNaN(new Date(input.nowIso).getTime())
+                ? new Date(input.nowIso)
+                : new Date();
+            return parseNaturalBillText(input.text, methods, now);
+          }
+          throw new ORPCError("BAD_REQUEST", {
+            message: "Receipt image parsing is unavailable without a configured multimodal model.",
+          });
+        } catch (error) {
+          if (error instanceof ORPCError) throw error;
+          throw new ORPCError("BAD_REQUEST", {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Could not parse bill details from the provided input.",
+          });
+        }
       }),
     },
   };

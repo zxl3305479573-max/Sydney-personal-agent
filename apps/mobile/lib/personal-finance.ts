@@ -1,6 +1,8 @@
 import type {
   FinanceBill,
   FinanceMonthSummary,
+  ParsedFinanceBillDraft,
+  ParseFinanceBillDraftInput,
   PaymentMethodSensitivePayload,
   PaymentMethodSummary,
   PersonalFinanceOverview,
@@ -12,6 +14,7 @@ import {
   currentMonthKey,
   maskPaymentAccountNumber,
   PaymentMethodSensitivePayloadSchema,
+  parseNaturalBillText,
   summarizeFinanceMonth,
 } from "@rakazo/contracts";
 import { useSyncExternalStore } from "react";
@@ -606,6 +609,34 @@ export async function deleteFinanceBill(billId: string): Promise<void> {
   const nextBills = state.bills.filter((b) => b.id !== billId);
   updateState({ bills: nextBills, syncedAt: new Date().toISOString() });
   await writeDiskCache();
+}
+
+/**
+ * Parses a receipt photo and/or spoken/typed bill utterance into a structured, categorized draft.
+ * Uses the cloud multimodal AI parser first, falling back to local text parsing when offline.
+ */
+export async function parseFinanceBillDraft(
+  input: Omit<ParseFinanceBillDraftInput, "nowIso" | "timezoneOffsetMinutes"> & {
+    nowIso?: string;
+    timezoneOffsetMinutes?: number;
+  },
+): Promise<ParsedFinanceBillDraft> {
+  const nowIso = input.nowIso ?? new Date().toISOString();
+  const timezoneOffsetMinutes = input.timezoneOffsetMinutes ?? new Date().getTimezoneOffset();
+  const payload: ParseFinanceBillDraftInput = {
+    ...input,
+    nowIso,
+    timezoneOffsetMinutes,
+  };
+  try {
+    return await rpc("personalFinance/parseDraft", payload, { skipSpaceAuthRecovery: true });
+  } catch (error) {
+    const cleanText = input.text?.trim() ?? "";
+    if (cleanText && shouldFallbackToLocalFinance(error)) {
+      return parseNaturalBillText(cleanText, state.methods, new Date(nowIso));
+    }
+    throw error;
+  }
 }
 
 export function clearPersonalFinanceSessionCache(): void {

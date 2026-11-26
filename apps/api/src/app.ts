@@ -195,6 +195,7 @@ import {
   NATIVE_PASSWORD_RESET_PATH,
   passwordResetPageLink,
 } from "./native-password-reset.js";
+import { createFinanceBillDraftParser } from "./personal-finance-parser.js";
 import { pluginSubmissionRoutes } from "./plugin-submissions.js";
 import { sendReferralEmails, startReferralEmails } from "./referral-email.js";
 import { mountApiRequestBodyLimits } from "./request-body-limit.js";
@@ -807,6 +808,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
               resolveModel: executor.resolveModel,
             }),
           },
+    financeBillParser: createFinanceBillDraftParser({
+      prisma,
+      runtime,
+      resolveModel: executor.resolveModel,
+    }),
     analytics,
     pluginRepoFetcher,
     pluginMarketplaceRead,

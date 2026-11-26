@@ -249,6 +249,22 @@ describe("HomeFinanceCard", () => {
     });
 
     act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="home-hub-finance-scan"]')!.click(),
+    );
+    expect(state.push).toHaveBeenLastCalledWith({
+      pathname: "/finance",
+      params: { tab: "bills", action: "add-bill", mode: "camera" },
+    });
+
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="home-hub-finance-voice"]')!.click(),
+    );
+    expect(state.push).toHaveBeenLastCalledWith({
+      pathname: "/finance",
+      params: { tab: "bills", action: "add-bill", mode: "voice" },
+    });
+
+    act(() =>
       container
         .querySelector<HTMLButtonElement>('[data-testid="home-hub-finance-methods"]')!
         .click(),

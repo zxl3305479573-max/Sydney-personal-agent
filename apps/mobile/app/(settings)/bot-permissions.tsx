@@ -159,9 +159,9 @@ export default function BotPermissionsScreen() {
           "All bot app permissions enabled",
         ),
         copy(
-          "账号下所有 Bot 现已可读取定位、天气、高德路线／导航、后台陪伴及已授权的 iOS 系统数据。",
-          "帳號下所有 Bot 現已可讀取定位、天氣、高德路線／導航、背景陪伴及已授權的 iOS 系統資料。",
-          "Your bots can now access location, weather, Amap navigation, companion state, and authorized iOS data.",
+          "账号下所有 Bot（单聊、群聊、项目）现已全选开通账单协同记账、定位、天气、高德导航、后台陪伴及已授权的 iOS 系统数据；银行卡号与 CVV 仍严格隔离。",
+          "帳號下所有 Bot（單聊、群聊、專案）現已全選開通帳單協同記帳、定位、天氣、高德導航、背景陪伴及已授權的 iOS 系統資料；銀行卡號與 CVV 仍嚴格隔離。",
+          "All bots (DM, group, and project) now have bill logging, location, weather, Amap navigation, companion state, and authorized iOS data; bank card numbers and CVV remain strictly isolated.",
         ),
       );
     } catch (error) {
@@ -377,9 +377,9 @@ export default function BotPermissionsScreen() {
           <SettingsRow
             title={copy("账单协同记账", "帳單協同記帳", "Bill ledger assistant")}
             detail={copy(
-              "允许 Bot 记账单和查月度统计；银行卡号、有效期与安全码绝不向 Bot 暴露",
-              "允許 Bot 記帳單和查月度統計；銀行卡號、有效期與安全碼絕不向 Bot 暴露",
-              "Let bots log bills & read spending summaries; card numbers and CVV stay strictly hidden",
+              "账号下所有 Bot（单聊／群聊／项目）均可直接在对话中文字或识图记账与查统计；银行卡号、有效期与安全码绝不暴露",
+              "帳號下所有 Bot（單聊／群聊／專案）均可直接在對話中文字或識圖記帳與查統計；銀行卡號、有效期與安全碼絕不暴露",
+              "All bots (DM, group, project) can log bills from chat or receipt photos and read summaries; card numbers and CVV stay strictly hidden",
             )}
             trailing={
               <NativeSwitch

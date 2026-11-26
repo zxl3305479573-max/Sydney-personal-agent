@@ -1,5 +1,28 @@
 # Sydney 开发总计划
 
+## iPhone `1.0.36` 侧载 OTA 发布与 `1.0.17`（build `6`）无签名侧载 IPA 构建（PA-021／REL-01，2026-11-26）
+
+状态：全量提交推送（`1ee3026d5d3d8ada18e42e3e75403a5d44d6e47e`、`3d1e8f5108f54f0c94ef102ede9ca8ec5d89e364`）、`CI` 全绿与生产部署（Run `45818261388` 与 Run `45821366079`，线上 `/health` 与 `/ready` 均 HTTP `200`）、iPhone `1.0.36` 侧载 OTA 发布与线上全资源核验（Run `45818264011`，更新 ID `01a217cb-abb2-709b-930d-5cbf6cd8f2fc`，`62 / 62` 静态资源与启动包 SHA-256 全部匹配）以及新版 `1.0.17`（build `6`）无签名侧载 IPA 出包（Run `45821357736`，Artifact `15119421377`，`27,545,885` 字节，已验证 `SydneyCompanionWidget.appex` 与 `EXUpdatesEnabled=True`）均已完成；真机下载并通过 `Sideloadly` 覆盖重签 `1.0.17` IPA 后实测待设备验收。
+
+范围与交付物：
+- **合并上线内容（`1.0.36` OTA / `1.0.17` build `6` IPA）**：锁屏 Live Activity 原生液态玻璃外观与应用内通知弹窗／悬浮陪伴胶囊与悬浮球／OTA 下载条／通话卡／云电脑更新条／语音条全面 Liquid Glass 化；灵动岛高清 HEIC 头像、饱满展开排版、回复 Markdown 双向清洗、免跳 App 后台语音对话与自动裁岛截屏提问／快捷发消息 `AppIntents`；手机首页移除重复「聊天与伙伴」与「项目与执行台」卡片。
+- **验证与修复**：提交前 21 文件 Biome `0` 错误、`@rakazo/mobile` `tsc --noEmit` `0` 错误、18 个 Vitest 套件（140 项）全绿、`git diff --check` `0` 警告；`1.0.36` OTA（Run `45818264011`）线上核验清单 HTTP `200`、启动包 `11,385,464` 字节与全部 `62 / 62` 静态资源 SHA-256 全匹配；针对 `Run 45818254239` 暴露的 `CompanionBackgroundIntents.swift:8` Swift 6 导入访问级别冲突修复并补单测为 `3d1e8f510`，重触发 `Run 45821357736`。详见 [验证记录](VALIDATION.md#iphone-1036-侧载-ota-发布与-1017-无签名侧载-ipa-构建2026-11-26) 与 [运维手册](OPERATIONS.md#iphone-1036-侧载-ota-与-1017-无签名侧载-ipa2026-11-26)。
+
+依赖与验收条件：纯 JS 改动（应用内 Liquid Glass 通知弹窗／悬浮状态条、首页精简、回复 Markdown 清洗与快捷指令引导）通过 `1.0.36` OTA 立即生效；原生 Swift／Widget／AppIntents 改动（锁屏液态玻璃 Live Activity、高清 HEIC 头像、饱满灵动岛展开态、后台免跳转语音对话与自动裁岛截屏提问快捷指令）待 `Run 45821357736` 出包后经 `Sideloadly` 重签覆盖安装 `1.0.17` IPA 生效。
+
+## 记一笔拍照识图、语音输入、自动分类保存与全 Bot 免审批直接对话记账（PA-025／PA-021，2026-11-26）
+
+状态：全链路源码实现与本机离线验证已完成（零新增第三方依赖、零新增数据库迁移）；后端上线部署、移动端 OTA 发布及真机拍照识图／语音输入／全 Bot 对话记账实测待执行（未提交或推送）。
+
+范围与交付物：
+- **智能分类与语音／自然语言解析契约（`packages/contracts`）**：扩展 `packages/contracts/src/personal-finance.ts` 新增 `inferFinanceBillCategory()`（18 类中英商户／消费关键词自动归类）、`matchSavedPaymentMethod()`（支持卡名／机构／尾号／渠道别名智能匹配）、`parseNaturalBillText()`（支持阿拉伯数字与中文口语金额、相对日期、币种、收支方向与方式提取）及 `ParseFinanceBillDraftInputSchema`／`ParsedFinanceBillDraftSchema`，在 `packages/contracts/src/rpc.ts` 新增 `personalFinance/parseDraft` RPC 契约并补齐 `packages/testkit/src/authorization.test.ts` 认证穷举用例。
+- **全 Bot 免审批直接对话记账（`packages/core`、`packages/adapters`）**：将 `PERSONAL_FINANCE_TOOL_NAMES` 加入 `APPROVAL_EXEMPT_TOOLS`（本人发起免逐次审批弹窗直接落库）与 `PROJECT_TEXT_TOOLS`（放行项目工作区 Bot，覆盖单聊／群聊／项目全部 Bot）；`finance_record_bill` 缺省或泛化分类时自动调用 `inferFinanceBillCategory()` 归类并支持支付渠道别名匹配；升级 `run-instructions.ts` 指导所有 Bot 在用户文字口述或发送小票／付款截图时直接提取、自动分类并入账（银行卡密文仍硬隔离）。
+- **服务端 AI 票据识图与语音解析（`apps/api`）**：新增 `apps/api/src/personal-finance-parser.ts` 接入 `app.ts`、`router.ts` 与 `routes/personal-finance.ts`（`personalFinance/parseDraft`），复用用户已连接的多模态模型通过 `currentTurnImages` 解析小票／付款截图与语音文本（仅携带脱敏支付方式标签，绝不接触 `secretCiphertext`），文本或离线场景优雅回落本地解析。
+- **手机端拍照识图、相册传图、语音记账、自动保存与全 Bot 全选开关（`apps/mobile`）**：在 `lib/personal-finance.ts` 新增 `parseFinanceBillDraft()`；升级 `components/finance-bill-sheet.tsx` 顶部新增拍照识图（`takePhoto`）、相册传图（`pickFromLibrary`）、实时语音输入（`dictation.ts`）与默认开启的「识别后自动保存」开关，手动输入标题同步实时自动分类；`components/home-finance-card.tsx` 新增「拍照记」「语音记」一键入口与前台刷新；`app/finance.tsx` 账单页新增「全部 Bot 对话记账 · 已全选」实时卡片开关与自动保存横幅，并同步更新 `app/(settings)/bot-permissions.tsx`。
+- **验证结果**：22 个改动／新增文件 Biome `0` 错误 `0` 警告、6 包（`@rakazo/contracts`、`@rakazo/core`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/testkit`、`@rakazo/mobile`）`tsc --noEmit` `0` 错误、13 个 Vitest 套件（223 项）全绿、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#记一笔拍照识图语音输入自动分类保存与全-bot-免审批直接对话记账2026-11-26) 与 [运维手册](OPERATIONS.md#记一笔拍照识图语音输入与全-bot-免审批记账待部署2026-11-26)。
+
+依赖与验收条件：零新增依赖、零新增数据库迁移、零新增 iOS 权限；推送部署生产后端并发布手机 OTA 后即可真机验收。
+
 ## 锁屏实时活动状态与应用内弹窗／悬浮状态全面采用 iOS 原生液态玻璃样式（PA-021，2026-11-26）
 
 状态：源码实现、单测补充与本机离线校验均已完成（未提交或推送）；应用内通知弹窗与悬浮状态条为纯 JS 改动，发布侧载 OTA 即可生效；锁屏 Live Activity（`CompanionWidget.swift`）为原生 Swift 扩展改动，待 macOS Xcode 重编 IPA 并通过 `Sideloadly` 重签安装后真机验收。

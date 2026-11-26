@@ -2,7 +2,7 @@ import { formatCents } from "@rakazo/contracts";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import type { ViewStyle } from "react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { PersonalFinanceState } from "../lib/personal-finance";
@@ -38,6 +38,11 @@ export function HomeFinanceCard({ cardStyle, financeState }: HomeFinanceCardProp
   useEffect(() => {
     if (financeState !== undefined) return;
     void refreshPersonalFinance();
+    if (typeof AppState?.addEventListener !== "function") return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refreshPersonalFinance();
+    });
+    return () => sub.remove();
   }, [financeState]);
 
   const isLight = appearance === "light";
@@ -300,6 +305,73 @@ export function HomeFinanceCard({ cardStyle, financeState }: HomeFinanceCardProp
           <NativeSymbol ios="plus" android="add" size={13} color={primaryInk} />
           <Text style={{ color: primaryInk, fontSize: 13, lineHeight: 17, fontWeight: "600" }}>
             {copy("记一笔", "記一筆", "Add bill")}
+          </Text>
+        </MotionPressable>
+
+        <MotionPressable
+          preset="control"
+          testID="home-hub-finance-scan"
+          accessibilityRole="button"
+          accessibilityLabel={copy("拍照识图记账", "拍照識圖記帳", "Scan receipt")}
+          onPress={() =>
+            router.push({
+              pathname: "/finance",
+              params: { tab: "bills", action: "add-bill", mode: "camera" },
+            })
+          }
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 5,
+            paddingHorizontal: 11,
+            paddingVertical: 8,
+            borderRadius: 999,
+            backgroundColor: chipBg,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: chipBorder,
+          }}
+        >
+          <NativeSymbol
+            ios="camera.fill"
+            android="camera-outline"
+            size={13}
+            color={tokens.foreground}
+          />
+          <Text
+            style={{ color: tokens.foreground, fontSize: 13, lineHeight: 17, fontWeight: "500" }}
+          >
+            {copy("拍照记", "拍照記", "Scan")}
+          </Text>
+        </MotionPressable>
+
+        <MotionPressable
+          preset="control"
+          testID="home-hub-finance-voice"
+          accessibilityRole="button"
+          accessibilityLabel={copy("语音记账", "語音記帳", "Voice bill")}
+          onPress={() =>
+            router.push({
+              pathname: "/finance",
+              params: { tab: "bills", action: "add-bill", mode: "voice" },
+            })
+          }
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 5,
+            paddingHorizontal: 11,
+            paddingVertical: 8,
+            borderRadius: 999,
+            backgroundColor: chipBg,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: chipBorder,
+          }}
+        >
+          <NativeSymbol ios="mic.fill" android="mic-outline" size={13} color={tokens.foreground} />
+          <Text
+            style={{ color: tokens.foreground, fontSize: 13, lineHeight: 17, fontWeight: "500" }}
+          >
+            {copy("语音记", "語音記", "Voice")}
           </Text>
         </MotionPressable>
 

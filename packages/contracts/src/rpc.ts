@@ -1754,6 +1754,8 @@ export const appContract = {
     importLocal: oc
       .input(PersonalFinanceImportInputSchema)
       .output(PersonalFinanceImportOutputSchema),
+    /** Parses a receipt photo and/or spoken/typed bill utterance into a categorized bill draft. */
+    parseDraft: oc.input(ParseFinanceBillDraftInputSchema).output(ParsedFinanceBillDraftSchema),
   },
 };
 
