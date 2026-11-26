@@ -1,4 +1,5 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
+  Avatar: "頭像",
   "Server settings or the saved session could not be verified.":
     "無法驗證伺服器設定或已儲存的登入狀態。",
   "Account deleted": "帳號已刪除",

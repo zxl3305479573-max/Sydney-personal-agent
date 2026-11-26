@@ -1,4 +1,5 @@
 export const JA_MESSAGES: Record<string, string> = {
+  Avatar: "アバター",
   "Account deleted": "アカウントを削除しました",
   "Could not confirm account deletion. Check your account before trying again.":
     "アカウントの削除を確認できませんでした。再試行する前にアカウントの状態を確認してください。",

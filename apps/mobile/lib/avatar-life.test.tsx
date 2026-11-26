@@ -82,16 +82,19 @@ vi.mock("react-native", () => ({
   View: ({
     children,
     accessibilityLabel,
+    testID,
     style,
   }: {
     children?: ReactNode;
     accessibilityLabel?: string;
+    testID?: string;
     style?: { width?: number; backgroundColor?: string; borderColor?: string };
   }) =>
     createElement(
       "div",
       {
         "aria-label": accessibilityLabel,
+        "data-testid": testID,
         "data-width": style?.width,
         "data-bg": style?.backgroundColor,
         "data-ring": style?.borderColor,
@@ -372,10 +375,11 @@ describe("activity mark", () => {
 
   it("shows each working member of a group in turn, every 2 s", () => {
     render(<ActivityMark bots={bots} atBottom />);
-    const shown = () => container.querySelector("[data-fill]")?.getAttribute("data-fill");
-    expect(shown()).toBe("#2A92FE");
+    const shown = () =>
+      container.querySelector('[data-testid^="bot-avatar-"]')?.getAttribute("data-testid");
+    expect(shown()).toBe("bot-avatar-bot-a");
     act(() => vi.advanceTimersByTime(2000));
-    expect(shown()).toBe("#FF781C");
+    expect(shown()).toBe("bot-avatar-bot-b");
   });
 
   it("stops cycling members and pulsing photo dots on a covered screen, and resumes on return", () => {
@@ -395,7 +399,7 @@ describe("activity mark", () => {
         <ActivityMark bots={[photo, bots[0]!]} atBottom />
       </AvatarScreenFocus>,
     );
-    const drawnShown = () => container.querySelector("[data-fill]") !== null;
+    const drawnShown = () => container.querySelector('[data-testid="bot-avatar-bot-a"]') !== null;
     act(() => vi.advanceTimersByTime(6000));
     expect(drawnShown()).toBe(false);
     expect(pulsing()).toBe(false);
@@ -461,7 +465,7 @@ describe("activity mark", () => {
     expect(dots()).toBe(3);
     expect(container.querySelector("button")).toBeNull();
     act(() => vi.advanceTimersByTime(2000));
-    expect(container.querySelector("[data-fill]")).not.toBeNull();
+    expect(container.querySelector('[data-testid="bot-avatar-bot-a"]')).not.toBeNull();
     act(() => vi.advanceTimersByTime(2000));
     expect(dots()).toBe(3);
   });

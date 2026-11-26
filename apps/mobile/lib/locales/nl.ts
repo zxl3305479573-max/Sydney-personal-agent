@@ -1,4 +1,5 @@
 export const NL_MESSAGES: Record<string, string> = {
+  Avatar: "Avatar",
   "Account deleted": "Account verwijderd",
   "Could not confirm account deletion. Check your account before trying again.":
     "Het verwijderen van het account kon niet worden bevestigd. Controleer je account voordat je het opnieuw probeert.",

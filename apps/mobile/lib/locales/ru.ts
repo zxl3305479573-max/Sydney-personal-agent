@@ -1,4 +1,5 @@
 export const RU_MESSAGES: Record<string, string> = {
+  Avatar: "Аватар",
   "Account deleted": "Аккаунт удалён",
   "Could not confirm account deletion. Check your account before trying again.":
     "Не удалось подтвердить удаление аккаунта. Проверьте его состояние перед повторной попыткой.",

@@ -13,7 +13,27 @@ import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 
 const mobileTokens = vi.hoisted(() => ({ current: undefined as ColorTokens | undefined }));
 
+vi.mock("react-native-reanimated", () => {
+  const passthrough = ({ children }: { children?: ReactNode }) =>
+    createElement("div", null, children);
+  const easing = (value: unknown) => value;
+  return {
+    default: { View: passthrough, createAnimatedComponent: () => passthrough },
+    cancelAnimation: () => undefined,
+    Easing: { in: easing, out: easing, inOut: easing, quad: 0, cubic: 0, linear: 0 },
+    ReduceMotion: { Never: "never" },
+    useAnimatedStyle: () => ({}),
+    useReducedMotion: () => false,
+    useSharedValue: <T,>(value: T) => ({ value }),
+    withSpring: (value: unknown) => value,
+    withTiming: (value: unknown) => value,
+  };
+});
+
 vi.mock("react-native", () => ({
+  AppState: { currentState: "active", addEventListener: () => ({ remove: () => undefined }) },
+  Pressable: ({ children, onPress }: { children?: ReactNode; onPress?: () => void }) =>
+    createElement("button", { type: "button", onClick: onPress }, children),
   View: ({
     children,
     accessibilityLabel,

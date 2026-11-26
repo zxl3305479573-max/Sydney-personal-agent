@@ -1,4 +1,5 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  Avatar: "头像",
   "If the browser cannot finish, copy its full callback address and paste it here.":
     "如果浏览器无法完成连接，请复制浏览器中的完整回调地址并粘贴到这里。",
   "MCP callback address": "MCP 回调地址",
