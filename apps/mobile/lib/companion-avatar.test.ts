@@ -1,47 +1,16 @@
-import { avatarIdentitySeed, organicAvatarPath, organicAvatarSampleIdentity } from "@rakazo/core";
 import { describe, expect, it } from "vitest";
 import { companionAvatar } from "./companion-avatar";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 
-describe("companion organic avatar", () => {
-  it("encodes the same shape and eye rotation for all organic families within the activity budget", () => {
-    for (let family = 0; family < 10; family++) {
-      const botId = organicAvatarSampleIdentity(family);
-      const encoded = companionAvatar({ botId, color: "#abc", avatarSet: "organic" });
-      expect(encoded).not.toBeNull();
-      const [kind, color, rotation, path] = encoded!.split("|");
-      expect(kind).toBe("o");
-      expect(color).toBe("AABBCC");
-      expect(Number(rotation)).toBe((avatarIdentitySeed(botId) % 9) - 4);
-      expect(path!.length).toBeLessThanOrEqual(2200);
-      const values = path!.match(/../g)!.map((pair) => (parseInt(pair, 16) - 128) / 2);
-      const source = organicAvatarPath(avatarIdentitySeed(botId))
-        .match(/-?\d+(?:\.\d+)?/g)!
-        .map(Number);
-      expect(values).toHaveLength(source.length);
-      for (let index = 0; index < values.length; index++) {
-        expect(Math.abs(values[index]! - source[index]!)).toBeLessThanOrEqual(0.25);
-      }
+describe("companion avatar encoding", () => {
+  it("uses the bundled 大肥鱼 default photo for legacy color or shape values within the ActivityKit budget", () => {
+    for (const value of ["#4F7CAC", "#abc", "#8B5CF6", "#EAB308::shape_3", ""]) {
+      expect(companionAvatar({ botId: "bot-1", color: value })).toBe(
+        `r|${DEFAULT_BOT_AVATAR_DATA_URI}`,
+      );
     }
-  });
 
-  it("encodes each shipped shape and its matching eye color", () => {
-    const encodedShapes = new Set<string>();
-    for (let shape = 0; shape < 8; shape++) {
-      const result = companionAvatar({ botId: "bot", color: `#EAB308::shape_${shape}` });
-      expect(result).toMatch(/^s\|EAB308\|141414\|[0-9a-f]+$/);
-      const data = result!.split("|")[3]!;
-      encodedShapes.add(data);
-      expect(data.length).toBeGreaterThanOrEqual(12);
-      expect(data.length).toBeLessThanOrEqual(2200);
-    }
-    expect(encodedShapes.size).toBe(8);
-  });
-
-  it("leaves room for activity identifiers and a bounded reply", () => {
-    const avatar = companionAvatar({
-      botId: organicAvatarSampleIdentity(0),
-      color: "#8B5CF6",
-    });
+    const avatar = companionAvatar({ botId: "bot-1", color: "#4F7CAC" });
     const payload = JSON.stringify({
       botId: "a".repeat(256),
       botName: "🙂".repeat(32),
@@ -65,9 +34,9 @@ describe("companion organic avatar", () => {
     ).toBeNull();
   });
 
-  it("encodes a retired logo selection as the default avatar", () => {
+  it("maps retired avatarSet values to the same default 大肥鱼 avatar", () => {
     expect(companionAvatar({ botId: "bot", color: "#123456", avatarSet: "rakazo" })).toBe(
-      companionAvatar({ botId: "bot", color: "#123456" }),
+      `r|${DEFAULT_BOT_AVATAR_DATA_URI}`,
     );
   });
 });

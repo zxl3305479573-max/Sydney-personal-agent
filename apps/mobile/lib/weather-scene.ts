@@ -113,6 +113,32 @@ export type CloudWispSpec = {
   opacity: number;
 };
 
+export type SunShaftSpec = {
+  id: number;
+  /** Slant angle in degrees anchored near the top-right corner. */
+  angleDeg: number;
+  /** Beam thickness in pt. */
+  widthPx: number;
+  /** Beam length as a fraction of screen height. */
+  lengthRatio: number;
+  /** Horizontal offset from the right edge (px, can extend slightly past edge). */
+  rightOffsetPx: number;
+  durationMs: number;
+  delayMs: number;
+  peakOpacity: number;
+};
+
+export type SunMoteSpec = {
+  id: number;
+  xRatio: number;
+  yRatio: number;
+  size: number;
+  driftY: number;
+  durationMs: number;
+  delayMs: number;
+  peakOpacity: number;
+};
+
 export type LightningBoltGeometry = {
   mainPath: string;
   branchPath: string | null;
@@ -274,7 +300,6 @@ export function resolveWeatherSceneKind(telemetry: WeatherSceneTelemetry | null)
         : "light-snow";
     case "cloudy":
       return "cloudy";
-    case "sunny":
     default:
       return isDay ? "clear-day" : "clear-night";
   }
@@ -519,12 +544,69 @@ export function createCloudWisps(config: WeatherSceneConfig): CloudWispSpec[] {
   for (let i = 0; i < count; i += 1) {
     list.push({
       id: i,
-      yRatio: config.hasFog ? 0.08 + i * 0.22 : 0.04 + i * 0.1,
+      yRatio: config.hasFog ? 0.08 + i * 0.22 : 0.03 + i * 0.085,
       widthRatio: Number((0.68 + rand() * 0.44).toFixed(2)),
-      heightPx: Math.round(config.hasFog ? 96 + rand() * 64 : 62 + rand() * 44),
-      durationMs: Math.round((config.hasFog ? 26_000 : 20_000) + rand() * 14_000),
+      heightPx: Math.round(config.hasFog ? 104 + rand() * 64 : 74 + rand() * 44),
+      durationMs: Math.round((config.hasFog ? 26_000 : 22_000) + rand() * 14_000),
       delayMs: Math.round(rand() * 12_000),
-      opacity: Number((config.hasFog ? 0.24 + rand() * 0.14 : 0.14 + rand() * 0.1).toFixed(2)),
+      opacity: Number((config.hasFog ? 0.24 + rand() * 0.14 : 0.18 + rand() * 0.1).toFixed(2)),
+    });
+  }
+  return list;
+}
+
+/** Deterministic diagonal volumetric sunbeams for clear-day scenes. */
+export function createSunShafts(config: WeatherSceneConfig): SunShaftSpec[] {
+  if (!config.hasSunbeams) return [];
+  return [
+    {
+      id: 0,
+      angleDeg: 28,
+      widthPx: 62,
+      lengthRatio: 0.44,
+      rightOffsetPx: 14,
+      durationMs: 7_600,
+      delayMs: 0,
+      peakOpacity: 0.95,
+    },
+    {
+      id: 1,
+      angleDeg: 43,
+      widthPx: 44,
+      lengthRatio: 0.5,
+      rightOffsetPx: -4,
+      durationMs: 9_400,
+      delayMs: 1_800,
+      peakOpacity: 0.85,
+    },
+    {
+      id: 2,
+      angleDeg: 58,
+      widthPx: 34,
+      lengthRatio: 0.36,
+      rightOffsetPx: -18,
+      durationMs: 8_200,
+      delayMs: 3_400,
+      peakOpacity: 0.72,
+    },
+  ];
+}
+
+/** Subtle sunlit floating dust motes near the upper-right sunlight zone. */
+export function createSunMotes(config: WeatherSceneConfig): SunMoteSpec[] {
+  if (!config.hasSunbeams) return [];
+  const rand = mulberry32(1217);
+  const list: SunMoteSpec[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    list.push({
+      id: i,
+      xRatio: Number((0.42 + rand() * 0.52).toFixed(3)),
+      yRatio: Number((0.04 + rand() * 0.3).toFixed(3)),
+      size: Number((2.2 + rand() * 1.8).toFixed(1)),
+      driftY: Math.round(10 + rand() * 14),
+      durationMs: Math.round(5_200 + rand() * 3_600),
+      delayMs: Math.round(rand() * 3_500),
+      peakOpacity: Number((0.26 + rand() * 0.24).toFixed(2)),
     });
   }
   return list;

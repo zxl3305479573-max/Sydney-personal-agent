@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   resolveActiveWeatherScene,
+  resolveWeatherAtmosphereWash,
   weatherOverlayOpacityScale,
 } from "./weather-atmosphere-helpers";
 import {
+  ALL_WEATHER_PREVIEW_SCENES,
   buildWeatherSceneConfig,
   classifyWmoWeatherScene,
   classifyWwoWeatherScene,
@@ -12,15 +14,20 @@ import {
   createRainSplashes,
   createSnowParticles,
   createStarParticles,
+  createSunMotes,
+  createSunShafts,
   generateLightningBolt,
   resolveWeatherSceneKind,
   weatherSceneLabel,
 } from "./weather-scene";
 import {
   getWeatherScenePreferences,
+  previewWeatherSoundVolume,
   resetWeatherScenePreferencesForTest,
   setWeatherSceneEnabled,
   setWeatherScenePreview,
+  setWeatherSoundEnabled,
+  setWeatherSoundVolume,
 } from "./weather-scene-state";
 
 beforeEach(() => {
@@ -155,7 +162,22 @@ describe("weather-scene classification & physics", () => {
     await setWeatherSceneEnabled(false);
     expect(getWeatherScenePreferences().enabled).toBe(false);
     await setWeatherScenePreview("thunderstorm");
-    expect(getWeatherScenePreferences()).toEqual({ enabled: true, previewScene: "thunderstorm" });
+    expect(getWeatherScenePreferences()).toEqual({
+      enabled: true,
+      previewScene: "thunderstorm",
+      soundEnabled: true,
+      soundVolume: 0.5,
+    });
+
+    // Sound toggle & volume controls clamp cleanly and unmute automatically when raised above 0.
+    await setWeatherSoundEnabled(false);
+    expect(getWeatherScenePreferences().soundEnabled).toBe(false);
+    previewWeatherSoundVolume(0.75);
+    expect(getWeatherScenePreferences()).toMatchObject({ soundEnabled: true, soundVolume: 0.75 });
+    await setWeatherSoundVolume(0);
+    expect(getWeatherScenePreferences()).toMatchObject({ soundEnabled: false, soundVolume: 0 });
+    await setWeatherSoundEnabled(true);
+    expect(getWeatherScenePreferences()).toMatchObject({ soundEnabled: true, soundVolume: 0.4 });
 
     const previewed = resolveActiveWeatherScene({
       enabled: true,
@@ -167,5 +189,40 @@ describe("weather-scene classification & physics", () => {
     expect(previewed.isPreview).toBe(true);
     expect(previewed.config?.hasLightning).toBe(true);
     expect(resolveWeatherSceneKind({ condition: "snowy", snowfallCm: 2.0 })).toBe("heavy-snow");
+  });
+
+  it("uses strict hex stopColor + restrained stopOpacity for SVG washes and casts zero shadow on cloudy/clear-day", () => {
+    const hexPattern = /^#[0-9A-Fa-f]{6}$/;
+    for (const kind of ALL_WEATHER_PREVIEW_SCENES) {
+      const config = buildWeatherSceneConfig(kind);
+      for (const isLight of [true, false]) {
+        const wash = resolveWeatherAtmosphereWash(config, isLight);
+        expect(wash.topWashHeightRatio).toBeLessThanOrEqual(0.18);
+        expect(wash.topWash.color).toMatch(hexPattern);
+        expect(wash.bottomMist.color).toMatch(hexPattern);
+        expect(wash.sunCore.color).toMatch(hexPattern);
+        expect(wash.sunMid.color).toMatch(hexPattern);
+        expect(wash.frostBottom.color).toMatch(hexPattern);
+        expect(wash.topWash.opacity).toBeLessThanOrEqual(0.2);
+        expect(wash.bottomMist.opacity).toBeLessThanOrEqual(0.1);
+      }
+    }
+
+    // Cloudy and clear-day must never paint dark top/bottom shadows over content or tab bars.
+    for (const kind of ["cloudy", "clear-day"] as const) {
+      const config = buildWeatherSceneConfig(kind);
+      for (const isLight of [true, false]) {
+        const wash = resolveWeatherAtmosphereWash(config, isLight);
+        expect(wash.topWash.opacity).toBe(0);
+        expect(wash.bottomMist.opacity).toBe(0);
+      }
+    }
+
+    // Clear-day uses soft volumetric sunbeams + motes with restrained warm glow (no opaque blob).
+    const clearDay = buildWeatherSceneConfig("clear-day");
+    expect(createSunShafts(clearDay)).toHaveLength(3);
+    expect(createSunMotes(clearDay)).toHaveLength(7);
+    expect(resolveWeatherAtmosphereWash(clearDay, true).sunCore.opacity).toBeLessThanOrEqual(0.2);
+    expect(resolveWeatherAtmosphereWash(clearDay, false).sunCore.opacity).toBeLessThanOrEqual(0.15);
   });
 });

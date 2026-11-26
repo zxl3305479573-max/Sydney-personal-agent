@@ -25,7 +25,7 @@ import {
   spaceSelectionSeq,
   subscribeSpaceSelection,
 } from "../lib/api";
-import { mobileTokens } from "../lib/appearance";
+import { registerBotNotificationProfiles } from "../lib/bot-notification-registry";
 import type { CompanionScreenState } from "../lib/companion-activity";
 import {
   activeCompanionIdentity,
@@ -51,7 +51,7 @@ import {
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
 import type { NativeColors } from "../lib/native";
-import { native, useMobileTokens, useThemedStyles } from "../lib/native";
+import { native, useThemedStyles } from "../lib/native";
 import {
   projectRequestOptions,
   projectScopeKey,
@@ -172,6 +172,14 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
       void rpc("bots/get", { botId })
         .then((next) => {
           if (!current) return;
+          registerBotNotificationProfiles([
+            {
+              id: next.id,
+              name: displayName(next.name, t("Bot")),
+              color: next.color,
+              avatarSet: next.avatarSet,
+            },
+          ]);
           // A read that overlapped a save may predate it; keep the switch as the user left it.
           const overlapped = saves % 2 === 1 || saves !== notifySaves.current;
           if (!overlapped) notifyQueue.current?.reset(next.notifyOnFinish);
@@ -268,6 +276,14 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
         stopCompanionScreenAuto();
         await stopCompanion(isCurrent);
       } else {
+        registerBotNotificationProfiles([
+          {
+            id: botId,
+            name,
+            color: bot.color,
+            avatarSet: bot.avatarSet,
+          },
+        ]);
         await startCompanion(
           botId,
           name,

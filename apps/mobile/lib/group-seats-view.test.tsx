@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
-import { botEyeColor } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupSeats } from "../components/group-seats";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 
 type Props = Record<string, unknown> & { children?: ReactNode; style?: unknown };
 
@@ -128,7 +128,7 @@ describe("GroupSeats", () => {
     expect(seats[0]!.querySelector("svg-path")!.getAttribute("data-stroke")).toBe("tertiary");
   });
 
-  it("gives a drawn face the same eye ink as the bot's own avatar", () => {
+  it("renders the default 大肥鱼 circular photo for members without a custom image", () => {
     act(() =>
       root.render(
         <GroupSeats
@@ -139,9 +139,12 @@ describe("GroupSeats", () => {
         />,
       ),
     );
-    const eyes = Array.from(container.querySelectorAll("svg-g[data-fill]"), (group) =>
-      group.getAttribute("data-fill"),
+    const images = Array.from(container.querySelectorAll("svg-image"), (img) =>
+      img.getAttribute("data-href"),
     );
-    expect(eyes).toEqual([botEyeColor, botEyeColor]);
+    expect(images).toEqual([
+      JSON.stringify({ uri: DEFAULT_BOT_AVATAR_DATA_URI }),
+      JSON.stringify({ uri: DEFAULT_BOT_AVATAR_DATA_URI }),
+    ]);
   });
 });

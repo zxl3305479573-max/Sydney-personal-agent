@@ -365,4 +365,90 @@ describe("WeatherDetailScreen", () => {
     await act(async () => toggleBtn?.click());
     expect(toggleBtn?.textContent).toBe("已关闭");
   });
+
+  it("lets users toggle weather ambient sound and adjust volume in the weather screen", async () => {
+    await act(async () => root.render(createElement(WeatherDetailScreen)));
+    const soundSection = container.querySelector('[data-testid="weather-sound-section"]');
+    const soundToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-sound-toggle"]',
+    );
+    const volUp = container.querySelector<HTMLButtonElement>('[data-testid="weather-sound-up"]');
+    const volDown = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-sound-down"]',
+    );
+
+    expect(soundSection?.textContent).toContain("天气环境音效");
+    expect(soundSection?.textContent).toContain("50%");
+    expect(soundToggle?.textContent).toBe("已开启");
+
+    await act(async () => volUp?.click());
+    expect(soundSection?.textContent).toContain("60%");
+
+    await act(async () => volDown?.click());
+    expect(soundSection?.textContent).toContain("50%");
+
+    // Switching preview to thunderstorm updates ambient sound description live.
+    const stormBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-scene-thunderstorm"]',
+    );
+    await act(async () => stormBtn?.click());
+    expect(soundSection?.textContent).toContain("暴雨雷鸣");
+
+    // Muting toggles to 已关闭 and zeroes visual bar percentage.
+    await act(async () => soundToggle?.click());
+    expect(soundToggle?.textContent).toBe("已关闭");
+    expect(soundSection?.textContent).toContain("0%");
+  });
+
+  it("drops past hours before clockNow and aligns hero status with live scene", async () => {
+    const base = fixture.weather;
+    if (!base) throw new Error("expected base weather fixture");
+    fixture.weather = {
+      ...base,
+      temperatureC: 17,
+      condition: "cloudy",
+      scene: "cloudy",
+      isDay: true,
+      hourly: [
+        {
+          timeIso: "2026-11-25T00:00",
+          hourLabel: "00:00",
+          temperatureC: 11,
+          condition: "cloudy",
+          isDay: false,
+        },
+        {
+          timeIso: "2026-11-25T09:00",
+          hourLabel: "09:00",
+          temperatureC: 14,
+          condition: "cloudy",
+          isDay: true,
+        },
+        {
+          timeIso: "2026-11-25T15:00",
+          hourLabel: "15:00",
+          temperatureC: 17,
+          condition: "cloudy",
+          isDay: true,
+        },
+        {
+          timeIso: "2026-11-25T18:00",
+          hourLabel: "18:00",
+          temperatureC: 15,
+          condition: "cloudy",
+          isDay: false,
+        },
+      ],
+      hourlyByDate: undefined,
+    };
+    await act(async () => root.render(createElement(WeatherDetailScreen)));
+    const hero = container.querySelector('[data-testid="weather-hero-card"]');
+    const hourlyCard = container.querySelector('[data-testid="weather-hourly-card"]');
+    expect(hero?.textContent).toContain("多云");
+    expect(hourlyCard?.textContent).toContain("现在");
+    expect(hourlyCard?.textContent).toContain("15:00");
+    expect(hourlyCard?.textContent).toContain("18:00");
+    expect(hourlyCard?.textContent).not.toContain("00:00");
+    expect(hourlyCard?.textContent).not.toContain("09:00");
+  });
 });

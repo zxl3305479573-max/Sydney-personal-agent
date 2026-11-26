@@ -15,8 +15,27 @@ export type BotProfileLike = {
 };
 
 const profiles = new Map<string, BotNotificationProfile>();
+const profileListeners = new Set<() => void>();
+
+function notifyProfileListeners(): void {
+  for (const listener of [...profileListeners]) {
+    try {
+      listener();
+    } catch {
+      // Ignore subscriber errors so profile updates remain consistent.
+    }
+  }
+}
+
+export function subscribeBotNotificationProfiles(listener: () => void): () => void {
+  profileListeners.add(listener);
+  return () => {
+    profileListeners.delete(listener);
+  };
+}
 
 export function registerBotNotificationProfiles(bots: ReadonlyArray<BotProfileLike>): void {
+  let changed = false;
   for (const bot of bots) {
     const botId = bot.id?.trim();
     if (!botId) continue;
@@ -24,13 +43,18 @@ export function registerBotNotificationProfiles(bots: ReadonlyArray<BotProfileLi
     const name = bot.name?.trim() || prev?.name;
     const color = bot.color?.trim() || prev?.color;
     const avatarSet = bot.avatarSet !== undefined ? bot.avatarSet : prev?.avatarSet;
+    if (prev && prev.name === name && prev.color === color && prev.avatarSet === avatarSet) {
+      continue;
+    }
     profiles.set(botId, {
       botId,
       ...(name ? { name } : {}),
       ...(color ? { color } : {}),
       ...(avatarSet !== undefined ? { avatarSet } : {}),
     });
+    changed = true;
   }
+  if (changed) notifyProfileListeners();
 }
 
 export function getBotNotificationProfile(botId: string): BotNotificationProfile | null {

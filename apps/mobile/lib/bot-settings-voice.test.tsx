@@ -57,7 +57,15 @@ function deferredSave<T = void>() {
 }
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
-vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: mocks.pickBotAvatar }));
+vi.mock("./create-bot-avatar", () => ({
+  BUILT_IN_BOT_AVATARS: [
+    { id: "blue-maid", name: "大肥鱼", source: 1 },
+    { id: "lilac-dragon", name: "紫晶", source: 2 },
+    { id: "orange-flower", name: "橙花", source: 3 },
+  ],
+  bundledBotAvatar: async () => "data:image/webp;base64,ZmFrZWRlZmF1bHQ=",
+  pickBotAvatar: mocks.pickBotAvatar,
+}));
 vi.mock("./project-scope", () => ({
   projectScopeKey: () => "project-scope",
   subscribeProjectScope: () => () => {},
@@ -179,6 +187,8 @@ vi.mock("react-native", () => {
     },
     useWindowDimensions: () => ({ fontScale: 1 }),
     StyleSheet: { create: (styles: unknown) => styles },
+    Image: ({ source }: { source: { uri: string } | number }) =>
+      createElement("img", { src: typeof source === "number" ? `asset:${source}` : source.uri }),
     Modal: view,
     ScrollView: view,
     View: view,
@@ -559,17 +569,19 @@ describe("bot settings device voice menu", () => {
 
   it("opens avatar controls from the header and closes the sheet", async () => {
     await render();
-    expect(container.textContent).not.toContain("Shape");
+    expect(container.textContent).not.toContain("Photo library");
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
-    expect(container.textContent).toContain("Shape");
+    expect(container.textContent).toContain("Photo library");
+    expect(container.textContent).toContain("大肥鱼");
+    expect(container.textContent).not.toContain("Shape");
     await act(async () =>
       [...container.querySelectorAll("button")]
         .find((button) => button.textContent === "Done")!
         .click(),
     );
-    expect(container.textContent).not.toContain("Shape");
+    expect(container.textContent).not.toContain("Photo library");
   });
 
   it("saves a selected photo to the project bot and keeps the home bot untouched", async () => {
@@ -604,21 +616,19 @@ describe("bot settings device voice menu", () => {
     expect(mocks.back).toHaveBeenCalledOnce();
   });
 
-  it("hides the retired set and lets an existing bot choose another shape", async () => {
+  it("hides legacy ghost shapes and lets an existing bot pick the default 大肥鱼 avatar", async () => {
     mocks.avatarSet = "rakazo";
     await render();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
     );
     expect(container.querySelector('[data-menu="Icon set"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Default"]')?.getAttribute("aria-checked")).toBe(
-      "true",
-    );
+    expect(container.querySelector('[aria-label="Shape 1"]')).toBeNull();
     expect(mocks.rpc).not.toHaveBeenCalled();
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('[aria-label="Shape 1"]')!.click(),
+      container.querySelector<HTMLButtonElement>('[aria-label="大肥鱼"]')!.click(),
     );
-    mocks.rpc.mockResolvedValueOnce({ avatarSet: "organic" });
+    mocks.rpc.mockResolvedValueOnce({ color: "data:image/webp;base64,ZmFrZWRlZmF1bHQ=" });
     await act(async () =>
       [...container.querySelectorAll<HTMLButtonElement>("button")]
         .find((button) => button.textContent === "Save")!
@@ -626,7 +636,7 @@ describe("bot settings device voice menu", () => {
     );
     expect(mocks.rpc).toHaveBeenLastCalledWith("bots/update", {
       botId: "bot-fixture",
-      avatarSet: "organic",
+      color: "data:image/webp;base64,ZmFrZWRlZmF1bHQ=",
     });
   });
 

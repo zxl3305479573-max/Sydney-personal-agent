@@ -1,7 +1,5 @@
 import type { Bot, BotAvatarSet, ComputerMode, RpcInput, ThinkingLevel } from "@rakazo/contracts";
 import {
-  BOT_AVATAR_SHAPE_COUNT,
-  BOT_COLORS,
   BOT_DESCRIPTION_MAX_LENGTH,
   BOT_INSTRUCTIONS_MAX_LENGTH,
   BOT_NAME_MAX_LENGTH,
@@ -20,7 +18,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Alert, Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { BotAvatar } from "../components/bot-avatar";
 import { BotContextCards } from "../components/bot-context-cards";
 import { ComputerModePicker } from "../components/computer-mode-picker";
@@ -37,17 +35,12 @@ import { ProfileEditDialog } from "../components/profile-edit-dialog";
 import { Chevron } from "../components/row-accessories";
 import type { MobileMe, MobileModel, MobileModelCredential } from "../lib/api";
 import { currentApiBase, loadSessionToken, rpc, selectedSpaceId } from "../lib/api";
-import {
-  avatarColor,
-  avatarShape,
-  isAvatarPhoto,
-  withAvatarColor,
-  withAvatarShape,
-} from "../lib/bot-avatar-edit";
+import { isAvatarPhoto } from "../lib/bot-avatar-edit";
 import { deviceVoices, setVoiceForBot, voiceForBot, voiceLabel } from "../lib/bot-voices";
 import { chatModelPickerChoices } from "../lib/chat-model";
 import { COMPUTER_LIFECYCLE_TIMEOUT_MS } from "../lib/computer";
-import { pickBotAvatar } from "../lib/create-bot-avatar";
+import { BUILT_IN_BOT_AVATARS, bundledBotAvatar, pickBotAvatar } from "../lib/create-bot-avatar";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "../lib/default-bot-avatar";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
@@ -156,7 +149,7 @@ function BotSettingsScreen({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [color, setColor] = useState<string>(BOT_COLORS[0]);
+  const [color, setColor] = useState<string>(DEFAULT_BOT_AVATAR_DATA_URI);
   const [computerMode, setComputerMode] = useState<ComputerMode>("team");
   const [avatarSet, setAvatarSet] = useState<BotAvatarSet>("organic");
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -1090,11 +1083,11 @@ function BotSettingsScreen({
                 {avatarError}
               </Text>
             ) : null}
-            {bot && isAvatarPhoto(color) ? (
+            {bot && isAvatarPhoto(color) && color !== DEFAULT_BOT_AVATAR_DATA_URI ? (
               <MotionPressable
                 preset="inline"
                 accessibilityRole="button"
-                onPress={() => setColor(avatarColor(bot.color))}
+                onPress={() => setColor(DEFAULT_BOT_AVATAR_DATA_URI)}
                 style={{ marginTop: 12 }}
               >
                 <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
@@ -1102,90 +1095,52 @@ function BotSettingsScreen({
                 </Text>
               </MotionPressable>
             ) : null}
-            <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
-              {t("Color")}
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
-              accessibilityRole="radiogroup"
-            >
-              {BOT_COLORS.map((option, index) => (
-                <MotionPressable
-                  key={option}
-                  preset="icon"
-                  accessibilityRole="radio"
-                  accessibilityLabel={t("Color {number}", { number: index + 1 })}
-                  accessibilityState={{ checked: avatarColor(color) === option }}
-                  onPress={() => setColor((current) => withAvatarColor(current, option))}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: option,
-                    borderWidth: 3,
-                    borderColor: avatarColor(color) === option ? tokens.foreground : "transparent",
-                  }}
-                />
-              ))}
-            </ScrollView>
-            {bot && !isAvatarPhoto(color) ? (
+            {(BUILT_IN_BOT_AVATARS ?? []).length > 0 ? (
               <>
                 <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
-                  {t("Shape")}
+                  {t("Avatar")}
                 </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
-                  accessibilityRole="radiogroup"
+                  contentContainerStyle={{ gap: 12, paddingVertical: 8, paddingHorizontal: 4 }}
                 >
-                  <MotionPressable
-                    preset="control"
-                    accessibilityRole="radio"
-                    accessibilityLabel={t("Default")}
-                    accessibilityState={{
-                      checked: avatarShape(color) === null,
-                    }}
-                    onPress={() => {
-                      setAvatarSet("organic");
-                      setColor((current) => avatarColor(current));
-                    }}
-                    style={{
-                      padding: 6,
-                      borderRadius: 16,
-                      backgroundColor: avatarShape(color) === null ? cardBg : chipBg,
-                      borderWidth: avatarShape(color) === null ? 2 : hairline,
-                      borderColor: avatarShape(color) === null ? tokens.foreground : chipBorder,
-                    }}
-                  >
-                    <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
-                  </MotionPressable>
-                  {Array.from({ length: BOT_AVATAR_SHAPE_COUNT }, (_, shape) => (
+                  {(BUILT_IN_BOT_AVATARS ?? []).map((item) => (
                     <MotionPressable
-                      key={shape}
+                      key={item.id}
                       preset="control"
-                      accessibilityRole="radio"
-                      accessibilityLabel={t("Shape {number}", { number: shape + 1 })}
-                      accessibilityState={{ checked: avatarShape(color) === shape }}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.name}
+                      disabled={pickingAvatar}
                       onPress={() => {
-                        setAvatarSet("organic");
-                        setColor((current) => withAvatarShape(current, shape));
+                        if (typeof bundledBotAvatar !== "function") {
+                          setColor(DEFAULT_BOT_AVATAR_DATA_URI);
+                          return;
+                        }
+                        setPickingAvatar(true);
+                        setAvatarError(null);
+                        void bundledBotAvatar(item.source)
+                          .then((next) => setColor(next))
+                          .catch((err) => setAvatarError(errorText(err)))
+                          .finally(() => setPickingAvatar(false));
                       }}
                       style={{
                         padding: 6,
                         borderRadius: 16,
-                        backgroundColor: avatarShape(color) === shape ? cardBg : chipBg,
-                        borderWidth: avatarShape(color) === shape ? 2 : hairline,
-                        borderColor: avatarShape(color) === shape ? tokens.foreground : chipBorder,
+                        backgroundColor: chipBg,
+                        borderWidth: hairline,
+                        borderColor: chipBorder,
+                        alignItems: "center",
+                        gap: 4,
                       }}
                     >
-                      <BotAvatar
-                        color={withAvatarShape(color, shape)}
-                        identity={bot.id}
-                        size={36}
+                      <Image
+                        source={item.source}
+                        style={{ width: 44, height: 44, borderRadius: 22 }}
                       />
+                      <Text style={{ color: tokens.mutedForeground, fontSize: 11 }}>
+                        {item.name}
+                      </Text>
                     </MotionPressable>
                   ))}
                 </ScrollView>

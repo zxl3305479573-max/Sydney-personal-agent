@@ -63,6 +63,10 @@ vi.mock("./companion-screen-auto", () => ({
   stopCompanionScreenAuto: state.stopCompanionScreenAuto,
 }));
 
+import {
+  clearBotNotificationProfiles,
+  registerBotNotificationProfiles,
+} from "./bot-notification-registry";
 import { stopCompanionOnSessionChange } from "./companion-lifecycle";
 import {
   DEFAULT_COMPANION_PREFERENCES,
@@ -94,6 +98,7 @@ beforeEach(() => {
   state.stopCompanion.mockImplementation(async () => {
     state.nativeActivity = null;
   });
+  clearBotNotificationProfiles();
   resetCompanionSessionForTest();
 });
 
@@ -283,5 +288,50 @@ describe("companion-session (CMP-01)", () => {
     });
     await stopCompanionOnSessionChange();
     expect(getCompanionSessionState().active).toBeNull();
+  });
+
+  it("hydrates bot name and custom avatar from bot profile registry when started via BotProfile or restored from native Live Activity", () => {
+    state.nativeAvailable = true;
+    const customAvatar = "data:image/png;base64,iVBORw0KGgo=";
+
+    // Case 1: BotProfile registers bot before starting native companion directly.
+    registerBotNotificationProfiles([
+      { id: "bot-fish", name: "大肥鱼-总管", color: customAvatar, avatarSet: "organic" },
+    ]);
+    state.nativeActivity = {
+      id: "native-fish-1",
+      botId: "bot-fish",
+      spaceId: "space-1",
+      showReply: true,
+    };
+    for (const listener of state.activityListeners) listener();
+    expect(getCompanionSessionState().active).toMatchObject({
+      botId: "bot-fish",
+      botName: "大肥鱼-总管",
+      botColor: customAvatar,
+      botAvatarSet: "organic",
+    });
+
+    // Case 2: Cold restart sees native activity before bots list arrives -> reconciles automatically once profiles load.
+    clearBotNotificationProfiles();
+    resetCompanionSessionForTest();
+    state.nativeActivity = {
+      id: "native-fish-2",
+      botId: "bot-fish-2",
+      spaceId: "space-1",
+      showReply: true,
+    };
+    for (const listener of state.activityListeners) listener();
+    expect(getCompanionSessionState().active?.botName).toBe("Sydney");
+
+    registerBotNotificationProfiles([
+      { id: "bot-fish-2", name: "大肥鱼-总管", color: customAvatar, avatarSet: "organic" },
+    ]);
+    expect(getCompanionSessionState().active).toMatchObject({
+      botId: "bot-fish-2",
+      botName: "大肥鱼-总管",
+      botColor: customAvatar,
+      botAvatarSet: "organic",
+    });
   });
 });

@@ -13,6 +13,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { cardGradient } from "../lib/card-gradient";
 import type { HomeWeatherDailyItem, HomeWeatherHourlyItem } from "../lib/home-weather";
 import {
+  alignTodayHourlyForecast,
   getWeatherHourlyForDate,
   homeWeatherLabel,
   homeWeatherSymbol,
@@ -29,10 +30,14 @@ import {
   weatherSceneSymbol,
 } from "../lib/weather-scene";
 import {
+  previewWeatherSoundVolume,
   setWeatherSceneEnabled,
   setWeatherScenePreview,
+  setWeatherSoundEnabled,
+  setWeatherSoundVolume,
   useWeatherScenePreferences,
 } from "../lib/weather-scene-state";
+import { weatherSoundDescription } from "../lib/weather-sound-model";
 
 function padTwo(value: number): string {
   return String(value).padStart(2, "0");
@@ -98,13 +103,14 @@ export default function WeatherDetailScreen() {
   const copy = (zhHans: string, zhHant: string, en: string) =>
     chinese ? (traditional ? zhHant : zhHans) : en;
 
-  const { weather, loading, error, refreshWeather } = useHomeWeather();
+  const { weather, clockNow, loading, error, refreshWeather } = useHomeWeather();
   const scenePrefs = useWeatherScenePreferences();
   const [selectedDateIso, setSelectedDateIso] = useState<string | null>(null);
   const [selectedHourIso, setSelectedHourIso] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const hourlyScrollRef = useRef<ScrollView | null>(null);
   const scrollOffsetYRef = useRef(0);
+  const soundSliderWidthRef = useRef(180);
 
   const isLight = appearance === "light";
   const softAccentInk = isLight ? "#6E675E" : "#B8B3AA";
@@ -124,7 +130,6 @@ export default function WeatherDetailScreen() {
     borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",
   } as const;
 
-  const hourly = weather?.hourly ?? [];
   const daily = weather?.daily ?? [];
   const selectedDayIndex =
     selectedDateIso != null ? daily.findIndex((day) => day.dateIso === selectedDateIso) : 0;
@@ -134,7 +139,7 @@ export default function WeatherDetailScreen() {
 
   const activeHourly = weather
     ? isTodaySelected
-      ? hourly
+      ? alignTodayHourlyForecast(weather, clockNow)
       : getWeatherHourlyForDate(weather, selectedDay?.dateIso ?? null)
     : [];
 
@@ -159,8 +164,17 @@ export default function WeatherDetailScreen() {
         ? true
         : weather.isDay
     : true;
-  const symbol = displayCondition ? homeWeatherSymbol(displayCondition, displayIsDay) : null;
-  const conditionText = displayCondition ? homeWeatherLabel(displayCondition, locale) : null;
+  const liveScene = isLiveView ? (weather?.scene ?? null) : null;
+  const symbol = liveScene
+    ? weatherSceneSymbol(liveScene)
+    : displayCondition
+      ? homeWeatherSymbol(displayCondition, displayIsDay)
+      : null;
+  const conditionText = liveScene
+    ? weatherSceneLabel(liveScene, locale)
+    : displayCondition
+      ? homeWeatherLabel(displayCondition, locale)
+      : null;
 
   const displayHighC = weather
     ? !isTodaySelected && selectedDay
@@ -1065,6 +1079,284 @@ export default function WeatherDetailScreen() {
                   );
                 })}
               </ScrollView>
+
+              {/* Weather Ambient Sound Toggle & Volume Slider */}
+              {(() => {
+                const activeSoundScene =
+                  scenePrefs.previewScene ?? weather.scene ?? resolveWeatherSceneKind(weather);
+                const soundActive =
+                  scenePrefs.enabled && scenePrefs.soundEnabled && scenePrefs.soundVolume > 0;
+                const soundPct = Math.round(scenePrefs.soundVolume * 100);
+                const filledPct = scenePrefs.soundEnabled ? soundPct : 0;
+                const updateVolumeFromTouch = (locationX: number, commit: boolean) => {
+                  const width = Math.max(1, soundSliderWidthRef.current);
+                  const ratio = Math.min(1, Math.max(0, locationX / width));
+                  if (commit) {
+                    void setWeatherSoundVolume(ratio);
+                  } else {
+                    previewWeatherSoundVolume(ratio);
+                  }
+                };
+                return (
+                  <View
+                    testID="weather-sound-section"
+                    style={{
+                      marginHorizontal: 18,
+                      paddingTop: 12,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                      borderTopColor: chipBorder,
+                      gap: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        <NativeSymbol
+                          ios={soundActive ? "speaker.wave.2.fill" : "speaker.slash"}
+                          android={soundActive ? "volume-medium-outline" : "volume-mute-outline"}
+                          size={15}
+                          color={soundActive ? tokens.foreground : softAccentInk}
+                        />
+                        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                          <Text
+                            style={{
+                              color: tokens.foreground,
+                              fontSize: 14,
+                              lineHeight: 18,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {copy("天气环境音效", "天氣環境音效", "Weather ambient sound")}
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: tokens.mutedForeground,
+                              fontSize: 11.5,
+                              lineHeight: 15,
+                            }}
+                          >
+                            {!scenePrefs.enabled
+                              ? copy(
+                                  "已随动态天气场景暂停",
+                                  "已隨動態天氣場景暫停",
+                                  "Paused while weather effects are off",
+                                )
+                              : !scenePrefs.soundEnabled || soundPct <= 0
+                                ? copy(
+                                    "已静音，开启后自动播放雨声／雷声／微风",
+                                    "已靜音，開啟後自動播放雨聲／雷聲／微風",
+                                    "Muted — enable for rain, thunder & breeze",
+                                  )
+                                : copy(
+                                    `${weatherSoundDescription(activeSoundScene, locale)} · 音量 ${soundPct}%`,
+                                    `${weatherSoundDescription(activeSoundScene, locale)} · 音量 ${soundPct}%`,
+                                    `${weatherSoundDescription(activeSoundScene, locale)} · ${soundPct}%`,
+                                  )}
+                          </Text>
+                        </View>
+                      </View>
+                      <MotionPressable
+                        preset="control"
+                        testID="weather-sound-toggle"
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          scenePrefs.soundEnabled
+                            ? copy("关闭天气音效", "關閉天氣音效", "Mute weather sound")
+                            : copy("开启天气音效", "開啟天氣音效", "Unmute weather sound")
+                        }
+                        onPress={() => void setWeatherSoundEnabled(!scenePrefs.soundEnabled)}
+                        style={{
+                          paddingHorizontal: 11,
+                          paddingVertical: 5,
+                          borderRadius: 999,
+                          backgroundColor: scenePrefs.soundEnabled
+                            ? isLight
+                              ? "#26231F"
+                              : "#F5F4F0"
+                            : chipBackground,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: scenePrefs.soundEnabled ? "transparent" : chipBorder,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: scenePrefs.soundEnabled
+                              ? isLight
+                                ? "#FFFEFC"
+                                : "#181C23"
+                              : tokens.foreground,
+                            fontSize: 12,
+                            lineHeight: 15,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {scenePrefs.soundEnabled
+                            ? copy("已开启", "已開啟", "On")
+                            : copy("已关闭", "已關閉", "Off")}
+                        </Text>
+                      </MotionPressable>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                        opacity: scenePrefs.enabled ? 1 : 0.45,
+                      }}
+                    >
+                      <MotionPressable
+                        preset="control"
+                        testID="weather-sound-down"
+                        accessibilityRole="button"
+                        accessibilityLabel={copy("减小音效音量", "減小音效音量", "Decrease volume")}
+                        onPress={() =>
+                          void setWeatherSoundVolume(Math.max(0, scenePrefs.soundVolume - 0.1))
+                        }
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: chipBackground,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: chipBorder,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <NativeSymbol
+                          ios="minus"
+                          android="remove"
+                          size={13}
+                          color={tokens.foreground}
+                        />
+                      </MotionPressable>
+
+                      <View
+                        testID="weather-sound-slider"
+                        accessible
+                        accessibilityRole="adjustable"
+                        accessibilityLabel={copy(
+                          "天气音效音量",
+                          "天氣音效音量",
+                          "Weather sound volume",
+                        )}
+                        accessibilityValue={{ min: 0, max: 100, now: filledPct }}
+                        onLayout={(event) => {
+                          const w = event.nativeEvent.layout.width;
+                          if (w > 0) soundSliderWidthRef.current = w;
+                        }}
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
+                        onResponderTerminationRequest={() => false}
+                        onResponderGrant={(event) => {
+                          updateVolumeFromTouch(event.nativeEvent.locationX, false);
+                        }}
+                        onResponderMove={(event) => {
+                          updateVolumeFromTouch(event.nativeEvent.locationX, false);
+                        }}
+                        onResponderRelease={(event) => {
+                          updateVolumeFromTouch(event.nativeEvent.locationX, true);
+                        }}
+                        style={{
+                          flex: 1,
+                          height: 30,
+                          justifyContent: "center",
+                        }}
+                      >
+                        <View
+                          style={{
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: trackBg,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: `${filledPct}%`,
+                              height: "100%",
+                              borderRadius: 3,
+                              backgroundColor: soundActive ? selectedTrackFill : trackFill,
+                            }}
+                          />
+                        </View>
+                        <View
+                          pointerEvents="none"
+                          style={{
+                            position: "absolute",
+                            left: `${filledPct}%`,
+                            marginLeft: -9,
+                            width: 18,
+                            height: 18,
+                            borderRadius: 9,
+                            backgroundColor: isLight ? "#FFFEFC" : "#F5F4F0",
+                            borderWidth: 1.5,
+                            borderColor: soundActive ? selectedTrackFill : trackFill,
+                          }}
+                        />
+                      </View>
+
+                      <MotionPressable
+                        preset="control"
+                        testID="weather-sound-up"
+                        accessibilityRole="button"
+                        accessibilityLabel={copy("增大音效音量", "增大音效音量", "Increase volume")}
+                        onPress={() =>
+                          void setWeatherSoundVolume(Math.min(1, scenePrefs.soundVolume + 0.1))
+                        }
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: chipBackground,
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: chipBorder,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <NativeSymbol
+                          ios="plus"
+                          android="add"
+                          size={13}
+                          color={tokens.foreground}
+                        />
+                      </MotionPressable>
+
+                      <Text
+                        testID="weather-sound-percent"
+                        style={{
+                          width: 36,
+                          textAlign: "right",
+                          color: tokens.mutedForeground,
+                          fontSize: 12,
+                          lineHeight: 16,
+                          fontWeight: "600",
+                          fontVariant: ["tabular-nums"],
+                        }}
+                      >
+                        {`${filledPct}%`}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
           </>
         )}

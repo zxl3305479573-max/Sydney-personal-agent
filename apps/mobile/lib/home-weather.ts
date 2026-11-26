@@ -41,6 +41,7 @@ export type HomeWeatherSnapshot = {
   condition: HomeWeatherCondition;
   isDay: boolean;
   fetchedAt: number;
+  currentTimeIso?: string | null;
   weatherCode?: number | null;
   scene?: WeatherSceneKind;
   precipitationMm?: number | null;
@@ -66,7 +67,7 @@ export type HomeWeatherSymbol = {
 const WEATHER_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const WEATHER_STALE_MS = 5 * 60 * 1000;
 const COORDS_TTL_MS = 30 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 6_000;
+const REQUEST_TIMEOUT_MS = 8_000;
 const CLOCK_TICK_MS = 60 * 1000;
 const CLOCK_BOUNDARY_CUSHION_MS = 25;
 
@@ -232,6 +233,117 @@ export function getWeatherHourlyForDate(
   return (weather.hourly ?? []).filter((slot) => slot.timeIso.startsWith(dateIso));
 }
 
+function formatLocalHourPrefix(date: Date): string {
+  return `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}T${padTwo(date.getHours())}`;
+}
+
+function resolveEffectiveHourPrefix(weather: HomeWeatherSnapshot, clockNow: Date): string {
+  const iso = weather.currentTimeIso;
+  if (typeof iso === "string") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})(?::(\d{2}))?/.exec(iso);
+    if (match) {
+      const base = new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4]),
+        Number(match[5] ?? "0"),
+      );
+      if (!Number.isNaN(base.getTime())) {
+        const elapsedMs = Math.max(0, clockNow.getTime() - weather.fetchedAt);
+        return formatLocalHourPrefix(new Date(base.getTime() + elapsedMs));
+      }
+    }
+  }
+  return formatLocalHourPrefix(clockNow);
+}
+
+/**
+ * Aligns today's hourly forecast strip with the current wall clock:
+ * - index 0 ("现在") is always synced with the live current snapshot;
+ * - subsequent slots are strictly future hours (> current hour) across today & tomorrow.
+ */
+export function alignTodayHourlyForecast(
+  weather: HomeWeatherSnapshot,
+  clockNow: Date,
+): HomeWeatherHourlyItem[] {
+  const deduped = new Map<string, HomeWeatherHourlyItem>();
+  for (const slot of weather.hourly ?? []) {
+    deduped.set(slot.timeIso, slot);
+  }
+  if (weather.hourlyByDate) {
+    for (const daySlots of Object.values(weather.hourlyByDate)) {
+      for (const slot of daySlots) {
+        if (!deduped.has(slot.timeIso)) {
+          deduped.set(slot.timeIso, slot);
+        }
+      }
+    }
+  }
+  if (deduped.size === 0) return [];
+
+  const sorted = [...deduped.values()].sort((a, b) => a.timeIso.localeCompare(b.timeIso));
+  const nowHourPrefix = resolveEffectiveHourPrefix(weather, clockNow);
+  const currentSlot: HomeWeatherHourlyItem = {
+    timeIso: `${nowHourPrefix}:00`,
+    hourLabel: `${nowHourPrefix.slice(11, 13)}:00`,
+    temperatureC: weather.temperatureC,
+    condition: weather.condition,
+    isDay: weather.isDay,
+    apparentTemperatureC: weather.apparentTemperatureC ?? null,
+    humidityPercent: weather.humidityPercent ?? null,
+    windSpeedKmh: weather.windSpeedKmh ?? null,
+  };
+  const upcoming = sorted.filter((slot) => slot.timeIso.slice(0, 13) > nowHourPrefix).slice(0, 11);
+
+  return [currentSlot, ...upcoming];
+}
+
+function sceneToHomeCondition(scene: WeatherSceneKind): HomeWeatherCondition {
+  switch (scene) {
+    case "clear-day":
+    case "clear-night":
+      return "sunny";
+    case "cloudy":
+    case "fog":
+      return "cloudy";
+    case "drizzle":
+    case "rain":
+    case "heavy-rain":
+    case "thunderstorm":
+      return "rainy";
+    case "light-snow":
+    case "heavy-snow":
+      return "snowy";
+  }
+}
+
+function summarizeDayCondition(
+  slots: HomeWeatherHourlyItem[],
+  fallback: HomeWeatherCondition,
+  options?: { isToday?: boolean; nowHourPrefix?: string; currentCondition?: HomeWeatherCondition },
+): HomeWeatherCondition {
+  if (slots.length === 0) return options?.currentCondition ?? fallback;
+  const nowPrefix = options?.isToday ? options.nowHourPrefix : undefined;
+  const relevant = nowPrefix
+    ? slots.filter((slot) => slot.timeIso.slice(0, 13) >= nowPrefix)
+    : slots.filter((slot) => slot.isDay);
+  const pool = relevant.length > 0 ? relevant : slots;
+  if (pool.some((slot) => slot.condition === "snowy") || options?.currentCondition === "snowy") {
+    return "snowy";
+  }
+  if (pool.some((slot) => slot.condition === "rainy") || options?.currentCondition === "rainy") {
+    return "rainy";
+  }
+  if (options?.isToday && options.currentCondition) {
+    return options.currentCondition;
+  }
+  const cloudyCount = pool.filter((slot) => slot.condition === "cloudy").length;
+  const sunnyCount = pool.filter((slot) => slot.condition === "sunny").length;
+  if (cloudyCount === 0 && sunnyCount === 0) return fallback;
+  return cloudyCount >= sunnyCount ? "cloudy" : "sunny";
+}
+
 async function fetchJsonWithTimeout(
   url: string,
   signal?: AbortSignal,
@@ -256,15 +368,17 @@ async function fetchJsonWithTimeout(
   }
 }
 
-async function resolveWeatherCoords(
-  nowMs: number,
-  options?: { force?: boolean; signal?: AbortSignal },
-): Promise<{
+type ResolvedWeatherCoords = {
   latitude: number;
   longitude: number;
   locationLabel: string | null;
   source: LocationSource;
-} | null> {
+};
+
+async function resolveWeatherCoords(
+  nowMs: number,
+  options?: { force?: boolean; signal?: AbortSignal },
+): Promise<ResolvedWeatherCoords | null> {
   const force = Boolean(options?.force);
 
   // Priority 1: Native device GPS (CoreLocation + CLGeocoder) for accurate weather regardless of VPN/carrier IP.
@@ -335,6 +449,14 @@ function parseOpenMeteoHourly(
   hourlyRaw: unknown,
   currentTimeIso: string | undefined,
   now: Date,
+  liveCurrent: {
+    temperatureC: number;
+    condition: HomeWeatherCondition;
+    isDay: boolean;
+    apparentTemperatureC: number | null;
+    humidityPercent: number | null;
+    windSpeedKmh: number | null;
+  },
 ): {
   hourly: HomeWeatherHourlyItem[];
   hourlyByDate: Record<string, HomeWeatherHourlyItem[]>;
@@ -352,7 +474,7 @@ function parseOpenMeteoHourly(
   const currentHourPrefix =
     typeof currentTimeIso === "string" && currentTimeIso.length >= 13
       ? currentTimeIso.slice(0, 13)
-      : `${now.getFullYear()}-${padTwo(now.getMonth() + 1)}-${padTwo(now.getDate())}T${padTwo(now.getHours())}`;
+      : formatLocalHourPrefix(now);
 
   const allItems: HomeWeatherHourlyItem[] = [];
   const hourlyByDate: Record<string, HomeWeatherHourlyItem[]> = {};
@@ -389,11 +511,26 @@ function parseOpenMeteoHourly(
     }
   }
 
-  let startIndex = allItems.findIndex((entry) => entry.timeIso.slice(0, 13) >= currentHourPrefix);
-  if (startIndex < 0) startIndex = 0;
+  if (allItems.length === 0) {
+    return { hourly: [], hourlyByDate };
+  }
+
+  const liveSlot: HomeWeatherHourlyItem = {
+    timeIso: `${currentHourPrefix}:00`,
+    hourLabel: `${currentHourPrefix.slice(11, 13)}:00`,
+    temperatureC: liveCurrent.temperatureC,
+    condition: liveCurrent.condition,
+    isDay: liveCurrent.isDay,
+    apparentTemperatureC: liveCurrent.apparentTemperatureC,
+    humidityPercent: liveCurrent.humidityPercent,
+    windSpeedKmh: liveCurrent.windSpeedKmh,
+  };
+  const upcoming = allItems
+    .filter((entry) => entry.timeIso.slice(0, 13) > currentHourPrefix)
+    .slice(0, 11);
 
   return {
-    hourly: allItems.slice(startIndex, startIndex + 12),
+    hourly: [liveSlot, ...upcoming],
     hourlyByDate,
   };
 }
@@ -439,17 +576,16 @@ function parseOpenMeteoDaily(
 }
 
 async function fetchFromOpenMeteo(
+  coords: ResolvedWeatherCoords,
   now: Date,
-  options?: { force?: boolean; signal?: AbortSignal },
+  signal?: AbortSignal,
 ): Promise<HomeWeatherSnapshot | null> {
-  const coords = await resolveWeatherCoords(now.getTime(), options);
-  if (!coords) return null;
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
     coords.latitude.toFixed(4),
   )}&longitude=${encodeURIComponent(
     coords.longitude.toFixed(4),
   )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,precipitation,rain,showers,snowfall,cloud_cover&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,wind_speed_10m_max&forecast_days=7&timezone=auto`;
-  const raw = await fetchJsonWithTimeout(url, options?.signal);
+  const raw = await fetchJsonWithTimeout(url, signal);
   if (!raw || typeof raw !== "object") return null;
   const body = raw as Record<string, unknown>;
   const current = body.current as Record<string, unknown> | undefined;
@@ -467,27 +603,42 @@ async function fetchFromOpenMeteo(
     (rainRate !== null || showersRate !== null ? (rainRate ?? 0) + (showersRate ?? 0) : null);
   const snowfallCm = finiteNonNegative(current.snowfall);
   const cloudCoverPercent = finiteRounded(current.cloud_cover);
+  const scene = classifyWmoWeatherScene(code, { isDay, precipitationMm, snowfallCm });
+  const condition = sceneToHomeCondition(scene);
+  const apparentTemperatureC = finiteRounded(current.apparent_temperature);
+  const humidityPercent = finiteRounded(current.relative_humidity_2m);
+  const windSpeedKmh = finiteRounded(current.wind_speed_10m);
+  const currentTimeIso = typeof current.time === "string" ? current.time : null;
   const { hourly, hourlyByDate } = parseOpenMeteoHourly(
     body.hourly,
-    typeof current.time === "string" ? current.time : undefined,
+    currentTimeIso ?? undefined,
     now,
+    {
+      temperatureC: temp,
+      condition,
+      isDay,
+      apparentTemperatureC,
+      humidityPercent,
+      windSpeedKmh,
+    },
   );
   const daily = parseOpenMeteoDaily(body.daily, hourlyByDate);
   return {
     temperatureC: temp,
-    condition: mapWmoWeatherCondition(code),
+    condition,
     isDay,
     fetchedAt: now.getTime(),
+    currentTimeIso,
     weatherCode: code,
-    scene: classifyWmoWeatherScene(code, { isDay, precipitationMm, snowfallCm }),
+    scene,
     precipitationMm,
     snowfallCm,
     cloudCoverPercent,
     locationLabel: coords.locationLabel,
     locationSource: coords.source,
-    apparentTemperatureC: finiteRounded(current.apparent_temperature),
-    humidityPercent: finiteRounded(current.relative_humidity_2m),
-    windSpeedKmh: finiteRounded(current.wind_speed_10m),
+    apparentTemperatureC,
+    humidityPercent,
+    windSpeedKmh,
     highC: daily[0]?.highC ?? null,
     lowC: daily[0]?.lowC ?? null,
     hourly,
@@ -501,11 +652,25 @@ function parseWttrLocation(raw: Record<string, unknown>): string | null {
   const first = areas[0] as Record<string, unknown> | undefined;
   const areaNames = first && Array.isArray(first.areaName) ? first.areaName : [];
   const entry = areaNames[0] as Record<string, unknown> | undefined;
-  return typeof entry?.value === "string" && entry.value.trim() ? entry.value.trim() : null;
+  const areaValue = typeof entry?.value === "string" ? entry.value.trim() : "";
+  const regions = first && Array.isArray(first.region) ? first.region : [];
+  const regionEntry = regions[0] as Record<string, unknown> | undefined;
+  const regionValue = typeof regionEntry?.value === "string" ? regionEntry.value.trim() : "";
+  if (areaValue && !/shih$/i.test(areaValue)) return areaValue;
+  return regionValue || areaValue || null;
 }
 
-async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeatherSnapshot | null> {
-  const raw = await fetchJsonWithTimeout(WTTR_URL, signal);
+async function fetchFromWttr(
+  coords: ResolvedWeatherCoords | null,
+  now: Date,
+  signal?: AbortSignal,
+): Promise<HomeWeatherSnapshot | null> {
+  const url = coords
+    ? `https://wttr.in/${encodeURIComponent(
+        `${coords.latitude.toFixed(4)},${coords.longitude.toFixed(4)}`,
+      )}?format=j1`
+    : WTTR_URL;
+  const raw = await fetchJsonWithTimeout(url, signal);
   if (!raw || typeof raw !== "object") return null;
   const body = raw as Record<string, unknown>;
   const list = Array.isArray(body.current_condition) ? body.current_condition : [];
@@ -516,12 +681,26 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
   const code = Number(record.weatherCode);
   if (temp === null || !Number.isFinite(code)) return null;
 
+  const wttrIsDay = isDaytimeHour(now);
+  const wttrPrecip = finiteNonNegative(record.precipMM);
+  const wttrCloud = finiteRounded(record.cloudcover);
+  const wttrScene = classifyWwoWeatherScene(code, {
+    isDay: wttrIsDay,
+    precipitationMm: wttrPrecip,
+  });
+  const wttrCondition = sceneToHomeCondition(wttrScene);
+  const apparentTemperatureC = finiteRounded(record.FeelsLikeC);
+  const humidityPercent = finiteRounded(record.humidity);
+  const windSpeedKmh = finiteRounded(record.windspeedKmph);
+  const nowHourPrefix = formatLocalHourPrefix(now);
+
   const daysRaw = Array.isArray(body.weather) ? body.weather : [];
   const daily: HomeWeatherDailyItem[] = [];
-  const hourly: HomeWeatherHourlyItem[] = [];
+  const allSlots: HomeWeatherHourlyItem[] = [];
   const hourlyByDate: Record<string, HomeWeatherHourlyItem[]> = {};
 
-  for (const item of daysRaw) {
+  for (let dayIdx = 0; dayIdx < daysRaw.length; dayIdx += 1) {
+    const item = daysRaw[dayIdx];
     if (!item || typeof item !== "object") continue;
     const day = item as Record<string, unknown>;
     const dateIso = typeof day.date === "string" ? day.date : "";
@@ -550,19 +729,22 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
         windSpeedKmh: finiteRounded(slot.windspeedKmph),
       };
       daySlots.push(parsedSlot);
-      if (hourly.length < 12) {
-        hourly.push(parsedSlot);
-      }
+      allSlots.push(parsedSlot);
     }
     if (dateIso && daySlots.length > 0) {
       hourlyByDate[dateIso] = daySlots;
     }
     if (dateIso && highC !== null && lowC !== null) {
+      const fallbackDayCond = mapWwoWeatherCondition(Number.isFinite(dayCode) ? dayCode : code);
       daily.push({
         dateIso,
         highC,
         lowC,
-        condition: mapWwoWeatherCondition(Number.isFinite(dayCode) ? dayCode : code),
+        condition: summarizeDayCondition(daySlots, fallbackDayCond, {
+          isToday: dayIdx === 0,
+          nowHourPrefix,
+          currentCondition: wttrCondition,
+        }),
         apparentTemperatureC:
           finiteRounded(midday?.FeelsLikeC) ?? representativeDaytimeApparent(daySlots),
         humidityPercent: averageFinite(daySlots.map((slot) => slot.humidityPercent)),
@@ -571,24 +753,39 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
     }
   }
 
-  const wttrIsDay = isDaytimeHour(now);
-  const wttrPrecip = finiteNonNegative(record.precipMM);
-  const wttrCloud = finiteRounded(record.cloudcover);
+  const hourly: HomeWeatherHourlyItem[] =
+    allSlots.length > 0
+      ? [
+          {
+            timeIso: `${nowHourPrefix}:00`,
+            hourLabel: `${nowHourPrefix.slice(11, 13)}:00`,
+            temperatureC: temp,
+            condition: wttrCondition,
+            isDay: wttrIsDay,
+            apparentTemperatureC,
+            humidityPercent,
+            windSpeedKmh,
+          },
+          ...allSlots.filter((slot) => slot.timeIso.slice(0, 13) > nowHourPrefix).slice(0, 11),
+        ]
+      : [];
+
   return {
     temperatureC: temp,
-    condition: mapWwoWeatherCondition(code),
+    condition: wttrCondition,
     isDay: wttrIsDay,
     fetchedAt: now.getTime(),
+    currentTimeIso: `${nowHourPrefix}:00`,
     weatherCode: null,
-    scene: classifyWwoWeatherScene(code, { isDay: wttrIsDay, precipitationMm: wttrPrecip }),
+    scene: wttrScene,
     precipitationMm: wttrPrecip,
     snowfallCm: null,
     cloudCoverPercent: wttrCloud,
-    locationLabel: parseWttrLocation(body),
-    locationSource: "ip",
-    apparentTemperatureC: finiteRounded(record.FeelsLikeC),
-    humidityPercent: finiteRounded(record.humidity),
-    windSpeedKmh: finiteRounded(record.windspeedKmph),
+    locationLabel: coords?.locationLabel ?? parseWttrLocation(body),
+    locationSource: coords?.source ?? "ip",
+    apparentTemperatureC,
+    humidityPercent,
+    windSpeedKmh,
     highC: daily[0]?.highC ?? null,
     lowC: daily[0]?.lowC ?? null,
     hourly,
@@ -602,18 +799,26 @@ export async function fetchLiveHomeWeather(
   now: Date = new Date(),
   force = false,
 ): Promise<HomeWeatherSnapshot | null> {
+  let coords: ResolvedWeatherCoords | null = null;
   try {
-    const primary = await fetchFromOpenMeteo(now, { force, signal });
-    if (primary) {
-      cachedWeather = primary;
-      notifyWeatherListeners();
-      return primary;
-    }
+    coords = await resolveWeatherCoords(now.getTime(), { force, signal });
   } catch {
     if (signal?.aborted) return null;
   }
+  if (coords) {
+    try {
+      const primary = await fetchFromOpenMeteo(coords, now, signal);
+      if (primary) {
+        cachedWeather = primary;
+        notifyWeatherListeners();
+        return primary;
+      }
+    } catch {
+      if (signal?.aborted) return null;
+    }
+  }
   try {
-    const fallback = await fetchFromWttr(now, signal);
+    const fallback = await fetchFromWttr(coords, now, signal);
     if (fallback) {
       cachedWeather = fallback;
       notifyWeatherListeners();
@@ -771,13 +976,23 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
 
   const effectiveWeather =
     weather && !fixedNow
-      ? {
-          ...weather,
-          isDay:
+      ? (() => {
+          const nextIsDay =
             Date.now() - weather.fetchedAt > 2 * 60 * 1000
               ? isDaytimeHour(clockNow)
-              : weather.isDay,
-        }
+              : weather.isDay;
+          const nextScene =
+            weather.scene === "clear-day" && !nextIsDay
+              ? "clear-night"
+              : weather.scene === "clear-night" && nextIsDay
+                ? "clear-day"
+                : weather.scene;
+          return {
+            ...weather,
+            isDay: nextIsDay,
+            scene: nextScene,
+          };
+        })()
       : weather;
 
   return { weather: effectiveWeather, clockNow, loading, error, refreshWeather };

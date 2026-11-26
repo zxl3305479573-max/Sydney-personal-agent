@@ -25,6 +25,7 @@ import {
   registerBotNotificationProfiles,
 } from "./bot-notification-registry";
 import { resetCompanionSessionStateForTest } from "./companion-session-state";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 
 const SAMPLE_PNG_DATA_URI =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -107,7 +108,7 @@ describe("deliverBotLocalNotification", () => {
     const secondCall = scheduleBotNotification.mock.calls[1];
     expect(secondCall?.[1]).toBe("bot-color");
     expect(secondCall?.[2]).toBe("大肥鱼");
-    expect(String(secondCall?.[5])).toMatch(/^o\|E07A5F\|/);
+    expect(secondCall?.[5]).toBe(`r|${DEFAULT_BOT_AVATAR_DATA_URI}`);
     expect(secondCall?.[6]).toBe(false);
   });
 

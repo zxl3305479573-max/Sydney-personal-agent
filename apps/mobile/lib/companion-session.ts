@@ -7,7 +7,11 @@ import {
   spaceSelectionSeq,
   subscribeSpaceSelection,
 } from "./api";
-import { registerBotNotificationProfiles } from "./bot-notification-registry";
+import {
+  getBotNotificationProfile,
+  registerBotNotificationProfiles,
+  subscribeBotNotificationProfiles,
+} from "./bot-notification-registry";
 import {
   activeCompanionIdentity,
   companionAvailable,
@@ -41,6 +45,7 @@ import {
   setCompanionPreferencesState,
   subscribeCompanionSessionState,
 } from "./companion-session-state";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 import { currentSessionGeneration, subscribeSessionGeneration } from "./session";
 
 export {
@@ -72,6 +77,30 @@ let activeScope: {
   spaceSelection: number;
 } | null = null;
 
+function reconcileActiveCompanionProfile(): void {
+  const current = getActiveCompanionSession();
+  if (!current) return;
+  const profile = getBotNotificationProfile(current.botId);
+  if (!profile) return;
+  const nextName = profile.name ?? current.botName;
+  const nextColor = profile.color ?? current.botColor;
+  const nextAvatarSet =
+    profile.avatarSet !== undefined ? profile.avatarSet : (current.botAvatarSet ?? null);
+  if (
+    nextName === current.botName &&
+    nextColor === current.botColor &&
+    nextAvatarSet === (current.botAvatarSet ?? null)
+  ) {
+    return;
+  }
+  setActiveCompanionSessionState({
+    ...current,
+    botName: nextName,
+    botColor: nextColor,
+    botAvatarSet: nextAvatarSet,
+  });
+}
+
 function syncFromNativeActivity(): void {
   const nativeAvailable = companionAvailable();
   const current = getActiveCompanionSession();
@@ -98,9 +127,11 @@ function syncFromNativeActivity(): void {
     current.spaceId === nativeAct.spaceId &&
     current.showReply === (nativeAct.showReply ?? current.showReply)
   ) {
+    reconcileActiveCompanionProfile();
     return;
   }
   const preserved = current && current.botId === nativeAct.botId ? current : null;
+  const profile = getBotNotificationProfile(nativeAct.botId);
   activeScope = {
     sessionGeneration: currentSessionGeneration(),
     apiBase: currentApiBase(),
@@ -111,9 +142,12 @@ function syncFromNativeActivity(): void {
     {
       id: nativeAct.id,
       botId: nativeAct.botId,
-      botName: preserved?.botName ?? "Sydney",
-      botColor: preserved?.botColor ?? "#4F7CAC",
-      botAvatarSet: preserved?.botAvatarSet ?? null,
+      botName: profile?.name ?? preserved?.botName ?? "Sydney",
+      botColor: profile?.color ?? preserved?.botColor ?? DEFAULT_BOT_AVATAR_DATA_URI,
+      botAvatarSet:
+        profile && profile.avatarSet !== undefined
+          ? profile.avatarSet
+          : (preserved?.botAvatarSet ?? null),
       spaceId: nativeAct.spaceId,
       mode: "live-activity",
       showReply: nativeAct.showReply ?? getCachedCompanionPreferences().showReply,
@@ -125,6 +159,7 @@ function syncFromNativeActivity(): void {
 }
 
 subscribeCompanionActivity(syncFromNativeActivity);
+subscribeBotNotificationProfiles(reconcileActiveCompanionProfile);
 
 function clearLocalCompanionSession(): void {
   stopCompanionScreenAuto();
@@ -220,6 +255,15 @@ export async function startUnifiedCompanion(
   }
 
   stopCompanionScreenAuto();
+
+  registerBotNotificationProfiles([
+    {
+      id: input.botId,
+      name: input.botName,
+      color: input.botColor,
+      avatarSet: input.botAvatarSet ?? null,
+    },
+  ]);
 
   if (companionAvailable()) {
     await startCompanion(

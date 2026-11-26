@@ -1,5 +1,65 @@
 # Sydney 开发总计划
 
+## 个人账单与加密支付方式管理及手机首页入口组件（PA-025／PA-021，2026-11-26）
+
+状态：全链路源码实现、本机离线验证、隔离提交推送（`204784002db3f4f666cc6b2f6b2dddc0b3a0160e`）、GitHub CI 全绿（Run `45809544638`，含真实 `Postgres journeys` 迁移与 RLS 测试）、生产 PostgreSQL 迁移 `20261126120000_personal_finance` 执行及后端生产零停机上线（`deploy-production` Job `139876212408`）均已完成并通过线上核验；iPhone 侧载 OTA 发布与真机交互／身份确认弹窗实测待执行。
+
+范围与交付物：
+- **架构决策与需求登记**：新增 [ADR-0029](../docs/adr/0029-personal-finance-ledger-and-payment-vault.md)，在 [产品需求](../docs/requirements.md) 登记 `PA-025`，并在 [安全与隐私](../docs/security.md) 明确支付方式敏感密文绝不向模型／Bot 暴露的硬边界。
+- **共享契约与 RPC（`packages/contracts`）**：新增 `packages/contracts/src/personal-finance.ts`（9 类支付方式、收支／转账分类、整数分金额解析防浮点误差、卡号／手机／邮箱／钱包地址脱敏、月度聚合、信用卡还款倒计时及 3 个 Bot 账单工具名），同步扩展 `index.ts`、`builtin-tools.ts`、`mobile-bridge.ts`（新增 `financeLedger` 权限开关与 `/finance` 路由）及 `rpc.ts`（`personalFinance/{overview,upsertMethod,revealMethod,removeMethod,upsertBill,removeBill,importLocal}`）。
+- **数据库模型、RLS 迁移与密文仓（`packages/db`）**：在 `packages/db/prisma/schema.prisma` 新增 `UserPaymentMethod`（`user_payment_methods`）与 `UserFinanceBill`（`user_finance_bills`，删除卡片保留历史账单 `paymentMethodLabel` 快照），新增纯增量零停机迁移 `packages/db/prisma/migrations/20261126120000_personal_finance/migration.sql`（启用 RLS `userId` 隔离与 `rakazo_app` 授权）并登记至 `packages/db/src/row-security.ts`，实现 `packages/db/src/personal-finance.ts` 并重新生成 Prisma Client 类型。
+- **API 路由与安全审计（`apps/api`）**：新增 `apps/api/src/routes/personal-finance.ts` 接入 `router.ts` 与 `security-audit.ts`；卡号／有效期／CVV／支行／预留手机／私密备注采用 `SecretStore` 记录级 AES-256-GCM 密文落库（`payment-method:<userId>:<id>`），列表接口绝不返回明文；`revealMethod` 强制校验 `requireIdentityConfirmation` 并记录 `credential.revealed` 安全事件与审计日志；`importLocal` 支持移动端离线记录幂等迁移与 `paymentMethodId` 重映射。
+- **所有者专属 Bot 协同记账工具（`packages/adapters`）**：新增 `packages/adapters/src/run-tools-personal-finance.ts`（`finance_list_bills`、`finance_get_summary`、`finance_record_bill`），注册至 `builtin-tools.ts`、`builtin-tool-bridge.ts`、`run-tool-selection.ts`、`run-tools.ts`、`run-tools-mobile-app.ts`（`/finance` 跳页）与 `run-instructions.ts`；严格限定仅账号所有者亲自发起的非外部通道、非后台对话且开启 `financeLedger` 时可用，仅可读写账单与读取支付方式脱敏标签／尾号，代码层无任何访问 `secretCiphertext` 或解密卡号／CVV 的通道。
+- **手机端首页入口组件与完整 `/finance` 页面（`apps/mobile`）**：
+  - 双模存储引擎 `apps/mobile/lib/personal-finance.ts` 与界面辅助 `apps/mobile/lib/personal-finance-ui.ts`：优先云端加密同步并缓存非敏感摘要；后端未部署（404）或离线时自动切换本地 Keychain（敏感卡号按卡单独存 `expo-secure-store`，不入普通缓存），后端上线后自动幂等迁移并清除本地明文副本；登出自动清理会话缓存；支持全局金额隐私掩码开关。
+  - 首页入口组件 `apps/mobile/components/home-finance-card.tsx` 接入 `home-hub.tsx`（含下拉刷新联动）：暖瓷卡片展示本月支出／账单笔数／已存支付方式数量、信用卡 7 日内还款倒计时提醒、一键眼睛隐藏金额、Apple 钱包风格紧凑层叠卡包预览 `<WalletCardStack compact />`（单点任意卡片直达该卡展开视图），以及「+ 记一笔」「支付方式 / 卡包」快捷入口。
+  - 完整页面 `apps/mobile/app/finance.tsx`（接入 `_layout.tsx`、`startup.ts`、`theme-pack.ts`）与 Apple 钱包层叠卡包／单点展开组件体系（`wallet-card-face.tsx`、`wallet-card-stack.tsx`、`wallet-card-focus-modal.tsx`、`finance-bill-sheet.tsx`、`payment-method-sheet.tsx`，移除旧平铺详情弹窗 `payment-method-detail-sheet.tsx`）：
+    - 卡包页采用 Apple 钱包纵向层叠排布（背景卡顶部露出 `56pt` 品牌卡面条、默认主卡置于最前完整展示 ISO-7810 卡面与 `•••• 尾号` 及银联／Mastercard／Visa／钱包徽标），SVG 卡面纹理与渐变全部采用严格 6 位 `#RRGGBB`＋`stopOpacity`，并扩展 8 套卡面配色（`silver`/`cobalt`/`navy`/`obsidian`/`crimson`/`emerald`/`gold`/`slate`）与按银行／品牌自动匹配；
+    - 单点任意卡片以 Reanimated 弹簧动效展开全屏聚焦视图：左上圆形 `×` 返回、右上统一胶囊 `[123 | ···]`（`123` 身份确认后直接在卡面显示完整分组卡号并展开加密详情一键复制卡号／CVV／完整转账信息，`···` 提供编辑、设为默认、筛选账单与删除）、卡片下方依次展示「来自：发卡机构」信息卡与「最新交易」该卡关联账单（支持「+ 用此卡记一笔」预填该卡），底部折叠收起其余卡片点击返回卡叠；
+    - 账单页支持按月切换与分类占比条形图、搜索与按支付方式筛选、快速记账／编辑／删除；在 `app/(settings)/bot-permissions.tsx` 新增「账单协同记账」开关。
+- **验证结果**：首轮全链路 38 文件 Biome `0` 错误、5 包 `tsc --noEmit` `0` 错误、16 个 Vitest 套件（231 项）全绿；二轮 Apple 钱包层叠卡包与单点展开升级复验 12 个改动／新增文件 Biome `0` 错误 `0` 警告、5 包 `tsc --noEmit` `0` 错误、9 个 Vitest 套件（32 项）全绿；三轮补齐 `packages/testkit/src/authorization.test.ts` 的 7 条 `personalFinance/*` 穷举认证用例并通过全仓 10 包 `tsc --noEmit`（增补 `@rakazo/core`/`@rakazo/testkit`/`@rakazo/worker`/`@rakazo/web`/`@rakazo/desktop`）及 42 文件 Biome `0` 错误后，隔离提交 48 个 PA-025 文件为 `204784002db3f4f666cc6b2f6b2dddc0b3a0160e` 推送至 `origin/main`；`CI` [Run 45809544638](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45809544638) 一次全绿通过，`deploy-production`（Job `139876212408`）成功执行生产迁移 `20261126120000_personal_finance`（`_prisma_migrations` `230 / 230` 完成、两表 RLS 与四条策略及 `rakazo_app` 权限生效，`rakazo-prod-api-38` / `rakazo-prod-worker-33` 健康运行，线上 `/health`、`/ready` HTTP `200` 且未登录 `/rpc/personalFinance/overview` HTTP `401`）。详见 [验证记录](VALIDATION.md#个人账单与加密支付方式管理及手机首页入口组件2026-11-26) 与 [运维手册](OPERATIONS.md#个人账单与加密支付方式迁移及生产后端上线2047840022026-11-26)。
+
+依赖与验收条件：零新增第三方依赖与零新增 iOS 原生权限；生产 PostgreSQL 迁移 `20261126120000_personal_finance` 与后端 API／Worker／Bot 账单工具已正式上线生效；移动端 iPhone 侧载 OTA 发布及真机端到端交互验收待用户触发。
+
+## 彻底移除默认蓝幽灵头像并统一默认为大肥鱼头像 + 修复 Bot 资料页开启灵动岛陪伴头像同步（PA-021，2026-11-26）
+
+状态：根因定位、全端蓝幽灵清理、默认大肥鱼头像替换与本机定向离线验证已完成（真实 iPhone 实机观感与灵动岛显示待推送并发布 `1.0.35` OTA 后验收；未提交或推送）。
+
+范围与交付物：
+- **彻底清理默认蓝幽灵与几何／色块幽灵头像，统一默认为大肥鱼头像**：
+  - 新增统一默认头像模块 `apps/mobile/lib/default-bot-avatar.ts`（内置紧凑 `64×64` JPEG `DEFAULT_BOT_AVATAR_DATA_URI`，`1,468` 字节，满足 ActivityKit 3.5 KB 载荷预算）与原生覆盖 `apps/mobile/lib/default-bot-avatar.native.ts`（直接加载高清 `apps/mobile/assets/bot-avatars/blue-maid.webp` 大肥鱼原图）；
+  - 重构 `apps/mobile/components/bot-avatar.tsx`：删除全部 `OrganicAvatar`（蓝幽灵／色块眼睛）与 `ShippedShapeAvatar`（几何幽灵）渲染分支，所有自定义照片 Bot 保持自身照片，任何无照片／旧色值／旧形状回退统一显示圆形大肥鱼头像；
+  - 升级 `apps/mobile/components/group-seats.tsx`：群聊重叠头像删除幽灵路径绘制，无照片成员统一渲染圆形大肥鱼头像；
+  - 升级 `apps/mobile/lib/companion-avatar.ts`：删除 `o|...`／`s|...` 幽灵编码，非照片 Bot 统一编码为 `r|${DEFAULT_BOT_AVATAR_DATA_URI}`，使 iOS 灵动岛、锁屏与 `bot-local-notification.ts` 系统通知在纯 OTA 下也全部显示大肥鱼圆形头像（不再出现蓝幽灵）；
+  - 升级 `apps/mobile/lib/create-bot-avatar.ts`（将「大肥鱼」`blue-maid.webp` 置为首位默认选项）与 `apps/mobile/app/bot-settings.tsx`（移除头像弹窗中的幽灵颜色点与 8 种幽灵形状选择器，改为「大肥鱼／紫晶／橙花」预设与相册选图，点击移除照片即恢复默认大肥鱼头像）。
+- **修复从 Bot 资料页开启灵动岛陪伴时悬浮陪伴条错显示默认头像与 Sydney 名称**：
+  - 在 `apps/mobile/lib/bot-notification-registry.ts` 新增 `subscribeBotNotificationProfiles()` 订阅机制（仅在资料实际变更时派发通知）；
+  - 在 `apps/mobile/lib/companion-session.ts` 的 `syncFromNativeActivity()` 中优先读取 `getBotNotificationProfile(nativeAct.botId)` 的真实名称、自定义图片与 `avatarSet`（未命中时默认色亦改为 `DEFAULT_BOT_AVATAR_DATA_URI`），并新增 `reconcileActiveCompanionProfile()` 订阅资料表在 Bot 列表加载或头像更新后自动修正活跃陪伴会话；
+  - 在 `apps/mobile/app/bot-profile.tsx` 加载 `bots/get` 后及调用 `startCompanion(...)` 前立即登记当前 Bot 资料至 `registerBotNotificationProfiles(...)`，确保从大肥鱼等 Bot 内开启陪伴时首帧即显示对应 Bot 真实头像与名称。
+- **验证结果**：同步更新 `bot-avatar-render.test.tsx`、`companion-avatar.test.ts`、`group-seats-view.test.tsx`、`bot-local-notification.test.ts`、`companion-activity.test.ts`、`companion-session.test.ts` 与 `bot-settings-voice.test.tsx`；全部 17 个改动／新增文件 Biome `0` 错误、`@rakazo/mobile` 全包 `tsc --noEmit` `0` 错误、12 个 Vitest 套件（234 项，含 `bot-profile` 74 项、`chat-model-picker` 62 项、`bot-settings-voice` 50 项等）全部通过、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#彻底移除默认蓝幽灵头像并统一默认为大肥鱼头像-修复-bot-资料页开启灵动岛陪伴头像同步2026-11-26)。
+
+依赖与验收条件：纯 JS／资产替换改动、零新增第三方依赖（通过后续 `1.0.35` 侧载 OTA 即可生效，无需重装 IPA），真机验收待执行。
+
+## 修复动态天气浮层阴影、晴天光束重做、天气逐小时时间／状态对齐与天气环境音效（PA-021，2026-11-26）
+
+状态：根因定位、源码与 7 条音频资产实现及本机定向离线验证已完成（真实 iPhone 实机观感、实况对齐与音频播放／滑块手感待推送并发布 `1.0.35` OTA 后验收；未提交或推送）。
+
+范围与交付物：
+- **阴影与太阳圆块根因修复**：定位 `react-native-svg` 的 `extractGradient.ts` 对 `<Stop stopColor>` 执行 `color & 0x00ffffff` 剥离 `rgba` 透明度并仅取 `stopOpacity`，导致 `1.0.33` 中 `rgba(0,0,0,0)`＋`stopOpacity="1"` 渲染为顶 45%／底 22% 纯黑大阴影、`sunCore` 渲染为实心大黄球。在 `apps/mobile/lib/weather-atmosphere-helpers.ts` 新增 `resolveWeatherAtmosphereWash()`，全部 SVG 渐变改为严格 6 位 `#RRGGBB`＋显式 `stopOpacity`；多云与晴天彻底零阴影（不渲染阴影层）；雨雪／雾／雷阵雨／星夜顶部天色收窄至最上方 `16%`（`opacity <= 0.20`），降雨底部微雾仅紧贴底栏上沿 `28pt`，闪电 `<Path>` 同步改为十六进制＋`strokeOpacity`。
+- **晴天光束、羽化云雾与星光升级**：在 `apps/mobile/lib/weather-scene.ts` 新增 `createSunShafts()`、`createSunMotes()` 并在 `apps/mobile/components/weather-atmosphere-overlay.native.tsx` 移除圆形太阳色块，重做为 `<SunbeamLayer>`（右上屏外缘柔和香槟日光晕、3 道缓慢呼吸的羽化斜向丁达尔光束、3 处轻柔光学眩光圆环与 7 颗悬浮暖光微粒）；`CloudWispView` 升级为多瓣径向渐变羽化云雾，星夜亮星补齐十字星芒。
+- **天气逐小时时间对齐、实况状态一致与 `wttr.in` GPS 保留**：定位 `16:01` 仍将 `00:00`（11° 月亮）标为「现在」、顶部显示 `阴天` 而今天显示 `天晴` 且退回 `Shanghaishih 网络定位` 的三处根因并完成修复（`apps/mobile/lib/home-weather.ts`、`apps/mobile/app/weather.tsx`）：
+  - 新增 `alignTodayHourlyForecast(weather, clockNow)`（兼容 `currentTimeIso` 异地时区与实时推进），确保「现在」格恒与当前实况气温／状态／昼夜一致，后续时段严格只展示当前小时之后的未来预报；`fetchFromWttr` 与 `parseOpenMeteoHourly` 同步按当前小时切齐不再从 `00:00` 起列；
+  - `fetchLiveHomeWeather` 统一先解析坐标并透传至 `fetchFromWttr`（请求 `wttr.in/{lat},{lon}?format=j1`，保留手机 GPS 名称与 `手机定位` 标识，清理 `Shanghaishih` 异常拼音并将请求超时放宽至 `8s`）；
+  - 统一 `sceneToHomeCondition`、`summarizeDayCondition` 与 `useHomeWeather` 昼夜切换同步 `clear-day`/`clear-night`，并在 `/weather` 实时主卡优先显示细分场景名称与图标（如「多云」「小雨」「雷阵雨」），消除主卡、「今天」预报与实时特效的状态矛盾。
+- **天气环境音效、闪电同步雷声与天气页开关／音量滑块**：零新增第三方依赖，复用既有 `expo-audio` 实现全链路天气环境音效：
+  - 新增 7 条无版权程序合成的立体声 AAC 44.1 kHz `.m4a` 无缝循环与雷声资产（`apps/mobile/assets/sounds/weather-{drizzle,rain,heavy-rain,thunder,snow,breeze,night}.m4a`，总计约 `819 KB`）；
+  - 扩展 `apps/mobile/lib/weather-scene-state.ts` 持久化 `soundEnabled`（默认开启）与 `soundVolume`（默认 `0.5`，支持拖拽期零落盘实时 `previewWeatherSoundVolume`）；
+  - 新增 `apps/mobile/lib/weather-sound-model.ts` 与 `apps/mobile/lib/weather-sound.ts`，按真实天气场景与雨雪强度连续缩放增益，采用 `mixWithOthers` 不打断其他音乐 App，切后台自动淡出静音、语音通话期间完全暂停、Bot 语音播报时自动压低至 `15%` 并在播完恢复，并在 `LightningLayer` 每次视觉闪电后延迟 `240–480ms` 同步触发滚雷声；
+  - 在 `apps/mobile/app/weather.tsx` 的「全应用动态天气场景」卡片内新增「天气环境音效」开关胶囊、可横向拖拽／点按的音量滑块、`−`/`+` 10% 步进按钮及实时场景音效描述（如「暴雨雷鸣 · 音量 50%」）。
+- **验证结果**：新增 `apps/mobile/lib/weather-sound.test.ts` 并扩充 `weather-scene.test.ts`、`home-weather.test.ts` 与 `weather-screen.test.tsx`；全部 12 个改动／新增代码文件 Biome `0` 错误、本批 12 文件 TypeScript `0` 错误（全包 `tsc --noEmit` 仅检出并发窗口 `lib/mobile-bridge.test.tsx` 的 2 处 `financeLedger` 报错，本批未触碰）、8 个 Vitest 套件（42 项）全绿、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#修复动态天气浮层阴影晴天光束重做天气逐小时时间状态对齐与天气环境音效2026-11-26)。
+
+依赖与验收条件：纯 JS／Reanimated／SVG／`expo-audio`＋`.m4a` 静态资源改动、零新增第三方依赖（通过后续 `1.0.35` 侧载 OTA 即可生效，无需重装 IPA），待用户确认后提交推送并发布 OTA 真机验收。
+
 ## 工作区提交推送、生产后端上线与 iPhone 1.0.34 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：源码全量提交推送（`4449e0033c3b0f0686c137900807713b42062728`）、GitHub CI 与生产后端部署全绿（Run `45777045011`）、以及 iPhone `1.0.34` 侧载 OTA 发布与线上全资源核验（Run `45777114689`）均已完成；伴随 Swift 改动自动触发的 `1.0.16`（build `5`）无签名侧载 IPA 云端构建（Run `45777045009`）正在进行中；真实 iPhone 端 `1.0.34` 更新体验与共享屏幕联调待设备验收。

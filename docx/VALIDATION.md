@@ -1,5 +1,77 @@
 # 验证记录
 
+## 个人账单与加密支付方式管理及手机首页入口组件（2026-11-26）
+
+关联 PA-025、PA-021、PA-010。
+
+- **离线代码生成**：`pnpm --filter @rakazo/db run generate` 成功生成 Prisma Client `7.10.1`（覆盖新增 `UserPaymentMethod` 与 `UserFinanceBill` 模型）。
+- **首轮暴露问题与修复**：
+  - `packages/adapters/src/run-tools-personal-finance.ts` 补齐 `recordAuditEvent` 中 Bot 角色必填 `label` 及 `ctx.run.threadId`，并在 `builtin-tool-bridge.ts` 新增 `personal finance` 领域分组；
+  - `apps/mobile/components/payment-method-sheet.tsx` 为 `<NativeSwitch>` 补齐 `accessibilityLabel`；
+  - `apps/mobile/lib/mobile-bridge.test.tsx` 两处手动构造的权限字面量补齐新增 `financeLedger` 字段；
+  - 修正 `run-tools-personal-finance.test.ts` 的 `ConnectorCall` 替身与真实后台触发器 `"tickets"`，以及 `home-finance-card.test.tsx` 替身函数签名；
+  - 对全部 38 个新增／改动代码与测试文件执行 Biome 自动格式化后清零。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖全部 38 个改动／新增 TS/TSX 文件）：**38 / 38 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 5 个工作区包：`@rakazo/contracts`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/mobile`）：**5 / 5 包 0 错误**。
+  - **定向与守卫 Vitest（16 个文件、231 / 231 项全部通过）**：
+    - `packages/contracts/src/personal-finance.test.ts`（5 项：多类型卡号／手机／邮箱／钱包脱敏、精确整数分解析、币种格式化、月度聚合、信用卡还款倒计时）；
+    - `packages/db/src/migration-safety.test.ts`（2 项：验证 `20261126120000_personal_finance` 为纯增量零停机安全迁移）；
+    - `apps/api/src/personal-finance-router.test.ts`（2 项：真实 `EncryptedSecretStore` AES-256-GCM 密文落库、列表零泄漏、未确认身份 403 拦截与确认后解密、删卡保留账单快照、`importLocal` 幂等重映射）；
+    - `apps/api/src/security-audit.test.ts`（10 项）；
+    - `packages/adapters/src/run-tools-personal-finance.test.ts`（4 项：账单读写、按尾号匹配方式标记 `source="bot"`、严格屏蔽 `secretCiphertext`/卡号/CVV、拒绝非所有者／外部通道／后台触发／关闭 `financeLedger` 开关）；
+    - `packages/adapters/src/run-tools-mobile-app.test.ts`（6 项）、`builtin-tool-bridge.test.ts`（7 项，确认工具预算守卫通过）、`executor.test.ts`（162 项）；
+    - `apps/mobile/lib/personal-finance.test.ts`（2 项：404 自动降级本地 Keychain、敏感信息与普通缓存隔离、后端就绪自动 `importLocal` 并清除本地密钥副本、隐私掩码与登出清理）；
+    - `apps/mobile/lib/home-finance-card.test.tsx`（2 项：首页卡片支出／卡数／还款提醒／快捷路由与金额隐私隐藏）、`home-hub.test.tsx`（7 项，含首页入口组件点击路由）；
+    - `apps/mobile/lib/screen-theme-coverage.test.ts`（6 项，覆盖新增 `app/finance.tsx`）、`scroll-hygiene.test.ts`（1 项，确认新页面及全部弹窗无外露滚动条）、`theme-pack.test.ts`（5 项）、`startup.test.ts`（7 项）、`mobile-bridge.test.tsx`（3 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **二轮 Apple 钱包层叠卡包与单点展开交互升级复验**：
+  - **首轮暴露问题与修复**：新增 `apps/mobile/lib/wallet-card-stack.test.tsx` 首次运行捕获 `wallet-card-focus-modal.tsx` 将 `revealed` 重置与 Reanimated 弹簧共享值放在同一 `useEffect` 依赖中的边界缺陷，拆分为独立的 `[methodId]` 状态重置效应与弹簧入场效应并保持测试 `useSharedValue` 引用稳定后全绿。
+  - **终轮已执行并通过**：
+    - **Biome 严格检查**（覆盖 12 个新增／改动文件，含 `wallet-card-face.tsx`、`wallet-card-stack.tsx`、`wallet-card-focus-modal.tsx`、`home-finance-card.tsx`、`finance-bill-sheet.tsx`、`payment-method-sheet.tsx`、`app/finance.tsx`、`personal-finance-ui.ts`、`packages/contracts/src/personal-finance.ts` 及 3 份单测）：**12 / 12 文件 0 错误、0 警告**。
+    - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 5 个工作区包：`@rakazo/contracts`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/mobile`）：**5 / 5 包 0 错误**。
+    - **定向与守卫 Vitest（9 个文件、32 / 32 项全部通过）**：`wallet-card-stack.test.tsx`（3 项：6 种卡面纹路与严格 6 位十六进制渐变停点校验、默认主卡置前层叠排序与单点回调、单点聚焦视图 `×`/`123` 身份解密完整卡号与 CVV/`···` 菜单/「来自：…」信息卡/关联账单/底部叠卡返回）、`home-finance-card.test.tsx`（2 项：含紧凑层叠卡包渲染与单点卡片带 `cardId` 跳转 `/finance`）、`home-hub.test.tsx`（7 项）、`personal-finance.test.ts`（2 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）、`packages/contracts/src/personal-finance.test.ts`（5 项）、`apps/api/src/personal-finance-router.test.ts`（2 项）、`packages/adapters/src/run-tools-personal-finance.test.ts`（4 项）。
+    - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **三轮提交前复验、GitHub CI 与生产 PostgreSQL 迁移／后端部署实测（全部通过）**：
+  - **提交前增补修复与校验**：在 `packages/testkit/src/authorization.test.ts` 补齐 7 条 `personalFinance/*` 穷举未认证拦截用例；全仓 10 个包（含新增验证的 `@rakazo/core`、`@rakazo/testkit`、`@rakazo/worker`、`@rakazo/web`、`@rakazo/desktop`）`tsc --noEmit` **0 错误**；全部 42 个待提交 TS/TSX 文件 Biome **0 错误、0 警告**；`migration-safety.test.ts`（2 项）与 `builtin-tool-bridge.test.ts`（7 项）**9 / 9 通过**；`git diff --cached --check` **0 警告**。
+  - **隔离提交与推送**：48 个 PA-025 专属文件提交为 `204784002db3f4f666cc6b2f6b2dddc0b3a0160e` 并推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`（工作区其他并行改动未混入）。
+  - **GitHub Actions `CI`** [Run 45809544638](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45809544638)：**`completed / success`**，全部非跳过任务一次通过（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Publish server images` 多架构镜像、`Publish compatible mobile update`、`deploy-production` Job `139876212408` 于 `2026-11-26T11:26:00Z` 完成）。
+  - **生产主机与真实 PostgreSQL 只读核验（`sydney-cloud-admin`）**：
+    - 生产检出 `/srv/rakazo` HEAD = `204784002db3f4f666cc6b2f6b2dddc0b3a0160e`；容器 `rakazo-prod-api-38`、`rakazo-prod-worker-33` 与 `rakazo-prod-postgres-1`（`postgres:18`）均为 `healthy`；
+    - `_prisma_migrations` 账本：`230 / 230` 已完成、`0` 失败；`20261126120000_personal_finance` 记录 `finished_at = 2026-11-26 11:25:29.218961+00`、`applied_steps_count = 1`；
+    - 表级 RLS 核验：`public.user_payment_methods` 与 `public.user_finance_bills` 均 `relrowsecurity = true`；4 条策略（`user_payment_methods_tenant`、`user_payment_methods_system`、`user_finance_bills_tenant`、`user_finance_bills_system`，均为 `ALL`）已生效；`rakazo_app` 对两表均拥有 `DELETE, INSERT, SELECT, UPDATE` 权限；
+    - 线上 HTTPS 核验：`GET https://pc.zxlup.xin/health` → HTTP `200` `{"ok":true}`；`GET https://pc.zxlup.xin/ready` → HTTP `200` `{"ok":true,"degraded":false}`；未认证 `POST https://pc.zxlup.xin/rpc/personalFinance/overview` → HTTP `401` `UNAUTHORIZED`。
+- **未执行项（待手机 OTA 发版与真机验收）**：
+  - iPhone `sideload` 通道 OTA 发布（如递增 `sydney-release.json` 并触发 `mobile-ios-update.yml`）后的真机视觉观感、层叠卡片单点 Reanimated 弹簧展开手感、点击右上角 `123` 身份确认解密卡面卡号／一键复制，以及聊天中让 Bot 记账单与查月度统计实测。
+
+## 彻底移除默认蓝幽灵头像并统一默认为大肥鱼头像 + 修复 Bot 资料页开启灵动岛陪伴头像同步（2026-11-26）
+
+关联 PA-021。
+
+- **首轮暴露与修复**：
+  - `apps/mobile/components/group-seats.tsx` 恢复 `<Mask>` 所需的 `Rect` 导入；
+  - `apps/mobile/lib/bot-settings-voice.test.tsx` 补齐 `BUILT_IN_BOT_AVATARS`/`bundledBotAvatar`/`Image` 替身并将 2 条旧幽灵「Shape」选择器断言更新为新的大肥鱼预设与「Photo library」弹窗断言；
+  - 对 `default-bot-avatar.ts`、`default-bot-avatar.native.ts`、`companion-session.ts`、`bot-avatar-render.test.tsx` 4 文件执行 Biome 格式化与导入排序后清零。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖全部 17 个改动／新增文件：`default-bot-avatar.ts`、`default-bot-avatar.native.ts`、`bot-avatar.tsx`、`group-seats.tsx`、`companion-avatar.ts`、`create-bot-avatar.ts`、`bot-notification-registry.ts`、`companion-session.ts`、`bot-profile.tsx`、`bot-settings.tsx` 及 7 个测试文件）：**17 / 17 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向与全仓守卫 Vitest（12 个文件、234 / 234 项全部通过）**：`bot-avatar-render.test.tsx`（9 项）、`companion-avatar.test.ts`（3 项）、`group-seats-view.test.tsx`（5 项）、`bot-local-notification.test.ts`（2 项）、`companion-activity.test.ts`（12 项）、`companion-session.test.ts`（7 项）、`bot-settings-voice.test.tsx`（50 项）、`chat-model-picker.test.tsx`（62 项）、`mobile-ui-sheets.test.tsx`（3 项）、`bot-profile.test.tsx`（74 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待发版后真机验收）**：推送并发布 `1.0.35` 侧载 OTA 后，在真实 iPhone 验证新建 Bot 默认头像、Bot 设置头像弹窗、无自定义照片 Bot／群聊／悬浮陪伴条／灵动岛与系统通知全部显示大肥鱼头像（无任何蓝幽灵），且自定义照片 Bot 正确显示各自头像。
+
+## 修复动态天气浮层阴影、晴天光束重做、天气逐小时时间／状态对齐与天气环境音效（2026-11-26）
+
+关联 PA-021。
+
+- **音频资产核验（`ffprobe` 全部通过）**：7 条 `apps/mobile/assets/sounds/weather-{drizzle,rain,heavy-rain,thunder,snow,breeze,night}.m4a` 均为 `aac` / `44100 Hz` / 立体声 2 声道（6 条循环轨精准 `12.00s`、雷声轨 `4.60s`，单轨 `57–147 KB`，合计 `819 KB`）。
+- **首轮暴露与修复**：对 `weather.tsx`、`weather-atmosphere-overlay.native.tsx`、`weather-sound-model.ts`、`weather-sound.ts` 4 文件执行 Biome 自动格式化后清零。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖全部 12 个改动／新增 TS/TSX 文件）：**12 / 12 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：本批 12 个文件 **0 错误**（全包另检出并发窗口在 `lib/mobile-bridge.test.tsx` 第 203／226 行缺少 `financeLedger` 的 2 处无关报错，本批未触碰）。
+  - **定向与守卫 Vitest（8 个文件、42 / 42 项全部通过）**：`weather-sound.test.ts`（3 项，覆盖 10 场景音轨映射、音量曲线／雨雪强度缩放／通话暂停／Bot 播报压低、`expo-audio` 循环与切轨释放及雷声触发）、`home-weather.test.ts`（8 项）、`weather-screen.test.tsx`（7 项，含 `/weather` 音效开关、`+`/`−` 音量调节及切至雷阵雨实时显示「暴雨雷鸣」）、`weather-scene.test.ts`（7 项）、`home-hub.test.tsx`（7 项）、`mobile-bridge.test.tsx`（3 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待发版后真机验收）**：推送并发布 `1.0.35` 侧载 OTA 后在真实 iPhone 实测雨声／雷声／风雪／微风／星夜虫鸣音质与无缝循环、音量滑块拖拽与静音开关、与语音通话／Bot 播报的自动让道协同、以及天气时间与视觉观感。
+
 ## 工作区提交推送、生产后端上线与 iPhone 1.0.34 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。

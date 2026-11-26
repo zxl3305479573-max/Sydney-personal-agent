@@ -1,21 +1,21 @@
 {
-  "version": "1.0.34",
-  "releasedOn": "2026-11-25",
+  "version": "1.0.35",
+  "releasedOn": "2026-11-26",
   "notes": {
     "zh-CN": [
-      "首页顶栏移除常驻「已同步」按钮，改为按需显示的版本更新胶囊：无更新时顶栏清爽留空，检测到新版本自动显示「可以更新」，下载中实时显示「更新中 N%」，完成后切换为「重启更新」。",
-      "新增手机屏幕共享读取桥接（app_get_phone_screen）与 Bot 路由识别：开启「屏幕陪伴」后向 Bot 询问手机屏幕内容时优先读取手机屏幕共享状态与实时中英双语 OCR 快照，不再误调用云电脑桌面截图。",
-      "优化屏幕共享期间的移动端快照轮询（共享中每 4 秒增量同步、停止时即时清理）与旧版 IPA 兼容降级提示。"
+      "新增个人账单与加密支付方式管理（PA-025）：首页新增「账单与支付」入口组件，卡包支持 Apple 钱包风格纵向层叠排布与单点弹簧展开聚焦视图，银行卡号/CVV 经 AES-256 加密隔离且需身份确认查看，支持 Bot 协同记账。",
+      "全面升级全应用动态天气特效与天气页：消除多云/晴天异常阴影并重做晴天丁达尔光束与羽化云雾，修复逐小时预报时间/实况对齐，新增随雨雪强度缩放的天气环境音效、闪电同步雷声及天气页开关与音量滑块。",
+      "修复从 Bot 资料页开启灵动岛陪伴时悬浮陪伴条显示旧默认头像的问题，并将未自定义头像的默认 Bot 头像统一更新为大肥鱼形象。"
     ],
     "zh-TW": [
-      "首頁頂欄移除常駐「已同步」按鈕，改為按需顯示的版本更新膠囊：無更新時頂欄清爽留空，偵測到新版本自動顯示「可以更新」，下載中即時顯示「更新中 N%」，完成後切換為「重啟更新」。",
-      "新增手機螢幕共享讀取橋接（app_get_phone_screen）與 Bot 路由辨識：開啟「螢幕陪伴」後向 Bot 詢問手機螢幕內容時優先讀取手機螢幕共享狀態與即時中英雙語 OCR 快照，不再誤呼叫雲電腦桌面截圖。",
-      "優化螢幕共享期間的行動端快照輪詢（共享中每 4 秒增量同步、停止時即時清理）與舊版 IPA 相容降級提示。"
+      "新增個人帳單與加密支付方式管理（PA-025）：首頁新增「帳單與支付」入口元件，卡包支援 Apple 錢包風格縱向層疊排布與單點彈簧展開聚焦檢視，銀行卡號/CVV 經 AES-256 加密隔離且需身分確認檢視，支援 Bot 協同記帳。",
+      "全面升級全應用動態天氣特效與天氣頁：消除多雲/晴天異常陰影並重做晴天丁達爾光束與羽化雲霧，修復逐小時預報時間/實況對齊，新增隨雨雪強度縮放的天氣環境音效、閃電同步雷聲及天氣頁開關與音量滑塊。",
+      "修復從 Bot 資料頁開啟靈動島陪伴時懸浮陪伴條顯示舊預設頭像的問題，並將未自訂頭像的預設 Bot 頭像統一更新為大肥魚形象。"
     ],
     "en": [
-      "Replace the permanent Synced pill in the Home header with an on-demand Update pill that stays hidden when up to date and shows Update, live Updating N% progress, or Restart when an OTA update is available.",
-      "Add mobile phone screen sharing bridge (app_get_phone_screen) and bot routing so questions about your shared phone screen read live phone screen status and bilingual OCR snapshots instead of cloud computer screenshots.",
-      "Sync phone screen sharing snapshots every 4 seconds while capturing with immediate cleanup on stop and graceful fallback on older sideload binaries."
+      "Add personal bills and encrypted payment methods vault (PA-025) with a Home Hub entry card, Apple Wallet-style stacked card deck, single-tap spring focus view, identity-gated AES-256 card number/CVV reveal, and bot ledger tools with strict vault isolation.",
+      "Upgrade dynamic weather effects and weather screen: fix cloud/clear shadows, redesign sunbeams and feathered clouds, align hourly forecasts with live conditions, and add intensity-scaled ambient weather audio with lightning-synced thunder and volume controls.",
+      "Fix the floating companion bar showing a stale default avatar when starting Dynamic Island companion from a bot profile, and unify default bot avatars to the Dafeiyu artwork."
     ]
   }
 }

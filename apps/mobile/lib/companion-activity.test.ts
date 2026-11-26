@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_BOT_AVATAR_DATA_URI } from "./default-bot-avatar";
 
 const bridge = vi.hoisted(() => ({
   isAvailable: vi.fn(() => true),
@@ -119,7 +120,7 @@ describe("companion native bridge", () => {
       `${"a".repeat(31)}…`,
       "space-1",
       false,
-      expect.stringMatching(/^o\|8B5CF6\|/),
+      `r|${DEFAULT_BOT_AVATAR_DATA_URI}`,
     );
     expect(activeCompanionBotId()).toBe("bot-1");
     await stopCompanion();
@@ -446,7 +447,7 @@ describe("companion native bridge", () => {
       "Sydney",
       "space-1",
       true,
-      expect.stringMatching(/^o\|4F7CAC\|/),
+      `r|${DEFAULT_BOT_AVATAR_DATA_URI}`,
       "通话 · 正在听",
       "你好呀",
       1_700_000_005_000,

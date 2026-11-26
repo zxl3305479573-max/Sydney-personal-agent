@@ -9,6 +9,7 @@ vi.mock("react-native", () => ({
 
 import { resetDeviceLocationCacheForTest, setNativeLocationModuleForTest } from "./device-location";
 import {
+  alignTodayHourlyForecast,
   fetchLiveHomeWeather,
   getWeatherHourlyForDate,
   homeWeatherLabel,
@@ -340,5 +341,101 @@ describe("home weather mapping & live fetch", () => {
       windSpeedKmh: 21,
     });
     expect(wttr ? getWeatherHourlyForDate(wttr, "2026-11-26") : []).toHaveLength(2);
+  });
+
+  it("aligns wttr.in hourly forecast to current wall-clock time and preserves GPS coords when Open-Meteo fails", async () => {
+    setNativeLocationModuleForTest({
+      isAvailable: () => true,
+      authorizationStatus: () => "authorized",
+      getCurrentLocation: vi.fn(async () => ({
+        latitude: 31.112,
+        longitude: 121.381,
+        accuracyMeters: 18,
+        city: "上海市",
+        district: "闵行区",
+        region: "上海市",
+        label: "上海市 · 闵行区",
+      })),
+    });
+
+    // Open-Meteo times out -> falls back to wttr.in using the same GPS coordinates.
+    fetchMock.mockRejectedValueOnce(new Error("open-meteo timeout")).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        nearest_area: [{ areaName: [{ value: "Shanghaishih" }], region: [{ value: "Shanghai" }] }],
+        current_condition: [
+          {
+            temp_C: "17",
+            FeelsLikeC: "15",
+            humidity: "47",
+            windspeedKmph: "10",
+            weatherCode: "119",
+          },
+        ],
+        weather: [
+          {
+            date: "2026-11-26",
+            maxtempC: "18",
+            mintempC: "11",
+            hourly: [
+              { time: "0", tempC: "11", weatherCode: "116" },
+              { time: "300", tempC: "11", weatherCode: "116" },
+              { time: "600", tempC: "11", weatherCode: "119" },
+              { time: "900", tempC: "14", weatherCode: "119" },
+              { time: "1200", tempC: "17", weatherCode: "113" },
+              { time: "1500", tempC: "17", weatherCode: "119" },
+              { time: "1800", tempC: "15", weatherCode: "119" },
+              { time: "2100", tempC: "13", weatherCode: "116" },
+            ],
+          },
+          {
+            date: "2026-11-27",
+            maxtempC: "19",
+            mintempC: "11",
+            hourly: [
+              { time: "0", tempC: "12", weatherCode: "119" },
+              { time: "1200", tempC: "19", weatherCode: "119" },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const now = new Date(2026, 10, 26, 16, 1);
+    const result = await fetchLiveHomeWeather(undefined, now);
+    expect(result).toMatchObject({
+      temperatureC: 17,
+      condition: "cloudy",
+      scene: "cloudy",
+      isDay: true,
+      locationLabel: "上海市 · 闵行区",
+      locationSource: "gps",
+    });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("wttr.in/31.1120%2C121.3810?format=j1");
+    // Hourly index 0 ("现在") must reflect live 16:01 weather, followed strictly by future slots (18:00, 21:00, next day 00:00).
+    expect(result?.hourly?.map((slot) => slot.timeIso)).toEqual([
+      "2026-11-26T16:00",
+      "2026-11-26T18:00",
+      "2026-11-26T21:00",
+      "2026-11-27T00:00",
+      "2026-11-27T12:00",
+    ]);
+    expect(result?.hourly?.[0]).toMatchObject({
+      temperatureC: 17,
+      condition: "cloudy",
+      isDay: true,
+    });
+    // Today's daily summary should agree with remaining/live cloudy weather instead of a stale 12:00 sunny slot.
+    expect(result?.daily?.[0]?.condition).toBe("cloudy");
+
+    // Re-aligning cached hourly data at 19:10 drops expired 18:00 slot and advances "现在" cleanly.
+    if (!result) throw new Error("expected wttr weather result");
+    const later = alignTodayHourlyForecast(result, new Date(2026, 10, 26, 19, 10));
+    expect(later.map((slot) => slot.timeIso)).toEqual([
+      "2026-11-26T19:00",
+      "2026-11-26T21:00",
+      "2026-11-27T00:00",
+      "2026-11-27T12:00",
+    ]);
   });
 });

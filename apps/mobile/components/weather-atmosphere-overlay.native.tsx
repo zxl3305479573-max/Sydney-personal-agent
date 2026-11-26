@@ -1,5 +1,5 @@
 import { usePathname } from "expo-router";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   cancelAnimation,
@@ -12,17 +12,31 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, {
+  Defs,
+  Ellipse,
+  LinearGradient,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+} from "react-native-svg";
 import { useAppForeground } from "../lib/app-foreground";
 import { useHomeWeather } from "../lib/home-weather";
 import { useResolvedAppearance } from "../lib/native";
-import { resolveActiveWeatherScene } from "../lib/weather-atmosphere-helpers";
+import type { WeatherAtmosphereWashSpec } from "../lib/weather-atmosphere-helpers";
+import {
+  resolveActiveWeatherScene,
+  resolveWeatherAtmosphereWash,
+} from "../lib/weather-atmosphere-helpers";
 import type {
   CloudWispSpec,
   RainDropSpec,
   RainSplashSpec,
   SnowFlakeSpec,
   StarSpec,
+  SunMoteSpec,
+  SunShaftSpec,
   WeatherSceneConfig,
 } from "../lib/weather-scene";
 import {
@@ -31,9 +45,12 @@ import {
   createRainSplashes,
   createSnowParticles,
   createStarParticles,
+  createSunMotes,
+  createSunShafts,
   generateLightningBolt,
 } from "../lib/weather-scene";
 import { useWeatherScenePreferences } from "../lib/weather-scene-state";
+import { useWeatherAmbientSound } from "../lib/weather-sound";
 
 type Palette = {
   rainNear: string;
@@ -43,21 +60,26 @@ type Palette = {
   splashDrop: string;
   snowFill: string;
   snowBorder: string;
-  frostTop: string;
-  frostBottom: string;
-  cloudColor: string;
-  fogColor: string;
-  sunCore: string;
-  sunMid: string;
+  cloudHex: string;
+  cloudOpacity: number;
+  fogHex: string;
+  fogOpacity: number;
+  sunShaftHex: string;
+  sunShaftOpacity: number;
+  sunMoteColor: string;
+  sunFlareRing: string;
+  sunFlareTint: string;
   starColor: string;
   lightningFlash: string;
-  lightningOuter: string;
-  lightningCore: string;
-  topWash: string;
-  bottomWash: string;
+  lightningOuterHex: string;
+  lightningOuterOpacity: number;
+  lightningCoreHex: string;
+  lightningCoreOpacity: number;
+  wash: WeatherAtmosphereWashSpec;
 };
 
 function resolvePalette(config: WeatherSceneConfig, isLight: boolean): Palette {
+  const wash = resolveWeatherAtmosphereWash(config, isLight);
   if (isLight) {
     const storm = config.kind === "thunderstorm" || config.kind === "heavy-rain";
     return {
@@ -68,35 +90,22 @@ function resolvePalette(config: WeatherSceneConfig, isLight: boolean): Palette {
       splashDrop: storm ? "rgba(46, 78, 118, 0.78)" : "rgba(64, 102, 144, 0.68)",
       snowFill: "rgba(255, 255, 255, 0.96)",
       snowBorder: "rgba(116, 150, 188, 0.42)",
-      frostTop: "rgba(255, 255, 255, 0)",
-      frostBottom: "rgba(214, 229, 246, 0.52)",
-      cloudColor: storm ? "rgba(72, 86, 108, 0.22)" : "rgba(118, 132, 150, 0.16)",
-      fogColor: "rgba(164, 174, 188, 0.26)",
-      sunCore: "rgba(255, 212, 122, 0.34)",
-      sunMid: "rgba(255, 228, 168, 0.12)",
+      cloudHex: storm ? "#5B6D86" : "#FFFFFF",
+      cloudOpacity: storm ? 0.24 : 0.44,
+      fogHex: "#C2CBD6",
+      fogOpacity: 0.34,
+      sunShaftHex: "#FFF5D6",
+      sunShaftOpacity: 0.28,
+      sunMoteColor: "rgba(255, 232, 174, 0.85)",
+      sunFlareRing: "rgba(246, 214, 146, 0.26)",
+      sunFlareTint: "rgba(255, 240, 196, 0.14)",
       starColor: "rgba(76, 98, 148, 0.52)",
-      lightningFlash: "rgba(214, 230, 255, 0.46)",
-      lightningOuter: "rgba(72, 128, 238, 0.62)",
-      lightningCore: "rgba(250, 253, 255, 0.98)",
-      topWash:
-        config.kind === "thunderstorm"
-          ? "rgba(38, 52, 76, 0.24)"
-          : config.kind === "heavy-rain"
-            ? "rgba(54, 72, 98, 0.17)"
-            : config.hasRain
-              ? "rgba(74, 96, 124, 0.11)"
-              : config.hasSnow
-                ? "rgba(154, 182, 214, 0.12)"
-                : config.hasFog
-                  ? "rgba(148, 158, 170, 0.15)"
-                  : config.hasStars
-                    ? "rgba(40, 52, 86, 0.16)"
-                    : "rgba(0, 0, 0, 0)",
-      bottomWash: config.hasRain
-        ? "rgba(56, 84, 118, 0.08)"
-        : config.hasSnow
-          ? "rgba(182, 206, 232, 0.14)"
-          : "rgba(0, 0, 0, 0)",
+      lightningFlash: "rgba(214, 230, 255, 0.34)",
+      lightningOuterHex: "#4880EE",
+      lightningOuterOpacity: 0.62,
+      lightningCoreHex: "#FAFDFF",
+      lightningCoreOpacity: 0.98,
+      wash,
     };
   }
 
@@ -109,35 +118,22 @@ function resolvePalette(config: WeatherSceneConfig, isLight: boolean): Palette {
     splashDrop: storm ? "rgba(218, 238, 255, 0.80)" : "rgba(192, 222, 252, 0.68)",
     snowFill: "rgba(246, 251, 255, 0.94)",
     snowBorder: "rgba(172, 204, 238, 0.34)",
-    frostTop: "rgba(232, 244, 255, 0)",
-    frostBottom: "rgba(206, 228, 252, 0.24)",
-    cloudColor: storm ? "rgba(148, 168, 198, 0.15)" : "rgba(176, 194, 218, 0.12)",
-    fogColor: "rgba(198, 212, 228, 0.18)",
-    sunCore: "rgba(255, 214, 134, 0.22)",
-    sunMid: "rgba(255, 224, 162, 0.08)",
+    cloudHex: storm ? "#8FA4C4" : "#B6C9E0",
+    cloudOpacity: storm ? 0.18 : 0.16,
+    fogHex: "#C6D4E4",
+    fogOpacity: 0.2,
+    sunShaftHex: "#FFE8B8",
+    sunShaftOpacity: 0.15,
+    sunMoteColor: "rgba(255, 236, 188, 0.72)",
+    sunFlareRing: "rgba(255, 226, 166, 0.18)",
+    sunFlareTint: "rgba(255, 232, 182, 0.08)",
     starColor: "rgba(236, 244, 255, 0.88)",
-    lightningFlash: "rgba(214, 232, 255, 0.38)",
-    lightningOuter: "rgba(124, 180, 255, 0.72)",
-    lightningCore: "rgba(255, 255, 255, 0.98)",
-    topWash:
-      config.kind === "thunderstorm"
-        ? "rgba(20, 32, 56, 0.34)"
-        : config.kind === "heavy-rain"
-          ? "rgba(26, 40, 64, 0.22)"
-          : config.hasRain
-            ? "rgba(32, 50, 76, 0.14)"
-            : config.hasSnow
-              ? "rgba(144, 178, 218, 0.10)"
-              : config.hasFog
-                ? "rgba(164, 180, 198, 0.12)"
-                : config.hasStars
-                  ? "rgba(24, 38, 74, 0.24)"
-                  : "rgba(0, 0, 0, 0)",
-    bottomWash: config.hasRain
-      ? "rgba(86, 132, 186, 0.10)"
-      : config.hasSnow
-        ? "rgba(188, 216, 248, 0.12)"
-        : "rgba(0, 0, 0, 0)",
+    lightningFlash: "rgba(214, 232, 255, 0.32)",
+    lightningOuterHex: "#7CB4FF",
+    lightningOuterOpacity: 0.72,
+    lightningCoreHex: "#FFFFFF",
+    lightningCoreOpacity: 0.98,
+    wash,
   };
 }
 
@@ -450,17 +446,21 @@ const CloudWispView = memo(function CloudWispView({
   spec,
   width,
   height,
-  color,
+  hexColor,
+  peakOpacity,
   active,
 }: {
   spec: CloudWispSpec;
   width: number;
   height: number;
-  color: string;
+  hexColor: string;
+  peakOpacity: number;
   active: boolean;
 }) {
   const progress = useSharedValue(0);
-  const wispWidth = width * spec.widthRatio;
+  const wispWidth = Math.round(width * spec.widthRatio);
+  const wispHeight = spec.heightPx;
+  const gradId = `cloudPuff-${spec.id}`;
 
   useEffect(() => {
     if (!active) {
@@ -485,6 +485,8 @@ const CloudWispView = memo(function CloudWispView({
     };
   });
 
+  const midOpacity = Number((peakOpacity * 0.45).toFixed(3));
+
   return (
     <Animated.View
       style={[
@@ -493,13 +495,286 @@ const CloudWispView = memo(function CloudWispView({
           top: height * spec.yRatio,
           left: 0,
           width: wispWidth,
-          height: spec.heightPx,
-          borderRadius: spec.heightPx / 2,
+          height: wispHeight,
+        },
+        animStyle,
+      ]}
+    >
+      <Svg width={wispWidth} height={wispHeight}>
+        <Defs>
+          <RadialGradient id={gradId} cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0" stopColor={hexColor} stopOpacity={String(peakOpacity)} />
+            <Stop offset="0.55" stopColor={hexColor} stopOpacity={String(midOpacity)} />
+            <Stop offset="1" stopColor={hexColor} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse
+          cx={wispWidth * 0.5}
+          cy={wispHeight * 0.54}
+          rx={wispWidth * 0.48}
+          ry={wispHeight * 0.44}
+          fill={`url(#${gradId})`}
+        />
+        <Ellipse
+          cx={wispWidth * 0.36}
+          cy={wispHeight * 0.44}
+          rx={wispWidth * 0.28}
+          ry={wispHeight * 0.36}
+          fill={`url(#${gradId})`}
+        />
+        <Ellipse
+          cx={wispWidth * 0.64}
+          cy={wispHeight * 0.46}
+          rx={wispWidth * 0.26}
+          ry={wispHeight * 0.34}
+          fill={`url(#${gradId})`}
+        />
+      </Svg>
+    </Animated.View>
+  );
+});
+
+const SunShaftView = memo(function SunShaftView({
+  spec,
+  width,
+  height,
+  hexColor,
+  peakOpacity,
+  active,
+}: {
+  spec: SunShaftSpec;
+  width: number;
+  height: number;
+  hexColor: string;
+  peakOpacity: number;
+  active: boolean;
+}) {
+  const breath = useSharedValue(0.65);
+  const lengthPx = Math.round(height * spec.lengthRatio);
+  const gradId = `sunShaft-${spec.id}`;
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(breath);
+      breath.value = 0.72;
+      return;
+    }
+    breath.value = 0.5;
+    breath.value = withDelay(
+      spec.delayMs,
+      withRepeat(
+        withSequence(
+          withTiming(1, {
+            duration: Math.round(spec.durationMs * 0.5),
+            easing: Easing.inOut(Easing.sin),
+          }),
+          withTiming(0.42, {
+            duration: Math.round(spec.durationMs * 0.5),
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ),
+        -1,
+        false,
+      ),
+    );
+    return () => cancelAnimation(breath);
+  }, [active, breath, spec.delayMs, spec.durationMs]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: spec.peakOpacity * breath.value,
+  }));
+
+  const midOpacity = Number((peakOpacity * 0.42).toFixed(3));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          top: -lengthPx * 0.16,
+          left: width - spec.widthPx * 0.5 + spec.rightOffsetPx,
+          width: spec.widthPx,
+          height: lengthPx,
+          transform: [{ rotate: `${spec.angleDeg}deg` }],
+        },
+        animStyle,
+      ]}
+    >
+      <Svg width={spec.widthPx} height={lengthPx}>
+        <Defs>
+          <RadialGradient id={gradId} cx="50%" cy="18%" rx="50%" ry="76%">
+            <Stop offset="0" stopColor={hexColor} stopOpacity={String(peakOpacity)} />
+            <Stop offset="0.48" stopColor={hexColor} stopOpacity={String(midOpacity)} />
+            <Stop offset="1" stopColor={hexColor} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse
+          cx={spec.widthPx / 2}
+          cy={lengthPx / 2}
+          rx={spec.widthPx / 2}
+          ry={lengthPx / 2}
+          fill={`url(#${gradId})`}
+        />
+      </Svg>
+    </Animated.View>
+  );
+});
+
+const SunMoteView = memo(function SunMoteView({
+  spec,
+  width,
+  height,
+  color,
+  active,
+}: {
+  spec: SunMoteSpec;
+  width: number;
+  height: number;
+  color: string;
+  active: boolean;
+}) {
+  const pulse = useSharedValue(0.35);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(pulse);
+      return;
+    }
+    pulse.value = 0.2;
+    pulse.value = withDelay(
+      spec.delayMs,
+      withRepeat(
+        withSequence(
+          withTiming(1, {
+            duration: Math.round(spec.durationMs * 0.5),
+            easing: Easing.inOut(Easing.sin),
+          }),
+          withTiming(0.2, {
+            duration: Math.round(spec.durationMs * 0.5),
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ),
+        -1,
+        false,
+      ),
+    );
+    return () => cancelAnimation(pulse);
+  }, [active, pulse, spec.delayMs, spec.durationMs]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: spec.peakOpacity * pulse.value,
+    transform: [
+      { translateY: (pulse.value - 0.5) * -spec.driftY },
+      { scale: 0.8 + pulse.value * 0.35 },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          left: spec.xRatio * width,
+          top: spec.yRatio * height,
+          width: spec.size,
+          height: spec.size,
+          borderRadius: spec.size / 2,
           backgroundColor: color,
         },
         animStyle,
       ]}
     />
+  );
+});
+
+const SunbeamLayer = memo(function SunbeamLayer({
+  width,
+  height,
+  shafts,
+  motes,
+  palette,
+  active,
+}: {
+  width: number;
+  height: number;
+  shafts: SunShaftSpec[];
+  motes: SunMoteSpec[];
+  palette: Palette;
+  active: boolean;
+}) {
+  const { wash } = palette;
+  const glowHeight = Math.round(height * 0.38);
+  const flares = [
+    { x: width * 0.72, y: height * 0.11, size: 22, filled: false },
+    { x: width * 0.62, y: height * 0.16, size: 12, filled: true },
+    { x: width * 0.53, y: height * 0.21, size: 8, filled: false },
+  ];
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* Wide off-corner warm sunlit atmosphere (no circular sun blob) */}
+      <Svg width={width} height={glowHeight} style={{ position: "absolute", top: 0, left: 0 }}>
+        <Defs>
+          <RadialGradient id="weatherSunAtmosphere" cx="100%" cy="-6%" rx="72%" ry="86%">
+            <Stop
+              offset="0"
+              stopColor={wash.sunCore.color}
+              stopOpacity={String(wash.sunCore.opacity)}
+            />
+            <Stop
+              offset="0.48"
+              stopColor={wash.sunMid.color}
+              stopOpacity={String(wash.sunMid.opacity)}
+            />
+            <Stop offset="1" stopColor={wash.sunMid.color} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={glowHeight} fill="url(#weatherSunAtmosphere)" />
+      </Svg>
+
+      {/* Breathing diagonal volumetric light shafts */}
+      {shafts.map((shaft) => (
+        <SunShaftView
+          key={`shaft-${shaft.id}`}
+          spec={shaft}
+          width={width}
+          height={height}
+          hexColor={palette.sunShaftHex}
+          peakOpacity={palette.sunShaftOpacity}
+          active={active}
+        />
+      ))}
+
+      {/* Subtle optical lens-flare bokeh rings */}
+      {flares.map((flare, idx) => (
+        <View
+          key={`flare-${idx}`}
+          style={{
+            position: "absolute",
+            left: flare.x - flare.size / 2,
+            top: flare.y - flare.size / 2,
+            width: flare.size,
+            height: flare.size,
+            borderRadius: flare.size / 2,
+            borderWidth: flare.filled ? 0 : 1,
+            borderColor: palette.sunFlareRing,
+            backgroundColor: flare.filled ? palette.sunFlareTint : "transparent",
+          }}
+        />
+      ))}
+
+      {/* Gently drifting sunlit warm motes */}
+      {motes.map((mote) => (
+        <SunMoteView
+          key={`mote-${mote.id}`}
+          spec={mote}
+          width={width}
+          height={height}
+          color={palette.sunMoteColor}
+          active={active}
+        />
+      ))}
+    </View>
   );
 });
 
@@ -549,6 +824,9 @@ const StarTwinkleView = memo(function StarTwinkleView({
     transform: [{ scale: 0.75 + twinkle.value * 0.45 }],
   }));
 
+  const hasSparkle = spec.size >= 3;
+  const sparkleSpan = Math.round(spec.size * 2.8);
+
   return (
     <Animated.View
       style={[
@@ -556,14 +834,47 @@ const StarTwinkleView = memo(function StarTwinkleView({
           position: "absolute",
           left: spec.xRatio * width,
           top: spec.yRatio * height,
+          width: hasSparkle ? sparkleSpan : spec.size,
+          height: hasSparkle ? sparkleSpan : spec.size,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        animStyle,
+      ]}
+    >
+      {hasSparkle ? (
+        <>
+          <View
+            style={{
+              position: "absolute",
+              width: sparkleSpan,
+              height: 1,
+              borderRadius: 0.5,
+              backgroundColor: color,
+              opacity: 0.55,
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              width: 1,
+              height: sparkleSpan,
+              borderRadius: 0.5,
+              backgroundColor: color,
+              opacity: 0.55,
+            }}
+          />
+        </>
+      ) : null}
+      <View
+        style={{
           width: spec.size,
           height: spec.size,
           borderRadius: spec.size / 2,
           backgroundColor: color,
-        },
-        animStyle,
-      ]}
-    />
+        }}
+      />
+    </Animated.View>
   );
 });
 
@@ -573,16 +884,20 @@ function LightningLayer({
   intervalRange,
   palette,
   active,
+  onStrike,
 }: {
   width: number;
   height: number;
   intervalRange: readonly [number, number];
   palette: Palette;
   active: boolean;
+  onStrike?: () => void;
 }) {
   const [boltSeed, setBoltSeed] = useState(17);
   const flash = useSharedValue(0);
   const boltOpacity = useSharedValue(0);
+  const onStrikeRef = useRef(onStrike);
+  onStrikeRef.current = onStrike;
 
   const bolt = useMemo(
     () => generateLightningBolt(width, height, boltSeed),
@@ -599,6 +914,7 @@ function LightningLayer({
     }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let thunderTimer: ReturnType<typeof setTimeout> | undefined;
     let strikeCount = 0;
 
     const triggerStrike = () => {
@@ -618,6 +934,14 @@ function LightningLayer({
         withTiming(1, { duration: 55 }),
         withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) }),
       );
+      // Realistic slight light-to-sound propagation delay before thunder rolls in.
+      if (thunderTimer !== undefined) clearTimeout(thunderTimer);
+      thunderTimer = setTimeout(
+        () => {
+          if (!cancelled) onStrikeRef.current?.();
+        },
+        240 + Math.round(Math.random() * 240),
+      );
       const [minMs, maxMs] = intervalRange;
       const nextDelay = minMs + Math.random() * Math.max(1000, maxMs - minMs);
       timer = setTimeout(triggerStrike, nextDelay);
@@ -628,6 +952,7 @@ function LightningLayer({
     return () => {
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
+      if (thunderTimer !== undefined) clearTimeout(thunderTimer);
       cancelAnimation(flash);
       cancelAnimation(boltOpacity);
     };
@@ -645,7 +970,8 @@ function LightningLayer({
         <Svg width={width} height={height * 0.65}>
           <Path
             d={bolt.mainPath}
-            stroke={palette.lightningOuter}
+            stroke={palette.lightningOuterHex}
+            strokeOpacity={palette.lightningOuterOpacity}
             strokeWidth={7}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -653,7 +979,8 @@ function LightningLayer({
           />
           <Path
             d={bolt.mainPath}
-            stroke={palette.lightningCore}
+            stroke={palette.lightningCoreHex}
+            strokeOpacity={palette.lightningCoreOpacity}
             strokeWidth={2.2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -663,7 +990,8 @@ function LightningLayer({
             <>
               <Path
                 d={bolt.branchPath}
-                stroke={palette.lightningOuter}
+                stroke={palette.lightningOuterHex}
+                strokeOpacity={palette.lightningOuterOpacity}
                 strokeWidth={4.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -671,7 +999,8 @@ function LightningLayer({
               />
               <Path
                 d={bolt.branchPath}
-                stroke={palette.lightningCore}
+                stroke={palette.lightningCoreHex}
+                strokeOpacity={palette.lightningCoreOpacity}
                 strokeWidth={1.4}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -722,6 +1051,16 @@ export function WeatherAtmosphereOverlay({
   const snowFlakes = useMemo(() => (config ? createSnowParticles(config) : []), [config]);
   const stars = useMemo(() => (config ? createStarParticles(config) : []), [config]);
   const clouds = useMemo(() => (config ? createCloudWisps(config) : []), [config]);
+  const sunShafts = useMemo(() => (config ? createSunShafts(config) : []), [config]);
+  const sunMotes = useMemo(() => (config ? createSunMotes(config) : []), [config]);
+
+  const { onLightningStrike } = useWeatherAmbientSound({
+    config: resolved.visible ? config : null,
+    sceneEnabled: prefs.enabled,
+    soundEnabled: prefs.soundEnabled,
+    soundVolume: prefs.soundVolume,
+    foreground,
+  });
 
   if (!resolved.visible || !config || !palette || width <= 0 || height <= 0) {
     return null;
@@ -730,6 +1069,13 @@ export function WeatherAtmosphereOverlay({
   const animate = foreground && !reducedMotion;
   const landingBottomPx = Math.max(4, bottomLandingOffset);
   const rainTravelHeight = Math.max(160, height - landingBottomPx);
+
+  const { wash } = palette;
+  const hasTopWash = wash.topWash.opacity > 0;
+  const hasBottomMist = wash.bottomMist.opacity > 0;
+  const hasSnowFrost = wash.frostBottom.opacity > 0;
+  const hasAnyAtmosphereSvg = hasTopWash || hasBottomMist || hasSnowFrost;
+  const topWashHeight = Math.max(48, Math.round(height * wash.topWashHeightRatio));
 
   return (
     <View
@@ -742,56 +1088,91 @@ export function WeatherAtmosphereOverlay({
         { zIndex: 35, opacity: resolved.opacityScale, overflow: "hidden" },
       ]}
     >
-      {/* Subtle atmospheric top/bottom tint wash + clear-day sunbeam bloom */}
-      <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="weatherTopWash" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={palette.topWash} stopOpacity="1" />
-            <Stop offset="0.45" stopColor={palette.topWash} stopOpacity="0" />
-            <Stop offset="0.78" stopColor={palette.bottomWash} stopOpacity="0" />
-            <Stop offset="1" stopColor={palette.bottomWash} stopOpacity="1" />
-          </LinearGradient>
-          {config.hasSunbeams ? (
-            <RadialGradient id="weatherSunBloom" cx="88%" cy="6%" rx="55%" ry="32%">
-              <Stop offset="0" stopColor={palette.sunCore} stopOpacity="1" />
-              <Stop offset="0.52" stopColor={palette.sunMid} stopOpacity="1" />
-              <Stop offset="1" stopColor={palette.sunMid} stopOpacity="0" />
-            </RadialGradient>
+      {/* Subtle localized sky rim / rain-landing mist / snow frost (strict hex + stopOpacity) */}
+      {hasAnyAtmosphereSvg ? (
+        <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+          <Defs>
+            {hasTopWash ? (
+              <LinearGradient id="weatherTopWash" x1="0" y1="0" x2="0" y2="1">
+                <Stop
+                  offset="0"
+                  stopColor={wash.topWash.color}
+                  stopOpacity={String(wash.topWash.opacity)}
+                />
+                <Stop
+                  offset="0.55"
+                  stopColor={wash.topWash.color}
+                  stopOpacity={String(Number((wash.topWash.opacity * 0.35).toFixed(3)))}
+                />
+                <Stop offset="1" stopColor={wash.topWash.color} stopOpacity="0" />
+              </LinearGradient>
+            ) : null}
+            {hasBottomMist ? (
+              <LinearGradient id="weatherBottomMist" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={wash.bottomMist.color} stopOpacity="0" />
+                <Stop
+                  offset="1"
+                  stopColor={wash.bottomMist.color}
+                  stopOpacity={String(wash.bottomMist.opacity)}
+                />
+              </LinearGradient>
+            ) : null}
+            {hasSnowFrost ? (
+              <LinearGradient id="weatherSnowFrost" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={wash.frostBottom.color} stopOpacity="0" />
+                <Stop
+                  offset="1"
+                  stopColor={wash.frostBottom.color}
+                  stopOpacity={String(wash.frostBottom.opacity)}
+                />
+              </LinearGradient>
+            ) : null}
+          </Defs>
+          {hasTopWash ? (
+            <Rect x={0} y={0} width={width} height={topWashHeight} fill="url(#weatherTopWash)" />
           ) : null}
-          {config.hasSnow && config.groundFrostOpacity > 0 ? (
-            <LinearGradient id="weatherSnowFrost" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={palette.frostTop} stopOpacity="0" />
-              <Stop
-                offset="1"
-                stopColor={palette.frostBottom}
-                stopOpacity={String(config.groundFrostOpacity)}
-              />
-            </LinearGradient>
+          {hasBottomMist ? (
+            <Rect
+              x={0}
+              y={Math.max(0, height - landingBottomPx - 26)}
+              width={width}
+              height={28}
+              fill="url(#weatherBottomMist)"
+            />
           ) : null}
-        </Defs>
-        <Rect x={0} y={0} width={width} height={height} fill="url(#weatherTopWash)" />
-        {config.hasSunbeams ? (
-          <Rect x={0} y={0} width={width} height={height * 0.5} fill="url(#weatherSunBloom)" />
-        ) : null}
-        {config.hasSnow && config.groundFrostOpacity > 0 ? (
-          <Rect
-            x={0}
-            y={Math.max(0, height - landingBottomPx - 36)}
-            width={width}
-            height={42}
-            fill="url(#weatherSnowFrost)"
-          />
-        ) : null}
-      </Svg>
+          {hasSnowFrost ? (
+            <Rect
+              x={0}
+              y={Math.max(0, height - landingBottomPx - 30)}
+              width={width}
+              height={32}
+              fill="url(#weatherSnowFrost)"
+            />
+          ) : null}
+        </Svg>
+      ) : null}
 
-      {/* Soft drifting cloud or fog veils */}
+      {/* Clear-day volumetric sunbeams, soft off-corner glow, lens-flare bokeh & warm motes */}
+      {config.hasSunbeams ? (
+        <SunbeamLayer
+          width={width}
+          height={height}
+          shafts={sunShafts}
+          motes={sunMotes}
+          palette={palette}
+          active={animate}
+        />
+      ) : null}
+
+      {/* Feathered drifting cloud or fog veils */}
       {clouds.map((wisp) => (
         <CloudWispView
           key={`cloud-${config.kind}-${wisp.id}`}
           spec={wisp}
           width={width}
           height={height}
-          color={config.hasFog ? palette.fogColor : palette.cloudColor}
+          hexColor={config.hasFog ? palette.fogHex : palette.cloudHex}
+          peakOpacity={config.hasFog ? palette.fogOpacity : palette.cloudOpacity}
           active={animate}
         />
       ))}
@@ -862,6 +1243,7 @@ export function WeatherAtmosphereOverlay({
           intervalRange={config.lightningIntervalMsRange}
           palette={palette}
           active={animate}
+          onStrike={onLightningStrike}
         />
       ) : null}
     </View>

@@ -5,13 +5,13 @@ import * as ImagePicker from "expo-image-picker";
 import { Image } from "react-native";
 
 export const BUILT_IN_BOT_AVATARS = [
+  { id: "blue-maid", name: "大肥鱼", source: require("../assets/bot-avatars/blue-maid.webp") },
   { id: "lilac-dragon", name: "紫晶", source: require("../assets/bot-avatars/lilac-dragon.webp") },
   {
     id: "orange-flower",
     name: "橙花",
     source: require("../assets/bot-avatars/orange-flower.webp"),
   },
-  { id: "blue-maid", name: "蓝羽", source: require("../assets/bot-avatars/blue-maid.webp") },
 ] as const;
 
 function validateAvatar(value: string): string {

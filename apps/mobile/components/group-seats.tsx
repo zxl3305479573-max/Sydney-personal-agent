@@ -1,10 +1,3 @@
-import {
-  avatarIdentitySeed,
-  organicAvatarPath,
-  SHIPPED_BOT_AVATAR_CENTER,
-  SHIPPED_BOT_AVATAR_VIEWBOX,
-} from "@rakazo/core";
-import { botEyeColor } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import { memo, useId } from "react";
 import type { ColorValue } from "react-native";
@@ -13,7 +6,6 @@ import Svg, {
   Circle,
   ClipPath,
   Defs,
-  Ellipse,
   G,
   Image,
   Mask,
@@ -22,6 +14,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import { mobileBotAvatarPresentation } from "../lib/bot-avatar";
+import { DEFAULT_BOT_AVATAR_IMAGE_SOURCE } from "../lib/default-bot-avatar";
 import type { GroupSeat } from "../lib/group-seats";
 import {
   GROUP_SEAT_SIZE,
@@ -146,67 +139,31 @@ function markArt(
   return { box: [0, 0, size], outline: label, face: label({ fill: color }) };
 }
 
-/** A still face in the member's shape: the same drawing as their avatar at rest. */
+/** A still circular photo in the member's seat (falls back to the default 大肥鱼 avatar). */
 function seatArt(member: SeatMember, size: number, key: string): SeatArt {
   const parsed = mobileBotAvatarPresentation(member.color);
   const r = size / 2;
-  if (parsed.kind === "image" && parsed.imageUrl) {
-    // Drawn in points, so the photo keeps its full resolution.
-    return {
-      box: [0, 0, size],
-      outline: (paint) => <Circle cx={r} cy={r} r={r} {...paint} />,
-      face: (
-        <>
-          <ClipPath id={`${key}-photo`}>
-            <Circle cx={r} cy={r} r={r} />
-          </ClipPath>
-          {/* A plain circle holds the photo's place while it loads, as on the avatar. */}
-          <Circle cx={r} cy={r} r={r} fill={native.fill} />
-          <Image
-            href={{ uri: parsed.imageUrl }}
-            width={size}
-            height={size}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#${key}-photo)`}
-          />
-        </>
-      ),
-    };
-  }
-  if (parsed.kind === "shape") {
-    const [x, y, units] = SHIPPED_BOT_AVATAR_VIEWBOX.split(" ").map(Number) as [
-      number,
-      number,
-      number,
-    ];
-    const center = SHIPPED_BOT_AVATAR_CENTER;
-    return {
-      box: [x, y, units],
-      outline: (paint) => <Path d={parsed.shapePath} {...paint} />,
-      face: (
-        <>
-          <Path d={parsed.shapePath} fill={parsed.color} />
-          <G fill={parsed.eyeColor}>
-            <Ellipse cx={center - 29} cy={center - 8} rx={10} ry={7} />
-            <Ellipse cx={center + 29} cy={center - 8} rx={10} ry={7} />
-          </G>
-        </>
-      ),
-    };
-  }
-  const color = parsed.kind === "color" ? parsed.color : member.color;
-  const seed = avatarIdentitySeed(member.botId ?? member.name ?? color);
-  const outline = organicAvatarPath(seed);
+  const href =
+    parsed.kind === "image" && parsed.imageUrl
+      ? { uri: parsed.imageUrl }
+      : DEFAULT_BOT_AVATAR_IMAGE_SOURCE;
   return {
-    box: [-60, -60, 120],
-    outline: (paint) => <Path d={outline} {...paint} />,
+    box: [0, 0, size],
+    outline: (paint) => <Circle cx={r} cy={r} r={r} {...paint} />,
     face: (
       <>
-        <Path d={outline} fill={color} />
-        <G transform={`rotate(${(seed % 9) - 4})`} fill={botEyeColor}>
-          <Rect x={-14} y={-12} width={7} height={24} rx={3.5} />
-          <Rect x={7} y={-12} width={7} height={24} rx={3.5} />
-        </G>
+        <ClipPath id={`${key}-photo`}>
+          <Circle cx={r} cy={r} r={r} />
+        </ClipPath>
+        {/* A plain circle holds the photo's place while it loads, as on the avatar. */}
+        <Circle cx={r} cy={r} r={r} fill={native.fill} />
+        <Image
+          href={href}
+          width={size}
+          height={size}
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${key}-photo)`}
+        />
       </>
     ),
   };
