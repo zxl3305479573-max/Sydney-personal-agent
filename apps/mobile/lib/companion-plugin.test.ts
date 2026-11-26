@@ -255,6 +255,7 @@ describe("isolated companion widget plugin", () => {
     expect(widgetSwift).toContain("CompanionVoiceCancelIntent");
     expect(widgetSwift).toContain("CompanionVoiceStopSpeakingIntent");
     expect(widgetSwift).toContain("CompanionVoiceCycleOutputIntent");
+    expect(widgetSwift).toContain("voiceModeDisplay");
     expect(widgetSwift).toContain("停止播报");
     expect(widgetSwift).toContain("仅文字");
     expect(widgetSwift).toContain("仅语音");

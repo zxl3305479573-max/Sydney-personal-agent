@@ -291,28 +291,27 @@ struct CompanionWidget: Widget {
     }
   }
 
+  private func voiceModeDisplay(_ mode: String) -> (icon: String, label: String) {
+    switch mode {
+    case "text":
+      return ("text.bubble.fill", "仅文字")
+    case "voice":
+      return ("speaker.wave.2.fill", "仅语音")
+    default:
+      return ("speaker.wave.2.fill", "文字+语音")
+    }
+  }
+
   @ViewBuilder
   private func voiceModeButton(
     attributes: CompanionActivityAttributes,
     mode: String
   ) -> some View {
-    let icon: String
-    let label: String
-    switch mode {
-    case "text":
-      icon = "text.bubble.fill"
-      label = "仅文字"
-    case "voice":
-      icon = "speaker.wave.2.fill"
-      label = "仅语音"
-    default:
-      icon = "speaker.wave.2.fill"
-      label = "文字+语音"
-    }
+    let display = voiceModeDisplay(mode)
     let badge = HStack(spacing: 3) {
-      Image(systemName: icon)
+      Image(systemName: display.icon)
         .font(.system(size: 9.5, weight: .semibold))
-      Text(label)
+      Text(display.label)
         .font(.system(size: 10.5, weight: .semibold))
         .lineLimit(1)
     }
