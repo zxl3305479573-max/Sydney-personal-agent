@@ -1,5 +1,17 @@
 # Sydney 开发总计划
 
+## 手机首页顶栏同步状态胶囊优化、整分钟时钟对齐与 iPhone 1.0.31 侧载 OTA（PA-021／REL-01，2026-11-25）
+
+状态：源码提交推送（`ffd53173a`）、本机离线校验与 iPhone `1.0.31` 侧载 OTA 发布（[Run 45761232138](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761232138)）及线上清单／启动包／`56/56` 静态资源核验均已完成；真实 iPhone 下载重启与交互验收待执行。
+
+范围与交付物：
+- **消除 `sync · HH:MM` 混淆与重复旧时间**：修改 `apps/mobile/components/home-hub.tsx`，移除空闲态未汉化英文 `sync` 及落后手机系统时钟的 `lastSyncedAt` 旧时间戳，改为带刷新图标的清晰状态胶囊（`已同步`／`N 运行中`／`同步中…`／`重试同步`，英／繁中同步适配），轻点即刻手动刷新。
+- **首页内部时钟按整分钟 `00` 秒对齐**：在 `apps/mobile/lib/home-weather.ts` 新增 `nextMinuteDelayMs()`，将 `useHomeWeather` 时钟由固定 60 秒 `setInterval` 改为精准对齐下一个整分钟边界并在 `AppState` 回到前台时即时校准。
+- **手动刷新恢复前台轮询**：在 `apps/mobile/lib/foreground-poll.ts` 为 `useForegroundPoll` 新增可选 `resumeKey`（保持非重试失败停止轮询语义不变），在 `apps/mobile/components/inbox-screens.tsx` 的 `refreshHub()` 成功后递增 `pollResumeKey`，使偶发失败暂停后的首页轮询可随用户手动刷新自动恢复且不重复触发即时请求。
+- **验证与 `1.0.31` OTA 分发**：8 文件 Biome 0 错误、`@rakazo/mobile` `tsc --noEmit` 0 错误、6 个定向 Vitest 文件（34 项）全绿、`git diff --check` 0 警告；`mobile-ios-update.yml` Run `45761232138`（`main`／`ffd53173a`／`sydney-ios-ip-1`）发布成功，更新组 `740cdf8f-e893-4287-ac0d-fd9b7896cfd0`、iOS 更新 ID `01a21650-528f-7229-abfb-fa15ad124ae5`，线上清单 HTTP `200`、启动包 `11,059,392` 字节与 `56/56` 静态资源 SHA-256 全部通过。详见 [验证记录](VALIDATION.md#手机首页顶栏同步状态胶囊优化与-iphone-1031-侧载-ota2026-11-25) 与 [运维手册](OPERATIONS.md#iphone-1031-侧载-ota2026-11-25)。
+
+依赖与验收条件：纯 JS 改动、零新增依赖，沿用既有 `sideload`／`sydney-ios-ip-1` 通道（无需重装 IPA）；真实 iPhone 拉取 `1.0.31` 重启后核对首页顶栏胶囊显示、手动刷新及跨分钟切换表现待设备验收。
+
 ## 手机端原生 GPS 定位、灵动岛常驻扩展与真悬浮陪伴胶囊（PA-021／REL-01，2026-11-25）
 
 状态：源码提交推送、GitHub CI 全绿、iPhone `1.0.29` 侧载 OTA 线上核验及包含原生 GPS（`SydneyLocation`）与灵动岛扩展（`SydneyCompanionWidget.appex`）的 `1.0.13` 无签名侧载 IPA 云端出包（`Run 45748488829`）均已完成；真实 iPhone 侧载重装、系统定位授权、灵动岛常驻与应用内拖拽悬浮球交互待设备验收。

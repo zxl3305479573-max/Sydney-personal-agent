@@ -1,5 +1,11 @@
 # 运维手册
 
+## iPhone 1.0.31 侧载 OTA（2026-11-25）
+
+- 提交 `ffd53173acbb6ea1f61cc2b831d5740d3e924caf` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45761232138](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761232138) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`，无需重装 IPA）。
+- 更新组 ID：`740cdf8f-e893-4287-ac0d-fd9b7896cfd0`；iOS 更新 ID：`01a21650-528f-7229-abfb-fa15ad124ae5`；线上 Expo 清单 HTTP `200`（`version: "1.0.31"`）、启动包 `11,059,392` 字节（SHA-256 `1f36953b86231cdf77b060ffa1cb40146eeddb0abe83c6607bd4d8c0c16f69b7`）与全部 `56 / 56` 静态资源 SHA-256 核验通过。
+- 既有 `1.0.12`／`1.0.13`／`1.0.14` 侧载 IPA 在 App 内「设置 → 检查更新」下载并重启后即刻生效，去除首页顶栏英文 `sync · HH:MM` 旧时间戳、改为清晰中文状态胶囊并修复首页整分钟时钟对齐与刷新恢复轮询。上一条已发布 OTA 为 `1.0.30`（更新 ID `01a21618-8115-7ece-97cc-97f613c4b290`），需要回退时按既有 `sideload` 通道重发兼容版本即可；本次不涉及后端部署、数据库迁移或权限变更，真机实测待设备验收。
+
 ## 生产后端 `a77f15243` 部署与 iPhone 1.0.30 侧载 OTA ／ 1.0.14 IPA（2026-11-25）
 
 ### 生产后端自动部署（`sydney-cloud-admin` / `https://pc.zxlup.xin`）

@@ -1,5 +1,21 @@
 # 验证记录
 
+## 手机首页顶栏同步状态胶囊优化与 iPhone 1.0.31 侧载 OTA（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **本机离线校验（全部 0 错误通过）**：
+  - **Biome 检查**（覆盖本批 8 个改动文件：`home-hub.tsx`、`inbox-screens.tsx`、`home-weather.ts`、`foreground-poll.ts`、`home-hub.test.tsx`、`home-weather.test.ts`、`foreground-poll.test.tsx`、`sydney-release.json`）：**8 / 8 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest 回归（6 个文件、34 / 34 项全部通过）**：`home-hub.test.tsx`（7 项，覆盖 `已同步`／`1 运行中`／`2 运行中`／`重试同步`／`Synced` 且断言不含 `sync ·` 与旧时间戳）、`home-weather.test.ts`（7 项，含 `nextMinuteDelayMs()` 整分钟边界测试）、`foreground-poll.test.tsx`（7 项，含非重试失败停止后经 `resumeKey` 恢复且不触发重复即时请求）、`app-version.test.ts`（6 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）。
+  - **空白与补丁检查**（`git diff --check` 覆盖本批 8 文件）：**0 警告**。
+- **GitHub Actions CI 与 iPhone `1.0.31` 侧载 OTA 线上实测**：
+  - 提交 `ffd53173acbb6ea1f61cc2b831d5740d3e924caf` 推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`；`CI` [Run 45761230968](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761230968) 中 `Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (2/2)`、`Checks` 与镜像发布均通过。
+  - `mobile-ios-update.yml` [Run 45761232138](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761232138)（`main`／`ffd53173a`／`sydney-ios-ip-1`）：**`completed / success`**（`2026-11-26T05:23:04Z`–`05:24:56Z`）。
+  - 更新组 ID：`740cdf8f-e893-4287-ac0d-fd9b7896cfd0`；iOS 更新 ID：`01a21650-528f-7229-abfb-fa15ad124ae5`（`createdAt: 2026-11-26T05:24:52.495Z`）。
+  - 线上 Expo 清单返回 **HTTP `200`**（`version: "1.0.31"`、`releasedOn: "2026-11-25"`、中文说明 3 条）；启动包 HTTP `200`、大小 **`11,059,392` 字节**（SHA-256 `1f36953b86231cdf77b060ffa1cb40146eeddb0abe83c6607bd4d8c0c16f69b7`，校验匹配）；按 multipart 逐资源授权头核验全部 **`56 / 56`** 项静态资源 **HTTP `200` 且 SHA-256 全匹配（`0` 失败）**。
+- **未执行项（待真机验收）**：真实 iPhone 在「设置 → 检查更新」拉取 `1.0.31` 重启后核对首页顶栏胶囊（`已同步`／`N 运行中`／`同步中…`／`重试同步`）、点击刷新与跨整分钟日期／问候语切换表现。
+
 ## 生产后端上线与 iPhone 1.0.30 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01／ADR-0028。
