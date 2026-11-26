@@ -8,6 +8,7 @@ type StartupStep =
   | "images"
   | "notifications"
   | "companion"
+  | "weatherScene"
   | "inbox"
   | "language";
 

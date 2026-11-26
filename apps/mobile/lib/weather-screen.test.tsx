@@ -94,6 +94,7 @@ vi.mock("react-native", () => {
 });
 
 import WeatherDetailScreen from "../app/weather";
+import { resetWeatherScenePreferencesForTest } from "./weather-scene-state";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -101,6 +102,7 @@ let root: Root;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  resetWeatherScenePreferencesForTest();
   fixture.loading = false;
   fixture.error = false;
   fixture.weather = {
@@ -337,5 +339,30 @@ describe("WeatherDetailScreen", () => {
     );
     await act(async () => retryBtn?.click());
     expect(fixture.refreshWeather).toHaveBeenCalledWith(true);
+  });
+
+  it("lets users toggle app-wide weather effects and switch live/preview scenes", async () => {
+    await act(async () => root.render(createElement(WeatherDetailScreen)));
+    const card = container.querySelector('[data-testid="weather-atmosphere-card"]');
+    expect(card?.textContent).toContain("全应用动态天气场景");
+    expect(card?.textContent).toContain("跟随实时天气 · 晴天");
+
+    const stormBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-scene-thunderstorm"]',
+    );
+    await act(async () => stormBtn?.click());
+    expect(card?.textContent).toContain("预览中 · 雷阵雨");
+
+    const liveBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-scene-live"]',
+    );
+    await act(async () => liveBtn?.click());
+    expect(card?.textContent).toContain("跟随实时天气 · 晴天");
+
+    const toggleBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="weather-atmosphere-toggle"]',
+    );
+    await act(async () => toggleBtn?.click());
+    expect(toggleBtn?.textContent).toBe("已关闭");
   });
 });

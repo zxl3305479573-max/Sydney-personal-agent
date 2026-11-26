@@ -10,6 +10,8 @@ import {
   loadSavedMapLocation,
   subscribeUserLocation,
 } from "./map-location";
+import type { WeatherSceneKind } from "./weather-scene";
+import { classifyWmoWeatherScene, classifyWwoWeatherScene } from "./weather-scene";
 
 export type HomeWeatherCondition = "sunny" | "cloudy" | "rainy" | "snowy";
 
@@ -39,6 +41,11 @@ export type HomeWeatherSnapshot = {
   condition: HomeWeatherCondition;
   isDay: boolean;
   fetchedAt: number;
+  weatherCode?: number | null;
+  scene?: WeatherSceneKind;
+  precipitationMm?: number | null;
+  snowfallCm?: number | null;
+  cloudCoverPercent?: number | null;
   locationLabel?: string | null;
   locationSource?: LocationSource;
   apparentTemperatureC?: number | null;
@@ -86,6 +93,18 @@ let cachedCoords: {
   fetchedAt: number;
 } | null = null;
 let inFlightFetch: Promise<HomeWeatherSnapshot | null> | null = null;
+const weatherListeners = new Set<() => void>();
+
+function notifyWeatherListeners(): void {
+  for (const listener of weatherListeners) listener();
+}
+
+export function subscribeHomeWeather(listener: () => void): () => void {
+  weatherListeners.add(listener);
+  return () => {
+    weatherListeners.delete(listener);
+  };
+}
 
 export function isDaytimeHour(date: Date): boolean {
   const hour = date.getHours();
@@ -156,6 +175,12 @@ function padTwo(value: number): string {
 function finiteRounded(value: unknown): number | null {
   const num = Number(value);
   return Number.isFinite(num) ? Math.round(num) : null;
+}
+
+function finiteNonNegative(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? num : null;
 }
 
 function extractHourLabel(timeIso: string): string {
@@ -423,7 +448,7 @@ async function fetchFromOpenMeteo(
     coords.latitude.toFixed(4),
   )}&longitude=${encodeURIComponent(
     coords.longitude.toFixed(4),
-  )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,wind_speed_10m_max&forecast_days=7&timezone=auto`;
+  )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day,precipitation,rain,showers,snowfall,cloud_cover&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,wind_speed_10m_max&forecast_days=7&timezone=auto`;
   const raw = await fetchJsonWithTimeout(url, options?.signal);
   if (!raw || typeof raw !== "object") return null;
   const body = raw as Record<string, unknown>;
@@ -434,6 +459,14 @@ async function fetchFromOpenMeteo(
   if (temp === null || !Number.isFinite(code)) return null;
   const isDay =
     current.is_day === 1 || current.is_day === 0 ? current.is_day === 1 : isDaytimeHour(now);
+  const rainRate = finiteNonNegative(current.rain);
+  const showersRate = finiteNonNegative(current.showers);
+  const rawPrecip = finiteNonNegative(current.precipitation);
+  const precipitationMm =
+    rawPrecip ??
+    (rainRate !== null || showersRate !== null ? (rainRate ?? 0) + (showersRate ?? 0) : null);
+  const snowfallCm = finiteNonNegative(current.snowfall);
+  const cloudCoverPercent = finiteRounded(current.cloud_cover);
   const { hourly, hourlyByDate } = parseOpenMeteoHourly(
     body.hourly,
     typeof current.time === "string" ? current.time : undefined,
@@ -445,6 +478,11 @@ async function fetchFromOpenMeteo(
     condition: mapWmoWeatherCondition(code),
     isDay,
     fetchedAt: now.getTime(),
+    weatherCode: code,
+    scene: classifyWmoWeatherScene(code, { isDay, precipitationMm, snowfallCm }),
+    precipitationMm,
+    snowfallCm,
+    cloudCoverPercent,
     locationLabel: coords.locationLabel,
     locationSource: coords.source,
     apparentTemperatureC: finiteRounded(current.apparent_temperature),
@@ -533,11 +571,19 @@ async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeath
     }
   }
 
+  const wttrIsDay = isDaytimeHour(now);
+  const wttrPrecip = finiteNonNegative(record.precipMM);
+  const wttrCloud = finiteRounded(record.cloudcover);
   return {
     temperatureC: temp,
     condition: mapWwoWeatherCondition(code),
-    isDay: isDaytimeHour(now),
+    isDay: wttrIsDay,
     fetchedAt: now.getTime(),
+    weatherCode: null,
+    scene: classifyWwoWeatherScene(code, { isDay: wttrIsDay, precipitationMm: wttrPrecip }),
+    precipitationMm: wttrPrecip,
+    snowfallCm: null,
+    cloudCoverPercent: wttrCloud,
     locationLabel: parseWttrLocation(body),
     locationSource: "ip",
     apparentTemperatureC: finiteRounded(record.FeelsLikeC),
@@ -560,6 +606,7 @@ export async function fetchLiveHomeWeather(
     const primary = await fetchFromOpenMeteo(now, { force, signal });
     if (primary) {
       cachedWeather = primary;
+      notifyWeatherListeners();
       return primary;
     }
   } catch {
@@ -569,6 +616,7 @@ export async function fetchLiveHomeWeather(
     const fallback = await fetchFromWttr(now, signal);
     if (fallback) {
       cachedWeather = fallback;
+      notifyWeatherListeners();
       return fallback;
     }
   } catch {
@@ -585,6 +633,7 @@ export function resetHomeWeatherCacheForTest(): void {
   cachedWeather = null;
   cachedCoords = null;
   inFlightFetch = null;
+  notifyWeatherListeners();
 }
 
 /**
@@ -680,6 +729,12 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
   useEffect(() => {
     if (!enabled) return;
     void refreshWeather(false);
+    const unsubscribeWeather = subscribeHomeWeather(() => {
+      if (mountedRef.current && cachedWeather) {
+        setWeather(cachedWeather);
+        setError(false);
+      }
+    });
     const unsubscribeLocation = subscribeUserLocation(() => {
       const nextLoc = getCachedUserLocation();
       if (!nextLoc || (nextLoc.source !== "gps" && nextLoc.source !== "manual")) return;
@@ -707,6 +762,7 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
       }
     });
     return () => {
+      unsubscribeWeather();
       unsubscribeLocation();
       clearInterval(poll);
       appSub.remove();

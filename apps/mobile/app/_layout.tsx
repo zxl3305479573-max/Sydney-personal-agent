@@ -39,6 +39,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { ScopedThemeRoute, ScopedThemeScreen } from "../components/scoped-theme";
 import { UpdateDownloadBanner } from "../components/update-download-banner";
 import { VoicePlayerBar } from "../components/voice-player-bar";
+import { WeatherAtmosphereOverlay } from "../components/weather-atmosphere-overlay";
 import {
   currentApiBase,
   loadApiBase,
@@ -119,6 +120,7 @@ import {
 import { startUnsentSends } from "../lib/unsent-sends";
 import { useFirstLaunchNotificationPrompt } from "../lib/use-first-launch-notification-prompt";
 import { getVoicePlaybackState, subscribeVoicePlayback } from "../lib/voice";
+import { loadWeatherScenePreferences } from "../lib/weather-scene-state";
 
 // Before anything renders: text grows with the iOS text size only up to a fixed maximum.
 capTextScaling();
@@ -409,6 +411,7 @@ function LayoutContent() {
       trackMobileStartup("images", loadRemoteImagesPreference()),
       trackMobileStartup("notifications", loadNotificationPreferences()),
       trackMobileStartup("companion", loadCompanionPreferences()),
+      trackMobileStartup("weatherScene", loadWeatherScenePreferences()),
       trackMobileStartup("inbox", loadInboxWidth()),
       trackMobileStartup("language", bootstrapI18n()),
     ])
@@ -635,6 +638,11 @@ function LayoutContent() {
                 </BottomSafeAreaClaimedContext.Provider>
                 <VoicePlayerBar
                   style={{ marginTop: 8, marginBottom: showMainNavigation ? 8 : insets.bottom + 8 }}
+                />
+                <WeatherAtmosphereOverlay
+                  bottomLandingOffset={
+                    showMainNavigation ? insets.bottom + 54 : Math.max(insets.bottom, 6)
+                  }
                 />
                 <CompanionFloatingBar
                   topInset={insets.top + 8}

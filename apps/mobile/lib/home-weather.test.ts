@@ -176,8 +176,11 @@ describe("home weather mapping & live fetch", () => {
           apparent_temperature: 19.6,
           relative_humidity_2m: 58,
           wind_speed_10m: 7.2,
-          weather_code: 1,
+          weather_code: 65,
           is_day: 1,
+          precipitation: 9.4,
+          rain: 9.4,
+          cloud_cover: 92,
         },
       }),
     });
@@ -185,7 +188,11 @@ describe("home weather mapping & live fetch", () => {
     const result = await fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 14, 0));
     expect(result).toMatchObject({
       temperatureC: 20,
-      condition: "sunny",
+      condition: "rainy",
+      weatherCode: 65,
+      scene: "heavy-rain",
+      precipitationMm: 9.4,
+      cloudCoverPercent: 92,
       locationLabel: "杭州市 · 西湖区",
       locationSource: "gps",
     });

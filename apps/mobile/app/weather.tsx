@@ -22,6 +22,17 @@ import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useSideInsets } from "../lib/side-insets";
+import {
+  ALL_WEATHER_PREVIEW_SCENES,
+  resolveWeatherSceneKind,
+  weatherSceneLabel,
+  weatherSceneSymbol,
+} from "../lib/weather-scene";
+import {
+  setWeatherSceneEnabled,
+  setWeatherScenePreview,
+  useWeatherScenePreferences,
+} from "../lib/weather-scene-state";
 
 function padTwo(value: number): string {
   return String(value).padStart(2, "0");
@@ -88,6 +99,7 @@ export default function WeatherDetailScreen() {
     chinese ? (traditional ? zhHant : zhHans) : en;
 
   const { weather, loading, error, refreshWeather } = useHomeWeather();
+  const scenePrefs = useWeatherScenePreferences();
   const [selectedDateIso, setSelectedDateIso] = useState<string | null>(null);
   const [selectedHourIso, setSelectedHourIso] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
@@ -860,6 +872,200 @@ export default function WeatherDetailScreen() {
                 </View>
               </View>
             ) : null}
+
+            {/* Global Live Weather Scene Controls & Live Preview */}
+            <View
+              testID="weather-atmosphere-card"
+              style={[cardSurface, { paddingVertical: 16, gap: 12 }]}
+            >
+              <View
+                style={{
+                  paddingHorizontal: 18,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                  <Text
+                    style={{
+                      color: tokens.foreground,
+                      fontSize: 15,
+                      lineHeight: 20,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {copy("全应用动态天气场景", "全應用動態天氣場景", "App-wide weather effects")}
+                  </Text>
+                  <Text
+                    style={{
+                      color: tokens.mutedForeground,
+                      fontSize: 12,
+                      lineHeight: 16,
+                    }}
+                  >
+                    {!scenePrefs.enabled
+                      ? copy(
+                          "已关闭，开启后随实时天气呈现雨雪雷电氛围",
+                          "已關閉，開啟後隨即時天氣呈現雨雪雷電氛圍",
+                          "Off — enable to animate live rain, snow & thunder",
+                        )
+                      : scenePrefs.previewScene
+                        ? copy(
+                            `预览中 · ${weatherSceneLabel(scenePrefs.previewScene, locale)}（切页同样可见）`,
+                            `預覽中 · ${weatherSceneLabel(scenePrefs.previewScene, locale)}（切頁同樣可見）`,
+                            `Previewing ${weatherSceneLabel(scenePrefs.previewScene, locale)} across app`,
+                          )
+                        : copy(
+                            `跟随实时天气 · ${weatherSceneLabel(weather.scene ?? resolveWeatherSceneKind(weather), locale)}`,
+                            `跟隨即時天氣 · ${weatherSceneLabel(weather.scene ?? resolveWeatherSceneKind(weather), locale)}`,
+                            `Live weather · ${weatherSceneLabel(weather.scene ?? resolveWeatherSceneKind(weather), locale)}`,
+                          )}
+                  </Text>
+                </View>
+                <MotionPressable
+                  preset="control"
+                  testID="weather-atmosphere-toggle"
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    scenePrefs.enabled
+                      ? copy("关闭动态天气", "關閉動態天氣", "Disable weather effects")
+                      : copy("开启动态天气", "開啟動態天氣", "Enable weather effects")
+                  }
+                  onPress={() => void setWeatherSceneEnabled(!scenePrefs.enabled)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: scenePrefs.enabled
+                      ? isLight
+                        ? "#26231F"
+                        : "#F5F4F0"
+                      : chipBackground,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: scenePrefs.enabled ? "transparent" : chipBorder,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: scenePrefs.enabled
+                        ? isLight
+                          ? "#FFFEFC"
+                          : "#181C23"
+                        : tokens.foreground,
+                      fontSize: 12.5,
+                      lineHeight: 16,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {scenePrefs.enabled
+                      ? copy("已开启", "已開啟", "On")
+                      : copy("已关闭", "已關閉", "Off")}
+                  </Text>
+                </MotionPressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+              >
+                <MotionPressable
+                  preset="control"
+                  testID="weather-scene-live"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: scenePrefs.enabled && !scenePrefs.previewScene }}
+                  onPress={() => {
+                    void setWeatherSceneEnabled(true);
+                    void setWeatherScenePreview(null);
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 11,
+                    paddingVertical: 7,
+                    borderRadius: 999,
+                    backgroundColor:
+                      scenePrefs.enabled && !scenePrefs.previewScene
+                        ? selectedSurface
+                        : chipBackground,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor:
+                      scenePrefs.enabled && !scenePrefs.previewScene ? selectedBorder : chipBorder,
+                  }}
+                >
+                  <NativeSymbol
+                    ios="location.fill"
+                    android="locate"
+                    size={12}
+                    color={
+                      scenePrefs.enabled && !scenePrefs.previewScene
+                        ? tokens.foreground
+                        : softAccentInk
+                    }
+                  />
+                  <Text
+                    style={{
+                      color:
+                        scenePrefs.enabled && !scenePrefs.previewScene
+                          ? tokens.foreground
+                          : tokens.mutedForeground,
+                      fontSize: 12.5,
+                      lineHeight: 16,
+                      fontWeight: scenePrefs.enabled && !scenePrefs.previewScene ? "600" : "500",
+                    }}
+                  >
+                    {copy("跟随实时", "跟隨即時", "Live")}
+                  </Text>
+                </MotionPressable>
+
+                {ALL_WEATHER_PREVIEW_SCENES.map((kind) => {
+                  const selected = scenePrefs.enabled && scenePrefs.previewScene === kind;
+                  const sym = weatherSceneSymbol(kind);
+                  return (
+                    <MotionPressable
+                      key={kind}
+                      preset="control"
+                      testID={`weather-scene-${kind}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => void setWeatherScenePreview(kind)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 5,
+                        paddingHorizontal: 11,
+                        paddingVertical: 7,
+                        borderRadius: 999,
+                        backgroundColor: selected ? selectedSurface : chipBackground,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: selected ? selectedBorder : chipBorder,
+                      }}
+                    >
+                      <NativeSymbol
+                        ios={sym.ios}
+                        android={sym.android}
+                        size={13}
+                        color={selected ? tokens.foreground : softAccentInk}
+                      />
+                      <Text
+                        style={{
+                          color: selected ? tokens.foreground : tokens.mutedForeground,
+                          fontSize: 12.5,
+                          lineHeight: 16,
+                          fontWeight: selected ? "600" : "500",
+                        }}
+                      >
+                        {weatherSceneLabel(kind, locale)}
+                      </Text>
+                    </MotionPressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
           </>
         )}
       </ScrollView>

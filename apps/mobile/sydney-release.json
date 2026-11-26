@@ -1,24 +1,24 @@
 {
-  "version": "1.0.32",
+  "version": "1.0.33",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "首页地图卡片升级为实时 Retina 高清地图预览，优化高德底图清晰度并修复地图页搜索框布局；移除开屏启动动画，进入主页更快更顺畅。",
-      "天气详情页支持点击下方「未来天气」任意日期及逐小时卡片，联动切换对应日期与时段的温度、体感、湿度、风速及逐小时预报。",
-      "语音通话状态全面同步至 iOS 灵动岛，修复灵动岛全黑与多 Bot 头像／消息内容显示，新增「截屏提问」图文语音同发页面与灵动岛长按快捷操作。",
-      "Bot 消息通知弹窗改用对应 Bot 头像展示（前台定制 Bot 头像通知条 + iOS 原生头像通知附件／通信意图），不再全部显示 App Logo。"
+      "新增全 App 实时动态天气场景引擎：随当前实时天气自动切换小雨、中雨、大雨、雷阵雨、小雪、大雪、多云、薄雾、晴天暖阳与星夜共 10 种沉浸氛围，绝不遮挡任何点击与滑动。",
+      "雨雪效果按真实降雨／降雪量与实时风速动态调节：雨滴数量、长短粗细、下落速度与风吹倾角随雨势平滑变化，并新增雨水落到底栏／底边时的椭圆涟漪环与抛物线飞溅水花效果。",
+      "雷阵雨自动触发自然双闪雷光与随机分叉闪电光柱；下雪支持多景深飘雪与底边柔霜；聊天与代码页自动柔化透明度，切后台自动省电暂停。",
+      "天气详情页底部新增「全应用动态天气场景」开关与 10 种天气跨页实时预览胶囊，可随时体验任意天气特效或一键切回「跟随实时」。"
     ],
     "zh-TW": [
-      "首頁地圖卡片升級為即時 Retina 高清地圖預覽，優化高德底圖清晰度並修復地圖頁搜尋框佈局；移除開屏啟動動畫，進入主頁更快更順暢。",
-      "天氣詳情頁支援點擊下方「未來天氣」任意日期及逐小時卡片，連動切換對應日期與時段的溫度、體感、濕度、風速及逐小時預報。",
-      "語音通話狀態全面同步至 iOS 靈動島，修復靈動島全黑與多 Bot 頭像／訊息內容顯示，新增「截圖提問」圖文語音同發頁面與靈動島長按快捷操作。",
-      "Bot 訊息通知彈窗改用對應 Bot 頭像顯示（前景客製 Bot 頭像通知條 + iOS 原生頭像通知附件／通訊意圖），不再全部顯示 App Logo。"
+      "新增全 App 即時動態天氣場景引擎：隨目前即時天氣自動切換小雨、中雨、大雨、雷陣雨、小雪、大雪、多雲、薄霧、晴天暖陽與星夜共 10 種沉浸氛圍，不遮擋任何點擊與滑動。",
+      "雨雪效果依真實降雨／降雪量與即時風速動態調節：雨滴數量、長短粗細、下落速度與風吹傾角隨雨勢平滑變化，並新增雨水落至底欄／底邊的橢圓漣漪環與拋物線飛濺水花效果。",
+      "雷陣雨自動觸發自然雙閃雷光與隨機分叉閃電光柱；下雪支援多景深飄雪與底邊柔霜；聊天與程式碼頁自動柔化透明度，切背景自動省電暫停。",
+      "天氣詳情頁底部新增「全應用動態天氣場景」開關與 10 種天氣跨頁即時預覽膠囊，可隨時體驗任意天氣特效或一鍵切回「跟隨即時」。"
     ],
     "en": [
-      "Upgrade the home map card to a live Retina-sharp map preview with crisp AMap rendering and fixed search bar placement, and remove the JS startup splash animation for faster launch.",
-      "Tap any day in Future Forecast or any hourly card on the Weather detail screen to switch hero weather, feels-like/humidity/wind metrics, and that day's hourly forecast.",
-      "Sync voice calls directly to iOS Dynamic Island, fix black Live Activity contrast and per-bot avatars/messages, and add Screenshot & Ask quick capture with expanded Dynamic Island actions.",
-      "Show each bot's own avatar on bot message notifications (in-app foreground bot avatar banner plus iOS native avatar attachment / communication intent) instead of the generic app logo."
+      "Add a full-app live weather atmosphere engine that automatically switches across 10 real-time scenes (drizzle, rain, heavy rain, thunderstorm, light/heavy snow, cloudy, fog, sunny, starry night) without blocking touches.",
+      "Scale raindrop density, streak length, thickness, fall speed, wind slant, and ground-impact splashes (expanding ripples + parabolic bouncing water beads) continuously from live precipitation and wind data.",
+      "Add double-flash branching SVG lightning for thunderstorms, multi-depth fluttering snow with soft frost, automatic opacity softening on chat/reading screens, and background/reduced-motion power safety.",
+      "Add an App-Wide Weather Effects toggle and 10-scene cross-screen live preview strip in the Weather detail screen, with one-tap return to live GPS weather."
     ]
   }
 }
