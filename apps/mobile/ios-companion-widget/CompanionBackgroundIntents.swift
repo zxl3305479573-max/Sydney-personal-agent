@@ -5,7 +5,7 @@ import AVFoundation
 import Foundation
 import Security
 import Speech
-import SydneyCompanion
+internal import SydneyCompanion
 import UIKit
 import UniformTypeIdentifiers
 

@@ -260,6 +260,7 @@ describe("isolated companion widget plugin", () => {
       path.join(root, "Sydney", "CompanionBackgroundIntents.swift"),
       "utf8",
     );
+    expect(backgroundIntentsSwift).toContain("internal import SydneyCompanion");
     expect(backgroundIntentsSwift).toContain("struct SydneyAskScreenshotIntent: AppIntent");
     expect(backgroundIntentsSwift).toContain("struct SydneyQuickMessageIntent: AppIntent");
     expect(backgroundIntentsSwift).toContain(
