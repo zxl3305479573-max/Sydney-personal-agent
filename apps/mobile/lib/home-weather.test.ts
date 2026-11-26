@@ -73,12 +73,32 @@ describe("home weather mapping & live fetch", () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ latitude: "31.2304", longitude: "121.4737" }),
+        json: async () => ({ latitude: "31.2304", longitude: "121.4737", city: "Shanghai" }),
       })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          current: { temperature_2m: 18.6, weather_code: 0, is_day: 0 },
+          current: {
+            time: "2026-11-25T21:00",
+            temperature_2m: 18.6,
+            apparent_temperature: 17.4,
+            relative_humidity_2m: 64,
+            wind_speed_10m: 9.8,
+            weather_code: 0,
+            is_day: 0,
+          },
+          hourly: {
+            time: ["2026-11-25T21:00", "2026-11-25T22:00"],
+            temperature_2m: [18.6, 17.9],
+            weather_code: [0, 2],
+            is_day: [0, 0],
+          },
+          daily: {
+            time: ["2026-11-25", "2026-11-26"],
+            temperature_2m_max: [22.1, 19.4],
+            temperature_2m_min: [13.2, 11.8],
+            weather_code: [0, 61],
+          },
         }),
       })
       .mockResolvedValueOnce({
@@ -89,7 +109,19 @@ describe("home weather mapping & live fetch", () => {
       });
 
     const first = await fetchLiveHomeWeather(undefined, new Date(2026, 10, 25, 21, 0));
-    expect(first).toMatchObject({ temperatureC: 19, condition: "sunny", isDay: false });
+    expect(first).toMatchObject({
+      temperatureC: 19,
+      condition: "sunny",
+      isDay: false,
+      locationLabel: "Shanghai",
+      apparentTemperatureC: 17,
+      humidityPercent: 64,
+      windSpeedKmh: 10,
+      highC: 22,
+      lowC: 13,
+    });
+    expect(first?.hourly).toHaveLength(2);
+    expect(first?.daily).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     // Second call within 30 minutes reuses cached coordinates and only calls Open-Meteo.

@@ -48,6 +48,7 @@ import {
   lockProjectWorkspaceForMutation,
   primaryActiveRun,
   resolveConversationExecutionScope,
+  retireWaitingApprovalInTransaction,
   retireWaitingQuestionInTransaction,
   touchGroupUpdatedAt,
   transientRunEventsWhere,
@@ -910,13 +911,20 @@ export async function sendThreadMessage(
             })
           )
             answered.push({ ...run, status: "queued" });
-          else
-            await retireWaitingQuestionInTransaction(tx, {
+          else if (
+            !(await retireWaitingQuestionInTransaction(tx, {
               spaceId: actor.spaceId,
               threadId: target.threadId,
               botId: target.botId,
               runId: run.id,
               answer: input.text ?? "",
+            }))
+          )
+            await retireWaitingApprovalInTransaction(tx, {
+              spaceId: actor.spaceId,
+              threadId: target.threadId,
+              botId: target.botId,
+              runId: run.id,
             });
         }
         if (answered.length) {
@@ -1141,13 +1149,20 @@ export async function sendThreadMessage(
             const queuedForBot = answeredByBotId.get(run.botId) ?? [];
             queuedForBot.push({ ...run, status: "queued" });
             answeredByBotId.set(run.botId, queuedForBot);
-          } else {
-            await retireWaitingQuestionInTransaction(tx, {
+          } else if (
+            !(await retireWaitingQuestionInTransaction(tx, {
               spaceId: actor.spaceId,
               threadId: target.threadId,
               botId: run.botId,
               runId: run.id,
               answer: input.text ?? "",
+            }))
+          ) {
+            await retireWaitingApprovalInTransaction(tx, {
+              spaceId: actor.spaceId,
+              threadId: target.threadId,
+              botId: run.botId,
+              runId: run.id,
             });
           }
           continue;

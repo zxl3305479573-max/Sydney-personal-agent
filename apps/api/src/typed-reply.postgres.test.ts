@@ -551,37 +551,117 @@ describe.skipIf(!enabled)("typed replies to waiting cards (PostgreSQL)", () => {
     });
   });
 
-  it.each(["secret", "login", "approval"] as const)(
-    "leaves a %s card and its run pending",
+  it.each(["secret", "login"] as const)("leaves a %s card and its run pending", async (kind) => {
+    const card: MessageBlock = {
+      kind: "ask",
+      text: "Input needed",
+      status: "pending",
+      input: "secret",
+      ...(kind === "login"
+        ? {
+            credential: {
+              name: "site_login",
+              origin: "https://login.example.test",
+              auth: { type: "login" as const },
+            },
+          }
+        : {}),
+    };
+    const fixture = await waitingCard(card);
+    const result = await send(privateTarget());
+    expect(result.runId).not.toBe(fixture.run.id);
+    await expectPending(fixture);
+    expect(await system.event.count({ where: { runId: fixture.run.id } })).toBe(0);
+  });
+
+  it.each(["bot", "group"] as const)(
+    "auto-cancels a pending approval card and denies its external effect on a new %s instruction",
     async (kind) => {
-      const card: MessageBlock = {
+      const target = kind === "bot" ? privateTarget() : groupTarget;
+      const effectId = randomUUID();
+      const approvalCard = (id: string): MessageBlock => ({
         kind: "ask",
-        text: "Input needed",
+        text: "Review before web_fetch → openai.com",
         status: "pending",
-        ...(kind === "approval"
-          ? {
-              approvalEffectId: "synthetic-effect",
-              actions: [
-                { id: "allow", label: "Allow once" },
-                { id: "deny", label: "Deny" },
-              ],
-            }
-          : { input: "secret" as const }),
-        ...(kind === "login"
-          ? {
-              credential: {
-                name: "site_login",
-                origin: "https://login.example.test",
-                auth: { type: "login" as const },
-              },
-            }
-          : {}),
-      };
-      const fixture = await waitingCard(card);
-      const result = await send(privateTarget());
+        approvalEffectId: id,
+        actions: [
+          { id: "allow", label: "Allow once" },
+          { id: "deny", label: "Deny" },
+        ],
+      });
+      const fixture = await waitingCard(approvalCard(effectId), target.threadId);
+      await system.externalEffect.create({
+        data: {
+          id: effectId,
+          spaceId: actor.spaceId,
+          runId: fixture.run.id,
+          kind: "web_fetch",
+          idempotencyKey: `approval-${effectId}`,
+          status: "intended",
+          request: { url: "https://openai.com" },
+        },
+      });
+      const peerEffectId = randomUUID();
+      const peer = await waitingCard(
+        approvalCard(peerEffectId),
+        kind === "group" ? target.threadId : peerThreadId,
+        peerBotId,
+      );
+      await system.externalEffect.create({
+        data: {
+          id: peerEffectId,
+          spaceId: actor.spaceId,
+          runId: peer.run.id,
+          kind: "web_fetch",
+          idempotencyKey: `approval-${peerEffectId}`,
+          status: "intended",
+          request: { url: "https://example.com" },
+        },
+      });
+
+      const result = await send(target, "Never mind, work on the new request instead");
       expect(result.runId).not.toBe(fixture.run.id);
-      await expectPending(fixture);
-      expect(await system.event.count({ where: { runId: fixture.run.id } })).toBe(0);
+      expect(await system.run.findUniqueOrThrow({ where: { id: fixture.run.id } })).toMatchObject({
+        status: "cancelled",
+        completedAt: expect.any(Date),
+        checkpoint: null,
+      });
+      expect(
+        await system.attempt.findUniqueOrThrow({ where: { id: fixture.attempt.id } }),
+      ).toMatchObject({ status: "cancelled", finishedAt: expect.any(Date) });
+      expect(await system.task.findUniqueOrThrow({ where: { id: fixture.task.id } })).toMatchObject(
+        { status: "cancelled" },
+      );
+      expect(
+        await system.externalEffect.findUniqueOrThrow({ where: { id: effectId } }),
+      ).toMatchObject({ status: "denied" });
+      expect(
+        await system.message.findUniqueOrThrow({ where: { id: fixture.message.id } }),
+      ).toMatchObject({ blocks: fixture.message.blocks });
+      const events = await system.event.findMany({
+        where: { runId: fixture.run.id },
+        orderBy: { seq: "asc" },
+      });
+      expect(events.map((event) => event.type)).toEqual(["run.cancelled"]);
+      expect(
+        await runAsTenant(actor, () =>
+          answerRunInput(prisma, {
+            spaceId: actor.spaceId,
+            threadId: target.threadId,
+            runId: fixture.run.id,
+            messageId: fixture.message.id,
+            answeredByUserId: actor.userId,
+            answer: "allow",
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        await system.externalEffect.findUniqueOrThrow({ where: { id: effectId } }),
+      ).toMatchObject({ status: "denied" });
+      await expectPending(peer);
+      expect(
+        await system.externalEffect.findUniqueOrThrow({ where: { id: peerEffectId } }),
+      ).toMatchObject({ status: "intended" });
     },
   );
 

@@ -465,10 +465,14 @@ describe("HomeHub personal hub", () => {
         />,
       ),
     );
-    const snowWeather = container.querySelector('[data-testid="home-hub-weather"]');
+    const snowWeather = container.querySelector<HTMLButtonElement>(
+      '[data-testid="home-hub-weather"]',
+    );
     expect(snowWeather?.textContent).toBe("-1°");
     expect(snowWeather?.textContent).not.toContain("下雪");
     expect(snowWeather?.querySelector('[data-symbol="cloud.snow"]')).not.toBeNull();
+    act(() => snowWeather?.click());
+    expect(state.push).toHaveBeenLastCalledWith("/weather");
   });
 
   it("avoids double top safe-area inset by disabling automatic scroll inset adjustment", () => {

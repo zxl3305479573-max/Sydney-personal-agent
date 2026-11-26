@@ -1992,9 +1992,9 @@ describe("sendThreadMessage", () => {
   });
 
   it.each(["bot", "group"] as const)(
-    "%s sends preserve approvals and retire older questions before starting new work",
+    "%s sends auto-cancel approvals, retire older questions, and preserve secrets before starting new work",
     async (kind) => {
-      for (const approval of [false, true]) {
+      for (const scenario of ["question", "approval", "secret"] as const) {
         const ask = {
           id: "ask-old",
           blocks: [
@@ -2002,7 +2002,7 @@ describe("sendThreadMessage", () => {
               kind: "ask",
               text: "Which city?",
               status: "pending",
-              ...(approval
+              ...(scenario === "approval"
                 ? {
                     approvalEffectId: "effect-1",
                     actions: [
@@ -2010,12 +2010,17 @@ describe("sendThreadMessage", () => {
                       { id: "deny", label: "Deny" },
                     ],
                   }
-                : {}),
+                : scenario === "secret"
+                  ? { input: "secret" }
+                  : {}),
             },
           ],
         };
         const tx = {
-          externalEffect: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+          externalEffect: {
+            deleteMany: vi.fn(async () => ({ count: 0 })),
+            updateMany: vi.fn(async () => ({ count: 1 })),
+          },
           $queryRaw: executionScopeQueryRaw({ spaceId: "space-1", userId: "user-1" }, [
             { id: "group-1" },
           ]),
@@ -2023,11 +2028,13 @@ describe("sendThreadMessage", () => {
           message: {
             create: vi.fn().mockResolvedValue({ id: "msg-new", seq: 3 }),
             findMany: vi.fn().mockResolvedValue([ask]),
-            findFirst: vi.fn().mockResolvedValue({ id: approval ? "ask-old" : "newer-message" }),
+            findFirst: vi
+              .fn()
+              .mockResolvedValue({ id: scenario === "question" ? "newer-message" : "ask-old" }),
             update: vi.fn(),
           },
           run: {
-            findFirst: vi.fn().mockResolvedValue({ taskId: "task-old" }),
+            findFirst: vi.fn().mockResolvedValue({ taskId: "task-old", userId: "user-1" }),
             findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
               status: where.id === "run-waiting" ? "cancelled" : "queued",
             })),
@@ -2091,13 +2098,41 @@ describe("sendThreadMessage", () => {
             { text: "Keep working", mentions: ["bot-a"], clientNonce: "nonce-new" },
           ),
         ).resolves.toMatchObject({ runId: "run-new", runIds: ["run-new"] });
-        if (approval) {
+        if (scenario === "secret") {
           expect(tx.run.updateMany).not.toHaveBeenCalled();
+          expect(tx.externalEffect.updateMany).not.toHaveBeenCalled();
+          expect(tx.message.update).not.toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: "ask-old" } }),
+          );
+        } else if (scenario === "approval") {
+          expect(tx.run.updateMany).toHaveBeenCalledWith({
+            where: expect.objectContaining({ id: "run-waiting", status: "waiting_input" }),
+            data: expect.objectContaining({ status: "cancelled" }),
+          });
+          expect(tx.externalEffect.updateMany).toHaveBeenCalledWith({
+            where: { id: { in: ["effect-1"] }, runId: "run-waiting", status: "intended" },
+            data: { status: "denied" },
+          });
+          expect(tx.attempt.updateMany).toHaveBeenCalledWith({
+            where: { runId: "run-waiting", status: "waiting_input" },
+            data: expect.objectContaining({ status: "cancelled" }),
+          });
+          expect(tx.task.updateMany).toHaveBeenCalledWith({
+            where: expect.objectContaining({ id: "task-old" }),
+            data: { status: "cancelled" },
+          });
+          expect(tx.message.update).not.toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: "ask-old" } }),
+          );
+          expect(tx.event.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({ runId: "run-waiting", type: "run.cancelled" }),
+          });
         } else {
           expect(tx.run.updateMany).toHaveBeenCalledWith({
             where: expect.objectContaining({ id: "run-waiting" }),
             data: expect.objectContaining({ status: "cancelled" }),
           });
+          expect(tx.externalEffect.updateMany).not.toHaveBeenCalled();
           expect(tx.message.update).toHaveBeenCalledWith({
             where: { id: "ask-old" },
             data: {

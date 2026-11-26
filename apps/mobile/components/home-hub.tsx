@@ -524,9 +524,7 @@ export function HomeHub({
             testID="home-hub-weather"
             accessibilityRole="button"
             accessibilityLabel={`${resolvedWeather.temperatureC}°C ${weatherLabel}`}
-            onPress={() => {
-              if (weather === undefined) void refreshWeather(true);
-            }}
+            onPress={() => router.push("/weather")}
             hitSlop={4}
             style={{
               flexDirection: "row",

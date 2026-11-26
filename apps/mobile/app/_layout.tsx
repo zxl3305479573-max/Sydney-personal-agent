@@ -589,6 +589,16 @@ function LayoutContent() {
                         )}
                       />
                       <Stack.Screen
+                        name="weather"
+                        options={glassHeaderOptions(
+                          locale.startsWith("zh")
+                            ? locale === "zh-TW"
+                              ? "天氣"
+                              : "天气"
+                            : "Weather",
+                        )}
+                      />
+                      <Stack.Screen
                         name="map"
                         options={glassHeaderOptions(
                           locale.startsWith("zh") ? "地图与导航" : "Map & Navigation",

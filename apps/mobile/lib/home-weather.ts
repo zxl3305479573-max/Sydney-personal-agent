@@ -5,11 +5,34 @@ import { AppState } from "react-native";
 
 export type HomeWeatherCondition = "sunny" | "cloudy" | "rainy" | "snowy";
 
+export type HomeWeatherHourlyItem = {
+  timeIso: string;
+  hourLabel: string;
+  temperatureC: number;
+  condition: HomeWeatherCondition;
+  isDay: boolean;
+};
+
+export type HomeWeatherDailyItem = {
+  dateIso: string;
+  highC: number;
+  lowC: number;
+  condition: HomeWeatherCondition;
+};
+
 export type HomeWeatherSnapshot = {
   temperatureC: number;
   condition: HomeWeatherCondition;
   isDay: boolean;
   fetchedAt: number;
+  locationLabel?: string | null;
+  apparentTemperatureC?: number | null;
+  humidityPercent?: number | null;
+  windSpeedKmh?: number | null;
+  highC?: number | null;
+  lowC?: number | null;
+  hourly?: HomeWeatherHourlyItem[];
+  daily?: HomeWeatherDailyItem[];
 };
 
 export type HomeWeatherSymbol = {
@@ -32,7 +55,12 @@ const WWO_SNOW_CODES = new Set([
 const WWO_CLOUDY_CODES = new Set([116, 119, 122, 143, 248, 260]);
 
 let cachedWeather: HomeWeatherSnapshot | null = null;
-let cachedCoords: { latitude: number; longitude: number; fetchedAt: number } | null = null;
+let cachedCoords: {
+  latitude: number;
+  longitude: number;
+  locationLabel: string | null;
+  fetchedAt: number;
+} | null = null;
 let inFlightFetch: Promise<HomeWeatherSnapshot | null> | null = null;
 
 export function isDaytimeHour(date: Date): boolean {
@@ -97,6 +125,21 @@ export function homeWeatherSymbol(
   }
 }
 
+function padTwo(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function finiteRounded(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.round(num) : null;
+}
+
+function extractHourLabel(timeIso: string): string {
+  const match = /T(\d{2}):(\d{2})/.exec(timeIso);
+  if (match) return `${match[1]}:00`;
+  return timeIso.slice(-5) || timeIso;
+}
+
 async function fetchJsonWithTimeout(
   url: string,
   signal?: AbortSignal,
@@ -124,9 +167,13 @@ async function fetchJsonWithTimeout(
 async function resolveApproxCoords(
   nowMs: number,
   signal?: AbortSignal,
-): Promise<{ latitude: number; longitude: number } | null> {
+): Promise<{ latitude: number; longitude: number; locationLabel: string | null } | null> {
   if (cachedCoords && nowMs - cachedCoords.fetchedAt < COORDS_TTL_MS) {
-    return { latitude: cachedCoords.latitude, longitude: cachedCoords.longitude };
+    return {
+      latitude: cachedCoords.latitude,
+      longitude: cachedCoords.longitude,
+      locationLabel: cachedCoords.locationLabel,
+    };
   }
   const raw = await fetchJsonWithTimeout(GEO_URL, signal);
   if (!raw || typeof raw !== "object") return null;
@@ -135,8 +182,85 @@ async function resolveApproxCoords(
   const longitude = Number(record.longitude);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
-  cachedCoords = { latitude, longitude, fetchedAt: nowMs };
-  return { latitude, longitude };
+  const city = typeof record.city === "string" ? record.city.trim() : "";
+  const region = typeof record.region === "string" ? record.region.trim() : "";
+  const locationLabel = city || region || null;
+  cachedCoords = { latitude, longitude, locationLabel, fetchedAt: nowMs };
+  return { latitude, longitude, locationLabel };
+}
+
+function parseOpenMeteoHourly(
+  hourlyRaw: unknown,
+  currentTimeIso: string | undefined,
+  now: Date,
+): HomeWeatherHourlyItem[] {
+  if (!hourlyRaw || typeof hourlyRaw !== "object") return [];
+  const hourly = hourlyRaw as Record<string, unknown>;
+  const times = Array.isArray(hourly.time) ? hourly.time : [];
+  const temps = Array.isArray(hourly.temperature_2m) ? hourly.temperature_2m : [];
+  const codes = Array.isArray(hourly.weather_code) ? hourly.weather_code : [];
+  const days = Array.isArray(hourly.is_day) ? hourly.is_day : [];
+
+  const currentHourPrefix =
+    typeof currentTimeIso === "string" && currentTimeIso.length >= 13
+      ? currentTimeIso.slice(0, 13)
+      : `${now.getFullYear()}-${padTwo(now.getMonth() + 1)}-${padTwo(now.getDate())}T${padTwo(now.getHours())}`;
+
+  let startIndex = times.findIndex(
+    (entry) => typeof entry === "string" && entry.slice(0, 13) >= currentHourPrefix,
+  );
+  if (startIndex < 0) startIndex = 0;
+
+  const items: HomeWeatherHourlyItem[] = [];
+  for (let i = startIndex; i < times.length && items.length < 12; i += 1) {
+    const timeIso = times[i];
+    const temp = finiteRounded(temps[i]);
+    const code = Number(codes[i]);
+    if (typeof timeIso !== "string" || temp === null || !Number.isFinite(code)) continue;
+    const isDayVal = days[i];
+    const hourNum = Number(extractHourLabel(timeIso).slice(0, 2));
+    const isDay =
+      isDayVal === 1 || isDayVal === 0
+        ? isDayVal === 1
+        : Number.isFinite(hourNum)
+          ? hourNum >= 6 && hourNum < 18
+          : isDaytimeHour(now);
+    items.push({
+      timeIso,
+      hourLabel: extractHourLabel(timeIso),
+      temperatureC: temp,
+      condition: mapWmoWeatherCondition(code),
+      isDay,
+    });
+  }
+  return items;
+}
+
+function parseOpenMeteoDaily(dailyRaw: unknown): HomeWeatherDailyItem[] {
+  if (!dailyRaw || typeof dailyRaw !== "object") return [];
+  const daily = dailyRaw as Record<string, unknown>;
+  const times = Array.isArray(daily.time) ? daily.time : [];
+  const highs = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
+  const lows = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min : [];
+  const codes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
+
+  const items: HomeWeatherDailyItem[] = [];
+  for (let i = 0; i < times.length && items.length < 7; i += 1) {
+    const dateIso = times[i];
+    const highC = finiteRounded(highs[i]);
+    const lowC = finiteRounded(lows[i]);
+    const code = Number(codes[i]);
+    if (typeof dateIso !== "string" || highC === null || lowC === null || !Number.isFinite(code)) {
+      continue;
+    }
+    items.push({
+      dateIso,
+      highC,
+      lowC,
+      condition: mapWmoWeatherCondition(code),
+    });
+  }
+  return items;
 }
 
 async function fetchFromOpenMeteo(
@@ -149,39 +273,113 @@ async function fetchFromOpenMeteo(
     coords.latitude.toFixed(4),
   )}&longitude=${encodeURIComponent(
     coords.longitude.toFixed(4),
-  )}&current=temperature_2m,weather_code,is_day&timezone=auto`;
+  )}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto`;
   const raw = await fetchJsonWithTimeout(url, signal);
   if (!raw || typeof raw !== "object") return null;
-  const current = (raw as { current?: Record<string, unknown> }).current;
+  const body = raw as Record<string, unknown>;
+  const current = body.current as Record<string, unknown> | undefined;
   if (!current || typeof current !== "object") return null;
-  const temp = Number(current.temperature_2m);
+  const temp = finiteRounded(current.temperature_2m);
   const code = Number(current.weather_code);
-  if (!Number.isFinite(temp) || !Number.isFinite(code)) return null;
+  if (temp === null || !Number.isFinite(code)) return null;
   const isDay =
     current.is_day === 1 || current.is_day === 0 ? current.is_day === 1 : isDaytimeHour(now);
+  const hourly = parseOpenMeteoHourly(
+    body.hourly,
+    typeof current.time === "string" ? current.time : undefined,
+    now,
+  );
+  const daily = parseOpenMeteoDaily(body.daily);
   return {
-    temperatureC: Math.round(temp),
+    temperatureC: temp,
     condition: mapWmoWeatherCondition(code),
     isDay,
     fetchedAt: now.getTime(),
+    locationLabel: coords.locationLabel,
+    apparentTemperatureC: finiteRounded(current.apparent_temperature),
+    humidityPercent: finiteRounded(current.relative_humidity_2m),
+    windSpeedKmh: finiteRounded(current.wind_speed_10m),
+    highC: daily[0]?.highC ?? null,
+    lowC: daily[0]?.lowC ?? null,
+    hourly,
+    daily,
   };
+}
+
+function parseWttrLocation(raw: Record<string, unknown>): string | null {
+  const areas = Array.isArray(raw.nearest_area) ? raw.nearest_area : [];
+  const first = areas[0] as Record<string, unknown> | undefined;
+  const areaNames = first && Array.isArray(first.areaName) ? first.areaName : [];
+  const entry = areaNames[0] as Record<string, unknown> | undefined;
+  return typeof entry?.value === "string" && entry.value.trim() ? entry.value.trim() : null;
 }
 
 async function fetchFromWttr(now: Date, signal?: AbortSignal): Promise<HomeWeatherSnapshot | null> {
   const raw = await fetchJsonWithTimeout(WTTR_URL, signal);
   if (!raw || typeof raw !== "object") return null;
-  const list = (raw as { current_condition?: unknown[] }).current_condition;
-  const first = Array.isArray(list) ? list[0] : undefined;
+  const body = raw as Record<string, unknown>;
+  const list = Array.isArray(body.current_condition) ? body.current_condition : [];
+  const first = list[0];
   if (!first || typeof first !== "object") return null;
   const record = first as Record<string, unknown>;
-  const temp = Number(record.temp_C);
+  const temp = finiteRounded(record.temp_C);
   const code = Number(record.weatherCode);
-  if (!Number.isFinite(temp) || !Number.isFinite(code)) return null;
+  if (temp === null || !Number.isFinite(code)) return null;
+
+  const daysRaw = Array.isArray(body.weather) ? body.weather : [];
+  const daily: HomeWeatherDailyItem[] = [];
+  const hourly: HomeWeatherHourlyItem[] = [];
+
+  for (const item of daysRaw) {
+    if (!item || typeof item !== "object") continue;
+    const day = item as Record<string, unknown>;
+    const dateIso = typeof day.date === "string" ? day.date : "";
+    const highC = finiteRounded(day.maxtempC);
+    const lowC = finiteRounded(day.mintempC);
+    const dayHours = Array.isArray(day.hourly) ? day.hourly : [];
+    const midday = dayHours[Math.floor(dayHours.length / 2)] as Record<string, unknown> | undefined;
+    const dayCode = Number(midday?.weatherCode ?? code);
+    if (dateIso && highC !== null && lowC !== null) {
+      daily.push({
+        dateIso,
+        highC,
+        lowC,
+        condition: mapWwoWeatherCondition(Number.isFinite(dayCode) ? dayCode : code),
+      });
+    }
+    if (hourly.length < 12) {
+      for (const slotRaw of dayHours) {
+        if (hourly.length >= 12 || !slotRaw || typeof slotRaw !== "object") break;
+        const slot = slotRaw as Record<string, unknown>;
+        const slotTemp = finiteRounded(slot.tempC);
+        const slotCode = Number(slot.weatherCode);
+        const rawTime = Number(slot.time ?? 0);
+        const hour = Math.max(0, Math.min(23, Math.floor(rawTime / 100)));
+        if (slotTemp === null || !Number.isFinite(slotCode)) continue;
+        hourly.push({
+          timeIso: `${dateIso}T${padTwo(hour)}:00`,
+          hourLabel: `${padTwo(hour)}:00`,
+          temperatureC: slotTemp,
+          condition: mapWwoWeatherCondition(slotCode),
+          isDay: hour >= 6 && hour < 18,
+        });
+      }
+    }
+  }
+
   return {
-    temperatureC: Math.round(temp),
+    temperatureC: temp,
     condition: mapWwoWeatherCondition(code),
     isDay: isDaytimeHour(now),
     fetchedAt: now.getTime(),
+    locationLabel: parseWttrLocation(body),
+    apparentTemperatureC: finiteRounded(record.FeelsLikeC),
+    humidityPercent: finiteRounded(record.humidity),
+    windSpeedKmh: finiteRounded(record.windspeedKmph),
+    highC: daily[0]?.highC ?? null,
+    lowC: daily[0]?.lowC ?? null,
+    hourly,
+    daily,
   };
 }
 
@@ -210,6 +408,10 @@ export async function fetchLiveHomeWeather(
   return null;
 }
 
+export function getCachedHomeWeather(): HomeWeatherSnapshot | null {
+  return cachedWeather;
+}
+
 export function resetHomeWeatherCacheForTest(): void {
   cachedWeather = null;
   cachedCoords = null;
@@ -217,13 +419,15 @@ export function resetHomeWeatherCacheForTest(): void {
 }
 
 /**
- * Keeps live weather and local clock in sync on the HomeHub:
+ * Keeps live weather and local clock in sync on the HomeHub & Weather Detail screens:
  * - refreshes immediately when stale (> 5m), every 15m while active, on foreground resume, and on manual refresh;
  * - updates day/night indicator every minute so icons shift smoothly as time changes.
  */
 export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date }): {
   weather: HomeWeatherSnapshot | null;
   clockNow: Date;
+  loading: boolean;
+  error: boolean;
   refreshWeather: (force?: boolean) => Promise<void>;
 } {
   const enabled = options?.enabled ?? true;
@@ -231,6 +435,8 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
   const [weather, setWeather] = useState<HomeWeatherSnapshot | null>(() =>
     enabled ? cachedWeather : null,
   );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [clockNow, setClockNow] = useState<Date>(() => fixedNow ?? new Date());
   const mountedRef = useRef(true);
 
@@ -239,17 +445,27 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
       if (!enabled) return;
       const nowMs = Date.now();
       if (!force && cachedWeather && nowMs - cachedWeather.fetchedAt < WEATHER_STALE_MS) {
-        if (mountedRef.current) setWeather(cachedWeather);
+        if (mountedRef.current) {
+          setWeather(cachedWeather);
+          setError(false);
+        }
         return;
       }
+      if (mountedRef.current) setLoading(true);
       if (!inFlightFetch) {
         inFlightFetch = fetchLiveHomeWeather(undefined, new Date()).finally(() => {
           inFlightFetch = null;
         });
       }
       const next = await inFlightFetch;
-      if (mountedRef.current && next) {
-        setWeather(next);
+      if (mountedRef.current) {
+        setLoading(false);
+        if (next) {
+          setWeather(next);
+          setError(false);
+        } else if (!cachedWeather) {
+          setError(true);
+        }
       }
     },
     [enabled],
@@ -297,7 +513,6 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
     weather && !fixedNow
       ? {
           ...weather,
-          // Keep day/night icon aligned with local time if the snapshot predates a day/night crossing.
           isDay:
             Date.now() - weather.fetchedAt > 2 * 60 * 1000
               ? isDaytimeHour(clockNow)
@@ -305,5 +520,5 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
         }
       : weather;
 
-  return { weather: effectiveWeather, clockNow, refreshWeather };
+  return { weather: effectiveWeather, clockNow, loading, error, refreshWeather };
 }

@@ -24,6 +24,7 @@ import {
   followThreadEvents,
   pauseRunForInput,
   pauseRunForTakeover,
+  retireWaitingApprovalInTransaction,
   sendUserMessage,
   settleReleasedTakeoverCards,
 } from "./events.js";
@@ -2298,6 +2299,199 @@ describe("answerRunInput", () => {
         ],
       },
     });
+  });
+});
+
+describe("retireWaitingApprovalInTransaction", () => {
+  function makeTx(
+    messages: Array<{ id: string; blocks: unknown[] }>,
+    overrides: { runFound?: boolean; updateCount?: number } = {},
+  ) {
+    let nextEventSeq = 4;
+    return {
+      run: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue(
+            overrides.runFound === false ? null : { taskId: "task-1", userId: "user-1" },
+          ),
+        updateMany: vi.fn().mockResolvedValue({ count: overrides.updateCount ?? 1 }),
+        findUnique: vi.fn().mockResolvedValue({ status: "cancelled" }),
+      },
+      message: {
+        findMany: vi.fn().mockResolvedValue(messages),
+        update: vi.fn(),
+      },
+      externalEffect: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      attempt: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      task: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      thread: { update: vi.fn(async () => ({ nextEventSeq: ++nextEventSeq })) },
+      event: {
+        create: vi.fn(async ({ data }: { data: { seq: number; type: string } }) => ({
+          ...event(data.seq),
+          type: data.type,
+        })),
+      },
+    };
+  }
+
+  const input = {
+    spaceId: "workspace-1",
+    threadId: "thread-1",
+    botId: "bot-1",
+    runId: "run-1",
+  };
+
+  it("cancels a waiting approval run, denies open approval effects, and emits run.cancelled", async () => {
+    const tx = makeTx([
+      {
+        id: "msg-prev",
+        blocks: [
+          {
+            kind: "ask",
+            text: "Earlier approval",
+            status: "answered",
+            answer: "allow",
+            approvalEffectId: "effect-old",
+          },
+        ],
+      },
+      {
+        id: "msg-open",
+        blocks: [
+          {
+            kind: "ask",
+            text: "Review before web_fetch → openai.com",
+            status: "pending",
+            approvalEffectId: "effect-open",
+            actions: [
+              { id: "allow", label: "Allow once" },
+              { id: "always", label: "Always allow" },
+              { id: "deny", label: "Deny" },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    await expect(retireWaitingApprovalInTransaction(tx as never, input)).resolves.toBe(true);
+
+    expect(tx.run.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "run-1",
+        spaceId: "workspace-1",
+        threadId: "thread-1",
+        botId: "bot-1",
+        status: "waiting_input",
+      },
+      data: expect.objectContaining({
+        status: "cancelled",
+        checkpoint: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      }),
+    });
+    expect(tx.externalEffect.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["effect-open"] }, runId: "run-1", status: "intended" },
+      data: { status: "denied" },
+    });
+    expect(tx.externalEffect.deleteMany).toHaveBeenCalledWith({
+      where: {
+        runId: "run-1",
+        kind: "runtime_checkpoint",
+        status: "runtime_checkpoint",
+      },
+    });
+    expect(tx.secret.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.attempt.updateMany).toHaveBeenCalledWith({
+      where: { runId: "run-1", status: "waiting_input" },
+      data: expect.objectContaining({ status: "cancelled" }),
+    });
+    expect(tx.task.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "task-1" }),
+      data: { status: "cancelled" },
+    });
+    expect(tx.message.update).not.toHaveBeenCalled();
+    expect(tx.event.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        spaceId: "workspace-1",
+        threadId: "thread-1",
+        botId: "bot-1",
+        runId: "run-1",
+        type: "run.cancelled",
+      }),
+    });
+  });
+
+  it.each([
+    {
+      name: "secret card",
+      blocks: [{ kind: "ask", text: "Enter API key", status: "pending", input: "secret" }],
+    },
+    {
+      name: "mixed secret and approval card",
+      blocks: [
+        { kind: "ask", text: "Enter API key", status: "pending", input: "secret" },
+        {
+          kind: "ask",
+          text: "Review before web_fetch",
+          status: "pending",
+          approvalEffectId: "effect-mixed",
+        },
+      ],
+    },
+    {
+      name: "ordinary question without approvalEffectId",
+      blocks: [{ kind: "ask", text: "Which city?", status: "pending" }],
+    },
+    {
+      name: "already-answered approval card",
+      blocks: [
+        {
+          kind: "ask",
+          text: "Review before web_fetch",
+          status: "answered",
+          answer: "deny",
+          approvalEffectId: "effect-done",
+        },
+      ],
+    },
+  ])("leaves $name untouched", async ({ blocks }) => {
+    const tx = makeTx([{ id: "msg-1", blocks }]);
+
+    await expect(retireWaitingApprovalInTransaction(tx as never, input)).resolves.toBe(false);
+
+    expect(tx.run.updateMany).not.toHaveBeenCalled();
+    expect(tx.externalEffect.updateMany).not.toHaveBeenCalled();
+    expect(tx.event.create).not.toHaveBeenCalled();
+  });
+
+  it("returns false when the run is no longer waiting_input", async () => {
+    const tx = makeTx(
+      [
+        {
+          id: "msg-1",
+          blocks: [
+            {
+              kind: "ask",
+              text: "Review before web_fetch",
+              status: "pending",
+              approvalEffectId: "effect-1",
+            },
+          ],
+        },
+      ],
+      { updateCount: 0 },
+    );
+
+    await expect(retireWaitingApprovalInTransaction(tx as never, input)).resolves.toBe(false);
+
+    expect(tx.externalEffect.updateMany).not.toHaveBeenCalled();
+    expect(tx.event.create).not.toHaveBeenCalled();
   });
 });
 

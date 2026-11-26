@@ -1,5 +1,38 @@
 # 验证记录
 
+## 审批卡在新指令发送后自动取消（2026-11-25）
+
+关联 PA-018／PA-022。
+
+- **首轮暴露问题与修复**：
+  - `packages/db/src/events.test.ts` 新增 `retireWaitingApprovalInTransaction` 单测初版将 `RUN_TURN_CHECKPOINT_KIND` 断言误写为 `"run_turn_checkpoint"`，实际常量值为 `"runtime_checkpoint"`，已修正；另修复 `events.test.ts` 与 `typed-reply.postgres.test.ts` 2 处 Biome 换行格式。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖 `packages/db/src/events.ts`、`packages/db/src/events.test.ts`、`apps/api/src/thread-target.ts`、`apps/api/src/thread-target.test.ts`、`apps/api/src/typed-reply.postgres.test.ts`）：**5 / 5 文件 0 错误、0 格式差异**。
+  - **TypeScript 类型检查**：`tsc --noEmit -p packages/db/tsconfig.json` 与 `tsc --noEmit -p apps/api/tsconfig.json` **全部 0 错误通过**。
+  - **定向 Vitest 回归（4 个文件、296 项测试全部通过、0 失败）**：
+    - `packages/db/src/events.test.ts`（171 项通过，含新增 `retireWaitingApprovalInTransaction` 6 项：覆盖取消待审批 Run、拒绝未决 `externalEffect`、清理 checkpoint/run 密钥、取消 Attempt/Task、发送 `run.cancelled`、保留密钥卡／混合卡／普通问询／已答审批及并发状态守卫）
+    - `packages/db/src/run-secrets.test.ts`（4 项通过）
+    - `apps/api/src/thread-target.test.ts`（97 项通过，含单聊与群聊发送对问询淘汰、审批卡自动取消且 `externalEffect` 置 `denied`、密钥卡保持待处理验证）
+    - `apps/api/src/routes/project-workspace-thread.test.ts`（24 项通过）
+  - **差异空白检查**：`git diff --check`（全部改动源码、测试与 `docx/` 文档）：**0 警告通过**。
+- **未执行项（不以离线测试替代）**：
+  - 未启动本机 PostgreSQL 运行 `apps/api/src/typed-reply.postgres.test.ts` 实库集成测试（需 `VERIFY_DATABASE=1` 与真实数据库或 GitHub CI 验证）。
+  - 未执行提交、推送或授权服务器后端部署与真机端到端复测（本次为后端改动，需部署 API 服务后在线上生效）。
+
+## 首页天气点击进入天气详情页 `/weather`（2026-11-25）
+
+关联 PA-021。
+
+- 定向 Vitest（5 个文件，20 项全部通过、0 失败）：
+  - `apps/mobile/lib/home-weather.test.ts`（5 项通过：覆盖城市、体感/湿度/风速、逐小时及 7 天预报解析与降级）
+  - `apps/mobile/lib/weather-screen.test.tsx`（2 项通过：覆盖详情页渲染、刷新按钮及失败重试）
+  - `apps/mobile/lib/home-hub.test.tsx`（6 项通过：含点击首页天气胶囊跳转 `/weather`）
+  - `apps/mobile/lib/screen-theme-coverage.test.ts`（6 项通过：验证新页面 `weather.tsx` 正确接入 `useScreenBackground`）
+  - `apps/mobile/lib/scroll-hygiene.test.ts`（1 项通过：验证全页面含 `weather.tsx` 隐藏竖向/横向滚动条）
+- `pnpm --filter @rakazo/mobile exec tsc --noEmit`：0 错误通过。
+- `git diff --check`（本批修改文件）：0 警告通过。
+- 未执行：真实公网定位及 iPhone 真机 OTA 后视觉与交互验收。
+
 ## 手机 App 后台陪伴完善与首页地图／高德导航组件（2026-11-25）
 
 关联 PA-021。专项评测见 [COMPANION_MAP_EVALUATION.md](COMPANION_MAP_EVALUATION.md)。

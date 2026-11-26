@@ -1,5 +1,17 @@
 # Sydney 开发总计划
 
+## 审批卡在新指令发送后自动取消（PA-018／PA-022，2026-11-25）
+
+状态：源码实现与本机定向离线验证已完成（PostgreSQL 集成测试与生产后端部署验收待具备数据库／服务器授权后执行；未提交或推送）。
+
+范围与交付物：
+- 根因定位：此前用户发送新指令时，`sendThreadMessage` 仅会放行／淘汰普通问询卡片，而 `retireWaitingQuestionInTransaction` 显式跳过含 `approvalEffectId` 的审批卡且 `holdingRuns` 排除 `waiting_input`，导致新 Run 正常执行结束后，旧审批 Run 仍孤立停留在 `waiting_input`（最长可持续 24 小时），使首页、聊天列表、会话顶栏与底部停止按钮持续显示「等待输入」。
+- 数据库事务取消逻辑：`packages/db/src/events.ts` 新增并导出 `retireWaitingApprovalInTransaction`，在用户发送新消息的同一线程行锁事务内，将待审批的 `waiting_input` Run 置为 `cancelled`、将其未决审批 `externalEffect` 显式置为 `denied`（绝不隐式批准）、清理 turn checkpoint 与一次性 run 密钥、取消 `waiting_input` Attempt 与无活跃子 Run 的 Task，并追加 `run.cancelled` 事件（保持卡片原 `pending` 块不被篡改，移动端／Web 端即刻回落为「已失效」／`No longer active`）；严格保留 `input: "secret"` 密钥／登录／验证码卡片及含密钥混合卡为待处理状态。
+- 发送链路接入：`apps/api/src/thread-target.ts` 在 `sendThreadMessage` 的单聊与群聊分支中（覆盖 `threads/send`、`threads/sendWithRoutines` 及 `projectWorkspaces/sendText`），当 `waiting_input` Run 未被文本回答也未被当作普通问询淘汰时，自动调用 `retireWaitingApprovalInTransaction`（同时覆盖纯附件无文本指令；群聊严格按 `targetBotIds` 隔离，不误伤未被 `@` 的同伴审批卡）。
+- 测试与离线验证：新增 `packages/db/src/events.test.ts` 的 `retireWaitingApprovalInTransaction` 单元测试，升级 `apps/api/src/thread-target.test.ts` 单／群聊覆盖「普通问询 / 审批卡 / 密钥卡」三类场景，并更新 `apps/api/src/typed-reply.postgres.test.ts` 校验审批自动取消与后续 `answerRunInput("allow")` 拒绝。5 文件 Biome 0 错误、`packages/db` 与 `apps/api` `tsc --noEmit` 0 错误、4 个 Vitest 文件（296 项）全绿、`git diff --check` 0 警告，详见 [验证记录](VALIDATION.md#审批卡在新指令发送后自动取消2026-11-25)。
+
+依赖与验收条件：纯后端／数据层改动，不新增依赖、不修改移动端或 PC 端前端，不执行提交或推送；需将本次后端提交部署至授权服务器并重启 API 服务后，线上新旧卡住的审批卡才会在用户发出下一条指令时自动取消（仅手机 OTA 无法更新服务端行为）。
+
 ## 手机 App 后台陪伴完善与首页地图／高德导航组件（PA-021，2026-11-25）
 
 状态：源码实现、Stop That Shit 专项评测与本机定向离线验证已完成（真实 iPhone 悬浮胶囊触控、本地通知、高德底图瓦片加载、`iosamap://` 拉起高德地图 App 及新 IPA 原生 GPS／灵动岛扩展待真机验收；未提交或推送）。

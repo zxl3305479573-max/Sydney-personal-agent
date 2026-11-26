@@ -1273,6 +1273,78 @@ export async function retireWaitingQuestionInTransaction(
   return true;
 }
 
+/**
+ * Auto-cancels a run paused on a pending approval card when the user sends a new instruction.
+ * Denies open approval effects and never approves them; secret/credential cards stay pending.
+ * The caller holds the thread row lock acquired while accepting the new user message.
+ */
+export async function retireWaitingApprovalInTransaction(
+  tx: Prisma.TransactionClient,
+  input: { spaceId: string; threadId: string; botId: string; runId: string },
+): Promise<boolean> {
+  const where = {
+    id: input.runId,
+    spaceId: input.spaceId,
+    threadId: input.threadId,
+    botId: input.botId,
+    status: "waiting_input",
+  };
+  const run = await tx.run.findFirst({ where, select: { taskId: true, userId: true } });
+  if (!run) return false;
+  const messages = await tx.message.findMany({
+    where: { threadId: input.threadId, runId: input.runId, role: "bot" },
+    select: { id: true, blocks: true },
+  });
+  const approvalEffectIds: string[] = [];
+  for (const message of messages) {
+    const parsed = MessageBlockSchema.array().safeParse(message.blocks);
+    if (!parsed.success) return false;
+    const pending = parsed.data.filter(
+      (block) => block.kind === "ask" && block.status !== "answered",
+    );
+    // Never implicitly dismiss credentials, even on a mixed card.
+    if (pending.some((block) => block.kind === "ask" && block.input === "secret")) return false;
+    for (const block of pending) {
+      if (block.kind === "ask" && block.approvalEffectId) {
+        approvalEffectIds.push(block.approvalEffectId);
+      }
+    }
+  }
+  if (!approvalEffectIds.length) return false;
+  const now = new Date();
+  const retired = await tx.run.updateMany({
+    where,
+    data: {
+      status: "cancelled",
+      completedAt: now,
+      checkpoint: null,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    },
+  });
+  if (retired.count !== 1) return false;
+  await tx.externalEffect.updateMany({
+    where: { id: { in: approvalEffectIds }, runId: input.runId, status: "intended" },
+    data: { status: "denied" },
+  });
+  await tx.externalEffect.deleteMany({
+    where: { runId: input.runId, kind: RUN_TURN_CHECKPOINT_KIND, status: RUN_TURN_CHECKPOINT_KIND },
+  });
+  await deleteRunSecretsInTransaction(tx, [
+    { id: input.runId, userId: run.userId, spaceId: input.spaceId },
+  ]);
+  await tx.attempt.updateMany({
+    where: { runId: input.runId, status: "waiting_input" },
+    data: { status: "cancelled", finishedAt: now },
+  });
+  await tx.task.updateMany({
+    where: { id: run.taskId, runs: { none: { status: { in: [...ACTIVE_RUN_STATUSES] } } } },
+    data: { status: "cancelled" },
+  });
+  await appendEventInTransaction(tx, { ...input, type: "run.cancelled", payload: {} });
+  return true;
+}
+
 export async function retireSupersededIntroInTransaction(
   tx: Prisma.TransactionClient,
   input: { spaceId: string; threadId: string; botId: string; runId: string },
