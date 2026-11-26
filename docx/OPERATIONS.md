@@ -1,5 +1,16 @@
 # 运维手册
 
+## 生产后端 `4449e0033` 上线与 iPhone 1.0.34 侧载 OTA（2026-11-25）
+
+- **后端部署与健康核验**：提交 `4449e0033c3b0f0686c137900807713b42062728` 经 `CI` [Run 45777045011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045011) 一次全绿并由 `deploy-production`（Job `139765399121`）上线，零新增数据库迁移与环境变量；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均返回 HTTP `200`，自有 Bot 新增手机共享屏幕读取工具 `app_get_phone_screen`（受 `companion` 权限门控，不再误调用云电脑 `computer_observe`）。
+- **iPhone `1.0.34` 侧载 OTA**：已通过 `.github/workflows/mobile-ios-update.yml` [Run 45777114689](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777114689) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：
+  - 更新组 ID：`3f16f3ba-c1ce-4498-9583-d4c89f133050`；iOS 更新 ID：`01a216ce-6d2d-7540-a3ab-9025558d6eef`（`createdAt: 2026-11-26T07:42:36.845Z`）；
+  - 线上 Expo 清单 HTTP `200`（`version: "1.0.34"`、`releasedOn: "2026-11-25"`）、启动包 `11,228,856` 字节（SHA-256 `cfa6ee20b9cb4c9ccc15ff770ee4cc35ffd99e19686dbae54599d6360f4dcf44`）与全部 `55 / 55` 静态资源 HTTP `200` 且 SHA-256 核验通过。
+- **兼容性、新 IPA 构建与侧载签入灵动岛扩展要点**：
+  - 既有 `1.0.12`–`1.0.15` 侧载 IPA 在 App 内「设置 → 检查更新」拉取 `1.0.34` OTA 重启后立即可用首页顶栏按需更新胶囊与手机共享屏幕状态同步；如需使用原生 `peekScreenSnapshot` 实时中英双语 OCR 手机屏幕文字快照，待 `.github/workflows/mobile-ios-sideload.yml` [Run 45777045009](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045009) 产出 `1.0.16`（build `5`）无签名侧载 IPA 后覆盖重签安装。
+  - **使用 `iPASide` 侧载并启用灵动岛**：实测核验 `iPASide v1.2.14` 及更早版本默认无条件移除 `PlugIns/*.appex` 会导致灵动岛扩展缺失；必须升级至 **`iPASide v1.2.17` 及以上**，并在 `Advanced options` 中关闭 `Remove all extensions`、保持勾选 `Keep SydneyCompanionWidget` 且开启 `Own App ID for each kept extension` 后再签名覆盖安装。
+  - OTA 回退可按既有 `sideload` 通道重发上一版 `1.0.33`（更新 ID `01a216be-3b99-7636-88ef-ef00556dc0fa`）。真机实测待设备验收。
+
 ## iPhone 1.0.33 侧载 OTA（2026-11-25）
 
 - 提交 `57eaed795e4583842a0d05d1c603bcc05daa0e1a` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45774914989](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914989) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`，纯 JS／Reanimated／SVG 更新，无需重装 IPA）。

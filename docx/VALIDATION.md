@@ -1,5 +1,28 @@
 # 验证记录
 
+## 工作区提交推送、生产后端上线与 iPhone 1.0.34 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **提交前本机复验（全部通过）**：
+  - **Biome 检查**（覆盖全部 15 个改动 TS/TSX/JSON 文件，修正 `packages/adapters/src/run-tools-mobile-app.ts` 1 处 `useOptionalChain` 警告后复验）：**15 / 15 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit` 覆盖 `apps/mobile`、`packages/contracts`、`packages/adapters`、`packages/db`、`apps/api`）：**5 / 5 包 0 错误**。
+  - **定向与守卫 Vitest（12 个去重测试文件、245 / 245 项全部通过）**：
+    - `apps/mobile/lib/home-hub.test.tsx`（7 项）、`client-update.test.ts`（16 项）、`app-version.test.ts`（6 项，验证 `1.0.34` 发布清单）、`companion-activity.test.ts`（12 项）、`companion-screen-send.test.ts`（6 项）、`companion-screen-auto.test.ts`（13 项）、`mobile-bridge.test.tsx`（3 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）；
+    - `packages/adapters/src/run-tools-mobile-app.test.ts`（6 项）、`builtin-tool-bridge.test.ts`（7 项）、`executor.test.ts`（162 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **Git 提交、GitHub CI 生产部署与 iPhone `1.0.34` 侧载 OTA 线上核验（全部通过）**：
+  - 合并提交 `4449e0033c3b0f0686c137900807713b42062728` 已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - **`CI` 工作流** [Run 45777045011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045011)：**`completed / success`**（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Publish server images`、`Publish compatible mobile update` 与 `deploy-production` Job `139765399121` 一次全绿；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`）。
+  - **`Publish iOS sideload update`（`mobile-ios-update.yml`）** [Run 45777114689](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777114689)（`main`／`4449e0033`／`sydney-ios-ip-1`）：**`completed / success`**（`2026-11-26T07:40:44Z`–`07:42:41Z`）：
+    - Update Group ID：`3f16f3ba-c1ce-4498-9583-d4c89f133050`；iOS Update ID：`01a216ce-6d2d-7540-a3ab-9025558d6eef`（`createdAt: 2026-11-26T07:42:36.845Z`）；
+    - 线上 Expo 清单回读：HTTP `200`，`version: "1.0.34"`、`releasedOn: "2026-11-25"`、简中／繁中／英文更新说明各 3 条、`assetsCount: 55`；
+    - 启动包（`launchAsset`）：HTTP `200`，**`11,228,856` 字节**，SHA-256 `cfa6ee20b9cb4c9ccc15ff770ee4cc35ffd99e19686dbae54599d6360f4dcf44` 与清单 Base64URL 摘要完全一致；
+    - 静态资源全量复验（附带 multipart `extensions.assetRequestHeaders` 逐一拉取并校验哈希）：**`55 / 55` 全部 HTTP `200` 且 SHA-256 匹配（`0` 失败）**。
+- **进行中／未执行项**：
+  - `iOS unsigned sideload build` [Run 45777045009](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045009)（`1.0.16` / build `5`，含原生 `peekScreenSnapshot` 实时 OCR 快照）截至本记录写入时仍为 `in_progress`，出包与产物校验待完成后复核；
+  - 真实 iPhone 拉取 `1.0.34` OTA 后验证首页顶栏按需更新胶囊与手机共享屏幕调用 `app_get_phone_screen`（及重装 `1.0.16` IPA 后的实时 OCR 快照）待真机验收。
+
 ## 全 App 实时动态天气场景引擎与雨雪雷电落地特效（2026-11-25）
 
 关联 PA-021／REL-01。

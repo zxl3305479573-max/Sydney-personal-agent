@@ -1,5 +1,17 @@
 # Sydney 开发总计划
 
+## 工作区提交推送、生产后端上线与 iPhone 1.0.34 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
+
+状态：源码全量提交推送（`4449e0033c3b0f0686c137900807713b42062728`）、GitHub CI 与生产后端部署全绿（Run `45777045011`）、以及 iPhone `1.0.34` 侧载 OTA 发布与线上全资源核验（Run `45777114689`）均已完成；伴随 Swift 改动自动触发的 `1.0.16`（build `5`）无签名侧载 IPA 云端构建（Run `45777045009`）正在进行中；真实 iPhone 端 `1.0.34` 更新体验与共享屏幕联调待设备验收。
+
+范围与交付物：
+- **合并提交与版本递增**：将工作区 20 项改动（手机首页顶栏「已同步」替换为按需显示的版本更新胶囊 `home-hub.tsx`；手机共享屏幕只读工具 `app_get_phone_screen` 及契约／工具／提示词路由区分手机共享屏幕与云电脑 `computer_observe`；iOS 原生 `CompanionScreenCapture` 双语准确 OCR 与 `peekScreenSnapshot` 快照及移动端 4 秒共享期轮询；顺手修正 `packages/adapters/src/run-tools-mobile-app.ts` 1 处 Biome 可选链警告）递增为移动端 `1.0.34`（原生 `apps/mobile/app.json` `1.0.16` / build `5`），经 15 文件 Biome `0` 错误 `0` 警告、5 包 `tsc --noEmit` `0` 错误、12 套件 245 项 Vitest 全绿与 `git diff --check` `0` 警告后，提交为 `4449e0033c3b0f0686c137900807713b42062728` 并推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+- **生产后端部署与健康验证**：`CI` [Run 45777045011](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045011) 一次全绿通过（含 `Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Publish server images`、`Publish compatible mobile update` 及 `deploy-production` Job `139765399121`），生产 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`，`app_get_phone_screen` 后端路由已上线。
+- **iPhone `1.0.34` 侧载 OTA 与线上全资源核验**：`.github/workflows/mobile-ios-update.yml` [Run 45777114689](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777114689)（`main`／`4449e0033`／`sydney-ios-ip-1`）发布成功，更新组 `3f16f3ba-c1ce-4498-9583-d4c89f133050`、iOS 更新 ID `01a216ce-6d2d-7540-a3ab-9025558d6eef`（`createdAt: 2026-11-26T07:42:36.845Z`）；线上 Expo 清单 HTTP `200`（`version: "1.0.34"`、`releasedOn: "2026-11-25"`、三语说明各 3 条）、启动包 `11,228,856` 字节（SHA-256 `cfa6ee20b9cb4c9ccc15ff770ee4cc35ffd99e19686dbae54599d6360f4dcf44`）及全部 `55 / 55` 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **自动触发的 `1.0.16` 侧载 IPA 构建**：`.github/workflows/mobile-ios-sideload.yml` [Run 45777045009](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45777045009)（Job `139763108774`）正在编译 `1.0.16`（build `5`）无签名侧载 IPA（含原生 `peekScreenSnapshot` 实时 OCR 快照；既有 `1.0.12`–`1.0.15` 底座可直接拉取 `1.0.34` OTA 立即获得首页按需更新胶囊与手机屏幕共享状态路由，无需强依赖新 IPA）。详见 [验证记录](VALIDATION.md#工作区提交推送生产后端上线与-iphone-1034-侧载-ota-发布2026-11-25) 与 [运维手册](OPERATIONS.md#生产后端-4449e0033-上线与-iphone-1034-侧载-ota2026-11-25)。
+
+依赖与验收条件：零新增依赖与零新增数据库迁移；既有 `1.0.12`–`1.0.15` 侧载 IPA 拉取 `1.0.34` OTA 重启后立即可用首页顶栏按需更新胶囊与 `app_get_phone_screen` 共享状态同步，如需实时中英双语 OCR 手机屏幕文字快照则待 `1.0.16` IPA 出包并保留 `SydneyCompanionWidget` 扩展重签后真机验收。
+
 ## 全 App 实时动态天气场景引擎与雨雪雷电落地特效（PA-021／REL-01，2026-11-25）
 
 状态：源码实现、本机定向离线验证、独立提交推送（`57eaed795e4583842a0d05d1c603bcc05daa0e1a`）、GitHub CI 全绿（Run `45774914514`）及 iPhone `1.0.33` 侧载 OTA 发布与线上全资源核验（Run `45774914989`）均已完成；真实 iPhone 端 60fps 动效观感、浅／深色对比度、雨滴落地水花与雷电闪光实机体验待设备更新后验收。
@@ -20,7 +32,7 @@
 
 ## 手机首页顶栏「已同步」替换为按需显示的版本更新组件（PA-021，2026-11-25）
 
-状态：源码实现与本机定向离线验证已完成（真实 iPhone 在有／无新版本 OTA 时的展示与点击更新流程待发版后实机验收；未提交或推送）。
+状态：已完成源码实现、本机验证并随 `4449e0033` 提交推送与 `1.0.34` 侧载 OTA（Run `45777114689`）上线（真实 iPhone 在有／无新版本 OTA 时的展示与点击更新流程待设备更新后验收）。
 
 范围与交付物：
 - **首页顶栏按需更新胶囊**：修改 `apps/mobile/components/home-hub.tsx`，移除最上方原「已同步／N 运行中／同步中…／重试同步」状态胶囊（下拉刷新 `RefreshControl` 与项目卡片中的运行数环仍保持不变），改为接入既有 `useClientUpdateState()`、`sydneyReleaseFromManifest()` 与 `promptForAvailableUpdate()`：
