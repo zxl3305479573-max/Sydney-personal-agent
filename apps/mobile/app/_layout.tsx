@@ -318,8 +318,9 @@ function LayoutContent() {
     const rawBot = Array.isArray(globalParams.botId) ? globalParams.botId[0] : globalParams.botId;
     setCompanionOpenThreadBotId(pathname === "/thread" && rawBot ? rawBot : null);
   }, [pathname, globalParams.botId]);
+  const router = useRouter();
   useCompanionThreadWatch(ready);
-  useMobileBridgeSync(ready);
+  useMobileBridgeSync(ready, router);
   const navigationHidden = useMainNavigationHidden();
   const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
   const screen = analyticsScreen(pathname);

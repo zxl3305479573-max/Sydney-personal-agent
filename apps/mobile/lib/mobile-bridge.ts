@@ -12,24 +12,9 @@ import {
   isMobilePermissionEnabled,
 } from "@rakazo/contracts";
 import type { Href } from "expo-router";
-import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { AppState, Platform } from "react-native";
-import { openInAmapNavigation } from "./amap-navigation";
 import { loadSessionToken, rpc, selectedSpaceId } from "./api";
-import { getAppVersionInfo } from "./app-version";
-import {
-  getActiveCompanionSession,
-  getCachedCompanionPreferences,
-  getCompanionSessionState,
-  startUnifiedCompanion,
-  stopUnifiedCompanion,
-  subscribeCompanionSessionState,
-  switchUnifiedCompanionBot,
-} from "./companion-session";
-import { getCachedHomeWeather } from "./home-weather";
-import { getCachedUserLocation, loadSavedMapLocation, subscribeUserLocation } from "./map-location";
-import { loadRecentMapDestinations } from "./map-search";
 import {
   createNativeCalendarEvent,
   createNativeReminder,
@@ -54,6 +39,15 @@ export type MobileActionExecutionResult = {
 };
 
 type RouterLike = { push: (href: Href) => void };
+
+let registeredRouter: RouterLike | null = null;
+
+export function registerMobileBridgeRouter(router: RouterLike | null): () => void {
+  registeredRouter = router;
+  return () => {
+    if (registeredRouter === router) registeredRouter = null;
+  };
+}
 
 let cachedState: MobileBridgeState = {
   permissions: { ...DEFAULT_MOBILE_BRIDGE_PERMISSIONS },
@@ -124,7 +118,9 @@ export async function collectMobileBridgeSnapshot(
 ): Promise<MobileBridgeSnapshot> {
   if (!permissions.enabled) return {};
   const now = Date.now();
-  const appVersion = getAppVersionInfo().release?.version ?? getAppVersionInfo().nativeLabel;
+  const appVersionMod = await import("./app-version").catch(() => null);
+  const versionInfo = appVersionMod?.getAppVersionInfo();
+  const appVersion = versionInfo?.release?.version ?? versionInfo?.nativeLabel;
   const platform: "ios" | "android" | "web" =
     Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web";
   const snapshot: MobileBridgeSnapshot = {
@@ -139,8 +135,15 @@ export async function collectMobileBridgeSnapshot(
   };
 
   if (permissions.location) {
-    const location = getCachedUserLocation() ?? (await loadSavedMapLocation().catch(() => null));
-    const recent = await loadRecentMapDestinations().catch(() => []);
+    const [mapLocMod, mapSearchMod] = await Promise.all([
+      import("./map-location").catch(() => null),
+      import("./map-search").catch(() => null),
+    ]);
+    const location =
+      mapLocMod?.getCachedUserLocation() ??
+      (await mapLocMod?.loadSavedMapLocation().catch(() => null)) ??
+      null;
+    const recent = (await mapSearchMod?.loadRecentMapDestinations().catch(() => [])) ?? [];
     if (location) {
       snapshot.location = {
         latitude: location.latitude,
@@ -157,7 +160,8 @@ export async function collectMobileBridgeSnapshot(
   }
 
   if (permissions.weather) {
-    const weather = getCachedHomeWeather();
+    const weatherMod = await import("./home-weather").catch(() => null);
+    const weather = weatherMod?.getCachedHomeWeather() ?? null;
     if (weather) {
       snapshot.weather = {
         temperatureC: weather.temperatureC,
@@ -178,19 +182,22 @@ export async function collectMobileBridgeSnapshot(
   }
 
   if (permissions.companion) {
-    const active = getActiveCompanionSession();
-    const prefs = getCachedCompanionPreferences();
-    const runtime = getCompanionSessionState().runtime;
-    snapshot.companion = {
-      active: Boolean(active),
-      mode: active ? active.mode : "off",
-      botId: active?.botId ?? null,
-      botName: active?.botName ?? null,
-      showReply: prefs.showReply,
-      autoSpeak: prefs.speakReplies,
-      status: runtime?.detailStatus ?? null,
-      updatedAt: now,
-    };
+    const companionMod = await import("./companion-session").catch(() => null);
+    if (companionMod) {
+      const active = companionMod.getActiveCompanionSession();
+      const prefs = companionMod.getCachedCompanionPreferences();
+      const runtime = companionMod.getCompanionSessionState().runtime;
+      snapshot.companion = {
+        active: Boolean(active),
+        mode: active ? active.mode : "off",
+        botId: active?.botId ?? null,
+        botName: active?.botName ?? null,
+        showReply: prefs.showReply,
+        autoSpeak: prefs.speakReplies,
+        status: runtime?.detailStatus ?? null,
+        updatedAt: now,
+      };
+    }
   }
 
   if (permissions.appNavigation) {
@@ -274,7 +281,7 @@ function actionPermissionKey(
 
 export async function executeMobileAppAction(
   action: Pick<MobileAppActionRecord, "actionId" | "payload">,
-  options: { router?: RouterLike; acknowledge?: boolean },
+  options: { router?: RouterLike; acknowledge?: boolean } = {},
 ): Promise<MobileActionExecutionResult> {
   const { payload } = action;
   const requiredKey = actionPermissionKey(payload.actionKind);
@@ -286,10 +293,12 @@ export async function executeMobileAppAction(
     };
   }
 
+  const targetRouter = options.router ?? registeredRouter;
   let result: MobileActionExecutionResult;
   try {
     switch (payload.actionKind) {
       case "open_amap_navigation": {
+        const { openInAmapNavigation } = await import("./amap-navigation");
         const outcome = await openInAmapNavigation({
           destination: {
             name: payload.destinationName,
@@ -321,17 +330,26 @@ export async function executeMobileAppAction(
       case "open_screen": {
         closeSettingsSheet();
         if (payload.route === "/computer" && payload.botId) {
-          options.router?.push({
+          targetRouter?.push({
             pathname: "/computer",
-            params: { botId: payload.botId, ...(payload.botName ? { name: payload.botName } : {}) },
+            params: {
+              botId: payload.botId,
+              ...(payload.botName ? { name: payload.botName } : {}),
+            },
           } as Href);
         } else {
-          options.router?.push(payload.route as Href);
+          targetRouter?.push(payload.route as Href);
         }
         result = { ok: true, status: "executed", message: "已打开页面" };
         break;
       }
       case "control_companion": {
+        const {
+          getActiveCompanionSession,
+          startUnifiedCompanion,
+          stopUnifiedCompanion,
+          switchUnifiedCompanionBot,
+        } = await import("./companion-session");
         if (payload.operation === "stop") {
           await stopUnifiedCompanion();
           result = { ok: true, status: "executed", message: "已关闭后台陪伴" };
@@ -408,7 +426,7 @@ export async function executeMobileAppAction(
 
 export async function maybeAutoExecuteMobileAppAction(
   action: Pick<MobileAppActionRecord, "actionId" | "autoExecute" | "createdAt" | "payload">,
-  options: { router?: RouterLike; nowMs?: number },
+  options: { router?: RouterLike; nowMs?: number } = {},
 ): Promise<MobileActionExecutionResult | null> {
   if (!action.autoExecute) return null;
   if (!cachedState.permissions.enabled || !cachedState.permissions.foregroundAutoExecute) {
@@ -421,7 +439,6 @@ export async function maybeAutoExecuteMobileAppAction(
   if (!Number.isNaN(created) && now - created > FOREGROUND_AUTO_EXECUTE_WINDOW_MS) {
     return null;
   }
-  // Mark optimistically before awaiting so concurrent card + poller paths never run twice.
   executedActionIds.add(action.actionId);
   notifyExecutedListeners();
   const outcome = await executeMobileAppAction(action, {
@@ -435,20 +452,27 @@ export async function maybeAutoExecuteMobileAppAction(
   return outcome;
 }
 
-export function useMobileBridgeSync(ready: boolean): void {
-  const router = useRouter();
-  const routerRef = useRef(router);
+export function useMobileBridgeSync(ready: boolean, router?: RouterLike): void {
+  const routerRef = useRef<RouterLike | undefined>(router);
   routerRef.current = router;
+
+  useEffect(() => {
+    if (!router) return;
+    return registerMobileBridgeRouter(router);
+  }, [router]);
 
   useEffect(() => {
     if (!ready) return;
     let active = true;
+    const cleanups: Array<() => void> = [];
 
     const drainPending = async (state: MobileBridgeState | null) => {
       if (!active || !state?.pendingActions.length) return;
       for (const action of state.pendingActions) {
         if (!active) break;
-        await maybeAutoExecuteMobileAppAction(action, { router: routerRef.current });
+        await maybeAutoExecuteMobileAppAction(action, {
+          router: routerRef.current ?? registeredRouter ?? undefined,
+        });
       }
     };
 
@@ -462,12 +486,26 @@ export function useMobileBridgeSync(ready: boolean): void {
     const appSub = AppState.addEventListener("change", (next) => {
       if (next === "active") void runSync(true);
     });
-    const locUnsub = subscribeUserLocation(() => {
-      void syncMobileBridgeNow({ force: false, includeNative: false });
-    });
-    const compUnsub = subscribeCompanionSessionState(() => {
-      void syncMobileBridgeNow({ force: false, includeNative: false });
-    });
+    void import("./map-location")
+      .then((mod) => {
+        if (!active) return;
+        cleanups.push(
+          mod.subscribeUserLocation(() => {
+            void syncMobileBridgeNow({ force: false, includeNative: false });
+          }),
+        );
+      })
+      .catch(() => undefined);
+    void import("./companion-session")
+      .then((mod) => {
+        if (!active) return;
+        cleanups.push(
+          mod.subscribeCompanionSessionState(() => {
+            void syncMobileBridgeNow({ force: false, includeNative: false });
+          }),
+        );
+      })
+      .catch(() => undefined);
     const poll = setInterval(() => {
       if (AppState.currentState && AppState.currentState !== "active") return;
       void loadMobileBridgeState().then(drainPending);
@@ -476,8 +514,7 @@ export function useMobileBridgeSync(ready: boolean): void {
     return () => {
       active = false;
       appSub.remove();
-      locUnsub();
-      compUnsub();
+      for (const cleanup of cleanups) cleanup();
       clearInterval(poll);
     };
   }, [ready]);
@@ -490,6 +527,7 @@ export function resetMobileBridgeForTest(): void {
     pendingActions: [],
     updatedAt: null,
   };
+  registeredRouter = null;
   lastSyncedAt = 0;
   syncInFlight = null;
   executedActionIds.clear();

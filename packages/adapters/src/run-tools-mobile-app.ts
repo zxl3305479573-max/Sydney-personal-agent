@@ -237,12 +237,7 @@ export async function searchMobileMapPlaces(
   if (!trimmed) return { provider: "nominatim", results: [] };
   const limit = Math.min(10, Math.max(1, options?.limit ?? 6));
   const fetchImpl = options?.fetchImpl ?? fetch;
-  const amapKey = (
-    options?.amapKey ??
-    process.env.AMAP_WEB_KEY ??
-    process.env.EXPO_PUBLIC_AMAP_WEB_KEY ??
-    ""
-  ).trim();
+  const amapKey = (options?.amapKey ?? process.env.AMAP_WEB_KEY ?? "").trim();
 
   if (amapKey) {
     try {

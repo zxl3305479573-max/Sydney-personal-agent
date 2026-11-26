@@ -1,6 +1,5 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { typeScale } from "@rakazo/ui-tokens";
-import { useRouter } from "expo-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ViewProps } from "react-native";
 import { Text, View } from "react-native";
@@ -97,7 +96,6 @@ export function AppActionCard({
   accessibilityActions?: ViewProps["accessibilityActions"];
   onAccessibilityAction?: ViewProps["onAccessibilityAction"];
 }) {
-  const router = useRouter();
   const { locale } = useI18n();
   const tokens = useMobileTokens();
   const chinese = locale.startsWith("zh");
@@ -111,19 +109,19 @@ export function AppActionCard({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    void maybeAutoExecuteMobileAppAction(block, { router }).then((res) => {
+    void maybeAutoExecuteMobileAppAction(block).then((res) => {
       if (!res) return;
       setFailed(!res.ok);
       setStatusMessage(res.message);
     });
-  }, [block, router]);
+  }, [block]);
 
   async function runAction() {
     if (busy) return;
     setBusy(true);
     setFailed(false);
     try {
-      const res = await executeMobileAppAction(block, { router, acknowledge: true });
+      const res = await executeMobileAppAction(block, { acknowledge: true });
       setFailed(!res.ok);
       setStatusMessage(res.message);
     } finally {
