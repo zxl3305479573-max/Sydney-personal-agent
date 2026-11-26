@@ -1,24 +1,21 @@
 {
-  "version": "1.0.30",
+  "version": "1.0.31",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "为账号下全部自有 Bot 开通手机 App 能力桥接，支持读取手机定位、实时天气、后台陪伴状态，并在对话内直接搜索高德地点、估算路线与一键拉起高德地图导航。",
-      "新增前台自动执行与后台一键卡片双轨机制：App 在前台时自动执行高德导航、页面跳转与陪伴切换，后台时在聊天流生成暖瓷一键操作卡片。",
-      "新增统一「设置 → Bot 应用权限」控制中心，支持一键全开、分项开关、放宽后端工具审批（免逐次弹窗），并内置原生 iOS 日历、提醒事项、通讯录与剪贴板桥接模块（原生系统数据需安装新版 IPA 1.0.14 生效）。",
-      "云电脑预览与全屏界面新增手动放大缩小（100%–300%）、双指捏合、双击切换与放大后「移动画面」拖动查看，触控点击与虚拟鼠标坐标随画面精准对齐。"
+      "优化首页顶栏同步状态胶囊：移除容易与系统时钟混淆的英文「sync · 时间」旧同步时间戳，改为清晰的「已同步 / N 运行中 / 同步中… / 重试同步」中文状态，轻点可随时刷新。",
+      "修复首页内部时钟定时器未对齐整分钟的问题，按整分钟 00 秒精准刷新日期与问候时段，切回前台即时校准。",
+      "修复首页轮询在偶发失败后需手动切页才能恢复的问题，点击状态胶囊或下拉刷新成功后自动恢复后台轮询。"
     ],
     "zh-TW": [
-      "為帳號下全部自有 Bot 開通手機 App 能力橋接，支援讀取手機定位、即時天氣、背景陪伴狀態，並在對話內直接搜尋高德地點、估算路線與一鍵拉起高德地圖導航。",
-      "新增前景自動執行與背景一鍵卡片雙軌機制：App 在前景時自動執行高德導航、頁面跳轉與陪伴切換，背景時在聊天串產生暖瓷一鍵操作卡片。",
-      "新增統一「設定 → Bot 應用權限」控制中心，支援一鍵全開、分項開關、放寬後端工具審批（免逐次彈窗），並內建原生 iOS 行事曆、提醒事項、聯絡人與剪貼簿橋接模組（原生系統資料需安裝新版 IPA 1.0.14 生效）。",
-      "雲電腦預覽與全螢幕介面新增手動放大縮小（100%–300%）、雙指捏合、雙擊切換與放大後「移動畫面」拖曳檢視，觸控點擊與虛擬滑鼠座標隨畫面精準對齊。"
+      "優化首頁頂欄同步狀態膠囊：移除容易與系統時鐘混淆的英文「sync · 時間」舊同步時間戳，改為清晰的「已同步 / N 運行中 / 同步中… / 重試同步」狀態，輕點即可手動重新整理。",
+      "修復首頁內部時鐘定時器未對齊整分鐘的問題，依整分鐘 00 秒精準更新日期與問候時段，切回前景即時校準。",
+      "修復首頁輪詢在偶發失敗後需手動切頁才能恢復的問題，點擊狀態膠囊或下拉重新整理成功後自動恢復輪詢。"
     ],
     "en": [
-      "Unlock mobile app capabilities for all owned bots: read live phone location, weather, and companion state, search places and estimate routes, and launch Amap navigation straight from chat.",
-      "Add foreground auto-execution paired with persistent one-tap chat action cards so navigation, screen jumps, and companion switches run automatically in foreground and remain clickable from background.",
-      "Add a unified Settings → Bot App Permissions screen with one-tap enable-all, per-capability toggles, relaxed backend approval switch, and a native iOS EventKit/Contacts/Clipboard bridge (native iOS data requires IPA 1.0.14).",
-      "Add manual zoom (100%–300%), pinch-to-zoom, double-tap toggle, and pan mode to both the Cloud Computer preview card and full-screen modal with zoom-aligned touch and virtual mouse precision."
+      "Replace the home header's confusing 'sync · HH:MM' timestamp pill with clear localized status labels (Synced / N active / Syncing… / Retry sync) and a one-tap refresh icon.",
+      "Align the home screen clock timer to exact wall-clock minute boundaries (:00) and re-sync immediately on foreground return so date and greeting never lag behind the device clock.",
+      "Automatically resume home foreground polling after a successful manual refresh following a prior failure."
     ]
   }
 }

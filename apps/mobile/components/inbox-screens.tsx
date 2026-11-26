@@ -161,6 +161,7 @@ function PersonalHomeHubScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hubLoading, setHubLoading] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [pollResumeKey, setPollResumeKey] = useState(0);
   const [loadFailure, setLoadFailure] = useState<{ kind: LoadFailureKind; message: string } | null>(
     null,
   );
@@ -360,7 +361,8 @@ function PersonalHomeHubScreen() {
   const refreshHub = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadHub();
+      const ok = await loadHub();
+      if (ok) setPollResumeKey((current) => current + 1);
     } finally {
       setRefreshing(false);
     }
@@ -485,6 +487,7 @@ function PersonalHomeHubScreen() {
     loadHub,
     hubHasActiveWork ? ACTIVE_INBOX_POLL_INTERVAL_MS : INBOX_POLL_INTERVAL_MS,
     hasSession && isFocused,
+    pollResumeKey,
   );
 
   usePublishSearchInbox(hubSpaces, me !== null);

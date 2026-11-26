@@ -15,6 +15,7 @@ import {
   isDaytimeHour,
   mapWmoWeatherCondition,
   mapWwoWeatherCondition,
+  nextMinuteDelayMs,
   resetHomeWeatherCacheForTest,
 } from "./home-weather";
 import { resetMapLocationCacheForTest } from "./map-location";
@@ -192,5 +193,11 @@ describe("home weather mapping & live fetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("latitude=30.2741");
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("longitude=120.1551");
+  });
+
+  it("aligns the home clock timer to exact wall-clock minute boundaries", () => {
+    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 14, 50, 200))).toBe(9_825);
+    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 15, 0, 0))).toBe(60_025);
+    expect(nextMinuteDelayMs(new Date(2026, 10, 25, 21, 15, 59, 990))).toBe(50);
   });
 });

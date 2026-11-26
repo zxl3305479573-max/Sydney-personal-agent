@@ -10,6 +10,7 @@ export function useForegroundPoll(
   run: () => Promise<unknown>,
   intervalMs: number,
   enabled: boolean,
+  resumeKey = 0,
 ): void {
   const foreground = useAppForeground();
   const runRef = useRef(run);
@@ -18,10 +19,12 @@ export function useForegroundPoll(
   intervalRef.current = intervalMs;
   const pendingRef = useRef<Promise<unknown> | null>(null);
   const rescheduleRef = useRef<(() => void) | null>(null);
+  const resumeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!enabled || !foreground) {
       rescheduleRef.current = null;
+      resumeRef.current = null;
       return;
     }
     let cancelled = false;
@@ -61,10 +64,18 @@ export function useForegroundPoll(
       schedule(remaining);
     };
 
+    resumeRef.current = () => {
+      if (cancelled || !stopped || pendingRef.current) return;
+      stopped = false;
+      lastCompletedAt = Date.now();
+      schedule(intervalRef.current);
+    };
+
     void tick();
     return () => {
       cancelled = true;
       rescheduleRef.current = null;
+      resumeRef.current = null;
       if (timer !== undefined) clearTimeout(timer);
     };
   }, [enabled, foreground]);
@@ -72,4 +83,8 @@ export function useForegroundPoll(
   useEffect(() => {
     rescheduleRef.current?.();
   }, [intervalMs]);
+
+  useEffect(() => {
+    if (resumeKey > 0) resumeRef.current?.();
+  }, [resumeKey]);
 }

@@ -54,6 +54,13 @@ const WEATHER_STALE_MS = 5 * 60 * 1000;
 const COORDS_TTL_MS = 30 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 6_000;
 const CLOCK_TICK_MS = 60 * 1000;
+const CLOCK_BOUNDARY_CUSHION_MS = 25;
+
+/** Milliseconds until the next exact wall-clock minute boundary (HH:MM:00). */
+export function nextMinuteDelayMs(now: Date): number {
+  const msIntoMinute = now.getSeconds() * 1000 + now.getMilliseconds();
+  return Math.max(50, CLOCK_TICK_MS - msIntoMinute + CLOCK_BOUNDARY_CUSHION_MS);
+}
 
 const GEO_URL = "https://get.geojs.io/v1/ip/geo.json";
 const WTTR_URL = "https://wttr.in/?format=j1";
@@ -548,10 +555,27 @@ export function useHomeWeather(options?: { enabled?: boolean; fixedNow?: Date })
       setClockNow(fixedNow);
       return;
     }
-    const timer = setInterval(() => {
-      setClockNow(new Date());
-    }, CLOCK_TICK_MS);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const syncAndSchedule = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      const current = new Date();
+      setClockNow(current);
+      timer = setTimeout(() => {
+        if (!cancelled) syncAndSchedule();
+      }, nextMinuteDelayMs(current));
+    };
+    syncAndSchedule();
+    const appSub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && !cancelled) {
+        syncAndSchedule();
+      }
+    });
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      appSub.remove();
+    };
   }, [fixedNow]);
 
   useEffect(() => {

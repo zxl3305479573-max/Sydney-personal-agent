@@ -242,7 +242,9 @@ describe("HomeHub personal hub", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("11月24日 · 星期二");
-    expect(text).toContain("1 运行中 · 20:15");
+    expect(text).toContain("1 运行中");
+    expect(text).not.toContain("sync ·");
+    expect(text).not.toContain("20:15");
     expect(text).toContain("晚上好，Mina");
     expect(text).toContain("傍晚她拍了一条街的晚霞给我，说小猪好饿。");
     expect(text).toContain("置顶 · Claude · 2026-11-24 ›");
@@ -353,7 +355,9 @@ describe("HomeHub personal hub", () => {
     );
 
     expect(container.textContent).toContain("Good morning, Mina");
-    expect(container.textContent).toContain("sync · 09:05");
+    expect(container.textContent).toContain("Synced");
+    expect(container.textContent).not.toContain("sync ·");
+    expect(container.textContent).not.toContain("09:05");
     expect(container.textContent).toContain(
       "No companions yet — tap to create your first personal assistant.",
     );
@@ -407,8 +411,41 @@ describe("HomeHub personal hub", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("2 运行中 · 20:15");
+    expect(text).toContain("2 运行中");
+    expect(text).not.toContain("20:15");
     expect(text).toContain("Needs input · Claude · 2026-11-24 ›");
+  });
+
+  it("shows localized idle synced and retry sync labels without raw English sync text", () => {
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot({ status: "idle" })]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
+    );
+    const pill = container.querySelector('[data-testid="home-hub-sync-pill"]');
+    expect(pill?.textContent).toBe("已同步");
+    expect(pill?.textContent).not.toContain("sync");
+    expect(pill?.textContent).not.toContain("20:15");
+
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{ userId: "u-1", spaceId: "space-1", name: "Sydney", email: "s@example.com" }}
+          bots={[sampleBot({ status: "idle" })]}
+          groups={[]}
+          now={fixedEvening}
+          error="Network offline"
+        />,
+      ),
+    );
+    expect(container.querySelector('[data-testid="home-hub-sync-pill"]')?.textContent).toBe(
+      "重试同步",
+    );
   });
 
   it("renders temperature and weather icon only (no text label) beside the greeting and updates day/night icon by time", () => {

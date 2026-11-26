@@ -27,12 +27,14 @@ function Harness({
   run,
   enabled,
   intervalMs = 1_000,
+  resumeKey = 0,
 }: {
   run: () => Promise<unknown>;
   enabled: boolean;
   intervalMs?: number;
+  resumeKey?: number;
 }) {
-  useForegroundPoll(run, intervalMs, enabled);
+  useForegroundPoll(run, intervalMs, enabled, resumeKey);
   return null;
 }
 
@@ -123,13 +125,22 @@ describe("useForegroundPoll", () => {
     },
   );
 
-  it("stops after a non-retryable failure", async () => {
+  it("stops after a non-retryable failure and resumes after manual recovery via resumeKey", async () => {
     const run = vi.fn(async () => false);
-    act(() => root.render(<Harness enabled run={run} />));
+    act(() => root.render(<Harness enabled run={run} resumeKey={0} />));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(run).toHaveBeenCalledOnce();
+
+    run.mockImplementation(async () => true);
+    act(() => root.render(<Harness enabled run={run} resumeKey={1} />));
+    // Resuming schedules the next interval without firing an extra immediate duplicate poll.
+    expect(run).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(run).toHaveBeenCalledTimes(2);
   });
 
   it("pauses in the background and runs once on return", async () => {

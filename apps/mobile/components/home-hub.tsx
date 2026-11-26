@@ -85,10 +85,6 @@ function padTwo(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-function formatClockTime(date: Date): string {
-  return `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
-}
-
 function formatIsoDate(value: string | undefined, fallback: Date): string {
   const parsed = value ? new Date(value) : fallback;
   const target = Number.isNaN(parsed.getTime()) ? fallback : parsed;
@@ -173,7 +169,7 @@ export function HomeHub({
   githubRecentCounts = null,
   connectedAppsCount = null,
   refreshing = false,
-  lastSyncedAt = null,
+  lastSyncedAt: _lastSyncedAt = null,
   now,
   weather,
   error = null,
@@ -210,7 +206,6 @@ export function HomeHub({
         if (weather === undefined) void refreshWeather(true);
       }
     : undefined;
-  const syncClock = formatClockTime(lastSyncedAt ?? currentDate);
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
 
   const activeChatsCount = useMemo(
@@ -298,14 +293,16 @@ export function HomeHub({
   });
 
   const syncLabel = refreshing
-    ? copy("同步中…", "同步中…", "syncing…")
-    : resolvedActiveRuns > 0
-      ? copy(
-          `${resolvedActiveRuns} 运行中 · ${syncClock}`,
-          `${resolvedActiveRuns} 運行中 · ${syncClock}`,
-          `${resolvedActiveRuns} active · ${syncClock}`,
-        )
-      : `sync · ${syncClock}`;
+    ? copy("同步中…", "同步中…", "Syncing…")
+    : error
+      ? copy("重试同步", "重試同步", "Retry sync")
+      : resolvedActiveRuns > 0
+        ? copy(
+            `${resolvedActiveRuns} 运行中`,
+            `${resolvedActiveRuns} 運行中`,
+            `${resolvedActiveRuns} active`,
+          )
+        : copy("已同步", "已同步", "Synced");
 
   const greetingText = buildGreeting(currentDate, locale, me, t("You"));
   const resolvedSpaceName = spaceName?.trim() || copy("个人空间", "個人空間", t("Personal"));
@@ -420,14 +417,25 @@ export function HomeHub({
             accessibilityLabel={syncLabel}
             onPress={handleRefresh}
             style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
               backgroundColor: tokens.card,
               borderRadius: 999,
-              paddingHorizontal: 12,
+              paddingHorizontal: 11,
               paddingVertical: 5,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: tokens.border,
             }}
           >
+            <NativeSymbol
+              ios={resolvedActiveRuns > 0 && !refreshing && !error ? "sparkle" : "arrow.clockwise"}
+              android={
+                resolvedActiveRuns > 0 && !refreshing && !error ? "sparkles" : "refresh-outline"
+              }
+              size={11}
+              color={softAccentInk}
+            />
             <Text
               numberOfLines={1}
               style={{
