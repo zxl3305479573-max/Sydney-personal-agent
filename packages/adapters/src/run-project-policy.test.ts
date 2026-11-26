@@ -25,13 +25,16 @@ const options = {
 };
 
 describe("project text tool policy", () => {
-  it("offers text, scoped history, memory and the current bot's text profile", () => {
+  it("offers text, scoped history, memory, personal finance ledger and the current bot's text profile", () => {
     expect(
       selectBuiltinToolsForRun(options)
         .map((tool) => tool.name)
         .sort(),
     ).toEqual([
       "ask_user",
+      "finance_get_summary",
+      "finance_list_bills",
+      "finance_record_bill",
       "message_user",
       "read_history",
       "recall_memory",
@@ -53,6 +56,9 @@ describe("project text tool policy", () => {
         .sort(),
     ).toEqual([
       "ask_user",
+      "finance_get_summary",
+      "finance_list_bills",
+      "finance_record_bill",
       "message_user",
       "read_history",
       "recall_memory",
