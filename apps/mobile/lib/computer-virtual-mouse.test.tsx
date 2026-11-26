@@ -116,4 +116,37 @@ describe("computer virtual mouse", () => {
       act(() => root.unmount());
     }
   });
+
+  it("scales relative pointer delta down when zoomed in for finer precision", () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const onInput = vi.fn();
+    try {
+      act(() =>
+        root.render(
+          <ComputerVirtualMouse
+            geometry={geometry}
+            screen={screen}
+            zoomScale={2}
+            onInput={onInput}
+          />,
+        ),
+      );
+      act(() =>
+        surface.props.onLayout?.({
+          nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 600 } },
+        } as Parameters<NonNullable<ViewProps["onLayout"]>>[0]),
+      );
+      act(() => surface.props.onResponderGrant?.(touch(250, 220)));
+      act(() => surface.props.onResponderMove?.(touch(290, 220)));
+      act(() => surface.props.onResponderRelease?.(touch(290, 220, 0)));
+      expect(onInput).toHaveBeenLastCalledWith({
+        kind: "pointer",
+        payload: { x: 1084, y: 540, type: "move" },
+      });
+    } finally {
+      act(() => root.unmount());
+    }
+  });
 });

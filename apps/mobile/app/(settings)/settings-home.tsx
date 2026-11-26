@@ -184,6 +184,21 @@ export default function SettingsHome() {
 
         <SettingsGroup label={chinese ? (traditional ? "小夥伴" : "小伙伴") : t("Bots")}>
           <SettingsRow
+            title={
+              chinese ? (traditional ? "Bot 應用權限" : "Bot 应用权限") : "Bot app permissions"
+            }
+            detail={
+              chinese
+                ? traditional
+                  ? "定位、高德導航、天氣、系統資料與審批"
+                  : "定位、高德导航、天气、系统数据与审批"
+                : "Location, Amap, weather, iOS data & approvals"
+            }
+            accessibilityRole="button"
+            chevron="right"
+            onPress={() => router.push("/bot-permissions")}
+          />
+          <SettingsRow
             title={chinese ? (traditional ? "權限" : "权限") : t("Rules")}
             accessibilityRole="button"
             chevron="right"

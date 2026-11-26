@@ -6,6 +6,11 @@
     "NSMicrophoneUsageDescription": "Sydney usa el micrófono para las llamadas de voz con tus bots.",
     "NSSpeechRecognitionUsageDescription": "Sydney convierte lo que dices en mensajes durante las llamadas de voz.",
     "NSFaceIDUsageDescription": "Permite que Sydney acceda a tus datos biométricos de Face ID.",
-    "NSLocationWhenInUseUsageDescription": "Sydney usa tu ubicación para mostrar el clima local preciso, situarte en el mapa y abrir indicaciones en Amap."
+    "NSLocationWhenInUseUsageDescription": "Sydney usa tu ubicación para mostrar el clima local preciso, situarte en el mapa y abrir indicaciones en Amap.",
+    "NSCalendarsUsageDescription": "Sydney lee y crea eventos del calendario cuando autorizas a tus bots a gestionar tu agenda.",
+    "NSCalendarsFullAccessUsageDescription": "Sydney lee y crea eventos del calendario cuando autorizas a tus bots a gestionar tu agenda.",
+    "NSRemindersUsageDescription": "Sydney lee y crea recordatorios cuando autorizas a tus bots a gestionar tus tareas pendientes.",
+    "NSRemindersFullAccessUsageDescription": "Sydney lee y crea recordatorios cuando autorizas a tus bots a gestionar tus tareas pendientes.",
+    "NSContactsUsageDescription": "Sydney busca en tus contactos cuando autorizas a tus bots a consultar información de contacto."
   }
 }

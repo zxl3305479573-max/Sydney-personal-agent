@@ -4,7 +4,7 @@
     "slug": "rakazo",
     "owner": "inbox-zero",
     "scheme": "rakazo",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -90,7 +90,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.rakazo.app",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "supportsTablet": true,
       "icon": "../../packages/ui-tokens/assets/Sydney.icon",
       "config": {
@@ -101,6 +101,11 @@
         "NSPhotoLibraryUsageDescription": "Sydney uses your photo library so you can attach images to a bot message.",
         "NSLocalNetworkUsageDescription": "Sydney connects to a self-hosted Sydney server on your local network.",
         "NSLocationWhenInUseUsageDescription": "Sydney uses your location for accurate local weather, showing where you are on the map, and planning navigation routes.",
+        "NSCalendarsUsageDescription": "Sydney reads and creates calendar events when you authorize your bots to manage your schedule.",
+        "NSCalendarsFullAccessUsageDescription": "Sydney reads and creates calendar events when you authorize your bots to manage your schedule.",
+        "NSRemindersUsageDescription": "Sydney reads and creates reminders when you authorize your bots to manage your to-dos.",
+        "NSRemindersFullAccessUsageDescription": "Sydney reads and creates reminders when you authorize your bots to manage your to-dos.",
+        "NSContactsUsageDescription": "Sydney searches your contacts when you authorize your bots to look up contact details for you.",
         "LSApplicationQueriesSchemes": ["iosamap", "amapuri"],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true

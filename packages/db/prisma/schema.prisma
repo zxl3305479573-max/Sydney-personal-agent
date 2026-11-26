@@ -59,6 +59,7 @@ model User {
   personalityPresets          PersonalityPreset[]
   approvalRules               UserActionApprovalRule[]
   autoReviewPreference        UserActionAutoReviewPreference?
+  mobileBridge                UserMobileBridge?
   createdSpaces               Space[]                      @relation("SpaceCreator")
   botSecrets BotSecret[]
   vaultCredentials VaultCredential[]
@@ -2328,6 +2329,18 @@ model UserActionAutoReviewPreference {
   updatedAt     DateTime @updatedAt
 
   @@map("user_action_auto_review_preferences")
+}
+
+model UserMobileBridge {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions    Json     @default("{}")
+  snapshot       Json     @default("{}")
+  pendingActions Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("user_mobile_bridges")
 }
 
 model MessagingInstallation {

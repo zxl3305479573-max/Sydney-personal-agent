@@ -132,6 +132,19 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="bot-permissions"
+        options={{
+          ...glassHeaderOptions(
+            locale.startsWith("zh")
+              ? locale === "zh-TW"
+                ? "Bot 應用權限"
+                : "Bot 应用权限"
+              : "Bot app permissions",
+          ),
+          contentStyle: { backgroundColor: native.groupedPage },
+        }}
+      />
+      <Stack.Screen
         name="vault"
         options={{
           ...glassHeaderOptions(t("Vault")),

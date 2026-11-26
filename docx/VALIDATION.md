@@ -1,5 +1,38 @@
 # 验证记录
 
+## 为自有 Bot 开通手机 App 全能力、iOS 系统数据桥接与统一权限中心（2026-11-25）
+
+关联 PA-021／ADR-0028。
+
+- **首轮暴露问题与修复**：
+  - 修复 `@rakazo/mobile` 4 处类型签名差异：`bot-permissions.tsx` 改为传入 `ACCOUNT_SETTINGS`、`AppActionCard.tsx` 将 `accessibilityActions` 放在外层 `<View>`、`mobile-bridge.ts` 对齐 `companion-session.ts` 实际导出（`startUnifiedCompanion`／`stopUnifiedCompanion`／`switchUnifiedCompanionBot`、`speakReplies`）及 `NotificationPreferences.messages`；
+  - 在 `apps/mobile/lib/mobile-bridge.test.tsx` 补充 `companion-session`／`home-weather`／`map-location`／`map-search` 替身，避免测试节点加载 `expo-file-system` 原生模块。
+- **终轮已执行并通过**：
+  - **Prisma 客户端生成**：`pnpm --filter @rakazo/db exec prisma generate`（Prisma `7.10.1`）成功生成含 `UserMobileBridge` 的类型。
+  - **Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖全部 32 个代码／测试／配置文件）：**32 / 32 文件 0 错误**。
+  - **7 包 TypeScript 类型检查**（`tsc --noEmit` 依次覆盖 `@rakazo/contracts`、`@rakazo/core`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/testkit`、`@rakazo/mobile`）：**7 / 7 包全部 0 错误**。
+  - **定向 Vitest**（`pnpm exec vitest run ... --maxWorkers=1`）：**8 个文件、195 / 195 项全部通过**（`action-approval.test.ts` 97 项、`message-quote.test.ts` 61 项、`message-visibility.test.ts` 21 项、`screen-theme-coverage.test.ts` 6 项、`run-tools-mobile-app.test.ts` 5 项、`mobile-bridge.test.tsx` 3 项、`scroll-hygiene.test.ts` 1 项、`permission-prompts.test.ts` 1 项）。
+  - **差异格式检查**（`git diff --check` 覆盖全部改动目录）：**0 警告通过**。
+- **未执行项（待服务器部署、Xcode 新 IPA 构建与真机验收）**：
+  - 真实 PostgreSQL 执行迁移 `20261125200000_user_mobile_bridge` 与 `row-security.postgres.test.ts`／`authorization.test.ts` 集成测试；
+  - GitHub Actions macOS `xcode-27` 编译含 `sydney-device-bridge` Swift 模块与 5 项新 `Info.plist` 声明的新版侧载 IPA；
+  - iPhone 真机实测 Bot 读取定位／天气／高德搜索与路线、前台自动拉起高德地图导航、后台生成一键卡片、iOS 日历／提醒事项／通讯录／剪贴板原生读写及「放宽审批」模式效果；当前代码未提交或推送。
+
+## 移动端云电脑界面手动放大缩小与拖动查看（2026-11-25）
+
+关联 PA-021。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/app/computer.tsx` 新增的 `useEffect` 早于 `hasControl` 声明触发 `ReferenceError`／`TS2448`，已移至 `hasControl` 声明之后；
+  - 修正 `apps/mobile/lib/computer-virtual-mouse.test.tsx` 缩放倍率下光标坐标舍入断言（`1084`）与 `apps/mobile/lib/computer-zoom.test.tsx` 负向平移夹紧符号（`-125`）；
+  - 对 6 个改动／新增文件执行 Biome 自动整理导入与格式化。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`node node_modules/@biomejs/biome/bin/biome check --diagnostic-level=error` 覆盖 `computer-zoom.ts`、`computer-zoom.test.tsx`、`computer-zoom-controls.tsx`、`native-computer-control.tsx`、`computer.tsx`、`computer-virtual-mouse.test.tsx`）：**6 / 6 文件 0 错误**。
+  - **定向 Vitest**（`pnpm exec vitest run ... --maxWorkers=1`）：**6 个文件、100 / 100 项全部通过**（`computer-screen.test.tsx` 73 项、`native-computer-control.test.ts` 13 项、`screen-theme-coverage.test.ts` 6 项、`computer-zoom.test.tsx` 5 项、`computer-virtual-mouse.test.tsx` 2 项、`scroll-hygiene.test.ts` 1 项）。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误通过**。
+  - **差异格式检查**（`git diff --check` 覆盖本批 6 文件）：**0 警告通过**。
+- **未执行项（待真机验收）**：iPhone 真机云电脑预览卡片与全屏 `Modal` 中的双指捏合缩放、放大后「移动画面／拖动中」平移手感、以及放大状态下直接点击／虚拟鼠标定位与 `WebView` 画面对齐实测；未提交或推送。
+
 ## 手机端原生 GPS 定位、灵动岛常驻扩展与真悬浮陪伴胶囊（2026-11-25）
 
 关联 PA-021／REL-01。

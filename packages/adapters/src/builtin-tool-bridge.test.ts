@@ -55,9 +55,15 @@ describe("built-in tool bridge", () => {
       "web_search",
       "write_file",
     ]);
-    expect(definitionBytes(listed)).toBeLessThanOrEqual(31_200);
+    expect(definitionBytes(listed)).toBeLessThanOrEqual(31_800);
     expect(deferred.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(["render_plot", "create_space", "generate_secret", "scratchpad_add"]),
+      expect.arrayContaining([
+        "render_plot",
+        "create_space",
+        "generate_secret",
+        "scratchpad_add",
+        "app_open_amap_navigation",
+      ]),
     );
   });
 
@@ -75,6 +81,7 @@ describe("built-in tool bridge", () => {
     const description = listed.find((tool) => tool.name === FIND_TOOL)!.description;
     for (const tool of deferred) expect(description).toContain(tool.name);
     expect(description).toContain("secrets:\n");
+    expect(description).toContain("mobile app:\n");
     expect(description).not.toContain("inputSchema");
     expect(listed.some((tool) => tool.name === USE_TOOL)).toBe(true);
   });

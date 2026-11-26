@@ -68,6 +68,7 @@ const AREAS: Array<[area: string, matches: (name: string) => boolean]> = [
   ["cloud agents", (name) => name.startsWith("cloud_agent_")],
   ["purchases", (name) => name.includes("purchase") || name === "paid_request"],
   ["github", (name) => name.startsWith("github_")],
+  ["mobile app", (name) => name.startsWith("app_")],
 ];
 
 export function isDeferredTool(name: string): boolean {

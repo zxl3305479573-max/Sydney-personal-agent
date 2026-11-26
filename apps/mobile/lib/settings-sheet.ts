@@ -13,6 +13,7 @@ const settingsScreens = new Set([
   "ai-data-sharing",
   "approvals",
   "archived-bots",
+  "bot-permissions",
   "change-password",
   "chat-appearance",
   "devices",

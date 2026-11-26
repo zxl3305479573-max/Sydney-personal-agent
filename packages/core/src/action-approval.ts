@@ -1,4 +1,9 @@
 import type { ActionApprovalRule as StoredActionApprovalRule } from "@rakazo/contracts";
+import {
+  MOBILE_APP_READ_ONLY_TOOL_NAMES,
+  MOBILE_APP_UI_ACTION_TOOL_NAMES,
+  MOBILE_APP_WRITE_ACTION_TOOL_NAMES,
+} from "@rakazo/contracts";
 
 const APPROVAL_EXEMPT_TOOLS = new Set([
   "computer_observe",
@@ -28,6 +33,9 @@ const APPROVAL_EXEMPT_TOOLS = new Set([
   "organize_bot",
   // The wallet owner approves every purchase in the wallet itself; a card here would ask twice.
   "request_purchase",
+  // Mobile app bridge read & navigation tools are gated by explicit user switches + owner-only trust.
+  ...MOBILE_APP_READ_ONLY_TOOL_NAMES,
+  ...MOBILE_APP_UI_ACTION_TOOL_NAMES,
 ]);
 
 const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
@@ -53,6 +61,7 @@ const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([
   "update_group",
   "create_child_routine",
   "feedback",
+  ...MOBILE_APP_WRITE_ACTION_TOOL_NAMES,
 ]);
 const EXPLICIT_APPROVAL_BUILTIN_TOOLS = new Set([
   "project_list_files",

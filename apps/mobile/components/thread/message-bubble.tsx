@@ -34,6 +34,7 @@ import { speakerColorFor } from "../../lib/thread-message-text";
 import type { UserBubble } from "../../lib/user-bubble";
 import { withUserBubble } from "../../lib/user-bubble";
 import { errorText } from "../../lib/user-error";
+import { AppActionCard } from "../AppActionCard";
 import { AppConnectCard } from "../AppConnectCard";
 import { AskActions } from "../AskActions";
 import { AudioAttachment } from "../audio-attachment";
@@ -241,12 +242,29 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     (block): block is Extract<MessageBlock, { kind: "app_connect" }> =>
       block.kind === "app_connect",
   );
+  const appActionBlocks = message.blocks.filter(
+    (block): block is Extract<MessageBlock, { kind: "app_action" }> => block.kind === "app_action",
+  );
   const mcpApprovalBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "mcp_approval" }> =>
       block.kind === "mcp_approval",
   );
   const undoBlock = message.blocks.find(isUndoableChange);
   if (undoBlock?.kind === "ask") return <ChangeUndo block={undoBlock} />;
+  if (appActionBlocks.length > 0 && message.blocks.every((block) => block.kind === "app_action")) {
+    return (
+      <View style={{ gap: 8, width: "100%" }}>
+        {appActionBlocks.map((block) => (
+          <AppActionCard
+            key={block.actionId}
+            block={block}
+            accessibilityActions={actionProps.accessibilityActions}
+            onAccessibilityAction={actionProps.onAccessibilityAction}
+          />
+        ))}
+      </View>
+    );
+  }
   const ask = message.blocks.find(
     (block): block is Extract<MessageBlock, { kind: "ask" }> =>
       block.kind === "ask" && !isApprovalAskBlock(block) && !block.actions?.length,

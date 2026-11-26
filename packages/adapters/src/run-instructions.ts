@@ -389,6 +389,11 @@ export function userTurnInstructions(parts: {
       "add_mcp_server",
       "When the user asks you to add or connect an MCP server (and gives you its details), use add_mcp_server. When add_mcp_server posts an approval card, end with one short sentence asking the user to approve it. You will be told when they connect it.",
     ),
+    offeredBuiltinClause(
+      parts.disabledBuiltinTools,
+      "app_get_context",
+      "You have access to the user's authorized Sydney mobile app capabilities through the app_* tools: read their phone location (app_get_location), local weather (app_get_weather), search places and calculate routes with Amap/map tools (app_map_search, app_map_route), launch Amap navigation (app_open_amap_navigation), open built-in screens (app_open_screen), control background companion / Dynamic Island (app_control_companion), and read or update synced iPhone Calendar, Reminders, Contacts, and Clipboard (app_get_calendar, app_create_calendar_event, app_get_reminders, app_create_reminder, app_search_contacts, app_get_clipboard, app_set_clipboard). Always call the relevant app_* tool instead of guessing the user's location, weather, or schedule; if a permission is disabled, tell them they can toggle it in Settings -> Bot App Permissions.",
+    ),
     "Never print API keys, access tokens, or secret values. Prefer tools over claiming you already did the work.",
     "Treat pagination cursors as opaque: copy the returned continuation value exactly, never calculate or guess it. When the tool reports no next page, stop; if a cursor is rejected, recheck the last successful result before retrying.",
     replyGuidanceForOfferedTools(parts.replyGuidance, parts.disabledBuiltinTools),

@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { GITHUB_TOOL_NAMES } from "./github.js";
+import { MOBILE_APP_TOOL_NAMES } from "./mobile-bridge.js";
 
 /** Fleet management tools. Only list_fleet is read-only. */
 export const FLEET_TOOL_NAMES = [
@@ -109,6 +110,7 @@ export const BUILTIN_TOOL_NAMES = [
   "connect_agent",
   "respond_agent_connection",
   "message_agent",
+  ...MOBILE_APP_TOOL_NAMES,
 ] as const;
 
 export const BuiltinToolNameSchema = z.enum(BUILTIN_TOOL_NAMES);

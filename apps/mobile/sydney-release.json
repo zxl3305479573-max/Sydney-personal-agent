@@ -1,24 +1,24 @@
 {
-  "version": "1.0.29",
+  "version": "1.0.30",
   "releasedOn": "2026-11-25",
   "notes": {
     "zh-CN": [
-      "新增 iOS 原生手机 GPS 定位模块（CoreLocation + CLGeocoder），天气与地图统一优先使用手机精准定位与系统中文区县名称，摆脱网络 IP 漂移。",
-      "主侧载 IPA 正式内置 iOS 灵动岛与锁屏实时活动扩展（SydneyCompanionWidget），同时保留 sideload OTA 热更新通道（重装新 IPA 1.0.13 后生效）。",
-      "重构应用内后台陪伴为真正悬浮在页面之上的可拖动胶囊，并支持一键收起为可拖动贴边吸附的悬浮球，不再挤压底栏。",
-      "天气详情页新增定位来源标识（手机定位／手动校准／网络定位），并在地图定位更新或手动校准后自动同步刷新当地天气。"
+      "为账号下全部自有 Bot 开通手机 App 能力桥接，支持读取手机定位、实时天气、后台陪伴状态，并在对话内直接搜索高德地点、估算路线与一键拉起高德地图导航。",
+      "新增前台自动执行与后台一键卡片双轨机制：App 在前台时自动执行高德导航、页面跳转与陪伴切换，后台时在聊天流生成暖瓷一键操作卡片。",
+      "新增统一「设置 → Bot 应用权限」控制中心，支持一键全开、分项开关、放宽后端工具审批（免逐次弹窗），并内置原生 iOS 日历、提醒事项、通讯录与剪贴板桥接模块（原生系统数据需安装新版 IPA 1.0.14 生效）。",
+      "云电脑预览与全屏界面新增手动放大缩小（100%–300%）、双指捏合、双击切换与放大后「移动画面」拖动查看，触控点击与虚拟鼠标坐标随画面精准对齐。"
     ],
     "zh-TW": [
-      "新增 iOS 原生手機 GPS 定位模組（CoreLocation + CLGeocoder），天氣與地圖統一優先使用手機精準定位與系統中文區縣名稱，擺脫網路 IP 漂移。",
-      "主側載 IPA 正式內建 iOS 動態島與鎖定畫面即時動態擴充（SydneyCompanionWidget），同時保留 sideload OTA 熱更新通道（重裝新 IPA 1.0.13 後生效）。",
-      "重構應用內背景陪伴為真正懸浮於頁面上方的可拖曳膠囊，並支援一鍵收合為可拖曳貼邊吸附的懸浮球，不再擠壓底欄。",
-      "天氣詳情頁新增定位來源標示（手機定位／手動校準／網路定位），並在地圖定位更新或手動校準後自動同步更新當地天氣。"
+      "為帳號下全部自有 Bot 開通手機 App 能力橋接，支援讀取手機定位、即時天氣、背景陪伴狀態，並在對話內直接搜尋高德地點、估算路線與一鍵拉起高德地圖導航。",
+      "新增前景自動執行與背景一鍵卡片雙軌機制：App 在前景時自動執行高德導航、頁面跳轉與陪伴切換，背景時在聊天串產生暖瓷一鍵操作卡片。",
+      "新增統一「設定 → Bot 應用權限」控制中心，支援一鍵全開、分項開關、放寬後端工具審批（免逐次彈窗），並內建原生 iOS 行事曆、提醒事項、聯絡人與剪貼簿橋接模組（原生系統資料需安裝新版 IPA 1.0.14 生效）。",
+      "雲電腦預覽與全螢幕介面新增手動放大縮小（100%–300%）、雙指捏合、雙擊切換與放大後「移動畫面」拖曳檢視，觸控點擊與虛擬滑鼠座標隨畫面精準對齊。"
     ],
     "en": [
-      "Add native iOS CoreLocation GPS and CLGeocoder bridge so Weather and Map prioritize real phone GPS coordinates and local district names instead of drifting network IP.",
-      "Bundle the iOS Dynamic Island and Lock Screen Live Activity extension (SydneyCompanionWidget) in the main sideload IPA while keeping sideload OTA enabled (requires installing IPA 1.0.13).",
-      "Upgrade the in-app companion bar into a true absolute-positioned draggable floating pill with one-tap collapse into a snap-to-edge floating orb above the tab bar.",
-      "Show the active location source badge (GPS / Pinned / IP) on the Weather detail screen and automatically resync weather whenever GPS or manual map calibration updates."
+      "Unlock mobile app capabilities for all owned bots: read live phone location, weather, and companion state, search places and estimate routes, and launch Amap navigation straight from chat.",
+      "Add foreground auto-execution paired with persistent one-tap chat action cards so navigation, screen jumps, and companion switches run automatically in foreground and remain clickable from background.",
+      "Add a unified Settings → Bot App Permissions screen with one-tap enable-all, per-capability toggles, relaxed backend approval switch, and a native iOS EventKit/Contacts/Clipboard bridge (native iOS data requires IPA 1.0.14).",
+      "Add manual zoom (100%–300%), pinch-to-zoom, double-tap toggle, and pan mode to both the Cloud Computer preview card and full-screen modal with zoom-aligned touch and virtual mouse precision."
     ]
   }
 }

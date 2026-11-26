@@ -73,6 +73,7 @@ import {
   showsMainNavigation,
   useMainNavigationHidden,
 } from "../lib/main-navigation";
+import { useMobileBridgeSync } from "../lib/mobile-bridge";
 import { setMobileMonitoringScreen } from "../lib/monitoring";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { loadNotificationPreferences } from "../lib/notification-preferences";
@@ -318,6 +319,7 @@ function LayoutContent() {
     setCompanionOpenThreadBotId(pathname === "/thread" && rawBot ? rawBot : null);
   }, [pathname, globalParams.botId]);
   useCompanionThreadWatch(ready);
+  useMobileBridgeSync(ready);
   const navigationHidden = useMainNavigationHidden();
   const showMainNavigation = showsMainNavigation(pathname) && !navigationHidden;
   const screen = analyticsScreen(pathname);

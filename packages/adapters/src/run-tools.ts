@@ -24,6 +24,7 @@ import { fleetTools } from "./run-tools-fleet.js";
 import { cloudAgentTool, connectorTool, integrationTools } from "./run-tools-integrations.js";
 import { memoryTools } from "./run-tools-memory.js";
 import { messagingTools } from "./run-tools-messaging.js";
+import { mobileAppTools } from "./run-tools-mobile-app.js";
 import { preferenceTools } from "./run-tools-preferences.js";
 import { prepareProjectCloudCommand, runProjectCloudCommand } from "./run-tools-project-command.js";
 import { prepareProjectFile, projectFileHandlers } from "./run-tools-project-files.js";
@@ -63,6 +64,7 @@ const TOOL_HANDLERS = new Map<string, ToolHandler>([
   [USER_COMPUTER_ACT_TOOL, userComputerAct],
   ...Object.entries(purchaseTools),
   ...Object.entries(preferenceTools),
+  ...Object.entries(mobileAppTools),
   ...Object.entries(projectFileHandlers),
   [PROJECT_CLOUD_COMMAND, runProjectCloudCommand],
   [PROJECT_WINDOWS_TERMINAL, runProjectWindowsTerminal],

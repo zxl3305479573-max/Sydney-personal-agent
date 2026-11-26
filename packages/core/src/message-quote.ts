@@ -162,6 +162,7 @@ function replyBlockText(block: MessageBlock): string {
       return block.steps.map((step) => step.label).join(", ");
     case "voice_call":
     case "cloud_agent":
+    case "app_action":
       return block.title;
     case "call_request":
       return block.reason;

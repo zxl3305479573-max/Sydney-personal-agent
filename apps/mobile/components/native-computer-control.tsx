@@ -95,10 +95,12 @@ function gesturePoint(event: GestureResponderEvent): ComputerPoint {
 export function ComputerVirtualMouse({
   geometry,
   screen,
+  zoomScale = 1,
   onInput,
 }: {
   geometry: NativeScreenGeometry | null;
   screen: { width: number; height: number };
+  zoomScale?: number;
   onInput: (input: NativeComputerInput) => void;
 }) {
   const { t } = useI18n();
@@ -133,8 +135,16 @@ export function ComputerVirtualMouse({
 
   function move(active: MouseGesture, next: ComputerPoint) {
     if (!display) return;
-    const delta = { x: next.x - active.last.x, y: next.y - active.last.y };
-    if (!active.moved && Math.hypot(delta.x, delta.y) < MOVE_THRESHOLD) return;
+    const scale = Number.isFinite(zoomScale) && zoomScale > 1 ? zoomScale : 1;
+    const delta = {
+      x: (next.x - active.last.x) / scale,
+      y: (next.y - active.last.y) / scale,
+    };
+    if (
+      !active.moved &&
+      Math.hypot(next.x - active.last.x, next.y - active.last.y) < MOVE_THRESHOLD
+    )
+      return;
     active.moved = true;
     active.last = next;
     position.current = moveVirtualCursor(position.current, delta, display);

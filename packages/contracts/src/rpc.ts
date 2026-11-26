@@ -166,6 +166,12 @@ import {
   IntegrationProviderConfigSchema,
   IntegrationSetupStateSchema,
 } from "./integration-settings.js";
+import {
+  MobileBridgeAckActionInputSchema,
+  MobileBridgePermissionsPatchSchema,
+  MobileBridgeSnapshotSchema,
+  MobileBridgeStateSchema,
+} from "./mobile-bridge.js";
 import { ModelHeadersSchema } from "./model-headers.js";
 import { ModelRoleSchema, ModelRoleUpdateSchema, ModelRoleViewSchema } from "./model-roles.js";
 import { PaymentWalletStatusSchema } from "./payments.js";
@@ -1715,6 +1721,12 @@ export const appContract = {
     listMyRepos: oc.input(GithubListMyReposInputSchema.optional()).output(GithubRepoPageSchema),
     searchRepos: oc.input(GithubSearchReposInputSchema).output(GithubSearchReposOutputSchema),
     repoDetail: oc.input(GithubRepoDetailInputSchema).output(GithubRepoDetailSchema),
+  },
+  mobileBridge: {
+    get: oc.output(MobileBridgeStateSchema),
+    updatePermissions: oc.input(MobileBridgePermissionsPatchSchema).output(MobileBridgeStateSchema),
+    syncSnapshot: oc.input(MobileBridgeSnapshotSchema).output(MobileBridgeStateSchema),
+    ackAction: oc.input(MobileBridgeAckActionInputSchema).output(z.object({ ok: z.literal(true) })),
   },
 };
 

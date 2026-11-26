@@ -8,7 +8,7 @@
 
 工具调用必须经过确定性的参数和权限检查。提示词中的“请遵守权限”不能替代实际检查。
 
-第一版只接入已明确登记的工具和 Provider。按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，后台与云电脑分机，Agent 以桌面账号执行已授权操作，默认不获得任一服务器 root、sudo、后台密钥、数据库或服务管理权限；网络隔离和远端身份须实测。动态加载未知 Provider 或工具不属于第一版。
+第一版只接入已明确登记的工具和 Provider。按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，后台与云电脑分机，Agent 以桌面账号执行已授权操作，默认不获得任一服务器 root、sudo、后台密钥、数据库或服务管理权限；网络隔离和远端身份须实测。动态加载未知 Provider 或工具不属于第一版。手机 App 能力与 iOS 原生数据向自有 Bot 的授权、最小化同步与所有者会话限制按 [ADR-0028](adr/0028-mobile-app-bot-capabilities-bridge.md) 执行。
 
 ## 2. 授权策略
 

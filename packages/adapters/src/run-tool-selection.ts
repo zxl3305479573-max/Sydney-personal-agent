@@ -4,6 +4,8 @@ import {
   FLEET_TOOL_NAMES,
   FLEET_WRITE_TOOL_NAMES,
   GITHUB_TOOL_NAMES,
+  MOBILE_APP_READ_ONLY_TOOL_NAMES,
+  MOBILE_APP_TOOL_NAMES,
 } from "@rakazo/contracts";
 import { isBackgroundRunTrigger, isOwnerStartedRun } from "@rakazo/core";
 import { builtinAgentTools } from "./builtin-tools.js";
@@ -44,7 +46,10 @@ export const READ_ONLY_AGENT_TOOLS = new Set([
   "cloud_agent_status",
   "purchase_status",
   ...GITHUB_TOOL_NAMES,
+  ...MOBILE_APP_READ_ONLY_TOOL_NAMES,
 ]);
+
+const MOBILE_APP_TOOL_NAMES_SET: ReadonlySet<string> = new Set(MOBILE_APP_TOOL_NAMES);
 
 /** Offered only to a user who connected a wallet. */
 const PURCHASE_TOOL_NAMES = new Set(["request_purchase", "purchase_status", "paid_request"]);
@@ -131,6 +136,10 @@ export function selectBuiltinToolsForRun(options: {
       (!FLEET_TOOL_NAMES_SET.has(tool.name) ||
         (Boolean(options.fleetManagement) && ownerStartedRun)) &&
       (ownerStartedRun || (tool.name !== "update_preferences" && tool.name !== "feedback")) &&
+      ((ownerStartedRun &&
+        !options.messagingChannelRun &&
+        !isBackgroundRunTrigger(options.trigger)) ||
+        !MOBILE_APP_TOOL_NAMES_SET.has(tool.name)) &&
       (options.paymentWalletEnabled || !PURCHASE_TOOL_NAMES.has(tool.name)) &&
       (options.githubEnabled || !GITHUB_TOOL_NAMES_SET.has(tool.name)) &&
       (options.mediaImagesEnabled || tool.name !== "generate_image") &&

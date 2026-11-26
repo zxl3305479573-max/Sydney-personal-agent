@@ -126,6 +126,10 @@ jobs:
           test -f "$app/main.jsbundle"
           location_prompt=$(/usr/libexec/PlistBuddy -c 'Print :NSLocationWhenInUseUsageDescription' "$app/Info.plist")
           test -n "$location_prompt"
+          for key in NSCalendarsUsageDescription NSCalendarsFullAccessUsageDescription NSRemindersUsageDescription NSRemindersFullAccessUsageDescription NSContactsUsageDescription; do
+            val=$(/usr/libexec/PlistBuddy -c "Print :$key" "$app/Info.plist")
+            test -n "$val"
+          done
           if [[ "$SYDNEY_COMPANION_EXPERIMENT" == "1" ]]; then
             extension="$app/PlugIns/SydneyCompanionWidget.appex"
             test -d "$extension"
