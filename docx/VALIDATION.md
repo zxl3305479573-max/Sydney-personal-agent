@@ -4,19 +4,29 @@
 
 关联 PA-021／REL-01。
 
-- **首轮暴露问题与修复**：
+- **本机与云端首轮暴露问题与修复**：
   - `apps/mobile/lib/device-location.ts` 初版顶层静态导入 `expo-modules-core` 导致纯 Vitest 节点解析 React Native Flow 语法失败；对照 `expo-modules-core/src/requireNativeModule.ts` 改为直接读取 Expo JSI 主机对象 `globalThis.expo?.modules?.SydneyLocation` 后通过。
   - `companion-floating-bar.test.tsx` 缺少 `Dimensions`/`PanResponder` 替身、`home-hub.test.tsx` 缺少 `./map-location` 新增导出替身；补齐并完成 4 文件 Biome 自动格式化后全部通过。
+  - 首轮 Xcode 27 云端 IPA 构建（Run `45744303636`）暴露原有 `apps/mobile/plugins/with-companion-widget.js` 未清理 `PBXGroup.path` 导致 `project.pbxproj` 出现 `path = undefined;`；已改为显式删除 `group.pbxGroup.path` 并补充 `apps/mobile/lib/companion-plugin.test.ts` 回归断言（提交 `d60007903`，2/2 通过）。
+  - 次轮 Xcode 27 云端 IPA 构建（Run `45745726451`）中 `SydneyLocation` 与 `SydneyCompanionWidget.appex` 已编译通过，但原有 `apps/mobile/modules/sydney-companion/ios/CompanionScreenCapture.swift` 在 Xcode 27 / iOS 27.1 SDK 首次进入 `#if compiler(>=6.4) && canImport(ScreenCaptureKit)` 编译时暴露 5 处错误（`SCContentSharingPickerConfiguration` 需 `var` 声明，以及 `captureMicrophone`／`minimumFrameInterval`／`queueDepth` 在 iOS 不可用）；已修正为 `var configuration` 并将 3 项 macOS 专有属性收拢至 `#if os(macOS)`（提交 `60b1fa6ff`，保留 Swift 层 5 秒 OCR 节流）。
 - **终轮已执行并通过（本机离线校验）**：
   - **Biome 检查**（覆盖本批全部 18 个 TS/TSX/JSON 文件）：**18 / 18 文件 0 错误、0 格式差异**。
   - **定向 Vitest 回归（16 个文件、84 项测试全部通过、0 失败）**：
     - 定位与天气／地图：`device-location.test.ts`（3）、`home-weather.test.ts`（6，含原生 GPS 优先不请求 GeoJS IP 用例）、`weather-screen.test.tsx`（2）、`map-location.test.ts`（4）、`map-screen.test.tsx`（2）。
-    - 陪伴悬浮、插件与配置：`companion-floating-bar.test.tsx`（2，含 `position: "absolute"` 悬浮、收起为悬浮球及展开断言）、`companion-plugin.test.ts`（2）、`companion-autolinking.test.ts`（2）、`companion-session.test.ts`（5）、`home-companion-card.test.tsx`（2）、`home-hub.test.tsx`（6）、`app-config.test.ts`（34，含主侧载同时开启灵动岛与 OTA 断言）、`app-version.test.ts`（6）、`permission-prompts.test.ts`（1）、`scroll-hygiene.test.ts`（1）、`screen-theme-coverage.test.ts`（6）。
-  - **TypeScript 核查**：`tsc --noEmit -p apps/mobile/tsconfig.json` 中本批改动文件 **0 错误**（输出仅余同工作区另一并发窗口正在编辑的 `apps/mobile/app/computer.tsx(226,7)`，未触碰且不纳入本批提交）。
+    - 陪伴悬浮、插件与配置：`companion-floating-bar.test.tsx`（2，含 `position: "absolute"` 悬浮、收起为悬浮球及展开断言）、`companion-plugin.test.ts`（2，含禁止 `path = undefined` 回归）、`companion-autolinking.test.ts`（2）、`companion-session.test.ts`（5）、`home-companion-card.test.tsx`（2）、`home-hub.test.tsx`（6）、`app-config.test.ts`（34，含主侧载同时开启灵动岛与 OTA 断言）、`app-version.test.ts`（6）、`permission-prompts.test.ts`（1）、`scroll-hygiene.test.ts`（1）、`screen-theme-coverage.test.ts`（6）。
+  - **TypeScript 核查**：本批改动文件 **0 错误**（未触碰同工作区其他并发窗口文件）。
   - **差异空白检查**：本批全部文件 `git diff --check`：**0 警告通过**。
-- **待执行 / 待在线与真机验证**：
-  - Xcode 27 编译 `SydneyLocationModule.swift` + `SydneyCompanionWidget.appex` 生成 `1.0.13` 未签名 IPA（由推送后 GitHub Actions `mobile-ios-sideload.yml` 实跑验证）。
-  - 真实 iPhone 侧载安装新 IPA 后验证：系统定位授权弹窗、天气／地图精准 GPS 坐标与中文区县名、灵动岛与锁屏实时活动常驻，以及应用内悬浮胶囊拖拽／悬浮球贴边吸附。
+- **GitHub Actions 云端 CI、iOS `1.0.13` IPA 构建与 `1.0.29` OTA 线上实测**：
+  - **全量 CI**：`464982955`（[Run 45744303604](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45744303604)）、`d60007903`（[Run 45745726392](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45745726392)）与 `60b1fa6ff`（[Run 45748488627](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45748488627)）全部 **`completed / success`**。
+  - **iPhone `1.0.13` 无签名侧载 IPA（Xcode 27 / iOS 27.1 SDK）**：`mobile-ios-sideload.yml` [Run 45748488829](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45748488829)（Job `139670247519`，提交 `60b1fa6ff`）**`completed / success`**（`2026-11-26T03:22:26Z`–`03:46:07Z`）：
+    - `** BUILD SUCCEEDED **`：同时编入 `SydneyLocation`（CoreLocation GPS）与 `SydneyCompanion`／`PlugIns/SydneyCompanionWidget.appex`（arm64、`xin.zxlup.sydney.companion`、`com.apple.widgetkit-extension`）；
+    - 构建校验门禁全部通过：`NSLocationWhenInUseUsageDescription` 非空、`NSSupportsLiveActivities=true`、`SydneyCompanionEnabled=true`、`Longest IPA path: 122 characters; verified 9 asset directories; EXUpdatesEnabled=True`（`sydney-ios-ip-1`）；
+    - 产物上传成功：`sydney-ios-unsigned-45748488829-1`（Artifact ID `15085606482`，归档大小 `26,411,898` 字节，zip SHA-256 `fa3f38652a92cd8fcb052a67abd256fc389e65a285aa2ce7264d93795510aa4f`）。
+  - **iPhone `1.0.29` 侧载 OTA 线上核验**：`mobile-ios-update.yml` [Run 45744354416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45744354416)（`main`／`464982955`／`sydney-ios-ip-1`）**`completed / success`**：
+    - 更新组 ID：`43fade06-862b-4f83-b6e1-2337b0511e2a`；iOS 更新 ID：`01a215be-ade4-7f8e-ba67-21d313eaa8d4`（`createdAt: 2026-11-26T02:45:47.620Z`）；
+    - 线上 Expo 清单返回 HTTP `200`（`version: "1.0.29"`），启动包 HTTP `200`（`10,986,784` 字节，SHA-256 `93f3c03a87d12fe2c9a5581e9d4120b32df5672e9d6b32b9c423fae8d43a74bc`），全部 **`56 / 56`** 静态资源 HTTP `200` 且 SHA-256 匹配。
+- **未执行项（待真机实测）**：
+  - 真实 iPhone 侧载重装 `1.0.13` `Sydney-unsigned.ipa` 后验证：系统定位授权弹窗、天气／地图精准 GPS 坐标与中文城市区县名、锁屏／灵动岛常驻实时活动、应用内悬浮胶囊上下拖拽／悬浮球全屏贴边吸附、后续 `sideload` OTA 升级兼容性及高德地图拉起。
 
 ## 生产后端上线与 iPhone 1.0.28 侧载 OTA 发布（2026-11-25）
 

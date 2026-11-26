@@ -1,5 +1,22 @@
 # 运维手册
 
+## iPhone 1.0.13 侧载 IPA（含原生 GPS 与灵动岛）与 1.0.29 OTA（2026-11-25）
+
+### iPhone 1.0.13 无签名侧载底座 IPA
+
+- **构建与产物**：提交 `60b1fa6ff61742d61c0446458815358b48cc1fd4`（叠加 `464982955` 核心实现与 `d60007903` Widget 插件修复）经 `.github/workflows/mobile-ios-sideload.yml` [Run 45748488829](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45748488829)（`xcode-27` / iOS 27.1 SDK，Job `139670247519`）编译、校验与打包通过，上传未签名产物 [sydney-ios-unsigned-45748488829-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45748488829/artifacts/15085606482)（Artifact ID `15085606482`，归档 `26,411,898` 字节，zip SHA-256 `fa3f38652a92cd8fcb052a67abd256fc389e65a285aa2ce7264d93795510aa4f`，内含 `Sydney-unsigned.ipa` 与 `SHA256.txt`，保留 7 天）。
+- **原生能力与配置变化**：
+  - Bundle ID 保持 `xin.zxlup.sydney`（兼容覆盖安装，无需更换账号或数据目录），原生版本递增为 `1.0.13`（build `2`），默认直连 `https://124.221.182.39`。
+  - 新增零外部依赖本地 Expo 模块 `SydneyLocation`（iOS `CoreLocation` + `CLGeocoder`），已在 `Info.plist` 写入并经构建门禁校验 `NSLocationWhenInUseUsageDescription`；同时继续保留 `LSApplicationQueriesSchemes`（`iosamap`、`amapuri`）以支持一键拉起高德地图 App。
+  - 主侧载 IPA 默认开启 `SYDNEY_COMPANION_EXPERIMENT=1`，内嵌 `PlugIns/SydneyCompanionWidget.appex`（Bundle ID `xin.zxlup.sydney.companion`、`com.apple.widgetkit-extension`、`arm64`）、写入 `NSSupportsLiveActivities=true` 与 `SydneyCompanionEnabled=true`；个人侧载工具（如 AltStore／SideStore／Sideloadly／爱思等）签名时需同步保留或允许嵌入 App Extension（若工具提示分配额外 App ID，个人免费 Apple ID 的 3 个 App ID 额度内可容纳主包 + 灵动岛扩展共 2 个）。
+  - 保留 `sideload` 通道 OTA（`EXUpdatesEnabled=True`，runtime `sydney-ios-ip-1`），覆盖重装本 IPA 后后续常规 JS／UI 改动继续通过 App 内「设置 → 检查更新」热更新，无需每次重装 IPA。
+- **安装与回退**：下载 `sydney-ios-unsigned-45748488829-1.zip` 解压取得 `Sydney-unsigned.ipa`（可用同目录 `SHA256.txt` 核对摘要），按既有个人签名工具覆盖安装至 iPhone；如需回退原生底座，可重新侧载上一版 `1.0.12` IPA（`Run 44978723093`），但旧底座不含原生 GPS 与灵动岛扩展。
+
+### iPhone 1.0.29 侧载 OTA
+
+- 提交 `464982955` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45744354416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45744354416) 发布至 `sideload`／`sydney-ios-ip-1`：更新组 `43fade06-862b-4f83-b6e1-2337b0511e2a`、iOS 更新 ID `01a215be-ade4-7f8e-ba67-21d313eaa8d4`，线上清单 HTTP `200`、启动包 `10,986,784` 字节（SHA-256 `93f3c03a87d12fe2c9a5581e9d4120b32df5672e9d6b32b9c423fae8d43a74bc`）与全部 `56/56` 静态资源 SHA-256 核验通过。
+- 旧 `1.0.12` IPA 拉取 `1.0.29` OTA 后可立即获得应用内可拖动真悬浮胶囊／悬浮球与天气来源标识，但原生 GPS 定位与灵动岛扩展必须安装上述 `1.0.13` IPA 后方可启用；本次不涉及服务端部署、数据库迁移或项目设备开关变更。真实 iPhone 侧载与端到端实测待设备验收。
+
 ## 生产后端 `9dd2d1a86` 部署与 iPhone 1.0.28 侧载 OTA（2026-11-25）
 
 ### 生产后端部署（`sydney-cloud-admin` / `https://pc.zxlup.xin`）
