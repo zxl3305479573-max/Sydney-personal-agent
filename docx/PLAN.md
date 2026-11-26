@@ -1,5 +1,17 @@
 # Sydney 开发总计划
 
+## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
+
+状态：源码全量提交推送（`6b6ebe21e89416789cda2a4885c7f863ef4980db`）、GitHub CI（Run `45765000946`）全绿、新版 `1.0.15`（build `4`）无签名侧载 IPA 云端出包（Run `45764995008`）及 `1.0.32` 侧载 OTA 发布与线上全资源核验（Run `45767292012`）均已完成；真实 iPhone 侧载重装 `1.0.15` IPA、拉取 `1.0.32` OTA 与各项真机交互待设备验收。
+
+范围与交付物：
+- **合并提交与版本递增**：将工作区全部 56 个改动文件（首页实时 Retina 高清地图预览与 `/map` 搜索框修复、移除 `StartupSplash` 开屏动画、天气详情页未来日期与逐小时点击切换、语音通话灵动岛同步与灵动岛全黑／多 Bot 头像内容修复、「截屏提问」页面 `/companion-capture` 与灵动岛三快捷按钮、Bot 消息通知弹窗对应 Bot 头像展示及 iOS 原生头像通知附件／通信意图）递增为移动端 `1.0.32`（原生 `1.0.15` / build `4`），提交为 `6b6ebe21e89416789cda2a4885c7f863ef4980db` 并推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+- **iPhone `1.0.15` 无签名侧载 IPA（原生 Swift 重编）**：`.github/workflows/mobile-ios-sideload.yml` [Run 45764995008](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45764995008)（`xcode-27` / iOS 27.1 SDK，Job `139723670470`）一次编译打包通过（`** BUILD SUCCEEDED **`、`PlugIns/SydneyCompanionWidget.appex` 验证通过、`Longest IPA path: 122 characters; verified 9 asset directories; EXUpdatesEnabled=True`），产物 [sydney-ios-unsigned-45764995008-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45764995008/artifacts/15092122204)（Artifact ID `15092122204`，`26,471,019` 字节，zip SHA-256 `326af17cee3fe65b542f25ad27d03d50c334691d247b1a353918c7439b7928be`）。
+- **iPhone `1.0.32` 侧载 OTA 与线上核验**：`.github/workflows/mobile-ios-update.yml` [Run 45767292012](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45767292012)（`main`／`6b6ebe21e`／`sydney-ios-ip-1`）发布成功，更新组 `312e4cc9-c010-49e5-a9a3-989882c12a08`、iOS 更新 ID `01a21683-1c60-7ebe-8f8c-0e3395ddedb3`；线上 Expo 清单 HTTP `200`（`1.0.32`／三语说明各 4 条）、启动包 `11,177,976` 字节（SHA-256 `47a720261ba17838bbbc6b6a028e0f1145ef04408d5a531af3f2a31ad6d980c2`）及全部 `55 / 55` 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **GitHub CI 复验**：`CI` [Run 45765000946](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45765000946)（attempt 2）全绿通过（含 `deploy-production` Job `139730825780`，线上 `/health` 与 `/ready` 均 HTTP `200`）。详见 [验证记录](VALIDATION.md#iphone-1015-侧载-ipa-重新打包与-1032-侧载-ota-发布2026-11-25) 与 [运维手册](OPERATIONS.md#iphone-1015-侧载-ipa-与-1032-侧载-ota2026-11-25)。
+
+依赖与验收条件：本次含原生 Swift 与 Widget 扩展升级（灵动岛全黑与多 Bot 头像内容修复、语音通话实时计时器、灵动岛展开三快捷按钮、后台通知 `160×160` 圆形 Bot 头像附件与 `INSendMessageIntent`），需覆盖侧载安装 `1.0.15` IPA 后完全生效；安装后保留 `sydney-ios-ip-1` OTA 通道，旧底座拉取 `1.0.32` OTA 亦可立即获得高清实时地图卡片、无开屏直入、天气未来日期切换、截屏提问页面与前台 Bot 头像通知横幅。真机实测待执行。
+
 ## 手机端 Bot 消息通知弹窗展示对应 Bot 头像（PA-021，2026-11-25）
 
 状态：源码实现（前台定制头像通知弹窗、Bot 头像缓存注册表与 iOS 原生 `UNNotificationAttachment` + `INSendMessageIntent` 头像通知）与本机定向离线验证已完成；iOS 原生 Swift 编译打包（`mobile-ios-sideload.yml`）与真机前后台实测待执行（未提交或推送）。

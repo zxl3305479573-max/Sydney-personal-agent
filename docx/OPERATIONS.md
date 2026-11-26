@@ -1,5 +1,23 @@
 # 运维手册
 
+## iPhone 1.0.15 侧载 IPA 与 1.0.32 侧载 OTA（2026-11-25）
+
+### iPhone `1.0.15`（build `4`）无签名侧载底座 IPA
+
+- **构建与产物**：提交 `6b6ebe21e89416789cda2a4885c7f863ef4980db` 已通过 `.github/workflows/mobile-ios-sideload.yml` [Run 45764995008](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45764995008)（`xcode-27` / iOS 27.1 SDK，Job `139723670470`）编译打包通过，上传未签名产物 [sydney-ios-unsigned-45764995008-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45764995008/artifacts/15092122204)（Artifact ID `15092122204`，归档 `26,471,019` 字节，zip SHA-256 `326af17cee3fe65b542f25ad27d03d50c334691d247b1a353918c7439b7928be`，内含 `Sydney-unsigned.ipa` 与 `SHA256.txt`，保留 7 天）。
+- **原生与扩展变更**：
+  - Bundle ID 保持 `xin.zxlup.sydney`（兼容覆盖安装，无需重新登录或清数据），原生版本递增至 `1.0.15`（build `4`），保留 `EXUpdatesEnabled=True` 与 `sydney-ios-ip-1` OTA 通道。
+  - `SydneyCompanion` 原生模块与 `PlugIns/SydneyCompanionWidget.appex` 同步升级：修复灵动岛全黑与多 Bot 头像／回复展示、新增语音通话原子化 `startCall`/`updateCall` 实时计时器与灵动岛长按展开三按钮（发消息／截屏提问／语音对话），并新增 `scheduleBotNotification`（原生渲染 `160×160` 圆形 Bot 头像 PNG `UNNotificationAttachment` 与 `INSendMessageIntent`，`Info.plist` 新增 `NSUserActivityTypes: ["INSendMessageIntent"]`，无受限 entitlement）。
+  - 下载并解压 `sydney-ios-unsigned-45764995008-1.zip` 后使用个人签名工具覆盖安装 `Sydney-unsigned.ipa`（需同步签入 `SydneyCompanionWidget.appex`）。
+
+### iPhone `1.0.32` 侧载 OTA
+
+- 提交 `6b6ebe21e89416789cda2a4885c7f863ef4980db` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45767292012](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45767292012) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）。
+- 更新组 ID：`312e4cc9-c010-49e5-a9a3-989882c12a08`；iOS 更新 ID：`01a21683-1c60-7ebe-8f8c-0e3395ddedb3`；线上 Expo 清单 HTTP `200`（`version: "1.0.32"`）、启动包 `11,177,976` 字节（SHA-256 `47a720261ba17838bbbc6b6a028e0f1145ef04408d5a531af3f2a31ad6d980c2`）与全部 `55 / 55` 静态资源 SHA-256 核验通过；线上生产 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`。
+- **兼容性与回退**：
+  - 安装 `1.0.15` IPA 后即自带全部原生与 `1.0.32` 能力，并继续支持后续 `sideload` OTA；未重装前的旧底座（`1.0.12`–`1.0.14`）在 App 内「设置 → 检查更新」拉取 `1.0.32` OTA 重启后亦可立即使用高清实时地图卡片、无开屏直入、天气未来日期切换、截屏提问页面及前台 Bot 头像通知弹窗。
+  - OTA 回退可重发上一版 `1.0.31`（更新 ID `01a21650-528f-7229-abfb-fa15ad124ae5`）；原生底座回退可重装 `1.0.14` IPA（Run `45753551478` / `45754727501`）。真机实测待设备验收。
+
 ## iPhone 1.0.31 侧载 OTA（2026-11-25）
 
 - 提交 `ffd53173acbb6ea1f61cc2b831d5740d3e924caf` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45761232138](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45761232138) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`，无需重装 IPA）。

@@ -1,5 +1,28 @@
 # 验证记录
 
+## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **提交前本机全量复验**：
+  - **Biome 检查**（覆盖工作区全部 44 个修改／新增 TS/TSX/JSON 文件，含 `app.json` `1.0.15` 与 `sydney-release.json` `1.0.32`）：**44 / 44 文件 0 错误**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向 Vitest 回归**（`pnpm exec vitest run --maxWorkers=1`）：**26 个文件、173 / 173 项全部通过**（覆盖天气、地图、灵动岛与语音通话、截屏提问、Bot 头像通知前后台链路、收件箱／首页渲染、版本配置、权限提示、主题覆盖与滚动条守卫）。
+  - **差异空白检查**（`git diff --check`）：**0 警告**。
+- **Git 提交、GitHub CI 与 iOS `1.0.15` 无签名侧载 IPA 实证**：
+  - 提交 `6b6ebe21e89416789cda2a4885c7f863ef4980db`（56 文件变更）已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - **`iOS unsigned sideload build`（`mobile-ios-sideload.yml`）** [Run 45764995008](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45764995008)（`xcode-27` / iOS 27.1 SDK，Job `139723670470`）：**`completed / success`**：
+    - `** BUILD SUCCEEDED **`：验证通过 `SydneyCompanion`（含 `scheduleBotNotification`、`INSendMessageIntent`、`UNNotificationAttachment` 与 `startCall`/`updateCall`）、`SydneyLocation`、`SydneyDeviceBridge` 及 `PlugIns/SydneyCompanionWidget.appex`（`ValidateEmbeddedBinary` 通过，含高对比灵动岛视图、多 Bot 头像与展开三快捷按钮）；
+    - 构建门禁实测：`Longest IPA path: 122 characters; verified 9 asset directories; EXUpdatesEnabled=True`（runtime `sydney-ios-ip-1`，无受限 entitlement）；
+    - 产物上传：`sydney-ios-unsigned-45764995008-1`（Artifact ID `15092122204`，归档大小 **`26,471,019` 字节**，zip SHA-256 `326af17cee3fe65b542f25ad27d03d50c334691d247b1a353918c7439b7928be`）。
+  - **GitHub CI（`ci.yml`）** [Run 45765000946](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45765000946)：attempt 1 中 `Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (2/2)` 与全部服务端镜像发布通过，`Postgres journeys (1/2)` 在未改动后端的既有群聊用例 54 出现一次瞬时数据库错误；重跑失败任务（attempt 2）后全链路 **`completed / success`**（含 `deploy-production` Job `139730825780`），线上实测 `https://pc.zxlup.xin/health` 与 `/ready` 均返回 **HTTP `200`**。
+- **iPhone `1.0.32` 侧载 OTA 线上实测**：
+  - **`Publish iOS sideload update`（`mobile-ios-update.yml`）** [Run 45767292012](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45767292012)（`main`／`6b6ebe21e`／`sydney-ios-ip-1`）：**`completed / success`**。
+  - 更新组 ID：`312e4cc9-c010-49e5-a9a3-989882c12a08`；iOS 更新 ID：`01a21683-1c60-7ebe-8f8c-0e3395ddedb3`（`createdAt: 2026-11-26T06:20:20.960Z`）。
+  - 在线回读 Expo `sideload` 清单返回 **HTTP `200`**（`multipart/mixed`、`version: "1.0.32"`、`releasedOn: "2026-11-25"`、三语说明各 4 条）；启动包 HTTP `200`、大小 **`11,177,976` 字节**（SHA-256 `47a720261ba17838bbbc6b6a028e0f1145ef04408d5a531af3f2a31ad6d980c2`，校验匹配 `True`）；全部 **`55 / 55`** 项静态资源 HTTP `200` 且 SHA-256 全匹配（`0` 失败）。
+- **未执行项（待真机验收）**：
+  - 真实 iPhone 覆盖侧载安装 `1.0.15` `Sydney-unsigned.ipa` 并拉取 `1.0.32` OTA 后，实测高清首页实时地图、无开屏直入、天气未来日期切换、灵动岛多 Bot 头像／语音通话计时／长按展开三按钮、截屏提问及前后台 Bot 头像消息通知弹窗。
+
 ## 手机端 Bot 消息通知弹窗展示对应 Bot 头像（2026-11-25）
 
 关联 PA-021。
