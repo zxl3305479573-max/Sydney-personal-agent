@@ -1,5 +1,16 @@
 # Sydney 开发总计划
 
+## 生产后端上线与 iPhone 1.0.28 侧载 OTA 发布（PA-018／PA-021／PA-022／REL-01，2026-11-25）
+
+状态：源码提交推送、GitHub CI 全绿（含 Postgres 集成测试与镜像发布）、生产后端部署上线（228 项迁移 + API／Worker／API 画面桥切换）及 iPhone `1.0.28` 侧载 OTA 线上核验均已完成；真实 iPhone 下载重启与新指令自动取消审批卡实机交互待设备验收。
+
+范围与交付物：
+- 提交推送：将全部工作区改动（审批卡在新指令发送后自动取消、首页天气点击进入 `/weather` 详情页、修复 GitHub CI `Unit tests (2/3)` 的 `apps/mobile/locales/es.json` 定位权限词条、`apps/mobile/sydney-release.json` `1.0.28` 三语说明及文档）提交为 `9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92`（位于 `2e2937aa9` 之上），推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+- 生产后端部署：先在 `sydney-cloud-admin` 留档全量 PostgreSQL `pg_dump` 备份（`3,510,129` 字节，`pg_restore --list` 1,092 行已验）与原 overlay，清理 `/etc/rakazo/compose/production.overlay.yml` 中 11 月 21 日旧镜像锁死与热补丁挂载并修正权限为 `root:deploy 0640`；随后 `CI` [Run 45737192000](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45737192000) 全绿并通过 `deploy-production`（Job `139635163352`）自动将生产升级至 `9dd2d1a86`（镜像 `sha256:f6c57c46ee6ef5a9785320769d9a40dcaea80eeffe59aad2fecb9dcc9d1fd03f`），应用 4 项新增迁移至 `228/228`（0 未完成），无中断切换 `rakazo-prod-api-22`、`rakazo-prod-worker-17`（旧 `worker-16` 排空退出）与 `rakazo-prod-native-screen-api-loopback-1`，`/health` 与 `/ready` 均返回 HTTP `200`。
+- iPhone `1.0.28` OTA 分发：通过 `.github/workflows/mobile-ios-update.yml` [Run 45737467172](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45737467172) 发布至 `sideload`／`sydney-ios-ip-1`（原生底座仍为 `1.0.12`，无需重签重装 IPA），包含 `2e2937aa9` 的后台陪伴升级与首页地图／高德导航、`/weather` 天气详情页及后端审批自动取消联动。更新组 `e3d563ca-cfee-42f2-ac63-e4ed7a9d5419`，iOS 更新 ID `01a21585-a4d0-7476-b01c-02dd6b57faf1`，清单 HTTP `200`、启动包 `11,096,668` 字节与 `56/56` 静态资源全部 HTTP `200` 且 SHA-256 匹配。详见 [验证记录](VALIDATION.md#生产后端上线与-iphone-1028-侧载-ota-发布2026-11-25) 与 [运维手册](OPERATIONS.md#生产后端-9dd2d1a86-部署与-iphone-1028-侧载-ota2026-11-25)。
+
+依赖与验收条件：生产项目设备工具开关保持 `false`，数据库与旧镜像回退点留存 `/srv/rakazo-releases/deploy-20261125-approval-autocancel/rollback/`；iPhone 真机拉取 `1.0.28` 并验证旧审批卡自动取消、`/weather`、后台陪伴悬浮胶囊与高德地图导航仍待设备验收。
+
 ## 审批卡在新指令发送后自动取消（PA-018／PA-022，2026-11-25）
 
 状态：源码实现与本机定向离线验证已完成（PostgreSQL 集成测试与生产后端部署验收待具备数据库／服务器授权后执行；未提交或推送）。

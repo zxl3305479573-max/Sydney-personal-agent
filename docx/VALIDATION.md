@@ -1,5 +1,29 @@
 # 验证记录
 
+## 生产后端上线与 iPhone 1.0.28 侧载 OTA 发布（2026-11-25）
+
+关联 PA-018／PA-021／PA-022／REL-01。
+
+- **提交前本机复验**：
+  - 修复前一次 CI `Unit tests (2/3)` 在 `apps/mobile/lib/permission-prompts.test.ts` 的唯一失败项（补齐 `apps/mobile/locales/es.json` 的 `NSLocationWhenInUseUsageDescription`），并对 `/weather` 4 个文件完成 Biome 自动格式化。
+  - 全部 14 个本批代码／配置／测试文件 Biome 严检：**14 / 14 文件 0 错误、0 格式差异**；`packages/db`、`apps/api`、`apps/mobile` 三包 `tsc --noEmit` **0 错误**；定向 Vitest（含 `events.test.ts` 171、`run-secrets.test.ts` 4、`thread-target.test.ts` 97、`project-workspace-thread.test.ts` 24、`permission-prompts.test.ts` 1、`app-version.test.ts` 6、`home-weather.test.ts` 5、`weather-screen.test.tsx` 2、`home-hub.test.tsx` 6、`screen-theme-coverage.test.ts` 6、`scroll-hygiene.test.ts` 1）全绿；`git diff --check` **0 警告**。
+- **Git 提交、GitHub CI 与生产自动部署结果**：
+  - 提交 `9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92` 已推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - `CI` [Run 45737192000](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45737192000)（`main`／`9dd2d1a86`）：**completed / success**（`2026-11-26T01:47:32Z`）：
+    - `Lint and typecheck`：**success**；`Unit tests (1/3–3/3)`：**全部 success**；`Postgres journeys (1/2–2/2)`：**全部 success**（含真实 PostgreSQL 执行 `apps/api/src/typed-reply.postgres.test.ts` 审批卡自动取消与 `externalEffect: "denied"` 验证）；
+    - `Publish server images`（`app`／`updater`／`computer` `amd64` + `arm64`）：**全部 success**；
+    - `deploy-production`（Job `139635163352`）：**completed / success**（`Deployed 9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92 successfully.`）。
+- **生产主机（`sydney-cloud-admin` / `https://pc.zxlup.xin`）上线前后实证**：
+  - 上线前备份：`/srv/rakazo-releases/deploy-20261125-approval-autocancel/rollback/database-before.dump`（`3,510,129` 字节，SHA-256 `61ebf2dc7fe5bea291aefcc6f9aee4e74815d66819cfc1ec2dbcadc67b98bc0c`，`pg_restore --list` 1,092 行可读）与 `production.overlay.yml.before`（SHA-256 `eb3bad6467866c25fe04c82bd874c560d75d91749805a1c5abe009e4dbb419e7`）。
+  - 线上运行态：`.last-deployed-revision` 与 `/srv/rakazo` `HEAD` 均为 `9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92`；`rakazo-prod-api-22` 与 `rakazo-prod-worker-17` 均运行 `ghcr.io/zxl3305479573-max/sydney-personal-agent/app:local`（`sha256:f6c57c46ee6ef5a9785320769d9a40dcaea80eeffe59aad2fecb9dcc9d1fd03f`、`org.opencontainers.image.revision=9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92`）且状态为 `healthy`；`rakazo-prod-native-screen-api-loopback-1` 已重建并共享新 `api-22` 网络命名空间（`container:f3e266892090...`）；旧 `worker-16` 已完成排空并清理。
+  - 数据库迁移：`228` 项完成、`0` 项未完成（本次成功应用 4 项：`20261121170000_project_run_directory_pin`、`20261122120000_shared_memory_across_projects`、`20261124120000_enable_project_conversation_scope`、`20261124140000_project_workspace_deletion_claim`）。
+  - 线上健康端点：`https://pc.zxlup.xin/health` 返回 HTTP `200`，`https://pc.zxlup.xin/ready` 返回 HTTP `200`。
+- **iPhone `1.0.28` 侧载 OTA 线上核验**：
+  - `mobile-ios-update.yml` [Run 45737467172](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45737467172)（`main`／`9dd2d1a86`／`sydney-ios-ip-1`）：**completed / success**（`01:41:36Z`–`01:43:34Z`）。
+  - 更新组 ID：`e3d563ca-cfee-42f2-ac63-e4ed7a9d5419`；iOS 更新 ID：`01a21585-a4d0-7476-b01c-02dd6b57faf1`（`createdAt: 2026-11-26T01:43:29.744Z`）。
+  - Expo 清单返回 **HTTP `200`**，`sydneyMobileRelease.version` 为 `1.0.28`、`releasedOn` 为 `2026-11-25`（三语说明各 4 条）；启动包 HTTP `200`、大小 **`11,096,668` 字节**（SHA-256 `fcd6fac05e26d72bef3da560b851c0a148f0d5690891ade6dc39a50866c2d9a0`）；全部 **`56 / 56`** 项静态资源 HTTP `200` 且 SHA-256 匹配（0 失败）。
+- **未执行项（待真机实测）**：iPhone 真机在「设置 → 检查更新」拉取重启至 `1.0.28` 后，实测向曾卡在审批卡的会话发送新指令自动退出「等待输入」，以及 `/weather` 天气详情、后台陪伴悬浮胶囊、首页地图与高德地图拉起交互。
+
 ## 审批卡在新指令发送后自动取消（2026-11-25）
 
 关联 PA-018／PA-022。

@@ -1,5 +1,21 @@
 # 运维手册
 
+## 生产后端 `9dd2d1a86` 部署与 iPhone 1.0.28 侧载 OTA（2026-11-25）
+
+### 生产后端部署（`sydney-cloud-admin` / `https://pc.zxlup.xin`）
+
+- **配置修复与恢复基线**：部署前已在生产主机受限目录 `/srv/rakazo-releases/deploy-20261125-approval-autocancel/rollback/`（目录 `0700`、文件 `0600`）留存迁移前 PostgreSQL 全量备份 `database-before.dump`（`3,510,129` 字节，SHA-256 `61ebf2dc7fe5bea291aefcc6f9aee4e74815d66819cfc1ec2dbcadc67b98bc0c`，已通过 `pg_restore --list` 1,092 行校验）及原覆写配置 `production.overlay.yml.before`（SHA-256 `eb3bad6467866c25fe04c82bd874c560d75d91749805a1c5abe009e4dbb419e7`）。同步清理 `/etc/rakazo/compose/production.overlay.yml` 中 11 月 21 日遗留的 `image: sydney-pa022-project-text:20261121` 固定镜像与 14 条 `/srv/rakazo-releases/*` 热补丁挂载（完整保留原有业务／项目／原生桌面环境变量、`/var/lib/rakazo-native/run` 挂载与三组 `socat` 桥），并将属主与权限修正为 `root:deploy 0640`，恢复 GitHub Actions `deploy-production` 自动发布通道。
+- **发布执行与运行状态**：提交 `9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92` 经 `CI` Run `45737192000` 全绿构建并发布 `ghcr.io/zxl3305479573-max/sydney-personal-agent/app:sha-9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92` 后，由 `deploy-production`（Job `139635163352`）自动调用 `deploy-main` 完成零停机切换：
+  - 数据库应用 4 项新增迁移（`20261121170000_project_run_directory_pin`、`20261122120000_shared_memory_across_projects`、`20261124120000_enable_project_conversation_scope`、`20261124140000_project_workspace_deletion_claim`），总账本 `228/228`（`0` 未完成）。
+  - `rakazo-prod-api-22` 与 `rakazo-prod-worker-17` 切换至新镜像 `sha256:f6c57c46ee6ef5a9785320769d9a40dcaea80eeffe59aad2fecb9dcc9d1fd03f` 并通过健康检查；`rakazo-prod-native-screen-api-loopback-1` 已重建绑定至新 `api-22` 网络命名空间；`/health` 与 `/ready` 均返回 HTTP `200`，项目设备开关保持 `false`。
+- **回退路径**：旧版镜像 `sydney-pa022-project-text:20261121`（`sha256:c96d99f5225c...`）与原覆写配置及数据库备份均保留在生产主机；如需代码级回退，可在评估 4 项前向迁移兼容性后通过原 `production.overlay.yml.before` 与既有镜像恢复，数据库全库恢复仅作为独立灾难恢复流程并在停服核对窗口内执行（本次未演练回退）。
+
+### iPhone 1.0.28 侧载 OTA
+
+- 提交 `9dd2d1a86b8ac69b2ce1e1ff127823288fb9be92`（含 `2e2937aa9` 后台陪伴完善与首页地图／高德导航、`/weather` 天气详情页及西班牙语定位权限补全）已通过 `.github/workflows/mobile-ios-update.yml` Run `45737467172` 发布至 Sydney `sideload` 通道，runtime 沿用 `sydney-ios-ip-1`，原生底座版本保持 `1.0.12`（无需重签或重装 IPA；`app.json` 中新增的定位权限与 `iosamap`/`amapuri` 白名单需在后续重装新签名 IPA 后由 iOS 系统原生生效，JS 侧地图／高德网页回退与天气／陪伴能力通过本次 OTA 即刻生效）。
+- 更新组 ID 为 `e3d563ca-cfee-42f2-ac63-e4ed7a9d5419`，iOS 更新 ID 为 `01a21585-a4d0-7476-b01c-02dd6b57faf1`，线上清单 HTTP `200`、启动包 `11,096,668` 字节（SHA-256 `fcd6fac05e26d72bef3da560b851c0a148f0d5690891ade6dc39a50866c2d9a0`）及全部 `56/56` 静态资源均已通过 HTTP `200` 与 SHA-256 核验。
+- 上一条已发布 OTA 来自 `ebe778578`（`1.0.27`），更新 ID `01a2135c-d2b5-7d0a-aa20-cf2a458a6fb7`；如需回退，按既有 Expo `sideload` 通道重新发布上一版兼容内容并复核新的更新 ID、清单与资源摘要。真机端到端验收待执行。
+
 ## iPhone 1.0.27 侧载 OTA（2026-11-25）
 
 提交 `ebe778578700e14b893ef02c29225a1932dd35f8`（位于 `8c6f484a5` 之上，涵盖首页顶部双重安全区留白修复、首页／聊天／项目三 Tab 顶栏基线与 iOS 中文衬线大标题对齐、首页实时天气微标、OTA 下载 3 次自动续传重试与暖瓷悬浮进度提示、任务完成后残留「等待输入」修复及第三批 GitHub CI Postgres 修复）已通过 `.github/workflows/mobile-ios-update.yml` Run `45647370098` 发布至 Sydney `sideload` 通道，runtime 沿用 `sydney-ios-ip-1`，原生底座版本保持 `1.0.12`（无需重新签名或重装 IPA）。更新组 ID 为 `0f6c0da3-7075-40d6-86d0-fffd16a912d6`，iOS 更新 ID 为 `01a2135c-d2b5-7d0a-aa20-cf2a458a6fb7`，线上清单、启动包（`10,846,664` 字节）及全部 `56/56` 项资源均已通过 HTTP `200` 与 SHA-256 核验。
