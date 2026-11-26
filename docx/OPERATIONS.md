@@ -1,5 +1,13 @@
 # 运维手册
 
+## iPhone 1.0.33 侧载 OTA（2026-11-25）
+
+- 提交 `57eaed795e4583842a0d05d1c603bcc05daa0e1a` 已通过 `.github/workflows/mobile-ios-update.yml` [Run 45774914989](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914989) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`，纯 JS／Reanimated／SVG 更新，无需重装 IPA）。
+- 更新组 ID：`40441f7e-7a0d-4136-8d6c-37dc051a6c89`；iOS 更新 ID：`01a216be-3b99-7636-88ef-ef00556dc0fa`（`createdAt: 2026-11-26T07:24:55.577Z`）；线上 Expo 清单 HTTP `200`（`version: "1.0.33"`、`releasedOn: "2026-11-25"`）、启动包 `11,161,340` 字节（SHA-256 `bf3c79a7f9d9e404066b9a6db9cce510d2df787747d39202ef6fd6e08471f864`）与全部 `55 / 55` 静态资源 HTTP `200` 且 SHA-256 核验通过；同步 `CI` [Run 45774914514](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914514)（含 `deploy-production` Job `139758508273`）全绿，线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`。
+- **兼容性与回退**：
+  - 既有 `1.0.12`–`1.0.15` 侧载 IPA 在 App 内「设置 → 检查更新」下载 `1.0.33` OTA 并重启后立即生效：全 App 跟随实时天气显示动态场景（小／中／大雨分级与底栏／底边水花涟漪、雷阵雨双闪与分叉闪电、小／大雪飘落与薄霜、多云／薄雾／晴阳／星夜），并可在天气详情页 `/weather` 底部「全应用动态天气场景」一键开关或跨页预览全部 10 种特效。
+  - OTA 回退可按既有 `sideload` 通道重发上一版 `1.0.32`（更新 ID `01a21683-1c60-7ebe-8f8c-0e3395ddedb3`）；本次不涉及数据库迁移或新增系统权限。真机实测待设备验收。
+
 ## iPhone 1.0.15 侧载 IPA 与 1.0.32 侧载 OTA（2026-11-25）
 
 ### iPhone `1.0.15`（build `4`）无签名侧载底座 IPA

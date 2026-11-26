@@ -1,5 +1,32 @@
 # 验证记录
 
+## 全 App 实时动态天气场景引擎与雨雪雷电落地特效（2026-11-25）
+
+关联 PA-021／REL-01。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/app/_layout.tsx` 登记 `trackMobileStartup("weatherScene", ...)` 后在 `apps/mobile/lib/startup.ts` 补全 `StartupStep` 联合类型成员 `"weatherScene"`；
+  - 对 4 个新增／修改文件（`weather-atmosphere-overlay.native.tsx`、`weather-scene-state.ts`、`weather-scene.ts`、`weather-screen.test.tsx`）执行 Biome 自动格式化与导入排序后 0 错误。
+- **提交前本机复验（全部通过）**：
+  - **Biome 检查**（覆盖全部 13 个新增／改动文件，含 `apps/mobile/sydney-release.json` `1.0.33`）：**13 / 13 文件 0 错误、0 格式差异**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向与全仓守卫 Vitest（8 个文件、45 / 45 项全部通过）**：
+    - `apps/mobile/lib/weather-scene.test.ts`（6 项：覆盖 WMO/WWO 10 类场景分类、降雨强度驱动雨滴数／长度／粗细／速度／风角／落地水花数递增、降雪缩放、闪电分叉 SVG 路径与星空云雾生成、阅读页透明度柔化、预览覆写与开关状态）；
+    - `apps/mobile/lib/home-weather.test.ts`（7 项：含 Open-Meteo `precipitation`/`rain`/`cloud_cover` 解析为 `heavy-rain` 与原有 GPS／降级／整分钟对齐用例）；
+    - `apps/mobile/lib/weather-screen.test.tsx`（5 项：含 `/weather` 开关与切换 `雷阵雨` 预览／`跟随实时` 交互）；
+    - `apps/mobile/lib/home-hub.test.tsx`（7 项）、`apps/mobile/lib/startup.test.ts`（7 项）、`apps/mobile/lib/app-version.test.ts`（6 项，校验 `1.0.33` 发布说明配置）、`apps/mobile/lib/screen-theme-coverage.test.ts`（6 项）、`apps/mobile/lib/scroll-hygiene.test.ts`（1 项，确认 `/weather` 新增横向预览条隐藏滚动条）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **Git 提交、GitHub CI 与 iPhone `1.0.33` 侧载 OTA 线上核验（全部通过）**：
+  - 隔离提交 `57eaed795e4583842a0d05d1c603bcc05daa0e1a`（仅含本批 13 个专属文件）已推送对齐至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`。
+  - **`CI` 工作流** [Run 45774914514](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914514)：**`completed / success`**（`Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Publish server images`、`Publish compatible mobile update` 与 `deploy-production` Job `139758508273` 全部成功；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`）。
+  - **`Publish iOS sideload update`（`mobile-ios-update.yml`）** [Run 45774914989](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914989)（`main`／`57eaed795`／`sydney-ios-ip-1`）：**`completed / success`**（`2026-11-26T07:23:11Z`–`07:24:57Z`）：
+    - Update Group ID：`40441f7e-7a0d-4136-8d6c-37dc051a6c89`；iOS Update ID：`01a216be-3b99-7636-88ef-ef00556dc0fa`（`createdAt: 2026-11-26T07:24:55.577Z`）；
+    - 线上 Expo 清单回读：HTTP `200`，`version: "1.0.33"`、`releasedOn: "2026-11-25"`、中文更新说明 4 条、`assetsCount: 55`；
+    - 启动包（`launchAsset`）：HTTP `200`，**`11,161,340` 字节**，SHA-256 `bf3c79a7f9d9e404066b9a6db9cce510d2df787747d39202ef6fd6e08471f864` 与清单完全一致；
+    - 静态资源全量复验（附带 multipart `extensions.assetRequestHeaders` 逐一拉取并校验哈希）：**`55 / 55` 全部 HTTP `200` 且 SHA-256 匹配（`0` 失败）**。
+- **未执行项（待真机验收）**：
+  - 真实 iPhone 在 App 内更新至 `1.0.33` 重启后，实测浅色暖瓷与深色模式下全 App 各类天气特效观感（小／中／大雨分级、底栏／底边水花涟漪与飞溅水珠、雷阵雨双闪与分叉闪电、小／大雪飘落与薄霜、多云／薄雾／晴阳／星夜）及 60fps 帧率表现。
+
 ## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（2026-11-25）
 
 关联 PA-021／REL-01。

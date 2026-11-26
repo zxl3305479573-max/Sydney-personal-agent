@@ -1,5 +1,23 @@
 # Sydney 开发总计划
 
+## 全 App 实时动态天气场景引擎与雨雪雷电落地特效（PA-021／REL-01，2026-11-25）
+
+状态：源码实现、本机定向离线验证、独立提交推送（`57eaed795e4583842a0d05d1c603bcc05daa0e1a`）、GitHub CI 全绿（Run `45774914514`）及 iPhone `1.0.33` 侧载 OTA 发布与线上全资源核验（Run `45774914989`）均已完成；真实 iPhone 端 60fps 动效观感、浅／深色对比度、雨滴落地水花与雷电闪光实机体验待设备更新后验收。
+
+范围与交付物：
+- **实时降雨量／降雪量／云量气象遥测升级**：扩展 `apps/mobile/lib/home-weather.ts`，在 Open-Meteo `current` 查询中补采 `precipitation,rain,showers,snowfall,cloud_cover`（同步兼容 `wttr.in` 降级字段 `precipMM`、`cloudcover`），在 `HomeWeatherSnapshot` 输出 `weatherCode`、`scene`、`precipitationMm`、`snowfallCm`、`cloudCoverPercent` 并新增全局订阅 `subscribeHomeWeather()`，与根布局动效层共享单次气象拉取不产生重复请求。
+- **10 类天气场景与连续雨雪强度物理引擎**：新增纯 TypeScript 引擎 `apps/mobile/lib/weather-scene.ts`、持久化开关／预览状态 `apps/mobile/lib/weather-scene-state.ts`（懒加载 `expo-secure-store`，默认开启跟随实时天气）及路由适配 `apps/mobile/lib/weather-atmosphere-helpers.ts`：
+  - 区分 `drizzle`（小雨）、`rain`（中雨）、`heavy-rain`（大雨）、`thunderstorm`（雷阵雨）、`light-snow`（小雪）、`heavy-snow`（大雪）、`cloudy`（多云）、`fog`（薄雾）、`clear-day`（晴天暖阳）、`clear-night`（星夜）共 10 种场景；
+  - 雨滴数量（12→42）、长度（11→48pt）、粗细（1.0→2.5pt）、下落速度（1420→380ms）、风吹斜角（按实时风速 `windSpeedKmh` 动态计算 `4°–21°`）及底部水花数量（6→16）均随真实降雨强度连续缩放；
+  - 雪花数量（16→36）、多景深尺寸（3→11pt）、左右摆动幅度和底部薄霜层随降雪强度连续缩放；雷阵雨内置随机分叉闪电 SVG 路径与自然双闪脉冲。
+- **全 App 原生 UI 线程动效浮层**：新增双端组件 `apps/mobile/components/weather-atmosphere-overlay.native.tsx`（`react-native-reanimated` 4 + `react-native-svg`，零新增第三方依赖）与非原生／测试降级版 `weather-atmosphere-overlay.tsx`，挂载于 `apps/mobile/app/_layout.tsx`（并登记 `weatherScene` 至 `apps/mobile/lib/startup.ts`），全程 `pointerEvents="none"` 绝不遮挡触控：
+  - **雨水落地效果**：自动对齐首页底栏上沿／内页底边，每处落点同步渲染水平椭圆扩散涟漪环、中心水柱与左右抛物线飞溅水珠（`4h·u(1-u)` 物理轨迹）；
+  - 自动适配浅色暖瓷与深色模式配色，聊天／代码等密集阅读页自动柔化透明度（`0.65×–0.68×`），全屏图片查看器 `/image` 自动隐藏；切后台自动暂停省电并遵循系统 `useReducedMotion()` 减弱动态效果。
+- **天气页开关与实时场景预览**：在 `apps/mobile/app/weather.tsx` 新增暖瓷「全应用动态天气场景」卡片，支持一键开关及在晴天时随时点选预览全部 10 种天气特效并切回「跟随实时」。
+- **发版与线上验证**：将 `apps/mobile/sydney-release.json` 递增至 `1.0.33`（`2026-11-25`），13 个改动／新增文件 Biome 0 错误、`@rakazo/mobile` 全包 `tsc --noEmit` 0 错误、8 个 Vitest 套件（45 项，含 `app-version`、`scroll-hygiene` 与 `screen-theme-coverage`）全绿、`git diff --check` 0 警告；隔离提交推送为 `57eaed795e4583842a0d05d1c603bcc05daa0e1a`（`origin/cursor/integrate-remote-branches-7334` 与 `origin/main`），`CI` [Run 45774914514](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914514) 全绿（含 `deploy-production` Job `139758508273`，线上 `/health` 与 `/ready` 均 HTTP `200`）；`.github/workflows/mobile-ios-update.yml` [Run 45774914989](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45774914989) 成功发布 `1.0.33` 侧载 OTA（更新组 `40441f7e-7a0d-4136-8d6c-37dc051a6c89`、iOS 更新 ID `01a216be-3b99-7636-88ef-ef00556dc0fa`），线上清单 HTTP `200`、启动包 `11,161,340` 字节与全部 `55 / 55` 静态资源 HTTP `200` 且 SHA-256 全部匹配。详见 [验证记录](VALIDATION.md#全-app-实时动态天气场景引擎与雨雪雷电落地特效2026-11-25) 与 [运维手册](OPERATIONS.md#iphone-1033-侧载-ota2026-11-25)。
+
+依赖与验收条件：纯 JS／Reanimated／SVG 改动、零新增第三方依赖（既有 `1.0.12`–`1.0.15` 侧载 IPA 在 App 内「设置 → 检查更新」拉取 `1.0.33` OTA 重启即可生效，无需重装 IPA）；真实 iPhone 视觉帧率、浅／深色观感与各类天气特效体验待真机验收。
+
 ## iPhone 1.0.15 侧载 IPA 重新打包与 1.0.32 侧载 OTA 发布（PA-021／REL-01，2026-11-25）
 
 状态：源码全量提交推送（`6b6ebe21e89416789cda2a4885c7f863ef4980db`）、GitHub CI（Run `45765000946`）全绿、新版 `1.0.15`（build `4`）无签名侧载 IPA 云端出包（Run `45764995008`）及 `1.0.32` 侧载 OTA 发布与线上全资源核验（Run `45767292012`）均已完成；真实 iPhone 侧载重装 `1.0.15` IPA、拉取 `1.0.32` OTA 与各项真机交互待设备验收。
