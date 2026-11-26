@@ -1,21 +1,21 @@
 {
-  "version": "1.0.35",
+  "version": "1.0.36",
   "releasedOn": "2026-11-26",
   "notes": {
     "zh-CN": [
-      "新增个人账单与加密支付方式管理（PA-025）：首页新增「账单与支付」入口组件，卡包支持 Apple 钱包风格纵向层叠排布与单点弹簧展开聚焦视图，银行卡号/CVV 经 AES-256 加密隔离且需身份确认查看，支持 Bot 协同记账。",
-      "全面升级全应用动态天气特效与天气页：消除多云/晴天异常阴影并重做晴天丁达尔光束与羽化云雾，修复逐小时预报时间/实况对齐，新增随雨雪强度缩放的天气环境音效、闪电同步雷声及天气页开关与音量滑块。",
-      "修复从 Bot 资料页开启灵动岛陪伴时悬浮陪伴条显示旧默认头像的问题，并将未自定义头像的默认 Bot 头像统一更新为大肥鱼形象。"
+      "全面升级应用内消息弹窗与悬浮状态样式：Bot 通知横幅、悬浮陪伴胶囊与悬浮球、OTA 下载条、通话卡片及语音播报条在 iOS 26+ 统一采用原生 Liquid Glass 液态玻璃，锁屏实时活动卡片同步适配原生液态玻璃外观（锁屏原生扩展需重装 1.0.17 IPA）。",
+      "升级灵动岛陪伴体验：双向清洗回复 Markdown 并优化快捷指令引导，配合 1.0.17 IPA 启用高清 HEIC 头像、饱满展开排版、免跳 App 后台语音对话及自动裁去灵动岛的截屏提问与后台发消息。",
+      "精简手机首页个人中枢，移除与底部导航重复的「聊天与伙伴」及「项目与执行台」卡片。"
     ],
     "zh-TW": [
-      "新增個人帳單與加密支付方式管理（PA-025）：首頁新增「帳單與支付」入口元件，卡包支援 Apple 錢包風格縱向層疊排布與單點彈簧展開聚焦檢視，銀行卡號/CVV 經 AES-256 加密隔離且需身分確認檢視，支援 Bot 協同記帳。",
-      "全面升級全應用動態天氣特效與天氣頁：消除多雲/晴天異常陰影並重做晴天丁達爾光束與羽化雲霧，修復逐小時預報時間/實況對齊，新增隨雨雪強度縮放的天氣環境音效、閃電同步雷聲及天氣頁開關與音量滑塊。",
-      "修復從 Bot 資料頁開啟靈動島陪伴時懸浮陪伴條顯示舊預設頭像的問題，並將未自訂頭像的預設 Bot 頭像統一更新為大肥魚形象。"
+      "全面升級應用內訊息彈窗與懸浮狀態樣式：Bot 通知橫幅、懸浮陪伴膠囊與懸浮球、OTA 下載條、通話卡片及語音播報條在 iOS 26+ 統一採用原生 Liquid Glass 液態玻璃，鎖屏即時活動卡片同步適配原生液態玻璃外觀（鎖屏原生擴充需重裝 1.0.17 IPA）。",
+      "升級靈動島陪伴體驗：雙向清洗回覆 Markdown 並最佳化捷徑引導，搭配 1.0.17 IPA 啟用高清 HEIC 頭像、飽滿展開排版、免跳 App 背景語音對話及自動裁去靈動島的截圖提問與背景發訊息。",
+      "精簡手機首頁個人中樞，移除與底部導覽重複的「聊天與夥伴」及「專案與執行台」卡片。"
     ],
     "en": [
-      "Add personal bills and encrypted payment methods vault (PA-025) with a Home Hub entry card, Apple Wallet-style stacked card deck, single-tap spring focus view, identity-gated AES-256 card number/CVV reveal, and bot ledger tools with strict vault isolation.",
-      "Upgrade dynamic weather effects and weather screen: fix cloud/clear shadows, redesign sunbeams and feathered clouds, align hourly forecasts with live conditions, and add intensity-scaled ambient weather audio with lightning-synced thunder and volume controls.",
-      "Fix the floating companion bar showing a stale default avatar when starting Dynamic Island companion from a bot profile, and unify default bot avatars to the Dafeiyu artwork."
+      "Adopt native iOS Liquid Glass styling across in-app notification banners, floating companion bar and orb, update banners, call card, and voice player bar, plus native translucent Lock Screen Live Activity styling (reinstall 1.0.17 IPA for Lock Screen extension changes).",
+      "Enhance Dynamic Island companion with Markdown cleanup and streamlined Shortcuts setup, paired with 1.0.17 IPA support for HD HEIC avatars, fuller expanded layout, background voice chat, and auto-cropped screenshot AppIntents.",
+      "Streamline the mobile Home Hub by removing duplicate Chats and Workspaces cards already available from bottom navigation."
     ]
   }
 }

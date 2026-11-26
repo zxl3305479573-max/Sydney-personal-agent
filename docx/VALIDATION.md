@@ -1,5 +1,72 @@
 # 验证记录
 
+## 锁屏实时活动状态与应用内弹窗／悬浮状态全面采用 iOS 原生液态玻璃样式（2026-11-26）
+
+关联 PA-021。
+
+- **首轮暴露与修复**：Biome 检出 `apps/mobile/lib/bot-notification-banner.test.tsx` 第 200 行 1 处折行格式问题，修正后复验清零。
+- **终轮已执行并通过**：
+  - **Biome 检查**（覆盖全部 13 个改动 TS/TSX 文件：`glass-surface.tsx`、`glass-surface.ios.tsx`、`glass-icon-button.tsx`、`bot-notification-banner.tsx`、`companion-floating-bar.tsx`、`update-download-banner.tsx`、`CallCard.tsx`、`computer-update-progress.tsx`、`voice-player-bar.tsx` 及 4 个测试文件）：**13 / 13 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`tsc --noEmit -p apps/mobile/tsconfig.json`）：**0 错误**。
+  - **定向与守卫 Vitest（11 个文件、57 / 57 项全部通过）**：
+    - `apps/mobile/lib/glass-surface.test.tsx`（6 项，含新增 `nativeOverlay` 在 iOS 26 启用原生 `.glassEffect`、`glassVariant="clear"`、尊重 `solid-fallback` 及常规页内卡片保持平铺）；
+    - `apps/mobile/lib/companion-plugin.test.ts`（2 项，校验 `CompanionWidget.swift` 锁屏使用 `.activityBackgroundTint(.clear)`／`.activityBackgroundTint(nil)` 与 `.foregroundStyle(.primary)`、已移除 `islandSurface`，并保留灵动岛 `.foregroundStyle(.white)`）；
+    - `apps/mobile/lib/bot-notification-banner.test.tsx`（2 项，校验液态玻璃容器、`现在`/`需要确认` 标签、Bot 专属头像与点击跳转／自动收起）；
+    - `apps/mobile/lib/companion-floating-bar.test.tsx`（2 项，校验展开胶囊与收起悬浮球液态玻璃容器、绝对定位及全部快捷动作）；
+    - `apps/mobile/lib/call-card-keep-awake.test.tsx`（3 项）、`client-update.test.ts`（16 项）、`bot-local-notification.test.ts`（2 项）、`live-notifications.test.ts`（12 项）、`companion-presentation.test.ts`（5 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待云端构建与真机验收）**：
+  - macOS Xcode 编译打包 `SydneyCompanionWidget.appex`（验证 `CompanionWidget.swift` 锁屏原生液态玻璃卡片在深／浅壁纸下的对比度与动效，需重打侧载 IPA 并通过 `Sideloadly` 重签安装）；
+  - 侧载 OTA 发布后在真实 iPhone（iOS 26/27）验收应用内通知弹窗（`BotNotificationBanner`）、悬浮陪伴胶囊／悬浮球（`CompanionFloatingBar`）、OTA 下载条、通话卡与语音条的原生 Liquid Glass 观感。
+
+## iPhone 1.0.35 侧载 OTA 发布与全量 CI 生产部署（2026-11-26）
+
+关联 PA-025、PA-021、REL-01。
+
+- **提交前校验与 CI 回归闭环**：
+  - `dc682981c7ded7073a0ca759c314d95c393b2500` 提交前完成 30 文件 Biome `0` 错误 `0` 警告、`@rakazo/mobile` `tsc --noEmit` `0` 错误、18 个移动单测套件共 212 项全绿（`home-hub.test.tsx` 于 `TZ=UTC` 7 / 7 通过）及 `git diff --check` `0` 警告。
+  - 首轮 `CI` Run `45814091621` 在 `Unit tests (1/3–3/3)` 暴露前序默认头像改造遗漏的两项回归：`avatar-life.test.tsx`／`avatar-clock.test.tsx`（`BotAvatar` 移除工作动效与 `poke`）与 `i18n.test.ts`（7 套非英文词库缺失 `Avatar`）。修复后本地复验 10 文件 Biome `0` 错误 `0` 警告与 5 套件（`device-locales.test.ts` 7、`i18n.test.ts` 16、`avatar-clock.test.tsx` 4、`bot-avatar-render.test.tsx` 9、`avatar-life.test.tsx` 26）**62 / 62 通过**，隔离提交推送为 `b9f27050ea8d856b5fc713ca6e0836d7a38282e6`。
+- **GitHub CI 全量构建与生产部署（`b9f27050e`，全部通过）**：
+  - **`CI` 工作流** [Run 45815895149](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815895149)：**`completed / success`**（`Lint and typecheck`、`Unit tests 1/3–3/3`、`Postgres journeys 1/2–2/2`、`Publish server images` 多架构镜像、`Publish compatible mobile update` 及 `deploy-production` Job `139897644017` 于 `2026-11-26T12:07:43Z` 完成；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`）。
+- **iPhone `1.0.35` 侧载 OTA 发布与线上全资源核验（全部通过）**：
+  - **`Publish iOS sideload update`（`mobile-ios-update.yml`）** [Run 45815897416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815897416)（`main`／`b9f27050e`／`sydney-ios-ip-1`）：**`completed / success`**（`2026-11-26T12:02:06Z`–`12:04:02Z`）：
+    - Update Group ID：`47babd9f-c4ce-48a1-baf1-0e99a337282e`；iOS Update ID：`01a217bd-afeb-7753-8847-d83d4058dd7a`（`createdAt: 2026-11-26T12:03:57.035Z`）；
+    - 线上 Expo 清单回读：HTTP `200`，`version: "1.0.35"`、`releasedOn: "2026-11-26"`、三语更新说明各 3 条；
+    - 启动包（`launchAsset` `41056b334b11b3e4b0b55428034f4ae3`）：HTTP `200`，**`11,322,572` 字节**，SHA-256 `c05be8b05a062d0c51fde626a1360c9658d53cfe1fd3296c265f89bfc9cdbc56` 与清单 Base64URL 摘要完全匹配；
+    - 静态资源全量复验（附带 multipart `extensions.assetRequestHeaders` 逐一拉取并校验哈希）：**`62 / 62` 全部 HTTP `200` 且 SHA-256 匹配（`0` 失败）**（含新增 7 条天气环境 `.m4a` 音轨与大肥鱼默认头像资源）。
+- **未执行项（待真机验收）**：真实 iPhone 在 App 内拉取 `1.0.35` OTA 并重启后，实测首页「账单与支付」卡片与 Apple 钱包叠卡单点展开／`123` 身份确认解密、动态天气特效与环境音效音量滑块、Bot 资料页开启灵动岛陪伴头像显示及大肥鱼默认头像动效。
+
+## 灵动岛高清 HEIC 头像与饱满展开排版、后台免跳转语音对话及自动裁岛截屏提问 AppIntents（2026-11-26）
+
+关联 PA-021。
+
+- **首轮暴露问题与修复**：
+  - `apps/mobile/lib/companion-presentation.ts` 导出 `stripCompanionMarkdown`，供单测直接覆盖 Markdown 清洗规则；
+  - `apps/mobile/lib/companion-plugin.test.ts` 对齐 `IOSConfig.XcodeUtils.addBuildSourceFileToGroup` 以 `SOURCE_ROOT` 写入的 `Sydney/CompanionLiveIntents.swift`、`Sydney/CompanionBackgroundIntents.swift` 路径预期，并校验 `CompanionBackgroundIntents.swift` 不会混入 `SydneyCompanionWidget` 扩展目录。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`companion-presentation.ts`、`companion-presentation.test.ts`、`companion-plugin.test.ts`、`with-companion-widget.js`、`app/companion.tsx`）：**5 / 5 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向与回归 Vitest（`--maxWorkers=1`，9 个文件、40 / 40 项全部通过）**：
+    - `apps/mobile/lib/companion-presentation.test.ts`（5 项：隐私隐藏、110 字截断不拆 Emoji、Markdown 清洗、断连状态、通话态富/旧格式）；
+    - `apps/mobile/lib/companion-plugin.test.ts`（2 项：真实 `xcode` 项目与替身夹具验证 `PlugIns` 嵌入、`Sydney` 主目标注入 `CompanionLiveIntents.swift` + `CompanionBackgroundIntents.swift` 且二次运行幂等不重复、`SydneyCompanionWidget` 仅编入 `CompanionWidget.swift` + `CompanionActivityAttributes.swift` + `CompanionLiveIntents.swift` 并带 `SYDNEY_COMPANION_WIDGET` 宏、`UIBackgroundModes` 含 `audio` + `screen-capture`、`SydneyDefaultApiBase`、`encodeAvatarHEIC` / `UTType.heic`、`AudioRecordingIntent` / `LiveActivityIntent`、`SydneyAskScreenshotIntent` / `cropDynamicIsland` / `updateActiveCompanionIsland` 及全部 6 个 SecureStore Keychain 键一致性）；
+    - `apps/mobile/lib/companion-activity.test.ts`（12 项）、`companion-session.test.ts`（7 项）、`companion-capture.test.ts`（5 项）、`call-live-activity.test.ts`（4 项）、`companion-capture-screen.test.tsx`（2 项）、`home-companion-card.test.tsx`（2 项）、`companion-console.test.tsx`（1 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（明确标注）**：
+  - GitHub Actions `xcode-27` / iOS 27.1 SDK 原生 Swift 编译、`ExtractAppIntentsMetadata` 与无签名 IPA 打包（本机为 Windows 环境，待用户确认提交推送后触发 `.github/workflows/mobile-ios-sideload.yml` 验证）；
+  - iPhone 真机经 `Sideloadly` 安装新版 IPA 后的灵动岛高清头像、展开态排版、后台免跳转语音对话、以及快捷指令 2 步流程（`截屏 → 截屏提问 Sydney` 裁岛＋后台灵动岛回复）实测。
+
+## 移除手机首页「聊天与伙伴」与「项目与执行台」两张全宽卡片（2026-11-26）
+
+关联 PA-021。
+
+- **首轮暴露与修复**：`apps/mobile/lib/home-hub.test.tsx` 既有测试夹具 `updatedAt: "2026-11-24T18:30:00.000Z"` 在 `UTC+8` 本机环境格式化为 `2026-11-25`，导致 2 条既有 Spotlight 日期断言失败；调整夹具为 `2026-11-24T10:00:00.000Z`（兼顾 UTC CI 与 `UTC+8` 本机）后全绿。
+- **终轮已执行并通过**：
+  - **Biome 检查**（`apps/mobile/components/home-hub.tsx`、`apps/mobile/lib/home-hub.test.tsx`）：**2 / 2 文件 0 错误、0 警告**。
+  - **TypeScript 类型检查**（`pnpm --filter @rakazo/mobile exec tsc --noEmit`）：**0 错误**。
+  - **定向与守卫 Vitest（`--maxWorkers=1`，5 个文件、18 / 18 项全部通过）**：`home-hub.test.tsx`（7 项，验证两卡已彻底移除且首页其余模块及导航正常）、`home-companion-card.test.tsx`（2 项）、`home-finance-card.test.tsx`（2 项）、`screen-theme-coverage.test.ts`（6 项）、`scroll-hygiene.test.ts`（1 项）。
+  - **空白与补丁检查**（`git diff --check`）：**0 警告**。
+- **未执行项（待发版后真机验收）**：后续发布移动端纯 OTA 后在真实 iPhone 验收首页精简后的卡片衔接与滚动体验。
+
 ## 个人账单与加密支付方式管理及手机首页入口组件（2026-11-26）
 
 关联 PA-025、PA-021、PA-010。

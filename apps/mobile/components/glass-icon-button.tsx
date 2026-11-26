@@ -18,6 +18,7 @@ export function GlassIconButton({
   color,
   tint,
   selected,
+  nativeOverlay,
   fallbackStyle,
 }: {
   testID?: string;
@@ -30,12 +31,14 @@ export function GlassIconButton({
   color?: ColorValue;
   tint?: string;
   selected?: boolean;
+  nativeOverlay?: boolean;
   fallbackStyle?: StyleProp<ViewStyle>;
 }) {
   const tokens = useMobileTokens();
   const iconColor = selected ? tokens.primaryForeground : (color ?? tokens.mutedForeground);
   return (
     <GlassSurface
+      nativeOverlay={nativeOverlay}
       shape="circle"
       tint={selected ? tokens.primary : tint}
       style={{ width: size, height: size }}

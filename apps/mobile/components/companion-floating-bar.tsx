@@ -13,6 +13,7 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { previewSnippet } from "../lib/preview";
 import { BotAvatar } from "./bot-avatar";
+import { GlassSurface } from "./glass-surface";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
@@ -155,26 +156,26 @@ export function CompanionFloatingBar({
   }
 
   const isLight = appearance === "light";
-  const surfaceBg = isLight ? "rgba(255, 254, 252, 0.96)" : "rgba(36, 41, 51, 0.96)";
-  const borderColor = isLight ? "rgba(38, 35, 31, 0.10)" : "rgba(245, 244, 240, 0.14)";
-  const iconBg = isLight ? "#F3F0EA" : "#2E3542";
+  const fallbackSurfaceBg = isLight ? "rgba(255, 255, 255, 0.88)" : "rgba(30, 34, 42, 0.86)";
+  const fallbackBorderColor = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.18)";
+  const iconBg = isLight ? "rgba(60, 60, 67, 0.08)" : "rgba(255, 255, 255, 0.14)";
   const statusInfo = companionStatusDisplay(session.runtime.detailStatus, locale);
   const dotColor =
     statusInfo.tone === "error"
       ? isLight
-        ? "#B42318"
-        : "#F97066"
+        ? "#D70015"
+        : "#FF453A"
       : statusInfo.tone === "busy"
         ? isLight
-          ? "#C27803"
-          : "#F5C469"
+          ? "#C96A00"
+          : "#FF9F0A"
         : statusInfo.tone === "voice"
           ? isLight
-            ? "#245A8D"
-            : "#8EC5FC"
+            ? "#0066D6"
+            : "#0A84FF"
           : isLight
-            ? "#2E6F4E"
-            : "#8ADBA9";
+            ? "#1F8A3D"
+            : "#30D158";
 
   const replyText =
     active.showReply && session.runtime.latestReply
@@ -202,54 +203,64 @@ export function CompanionFloatingBar({
           style,
         ]}
       >
-        <MotionPressable
-          preset="icon"
-          testID="companion-floating-orb-expand"
-          accessibilityRole="button"
-          accessibilityLabel={copy(
-            `展开 ${active.botName} 悬浮陪伴条`,
-            `展開 ${active.botName} 懸浮陪伴條`,
-            `Expand ${active.botName} floating companion`,
-          )}
-          onPress={() => setCollapsed(false)}
-          style={{
-            width: ORB_SIZE,
-            height: ORB_SIZE,
+        <GlassSurface
+          nativeOverlay
+          shape="circle"
+          testID="companion-floating-orb-surface"
+          style={{ width: ORB_SIZE, height: ORB_SIZE }}
+          fallbackStyle={{
             borderRadius: ORB_SIZE / 2,
-            backgroundColor: surfaceBg,
+            backgroundColor: fallbackSurfaceBg,
             borderWidth: StyleSheet.hairlineWidth,
-            borderColor,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#26231F",
+            borderColor: fallbackBorderColor,
+            shadowColor: "#000000",
             shadowOpacity: isLight ? 0.14 : 0.36,
             shadowRadius: 16,
             shadowOffset: { width: 0, height: 6 },
             elevation: 6,
           }}
         >
-          <BotAvatar
-            color={active.botColor || FALLBACK_COLOR}
-            avatarSet={active.botAvatarSet ?? undefined}
-            identity={active.botId}
-            size={36}
-            status={session.runtime.detailStatus === "thinking" ? "running" : "idle"}
-            motion="lazy"
-          />
-          <View
+          <MotionPressable
+            preset="icon"
+            testID="companion-floating-orb-expand"
+            accessibilityRole="button"
+            accessibilityLabel={copy(
+              `展开 ${active.botName} 悬浮陪伴条`,
+              `展開 ${active.botName} 懸浮陪伴條`,
+              `Expand ${active.botName} floating companion`,
+            )}
+            onPress={() => setCollapsed(false)}
             style={{
-              position: "absolute",
-              right: 5,
-              bottom: 5,
-              width: 11,
-              height: 11,
-              borderRadius: 6,
-              backgroundColor: dotColor,
-              borderWidth: 2,
-              borderColor: isLight ? "#FFFEFC" : "#242933",
+              width: ORB_SIZE,
+              height: ORB_SIZE,
+              borderRadius: ORB_SIZE / 2,
+              alignItems: "center",
+              justifyContent: "center",
             }}
-          />
-        </MotionPressable>
+          >
+            <BotAvatar
+              color={active.botColor || FALLBACK_COLOR}
+              avatarSet={active.botAvatarSet ?? undefined}
+              identity={active.botId}
+              size={36}
+              status={session.runtime.detailStatus === "thinking" ? "running" : "idle"}
+              motion="lazy"
+            />
+            <View
+              style={{
+                position: "absolute",
+                right: 5,
+                bottom: 5,
+                width: 11,
+                height: 11,
+                borderRadius: 6,
+                backgroundColor: dotColor,
+                borderWidth: 1.5,
+                borderColor: isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(28, 32, 40, 0.9)",
+              }}
+            />
+          </MotionPressable>
+        </GlassSurface>
       </View>
     );
   }
@@ -265,181 +276,191 @@ export function CompanionFloatingBar({
           right: EDGE_MARGIN,
           bottom: bottomOffset - verticalOffset,
           zIndex: 50,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingVertical: 9,
-          paddingHorizontal: 12,
-          borderRadius: 22,
-          backgroundColor: surfaceBg,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor,
-          shadowColor: "#26231F",
-          shadowOpacity: isLight ? 0.12 : 0.34,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 6,
         },
         style,
       ]}
     >
-      <MotionPressable
-        preset="row"
-        testID="companion-floating-bar-open-chat"
-        accessibilityRole="button"
-        accessibilityLabel={copy(
-          `打开 ${active.botName} 对话`,
-          `開啟 ${active.botName} 對話`,
-          `Open ${active.botName} chat`,
-        )}
-        onPress={() =>
-          router.push({
-            pathname: "/thread",
-            params: {
-              botId: active.botId,
-              name: active.botName,
-              ...(active.spaceId ? { spaceId: active.spaceId } : {}),
-            },
-          })
-        }
-        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 }}
+      <GlassSurface
+        nativeOverlay
+        shape="capsule"
+        testID="companion-floating-bar-surface"
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingVertical: 9,
+          paddingHorizontal: 13,
+        }}
+        fallbackStyle={{
+          borderRadius: 28,
+          backgroundColor: fallbackSurfaceBg,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: fallbackBorderColor,
+          shadowColor: "#000000",
+          shadowOpacity: isLight ? 0.12 : 0.34,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 6,
+        }}
       >
-        <BotAvatar
-          color={active.botColor || FALLBACK_COLOR}
-          avatarSet={active.botAvatarSet ?? undefined}
-          identity={active.botId}
-          size={30}
-          status={session.runtime.detailStatus === "thinking" ? "running" : "idle"}
-          motion="lazy"
-        />
-        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor: dotColor,
-              }}
-            />
+        <MotionPressable
+          preset="row"
+          testID="companion-floating-bar-open-chat"
+          accessibilityRole="button"
+          accessibilityLabel={copy(
+            `打开 ${active.botName} 对话`,
+            `開啟 ${active.botName} 對話`,
+            `Open ${active.botName} chat`,
+          )}
+          onPress={() =>
+            router.push({
+              pathname: "/thread",
+              params: {
+                botId: active.botId,
+                name: active.botName,
+                ...(active.spaceId ? { spaceId: active.spaceId } : {}),
+              },
+            })
+          }
+          style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 }}
+        >
+          <BotAvatar
+            color={active.botColor || FALLBACK_COLOR}
+            avatarSet={active.botAvatarSet ?? undefined}
+            identity={active.botId}
+            size={30}
+            status={session.runtime.detailStatus === "thinking" ? "running" : "idle"}
+            motion="lazy"
+          />
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: dotColor,
+                }}
+              />
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: tokens.foreground,
+                  fontSize: 13.5,
+                  lineHeight: 17,
+                  fontWeight: "600",
+                  flexShrink: 1,
+                }}
+              >
+                {active.botName}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={{ color: dotColor, fontSize: 11.5, lineHeight: 15, fontWeight: "600" }}
+              >
+                {statusInfo.label}
+              </Text>
+            </View>
             <Text
               numberOfLines={1}
-              style={{
-                color: tokens.foreground,
-                fontSize: 13.5,
-                lineHeight: 17,
-                fontWeight: "600",
-                flexShrink: 1,
-              }}
+              style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
             >
-              {active.botName}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{ color: dotColor, fontSize: 11.5, lineHeight: 15, fontWeight: "600" }}
-            >
-              {statusInfo.label}
+              {replyText}
             </Text>
           </View>
-          <Text
-            numberOfLines={1}
-            style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
-          >
-            {replyText}
-          </Text>
-        </View>
-      </MotionPressable>
+        </MotionPressable>
 
-      <MotionPressable
-        preset="icon"
-        testID="companion-floating-bar-collapse"
-        accessibilityRole="button"
-        accessibilityLabel={copy("收起为悬浮球", "收合為懸浮球", "Collapse to floating orb")}
-        onPress={() => setCollapsed(true)}
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 15,
-          backgroundColor: iconBg,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <NativeSymbol ios="minus" android="remove" size={14} color={tokens.mutedForeground} />
-      </MotionPressable>
+        <MotionPressable
+          preset="icon"
+          testID="companion-floating-bar-collapse"
+          accessibilityRole="button"
+          accessibilityLabel={copy("收起为悬浮球", "收合為懸浮球", "Collapse to floating orb")}
+          onPress={() => setCollapsed(true)}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: iconBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <NativeSymbol ios="minus" android="remove" size={14} color={tokens.mutedForeground} />
+        </MotionPressable>
 
-      <MotionPressable
-        preset="icon"
-        testID="companion-floating-bar-capture"
-        accessibilityRole="button"
-        accessibilityLabel={copy("截屏提问", "截圖提問", "Screenshot & Ask")}
-        onPress={() =>
-          router.push({
-            pathname: "/companion-capture",
-            params: {
-              botId: active.botId,
-              source: "clipboard",
-              ...(active.spaceId ? { spaceId: active.spaceId } : {}),
-            },
-          })
-        }
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 16,
-          backgroundColor: iconBg,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <NativeSymbol
-          ios="camera.viewfinder"
-          android="scan-outline"
-          size={15}
-          color={tokens.foreground}
-        />
-      </MotionPressable>
+        <MotionPressable
+          preset="icon"
+          testID="companion-floating-bar-capture"
+          accessibilityRole="button"
+          accessibilityLabel={copy("截屏提问", "截圖提問", "Screenshot & Ask")}
+          onPress={() =>
+            router.push({
+              pathname: "/companion-capture",
+              params: {
+                botId: active.botId,
+                source: "clipboard",
+                ...(active.spaceId ? { spaceId: active.spaceId } : {}),
+              },
+            })
+          }
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: iconBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <NativeSymbol
+            ios="camera.viewfinder"
+            android="scan-outline"
+            size={15}
+            color={tokens.foreground}
+          />
+        </MotionPressable>
 
-      <MotionPressable
-        preset="icon"
-        testID="companion-floating-bar-console"
-        accessibilityRole="button"
-        accessibilityLabel={copy("陪伴设置", "陪伴設定", "Companion settings")}
-        onPress={() => router.push("/companion")}
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 15,
-          backgroundColor: iconBg,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <NativeSymbol
-          ios="slider.horizontal.3"
-          android="options-outline"
-          size={14}
-          color={tokens.foreground}
-        />
-      </MotionPressable>
+        <MotionPressable
+          preset="icon"
+          testID="companion-floating-bar-console"
+          accessibilityRole="button"
+          accessibilityLabel={copy("陪伴设置", "陪伴設定", "Companion settings")}
+          onPress={() => router.push("/companion")}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: iconBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <NativeSymbol
+            ios="slider.horizontal.3"
+            android="options-outline"
+            size={14}
+            color={tokens.foreground}
+          />
+        </MotionPressable>
 
-      <MotionPressable
-        preset="icon"
-        testID="companion-floating-bar-stop"
-        accessibilityRole="button"
-        accessibilityLabel={copy("停止陪伴", "停止陪伴", "Stop companion")}
-        onPress={() => void stopUnifiedCompanion()}
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 15,
-          backgroundColor: iconBg,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <NativeSymbol ios="xmark" android="close" size={13} color={tokens.mutedForeground} />
-      </MotionPressable>
+        <MotionPressable
+          preset="icon"
+          testID="companion-floating-bar-stop"
+          accessibilityRole="button"
+          accessibilityLabel={copy("停止陪伴", "停止陪伴", "Stop companion")}
+          onPress={() => void stopUnifiedCompanion()}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: iconBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <NativeSymbol ios="xmark" android="close" size={13} color={tokens.mutedForeground} />
+        </MotionPressable>
+      </GlassSurface>
     </View>
   );
 }

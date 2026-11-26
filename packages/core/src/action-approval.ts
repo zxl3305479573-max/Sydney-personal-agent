@@ -3,6 +3,7 @@ import {
   MOBILE_APP_READ_ONLY_TOOL_NAMES,
   MOBILE_APP_UI_ACTION_TOOL_NAMES,
   MOBILE_APP_WRITE_ACTION_TOOL_NAMES,
+  PERSONAL_FINANCE_TOOL_NAMES,
 } from "@rakazo/contracts";
 
 const APPROVAL_EXEMPT_TOOLS = new Set([
@@ -36,6 +37,8 @@ const APPROVAL_EXEMPT_TOOLS = new Set([
   // Mobile app bridge read & navigation tools are gated by explicit user switches + owner-only trust.
   ...MOBILE_APP_READ_ONLY_TOOL_NAMES,
   ...MOBILE_APP_UI_ACTION_TOOL_NAMES,
+  // Personal bill ledger tools are owner-only, gated by financeLedger, and never access card secrets.
+  ...PERSONAL_FINANCE_TOOL_NAMES,
 ]);
 
 const APPROVAL_REQUIRED_BUILTIN_TOOLS = new Set([

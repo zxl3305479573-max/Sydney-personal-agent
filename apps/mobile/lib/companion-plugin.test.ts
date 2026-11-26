@@ -33,14 +33,23 @@ describe("isolated companion widget plugin", () => {
           PBXNativeTarget: {
             HOST: {
               name: "Sydney",
-              buildPhases: [{ value: "OLD", comment: "Copy Files" }],
+              buildPhases: [
+                { value: "HOST_SOURCES", comment: "Sources" },
+                { value: "OLD", comment: "Copy Files" },
+              ],
               dependencies: [],
             },
             HOST_comment: "Sydney",
           },
+          PBXSourcesBuildPhase: {
+            HOST_SOURCES: { files: [] },
+            HOST_SOURCES_comment: "Sources",
+          },
           PBXGroup: {
-            MAIN: { children: [] },
+            MAIN: { children: [{ value: "SYDNEY_GROUP", comment: "Sydney" }] },
             MAIN_comment: "Main",
+            SYDNEY_GROUP: { children: [], name: "Sydney", path: "Sydney" },
+            SYDNEY_GROUP_comment: "Sydney",
             PRODUCTS: { children: [] },
             PRODUCTS_comment: "Products",
           },
@@ -98,8 +107,22 @@ describe("isolated companion widget plugin", () => {
     );
     expect(sourcePaths.sort()).toEqual([
       "SydneyCompanionWidget/CompanionActivityAttributes.swift",
+      "SydneyCompanionWidget/CompanionLiveIntents.swift",
       "SydneyCompanionWidget/CompanionWidget.swift",
     ]);
+    const hostSourcePaths = objects.PBXSourcesBuildPhase.HOST_SOURCES.files.map(
+      (file: { value: string }) =>
+        objects.PBXFileReference[objects.PBXBuildFile[file.value].fileRef].path.replaceAll('"', ""),
+    );
+    expect(hostSourcePaths.sort()).toEqual([
+      "Sydney/CompanionBackgroundIntents.swift",
+      "Sydney/CompanionLiveIntents.swift",
+    ]);
+    expect(fs.existsSync(path.join(root, "Sydney", "CompanionBackgroundIntents.swift"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "Sydney", "CompanionLiveIntents.swift"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(root, "SydneyCompanionWidget", "CompanionBackgroundIntents.swift")),
+    ).toBe(false);
     const group = Object.values(objects.PBXGroup).find(
       (entry: any) => entry?.name === "SydneyCompanionWidget",
     ) as { children: { value: string }[]; path?: string };
@@ -116,6 +139,7 @@ describe("isolated companion widget plugin", () => {
       modRequest: { platformProjectRoot: root },
     });
     expect(objects.PBXNativeTarget.HOST.dependencies).toHaveLength(1);
+    expect(objects.PBXSourcesBuildPhase.HOST_SOURCES.files).toHaveLength(2);
   });
 
   it("adds an extension once and copies matching attributes into its target", async () => {
@@ -174,8 +198,9 @@ describe("isolated companion widget plugin", () => {
     expect(plist.modResults).toMatchObject({
       NSSupportsLiveActivities: true,
       SydneyCompanionEnabled: true,
-      UIBackgroundModes: ["screen-capture"],
+      UIBackgroundModes: ["audio", "screen-capture"],
     });
+    expect(typeof plist.modResults.SydneyDefaultApiBase).toBe("string");
     const run = () =>
       config.mods.ios.xcodeproj({
         ...config,
@@ -189,6 +214,9 @@ describe("isolated companion widget plugin", () => {
     expect(phases).toHaveLength(2);
     expect(settings.buildSettings.INFOPLIST_FILE).toBe("SydneyCompanionWidget/Info.plist");
     expect(settings.buildSettings.CURRENT_PROJECT_VERSION).toBe("5");
+    expect(settings.buildSettings.SWIFT_ACTIVE_COMPILATION_CONDITIONS).toContain(
+      "SYDNEY_COMPANION_WIDGET",
+    );
     expect(
       fs.readFileSync(
         path.join(root, "SydneyCompanionWidget", "CompanionActivityAttributes.swift"),
@@ -213,8 +241,43 @@ describe("isolated companion widget plugin", () => {
       "utf8",
     );
     expect(widgetSwift).toContain(".foregroundStyle(.white)");
-    expect(widgetSwift).toContain(".activityBackgroundTint(");
+    expect(widgetSwift).toContain(".foregroundStyle(.primary)");
+    expect(widgetSwift).toContain(".activityBackgroundTint(.clear)");
+    expect(widgetSwift).toContain(".activityBackgroundTint(nil)");
+    expect(widgetSwift).not.toContain("islandSurface");
+    expect(widgetSwift).toContain("CompanionVoiceToggleIntent");
+    expect(widgetSwift).toContain("CompanionVoiceFinishIntent");
+    expect(widgetSwift).toContain("CompanionVoiceCancelIntent");
     expect(widgetSwift).not.toContain("GeometryReader");
+    const liveIntentsSwift = fs.readFileSync(
+      path.join(root, "SydneyCompanionWidget", "CompanionLiveIntents.swift"),
+      "utf8",
+    );
+    expect(liveIntentsSwift).toContain("AudioRecordingIntent");
+    expect(liveIntentsSwift).toContain("LiveActivityIntent");
+    expect(liveIntentsSwift).toContain("#if !SYDNEY_COMPANION_WIDGET");
+    const backgroundIntentsSwift = fs.readFileSync(
+      path.join(root, "Sydney", "CompanionBackgroundIntents.swift"),
+      "utf8",
+    );
+    expect(backgroundIntentsSwift).toContain("struct SydneyAskScreenshotIntent: AppIntent");
+    expect(backgroundIntentsSwift).toContain("struct SydneyQuickMessageIntent: AppIntent");
+    expect(backgroundIntentsSwift).toContain(
+      "struct SydneyCompanionShortcuts: AppShortcutsProvider",
+    );
+    expect(backgroundIntentsSwift).toContain("cropDynamicIsland");
+    expect(backgroundIntentsSwift).toContain("updateActiveCompanionIsland");
+    expect(backgroundIntentsSwift).toContain("CompanionBackgroundVoiceManager");
+    for (const key of [
+      "rakazo.session_token",
+      "rakazo.api_base",
+      "rakazo.space_id",
+      "rakazo.server_headers",
+      "rakazo.last_bot_id",
+      "rakazo.last_bot_space_id",
+    ]) {
+      expect(backgroundIntentsSwift).toContain(`companionSecureStoreItem("${key}")`);
+    }
     const hostSwift = fs.readFileSync(
       path.join(currentDirectory, "../modules/sydney-companion/ios/SydneyCompanionModule.swift"),
       "utf8",
@@ -224,6 +287,9 @@ describe("isolated companion widget plugin", () => {
     expect(hostSwift).toContain("INSendMessageIntent");
     expect(hostSwift).toContain("UNNotificationAttachment");
     expect(hostSwift).toContain("renderBotNotificationAvatarPNG");
+    expect(hostSwift).toContain("encodeAvatarHEIC");
+    expect(hostSwift).toContain("UTType.heic");
+    expect(hostSwift).toContain("cleanReplyForIsland");
     const podspec = fs.readFileSync(
       path.join(currentDirectory, "../modules/sydney-companion/ios/SydneyCompanion.podspec"),
       "utf8",

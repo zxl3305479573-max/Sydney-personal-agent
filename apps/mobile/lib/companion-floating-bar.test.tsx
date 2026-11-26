@@ -213,6 +213,9 @@ describe("CompanionFloatingBar (CMP-03)", () => {
     );
     expect(floatingBar).not.toBeNull();
     expect(floatingBar?.style.position).toBe("absolute");
+    expect(
+      container.querySelector('[data-testid="companion-floating-bar-surface"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain("Sydney");
     expect(container.textContent).toContain("任务已完成");
 
@@ -222,6 +225,9 @@ describe("CompanionFloatingBar (CMP-03)", () => {
         .querySelector<HTMLButtonElement>('[data-testid="companion-floating-bar-collapse"]')
         ?.click(),
     );
+    expect(
+      container.querySelector('[data-testid="companion-floating-orb-surface"]'),
+    ).not.toBeNull();
     expect(container.querySelector('[data-testid="companion-floating-orb-expand"]')).not.toBeNull();
     await act(async () =>
       container

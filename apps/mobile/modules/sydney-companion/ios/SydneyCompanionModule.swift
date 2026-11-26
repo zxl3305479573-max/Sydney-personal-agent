@@ -1,8 +1,10 @@
 import ActivityKit
 import ExpoModulesCore
 import Foundation
+import ImageIO
 import Intents
 import UIKit
+import UniformTypeIdentifiers
 import UserNotifications
 
 private func decodeCustomAvatarImage(_ value: String) -> UIImage? {
@@ -24,29 +26,78 @@ private func decodeCustomAvatarImage(_ value: String) -> UIImage? {
   return image
 }
 
+private func encodeAvatarHEIC(_ image: UIImage, quality: CGFloat) -> Data? {
+  guard let cgImage = image.cgImage else { return nil }
+  let data = NSMutableData()
+  guard
+    let destination = CGImageDestinationCreateWithData(
+      data as CFMutableData,
+      UTType.heic.identifier as CFString,
+      1,
+      nil
+    )
+  else { return nil }
+  let options: [CFString: Any] = [
+    kCGImageDestinationLossyCompressionQuality: quality,
+  ]
+  CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+  guard CGImageDestinationFinalize(destination) else { return nil }
+  return data as Data
+}
+
+private func renderSquareAvatarThumbnail(_ image: UIImage, side: CGFloat) -> UIImage {
+  let format = UIGraphicsImageRendererFormat()
+  format.scale = 1
+  format.opaque = true
+  let scale = max(side / image.size.width, side / image.size.height)
+  let width = image.size.width * scale
+  let height = image.size.height * scale
+  return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+    .image { context in
+      context.cgContext.interpolationQuality = .high
+      context.cgContext.setFillColor(UIColor.white.cgColor)
+      context.cgContext.fill(CGRect(x: 0, y: 0, width: side, height: side))
+      image.draw(
+        in: CGRect(
+          x: (side - width) / 2,
+          y: (side - height) / 2,
+          width: width,
+          height: height
+        )
+      )
+    }
+}
+
 private func activityAvatar(_ value: String?) -> String? {
   guard let value else { return nil }
   guard value.hasPrefix("r|") else {
     return value.utf8.count <= 2240 ? value : nil
   }
   guard let image = decodeCustomAvatarImage(value) else { return nil }
-  let format = UIGraphicsImageRendererFormat()
-  format.scale = 1
-  format.opaque = true
-  let candidates: [(CGFloat, [CGFloat], Int)] = [
-    (48, [0.6, 0.45, 0.3, 0.2], 1800),
-    (32, [0.45, 0.3, 0.15, 0.08], 1600),
+
+  // HEIC fits 112x112 Retina avatars inside ActivityKit's 4 KB payload budget (~2.8 KB base64),
+  // avoiding the blurry 48x48 JPEG fallback while requiring zero App Group entitlements.
+  let heicCandidates: [(CGFloat, [CGFloat], Int)] = [
+    (112, [0.78, 0.68, 0.58, 0.48], 2100),
+    (96, [0.72, 0.60, 0.48, 0.36], 2100),
+    (72, [0.68, 0.54, 0.40], 2000),
   ]
-  for (side, qualities, maxBytes) in candidates {
-    let scale = max(side / image.size.width, side / image.size.height)
-    let width = image.size.width * scale
-    let height = image.size.height * scale
-    let thumbnail = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
-      .image { context in
-        context.cgContext.setFillColor(UIColor.white.cgColor)
-        context.cgContext.fill(CGRect(x: 0, y: 0, width: side, height: side))
-        image.draw(in: CGRect(x: (side - width) / 2, y: (side - height) / 2, width: width, height: height))
+  for (side, qualities, maxBytes) in heicCandidates {
+    let thumbnail = renderSquareAvatarThumbnail(image, side: side)
+    for quality in qualities {
+      if let heic = encodeAvatarHEIC(thumbnail, quality: quality), heic.count <= maxBytes {
+        return "p|" + heic.base64EncodedString()
       }
+    }
+  }
+
+  let jpegCandidates: [(CGFloat, [CGFloat], Int)] = [
+    (96, [0.62, 0.48, 0.36], 2100),
+    (72, [0.58, 0.44, 0.32], 2000),
+    (48, [0.60, 0.45, 0.30, 0.20], 1800),
+  ]
+  for (side, qualities, maxBytes) in jpegCandidates {
+    let thumbnail = renderSquareAvatarThumbnail(image, side: side)
     for quality in qualities {
       if let jpeg = thumbnail.jpegData(compressionQuality: quality), jpeg.count <= maxBytes {
         return "p|" + jpeg.base64EncodedString()
@@ -54,6 +105,27 @@ private func activityAvatar(_ value: String?) -> String? {
     }
   }
   return nil
+}
+
+private func cleanReplyForIsland(_ value: String?) -> String? {
+  guard let value else { return nil }
+  let options = AttributedString.MarkdownParsingOptions(
+    interpretedSyntax: .inlineOnlyPreservingWhitespace
+  )
+  var text = (try? AttributedString(markdown: value, options: options)).map { String($0.characters) } ?? value
+  text = text
+    .replacingOccurrences(of: "**", with: "")
+    .replacingOccurrences(of: "__", with: "")
+    .replacingOccurrences(of: "~~", with: "")
+    .replacingOccurrences(of: "`", with: "")
+    .replacingOccurrences(of: "\r\n", with: " ")
+    .replacingOccurrences(of: "\n", with: " ")
+  while text.contains("  ") {
+    text = text.replacingOccurrences(of: "  ", with: " ")
+  }
+  let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !trimmed.isEmpty else { return nil }
+  return String(trimmed.prefix(120))
 }
 
 private func fallbackNotificationBotColor(_ seed: String) -> UIColor {
@@ -369,7 +441,7 @@ public class SydneyCompanionModule: Module {
         await activity.end(nil, dismissalPolicy: .immediate)
       }
       let safeStatus = Self.callStatusLabels.contains(status) ? status : "通话 · 正在听"
-      let visibleReply = showReply ? reply.map { String($0.prefix(80)) } : nil
+      let visibleReply = showReply ? cleanReplyForIsland(reply) : nil
       let attributes = CompanionActivityAttributes(
         botId: botId, botName: botName, spaceId: spaceId, showReply: showReply,
         avatar: activityAvatar(avatar), linkToken: UUID().uuidString)
@@ -509,7 +581,7 @@ public class SydneyCompanionModule: Module {
           $0.id == activityId && $0.attributes.botId == botId && $0.attributes.spaceId == spaceId
         })
       else { return }
-      let visibleReply = activity.attributes.showReply ? reply.map { String($0.prefix(80)) } : nil
+      let visibleReply = activity.attributes.showReply ? cleanReplyForIsland(reply) : nil
       let isCall = Self.callStatusLabels.contains(status)
       let state = CompanionActivityAttributes.ContentState(
         status: status,
@@ -542,7 +614,7 @@ public class SydneyCompanionModule: Module {
           $0.id == activityId && $0.attributes.botId == botId && $0.attributes.spaceId == spaceId
         })
       else { return }
-      let visibleReply = activity.attributes.showReply ? reply.map { String($0.prefix(80)) } : nil
+      let visibleReply = activity.attributes.showReply ? cleanReplyForIsland(reply) : nil
       let startedAt =
         callActive
           ? callStartedAtMs.map { Date(timeIntervalSince1970: $0 / 1000.0) }

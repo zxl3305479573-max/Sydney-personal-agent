@@ -256,7 +256,7 @@ function sampleBot(overrides: Partial<MobileBot> = {}): MobileBot {
     unread: false,
     pinned: true,
     preview: "傍晚她拍了一条街的晚霞给我，说小猪好饿。",
-    updatedAt: "2026-11-24T18:30:00.000Z",
+    updatedAt: "2026-11-24T10:00:00.000Z",
     ...overrides,
   } as MobileBot;
 }
@@ -339,24 +339,19 @@ describe("HomeHub personal hub", () => {
     expect(text).toContain("晚上好，Mina");
     expect(text).toContain("傍晚她拍了一条街的晚霞给我，说小猪好饿。");
     expect(text).toContain("置顶 · Claude · 2026-11-24 ›");
-    expect(text).toContain("聊天与伙伴");
-    expect(text).toContain("2 位伙伴");
-    expect(text).toContain("1 个群聊 · 1 条未读消息");
-    expect(text).toContain("项目与执行台");
-    expect(text).toContain("当前空间 · Sydney 研发空间");
-    expect(text).toContain("项目工作区");
-    expect(text).toContain("云电脑画面");
+    expect(text).not.toContain("聊天与伙伴");
+    expect(text).not.toContain("项目与执行台");
+    expect(container.querySelector('[data-testid="home-hub-chats-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-create-bot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-workspaces-header"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-projects-split"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-computer-split"]')).toBeNull();
     expect(text).toContain("GitHub");
     expect(text).toContain("@mina");
     expect(text).toContain("18");
     expect(text).toContain("连接应用");
     expect(text).toContain("例行与技能");
     expect(text).toContain("文件与换肤");
-
-    act(() =>
-      container.querySelector<HTMLButtonElement>('[data-testid="home-hub-create-bot"]')!.click(),
-    );
-    expect(onCreateBot).toHaveBeenCalledOnce();
   });
 
   it("navigates each module card and header button to its expected route", () => {
@@ -387,17 +382,9 @@ describe("HomeHub personal hub", () => {
       params: { botId: "bot-claude", name: "Claude" },
     });
 
-    tap("home-hub-chats-card");
-    expect(state.push).toHaveBeenLastCalledWith("/chats");
-
-    tap("home-hub-projects-split");
-    expect(state.push).toHaveBeenLastCalledWith("/projects");
-
-    tap("home-hub-computer-split");
-    expect(state.push).toHaveBeenLastCalledWith({
-      pathname: "/computer",
-      params: { botId: "bot-claude", name: "Claude" },
-    });
+    expect(container.querySelector('[data-testid="home-hub-chats-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-projects-split"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-computer-split"]')).toBeNull();
 
     tap("home-hub-github-tile");
     expect(state.push).toHaveBeenLastCalledWith("/github");
@@ -466,6 +453,8 @@ describe("HomeHub personal hub", () => {
     expect(container.textContent).not.toContain("Synced");
     expect(container.textContent).not.toContain("sync ·");
     expect(container.textContent).not.toContain("09:05");
+    expect(container.textContent).not.toContain("Chats & Companions");
+    expect(container.textContent).not.toContain("Workspaces & Execution");
     expect(container.textContent).toContain(
       "No companions yet — tap to create your first personal assistant.",
     );
@@ -477,20 +466,13 @@ describe("HomeHub personal hub", () => {
 
     act(() =>
       container
-        .querySelector<HTMLButtonElement>('[data-testid="home-hub-computer-split"]')!
-        .click(),
-    );
-    expect(state.push).toHaveBeenLastCalledWith("/chats");
-
-    act(() =>
-      container
         .querySelector<HTMLButtonElement>('[data-testid="home-hub-appearance-chip"]')!
         .click(),
     );
     expect(state.push).toHaveBeenLastCalledWith("/chat-appearance");
   });
 
-  it("surfaces active spotlight status and counts active groups only by group status, not member DM status", () => {
+  it("surfaces active spotlight status without rendering removed chats or workspaces cards", () => {
     act(() =>
       root.render(
         <HomeHub
@@ -500,7 +482,6 @@ describe("HomeHub personal hub", () => {
             sampleGroup({
               id: "g-dm-leak",
               unread: false,
-              // Member bot is waiting_input in DM, but this group itself has no active status.
               members: [{ botId: "b-1", name: "Ops", color: "#3B82F6", status: "waiting_input" }],
             }),
             {
@@ -519,8 +500,8 @@ describe("HomeHub personal hub", () => {
     );
 
     const text = container.textContent ?? "";
-    const workspacesHeader = container.querySelector('[data-testid="home-hub-workspaces-header"]');
-    expect(workspacesHeader?.getAttribute("aria-label")).toContain("2 个运行中");
+    expect(container.querySelector('[data-testid="home-hub-chats-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-workspaces-header"]')).toBeNull();
     expect(text).not.toContain("20:15");
     expect(text).toContain("Needs input · Claude · 2026-11-24 ›");
   });

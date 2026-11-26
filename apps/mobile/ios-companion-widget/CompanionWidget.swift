@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -9,10 +10,9 @@ struct CompanionWidgetBundle: WidgetBundle {
 }
 
 private extension Color {
-  static let islandSurface = Color(red: 0.11, green: 0.12, blue: 0.15)
-  static let islandSecondary = Color.white.opacity(0.76)
+  static let islandSecondary = Color.white.opacity(0.78)
   static let islandSubtle = Color.white.opacity(0.56)
-  static let islandPill = Color.white.opacity(0.15)
+  static let islandPill = Color.white.opacity(0.16)
   static let statusPresent = Color(red: 0.32, green: 0.84, blue: 0.56)
   static let statusListening = Color(red: 0.38, green: 0.72, blue: 0.99)
   static let statusThinking = Color(red: 0.97, green: 0.74, blue: 0.28)
@@ -21,42 +21,54 @@ private extension Color {
   static let callMutedGray = Color.white.opacity(0.68)
 }
 
+private extension View {
+  @ViewBuilder
+  func nativeLockScreenActivitySurface() -> some View {
+    if #available(iOS 26.0, *) {
+      self.activityBackgroundTint(.clear)
+    } else {
+      self.activityBackgroundTint(nil)
+    }
+  }
+}
+
 struct CompanionWidget: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: CompanionActivityAttributes.self) { context in
       let isCall = context.state.callActive == true
       let displayStatus = context.isStale && !isCall ? "状态待更新" : context.state.status
-      let accent = statusAccent(displayStatus, isCall: isCall)
+      let isBackgroundListening = !isCall && displayStatus.contains("正在听")
+      let accent = lockScreenStatusAccent(displayStatus, isCall: isCall)
+      let cleanReply = cleanedReply(context.state.reply)
       HStack(alignment: .center, spacing: 12) {
         avatarBadge(
           context.attributes.avatar,
           botName: context.attributes.botName,
           botId: context.attributes.botId,
           status: displayStatus,
-          isCall: isCall,
-          size: 40
+          isCall: isCall || isBackgroundListening,
+          size: 40,
+          onDarkSurface: false
         )
-        VStack(alignment: .leading, spacing: 4) {
-          HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 3) {
+          HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(context.attributes.botName)
-              .font(.headline)
-              .foregroundStyle(.white)
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(.primary)
               .lineLimit(1)
-            Spacer(minLength: 4)
+            Spacer(minLength: 8)
             if isCall, let startedAt = context.state.callStartedAt {
               HStack(spacing: 4) {
-                callSignalIcon(displayStatus, size: 12)
+                callSignalIcon(displayStatus, size: 12, accent: accent)
                 Text(startedAt, style: .timer)
-                  .font(.caption.monospacedDigit().weight(.semibold))
+                  .font(.caption.monospacedDigit().weight(.medium))
                   .foregroundStyle(accent)
               }
             } else {
               HStack(spacing: 4) {
-                Circle()
-                  .fill(accent)
-                  .frame(width: 6, height: 6)
+                companionStatusIcon(displayStatus, size: 11, tint: accent)
                 Text(displayStatus)
-                  .font(.caption.weight(.semibold))
+                  .font(.caption.weight(.medium))
                   .foregroundStyle(accent)
                   .lineLimit(1)
               }
@@ -64,49 +76,47 @@ struct CompanionWidget: Widget {
           }
           if isCall {
             Text(displayStatus)
-              .font(.subheadline.weight(.medium))
+              .font(.footnote.weight(.medium))
               .foregroundStyle(accent)
               .lineLimit(1)
           }
-          if let reply = context.state.reply, !reply.isEmpty {
+          if let reply = cleanReply {
             Text(reply)
               .font(.subheadline)
-              .foregroundStyle(Color.islandSecondary)
-              .lineLimit(2)
+              .foregroundStyle(.primary.opacity(0.92))
+              .lineLimit(3)
+              .lineSpacing(1.5)
               .privacySensitive()
           } else if !isCall {
             Text(context.attributes.showReply ? "随时待命，点击打开对话" : "回复内容已隐藏")
-              .font(.caption)
-              .foregroundStyle(Color.islandSubtle)
+              .font(.footnote)
+              .foregroundStyle(.secondary)
               .lineLimit(1)
           }
         }
       }
-      .padding(14)
-      .activityBackgroundTint(Color.islandSurface)
-      .activitySystemActionForegroundColor(.white)
+      .padding(.horizontal, 16)
+      .padding(.vertical, 14)
+      .nativeLockScreenActivitySurface()
       .widgetURL(chatURL(context.attributes))
     } dynamicIsland: { context in
       let isCall = context.state.callActive == true
       let displayStatus = context.isStale && !isCall ? "状态待更新" : context.state.status
+      let isBackgroundListening = !isCall && displayStatus.contains("正在听")
       let accent = statusAccent(displayStatus, isCall: isCall)
+      let cleanReply = cleanedReply(context.state.reply)
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          HStack(spacing: 8) {
-            avatarBadge(
-              context.attributes.avatar,
-              botName: context.attributes.botName,
-              botId: context.attributes.botId,
-              status: displayStatus,
-              isCall: isCall,
-              size: 32
-            )
-            Text(context.attributes.botName)
-              .font(.headline)
-              .foregroundStyle(.white)
-              .lineLimit(1)
-          }
-          .padding(.leading, 2)
+          avatarBadge(
+            context.attributes.avatar,
+            botName: context.attributes.botName,
+            botId: context.attributes.botId,
+            status: displayStatus,
+            isCall: isCall || isBackgroundListening,
+            size: 38
+          )
+          .padding(.leading, 4)
+          .padding(.top, 2)
         }
         DynamicIslandExpandedRegion(.trailing) {
           if isCall {
@@ -123,90 +133,71 @@ struct CompanionWidget: Widget {
                   .foregroundStyle(accent)
               }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.islandPill, in: Capsule())
             .padding(.trailing, 2)
+            .padding(.top, 2)
           } else {
             HStack(spacing: 5) {
-              Circle()
-                .fill(accent)
-                .frame(width: 6, height: 6)
+              companionStatusIcon(displayStatus, size: 11, tint: accent)
               Text(displayStatus)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(accent)
                 .lineLimit(1)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(Color.islandPill, in: Capsule())
+            .padding(.trailing, 2)
+            .padding(.top, 2)
           }
         }
         DynamicIslandExpandedRegion(.bottom) {
-          VStack(alignment: .leading, spacing: 8) {
-            if isCall {
-              Text(displayStatus)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(accent)
-                .lineLimit(1)
-            }
-            if let reply = context.state.reply, !reply.isEmpty {
-              Text(reply)
-                .font(.subheadline)
+          VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(context.attributes.botName)
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
-                .lineLimit(2)
-                .privacySensitive()
-            } else if !isCall {
-              Text(context.attributes.showReply ? "随时待命，点击打开对话" : "回复内容已隐藏")
-                .font(.caption)
-                .foregroundStyle(Color.islandSecondary)
                 .lineLimit(1)
-            }
-            HStack(spacing: 6) {
               if isCall {
-                if let url = chatURL(context.attributes) {
-                  Link(destination: url) {
-                    Label("返回通话", systemImage: "phone.fill")
-                      .font(.caption.weight(.semibold))
-                      .foregroundStyle(.white)
-                      .padding(.horizontal, 10)
-                      .padding(.vertical, 5)
-                      .background(accent.opacity(0.28), in: Capsule())
-                  }
-                }
-              } else {
-                if let url = captureURL(context.attributes, mode: "message") {
-                  Link(destination: url) {
-                    Text("发消息")
-                      .font(.caption.weight(.semibold))
-                      .foregroundStyle(.white)
-                      .padding(.horizontal, 9)
-                      .padding(.vertical, 5)
-                      .background(Color.islandPill, in: Capsule())
-                  }
-                }
-                if let url = captureURL(context.attributes, mode: "capture") {
-                  Link(destination: url) {
-                    Text("截屏提问")
-                      .font(.caption.weight(.semibold))
-                      .foregroundStyle(.white)
-                      .padding(.horizontal, 9)
-                      .padding(.vertical, 5)
-                      .background(accent.opacity(0.28), in: Capsule())
-                  }
-                }
-                if let url = chatURL(context.attributes, voice: true) {
-                  Link(destination: url) {
-                    Text("语音对话")
-                      .font(.caption.weight(.semibold))
-                      .foregroundStyle(.white)
-                      .padding(.horizontal, 9)
-                      .padding(.vertical, 5)
-                      .background(Color.islandPill, in: Capsule())
-                  }
-                }
+                Text(displayStatus)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(accent)
+                  .lineLimit(1)
               }
             }
+
+            if let reply = cleanReply {
+              Text(reply)
+                .font(.system(size: 14.5))
+                .foregroundStyle(Color.white.opacity(0.92))
+                .lineLimit(3)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .privacySensitive()
+            } else if !isCall {
+              Text(
+                isBackgroundListening
+                  ? "正在聆听，说完停顿片刻或点击发送…"
+                  : (context.attributes.showReply ? "随时待命，点下方按钮直接互动" : "回复内容已隐藏")
+              )
+              .font(.system(size: 13.5))
+              .foregroundStyle(Color.islandSecondary)
+              .lineLimit(2)
+            }
+
+            actionRow(
+              attributes: context.attributes,
+              accent: accent,
+              isCall: isCall,
+              isBackgroundListening: isBackgroundListening
+            )
           }
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, 4)
+          .padding(.horizontal, 2)
+          .padding(.top, 6)
+          .padding(.bottom, 4)
         }
       } compactLeading: {
         avatarBadge(
@@ -214,8 +205,8 @@ struct CompanionWidget: Widget {
           botName: context.attributes.botName,
           botId: context.attributes.botId,
           status: displayStatus,
-          isCall: isCall,
-          size: 22
+          isCall: isCall || isBackgroundListening,
+          size: 24
         )
         .padding(.leading, 2)
       } compactTrailing: {
@@ -229,7 +220,7 @@ struct CompanionWidget: Widget {
                 .multilineTextAlignment(.trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(maxWidth: 42, alignment: .trailing)
+                .frame(maxWidth: 44, alignment: .trailing)
             } else {
               Text(compactCallLabel(displayStatus))
                 .font(.caption2.weight(.semibold))
@@ -237,31 +228,31 @@ struct CompanionWidget: Widget {
                 .lineLimit(1)
             }
           }
-          .padding(.trailing, 2)
+          .padding(.trailing, 3)
         } else if displayStatus == "我一直都在" {
-          HStack(spacing: 4) {
+          HStack(spacing: 5) {
             Circle()
               .fill(accent)
-              .frame(width: 5, height: 5)
+              .frame(width: 6, height: 6)
             Text(context.attributes.botName)
-              .font(.caption2.weight(.semibold))
+              .font(.system(size: 12, weight: .semibold))
               .foregroundStyle(.white)
               .lineLimit(1)
-              .frame(maxWidth: 68, alignment: .trailing)
+              .frame(maxWidth: 80, alignment: .trailing)
           }
-          .padding(.trailing, 2)
+          .padding(.trailing, 3)
         } else {
           HStack(spacing: 4) {
-            companionStatusIcon(displayStatus, size: 11, tint: accent)
+            companionStatusIcon(displayStatus, size: 12, tint: accent)
             Text(compactCompanionStatus(displayStatus))
-              .font(.caption2.weight(.semibold))
+              .font(.system(size: 12, weight: .semibold))
               .foregroundStyle(accent)
               .lineLimit(1)
           }
-          .padding(.trailing, 2)
+          .padding(.trailing, 3)
         }
       } minimal: {
-        if isCall {
+        if isCall || isBackgroundListening {
           callSignalIcon(displayStatus, size: 13)
         } else {
           avatarBadge(
@@ -270,13 +261,97 @@ struct CompanionWidget: Widget {
             botId: context.attributes.botId,
             status: displayStatus,
             isCall: false,
-            size: 22
+            size: 24
           )
         }
       }
       .keylineTint(accent)
       .widgetURL(chatURL(context.attributes))
     }
+  }
+
+  @ViewBuilder
+  private func actionRow(
+    attributes: CompanionActivityAttributes,
+    accent: Color,
+    isCall: Bool,
+    isBackgroundListening: Bool
+  ) -> some View {
+    HStack(spacing: 8) {
+      if isCall {
+        if let url = chatURL(attributes) {
+          Link(destination: url) {
+            actionLabel("返回通话", systemImage: "phone.fill", background: accent.opacity(0.32))
+          }
+        }
+      } else if isBackgroundListening {
+        if #available(iOS 17.0, *) {
+          Button(intent: CompanionVoiceFinishIntent()) {
+            actionLabel("立即发送", systemImage: "arrow.up.circle.fill", background: accent.opacity(0.34))
+          }
+          .buttonStyle(.plain)
+          Button(intent: CompanionVoiceCancelIntent()) {
+            actionLabel("取消", systemImage: "xmark", background: Color.islandPill)
+          }
+          .buttonStyle(.plain)
+        } else if let url = chatURL(attributes) {
+          Link(destination: url) {
+            actionLabel("打开对话", systemImage: "bubble.left.fill", background: Color.islandPill)
+          }
+        }
+      } else {
+        if let url = captureURL(attributes, mode: "message") {
+          Link(destination: url) {
+            actionLabel("发消息", systemImage: "bubble.left.fill", background: Color.islandPill)
+          }
+        }
+        if let url = captureURL(attributes, mode: "capture") {
+          Link(destination: url) {
+            actionLabel("截屏提问", systemImage: "camera.viewfinder", background: accent.opacity(0.28))
+          }
+        }
+        if #available(iOS 18.0, *) {
+          Button(intent: CompanionVoiceToggleIntent(botId: attributes.botId, spaceId: attributes.spaceId)) {
+            actionLabel("语音对话", systemImage: "waveform", background: Color.islandPill)
+          }
+          .buttonStyle(.plain)
+        } else if let url = chatURL(attributes, voice: true) {
+          Link(destination: url) {
+            actionLabel("语音对话", systemImage: "waveform", background: Color.islandPill)
+          }
+        }
+      }
+    }
+  }
+
+  private func actionLabel(_ title: String, systemImage: String, background: Color) -> some View {
+    HStack(spacing: 4) {
+      Image(systemName: systemImage)
+        .font(.system(size: 11.5, weight: .semibold))
+      Text(title)
+        .font(.system(size: 12.5, weight: .semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+    }
+    .foregroundStyle(.white)
+    .frame(maxWidth: .infinity)
+    .padding(.horizontal, 8)
+    .padding(.vertical, 9)
+    .background(background, in: Capsule())
+  }
+
+  private func cleanedReply(_ raw: String?) -> String? {
+    guard let raw else { return nil }
+    var text = raw
+      .replacingOccurrences(of: "**", with: "")
+      .replacingOccurrences(of: "__", with: "")
+      .replacingOccurrences(of: "~~", with: "")
+      .replacingOccurrences(of: "`", with: "")
+    while text.contains("  ") {
+      text = text.replacingOccurrences(of: "  ", with: " ")
+    }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   private func statusAccent(_ status: String, isCall: Bool) -> Color {
@@ -289,6 +364,18 @@ struct CompanionWidget: Widget {
     if status.contains("思考") { return .statusThinking }
     if status.contains("听") { return .statusListening }
     return .statusPresent
+  }
+
+  private func lockScreenStatusAccent(_ status: String, isCall: Bool) -> Color {
+    if isCall {
+      if status.contains("静音") { return .secondary }
+      if status.contains("思考") { return .orange }
+      return .green
+    }
+    if status.contains("断开") || status.contains("待更新") { return .red }
+    if status.contains("思考") { return .orange }
+    if status.contains("听") { return .blue }
+    return .green
   }
 
   private func compactCallLabel(_ status: String) -> String {
@@ -322,8 +409,8 @@ struct CompanionWidget: Widget {
   }
 
   @ViewBuilder
-  private func callSignalIcon(_ status: String, size: CGFloat) -> some View {
-    let tint = statusAccent(status, isCall: true)
+  private func callSignalIcon(_ status: String, size: CGFloat, accent: Color? = nil) -> some View {
+    let tint = accent ?? statusAccent(status, isCall: true)
     if status.contains("静音") {
       Image(systemName: "mic.slash.fill")
         .font(.system(size: size, weight: .semibold))
@@ -357,35 +444,52 @@ struct CompanionWidget: Widget {
     botId: String,
     status: String,
     isCall: Bool,
-    size: CGFloat
+    size: CGFloat,
+    onDarkSurface: Bool = true
   ) -> some View {
-    let dotSize = max(7, size * 0.30)
+    let dotSize = max(8, size * 0.28)
+    let dotTint = onDarkSurface ? statusAccent(status, isCall: true) : lockScreenStatusAccent(status, isCall: true)
     return ZStack(alignment: .bottomTrailing) {
       CompanionAnimatedMark(
         status: status,
-        content: mark(encoded, botName: botName, botId: botId, size: size)
+        content: mark(encoded, botName: botName, botId: botId, size: size, onDarkSurface: onDarkSurface)
       )
       if isCall {
         Circle()
-          .fill(statusAccent(status, isCall: true))
+          .fill(dotTint)
           .frame(width: dotSize, height: dotSize)
-          .overlay(Circle().stroke(Color.black, lineWidth: 1.2))
+          .overlay(
+            Circle().stroke(
+              onDarkSurface ? Color.black : Color.primary.opacity(0.22),
+              lineWidth: onDarkSurface ? 1.4 : 1.0
+            )
+          )
       }
     }
     .frame(width: size, height: size)
   }
 
   @ViewBuilder
-  private func mark(_ encoded: String?, botName: String, botId: String, size: CGFloat) -> some View {
+  private func mark(
+    _ encoded: String?,
+    botName: String,
+    botId: String,
+    size: CGFloat,
+    onDarkSurface: Bool = true
+  ) -> some View {
+    let ringColor = onDarkSurface ? Color.white.opacity(0.28) : Color.primary.opacity(0.14)
+    let ringWidth: CGFloat = onDarkSurface ? 0.9 : 0.6
     if let encoded, encoded.hasPrefix("p|"),
       let data = Data(base64Encoded: String(encoded.dropFirst(2))),
       let image = UIImage(data: data) {
       Image(uiImage: image)
         .resizable()
+        .interpolation(.high)
+        .antialiased(true)
         .scaledToFill()
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 0.75))
+        .overlay(Circle().stroke(ringColor, lineWidth: ringWidth))
         .accessibilityLabel(botName)
     } else if let encoded, let avatar = CompanionBotAvatar(encoded: encoded, size: size) {
       avatar.accessibilityLabel(botName)
@@ -399,7 +503,7 @@ struct CompanionWidget: Widget {
           .foregroundStyle(.white)
       }
       .frame(width: size, height: size)
-      .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 0.75))
+      .overlay(Circle().stroke(ringColor, lineWidth: ringWidth))
       .accessibilityLabel(botName)
     }
   }
@@ -468,7 +572,7 @@ private struct CompanionAnimatedMark<Content: View>: View {
 
   var body: some View {
     content
-      .scaleEffect(status.contains("思考") ? 0.90 : 1)
+      .scaleEffect(status.contains("思考") ? 0.92 : 1)
       .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: status)
   }
 }

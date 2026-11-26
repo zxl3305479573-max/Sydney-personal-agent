@@ -197,7 +197,11 @@ describe("BotNotificationBanner & foreground bot avatar handoff", () => {
     const avatarAlpha = container.querySelector('[data-testid="mock-bot-avatar"]');
     expect(avatarAlpha?.getAttribute("data-bot-id")).toBe("bot-alpha");
     expect(avatarAlpha?.getAttribute("data-bot-color")).toBe(CUSTOM_BOT_PHOTO);
+    expect(
+      container.querySelector('[data-testid="bot-notification-banner-surface"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain("阿尔法");
+    expect(container.textContent).toContain("现在");
     expect(container.textContent).toContain("已经整理好今天的日程啦");
 
     // Second bot notification (different bot & color + attention badge) replaces banner with its own avatar

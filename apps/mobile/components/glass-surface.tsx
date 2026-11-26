@@ -14,6 +14,10 @@ export type GlassSurfaceProps = Pick<
   | "pointerEvents"
 > & {
   chatTitle?: boolean;
+  /** Enables native iOS 26+ Liquid Glass for floating system-style overlays (banners, status bars, call cards). */
+  nativeOverlay?: boolean;
+  /** Optional Liquid Glass material variant (`"regular"` default, `"clear"` for lighter translucent overlays). */
+  glassVariant?: "regular" | "clear";
   shape?: "capsule" | "circle" | "roundedRectangle";
   /** Corner radius for `roundedRectangle`. */
   cornerRadius?: number;
@@ -28,6 +32,8 @@ export type GlassSurfaceProps = Pick<
 
 export function GlassSurface({
   chatTitle = false,
+  nativeOverlay = false,
+  glassVariant: _glassVariant,
   shape,
   cornerRadius: _cornerRadius,
   tint: _tint,
@@ -38,7 +44,10 @@ export function GlassSurface({
   ...viewProps
 }: GlassSurfaceProps) {
   const applyGradient =
-    !chatTitle && gradient !== false && (shape === "roundedRectangle" || gradient !== undefined);
+    !chatTitle &&
+    !nativeOverlay &&
+    gradient !== false &&
+    (shape === "roundedRectangle" || gradient !== undefined);
   const isLight = inferLightFromStyle(fallbackStyle) ?? inferLightFromStyle(style) ?? true;
   const gradientLayer: ViewStyle | null = applyGradient
     ? { experimental_backgroundImage: cardGradient(isLight, gradient || "pearl") }

@@ -15,6 +15,7 @@ import { notificationOpenTarget, threadRouteId } from "../lib/notification-open"
 import { previewSnippet } from "../lib/preview";
 import { closeSettingsSheet } from "../lib/settings-sheet";
 import { BotAvatar } from "./bot-avatar";
+import { GlassSurface } from "./glass-surface";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
 
@@ -100,14 +101,14 @@ export function BotNotificationBanner() {
 
   const isLight = appearance === "light";
   const isAttention = ATTENTION_KINDS.has(item.kind);
-  const surfaceBg = isLight ? "rgba(255, 254, 252, 0.97)" : "rgba(32, 37, 46, 0.97)";
-  const borderColor = isLight ? "rgba(38, 35, 31, 0.10)" : "rgba(245, 244, 240, 0.14)";
-  const closeBg = isLight ? "#F3F0EA" : "#2D3340";
-  const attentionTint = isLight ? "#B56A00" : "#F5C469";
+  const fallbackSurfaceBg = isLight ? "rgba(255, 255, 255, 0.88)" : "rgba(30, 34, 42, 0.86)";
+  const fallbackBorderColor = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.18)";
+  const closeBg = isLight ? "rgba(60, 60, 67, 0.08)" : "rgba(255, 255, 255, 0.13)";
+  const attentionTint = isLight ? "#C96A00" : "#FF9F0A";
 
   const statusTag = isAttention
     ? copy("需要确认", "需要確認", "Needs input")
-    : copy("刚刚", "剛剛", "Now");
+    : copy("现在", "現在", "now");
 
   const handleOpen = () => {
     const current = item;
@@ -138,25 +139,31 @@ export function BotNotificationBanner() {
       {...panHandlers}
       style={{
         position: "absolute",
-        top: Math.max(insets.top, 12) + 4,
-        left: 14,
-        right: 14,
+        top: Math.max(insets.top, 10) + 4,
+        left: 12,
+        right: 12,
         zIndex: 90,
       }}
     >
-      <View
+      <GlassSurface
+        nativeOverlay
+        shape="roundedRectangle"
+        cornerRadius={26}
+        testID="bot-notification-banner-surface"
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 11,
-          paddingVertical: 11,
-          paddingHorizontal: 13,
-          borderRadius: 22,
-          backgroundColor: surfaceBg,
+          gap: 12,
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+        }}
+        fallbackStyle={{
+          borderRadius: 26,
+          backgroundColor: fallbackSurfaceBg,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor,
-          shadowColor: "#26231F",
-          shadowOpacity: isLight ? 0.16 : 0.42,
+          borderColor: fallbackBorderColor,
+          shadowColor: "#000000",
+          shadowOpacity: isLight ? 0.14 : 0.42,
           shadowRadius: 20,
           shadowOffset: { width: 0, height: 8 },
           elevation: 8,
@@ -168,7 +175,7 @@ export function BotNotificationBanner() {
           accessibilityRole="button"
           accessibilityLabel={`${item.botName}: ${item.body}`}
           onPress={handleOpen}
-          style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 11 }}
+          style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12 }}
         >
           <View testID="bot-notification-banner-avatar" style={{ position: "relative" }}>
             <BotAvatar
@@ -188,8 +195,8 @@ export function BotNotificationBanner() {
                   height: 11,
                   borderRadius: 6,
                   backgroundColor: attentionTint,
-                  borderWidth: 2,
-                  borderColor: isLight ? "#FFFEFC" : "#20252E",
+                  borderWidth: 1.5,
+                  borderColor: isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(28, 32, 40, 0.9)",
                 }}
               />
             ) : null}
@@ -198,7 +205,7 @@ export function BotNotificationBanner() {
             <View
               style={{
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "baseline",
                 justifyContent: "space-between",
                 gap: 8,
               }}
@@ -207,8 +214,8 @@ export function BotNotificationBanner() {
                 numberOfLines={1}
                 style={{
                   color: tokens.foreground,
-                  fontSize: 14.5,
-                  lineHeight: 19,
+                  fontSize: 15,
+                  lineHeight: 20,
                   fontWeight: "600",
                   flexShrink: 1,
                 }}
@@ -219,8 +226,8 @@ export function BotNotificationBanner() {
                 numberOfLines={1}
                 style={{
                   color: isAttention ? attentionTint : tokens.mutedForeground,
-                  fontSize: 11.5,
-                  lineHeight: 15,
+                  fontSize: 12,
+                  lineHeight: 16,
                   fontWeight: isAttention ? "600" : "400",
                 }}
               >
@@ -230,9 +237,10 @@ export function BotNotificationBanner() {
             <Text
               numberOfLines={2}
               style={{
-                color: tokens.mutedForeground,
-                fontSize: 13.5,
-                lineHeight: 18,
+                color: tokens.foreground,
+                opacity: 0.9,
+                fontSize: 14.5,
+                lineHeight: 19,
               }}
             >
               {previewSnippet(item.body, 120)}
@@ -247,17 +255,17 @@ export function BotNotificationBanner() {
           accessibilityLabel={copy("关闭通知", "關閉通知", "Dismiss notification")}
           onPress={() => dismissBotNotificationBanner(item.id)}
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
+            width: 24,
+            height: 24,
+            borderRadius: 12,
             backgroundColor: closeBg,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <NativeSymbol ios="xmark" android="close" size={12} color={tokens.mutedForeground} />
+          <NativeSymbol ios="xmark" android="close" size={11} color={tokens.mutedForeground} />
         </MotionPressable>
-      </View>
+      </GlassSurface>
     </View>
   );
 }

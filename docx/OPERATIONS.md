@@ -1,5 +1,15 @@
 # 运维手册
 
+## iPhone 1.0.35 侧载 OTA 与生产后端 `b9f27050e` 上线（2026-11-26）
+
+- **iPhone `1.0.35` 侧载 OTA（已发布并全资源核验）**：提交 `b9f27050ea8d856b5fc713ca6e0836d7a38282e6`（叠加 `204784002` 与 `dc682981c`）已通过 `.github/workflows/mobile-ios-update.yml` [Run 45815897416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815897416) 发布至 Sydney `sideload` 通道（runtime `sydney-ios-ip-1`）：
+  - 更新组 ID：`47babd9f-c4ce-48a1-baf1-0e99a337282e`；iOS 更新 ID：`01a217bd-afeb-7753-8847-d83d4058dd7a`（`createdAt: 2026-11-26T12:03:57.035Z`）；
+  - 线上 Expo 清单 HTTP `200`（`version: "1.0.35"`、`releasedOn: "2026-11-26"`）、启动包 `11,322,572` 字节（SHA-256 `c05be8b05a062d0c51fde626a1360c9658d53cfe1fd3296c265f89bfc9cdbc56`）及全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 全部匹配。
+- **生产后端与全量 CI**：`CI` [Run 45815895149](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815895149) 全绿并通过 `deploy-production`（Job `139897644017`，完成于 `2026-11-26T12:07:43Z`）部署上线；线上 `https://pc.zxlup.xin/health` 与 `/ready` 均 HTTP `200`。
+- **兼容性与回退**：
+  - 既有 `1.0.12`–`1.0.16` 侧载 IPA 无需重装，在 App 内点击首页顶栏「可以更新」或前往「设置 → 检查更新」下载 `1.0.35` 并重启后即可获得：个人账单与 Apple 钱包层叠卡包／单点展开聚焦视图（直连生产 AES-256 加密同步与 Bot 协同记账）、升级版全应用动态天气特效与环境音效、灵动岛陪伴真实头像同步及大肥鱼默认头像动效。
+  - OTA 回退可按既有 `sideload` 通道重发上一版 `1.0.34`（更新 ID `01a216ce-6d2d-7540-a3ab-9025558d6eef`）；真机端到端实测待设备验收。
+
 ## 个人账单与加密支付方式迁移及生产后端上线（`204784002`，2026-11-26）
 
 - **部署状态（已上线并核验）**：PA-025 隔离提交 `204784002db3f4f666cc6b2f6b2dddc0b3a0160e` 已推送至 `origin/cursor/integrate-remote-branches-7334` 与 `origin/main`，经 `CI` [Run 45809544638](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45809544638) 一次全绿（含 `Lint and typecheck`、`Unit tests (1/3–3/3)`、`Postgres journeys (1/2–2/2)`、`Publish server images`、`Publish compatible mobile update`）并由 `deploy-production`（Job `139876212408`，完成于 `2026-11-26T11:26:00Z`）零停机上线至生产主机 `sydney-cloud-admin`（`/srv/rakazo` HEAD `204784002db3f4f666cc6b2f6b2dddc0b3a0160e`，容器 `rakazo-prod-api-38` 与 `rakazo-prod-worker-33` 均 `healthy`）。

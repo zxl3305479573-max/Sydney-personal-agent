@@ -177,6 +177,8 @@ import { ModelRoleSchema, ModelRoleUpdateSchema, ModelRoleViewSchema } from "./m
 import { PaymentWalletStatusSchema } from "./payments.js";
 import {
   FinanceBillSchema,
+  ParsedFinanceBillDraftSchema,
+  ParseFinanceBillDraftInputSchema,
   PaymentMethodSensitivePayloadSchema,
   PaymentMethodSummarySchema,
   PersonalFinanceImportInputSchema,

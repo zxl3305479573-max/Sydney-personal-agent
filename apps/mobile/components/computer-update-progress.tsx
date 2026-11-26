@@ -61,6 +61,7 @@ export function ComputerUpdateProgress() {
             }}
           >
             <GlassSurface
+              nativeOverlay
               style={styles.pill}
               fallbackStyle={[
                 styles.pillFallback,

@@ -127,7 +127,9 @@ export function CallCard() {
   if (!call) return null;
   return (
     <GlassSurface
+      nativeOverlay
       shape="roundedRectangle"
+      cornerRadius={24}
       style={[styles.card, { top: insets.top + 52 }]}
       fallbackStyle={[
         styles.cardFallback,
@@ -256,6 +258,7 @@ function RoundButton({
 }) {
   return (
     <GlassIconButton
+      nativeOverlay
       accessibilityLabel={label}
       ios={ios}
       android={android}
@@ -326,7 +329,7 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   cardFallback: {
-    borderRadius: 18,
+    borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     shadowOpacity: 0.18,
     shadowRadius: 12,

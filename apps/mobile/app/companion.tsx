@@ -899,9 +899,9 @@ export default function CompanionConsoleScreen() {
             "Back Tap / Shortcuts Screenshot",
           )}
           footer={copy(
-            "在 iPhone「快捷指令」新建 3 步流程：① 截屏 → ② 拷贝到剪贴板 → ③ 打开下方 URL（如需先输文字可加「请求输入」并拼接 &prompt=文本），然后在「设置 → 辅助功能 → 触控 → 轻点背面」或「操作按钮」绑定该快捷指令，即可在任意应用一键截屏并同步输入发给陪伴伙伴且语音回复。",
-            "在 iPhone「捷徑」新建 3 步流程：① 截圖 → ② 拷貝到剪貼簿 → ③ 開啟下方 URL（如需先輸文字可加「要求輸入」並拼接 &prompt=文本），再於「設定 → 輔助使用 → 觸控 → 背面輕點」或「動作按鈕」綁定該捷徑，即可在任意 App 一鍵截圖並同步輸入發給陪伴夥伴且語音回覆。",
-            "In Apple Shortcuts, add 3 actions: 1) Take Screenshot -> 2) Copy to Clipboard -> 3) Open the URL below. Bind it to Back Tap or Action Button to send screenshots with optional text from any app and hear spoken replies.",
+            "推荐无跳转用法：在 iPhone「快捷指令」新建 2 步流程：① 截屏 → ② Sydney「截屏提问 Sydney」（默认自动裁掉顶部灵动岛区域，顶部悬浮输入问题、后台发送并直接把回复显示到灵动岛）；也可直接添加「后台发消息给 Sydney」或「灵动岛语音对话」绑定到轻点背面/操作按钮，全程不跳出当前 App。如需兼容旧版 URL 方式，可复制下方链接。",
+            "推薦無跳轉用法：在 iPhone「捷徑」新建 2 步流程：① 截圖 → ② Sydney「截屏提问 Sydney」（預設自動裁掉頂部靈動島區域，頂部懸浮輸入問題、背景傳送並直接把回覆顯示到靈動島）；也可直接加入「后台发消息给 Sydney」或「灵动岛语音对话」綁定到背面輕點/動作按鈕，全程不跳出目前 App。如需相容舊版 URL 方式，可複製下方連結。",
+            "Recommended zero-jump setup: in Apple Shortcuts create a 2-step shortcut: 1) Take Screenshot -> 2) Sydney 'Ask Screenshot' (automatically crops out the Dynamic Island, prompts inline at the top, and pushes the reply straight onto the Dynamic Island without switching apps). You can also bind 'Background Message' or 'Dynamic Island Voice' to Back Tap / Action Button.",
           )}
         >
           <SettingsRow

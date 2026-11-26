@@ -3,9 +3,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClientUpdateState } from "../lib/client-update";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { GlassSurface } from "./glass-surface";
 
 /**
- * Floating warm-porcelain status pill shown only while an OTA update is downloading,
+ * Floating native Liquid Glass status pill shown only while an OTA update is downloading,
  * so users who started an update from the startup alert know it is active and keep the app open.
  */
 export function UpdateDownloadBanner() {
@@ -31,32 +32,36 @@ export function UpdateDownloadBanner() {
       pointerEvents="none"
       style={{
         position: "absolute",
-        top: Math.max(insets.top, 12) + 8,
+        top: Math.max(insets.top, 10) + 6,
         left: 16,
         right: 16,
         alignItems: "center",
         zIndex: 50,
       }}
     >
-      <View
+      <GlassSurface
+        nativeOverlay
+        shape="capsule"
         accessibilityRole="text"
         style={{
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
           maxWidth: 360,
-          paddingHorizontal: 14,
+          paddingHorizontal: 16,
           paddingVertical: 10,
-          borderRadius: 16,
-          backgroundColor: isLight ? "#FFFEFC" : "#242933",
+        }}
+        fallbackStyle={{
+          borderRadius: 24,
+          backgroundColor: isLight ? "rgba(255, 255, 255, 0.88)" : "rgba(30, 34, 42, 0.86)",
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: isLight ? "rgba(38, 35, 31, 0.10)" : "rgba(245, 244, 240, 0.14)",
+          borderColor: isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.18)",
           ...(Platform.OS === "ios"
             ? {
-                shadowColor: "#1C1915",
+                shadowColor: "#000000",
                 shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: isLight ? 0.1 : 0.3,
-                shadowRadius: 14,
+                shadowOpacity: isLight ? 0.12 : 0.34,
+                shadowRadius: 16,
               }
             : { elevation: 4 }),
         }}
@@ -65,7 +70,7 @@ export function UpdateDownloadBanner() {
         <View style={{ flexShrink: 1, gap: 2 }}>
           <Text
             numberOfLines={1}
-            style={{ color: tokens.foreground, fontSize: 13, fontWeight: "600" }}
+            style={{ color: tokens.foreground, fontSize: 13.5, fontWeight: "600" }}
           >
             {title}
           </Text>
@@ -73,7 +78,7 @@ export function UpdateDownloadBanner() {
             {t("Keep the app open while downloading.")}
           </Text>
         </View>
-      </View>
+      </GlassSurface>
     </View>
   );
 }

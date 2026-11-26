@@ -1,5 +1,41 @@
 # Sydney 开发总计划
 
+## 锁屏实时活动状态与应用内弹窗／悬浮状态全面采用 iOS 原生液态玻璃样式（PA-021，2026-11-26）
+
+状态：源码实现、单测补充与本机离线校验均已完成（未提交或推送）；应用内通知弹窗与悬浮状态条为纯 JS 改动，发布侧载 OTA 即可生效；锁屏 Live Activity（`CompanionWidget.swift`）为原生 Swift 扩展改动，待 macOS Xcode 重编 IPA 并通过 `Sideloadly` 重签安装后真机验收。
+
+范围与交付物：
+- **锁屏 Live Activity 原生液态玻璃外观（`apps/mobile/ios-companion-widget/CompanionWidget.swift`）**：移除锁屏卡片硬编码的深灰不透明底色（`Color.islandSurface`）与固定白色系统按钮色，新增 `nativeLockScreenActivitySurface()`（iOS 26+ 使用 `.activityBackgroundTint(.clear)` 融入系统原生液态玻璃卡片，iOS < 26 使用 `.activityBackgroundTint(nil)` 跟随系统半透明通知材质）；锁屏正文、标题与状态改为语义自适应色（`.primary`／`.secondary` 与系统 `.green`/`.blue`/`.orange`/`.red`）并按 iOS 原生通知比例微调字号与间距（`40pt` 头像、`.subheadline.weight(.semibold)` 标题、`16×14` 内边距），同时保留灵动岛硬件挖孔区域显式白字高对比度。
+- **应用内悬浮状态与通知弹窗原生 Liquid Glass 能力（`apps/mobile/components/glass-surface.tsx`、`glass-surface.ios.tsx`、`glass-icon-button.tsx`）**：新增显式 `nativeOverlay` 与 `glassVariant` 属性，在不改变常规页内暖瓷 Bento 卡片平铺策略的前提下，允许系统风格浮层在 iOS 26+ 启用 `@expo/ui/swift-ui` 原生 `.glassEffect(.regular)` 液态玻璃材质（自动遵循主题 `solid-fallback` 策略与低版本半透明回退）。
+- **应用内通知弹窗与全量悬浮状态浮层原生化**：
+  - `apps/mobile/components/bot-notification-banner.tsx`：切换至 `<GlassSurface nativeOverlay shape="roundedRectangle" cornerRadius={26}>`，采用 iOS 原生通知横幅字号层次、`现在`/`需要确认` 右上状态标签、半透明关闭按钮与低版本半透明磨砂回退（保留每个 Bot 专属头像、点击直达会话与上滑关闭）；
+  - `apps/mobile/components/companion-floating-bar.tsx`：展开态切换为 `<GlassSurface nativeOverlay shape="capsule">`，收起态悬浮球切换为 `<GlassSurface nativeOverlay shape="circle">`，操作按钮改为半透明系统填色与 iOS 系统语义状态点；
+  - `apps/mobile/components/update-download-banner.tsx`、`CallCard.tsx`（含通话圆形按钮）、`computer-update-progress.tsx` 与 `voice-player-bar.tsx` 统一启用 `nativeOverlay` 原生液态玻璃浮层样式。
+- **验证结果**：扩充 `glass-surface.test.tsx`、`bot-notification-banner.test.tsx`、`companion-floating-bar.test.tsx` 与 `companion-plugin.test.ts`；13 个 TS/TSX 文件 Biome `0` 错误、`@rakazo/mobile` 全包 `tsc --noEmit` `0` 错误、11 个 Vitest 套件（57 项）全部通过、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#锁屏实时活动状态与应用内弹窗悬浮状态全面采用-ios-原生液态玻璃样式2026-11-26)。
+
+依赖与验收条件：零新增第三方依赖与零新增原生权限；应用内通知弹窗与悬浮状态条待 OTA 后真机验收，锁屏 Live Activity 原生液态玻璃待 Xcode 重编 IPA 并经 `Sideloadly` 侧载重签后真机验收。
+
+## 移除手机首页「聊天与伙伴」与「项目与执行台」两张全宽卡片（PA-021，2026-11-26）
+
+状态：源码修改与本机定向离线验证已完成（真实 iPhone OTA 更新后的首页排布观感待发版后验收；未提交或推送）。
+
+范围与交付物：
+- **首页卡片精简**（`apps/mobile/components/home-hub.tsx`）：移除「聊天与伙伴」（`home-hub-chats-card`／`home-hub-create-bot`）与「项目与执行台」（`home-hub-workspaces-header`／`home-hub-projects-split`／`home-hub-computer-split`）两张全宽卡片及随之冗余的本地状态计算与装饰常量（`CHAMPAGNE_FLECKS`、`activeChatsCount`、`resolvedActiveRuns`、`unreadCount`、`openComputer`、`resolvedSpaceName`），保持 `HomeHubProps` 接口向后兼容，底部「聊天」「项目」Tab 与首页其余卡片（顶部问候与实时天气、置顶 Spotlight 横幅、后台陪伴卡、地图与导航卡、账单与支付卡及底部四宫格 Bento 功能卡片）不受影响。
+- **单测与验证**（`apps/mobile/lib/home-hub.test.tsx`）：更新首页测试断言确认已移除卡片不再渲染，并修正既有夹具 `updatedAt` 在 `UTC+8` 跨日导致本地单测日期偏移的问题（改为 `2026-11-24T10:00:00.000Z`）；2 文件 Biome `0` 错误、`@rakazo/mobile` 全包 `tsc --noEmit` `0` 错误、5 个定向与守卫 Vitest 套件（18 项）全绿、`git diff --check` `0` 警告。详见 [验证记录](VALIDATION.md#移除手机首页聊天与伙伴与项目与执行台两张全宽卡片2026-11-26)。
+
+依赖与验收条件：纯 JS UI 精简、零新增依赖（随后续纯 OTA 下发即生效，无需重装 IPA），真机视觉与滚动体验待发版后验收。
+
+## iPhone `1.0.35` 侧载 OTA 发布与全量 CI 生产部署（PA-025／PA-021／REL-01，2026-11-26）
+
+状态：全部源码提交推送（`204784002`、`dc682981c`、`b9f27050e`）、全量 GitHub CI 与生产后端部署全绿（Run `45815895149`、`deploy-production` Job `139897644017`）、生产 PostgreSQL 迁移 `20261126120000_personal_finance`（`230 / 230`）核验以及 iPhone `1.0.35` 侧载 OTA 发布与线上全资源核验（Run `45815897416`，更新 ID `01a217bd-afeb-7753-8847-d83d4058dd7a`，`62 / 62` 静态资源与启动包 SHA-256 全部匹配）均已完成；真实 iPhone 拉取 `1.0.35` OTA 后的交互与观感待设备验收。
+
+范围与交付物：
+- **合并上线内容（`1.0.35`）**：涵盖 PA-025 个人账单与加密支付方式（首页「账单与支付」入口 + `/finance` Apple 钱包层叠卡包与单点弹簧展开聚焦视图、`123` 身份确认解密、Bot 协同记账）、全应用动态天气浮层阴影修复／晴天丁达尔光束／逐小时对齐／7 条天气环境音效与音量滑块、Bot 资料页开启灵动岛陪伴悬浮条真实头像同步、以及默认大肥鱼 Bot 头像统一。
+- **CI 回归修复（`b9f27050e`）**：排查 `dc682981c` 首轮 CI 暴露的 2 类单测回归（`avatar-life.test.tsx`/`avatar-clock.test.tsx` 与 `i18n.test.ts` 缺失 `Avatar`），在 `apps/mobile/components/bot-avatar.tsx` 恢复默认大肥鱼头像的工作动效／打字点切换与轻点反馈，并在移动端 7 套非英文词库补齐 `Avatar` 译文；随后 `CI` [Run 45815895149](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815895149) 一次全绿（含 `Unit tests 1/3–3/3`、`Postgres journeys 1/2–2/2` 与 `deploy-production`）。
+- **iPhone `1.0.35` 侧载 OTA 核验**：`.github/workflows/mobile-ios-update.yml` [Run 45815897416](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45815897416)（`main`／`b9f27050e`／`sydney-ios-ip-1`）发布成功，更新组 `47babd9f-c4ce-48a1-baf1-0e99a337282e`、iOS 更新 ID `01a217bd-afeb-7753-8847-d83d4058dd7a`（`createdAt: 2026-11-26T12:03:57.035Z`）；线上 Expo 清单 HTTP `200`（`version: "1.0.35"`、`releasedOn: "2026-11-26"`）、启动包 `11,322,572` 字节（SHA-256 `c05be8b05a062d0c51fde626a1360c9658d53cfe1fd3296c265f89bfc9cdbc56`）与全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 匹配；线上 `/health` 与 `/ready` 均 HTTP `200`。详见 [验证记录](VALIDATION.md#iphone-1035-侧载-ota-发布与全量-ci-生产部署2026-11-26) 与 [运维手册](OPERATIONS.md#iphone-1035-侧载-ota-与生产后端-b9f27050e-上线2026-11-26)。
+
+依赖与验收条件：纯 JS／Reanimated／SVG／`expo-audio` 与 `.m4a` 资源更新、零新增依赖与零新增权限；既有 `1.0.12`–`1.0.16` 侧载 IPA 在 App 内「设置 → 检查更新」（或点击首页顶栏「可以更新」胶囊）拉取 `1.0.35` OTA 重启后即可生效，无需重装 IPA；真机端到端体验待设备验收。
+
 ## 个人账单与加密支付方式管理及手机首页入口组件（PA-025／PA-021，2026-11-26）
 
 状态：全链路源码实现、本机离线验证、隔离提交推送（`204784002db3f4f666cc6b2f6b2dddc0b3a0160e`）、GitHub CI 全绿（Run `45809544638`，含真实 `Postgres journeys` 迁移与 RLS 测试）、生产 PostgreSQL 迁移 `20261126120000_personal_finance` 执行及后端生产零停机上线（`deploy-production` Job `139876212408`）均已完成并通过线上核验；iPhone 侧载 OTA 发布与真机交互／身份确认弹窗实测待执行。

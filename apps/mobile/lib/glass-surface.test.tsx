@@ -167,3 +167,49 @@ it("reserves native glass for the chat title and keeps it behind the content", (
   expect(element.querySelector('[data-shape="capsule"]')).not.toBeNull();
   expect(element.querySelector("button")?.textContent).toBe("Bot profile");
 });
+
+it("enables native Liquid Glass for floating system overlays on iOS 26 while honoring fallback policies", () => {
+  device.supportsGlass = true;
+  device.policy = { mode: "liquid", defaultCornerRadius: 22 };
+  device.glassEffect.mockClear();
+
+  const bannerMarkup = renderToStaticMarkup(
+    <GlassSurface nativeOverlay shape="roundedRectangle" cornerRadius={26} testID="overlay-banner">
+      <span>Notification</span>
+    </GlassSurface>,
+  );
+  const bannerDoc = new DOMParser().parseFromString(bannerMarkup, "text/html");
+  expect(
+    bannerDoc.querySelector('[data-glass-host="none"][data-ignore-safe-area="all"]'),
+  ).not.toBeNull();
+  expect(bannerDoc.querySelector('[data-shape="rounded"][data-radius="26"]')).not.toBeNull();
+  expect(device.glassEffect).toHaveBeenLastCalledWith({
+    glass: { variant: "regular" },
+    shape: "roundedRectangle",
+    cornerRadius: 26,
+  });
+
+  const orbMarkup = renderToStaticMarkup(
+    <GlassSurface nativeOverlay glassVariant="clear" shape="circle" testID="overlay-orb">
+      <span>Orb</span>
+    </GlassSurface>,
+  );
+  const orbDoc = new DOMParser().parseFromString(orbMarkup, "text/html");
+  expect(orbDoc.querySelector('[data-shape="circle"]')).not.toBeNull();
+  expect(device.glassEffect).toHaveBeenLastCalledWith({
+    glass: { variant: "clear" },
+    shape: "circle",
+    cornerRadius: 22,
+  });
+
+  device.policy = { mode: "solid-fallback", defaultCornerRadius: 16 };
+  const fallbackMarkup = renderToStaticMarkup(
+    <GlassSurface nativeOverlay shape="capsule" testID="overlay-fallback">
+      <span>Status</span>
+    </GlassSurface>,
+  );
+  const fallbackDoc = new DOMParser().parseFromString(fallbackMarkup, "text/html");
+  expect(fallbackDoc.querySelector("[data-glass-host]")).toBeNull();
+  expect(fallbackDoc.querySelector('[data-testid="overlay-fallback"]')?.textContent).toBe("Status");
+  device.policy = { mode: "liquid", defaultCornerRadius: 22 };
+});

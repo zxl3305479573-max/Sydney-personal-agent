@@ -55,14 +55,6 @@ const STARLIGHT_DOTS = [
   { top: 12, left: 22, size: 2, color: "rgba(246, 244, 239, 0.3)" },
 ] as const;
 
-const CHAMPAGNE_FLECKS = [
-  { top: 18, right: 24, size: 4, opacity: 0.32 },
-  { top: 34, right: 48, size: 3, opacity: 0.24 },
-  { top: 22, right: 74, size: 2.5, opacity: 0.2 },
-  { top: 48, right: 28, size: 3, opacity: 0.22 },
-  { top: 44, right: 64, size: 2, opacity: 0.18 },
-] as const;
-
 export type HomeHubProps = {
   me: (Pick<MobileMe, "userId" | "spaceId" | "name"> & { email?: MobileMe["email"] }) | null;
   spaceName?: string | null;
@@ -162,18 +154,13 @@ function pickSpotlightBot(
 
 export function HomeHub({
   me,
-  spaceName,
   bots,
-  groups,
-  activeRunsCount,
-  projectCount = null,
   githubConnected = false,
   githubLogin = null,
   githubRepoCount = null,
   githubRecentCounts = null,
   connectedAppsCount = null,
   refreshing = false,
-  lastSyncedAt: _lastSyncedAt = null,
   now,
   weather,
   error = null,
@@ -213,18 +200,6 @@ export function HomeHub({
     : undefined;
   const gutters = readableGutters(windowWidth, { left: insets.left, right: insets.right });
 
-  const activeChatsCount = useMemo(
-    () =>
-      bots.filter((bot) => isConversationActiveStatus(bot.status)).length +
-      groups.filter((group) => isConversationActiveStatus(group.status)).length,
-    [bots, groups],
-  );
-  const resolvedActiveRuns = Math.max(activeRunsCount ?? 0, activeChatsCount);
-  const unreadCount = useMemo(
-    () => bots.filter((bot) => bot.unread).length + groups.filter((group) => group.unread).length,
-    [bots, groups],
-  );
-
   const spotlightBot = useMemo(() => pickSpotlightBot(bots), [bots]);
   const primaryBot = useMemo(
     () => bots.find((bot) => isConversationActiveStatus(bot.status)) ?? spotlightBot ?? bots[0],
@@ -242,17 +217,6 @@ export function HomeHub({
   const triggerCreateBot = () => {
     if (onCreateBot) {
       onCreateBot();
-      return;
-    }
-    router.push("/chats");
-  };
-
-  const openComputer = () => {
-    if (primaryBot) {
-      router.push({
-        pathname: "/computer",
-        params: { botId: primaryBot.id, name: primaryBot.name },
-      });
       return;
     }
     router.push("/chats");
@@ -337,7 +301,6 @@ export function HomeHub({
   };
 
   const greetingText = buildGreeting(currentDate, locale, me, t("You"));
-  const resolvedSpaceName = spaceName?.trim() || copy("个人空间", "個人空間", t("Personal"));
 
   const spotlightStatusLabel = spotlightBot ? conversationStatusLabel(spotlightBot.status, t) : "";
   const spotlightPreview = spotlightBot
@@ -748,330 +711,6 @@ export function HomeHub({
 
       {/* Personal Bills & Payment Methods Vault Entry Card */}
       <HomeFinanceCard cardStyle={cardSurface("champagne")} />
-
-      {/* Full-Width Card 1: Chats & Companions Hub */}
-      <View style={[cardSurface("champagne"), { padding: 20, overflow: "hidden" }]}>
-        {CHAMPAGNE_FLECKS.map((fleck, index) => (
-          <View
-            key={index}
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              top: fleck.top,
-              right: fleck.right,
-              width: fleck.size,
-              height: fleck.size,
-              borderRadius: fleck.size / 2,
-              backgroundColor: "#8C857A",
-              opacity: fleck.opacity * 0.55,
-            }}
-          />
-        ))}
-        <MotionPressable
-          preset="card"
-          testID="home-hub-chats-card"
-          accessibilityRole="button"
-          accessibilityLabel={copy("聊天与伙伴", "聊天與夥伴", "Chats & Companions")}
-          onPress={() => router.push("/chats")}
-          style={{ gap: 4 }}
-        >
-          <Text style={{ color: tokens.mutedForeground, fontSize: 14, lineHeight: 18 }}>
-            {copy("聊天与伙伴", "聊天與夥伴", "Chats & Companions")}
-          </Text>
-          <Text
-            style={{
-              color: tokens.foreground,
-              fontSize: 32,
-              lineHeight: 38,
-              fontWeight: "700",
-              marginTop: 2,
-              fontVariant: ["tabular-nums"],
-            }}
-          >
-            {chinese
-              ? `${bots.length} ${traditional ? "位夥伴" : "位伙伴"}`
-              : bots.length === 1
-                ? "1 Companion"
-                : `${bots.length} Companions`}
-          </Text>
-          <Text
-            style={{
-              color: tokens.mutedForeground,
-              fontSize: 14,
-              lineHeight: 20,
-              marginTop: 2,
-            }}
-          >
-            {chinese
-              ? `${groups.length} ${traditional ? "個群聊" : "个群聊"} · ${
-                  unreadCount > 0
-                    ? `${unreadCount} ${traditional ? "條未讀消息" : "条未读消息"}`
-                    : traditional
-                      ? "隨時發起自然語言任務"
-                      : "随时发起自然语言任务"
-                }`
-              : `${groups.length} ${groups.length === 1 ? "group" : "groups"} · ${
-                  unreadCount > 0
-                    ? `${unreadCount} unread messages`
-                    : "Ready for natural-language tasks"
-                }`}
-          </Text>
-        </MotionPressable>
-
-        <View
-          style={{
-            marginTop: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <MotionPressable
-            preset="control"
-            accessibilityRole="button"
-            accessibilityLabel={copy("打开聊天列表", "打開聊天列表", "Open chats")}
-            onPress={() => router.push("/chats")}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            {bots.length > 0 ? (
-              <View
-                pointerEvents="none"
-                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-              >
-                {bots.slice(0, 4).map((bot) => (
-                  <BotAvatar
-                    key={bot.id}
-                    color={bot.color || FALLBACK_COLOR}
-                    avatarSet={bot.avatarSet}
-                    identity={bot.id}
-                    size={28}
-                    status={bot.status}
-                    muted={bot.notifyOnFinish === false}
-                    unread={bot.unread}
-                    motion="lazy"
-                  />
-                ))}
-                {bots.length > 4 ? (
-                  <Text
-                    style={{
-                      color: tokens.mutedForeground,
-                      fontSize: 12.5,
-                      fontVariant: ["tabular-nums"],
-                    }}
-                  >
-                    +{bots.length - 4}
-                  </Text>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
-                {copy("点击进入收件箱 ›", "點擊進入收件箱 ›", "Open inbox ›")}
-              </Text>
-            )}
-          </MotionPressable>
-
-          <MotionPressable
-            preset="control"
-            testID="home-hub-create-bot"
-            accessibilityRole="button"
-            accessibilityLabel={copy("新建伙伴", "新建夥伴", "New companion")}
-            onPress={triggerCreateBot}
-            style={{
-              backgroundColor: chipBackground,
-              borderRadius: 999,
-              paddingHorizontal: 13,
-              paddingVertical: 6,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: chipBorder,
-            }}
-          >
-            <Text style={{ color: tokens.foreground, fontSize: 13, fontWeight: "600" }}>
-              {copy("+ 新建", "+ 新建", "+ New")}
-            </Text>
-          </MotionPressable>
-        </View>
-      </View>
-
-      {/* Full-Width Card 2: Workspaces & Cloud Computer Status */}
-      <View style={[cardSurface("slate"), { padding: 20, overflow: "hidden" }]}>
-        <MotionPressable
-          preset="card"
-          testID="home-hub-workspaces-header"
-          accessibilityRole="button"
-          accessibilityLabel={copy(
-            `项目与执行台，${resolvedActiveRuns} 个运行中`,
-            `項目與執行台，${resolvedActiveRuns} 個運行中`,
-            `Workspaces & Execution, ${resolvedActiveRuns} active runs`,
-          )}
-          onPress={() => router.push("/projects")}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-            <Text
-              style={{
-                color: tokens.foreground,
-                fontSize: 20,
-                lineHeight: 26,
-                fontWeight: "600",
-              }}
-            >
-              {copy("项目与执行台", "項目與執行台", "Workspaces & Execution")}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{
-                color: tokens.mutedForeground,
-                fontSize: 13.5,
-                lineHeight: 18,
-              }}
-            >
-              {copy(
-                `当前空间 · ${resolvedSpaceName}`,
-                `當前空間 · ${resolvedSpaceName}`,
-                `Current space · ${resolvedSpaceName}`,
-              )}
-            </Text>
-          </View>
-          <View
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              borderWidth: 2.5,
-              borderColor: softAccentInk,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: tokens.foreground,
-                fontSize: 18,
-                fontWeight: "600",
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {resolvedActiveRuns}
-            </Text>
-          </View>
-        </MotionPressable>
-
-        <View style={{ marginTop: 18, flexDirection: "row", alignItems: "stretch", gap: 16 }}>
-          <MotionPressable
-            preset="control"
-            testID="home-hub-projects-split"
-            accessibilityRole="button"
-            accessibilityLabel={copy("项目工作区", "項目工作區", "Projects")}
-            onPress={() => router.push("/projects")}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <View
-              style={{
-                width: 2,
-                alignSelf: "stretch",
-                minHeight: 34,
-                borderRadius: 2,
-                backgroundColor: softAccentInk,
-              }}
-            />
-            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text
-                numberOfLines={1}
-                style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}
-              >
-                {copy("项目工作区", "項目工作區", "Projects")}
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
-              >
-                {copy("多目录隔离会话", "多目錄隔離會話", "Isolated folders")}
-              </Text>
-            </View>
-            <Text
-              style={{
-                color: tokens.foreground,
-                fontSize: 20,
-                fontWeight: "600",
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {projectCount !== null ? projectCount : "—"}
-            </Text>
-          </MotionPressable>
-
-          <MotionPressable
-            preset="control"
-            testID="home-hub-computer-split"
-            accessibilityRole="button"
-            accessibilityLabel={copy("云电脑画面", "雲電腦畫面", "Computer")}
-            onPress={openComputer}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <View
-              style={{
-                width: 2,
-                alignSelf: "stretch",
-                minHeight: 34,
-                borderRadius: 2,
-                backgroundColor: softAccentInk,
-              }}
-            />
-            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text
-                numberOfLines={1}
-                style={{ color: tokens.foreground, fontSize: 14, fontWeight: "600" }}
-              >
-                {copy("云电脑画面", "雲電腦畫面", "Computer")}
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
-              >
-                {copy("远程桌面与接管", "遠程桌面與接管", "Live desktop")}
-              </Text>
-            </View>
-            <Text
-              style={{
-                color: tokens.foreground,
-                fontSize: resolvedActiveRuns > 0 ? 20 : 15,
-                fontWeight: "600",
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {resolvedActiveRuns > 0
-                ? resolvedActiveRuns
-                : bots.length > 0
-                  ? copy("就绪", "就緒", "Ready")
-                  : "—"}
-            </Text>
-          </MotionPressable>
-        </View>
-      </View>
 
       {/* 2-Column Bento Feature Grid */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>

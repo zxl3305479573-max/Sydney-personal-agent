@@ -28,6 +28,22 @@ const LEGACY_CALL_STATUS_LABELS: Record<CallLiveActivityPhase, string> = {
   muted: "我一直都在",
 };
 
+export function stripCompanionMarkdown(value: string): string {
+  return value
+    .replace(/```[\s\S]*?```/gu, (block) =>
+      block.replace(/```[^\n]*\n?/gu, "").replace(/```/gu, ""),
+    )
+    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gmu, "")
+    .replace(/^\s*>\s?/gmu, "")
+    .replace(/^\s*[-*+]\s+/gmu, "")
+    .replace(/(\*\*|__)(.*?)\1/gu, "$2")
+    .replace(/~~(.*?)~~/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/(^|[\s(（【])\*([^*\n]+)\*(?=$|[\s.,!?;:，。！？；：)）】])/gu, "$1$2");
+}
+
 function boundedText(value: string, limit: number): string {
   const characters = Array.from(value.replace(/\s+/gu, " ").trim());
   return characters.length > limit
@@ -41,7 +57,9 @@ export function companionPresentation(options: {
   latestReply?: string | null;
   showReply: boolean;
 }): CompanionPresentation {
-  const reply = options.showReply ? boundedText(options.latestReply ?? "", 80) : "";
+  const reply = options.showReply
+    ? boundedText(stripCompanionMarkdown(options.latestReply ?? ""), 110)
+    : "";
   return {
     title: boundedText(options.botName, 32) || "Bot",
     status: STATUS_LABELS[options.status],
@@ -56,7 +74,9 @@ export function callLiveActivityPresentation(options: {
   showReply: boolean;
   richNativeStatus: boolean;
 }): CompanionPresentation {
-  const reply = options.showReply ? boundedText(options.caption ?? "", 80) : "";
+  const reply = options.showReply
+    ? boundedText(stripCompanionMarkdown(options.caption ?? ""), 110)
+    : "";
   const labels = options.richNativeStatus ? RICH_CALL_STATUS_LABELS : LEGACY_CALL_STATUS_LABELS;
   return {
     title: boundedText(options.botName, 32) || "Bot",
