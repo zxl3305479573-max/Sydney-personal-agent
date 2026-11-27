@@ -36,7 +36,11 @@ vi.mock("@expo/ui/swift-ui", async () => {
   const { Children, isValidElement } = await import("react");
   const box =
     (name: string) =>
-    ({ children }: { children?: ReactNode }) => <div data-ui={name}>{children}</div>;
+    ({ children, modifiers }: { children?: ReactNode; modifiers?: unknown[] }) => (
+      <div data-ui={name} data-modifiers={JSON.stringify(modifiers ?? [])}>
+        {children}
+      </div>
+    );
   const SwipeActions = box("SwipeActions") as ReturnType<typeof box> & {
     Actions: (props: {
       edge?: string;
@@ -272,6 +276,20 @@ describe("iOS swipe row", () => {
     { id: "s1", name: "Work" },
     { id: "s2", name: "Home" },
   ] as MobileBotSection[];
+
+  it("keeps the native row background clear outside the chat capsule", () => {
+    const { find, root } = render();
+    const row = find('[data-ui="SwipeActions"]');
+    expect(JSON.parse(row?.dataset.modifiers ?? "[]")).toContainEqual({
+      name: "listRowBackground",
+      value: "transparent",
+    });
+    expect(JSON.parse(find('[data-ui="List"]')?.dataset.modifiers ?? "[]")).toContainEqual({
+      name: "scrollContentBackground",
+      value: "hidden",
+    });
+    act(() => root.unmount());
+  });
 
   function render(
     row: Partial<InboxSwipeRowProps> & { key?: string } = {},

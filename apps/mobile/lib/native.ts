@@ -15,14 +15,21 @@ import type { ResolvedScopedTheme } from "./theme-pack";
 import { themeManager } from "./theme-state";
 import { getActiveUiMode, getUiModeRevision } from "./ui-mode";
 
-function nativeColors(tokens: ColorTokens, appearance: ResolvedAppearance, useSystem: boolean) {
+function nativeColors(
+  tokens: ColorTokens,
+  appearance: ResolvedAppearance,
+  useSystem: boolean,
+  componentOpacity = 1,
+) {
   const systemColor = (name: string, fallback: string) =>
     useSystem ? PlatformColor(name) : fallback;
   return {
     page: tokens.background,
-    fill: systemColor("tertiarySystemFill", tokens.muted),
-    quietFill: systemColor("quaternarySystemFill", tokens.muted),
-    fillPressed: systemColor("secondarySystemFill", tokens.accent),
+    fill: componentOpacity < 1 ? tokens.muted : systemColor("tertiarySystemFill", tokens.muted),
+    quietFill:
+      componentOpacity < 1 ? tokens.muted : systemColor("quaternarySystemFill", tokens.muted),
+    fillPressed:
+      componentOpacity < 1 ? tokens.accent : systemColor("secondarySystemFill", tokens.accent),
     separator: tokens.border,
     label: systemColor("label", tokens.foreground),
     secondaryLabel:
@@ -120,7 +127,12 @@ export function useThemedStyles<T>(
   return useMemo(() => {
     const tokens = scope?.tokens ?? mobileTokens();
     const colors = scope
-      ? nativeColors(tokens, resolved, usesSystemColors(scope.systemColorPolicy))
+      ? nativeColors(
+          tokens,
+          resolved,
+          usesSystemColors(scope.systemColorPolicy),
+          scope.componentOpacity,
+        )
       : native;
     return factory(tokens, colors, scope);
   }, [factory, scope, resolved, preference, modeRevision, revision]);
@@ -138,6 +150,11 @@ export function useNativeColors(): NativeColors {
   const scope = useScopedTheme();
   const tokens = useMobileTokens();
   return scope
-    ? nativeColors(tokens, scope.appearance, usesSystemColors(scope.systemColorPolicy))
+    ? nativeColors(
+        tokens,
+        scope.appearance,
+        usesSystemColors(scope.systemColorPolicy),
+        scope.componentOpacity,
+      )
     : native;
 }

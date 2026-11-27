@@ -15,9 +15,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { readableGutters } from "../lib/adaptive-layout";
 import type { MobileBot, MobileMe } from "../lib/api";
+import { useAppBackground } from "../lib/app-background";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient } from "../lib/card-gradient";
 import { promptForAvailableUpdate, useClientUpdateState } from "../lib/client-update";
+import { componentSurfaceColor } from "../lib/component-opacity";
 import { conversationStatusLabel, isConversationActiveStatus } from "../lib/conversation-status";
 import type { HomeWeatherSnapshot } from "../lib/home-weather";
 import {
@@ -175,6 +177,7 @@ export function HomeHub({
   const bottomClaimed = useBottomSafeAreaClaimed();
   const tokens = useMobileTokens();
   const screenBackground = useScreenBackground(tokens.background);
+  const { componentOpacity } = useAppBackground();
   const appearance = useResolvedAppearance();
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
@@ -241,14 +244,14 @@ export function HomeHub({
 
   const isLight = appearance === "light";
   const softAccentInk = isLight ? "#6E675E" : "#B8B3AA";
-  const chipBackground = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBackground = componentSurfaceColor(isLight ? "#F8F6F2" : "#2A303B", componentOpacity);
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
   const barMutedFill = isLight ? "#C9C3B9" : "#4E5563";
   const barActiveFill = isLight ? "#7A7368" : "#A6ACB8";
   const rhythmFill = isLight ? "#8C857A" : "#9BA3B2";
 
   const cardSurfaceStyle = {
-    backgroundColor: isLight ? "#FFFEFC" : "#242933",
+    backgroundColor: componentSurfaceColor(isLight ? "#FFFEFC" : "#242933", componentOpacity),
     borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: isLight ? "rgba(38, 35, 31, 0.055)" : "rgba(245, 244, 240, 0.09)",
@@ -260,7 +263,7 @@ export function HomeHub({
   } as const;
   const cardSurface = (tone: CardGradientTone) => ({
     ...cardSurfaceStyle,
-    experimental_backgroundImage: cardGradient(isLight, tone),
+    experimental_backgroundImage: componentOpacity < 1 ? undefined : cardGradient(isLight, tone),
   });
 
   const {
@@ -597,8 +600,9 @@ export function HomeHub({
         onPress={() => (spotlightBot ? openBotThread(spotlightBot) : triggerCreateBot())}
         style={{
           borderRadius: 22,
-          backgroundColor: isLight ? "#2E2B27" : "#252830",
-          experimental_backgroundImage: cardGradient(isLight, "spotlight"),
+          backgroundColor: componentSurfaceColor(isLight ? "#2E2B27" : "#252830", componentOpacity),
+          experimental_backgroundImage:
+            componentOpacity < 1 ? undefined : cardGradient(isLight, "spotlight"),
           padding: 16,
           overflow: "hidden",
           borderWidth: StyleSheet.hairlineWidth,

@@ -2,7 +2,9 @@ import { Capsule, Circle, Host, RoundedRectangle } from "@expo/ui/swift-ui";
 import { foregroundStyle, glassEffect } from "@expo/ui/swift-ui/modifiers";
 import type { ViewStyle } from "react-native";
 import { StyleSheet, View } from "react-native";
+import { useAppBackground } from "../lib/app-background";
 import { cardGradient, inferLightFromStyle } from "../lib/card-gradient";
+import { componentSurfaceStyle } from "../lib/component-opacity";
 import { useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { useScopedTheme } from "../lib/scoped-theme-context";
@@ -22,6 +24,7 @@ export function GlassSurface({
   children,
   ...viewProps
 }: GlassSurfaceProps) {
+  const { componentOpacity } = useAppBackground();
   const scheme = useResolvedAppearance();
   const policy = useScopedTheme()?.glassPolicy ?? getActiveUiMode().glassPolicy;
   const radius = cornerRadius ?? policy.defaultCornerRadius ?? 22;
@@ -42,7 +45,13 @@ export function GlassSurface({
     return (
       <View
         {...viewProps}
-        style={gradientLayer ? [gradientLayer, style, fallbackStyle] : [style, fallbackStyle]}
+        style={
+          componentOpacity < 1
+            ? componentSurfaceStyle(StyleSheet.flatten([style, fallbackStyle]), componentOpacity)
+            : gradientLayer
+              ? [gradientLayer, style, fallbackStyle]
+              : [style, fallbackStyle]
+        }
       >
         {children}
       </View>
@@ -57,12 +66,19 @@ export function GlassSurface({
     }),
   ];
   return (
-    <View {...viewProps} style={style}>
+    <View
+      {...viewProps}
+      style={
+        componentOpacity < 1
+          ? componentSurfaceStyle(StyleSheet.flatten(style), componentOpacity)
+          : style
+      }
+    >
       <Host
         colorScheme={scheme}
         ignoreSafeArea="all"
         pointerEvents="none"
-        style={StyleSheet.absoluteFill}
+        style={[StyleSheet.absoluteFill, { opacity: componentOpacity }]}
       >
         {shape === "circle" ? (
           <Circle modifiers={modifiers} />

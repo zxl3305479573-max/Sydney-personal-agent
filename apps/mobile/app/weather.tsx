@@ -10,7 +10,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotionPressable } from "../components/motion-pressable";
 import { NativeSymbol } from "../components/native-symbol";
+import { useAppBackground } from "../lib/app-background";
 import { cardGradient } from "../lib/card-gradient";
+import { componentSurfaceColor } from "../lib/component-opacity";
 import type { HomeWeatherDailyItem, HomeWeatherHourlyItem } from "../lib/home-weather";
 import {
   alignTodayHourlyForecast,
@@ -113,18 +115,19 @@ export default function WeatherDetailScreen() {
   const soundSliderWidthRef = useRef(180);
 
   const isLight = appearance === "light";
+  const { componentOpacity } = useAppBackground();
   const softAccentInk = isLight ? "#6E675E" : "#B8B3AA";
-  const chipBackground = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBackground = componentSurfaceColor(isLight ? "#F8F6F2" : "#2A303B", componentOpacity);
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.07)" : "rgba(245, 244, 240, 0.10)";
-  const selectedSurface = isLight ? "#EFECE5" : "#333A47";
+  const selectedSurface = componentSurfaceColor(isLight ? "#EFECE5" : "#333A47", componentOpacity);
   const selectedBorder = isLight ? "rgba(38, 35, 31, 0.22)" : "rgba(245, 244, 240, 0.26)";
   const trackBg = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
   const trackFill = isLight ? "#7A7368" : "#A6ACB8";
   const selectedTrackFill = isLight ? "#26231F" : "#F5F4F0";
 
   const cardSurface = {
-    backgroundColor: isLight ? "#FFFEFC" : "#242933",
-    experimental_backgroundImage: cardGradient(isLight, "pearl"),
+    backgroundColor: componentSurfaceColor(isLight ? "#FFFEFC" : "#242933", componentOpacity),
+    experimental_backgroundImage: componentOpacity < 1 ? undefined : cardGradient(isLight, "pearl"),
     borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.09)",

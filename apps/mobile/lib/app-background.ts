@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { componentSurfaceTokens } from "./component-opacity";
 import type { ResolvedScopedTheme } from "./theme-pack";
 
 export const APP_BACKGROUND_PALETTES = {
@@ -14,6 +15,7 @@ export type AppBackground = {
   fit: "cover" | "contain";
   opacity: number;
   overlayOpacity: number;
+  componentOpacity: number;
 };
 
 export const DEFAULT_APP_BACKGROUND: AppBackground = {
@@ -22,6 +24,7 @@ export const DEFAULT_APP_BACKGROUND: AppBackground = {
   fit: "cover",
   opacity: 1,
   overlayOpacity: 0.35,
+  componentOpacity: 1,
 };
 
 const STORAGE_KEY = "sydney.app-background.v1";
@@ -49,6 +52,7 @@ function normalize(value: unknown): AppBackground {
     fit: record.fit === "contain" ? "contain" : "cover",
     opacity: percent(record.opacity, 1),
     overlayOpacity: percent(record.overlayOpacity, 0.35, 0.8),
+    componentOpacity: percent(record.componentOpacity, 1),
   };
 }
 
@@ -146,10 +150,15 @@ export function applyAppBackground(
   const color = background.palette
     ? APP_BACKGROUND_PALETTES[background.palette][theme.appearance]
     : undefined;
+  const tokens = componentSurfaceTokens(theme.tokens, background.componentOpacity);
   return {
     ...theme,
+    componentOpacity: background.componentOpacity,
+    tokens: color ? { ...tokens, background: color } : tokens,
     ...(color
-      ? { tokens: { ...theme.tokens, background: color }, pageBackgroundColor: color }
+      ? {
+          pageBackgroundColor: color,
+        }
       : {}),
     background: background.imageUri
       ? {

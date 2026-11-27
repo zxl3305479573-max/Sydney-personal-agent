@@ -26,7 +26,7 @@ import { PlatformColor, useWindowDimensions, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import type { InboxRowAction } from "../lib/inbox-swipe";
 import { INBOX_ROW_ACTIONS, inboxRowActions } from "../lib/inbox-swipe";
-import { native, useResolvedAppearance } from "../lib/native";
+import { useResolvedAppearance } from "../lib/native";
 import { InboxChatPreview } from "./inbox-chat-preview";
 import type { InboxSwipeRowProps } from "./inbox-swipe-row";
 
@@ -105,7 +105,7 @@ export function InboxSwipeRow({
             modifiers={[
               listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
               listRowSeparator("hidden"),
-              listRowBackground(native.page),
+              listRowBackground("transparent"),
             ]}
           >
             <ContextMenu modifiers={[contentShape(shapes.rectangle())]}>

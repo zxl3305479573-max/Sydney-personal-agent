@@ -1,7 +1,9 @@
 import type { ReactNode, Ref } from "react";
 import type { ColorValue, PressableProps, StyleProp, View, ViewStyle } from "react-native";
 import * as ReactNative from "react-native";
-import { Pressable } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
+import { useAppBackground } from "../lib/app-background";
+import { componentSurfaceStyle } from "../lib/component-opacity";
 import type { PressMotionPreset } from "../lib/press-motion";
 import { resolvePressMotion } from "../lib/press-motion";
 
@@ -65,12 +67,17 @@ export function MotionPressable({
   children,
   ...props
 }: MotionPressableProps) {
+  const { componentOpacity } = useAppBackground();
+  const surfaceStyle =
+    componentOpacity < 1
+      ? componentSurfaceStyle(StyleSheet.flatten(style), componentOpacity)
+      : style;
   const suppressAndroidRow = isAndroidPlatform() && Boolean(android_ripple) && preset === "row";
   const resolved = resolvePressMotion(preset, {
     activeOpacity,
     hasHighlight: Boolean(highlightColor),
   });
-  const baseOpacity = readBaseOpacity(style);
+  const baseOpacity = readBaseOpacity(surfaceStyle);
 
   return (
     <Pressable
@@ -79,7 +86,7 @@ export function MotionPressable({
       android_ripple={android_ripple}
       style={({ pressed }) => {
         if (!pressed || disabled || motionDisabled || suppressAndroidRow) {
-          return style;
+          return surfaceStyle;
         }
         const feedback: ViewStyle = {};
         if (highlightColor) {
@@ -88,13 +95,17 @@ export function MotionPressable({
         if (resolved.pressedOpacity < 1) {
           feedback.opacity = baseOpacity * resolved.pressedOpacity;
         }
-        if (Array.isArray(style)) {
-          return pressedStyle ? [...style, feedback, pressedStyle] : [...style, feedback];
+        if (Array.isArray(surfaceStyle)) {
+          return pressedStyle
+            ? [...surfaceStyle, feedback, pressedStyle]
+            : [...surfaceStyle, feedback];
         }
         if (pressedStyle) {
-          return [style, feedback, pressedStyle];
+          return [surfaceStyle, feedback, pressedStyle];
         }
-        return style && typeof style === "object" ? { ...style, ...feedback } : feedback;
+        return surfaceStyle && typeof surfaceStyle === "object"
+          ? { ...surfaceStyle, ...feedback }
+          : feedback;
       }}
     >
       {children}

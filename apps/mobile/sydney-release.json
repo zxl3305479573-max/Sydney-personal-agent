@@ -1,18 +1,18 @@
 {
-  "version": "1.0.45",
+  "version": "1.0.46",
   "releasedOn": "2026-11-27",
   "notes": {
     "zh-CN": [
-      "在设置的外观中新增全局 App 背景，支持相册图片、明暗适配底色和即时预览。",
-      "可调整填满或完整显示、图片透明度和遮罩强度，并恢复默认；跨页面生效，聊天专属背景优先。"
+      "外观中新增全局组件透明度，提供 0% 至 100% 五档、即时预览与独立恢复默认，重启后保留。",
+      "调整卡片、列表和控件底色时保持文字与图标清晰；同步修复背景底色遮罩和聊天胶囊周边的整行底色。"
     ],
     "zh-TW": [
-      "在設定的外觀中新增全域 App 背景，支援相簿圖片、明暗適配底色與即時預覽。",
-      "可調整填滿或完整顯示、圖片透明度與遮罩強度，並恢復預設；跨頁面生效，聊天專屬背景優先。"
+      "外觀中新增全域元件透明度，提供 0% 至 100% 五檔、即時預覽與獨立恢復預設，重新啟動後保留。",
+      "調整卡片、列表與控制項底色時保持文字與圖示清晰；同步修復背景底色遮罩與聊天膠囊周邊的整列底色。"
     ],
     "en": [
-      "Customize the app background in Settings > Appearance with a photo, adaptive light and dark colors, and a live preview.",
-      "Adjust fill or fit, image transparency, and overlay strength, or reset to the theme default. Applies across screens while custom chat backgrounds take priority."
+      "Set global component transparency in Appearance with five levels from 0% to 100%, a live preview, a separate reset, and persistence across restarts.",
+      "Adjust card, list, and control surfaces while keeping text and icons clear. Also fix background color overlays and opaque rows around chat capsules."
     ]
   }
 }

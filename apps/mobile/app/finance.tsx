@@ -34,7 +34,9 @@ import { PaymentMethodSheet } from "../components/payment-method-sheet";
 import { WalletCardFocusModal } from "../components/wallet-card-focus-modal";
 import { WalletCardStack } from "../components/wallet-card-stack";
 import { readableGutters } from "../lib/adaptive-layout";
+import { useAppBackground } from "../lib/app-background";
 import { cardGradient } from "../lib/card-gradient";
+import { componentSurfaceColor } from "../lib/component-opacity";
 import { useI18n } from "../lib/i18n";
 import {
   getCachedMobileBridgeState,
@@ -228,9 +230,10 @@ export default function PersonalFinanceScreen() {
   );
 
   const isLight = appearance === "light";
+  const { componentOpacity } = useAppBackground();
   const cardSurface = {
-    backgroundColor: isLight ? "#FFFEFC" : "#242933",
-    experimental_backgroundImage: cardGradient(isLight, "pearl"),
+    backgroundColor: componentSurfaceColor(isLight ? "#FFFEFC" : "#242933", componentOpacity),
+    experimental_backgroundImage: componentOpacity < 1 ? undefined : cardGradient(isLight, "pearl"),
     borderRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: isLight ? "rgba(38, 35, 31, 0.06)" : "rgba(245, 244, 240, 0.10)",
@@ -240,7 +243,7 @@ export default function PersonalFinanceScreen() {
     shadowOffset: { width: 0, height: 5 },
     elevation: 1,
   } as const;
-  const chipBg = isLight ? "#F8F6F2" : "#2A303B";
+  const chipBg = componentSurfaceColor(isLight ? "#F8F6F2" : "#2A303B", componentOpacity);
   const chipBorder = isLight ? "rgba(38, 35, 31, 0.08)" : "rgba(245, 244, 240, 0.12)";
   const activeBg = isLight ? "#2E2B27" : "#E7E4DD";
   const activeInk = isLight ? "#FAF8F4" : "#15171C";

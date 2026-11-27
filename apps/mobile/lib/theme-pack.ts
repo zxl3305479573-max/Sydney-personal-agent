@@ -61,6 +61,7 @@ export type ThemeAssignments = {
 };
 export type ResolvedScopedTheme = ResolvedUiModeTheme & {
   pageBackgroundColor?: string;
+  componentOpacity?: number;
   scope: ThemeScope;
   layout: ThemeLayout;
   surface: "flat" | "outlined" | "glass";

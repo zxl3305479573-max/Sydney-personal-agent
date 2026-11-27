@@ -1,5 +1,9 @@
 # 对话窗口分工与交接
 
+2026-11-27（PA-020／PA-021／REL-01 全局组件透明度，本对话）：维护 `lib/component-opacity.ts`、本机 `app-background` 偏好、外观设置、主题路由与 native 颜色、GlassSurface 双平台、MotionPressable 双平台、首页／导航／记账／天气组件表面及对应回归，准备 `1.0.46` 与文档。另一实际窗口处理遮罩底色及聊天胶囊，保留其 `inbox-swipe-row.ios.tsx`／测试与共享 `home-styles.ts`、主题／预览遮罩变更。`home-styles.ts` 的 rosterRow 统一合并为作用域主题下关闭固定渐变，覆盖组件透明度与背景修复；不调用子代理。用户原有全部新改动一并提交的授权继续适用，21 文件合计 249 项、移动端类型及 27 文件 Biome 通过，另一窗口专项亦已记录完成，一并交付两组改动。
+
+2026-11-27（PA-020／PA-021 全局底色与聊天胶囊，本窗口）：顺序修复，不调用子代理。写集为 `components/inbox-swipe-row.ios.tsx`、`components/home-styles.ts` 与对应测试；在另一窗口正在修改的 `scoped-theme.tsx`／测试及 `app-background-settings.tsx`／测试中仅修改图片遮罩底色与相关回归，保留组件透明度实现。同步总计划、开发、验证与运维记录；不修改发布版本或代为发布。
+
 2026-11-27（PA-020／PA-021／REL-01 全局 App 背景，本对话）：顺序实现，不调用子代理或创建其他窗口。写集为新增 `lib/app-background.ts`、`components/app-background-settings.tsx` 及对应测试、现有账户外观入口、共享路由主题／背景上下文与类型、首页背景接线及关联测试、`sydney-release.json` 和本批需求／过程／运维文档。开始时工作区干净，保留已交付识图修复；沿用用户提交推送及 OTA 授权准备 `1.0.45`。无新增依赖、后台部署或本机服务启动；验证与发布结果见最新记录。
 
 本批交付：源码 `8decb9ca3` 已推送，14 文件合计 122 项、移动端类型和 14 文件 Biome 通过；Run `45964103180` 成功发布 `1.0.45`，线上版本、启动包及全部 62 项资源核验通过。补录发布文档后再次提交推送，iPhone 真机验收继续待办。

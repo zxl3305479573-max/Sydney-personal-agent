@@ -7,6 +7,7 @@ import {
   updateAppBackground,
   useAppBackground,
 } from "../lib/app-background";
+import { componentSurfaceColor } from "../lib/component-opacity";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { MotionPressable } from "./motion-pressable";
@@ -37,9 +38,9 @@ export function AppBackgroundSettings() {
     } catch {
       setError(
         copy(
-          "背景未能保存，请重试。",
-          "背景未能儲存，請重試。",
-          "Could not save the background. Try again.",
+          "外观设置未能保存，请重试。",
+          "外觀設定未能儲存，請重試。",
+          "Could not save appearance settings. Try again.",
         ),
       );
     } finally {
@@ -97,7 +98,11 @@ export function AppBackgroundSettings() {
                   style={[
                     StyleSheet.absoluteFill,
                     {
-                      backgroundColor: appearance === "dark" ? "#000000" : "#FFFFFF",
+                      backgroundColor: background.palette
+                        ? APP_BACKGROUND_PALETTES[background.palette][appearance]
+                        : appearance === "dark"
+                          ? "#000000"
+                          : "#FFFFFF",
                       opacity: background.overlayOpacity,
                     },
                   ]}
@@ -107,7 +112,14 @@ export function AppBackgroundSettings() {
             <Text style={{ color: tokens.foreground, fontSize: 17, fontWeight: "600" }}>
               Sydney
             </Text>
-            <View style={{ backgroundColor: tokens.card, padding: 12, borderRadius: 12 }}>
+            <View
+              testID="component-opacity-preview"
+              style={{
+                backgroundColor: componentSurfaceColor(tokens.card, background.componentOpacity),
+                padding: 12,
+                borderRadius: 12,
+              }}
+            >
               <Text style={{ color: tokens.foreground }}>
                 {copy("你的 App，你的背景", "你的 App，你的背景", "Your app, your background")}
               </Text>
@@ -225,6 +237,39 @@ export function AppBackgroundSettings() {
           </View>
         </SettingsGroup>
       ) : null}
+      <SettingsGroup
+        label={copy("全局组件透明度", "全域元件透明度", "Component transparency")}
+        footer={copy(
+          "调整卡片、列表和控件的底色，文字、图标和图片保持清晰。0% 为默认，100% 为全透明；已有更透明的底色会保留。",
+          "調整卡片、列表與控制項的底色，文字、圖示與圖片保持清晰。0% 為預設，100% 為全透明；原本更透明的底色會保留。",
+          "Adjust card, list, and control surfaces while keeping text, icons, and images clear. 0% is the default; 100% is transparent. Surfaces that are already more transparent stay that way.",
+        )}
+      >
+        <View style={{ padding: 16, gap: 12 }}>
+          <Text style={{ color: tokens.foreground }}>
+            {copy("组件透明度", "元件透明度", "Transparency")} ·{" "}
+            {Math.round((1 - background.componentOpacity) * 100)}%
+          </Text>
+          <NativeSegmentedControl
+            accessibilityLabel={copy("全局组件透明度", "全域元件透明度", "Component transparency")}
+            disabled={busy}
+            value={String(Math.round((1 - background.componentOpacity) * 100))}
+            options={[0, 25, 50, 75, 100].map((level) => ({
+              value: String(level),
+              label: `${level}%`,
+            }))}
+            onChange={(value) =>
+              void run(() => updateAppBackground({ componentOpacity: 1 - Number(value) / 100 }))
+            }
+          />
+        </View>
+        <SettingsRow
+          title={copy("恢复默认组件透明度", "恢復預設元件透明度", "Reset component transparency")}
+          disabled={busy || background.componentOpacity === 1}
+          accessibilityRole="button"
+          onPress={() => void run(() => updateAppBackground({ componentOpacity: 1 }))}
+        />
+      </SettingsGroup>
       {error ? (
         <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
           {error}
@@ -235,7 +280,14 @@ export function AppBackgroundSettings() {
           title={copy("恢复默认 App 背景", "恢復預設 App 背景", "Reset app background")}
           disabled={busy || (!background.palette && !background.imageUri)}
           accessibilityRole="button"
-          onPress={() => void run(() => updateAppBackground(DEFAULT_APP_BACKGROUND))}
+          onPress={() =>
+            void run(() =>
+              updateAppBackground({
+                ...DEFAULT_APP_BACKGROUND,
+                componentOpacity: background.componentOpacity,
+              }),
+            )
+          }
         />
       </SettingsGroup>
     </View>

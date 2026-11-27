@@ -2,6 +2,8 @@ import { usePathname, useRouter } from "expo-router";
 import type { ComponentProps } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppBackground } from "../lib/app-background";
+import { componentSurfaceColor } from "../lib/component-opacity";
 import { useI18n } from "../lib/i18n";
 import type { MainNavigationRoute } from "../lib/main-navigation";
 import { openMainNavigation } from "../lib/main-navigation";
@@ -50,6 +52,7 @@ export function MainBottomNavigation({ state, navigation }: MainBottomNavigation
   const appearance = useResolvedAppearance();
   const isLight = appearance === "light";
   const scope = useScopedTheme();
+  const { componentOpacity } = useAppBackground();
   const indicatorRadius = scope ? Math.max(6, Math.min(18, scope.geometry.controlRadius)) : 1;
   const topBorderWidth =
     scope?.surface === "outlined"
@@ -98,7 +101,10 @@ export function MainBottomNavigation({ state, navigation }: MainBottomNavigation
         minHeight: 58 + insets.bottom,
         borderTopWidth: topBorderWidth,
         borderTopColor: scope ? tokens.border : isLight ? "rgba(38, 35, 31, 0.06)" : tokens.border,
-        backgroundColor: scope ? tokens.background : isLight ? "#FAF8F4" : tokens.card,
+        backgroundColor: componentSurfaceColor(
+          scope ? tokens.background : isLight ? "#FAF8F4" : tokens.card,
+          componentOpacity,
+        ),
         paddingLeft: insets.left + 8,
         paddingRight: insets.right + 8,
         paddingBottom: insets.bottom,

@@ -55,6 +55,7 @@ it("copies the selected photo to permanent storage and restores display options 
     fit: "contain",
     opacity: 0.5,
     overlayOpacity: 0.6,
+    componentOpacity: 0.5,
   });
   vi.resetModules();
   const restored = await import("./app-background");
@@ -65,6 +66,7 @@ it("copies the selected photo to permanent storage and restores display options 
     fit: "contain",
     opacity: 0.5,
     overlayOpacity: 0.6,
+    componentOpacity: 0.5,
   });
   expect(device.files.has("file://photos/source.jpg")).toBe(true);
 });
@@ -140,6 +142,7 @@ it("falls back from a missing file and bounds stored image controls", async () =
     fit: "cover",
     opacity: 0,
     overlayOpacity: 0.8,
+    componentOpacity: 1,
   });
 });
 
@@ -150,4 +153,19 @@ it("recovers from malformed stored preferences", async () => {
   expect(store.getAppBackground()).toEqual(store.DEFAULT_APP_BACKGROUND);
   await store.updateAppBackground({ palette: "lavender" });
   expect(JSON.parse(device.stored!).palette).toBe("lavender");
+});
+
+it("restores legacy preferences with default component opacity and bounds new values", async () => {
+  device.stored = JSON.stringify({ palette: "ocean", opacity: 0.5 });
+  const store = await import("./app-background");
+  await store.loadAppBackground();
+  expect(store.getAppBackground()).toMatchObject({
+    palette: "ocean",
+    opacity: 0.5,
+    componentOpacity: 1,
+  });
+  await store.updateAppBackground({ componentOpacity: -1 });
+  expect(store.getAppBackground().componentOpacity).toBe(0);
+  await store.updateAppBackground({ componentOpacity: 9 });
+  expect(store.getAppBackground().componentOpacity).toBe(1);
 });

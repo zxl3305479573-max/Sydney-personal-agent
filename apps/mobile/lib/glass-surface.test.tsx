@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { GlassSurface as FallbackGlassSurface } from "../components/glass-surface";
 import { GlassSurface } from "../components/glass-surface.ios";
 
 const device = vi.hoisted(() => ({
   supportsGlass: true,
+  componentOpacity: 1,
   policy: { mode: "liquid", defaultCornerRadius: 22 } as {
     mode: "liquid" | "tinted-liquid" | "solid-fallback";
     defaultTint?: string;
@@ -16,7 +17,10 @@ const device = vi.hoisted(() => ({
 }));
 
 vi.mock("react-native", () => ({
-  StyleSheet: { absoluteFill: {} },
+  StyleSheet: {
+    absoluteFill: {},
+    flatten: (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)),
+  },
   View: ({
     children,
     testID,
@@ -52,12 +56,18 @@ vi.mock("@expo/ui/swift-ui", () => ({
     children,
     ignoreSafeArea,
     pointerEvents,
+    style,
   }: {
     children?: ReactNode;
     ignoreSafeArea?: string;
     pointerEvents?: string;
+    style?: unknown;
   }) => (
-    <div data-glass-host={pointerEvents} data-ignore-safe-area={ignoreSafeArea}>
+    <div
+      data-glass-host={pointerEvents}
+      data-ignore-safe-area={ignoreSafeArea}
+      data-style={JSON.stringify(style)}
+    >
       {children}
     </div>
   ),
@@ -76,6 +86,55 @@ vi.mock("./ui-mode", () => ({
   getActiveUiMode: () => ({ glassPolicy: device.policy }),
 }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => device.supportsGlass }));
+vi.mock("./app-background", () => ({
+  useAppBackground: () => ({ componentOpacity: device.componentOpacity }),
+}));
+
+beforeEach(() => {
+  device.componentOpacity = 1;
+});
+
+it.each([
+  ["ios", GlassSurface],
+  ["fallback", FallbackGlassSurface],
+] as const)(
+  "adjusts %s card fills without fading children or retaining an opaque gradient",
+  (_platform, Surface) => {
+    device.componentOpacity = 0.25;
+    const markup = renderToStaticMarkup(
+      <Surface shape="roundedRectangle" fallbackStyle={{ backgroundColor: "#FFFFFF" }}>
+        <button type="button">Open</button>
+      </Surface>,
+    );
+    const element = new DOMParser().parseFromString(markup, "text/html");
+    const styles = element
+      .querySelector("[data-surface-style]")!
+      .getAttribute("data-surface-style")!;
+    expect(styles).toContain("rgba(255, 255, 255, 0.25)");
+    expect(styles).not.toContain("gradient(");
+    expect(styles).not.toContain('"opacity":0.25');
+    expect(element.querySelector("button")?.textContent).toBe("Open");
+  },
+);
+
+it("fades only the native glass layer while retaining its interactive title content", () => {
+  device.supportsGlass = true;
+  device.policy = { mode: "liquid", defaultCornerRadius: 22 };
+  device.componentOpacity = 0.5;
+  const markup = renderToStaticMarkup(
+    <GlassSurface chatTitle>
+      <button type="button">Profile</button>
+    </GlassSurface>,
+  );
+  const element = new DOMParser().parseFromString(markup, "text/html");
+  expect(element.querySelector("[data-glass-host]")?.getAttribute("data-style")).toContain(
+    '"opacity":0.5',
+  );
+  expect(
+    element.querySelector("[data-surface-style]")?.getAttribute("data-surface-style"),
+  ).not.toContain('"opacity":0.5');
+  expect(element.querySelector("button")?.textContent).toBe("Profile");
+});
 
 it.each([
   ["ios", GlassSurface],

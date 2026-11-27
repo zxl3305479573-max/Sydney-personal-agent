@@ -22,8 +22,13 @@ const state = vi.hoisted(() => ({
   pathname: "/",
   locale: "zh-CN",
   focused: true,
+  componentOpacity: 1,
   router: { push: vi.fn(), replace: vi.fn(), dismissTo: vi.fn() },
   header: vi.fn(),
+}));
+
+vi.mock("./app-background", () => ({
+  useAppBackground: () => ({ componentOpacity: state.componentOpacity }),
 }));
 
 vi.mock("expo-router", () => ({
@@ -58,7 +63,10 @@ vi.mock("./native", () => ({
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => <i /> }));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios", Version: 26 },
-  StyleSheet: { hairlineWidth: 1 },
+  StyleSheet: {
+    hairlineWidth: 1,
+    flatten: (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)),
+  },
   View: ({
     children,
     style,
@@ -110,6 +118,7 @@ beforeEach(() => {
   state.pathname = "/";
   state.locale = "zh-CN";
   state.focused = true;
+  state.componentOpacity = 1;
   vi.clearAllMocks();
   container = document.createElement("div");
   root = createRoot(container);
@@ -120,6 +129,17 @@ afterEach(() => {
 });
 
 describe("main mobile navigation", () => {
+  it("adjusts the tab bar surface without fading labels or changing navigation", () => {
+    state.componentOpacity = 0.25;
+    act(() => root.render(<MainBottomNavigation />));
+    const bar = container.querySelector<HTMLElement>('[data-testid="main-bottom-navigation"]')!;
+    expect(bar.style.backgroundColor).toBe("rgba(250, 248, 244, 0.25)");
+    expect(bar.style.opacity).toBe("");
+    const tabs = container.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    act(() => tabs[1]!.click());
+    expect(state.router.push).toHaveBeenCalledWith("/chats");
+    expect(bar.textContent).toContain("首页");
+  });
   it("defines the 3 editorial bottom navigation routes", () => {
     expect(MAIN_NAVIGATION_ROUTES).toEqual(["/", "/chats", "/projects"]);
   });

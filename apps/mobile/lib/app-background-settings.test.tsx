@@ -31,8 +31,18 @@ vi.mock("expo-image-picker", () => ({
 }));
 vi.mock("react-native", () => ({
   StyleSheet: { absoluteFill: {} },
-  View: ({ children, testID }: { children: ReactNode; testID?: string }) => (
-    <div data-testid={testID}>{children}</div>
+  View: ({
+    children,
+    testID,
+    style,
+  }: {
+    children: ReactNode;
+    testID?: string;
+    style?: unknown;
+  }) => (
+    <div data-testid={testID} data-style={JSON.stringify(style)}>
+      {children}
+    </div>
   ),
   Text: ({ children, accessibilityRole }: { children: ReactNode; accessibilityRole?: string }) => (
     <span role={accessibilityRole}>{children}</span>
@@ -158,6 +168,18 @@ it("uses the photo, display controls, palette and reset through the actual persi
     await select("图片透明度", "50");
     await select("遮罩强度", "60");
     await click("薄荷");
+    expect(
+      container
+        .querySelector('[data-testid="app-background-preview"] img')
+        ?.nextElementSibling?.getAttribute("data-style"),
+    ).toContain('"backgroundColor":"#EAF3ED"');
+    await select("全局组件透明度", "75");
+    expect(getAppBackground().componentOpacity).toBe(0.25);
+    expect(
+      container
+        .querySelector('[data-testid="component-opacity-preview"]')
+        ?.getAttribute("data-style"),
+    ).toContain("rgba(255, 255, 255, 0.25)");
     expect(getAppBackground()).toMatchObject({
       fit: "contain",
       opacity: 0.5,
@@ -172,6 +194,8 @@ it("uses the photo, display controls, palette and reset through the actual persi
     expect(getAppBackground()).toMatchObject({ imageUri: null, palette: "mint" });
     expect(container.querySelector("img")).toBeNull();
     await click("恢复默认 App 背景");
+    expect(getAppBackground()).toEqual({ ...DEFAULT_APP_BACKGROUND, componentOpacity: 0.25 });
+    await click("恢复默认组件透明度");
     expect(getAppBackground()).toEqual(DEFAULT_APP_BACKGROUND);
     expect(JSON.parse(device.stored!)).toEqual(DEFAULT_APP_BACKGROUND);
   } finally {
@@ -186,11 +210,19 @@ it("shows a readable save error and keeps the previous selection", async () => {
   try {
     await act(async () => root.render(<AppBackgroundSettings />));
     device.fail = true;
+    const control = container.querySelector<HTMLSelectElement>(
+      'select[aria-label="全局组件透明度"]',
+    )!;
+    await act(async () => {
+      control.value = "50";
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(getAppBackground().componentOpacity).toBe(1);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="薄荷"]')!.click(),
     );
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "背景未能保存，请重试",
+      "外观设置未能保存，请重试",
     );
     expect(getAppBackground()).toEqual(DEFAULT_APP_BACKGROUND);
     expect(container.querySelector('[aria-label="跟随主题"]')?.getAttribute("aria-pressed")).toBe(

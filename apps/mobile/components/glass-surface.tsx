@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { StyleProp, ViewProps, ViewStyle } from "react-native";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { useAppBackground } from "../lib/app-background";
 import type { CardGradientTone } from "../lib/card-gradient";
 import { cardGradient, inferLightFromStyle } from "../lib/card-gradient";
+import { componentSurfaceStyle } from "../lib/component-opacity";
 
 export type GlassSurfaceProps = Pick<
   ViewProps,
@@ -43,6 +45,7 @@ export function GlassSurface({
   children,
   ...viewProps
 }: GlassSurfaceProps) {
+  const { componentOpacity } = useAppBackground();
   const applyGradient =
     !chatTitle &&
     !nativeOverlay &&
@@ -55,7 +58,13 @@ export function GlassSurface({
   return (
     <View
       {...viewProps}
-      style={gradientLayer ? [gradientLayer, style, fallbackStyle] : [style, fallbackStyle]}
+      style={
+        componentOpacity < 1
+          ? componentSurfaceStyle(StyleSheet.flatten([style, fallbackStyle]), componentOpacity)
+          : gradientLayer
+            ? [gradientLayer, style, fallbackStyle]
+            : [style, fallbackStyle]
+      }
     >
       {children}
     </View>

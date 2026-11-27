@@ -241,7 +241,7 @@ export function createHomeStyles(
       minHeight: 68,
       borderRadius: 18,
       backgroundColor: porcelainCard,
-      experimental_backgroundImage: cardGradient(isLight, "champagne"),
+      experimental_backgroundImage: scope ? undefined : cardGradient(isLight, "champagne"),
       overflow: "hidden",
       borderWidth: hairline,
       borderColor: porcelainBorder,

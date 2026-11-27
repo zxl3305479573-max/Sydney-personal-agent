@@ -66,7 +66,9 @@ export function ScopedThemeBackground({ children }: PropsWithChildren) {
               style={[
                 StyleSheet.absoluteFill,
                 {
-                  backgroundColor: theme.appearance === "dark" ? "#000000" : "#FFFFFF",
+                  backgroundColor:
+                    theme.pageBackgroundColor ??
+                    (theme.appearance === "dark" ? "#000000" : "#FFFFFF"),
                   opacity: background.overlayOpacity,
                 },
               ]}
@@ -122,7 +124,8 @@ export function ScopedThemeScreen({ scope, children }: PropsWithChildren<{ scope
       ? "midnight"
       : getActiveUiMode().id;
   const effectiveTheme = useMemo(() => {
-    if (!background.imageUri && !background.palette) return theme;
+    if (!background.imageUri && !background.palette && background.componentOpacity === 1)
+      return theme;
     const base = theme ?? {
       ...resolveUiModeTheme(modeId, { platform: Platform.OS, userAppearance: appearance }),
       scope,

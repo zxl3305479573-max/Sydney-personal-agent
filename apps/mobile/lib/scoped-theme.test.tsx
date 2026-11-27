@@ -19,6 +19,7 @@ const runtime = vi.hoisted(() => ({
     fit: "cover",
     opacity: 1,
     overlayOpacity: 0.35,
+    componentOpacity: 1,
   } as AppBackground,
 }));
 
@@ -142,6 +143,7 @@ describe("ScopedThemeRoute isolation", () => {
       fit: "cover",
       opacity: 1,
       overlayOpacity: 0.35,
+      componentOpacity: 1,
     };
     const map = new Map<string, ThemePackV1>([
       [globalPack.id, globalPack],
@@ -285,7 +287,68 @@ describe("ScopedThemeRoute isolation", () => {
     expect(container.textContent).toContain("settings:#17251E:classic");
     expect(
       container.querySelector('[data-pointer-events="none"] div')?.getAttribute("data-style"),
-    ).toContain('"backgroundColor":"#000000"');
+    ).toContain('"backgroundColor":"#17251E"');
+  });
+
+  it("updates the image overlay color on all mounted pages when a palette changes", async () => {
+    runtime.appearance = "light";
+    runtime.background = {
+      ...runtime.background,
+      palette: "ocean",
+      imageUri: "file://documents/global.jpg",
+      overlayOpacity: 0.35,
+    };
+    const routes = ["index", "(tabs)/chats", "projects", "(settings)"];
+    const renderPages = () =>
+      root.render(
+        routes.map((routeName) => (
+          <MountedRoute key={routeName} routeName={routeName} id={routeName} />
+        )),
+      );
+    await act(async () => renderPages());
+    function overlays() {
+      return [...container.querySelectorAll('[data-pointer-events="none"] > div')].map((element) =>
+        JSON.parse(element.getAttribute("data-style") ?? "[]").at(-1),
+      );
+    }
+    expect(overlays()).toHaveLength(4);
+    expect(overlays()).toEqual(Array(4).fill({ backgroundColor: "#E9F1F7", opacity: 0.35 }));
+    runtime.background = { ...runtime.background, palette: "lavender" };
+    await act(async () => renderPages());
+    expect(overlays()).toEqual(Array(4).fill({ backgroundColor: "#F0ECF6", opacity: 0.35 }));
+    runtime.background = { ...runtime.background, palette: null };
+    await act(async () => renderPages());
+    expect(overlays()).toEqual(Array(4).fill({ backgroundColor: "#FFFFFF", opacity: 0.35 }));
+  });
+
+  it("applies component transparency without a photo and restores the classic rendering on reset", async () => {
+    runtime.background = { ...runtime.background, componentOpacity: 0.5 };
+    function CardProbe() {
+      const theme = useScopedTheme();
+      return (
+        <span data-testid="card-fill">
+          {theme ? `${theme.tokens.card}:${theme.tokens.foreground}` : "default"}
+        </span>
+      );
+    }
+    await act(async () =>
+      root.render(
+        <ScopedThemeRoute routeName="(settings)">
+          <CardProbe />
+        </ScopedThemeRoute>,
+      ),
+    );
+    expect(container.textContent).toMatch(/^rgba\(.+, 0.5\):#/);
+    expect(container.querySelector("img")).toBeNull();
+    runtime.background = { ...runtime.background, componentOpacity: 1 };
+    await act(async () =>
+      root.render(
+        <ScopedThemeRoute routeName="(settings)">
+          <CardProbe />
+        </ScopedThemeRoute>,
+      ),
+    );
+    expect(container.textContent).toBe("default");
   });
 
   it("renders a non-interactive scrim above the background image only when overlayOpacity > 0", async () => {

@@ -9,6 +9,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { useAppBackground } from "../lib/app-background";
+import { componentSurfaceStyle } from "../lib/component-opacity";
 import { resolvePressMotion } from "../lib/press-motion";
 import type { MotionPressableProps } from "./motion-pressable";
 
@@ -70,6 +72,11 @@ export function MotionPressable({
   children,
   ...props
 }: MotionPressableProps) {
+  const { componentOpacity } = useAppBackground();
+  const surfaceStyle =
+    componentOpacity < 1
+      ? componentSurfaceStyle(StyleSheet.flatten(style), componentOpacity)
+      : style;
   const reducedMotion = useReducedMotion();
   const progress = useSharedValue(0);
   const [pressedActive, setPressedActive] = useState(false);
@@ -82,7 +89,7 @@ export function MotionPressable({
     activeOpacity,
     hasHighlight: Boolean(highlightColor),
   });
-  const { opacity: baseOpacity, borderRadius } = readStyleHints(style);
+  const { opacity: baseOpacity, borderRadius } = readStyleHints(surfaceStyle);
 
   useEffect(() => {
     if (!inactive) return;
@@ -141,7 +148,7 @@ export function MotionPressable({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={[
-        style,
+        surfaceStyle,
         pressedActive && pressedStyle ? pressedStyle : undefined,
         containerAnimatedStyle,
       ]}

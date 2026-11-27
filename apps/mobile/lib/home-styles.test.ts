@@ -75,4 +75,26 @@ describe("createHomeStyles scoped theming", () => {
     expect(styles.row.borderRadius).toBe(0);
     expect(styles.row.borderWidth).toBe(0);
   });
+
+  it("keeps themed chat capsules colored without covering them with the default gradient", () => {
+    const scope = resolveScopedTheme(
+      [],
+      { schemaVersion: 1, globalPackId: "classic", pages: {} },
+      "inbox",
+      "dark",
+    );
+    scope.background = {
+      uri: "file://background.jpg",
+      fit: "cover",
+      opacity: 1,
+      overlayOpacity: 0.35,
+    };
+    const tokens = { ...darkTokens, card: "rgba(233, 241, 247, 0.5)" };
+    const styles = createHomeStyles(tokens, colors, scope);
+    expect(styles.screen.backgroundColor).toBe("transparent");
+    expect(styles.rosterRow.backgroundColor).toBe(tokens.card);
+    expect(styles.rosterRow.borderRadius).toBe(18);
+    expect(styles.rosterRow.marginHorizontal).toBe(20);
+    expect(styles.rosterRow.experimental_backgroundImage).toBeUndefined();
+  });
 });

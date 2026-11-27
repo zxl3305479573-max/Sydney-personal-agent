@@ -8,11 +8,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fixture = vi.hoisted(() => ({
   os: "ios" as "ios" | "android",
   reducedMotion: false,
+  componentOpacity: 1,
   sharedValues: [] as Array<{ value: number }>,
   timingCalls: [] as Array<{ toValue: number; config?: Record<string, unknown> }>,
   springCalls: [] as Array<{ toValue: number; config?: Record<string, unknown> }>,
   lastPressableProps: null as Record<string, unknown> | null,
   lastOverlayProps: null as Record<string, unknown> | null,
+}));
+
+vi.mock("./app-background", () => ({
+  useAppBackground: () => ({ componentOpacity: fixture.componentOpacity }),
 }));
 
 vi.mock("react-native-reanimated", () => ({
@@ -100,6 +105,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   fixture.os = "ios";
   fixture.reducedMotion = false;
+  fixture.componentOpacity = 1;
   fixture.sharedValues = [];
   fixture.timingCalls = [];
   fixture.springCalls = [];
@@ -154,6 +160,35 @@ describe("press-motion presets and resolution", () => {
 });
 
 describe("MotionPressable.native", () => {
+  it.each([
+    ["native", NativeMotionPressable],
+    ["fallback", FallbackMotionPressable],
+  ] as const)(
+    "applies %s control transparency without fading its children or changing hit targets",
+    (_platform, Control) => {
+      fixture.componentOpacity = 0.5;
+      const onPress = vi.fn();
+      act(() =>
+        root.render(
+          <Control
+            onPress={onPress}
+            style={{ backgroundColor: "#FFFFFF", minHeight: 44, borderRadius: 12 }}
+          >
+            Action
+          </Control>,
+        ),
+      );
+      const props = fixture.lastPressableProps!;
+      const styles =
+        typeof props.style === "function" ? props.style({ pressed: false }) : props.style;
+      const merged = Object.assign({}, ...[styles].flat(Infinity).filter(Boolean));
+      expect(merged.backgroundColor).toBe("rgba(255, 255, 255, 0.5)");
+      expect(merged.opacity ?? 1).toBe(1);
+      expect(merged.minHeight).toBe(44);
+      expect(props.onPress).toBe(onPress);
+      expect(container.textContent).toBe("Action");
+    },
+  );
   it("animates press-in with timing and releases card/control/icon presets with spring", () => {
     const onPressIn = vi.fn();
     const onPressOut = vi.fn();

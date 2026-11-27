@@ -12,6 +12,7 @@ import { resolveScopedTheme } from "./theme-pack";
 const state = vi.hoisted(() => ({
   locale: "zh-CN",
   platform: "ios" as "ios" | "android",
+  componentOpacity: 1,
   push: vi.fn(),
   promptForAvailableUpdate: vi.fn(),
   clientUpdate: {
@@ -22,6 +23,10 @@ const state = vi.hoisted(() => ({
     attempt: 0,
     totalAttempts: 3,
   },
+}));
+
+vi.mock("./app-background", () => ({
+  useAppBackground: () => ({ componentOpacity: state.componentOpacity }),
 }));
 
 vi.mock("expo-router", () => ({
@@ -178,6 +183,7 @@ vi.mock("react-native", () => {
       addEventListener: () => ({ remove: () => undefined }),
     },
     StyleSheet: {
+      flatten,
       hairlineWidth: 1,
       absoluteFill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
     },
@@ -283,6 +289,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.locale = "zh-CN";
   state.platform = "ios";
+  state.componentOpacity = 1;
   state.clientUpdate = {
     update: undefined,
     downloaded: false,
@@ -303,6 +310,15 @@ afterEach(() => {
 
 describe("HomeHub personal hub", () => {
   const fixedEvening = new Date(2026, 10, 24, 20, 15, 0);
+
+  it("makes homepage cards translucent while retaining visible labels", () => {
+    state.componentOpacity = 0.5;
+    act(() => root.render(<HomeHub me={null} bots={[]} groups={[]} now={fixedEvening} />));
+    const spotlight = container.querySelector<HTMLElement>('[data-testid="home-hub-spotlight"]')!;
+    expect(spotlight.style.backgroundColor).toBe("rgba(46, 43, 39, 0.5)");
+    expect(spotlight.style.opacity).toBe("");
+    expect(spotlight.textContent).not.toBe("");
+  });
 
   it("lets the global photo show through the home root and restores its default fill", () => {
     const scope = resolveScopedTheme(
