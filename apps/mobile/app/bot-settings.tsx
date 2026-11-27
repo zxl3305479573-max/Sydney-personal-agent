@@ -1,4 +1,11 @@
-import type { Bot, BotAvatarSet, ComputerMode, RpcInput, ThinkingLevel } from "@rakazo/contracts";
+import type {
+  Bot,
+  BotAvatarSet,
+  ComputerMode,
+  PersonalityPreset,
+  RpcInput,
+  ThinkingLevel,
+} from "@rakazo/contracts";
 import {
   BOT_DESCRIPTION_MAX_LENGTH,
   BOT_INSTRUCTIONS_MAX_LENGTH,
@@ -211,6 +218,7 @@ function BotSettingsScreen({
   const [instructions, setInstructions] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryBusy, setLibraryBusy] = useState(false);
+  const [savedPersonalities, setSavedPersonalities] = useState<PersonalityPreset[]>([]);
   const { duties, personality } = splitPersonalityInstructions(instructions);
   const personalityLabels = {
     balanced: t("Balanced"),
@@ -220,8 +228,11 @@ function BotSettingsScreen({
     creative: t("Creative"),
     teacher: t("Teacher"),
   };
+  const savedPersonality = savedPersonalities.find((item) => item.instructions === personality);
   const personalityPreset = personality
-    ? (SYDNEY_PERSONALITIES.find((preset) => preset.instructions === personality)?.id ?? "custom")
+    ? savedPersonality
+      ? `personal:${savedPersonality.id}`
+      : (SYDNEY_PERSONALITIES.find((preset) => preset.instructions === personality)?.id ?? "custom")
     : "";
   const instructionsError =
     instructions.length > BOT_INSTRUCTIONS_MAX_LENGTH
@@ -876,16 +887,26 @@ function BotSettingsScreen({
                     key: preset.id,
                     label: personalityLabels[preset.id],
                   })),
+                  ...savedPersonalities.map((preset) => ({
+                    key: `personal:${preset.id}`,
+                    label: preset.name,
+                  })),
                   { key: "custom", label: t("Custom") },
                 ]}
                 value={personalityPreset}
                 onChange={(key) => {
-                  if (pending || libraryBusy || key === "custom") return;
+                  if (pending || libraryBusy || !editorCurrent()) return;
+                  if (key === "custom") {
+                    setLibraryOpen(true);
+                    return;
+                  }
+                  const saved = savedPersonalities.find((item) => `personal:${item.id}` === key);
                   const preset = SYDNEY_PERSONALITIES.find((item) => item.id === key);
+                  if (key !== "" && !saved && !preset) return;
                   setInstructions((current) =>
                     combinePersonalityInstructions(
                       splitPersonalityInstructions(current).duties,
-                      preset?.instructions ?? "",
+                      saved?.instructions ?? preset?.instructions ?? "",
                     ),
                   );
                 }}
@@ -918,36 +939,45 @@ function BotSettingsScreen({
                   setLibraryOpen((open) => !open);
                 }}
               />
-            </SettingsGroup>
-            {libraryOpen ? (
-              <View style={{ marginTop: 16 }}>
-                <PersonalPersonalityLibrary
-                  current={editorCurrent}
-                  disabled={pending}
-                  selectedInstructions={personality}
-                  onSelect={(item) => {
-                    if (!editorCurrent()) return;
-                    setInstructions((current) =>
-                      combinePersonalityInstructions(
-                        splitPersonalityInstructions(current).duties,
-                        item.instructions,
-                      ),
-                    );
-                    setLibraryOpen(false);
-                  }}
-                  onSaved={(item, previous) =>
-                    setInstructions((current) => {
-                      const parts = splitPersonalityInstructions(current);
-                      return previous && parts.personality === previous.instructions
-                        ? combinePersonalityInstructions(parts.duties, item.instructions)
-                        : current;
-                    })
+              {instructions !== bot.instructions && !libraryOpen ? (
+                <NativeActionButton
+                  label={pending ? t("Saving…") : t("Save")}
+                  disabled={
+                    !name.trim() || pending || pickingAvatar || libraryBusy || !!instructionsError
                   }
-                  onRemoved={() => undefined}
-                  onBusyChange={setLibraryBusy}
+                  onPress={() => void save()}
                 />
-              </View>
-            ) : null}
+              ) : null}
+            </SettingsGroup>
+            <View style={libraryOpen ? { marginTop: 16 } : undefined}>
+              <PersonalPersonalityLibrary
+                current={editorCurrent}
+                disabled={pending}
+                visible={libraryOpen}
+                onItemsChange={setSavedPersonalities}
+                selectedInstructions={personality}
+                onSelect={(item) => {
+                  if (!editorCurrent()) return;
+                  setInstructions((current) =>
+                    combinePersonalityInstructions(
+                      splitPersonalityInstructions(current).duties,
+                      item.instructions,
+                    ),
+                  );
+                  setLibraryOpen(false);
+                }}
+                onSaved={(item, previous) =>
+                  setInstructions((current) => {
+                    const parts = splitPersonalityInstructions(current);
+                    return previous && parts.personality === previous.instructions
+                      ? combinePersonalityInstructions(parts.duties, item.instructions)
+                      : current;
+                  })
+                }
+                onRemoved={() => undefined}
+                onBusyChange={setLibraryBusy}
+              />
+            </View>
           </View>
         ) : null}
         {botId ? (

@@ -552,9 +552,103 @@ describe("bot settings device voice menu", () => {
   const selectPersonal = async () =>
     act(async () =>
       [...container.querySelectorAll<HTMLButtonElement>("button")]
-        .find((button) => button.textContent?.startsWith(savedPersonality.name))!
+        .find((button) => button.textContent === "Use")!
         .click(),
     );
+
+  it.each([undefined, "project-fixture"])(
+    "selects a saved personality directly from the preset menu for project %s",
+    async (projectId) => {
+      mocks.projectId = projectId;
+      mocks.instructions = "Keep existing duties";
+      mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+      await act(async () => root.render(<BotSettingsScreen />));
+      mocks.rpc.mockClear();
+      const presetMenu = container.querySelector('[data-menu="Personality preset"]')!;
+      const choice = [...presetMenu.querySelectorAll("button")].find(
+        (button) => button.textContent === savedPersonality.name,
+      )!;
+      expect(choice).toBeDefined();
+      expect(container.textContent).not.toContain("Create personality");
+      await act(async () => choice.click());
+      expect(
+        container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+      ).toBe(savedPersonality.instructions);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(presetMenu.textContent).toContain(savedPersonality.name);
+      await clickButton("Save");
+      const bot = {
+        botId: "bot-fixture",
+        instructions: combinePersonalityInstructions(
+          mocks.instructions,
+          savedPersonality.instructions,
+        ),
+        expectedInstructions: mocks.instructions,
+      };
+      expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+        projectId ? "projectWorkspaces/updateBot" : "bots/update",
+        projectId ? { projectId, bot } : bot,
+        ...(projectId ? [{ skipSpaceAuthRecovery: true }] : []),
+      );
+    },
+  );
+
+  it("reopens the editor with its saved personality checked in the preset menu", async () => {
+    mocks.instructions = combinePersonalityInstructions("Duties", savedPersonality.instructions);
+    mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+    await act(async () => root.render(<BotSettingsScreen />));
+    const choice = [...container.querySelectorAll('[data-menu="Personality preset"] button')].find(
+      (button) => button.textContent === savedPersonality.name,
+    )!;
+    expect(choice.getAttribute("data-state")).toBe("on");
+    await clickButton("Personal personality library");
+    expect(
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent === "Selected",
+      )?.disabled,
+    ).toBe(true);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("opens the personal library when Custom is chosen instead of silently doing nothing", async () => {
+    mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Custom");
+    expect(container.textContent).toContain("Create personality");
+    expect(container.textContent).toContain("Use");
+  });
+
+  it("recovers a failed initial library load and adds the retried choices to the preset menu", async () => {
+    mocks.personalityRpc.mockRejectedValueOnce(new Error("Offline"));
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Personal personality library");
+    expect(container.textContent).toContain("Offline");
+    mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+    await clickButton("Retry loading");
+    expect(container.querySelector('[data-menu="Personality preset"]')?.textContent).toContain(
+      savedPersonality.name,
+    );
+    await selectPersonal();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe(savedPersonality.instructions);
+  });
+
+  it("ignores saved personality choices after the workspace changes", async () => {
+    mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Personal personality library");
+    mocks.selection += 1;
+    await selectPersonal();
+    const choice = [
+      ...container.querySelectorAll<HTMLButtonElement>('[data-menu="Personality preset"] button'),
+    ].find((button) => button.textContent === savedPersonality.name)!;
+    await act(async () => choice.click());
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 
   it.each([undefined, "project-fixture"])(
     "uses the complete personal personality library for project %s",
@@ -635,6 +729,9 @@ describe("bot settings device voice menu", () => {
       { requestContext: { headers: {} }, skipSpaceAuthRecovery: true },
     );
     await act(async () => creating.resolve(created));
+    expect(container.querySelector('[data-menu="Personality preset"]')?.textContent).toContain(
+      created.name,
+    );
     await selectPersonal();
     await clickButton("Save");
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
@@ -660,8 +757,10 @@ describe("bot settings device voice menu", () => {
     });
     await act(async () => root.render(<BotSettingsScreen />));
     await clickButton("Personal personality library");
-    const selected = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
-      button.textContent?.startsWith(savedPersonality.name),
+    const selected = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) =>
+        button.textContent?.startsWith(savedPersonality.name) &&
+        button.hasAttribute("aria-selected"),
     )!;
     expect(selected.getAttribute("aria-selected")).toBe("true");
     await clickButton("Edit");
@@ -682,6 +781,9 @@ describe("bot settings device voice menu", () => {
       container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
     ).toBe("A new tone");
     expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-menu="Personality preset"]')?.textContent).toContain(
+      savedPersonality.name,
+    );
     await clickButton("Save");
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
       botId: "bot-fixture",
@@ -712,6 +814,9 @@ describe("bot settings device voice menu", () => {
       container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
     ).toBe(savedPersonality.instructions);
     expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-menu="Personality preset"]')?.textContent).not.toContain(
+      savedPersonality.name,
+    );
   });
 
   it.each([undefined, "project-fixture"])(

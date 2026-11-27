@@ -39,6 +39,8 @@ export function PersonalPersonalityLibrary({
   disabled,
   selectedId,
   selectedInstructions,
+  visible = true,
+  onItemsChange,
   onSelect,
   onSaved,
   onRemoved,
@@ -48,6 +50,8 @@ export function PersonalPersonalityLibrary({
   disabled: boolean;
   selectedId?: string;
   selectedInstructions?: string;
+  visible?: boolean;
+  onItemsChange?: (items: PersonalityPreset[]) => void;
   onSelect: (item: PersonalityPreset) => void;
   onSaved: (item: PersonalityPreset, previous?: PersonalityPreset) => void;
   onRemoved: (id: string) => void;
@@ -99,8 +103,10 @@ export function PersonalPersonalityLibrary({
         skipSpaceAuthRecovery: true,
       });
       if (mounted.current && readVersion.current === version) {
-        if (current()) setItems(next);
-        else
+        if (current()) {
+          setItems(next);
+          onItemsChange?.(next);
+        } else
           setError(
             text("工作区已改变，请关闭后重新打开。", "The workspace changed. Close and reopen."),
           );
@@ -189,7 +195,9 @@ export function PersonalPersonalityLibrary({
         );
         return;
       }
-      setItems((old) => [saved, ...old.filter((item) => item.id !== saved.id)]);
+      const next = [saved, ...items.filter((item) => item.id !== saved.id)];
+      setItems(next);
+      onItemsChange?.(next);
       onSaved(
         saved,
         items.find((item) => item.id === saved.id),
@@ -249,7 +257,9 @@ export function PersonalPersonalityLibrary({
         );
         return;
       }
-      setItems((old) => old.filter((entry) => entry.id !== item.id));
+      const next = items.filter((entry) => entry.id !== item.id);
+      setItems(next);
+      onItemsChange?.(next);
       if (editing === item.id) resetEditor();
       onRemoved(item.id);
     } catch (cause) {
@@ -288,6 +298,12 @@ export function PersonalPersonalityLibrary({
     );
   }
 
+  function select(item: PersonalityPreset) {
+    if (!disabled && !working.current && current()) onSelect(item);
+  }
+
+  if (!visible) return null;
+
   const inputStyle = {
     color: tokens.foreground,
     backgroundColor: tokens.card,
@@ -309,6 +325,8 @@ export function PersonalPersonalityLibrary({
       disabled={disabled || busy || inactive}
       onPress={onPress}
       style={{
+        minHeight: 44,
+        justifyContent: "center",
         paddingVertical: 6,
         paddingHorizontal: 12,
         borderRadius: 999,
@@ -387,8 +405,8 @@ export function PersonalPersonalityLibrary({
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
               disabled={disabled || busy}
-              onPress={() => onSelect(item)}
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              onPress={() => select(item)}
+              style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10 }}
             >
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                 <Text style={{ color: tokens.foreground, fontWeight: "600", fontSize: 15 }}>
@@ -403,6 +421,12 @@ export function PersonalPersonalityLibrary({
               {isSelected ? <Checkmark /> : null}
             </MotionPressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
+              {pillAction(
+                isSelected ? text("已选择", "Selected") : text("使用", "Use"),
+                () => select(item),
+                false,
+                isSelected,
+              )}
               {pillAction(text("编辑", "Edit"), () => edit(item))}
               {pillAction(text("删除", "Delete"), () => confirmRemove(item), true)}
             </View>

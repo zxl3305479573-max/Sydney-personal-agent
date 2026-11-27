@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { combinePersonalityInstructions } from "@rakazo/contracts";
 import type { ReactNode } from "react";
 import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
@@ -241,6 +242,46 @@ it("renders CreateBotModal with fixed close action, upload tile and disabled cre
   const closeButtons = container.querySelectorAll<HTMLElement>('[aria-label="关闭"]');
   act(() => closeButtons[closeButtons.length - 1]!.click());
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("uses a saved personality through its explicit action when creating a bot", async () => {
+  const personality = {
+    id: "personality-fixture",
+    name: "Saved personality",
+    description: "",
+    instructions: "Speak patiently and clearly.",
+    customInstructions: "Speak patiently and clearly.",
+    selections: [],
+    source: "custom",
+  };
+  mocks.rpc.mockResolvedValue([personality]);
+  const onCreate = vi.fn(async () => null);
+  await act(async () => {
+    root.render(<CreateBotModal onClose={vi.fn()} onCreate={onCreate} onCreated={vi.fn()} />);
+  });
+  const name = container.querySelector<HTMLInputElement>('input[placeholder="为你的 Bot 命名"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "Helper");
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const click = async (label: string) =>
+    act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent === label)!
+        .click();
+    });
+  await click("个人人格库");
+  expect(container.textContent).toContain(personality.name);
+  await click("使用");
+  expect(container.textContent).toContain(`个人人格库 · ${personality.name}`);
+  expect(onCreate).not.toHaveBeenCalled();
+  await click("创建");
+  expect(onCreate).toHaveBeenCalledExactlyOnceWith({
+    name: "Helper",
+    color: "data:image/webp;base64,AAA",
+    instructions: combinePersonalityInstructions("", personality.instructions),
+    spawnKey: expect.any(String),
+  });
 });
 
 it("loads additional project bots via infinite scroll without previous/next buttons", async () => {
