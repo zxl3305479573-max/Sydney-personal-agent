@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-27（PA-025／PA-021／REL-01 拍照识图失败，本对话）：用户反馈 Expo 原生取消错误，顺序排查真实 RPC 预算与表单提示。写集为 `apps/mobile/lib/personal-finance.ts`、`lib/api.test.ts`、`components/finance-bill-sheet.tsx`、`lib/finance-bill-sheet.test.tsx`、`sydney-release.json` 和本批文档，准备按既有授权提交推送与 `1.0.44` OTA。不调用子代理，不安装依赖、不启动服务、不读取私人账单或调用真实模型；回归和发布结果见验证与运维记录。
+
 2026-11-27（REL-01 合并新增修改与 `1.0.43` OTA，本对话接管）：用户明确要求新的修改一起提交，当前对话统一审查、验证和提交工作区全部气泡／记账写集及共享文档，在人格提交 `538df4ab5` 上更新 `sydney-release.json` 并发布。此前各窗口「不修改发布版本／不代为提交」为当时写集边界，本轮以用户追加授权统一收口；不调用子代理、不创建窗口、不安装依赖或启动服务。20 文件提交 `e82e07787` 已推送，18 文件 315 项、移动端类型与 13 文件 Biome 通过；Run `45953862507` 发布成功，线上启动包及 62 项资源摘要全部匹配。补录发布证据后再次提交推送文档，真机验收待办，详见最新计划、验证及运维记录。
 
 2026-11-27（PA-025／PA-021 金额输入与收支趋势，本窗口）：顺序实现，不调用子代理。写集为 `apps/mobile/app/finance.tsx`、`components/finance-bill-sheet.tsx`、新增 `components/finance-trend-chart.tsx`、`lib/finance-trend.ts`、`lib/use-finance-live-refresh.ts` 与对应测试、既有 `finance-bill-sheet.test.tsx`，及需求和过程文档追加。延续本窗口气泡修复；不修改另一窗口 Bot 人格组件、测试与 `sydney-release.json` 发布准备。

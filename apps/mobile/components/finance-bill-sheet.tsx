@@ -41,6 +41,7 @@ import {
   billDirectionLabel,
   billStatusLabel,
 } from "../lib/personal-finance-ui";
+import { errorText } from "../lib/user-error";
 import { AppModalSheet } from "./app-modal-sheet";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
@@ -367,12 +368,19 @@ export function FinanceBillSheet({
         await applyDraftAndMaybeSave(draft, "photo");
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : copy(
-                "图片识别失败，请检查网络连接或稍后重试",
-                "圖片辨識失敗，請檢查網路連線或稍後重試",
-                "Could not recognize receipt photo",
+          err instanceof Error && err.name === "TimeoutError"
+            ? copy(
+                "识图请求超时，请检查网络后重新拍照或从相册选择图片重试。",
+                "辨識請求逾時，請檢查網路後重新拍照或從相簿選擇圖片重試。",
+                "Receipt recognition timed out. Check your connection and try the camera or photo library again.",
+              )
+            : errorText(
+                err,
+                copy(
+                  "图片识别失败，请检查网络连接或稍后重试",
+                  "圖片辨識失敗，請檢查網路連線或稍後重試",
+                  "Could not recognize receipt photo",
+                ),
               ),
         );
       } finally {

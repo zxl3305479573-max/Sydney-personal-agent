@@ -1,5 +1,13 @@
 # 验证记录
 
+## 记账拍照识图请求取消与 1.0.44（2026-11-27）
+
+- 关联 PA-025／PA-021／REL-01。截图中的 `FetchRequestCanceledException` 是原生请求取消，不足以确定取消发起者；源码已确认 `parseFinanceBillDraft` 未配置独立超时，沿用普通 RPC 8 秒，而服务端模型解析预算为 22 秒。
+- 先增加真实 `parseFinanceBillDraft → rpc → fetch` 定向测试：20 秒正常响应旧实现返回 `TimeoutError`；59,999ms 前不应取消的预算测试旧实现已取消。把截图同样异常传入实际表单，旧实现将 Swift 内部异常直接显示。首轮三项均复现失败。
+- 修复后运行 `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run apps/mobile/lib/api.test.ts apps/mobile/lib/finance-bill-sheet.test.tsx apps/mobile/lib/personal-finance.test.ts apps/mobile/lib/user-error.test.ts apps/mobile/lib/use-finance-live-refresh.test.tsx --maxWorkers=1`，5 文件 352／352 项通过。覆盖 20 秒模型返回成功、60 秒最终取消、普通 RPC 保持 8 秒、网络原生取消转可读提示、相册超时提示、保留模型配置提示、草稿保留且不触发保存或关闭。
+- 修复后首轮完整回归发现测试夹具缺少 `i18n.t`，以及新增超时测试改变了既有可达性全局状态，补齐翻译替身与测试清理后全绿；未改业务逻辑来适应夹具。Biome 修正测试及提示表达式的格式后，5 个改动 TS／TSX／JSON 文件检查通过。移动端 `pnpm.cmd --filter @rakazo/mobile check` 通过。
+- `1.0.44` 三语版本说明准备后，`app-version.test.ts` 与 `app-config.test.ts` 两文件 40／40 项通过，合计 7 文件 392 项。未安装依赖、启动本机服务或执行全工作区构建；未读取私人账单、发送真实票据给模型或进行真机验收。提交与 OTA 结果随后补录。
+
 ## 1.0.43 合并回归与发布（2026-11-27）
 
 - 范围为已推送的人格选择／Bot 编辑修复与当前工作区气泡、记账改动，关联 PA-020／PA-021／PA-022／PA-025／REL-01。

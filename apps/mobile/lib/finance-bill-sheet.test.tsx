@@ -52,6 +52,7 @@ vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }),
 }));
 vi.mock("./i18n", () => ({
+  t: (text: string) => text,
   useI18n: () => ({ locale: "zh-CN", t: (text: string) => text }),
 }));
 vi.mock("./native", () => ({
@@ -180,6 +181,68 @@ afterEach(() => {
 });
 
 describe("FinanceBillSheet smart receipt scan, voice input, and auto-categorize", () => {
+  it.each([
+    {
+      failure: new Error(
+        "fetch failed: FetchRequestCanceledException: Fetch request has been canceled (at Expo/NativeResponse.swift:63)",
+      ),
+      expected: "Could not reach the server",
+      source: "camera",
+    },
+    {
+      failure: Object.assign(new Error("Request timed out"), { name: "TimeoutError" }),
+      expected: "识图请求超时，请检查网络后重新拍照或从相册选择图片重试。",
+      source: "album",
+    },
+    {
+      failure: new Error("请在设置中连接支持识图的模型"),
+      expected: "请在设置中连接支持识图的模型",
+      source: "camera",
+    },
+  ])(
+    "keeps the draft and offers readable copy for $source: $expected",
+    async ({ failure, expected, source }) => {
+      mocks.parseFinanceBillDraft.mockRejectedValueOnce(failure);
+      const onSave = vi.fn(async () => undefined);
+      const onClose = vi.fn();
+      act(() =>
+        root.render(
+          <FinanceBillSheet
+            visible
+            editing={null}
+            methods={SAMPLE_METHODS}
+            onClose={onClose}
+            onSave={onSave}
+          />,
+        ),
+      );
+      const amount = container.querySelector<HTMLInputElement>(
+        '[data-testid="finance-bill-amount-input"]',
+      )!;
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          amount,
+          "38.50",
+        );
+        amount.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(`[data-testid="finance-bill-${source}"]`)!
+          .click(),
+      );
+      expect(container.textContent).not.toContain("FetchRequestCanceledException");
+      expect(container.textContent).not.toContain("NativeResponse.swift");
+      expect(container.textContent).toContain(expected);
+      expect(amount.value).toBe("38.50");
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(
+        container.querySelector<HTMLButtonElement>('[data-testid="finance-bill-camera"]')!.disabled,
+      ).toBe(false);
+    },
+  );
+
   it("keeps large decimal amounts editable with sufficient vertical space", async () => {
     const onSave = vi.fn(async () => undefined);
     act(() =>

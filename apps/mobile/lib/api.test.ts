@@ -1,4 +1,5 @@
 import { getArtifactById } from "./artifacts";
+import { parseFinanceBillDraft } from "./personal-finance";
 
 vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));
 
@@ -1613,6 +1614,63 @@ describe("mobile API authentication", () => {
     const pending = rpc("computer/boot", { botId: "bot" }, { timeoutMs: 120_000 });
     await vi.advanceTimersByTimeAsync(20_000);
     await expect(pending).resolves.toEqual({ ok: true });
+  });
+
+  it("waits for a receipt model response beyond the ordinary RPC timeout", async () => {
+    vi.useFakeTimers();
+    vi.mocked(SecureStore.getItemAsync).mockResolvedValue("session-token");
+    const draft = { amountCents: 3850, title: "Lunch", parser: "ai" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_input: unknown, init?: { signal?: AbortSignal }) =>
+          new Promise<Response>((resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("fetch failed: FetchRequestCanceledException")),
+            );
+            setTimeout(() => resolve(jsonResponse({ json: draft })), 20_000);
+          }),
+      ),
+    );
+    const pending = parseFinanceBillDraft({ imageBase64: "AAAA", imageMimeType: "image/jpeg" });
+    const result = pending.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(await result).toEqual({ value: draft });
+  });
+
+  it("still cancels a stalled receipt request after its own upload and parsing budget", async () => {
+    vi.useFakeTimers();
+    vi.mocked(SecureStore.getItemAsync).mockResolvedValue("session-token");
+    let receiptSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_input: unknown, init?: { signal?: AbortSignal }) =>
+          new Promise<Response>((_resolve, reject) => {
+            receiptSignal = init?.signal;
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("fetch failed: FetchRequestCanceledException")),
+            );
+          }),
+      ),
+    );
+    const pending = parseFinanceBillDraft({ imageBase64: "AAAA", imageMimeType: "image/jpeg" });
+    const result = pending.catch((error: unknown) => error);
+    try {
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(receiptSignal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await result).toMatchObject({ name: "TimeoutError", message: "Request timed out" });
+    } finally {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => jsonResponse({ json: [] })),
+      );
+      await rpc("bots/list");
+    }
   });
 
   it("publishes only reachability transitions and preserves transport causes", async () => {

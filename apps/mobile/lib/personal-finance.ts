@@ -49,6 +49,7 @@ const SECURE_FALLBACK_KEY = "sydney.pf.cache.v1";
 const PRIVACY_KEY = "sydney.pf.hideAmounts.v1";
 const LOCAL_SECRET_PREFIX = "sydney.pf.sec.";
 const LOCAL_ID_PREFIX = "local_";
+const BILL_DRAFT_TIMEOUT_MS = 60_000;
 
 function emptySummary(): FinanceMonthSummary {
   return summarizeFinanceMonth([], currentMonthKey());
@@ -629,7 +630,10 @@ export async function parseFinanceBillDraft(
     timezoneOffsetMinutes,
   };
   try {
-    return await rpc("personalFinance/parseDraft", payload, { skipSpaceAuthRecovery: true });
+    return await rpc("personalFinance/parseDraft", payload, {
+      skipSpaceAuthRecovery: true,
+      timeoutMs: BILL_DRAFT_TIMEOUT_MS,
+    });
   } catch (error) {
     const cleanText = input.text?.trim() ?? "";
     if (cleanText && shouldFallbackToLocalFinance(error)) {
