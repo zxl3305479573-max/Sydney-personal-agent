@@ -1,18 +1,18 @@
 # 运维手册
 
-## 按账号功能权限管理与部署配置（待部署，2026-11-28）
+## 按账号功能权限管理与 1.0.48 OTA（已上线，2026-11-28）
 
-- **能力与默认边界**：新增 `PA-026` 按账号功能权限管理（[ADR-0030](../docs/adr/0030-per-user-feature-access.md)），对 `computer`（云电脑）、`projects`（项目工作区）、`github`（GitHub）与 `integrations`（连接应用／MCP）实施前后端与 Worker 执行器三层门控；聊天、陪伴灵动岛、个人记账、地图天气、外观换肤与部署默认模型 Key 共用不受限制。
-- **必需的环境变量（待服务器配置与验证）**：
-  - 在 `api` 与 `worker` 共用的环境变量文件（如 `/srv/rakazo/.env` 或原生服务的 `/etc/sydney/backend.env`）中配置 `RAKAZO_ADMIN_EMAILS=<管理员已验证邮箱>`（多个以逗号分隔），并确认管理员账号在数据库中 `emailVerified = true`；
-  - 当 `SANDBOX_PROVIDER=native-linux` 且 `RAKAZO_ADMIN_EMAILS` 非空时，系统**自动**对非管理员账号默认关闭上述 4 项受限功能；若服务器使用 `docker` 或其他 Provider 并希望同样默认关闭，可显式设置 `SYDNEY_FEATURE_ACCESS_RESTRICTED=true`（设为 `false` 则恢复默认全开，仍支持逐账号在数据库单独关闭）。
-- **数据库迁移与权限边界（待生产执行）**：
-  - 随新后端镜像上线运行既有迁移入口（`pnpm --filter @rakazo/db migrate` / `prisma migrate deploy`）应用 `packages/db/prisma/migrations/20261128120000_user_feature_access/migration.sql`，创建 `public.user_feature_access` 表并启用 RLS（普通租户仅允许 `FOR SELECT` 读取本人行，禁止自行提权；管理员读写均经 `requireAdmin` 后走 `runAsSystem`，并记录 `admin.feature_access.updated` 安全事件）。
-- **客户端交付与兼容性**：
-  - 手机端零新增原生模块、零新增权限，无需重签 `1.0.19` 底座 IPA；后续提交推送并发布纯 JS 侧载 OTA 后，管理员账号在「设置 → 账户 → 成员功能权限」即可逐账号开关 4 项功能或一键「恢复默认权限」，普通成员自动隐藏未授权的底部「项目」栏、首页 GitHub／连接应用磁贴、设置项与对话内电脑入口。
-  - 若新手机客户端先于新后端上线（旧后端 `me` 未返回 `featureAccess`），前端按兼容全开渲染，不阻塞升级顺序；但为确保单机 `native-linux` 云电脑隔离生效，在向朋友开放注册前须先完成**后端迁移部署 + `RAKAZO_ADMIN_EMAILS` 配置**。
+- **上线状态与证据**：
+  - **源码与主线部署**：提交 `107469c7a0671eadd8a001d040e6fc802f54dfa8` 已推送 `cursor/integrate-remote-branches-7334` 并合入 `main`；[CI Run 46053857490](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46053857490)（含真实 PostgreSQL 迁移与 RLS、全量单测、服务端镜像与 `deploy-production` Job `140693440703`）一次全绿上线。
+  - **生产环境配置（已生效）**：`sydney-cloud-admin` 的 `/srv/rakazo/.env` 已先留存 `0600` 备份 `/srv/rakazo/.env.before-admin-email-20261128-030030`，再追加 `RAKAZO_ADMIN_EMAILS`（真实邮箱仅存宿主机 `.env`，不落仓库）；结合既有的 `SANDBOX_PROVIDER=native-linux`，普通新成员自动默认关闭 4 项受限能力，管理员始终全开。生产容器 `rakazo-prod-api-46` 与 `rakazo-prod-worker-41` 均 healthy 且均已读取 `RAKAZO_ADMIN_EMAILS`（`infra/compose/docker-compose*.yml` 已将 `RAKAZO_ADMIN_EMAILS` 与 `SYDNEY_FEATURE_ACCESS_RESTRICTED` 统一透传给 `api` 与 `worker`）。
+  - **数据库迁移（已生效）**：迁移 `20261128120000_user_feature_access` 已在生产库执行完毕，`public.user_feature_access` 已开启 RLS（普通租户仅允许 `FOR SELECT` 读取本人行，写操作仅经管理员 `runAsSystem` 并审计 `admin.feature_access.updated`）；域名与 IP 双入口 `/health`、`/ready` 均 HTTP `200`，未认证 `POST /rpc/featureAccess/listUsers` 返回 HTTP `401`。
+  - **手机 `1.0.48` 侧载 OTA（已发布并全资源核验）**：经 `mobile-ios-update.yml` [Run 46054975349](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46054975349)／Job `140695145916` 发布至 `sideload`／`sydney-ios-ip-1`，更新组 `11a13ed7-b8b0-4be3-956b-a4684fa6116b`，iOS 更新 ID `01a21e6d-77d1-7216-a96e-d904810ea0c8`（`2026-11-27T19:13:40.305Z`）。线上清单、`1.0.48` 三语说明、Hermes 启动包（`11,562,588` 字节、SHA-256 `434a21252acf74b5b9722da8954c350cf8fb6d6d82c0b76e6a6eb8e56fe4f2be`）及全部 `62 / 62` 项静态资源均 HTTP `200` 且 SHA-256 匹配。零新增原生模块或权限，**无需重签 `1.0.19` 底座 IPA**，在 App「设置 → 检查更新」下载并重启确认 `1.0.48` 即可。
+- **能力与邀请好友操作步骤**：
+  - 4 项门控能力为 `computer`（云电脑）、`projects`（项目工作区）、`github`（GitHub）与 `integrations`（连接应用／MCP）；聊天、陪伴灵动岛、个人记账、地图天气、外观换肤与部署默认模型 Key 共用不受限制。
+  - 若需要让朋友注册登录：按需将朋友邮箱追加到 `/srv/rakazo/.env` 的 `SIGNUP_ALLOWLIST`（逗号分隔）并重启 `api`；朋友注册后默认 4 项受限能力均关闭；管理员在手机「设置 → 账户 → 成员功能权限」即可随时按账号逐项开关或一键「恢复默认权限」。
+  - 如需临时放宽非管理员默认限制，可在 `/srv/rakazo/.env` 设置 `SYDNEY_FEATURE_ACCESS_RESTRICTED=false` 并重启 `api`／`worker`。
 - **回退说明（未执行）**：
-  - 客户端可通过既有侧载 OTA 重发 `1.0.47` 回退界面；后端若需临时放宽默认限制，可将 `SYDNEY_FEATURE_ACCESS_RESTRICTED=false` 并重启 `api`／`worker`；新增 `user_feature_access` 表不影响既有业务表结构，代码回退时保留该表即可，无需删表。
+  - 客户端可重发已核验的 `1.0.47` OTA（更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`）；`/srv/rakazo/.env` 可由 `/srv/rakazo/.env.before-admin-email-20261128-030030` 恢复；`user_feature_access` 表不影响既有表结构，代码回退时保留该表即可，无需删表。真机双账号交互验收待办。
 
 ## 自建服务器 iPhone 免费侧载私密分发页（已上线，2026-11-28）
 
