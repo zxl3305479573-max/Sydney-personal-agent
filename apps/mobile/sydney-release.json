@@ -1,21 +1,21 @@
 {
-  "version": "1.0.40",
+  "version": "1.0.41",
   "releasedOn": "2026-11-27",
   "notes": {
     "zh-CN": [
-      "Bot 编辑页增加独立异常恢复，页面渲染失败后可在当前编辑路由重试，或主动返回上一页。",
-      "异常页显示经过脱敏的具体错误文字，便于排查点击编辑后出现重试全屏的问题；原始崩溃原因仍在确认。",
-      "保留完整人格设定、个人人格库与本机头像库编辑功能。"
+      "修复点击编辑 Bot 时因默认头像模块循环导出而出现调用栈溢出的问题。",
+      "支持修改人格设定、个人人格库和本机头像库等新建 Bot 时的完整身份选项。",
+      "保留编辑页独立重试和返回操作，以及原生高清默认头像。"
     ],
     "zh-TW": [
-      "Bot 編輯頁加入獨立異常復原，頁面呈現失敗後可在目前編輯路由重試，或主動返回上一頁。",
-      "異常頁顯示經過去識別處理的具體錯誤文字，協助排查點選編輯後出現重試全螢幕的問題；原始當機原因仍在確認。",
-      "保留完整人格設定、個人人格庫與本機頭像庫編輯功能。"
+      "修復點選編輯 Bot 時因預設頭像模組循環匯出而出現呼叫堆疊溢位的問題。",
+      "支援修改人格設定、個人人格庫和本機頭像庫等建立 Bot 時的完整身分選項。",
+      "保留編輯頁獨立重試和返回操作，以及原生高畫質預設頭像。"
     ],
     "en": [
-      "Recover bot editor render failures within the current route, with separate retry and back actions.",
-      "Show sanitized error details to help diagnose the retry screen seen when opening the editor. The original crash cause remains under investigation.",
-      "Keep full personality, personal personality library, and saved avatar editing."
+      "Fix the stack overflow when opening the bot editor caused by a circular default avatar export.",
+      "Edit personality, personal personality library, saved avatars, and all identity options available during bot creation.",
+      "Keep route-local retry and back actions and the full-resolution native default avatar."
     ]
   }
 }
