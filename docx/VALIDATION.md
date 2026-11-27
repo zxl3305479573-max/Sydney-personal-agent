@@ -7,6 +7,8 @@
 - 修复后运行 `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run apps/mobile/lib/api.test.ts apps/mobile/lib/finance-bill-sheet.test.tsx apps/mobile/lib/personal-finance.test.ts apps/mobile/lib/user-error.test.ts apps/mobile/lib/use-finance-live-refresh.test.tsx --maxWorkers=1`，5 文件 352／352 项通过。覆盖 20 秒模型返回成功、60 秒最终取消、普通 RPC 保持 8 秒、网络原生取消转可读提示、相册超时提示、保留模型配置提示、草稿保留且不触发保存或关闭。
 - 修复后首轮完整回归发现测试夹具缺少 `i18n.t`，以及新增超时测试改变了既有可达性全局状态，补齐翻译替身与测试清理后全绿；未改业务逻辑来适应夹具。Biome 修正测试及提示表达式的格式后，5 个改动 TS／TSX／JSON 文件检查通过。移动端 `pnpm.cmd --filter @rakazo/mobile check` 通过。
 - `1.0.44` 三语版本说明准备后，`app-version.test.ts` 与 `app-config.test.ts` 两文件 40／40 项通过，合计 7 文件 392 项。未安装依赖、启动本机服务或执行全工作区构建；未读取私人账单、发送真实票据给模型或进行真机验收。提交与 OTA 结果随后补录。
+- 发布结果：源码 `fa705137f88e585708209cdc74233d563a2c7bc5` 已推送集成分支，`git diff --check` 通过。[Run 45958611151](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45958611151)／Job `140370863300` 为 `completed / success`（北京时间 `2026-11-27 15:27:45`–`15:29:49`）。更新组 `4f0f70a2-0387-4864-8683-36d84772b1fb`，更新 ID `01a21be9-02e8-7aa3-8858-373c4f5585a5`，`createdAt: 2026-11-27T07:29:45.192Z`。
+- 从现有 `1.0.19` build `8` IPA 的真实 Expo 配置请求清单，HTTP `200`、runtime `sydney-ios-ip-1`、版本 `1.0.44`、日期与三语说明一致，晚于内嵌包。启动包 HTTP `200`、`11,438,800` 字节、SHA-256 `d1ca1abac4266ad07c0db4d8ebf555d8cd6e8d0aa1ed1213493fc53eb2c1a788`，Hermes 头匹配；全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 匹配。探针沿用显式代理、抑制 CONNECT 头与 60 秒下载上限，仅内存调整，未改客户端。真机拍照识图和当次取消发起者尚未验证。
 
 ## 1.0.43 合并回归与发布（2026-11-27）
 
