@@ -1,4 +1,29 @@
 export const JA_MESSAGES: Record<string, string> = {
+  "Personal personality library": "個人の人格ライブラリ",
+  "Saved avatars": "保存済みアバター",
+  "Select saved avatar": "保存済みアバターを選択",
+  "Remove saved avatar": "保存済みアバターを削除",
+  "Remove this device avatar?": "この端末のアバターを削除しますか？",
+  "Existing bot avatars will not change.": "既存の Bot のアバターは変更されません。",
+  "Could not load the device avatar library": "端末のアバターライブラリを読み込めませんでした",
+  "Could not remove the device avatar": "端末のアバターを削除できませんでした",
+  "The photo can be used now but could not be saved to the device library.":
+    "この写真は使用できますが、端末のライブラリには保存できませんでした。",
+  "The workspace changed. Close and reopen.":
+    "ワークスペースが変更されました。画面を閉じてから開き直してください。",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "アップロードしたアバターはこの端末に保存され、端末内のアカウントで利用できます。自動同期はされません。",
+  Personality: "人格設定",
+  "Personality preset": "人格プリセット",
+  Balanced: "バランス",
+  Professional: "プロフェッショナル",
+  Friendly: "フレンドリー",
+  Concise: "簡潔",
+  Creative: "クリエイティブ",
+  Teacher: "先生",
+  "Describe this bot's personality and speaking style.": "Bot の性格や話し方を入力してください。",
+  "Instructions and personality must fit within {max} characters.":
+    "指示と人格設定の合計を {max} 文字以内にしてください。",
   Avatar: "アバター",
   "Account deleted": "アカウントを削除しました",
   "Could not confirm account deletion. Check your account before trying again.":

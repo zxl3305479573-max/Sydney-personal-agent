@@ -3,8 +3,11 @@ import {
   BOT_DESCRIPTION_MAX_LENGTH,
   BOT_INSTRUCTIONS_MAX_LENGTH,
   BOT_NAME_MAX_LENGTH,
+  combinePersonalityInstructions,
   ProjectWorkspaceIdInput,
   resolveBotAvatarSet,
+  SYDNEY_PERSONALITIES,
+  splitPersonalityInstructions,
 } from "@rakazo/contracts";
 import {
   credentialForModel,
@@ -31,11 +34,21 @@ import { MotionPressable } from "../components/motion-pressable";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
+import { PersonalPersonalityLibrary } from "../components/personal-personality-library";
 import { ProfileEditDialog } from "../components/profile-edit-dialog";
 import { Chevron } from "../components/row-accessories";
 import type { MobileMe, MobileModel, MobileModelCredential } from "../lib/api";
-import { currentApiBase, loadSessionToken, rpc, selectedSpaceId } from "../lib/api";
+import {
+  currentApiBase,
+  isSpaceSelectionPending,
+  loadSessionToken,
+  rpc,
+  selectedSpaceId,
+  spaceSelectionSeq,
+} from "../lib/api";
 import { isAvatarPhoto } from "../lib/bot-avatar-edit";
+import type { SavedBotAvatar } from "../lib/bot-avatar-library";
+import { loadBotAvatarLibrary, removeBotAvatar, saveBotAvatar } from "../lib/bot-avatar-library";
 import { deviceVoices, setVoiceForBot, voiceForBot, voiceLabel } from "../lib/bot-voices";
 import { chatModelPickerChoices } from "../lib/chat-model";
 import { COMPUTER_LIFECYCLE_TIMEOUT_MS } from "../lib/computer";
@@ -52,6 +65,7 @@ import {
 } from "../lib/project-scope";
 import { createQueuedSave } from "../lib/queued-save";
 import { useScopedTheme, useScreenBackground } from "../lib/scoped-theme-context";
+import { currentSessionGeneration } from "../lib/session";
 import { useSideInsets } from "../lib/side-insets";
 import { thinkingLevelLabel } from "../lib/thinking-level";
 import { errorText } from "../lib/user-error";
@@ -77,7 +91,7 @@ type BotSettingsParams = {
 export default function BotSettingsRoute() {
   const params = useLocalSearchParams<BotSettingsParams>();
   if (params.projectId !== undefined) return <ProjectBotSettingsRoute params={params} />;
-  return <BotSettingsScreen params={params} />;
+  return <BotSettingsScreen key={params.botId} params={params} />;
 }
 
 function ProjectBotSettingsRoute({ params }: { params: BotSettingsParams }) {
@@ -149,12 +163,34 @@ function BotSettingsScreen({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const { duties, personality } = splitPersonalityInstructions(instructions);
+  const personalityLabels = {
+    balanced: t("Balanced"),
+    professional: t("Professional"),
+    friendly: t("Friendly"),
+    concise: t("Concise"),
+    creative: t("Creative"),
+    teacher: t("Teacher"),
+  };
+  const personalityPreset = personality
+    ? (SYDNEY_PERSONALITIES.find((preset) => preset.instructions === personality)?.id ?? "custom")
+    : "";
+  const instructionsError =
+    instructions.length > BOT_INSTRUCTIONS_MAX_LENGTH
+      ? t("Instructions and personality must fit within {max} characters.", {
+          max: BOT_INSTRUCTIONS_MAX_LENGTH,
+        })
+      : null;
   const [color, setColor] = useState<string>(DEFAULT_BOT_AVATAR_DATA_URI);
   const [computerMode, setComputerMode] = useState<ComputerMode>("team");
   const [avatarSet, setAvatarSet] = useState<BotAvatarSet>("organic");
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [savedAvatars, setSavedAvatars] = useState<SavedBotAvatar[]>([]);
+  const [avatarsLoading, setAvatarsLoading] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(focus === "model" || pickedModel !== undefined);
   const [modelKey, setModelKey] = useState("");
   const [thinkingLevel, setThinkingLevel] = useState("");
@@ -169,6 +205,7 @@ function BotSettingsScreen({
   const [modelMetaReady, setModelMetaReady] = useState(false);
   const [modelMetaError, setModelMetaError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [deviceVoiceEnabled, setDeviceVoiceEnabled] = useState(false);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceId, setVoiceId] = useState<string | undefined>();
@@ -176,6 +213,51 @@ function BotSettingsScreen({
   const voiceChoice = useRef(0);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const mounted = useRef(false);
+  const [openedContext] = useState(() => ({
+    generation: currentSessionGeneration(),
+    apiBase: currentApiBase(),
+    spaceId: selectedSpaceId(),
+    selection: spaceSelectionSeq(),
+  }));
+  const editorCurrent = useCallback(
+    () =>
+      mounted.current &&
+      openedContext.generation === currentSessionGeneration() &&
+      openedContext.apiBase === currentApiBase() &&
+      openedContext.spaceId === selectedSpaceId() &&
+      openedContext.selection === spaceSelectionSeq() &&
+      !isSpaceSelectionPending() &&
+      (!projectId || scope === projectScopeKey()),
+    [openedContext, projectId, scope],
+  );
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!avatarOpen) return;
+    let active = true;
+    setAvatarsLoading(true);
+    void loadBotAvatarLibrary()
+      .then((items) => {
+        if (active && editorCurrent()) setSavedAvatars(items);
+      })
+      .catch((error) => {
+        if (active && editorCurrent())
+          setAvatarError(errorText(error, t("Could not load the device avatar library")));
+      })
+      .finally(() => {
+        if (active) setAvatarsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [avatarOpen, editorCurrent, t]);
 
   const crossSpaceSave = useMemo(
     () =>
@@ -254,6 +336,7 @@ function BotSettingsScreen({
 
   useEffect(() => {
     if (!botId) return;
+    setError(null);
     const load = async () =>
       projectId && scope !== undefined
         ? rpc(
@@ -299,6 +382,7 @@ function BotSettingsScreen({
     };
   }, [
     botId,
+    loadAttempt,
     projectId,
     scope,
     dailyCheckInsSave,
@@ -478,21 +562,55 @@ function BotSettingsScreen({
   }
 
   async function chooseAvatarPhoto() {
-    if (pickingAvatar) return;
+    if (pickingAvatar || pending || libraryBusy || !editorCurrent()) return;
     setPickingAvatar(true);
     setAvatarError(null);
     try {
       const photo = await pickBotAvatar();
-      if (photo) setColor(photo);
+      if (photo && editorCurrent()) {
+        setColor(photo);
+        try {
+          const saved = await saveBotAvatar(photo);
+          if (editorCurrent()) setSavedAvatars((old) => [saved, ...old]);
+        } catch {
+          if (editorCurrent())
+            setAvatarError(
+              t("The photo can be used now but could not be saved to the device library."),
+            );
+        }
+      }
     } catch (error) {
-      setAvatarError(errorText(error, t("Could not load image")));
+      if (editorCurrent()) setAvatarError(errorText(error, t("Could not load image")));
     } finally {
-      setPickingAvatar(false);
+      if (mounted.current) setPickingAvatar(false);
     }
   }
 
+  function confirmRemoveAvatar(avatar: SavedBotAvatar) {
+    Alert.alert(t("Remove this device avatar?"), t("Existing bot avatars will not change."), [
+      { text: t("Cancel"), style: "cancel" },
+      {
+        text: t("Remove"),
+        style: "destructive",
+        onPress: () => {
+          if (pickingAvatar || pending || !editorCurrent()) return;
+          try {
+            removeBotAvatar(avatar.id);
+            setSavedAvatars((old) => old.filter((item) => item.id !== avatar.id));
+          } catch (error) {
+            setAvatarError(errorText(error, t("Could not remove the device avatar")));
+          }
+        },
+      },
+    ]);
+  }
+
   async function save() {
-    if (!botId || !bot || pending) return;
+    if (!botId || !bot || pending || pickingAvatar || libraryBusy || instructionsError) return;
+    if (!editorCurrent()) {
+      setError(t("The workspace changed. Close and reopen."));
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -700,6 +818,92 @@ function BotSettingsScreen({
             </View>
           </SettingsGroup>
         </View>
+        {bot ? (
+          <View style={{ marginTop: 24 }}>
+            <SettingsGroup label={t("Personality")}>
+              <MenuPicker
+                label={t("Personality preset")}
+                plain
+                choices={[
+                  { key: "", label: t("None") },
+                  ...SYDNEY_PERSONALITIES.map((preset) => ({
+                    key: preset.id,
+                    label: personalityLabels[preset.id],
+                  })),
+                  { key: "custom", label: t("Custom") },
+                ]}
+                value={personalityPreset}
+                onChange={(key) => {
+                  if (pending || libraryBusy || key === "custom") return;
+                  const preset = SYDNEY_PERSONALITIES.find((item) => item.id === key);
+                  setInstructions((current) =>
+                    combinePersonalityInstructions(
+                      splitPersonalityInstructions(current).duties,
+                      preset?.instructions ?? "",
+                    ),
+                  );
+                }}
+              />
+              <GrowingTextInput
+                label={t("Personality")}
+                value={personality}
+                maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
+                editable={!pending && !libraryBusy}
+                onChangeText={(value) =>
+                  setInstructions((current) =>
+                    combinePersonalityInstructions(
+                      splitPersonalityInstructions(current).duties,
+                      value,
+                    ),
+                  )
+                }
+                placeholder={t("Describe this bot's personality and speaking style.")}
+                inset={0}
+              />
+              <NativeActionButton
+                label={t("Personal personality library")}
+                prominence="secondary"
+                disabled={pending || libraryBusy}
+                onPress={() => {
+                  if (!editorCurrent()) {
+                    setError(t("The workspace changed. Close and reopen."));
+                    return;
+                  }
+                  setLibraryOpen((open) => !open);
+                }}
+              />
+            </SettingsGroup>
+            {libraryOpen ? (
+              <View style={{ marginTop: 16 }}>
+                <PersonalPersonalityLibrary
+                  current={editorCurrent}
+                  disabled={pending}
+                  selectedInstructions={personality}
+                  onSelect={(item) => {
+                    if (!editorCurrent()) return;
+                    setInstructions((current) =>
+                      combinePersonalityInstructions(
+                        splitPersonalityInstructions(current).duties,
+                        item.instructions,
+                      ),
+                    );
+                    setLibraryOpen(false);
+                  }}
+                  onSaved={(item, previous) =>
+                    setInstructions((current) => {
+                      const parts = splitPersonalityInstructions(current);
+                      return previous && parts.personality === previous.instructions
+                        ? combinePersonalityInstructions(parts.duties, item.instructions)
+                        : current;
+                    })
+                  }
+                  onRemoved={() => undefined}
+                  onBusyChange={setLibraryBusy}
+                />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         {botId ? (
           <BotContextCards key={botId} botId={botId} projectId={projectId} scope={scope} />
         ) : null}
@@ -942,8 +1146,15 @@ function BotSettingsScreen({
                 <GrowingTextInput
                   label={t("Instructions")}
                   maxLength={BOT_INSTRUCTIONS_MAX_LENGTH}
-                  value={instructions}
-                  onChangeText={setInstructions}
+                  value={duties}
+                  onChangeText={(value) =>
+                    setInstructions((current) =>
+                      combinePersonalityInstructions(
+                        value,
+                        splitPersonalityInstructions(current).personality,
+                      ),
+                    )
+                  }
                   backgroundColor={cardBg}
                 />
               </View>
@@ -1043,10 +1254,29 @@ function BotSettingsScreen({
             </GlassSurface>
           </View>
         ) : null}
-        {error ? <Text style={{ color: tokens.destructive, marginTop: 16 }}>{error}</Text> : null}
+        {instructionsError ? (
+          <Text accessibilityRole="alert" style={{ color: tokens.destructive, marginTop: 16 }}>
+            {instructionsError}
+          </Text>
+        ) : null}
+        {error ? (
+          <View style={{ marginTop: 16, gap: 12 }}>
+            <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
+              {error}
+            </Text>
+            {!bot ? (
+              <NativeActionButton
+                label={t("Try Again")}
+                onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+              />
+            ) : null}
+          </View>
+        ) : null}
         {dirty ? (
           <NativeActionButton
-            disabled={!name.trim() || pending || !bot}
+            disabled={
+              !name.trim() || pending || pickingAvatar || libraryBusy || !bot || !!instructionsError
+            }
             label={pending ? t("Saving…") : t("Save")}
             onPress={() => void save()}
             style={{ marginTop: 24 }}
@@ -1076,8 +1306,14 @@ function BotSettingsScreen({
               label={t("Photo library")}
               prominence="secondary"
               busy={pickingAvatar}
+              disabled={pending || avatarsLoading}
               onPress={() => void chooseAvatarPhoto()}
             />
+            <Text style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+              {t(
+                "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.",
+              )}
+            </Text>
             {avatarError ? (
               <Text accessibilityRole="alert" style={{ color: tokens.destructive }}>
                 {avatarError}
@@ -1144,6 +1380,51 @@ function BotSettingsScreen({
                     </MotionPressable>
                   ))}
                 </ScrollView>
+              </>
+            ) : null}
+            {savedAvatars.length > 0 ? (
+              <>
+                <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
+                  {t("Saved avatars")}
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  {savedAvatars.map((avatar) => (
+                    <View key={avatar.id} style={{ gap: 4, alignItems: "center" }}>
+                      <MotionPressable
+                        preset="control"
+                        accessibilityRole="button"
+                        accessibilityLabel={t("Select saved avatar")}
+                        accessibilityState={{ selected: color === avatar.dataUrl }}
+                        disabled={pickingAvatar || pending}
+                        onPress={() => {
+                          if (editorCurrent()) setColor(avatar.dataUrl);
+                        }}
+                        style={{
+                          minWidth: 64,
+                          minHeight: 64,
+                          padding: 8,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 16,
+                          borderWidth: color === avatar.dataUrl ? 2 : 1,
+                          borderColor: color === avatar.dataUrl ? tokens.primary : chipBorder,
+                          backgroundColor: chipBg,
+                        }}
+                      >
+                        <Image
+                          source={{ uri: avatar.dataUrl }}
+                          style={{ width: 44, height: 44, borderRadius: 22 }}
+                        />
+                      </MotionPressable>
+                      <NativeActionButton
+                        label={t("Remove saved avatar")}
+                        prominence="plain"
+                        disabled={pickingAvatar || pending}
+                        onPress={() => confirmRemoveAvatar(avatar)}
+                      />
+                    </View>
+                  ))}
+                </View>
               </>
             ) : null}
           </ScrollView>

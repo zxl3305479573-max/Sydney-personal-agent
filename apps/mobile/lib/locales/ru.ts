@@ -1,4 +1,29 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "Personal personality library": "Личная библиотека личностей",
+  "Saved avatars": "Сохранённые аватары",
+  "Select saved avatar": "Выбрать сохранённый аватар",
+  "Remove saved avatar": "Удалить сохранённый аватар",
+  "Remove this device avatar?": "Удалить этот аватар с устройства?",
+  "Existing bot avatars will not change.": "Аватары существующих ботов не изменятся.",
+  "Could not load the device avatar library": "Не удалось загрузить библиотеку аватаров",
+  "Could not remove the device avatar": "Не удалось удалить аватар с устройства",
+  "The photo can be used now but could not be saved to the device library.":
+    "Фото можно использовать, но не удалось сохранить его в библиотеке устройства.",
+  "The workspace changed. Close and reopen.":
+    "Рабочее пространство изменилось. Закройте и снова откройте этот экран.",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "Загруженные аватары сохраняются на устройстве, доступны его учётным записям и не синхронизируются автоматически.",
+  Personality: "Личность",
+  "Personality preset": "Шаблон личности",
+  Balanced: "Сбалансированный",
+  Professional: "Профессиональный",
+  Friendly: "Дружелюбный",
+  Concise: "Краткий",
+  Creative: "Творческий",
+  Teacher: "Учитель",
+  "Describe this bot's personality and speaking style.": "Опишите характер и стиль речи бота.",
+  "Instructions and personality must fit within {max} characters.":
+    "Инструкции и описание личности вместе не должны превышать {max} символов.",
   Avatar: "Аватар",
   "Account deleted": "Аккаунт удалён",
   "Could not confirm account deletion. Check your account before trying again.":

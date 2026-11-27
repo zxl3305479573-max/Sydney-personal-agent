@@ -1,4 +1,30 @@
 export const DE_MESSAGES: Record<string, string> = {
+  "Personal personality library": "Eigene Persönlichkeitsbibliothek",
+  "Saved avatars": "Gespeicherte Avatare",
+  "Select saved avatar": "Gespeicherten Avatar auswählen",
+  "Remove saved avatar": "Gespeicherten Avatar entfernen",
+  "Remove this device avatar?": "Diesen Avatar vom Gerät entfernen?",
+  "Existing bot avatars will not change.": "Avatare bestehender Bots bleiben unverändert.",
+  "Could not load the device avatar library": "Die Avatarbibliothek konnte nicht geladen werden",
+  "Could not remove the device avatar": "Der Avatar konnte nicht entfernt werden",
+  "The photo can be used now but could not be saved to the device library.":
+    "Das Foto kann verwendet werden, wurde aber nicht in der Gerätebibliothek gespeichert.",
+  "The workspace changed. Close and reopen.":
+    "Der Arbeitsbereich hat sich geändert. Schließe diese Ansicht und öffne sie erneut.",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "Hochgeladene Avatare werden auf diesem Gerät gespeichert, sind für seine Konten verfügbar und werden nicht automatisch synchronisiert.",
+  Personality: "Persönlichkeit",
+  "Personality preset": "Persönlichkeitsvorlage",
+  Balanced: "Ausgewogen",
+  Professional: "Professionell",
+  Friendly: "Freundlich",
+  Concise: "Kurz und knapp",
+  Creative: "Kreativ",
+  Teacher: "Lehrer",
+  "Describe this bot's personality and speaking style.":
+    "Beschreibe die Persönlichkeit und den Sprachstil dieses Bots.",
+  "Instructions and personality must fit within {max} characters.":
+    "Anweisungen und Persönlichkeit dürfen zusammen höchstens {max} Zeichen umfassen.",
   Avatar: "Avatar",
   "Account deleted": "Konto gelöscht",
   "Could not confirm account deletion. Check your account before trying again.":

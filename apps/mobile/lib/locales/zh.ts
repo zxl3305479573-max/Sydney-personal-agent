@@ -1,4 +1,28 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "Personal personality library": "个人人格库",
+  "Saved avatars": "本机头像库",
+  "Select saved avatar": "选择已保存头像",
+  "Remove saved avatar": "移除已保存头像",
+  "Remove this device avatar?": "移除本机头像？",
+  "Existing bot avatars will not change.": "已有 Bot 的头像不会改变。",
+  "Could not load the device avatar library": "无法读取本机头像库",
+  "Could not remove the device avatar": "无法移除本机头像",
+  "The photo can be used now but could not be saved to the device library.":
+    "头像可用于本次编辑，但未保存到本机头像库。",
+  "The workspace changed. Close and reopen.": "工作区已改变，请关闭后重新打开。",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "上传的头像保存在此设备，设备上的账号均可使用，不会自动同步。",
+  Personality: "人格设定",
+  "Personality preset": "人格预设",
+  Balanced: "均衡",
+  Professional: "专业",
+  Friendly: "友善",
+  Concise: "简洁",
+  Creative: "创意",
+  Teacher: "老师",
+  "Describe this bot's personality and speaking style.": "描述 Bot 的性格和说话风格。",
+  "Instructions and personality must fit within {max} characters.":
+    "工作指令与人格设定合计不能超过 {max} 个字符，请缩短后保存。",
   Avatar: "头像",
   "If the browser cannot finish, copy its full callback address and paste it here.":
     "如果浏览器无法完成连接，请复制浏览器中的完整回调地址并粘贴到这里。",

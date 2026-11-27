@@ -98,6 +98,11 @@ vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => mocks.header
 vi.mock("expo-clipboard", () => ({ setStringAsync: vi.fn() }));
 vi.mock("./appearance", () => ({ mobileTokens: () => ({}) }));
 vi.mock("./create-bot-avatar", () => ({ pickBotAvatar: vi.fn(async () => null) }));
+vi.mock("./bot-avatar-library", () => ({
+  loadBotAvatarLibrary: async () => [],
+  saveBotAvatar: vi.fn(),
+  removeBotAvatar: vi.fn(),
+}));
 vi.mock("./message-action-sheet", () => ({ presentMessageActionSheet: vi.fn() }));
 vi.mock("./live-notifications", () => ({ afterChatNotifyChange: vi.fn(async () => undefined) }));
 
@@ -110,6 +115,7 @@ vi.mock("./api", () => ({
   captureApiRequestContext: async () => ({ headers: {} }),
   selectedSpaceId: () => "space-fixture",
   spaceSelectionSeq: () => 1,
+  isSpaceSelectionPending: () => false,
   rpc: async (procedure: string, input?: unknown, options?: { signal?: AbortSignal }) => {
     const cloudflare = mocks.gateway
       ? { provider: "cloudflare-ai-gateway", providerName: "Cloudflare AI Gateway" }

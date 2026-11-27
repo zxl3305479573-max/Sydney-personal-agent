@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
 
-import { BOT_COLORS, BOT_SETTINGS_SECTIONS } from "@rakazo/contracts";
+import {
+  BOT_COLORS,
+  BOT_INSTRUCTIONS_MAX_LENGTH,
+  BOT_SETTINGS_SECTIONS,
+  combinePersonalityInstructions,
+  PERSONALITY_CATALOG,
+  renderPersonalitySelections,
+  SYDNEY_PERSONALITIES,
+  splitPersonalityInstructions,
+} from "@rakazo/contracts";
 import * as Notifications from "expo-notifications";
 import type { ComponentProps, ReactNode } from "react";
 import { act, createElement, useEffect } from "react";
@@ -9,6 +18,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BotSettingsScreen from "../app/bot-settings";
 import { MenuPicker } from "../components/menu-picker";
+import type { SavedBotAvatar } from "./bot-avatar-library";
 import { afterChatNotifyChange } from "./live-notifications";
 
 const mocks = vi.hoisted(() => ({
@@ -19,6 +29,11 @@ const mocks = vi.hoisted(() => ({
   focus: undefined as string | undefined,
   projectId: undefined as string | undefined,
   pickBotAvatar: vi.fn(),
+  loadAvatarLibrary: vi.fn(),
+  saveAvatar: vi.fn(),
+  removeAvatar: vi.fn(),
+  personalityRpc: vi.fn(),
+  selection: 1,
   os: "ios",
   work: [] as unknown[],
   history: [] as unknown[],
@@ -57,6 +72,12 @@ function deferredSave<T = void>() {
 }
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./session", () => ({ currentSessionGeneration: () => 1 }));
+vi.mock("./bot-avatar-library", () => ({
+  loadBotAvatarLibrary: mocks.loadAvatarLibrary,
+  saveBotAvatar: mocks.saveAvatar,
+  removeBotAvatar: mocks.removeAvatar,
+}));
 vi.mock("./create-bot-avatar", () => ({
   BUILT_IN_BOT_AVATARS: [
     { id: "blue-maid", name: "大肥鱼", source: 1 },
@@ -84,7 +105,12 @@ vi.mock("./api", () => ({
   currentApiBase: () => "https://api.example.test",
   loadSessionToken: async () => "token",
   selectedSpaceId: () => "space-a",
+  isSpaceSelectionPending: () => false,
+  spaceSelectionSeq: () => mocks.selection,
+  captureApiRequestContext: async () => ({ headers: {} }),
   rpc: async (procedure: string, input?: unknown, options?: unknown) => {
+    if (procedure.startsWith("personalities/"))
+      return mocks.personalityRpc(procedure, input, options);
     if (procedure === "projectWorkspaces/updateBot") return mocks.rpc(procedure, input, options);
     if (procedure === "projectWorkspaces/botContext") return { work: mocks.work, docs: mocks.docs };
     if (procedure === "projectWorkspaces/botContextAction")
@@ -178,6 +204,7 @@ vi.mock("react-native", () => {
       children,
     );
   return {
+    ActivityIndicator: () => createElement("i", { "data-loading": "true" }),
     Alert: { alert: mocks.alert, prompt: mocks.prompt },
     Share: { share: mocks.share },
     Platform: {
@@ -249,6 +276,7 @@ vi.mock("react-native", () => {
       accessibilityHint,
       accessibilityRole,
       accessibilityState,
+      disabled,
       style,
       hitSlop,
     }: {
@@ -257,7 +285,8 @@ vi.mock("react-native", () => {
       accessibilityLabel?: string;
       accessibilityHint?: string;
       accessibilityRole?: string;
-      accessibilityState?: { checked?: boolean; expanded?: boolean };
+      accessibilityState?: { checked?: boolean; expanded?: boolean; selected?: boolean };
+      disabled?: boolean;
       style?: unknown;
       hitSlop?: number;
     }) =>
@@ -265,12 +294,14 @@ vi.mock("react-native", () => {
         "button",
         {
           type: "button",
-          onClick: onPress,
+          onClick: disabled ? undefined : onPress,
+          disabled,
           "aria-label": accessibilityLabel,
           "data-hint": accessibilityHint,
           role: accessibilityRole,
           "aria-expanded": accessibilityState?.expanded,
           "aria-checked": accessibilityState?.checked,
+          "aria-selected": accessibilityState?.selected,
           "data-style": JSON.stringify(
             typeof style === "function" ? style({ pressed: false }) : style,
           ),
@@ -295,7 +326,7 @@ vi.mock("./native", () => ({
 vi.mock("./i18n", () => {
   const t = (text: string, values?: Record<string, string | number>) =>
     text.replace(/\{(\w+)\}/g, (_, key) => String(values?.[key] ?? ""));
-  return { t, useI18n: () => ({ t }) };
+  return { t, useI18n: () => ({ t, locale: "en" }) };
 });
 vi.mock("../components/bot-avatar", () => ({ BotAvatar: () => null }));
 vi.mock("./bot-avatar-edit", () => ({
@@ -402,6 +433,18 @@ describe("bot settings device voice menu", () => {
     mocks.focus = undefined;
     mocks.projectId = undefined;
     mocks.pickBotAvatar.mockReset();
+    mocks.selection = 1;
+    mocks.loadAvatarLibrary.mockReset().mockResolvedValue([]);
+    mocks.saveAvatar.mockReset().mockImplementation(async (dataUrl: string) => ({
+      id: "avatar-uploaded",
+      dataUrl,
+      createdAt: 1,
+    }));
+    mocks.removeAvatar.mockReset();
+    mocks.personalityRpc.mockReset().mockImplementation(async (procedure: string) => {
+      if (procedure === "personalities/list") return [];
+      return undefined;
+    });
     mocks.instructions = "";
     mocks.description = "";
     mocks.os = "ios";
@@ -428,6 +471,504 @@ describe("bot settings device voice menu", () => {
     await expand();
   };
   const menu = () => container.querySelector('[data-menu="Device voice"]');
+  const editField = async (label: string, value: string) => {
+    const input = container.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;
+    await act(async () => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+  const clickButton = async (label: string) => {
+    await act(async () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent === label)!
+        .click(),
+    );
+  };
+  const savedAvatar: SavedBotAvatar = {
+    id: "avatar-existing",
+    dataUrl: "data:image/jpeg;base64,ZXhpc3Rpbmc=",
+    createdAt: 1,
+  };
+  const savedPersonality = {
+    id: "personality-existing",
+    name: "Patient researcher",
+    description: "Explain with examples",
+    instructions: "Be patient and use examples.",
+    customInstructions: "Be patient and use examples.",
+    selections: [],
+    source: "custom",
+  };
+  const openAvatars = async () =>
+    act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Edit avatar"]')!.click(),
+    );
+  const selectPersonal = async () =>
+    act(async () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.textContent?.startsWith(savedPersonality.name))!
+        .click(),
+    );
+
+  it.each([undefined, "project-fixture"])(
+    "uses the complete personal personality library for project %s",
+    async (projectId) => {
+      mocks.projectId = projectId;
+      mocks.instructions = "Review the project";
+      mocks.personalityRpc.mockResolvedValue([savedPersonality]);
+      await act(async () => root.render(<BotSettingsScreen />));
+      mocks.rpc.mockClear();
+      await clickButton("Personal personality library");
+      expect(mocks.personalityRpc).toHaveBeenCalledWith("personalities/list", undefined, {
+        requestContext: { headers: {} },
+        skipSpaceAuthRecovery: true,
+      });
+      expect(container.textContent).toContain("Create personality");
+      expect(container.textContent).toContain("Edit");
+      expect(container.textContent).toContain("Delete");
+      await selectPersonal();
+      await clickButton("Save");
+      const bot = {
+        botId: "bot-fixture",
+        instructions: combinePersonalityInstructions(
+          mocks.instructions,
+          savedPersonality.instructions,
+        ),
+        expectedInstructions: mocks.instructions,
+      };
+      if (projectId)
+        expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+          "projectWorkspaces/updateBot",
+          { projectId, bot },
+          { skipSpaceAuthRecovery: true },
+        );
+      else expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", bot);
+    },
+  );
+
+  it("creates a personality with attributes and weights before applying it to the bot", async () => {
+    mocks.instructions = "Review the project";
+    const attribute = PERSONALITY_CATALOG.find((item) => item.category === "personality")!;
+    const selections = [{ attributeId: attribute.id, weight: "strong" as const }];
+    const created = {
+      ...savedPersonality,
+      selections,
+      instructions: `${renderPersonalitySelections(selections)}\n\nSpeak clearly.`,
+      customInstructions: "Speak clearly.",
+    };
+    const creating = deferredSave<typeof created>();
+    mocks.personalityRpc.mockImplementation(async (procedure: string) => {
+      if (procedure === "personalities/list") return [];
+      if (procedure === "personalities/create") return creating.promise;
+    });
+    await act(async () => root.render(<BotSettingsScreen />));
+    await editField("Personality", "Existing draft");
+    await clickButton("Personal personality library");
+    await clickButton("Create personality");
+    await editField("Name", savedPersonality.name);
+    await editField("Description", savedPersonality.description);
+    await editField("Search attributes", attribute.name);
+    await clickButton(attribute.name);
+    await clickButton("Strong");
+    await editField("Custom speaking style", "Speak clearly.");
+    const saves = () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")].filter(
+        (button) => button.textContent === "Save",
+      );
+    await act(async () => saves()[0]!.click());
+    expect(saves().at(-1)!.disabled).toBe(true);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.personalityRpc).toHaveBeenCalledWith(
+      "personalities/create",
+      {
+        name: savedPersonality.name,
+        description: savedPersonality.description,
+        instructions: "Speak clearly.",
+        selections,
+      },
+      { requestContext: { headers: {} }, skipSpaceAuthRecovery: true },
+    );
+    await act(async () => creating.resolve(created));
+    await selectPersonal();
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      instructions: combinePersonalityInstructions(mocks.instructions, created.instructions),
+      expectedInstructions: mocks.instructions,
+    });
+  });
+
+  it("loads the selected personal preset and retains duties when that preset is edited", async () => {
+    mocks.instructions = combinePersonalityInstructions(
+      "Review the project",
+      savedPersonality.instructions,
+    );
+    const edited = {
+      ...savedPersonality,
+      instructions: "A new tone",
+      customInstructions: "A new tone",
+    };
+    mocks.personalityRpc.mockImplementation(async (procedure: string) => {
+      if (procedure === "personalities/list") return [savedPersonality];
+      if (procedure === "personalities/update") return edited;
+    });
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Personal personality library");
+    const selected = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+      button.textContent?.startsWith(savedPersonality.name),
+    )!;
+    expect(selected.getAttribute("aria-selected")).toBe("true");
+    await clickButton("Edit");
+    await editField("Custom speaking style", "A new tone");
+    await clickButton("Save");
+    expect(mocks.personalityRpc).toHaveBeenCalledWith(
+      "personalities/update",
+      {
+        personalityId: savedPersonality.id,
+        name: savedPersonality.name,
+        description: savedPersonality.description,
+        instructions: "A new tone",
+        selections: [],
+      },
+      { requestContext: { headers: {} }, skipSpaceAuthRecovery: true },
+    );
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("A new tone");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      instructions: combinePersonalityInstructions("Review the project", edited.instructions),
+      expectedInstructions: mocks.instructions,
+    });
+  });
+
+  it("keeps the existing bot's personality when its library entry is removed", async () => {
+    mocks.instructions = combinePersonalityInstructions(
+      "Review the project",
+      savedPersonality.instructions,
+    );
+    mocks.personalityRpc.mockImplementation(async (procedure: string) => {
+      if (procedure === "personalities/list") return [savedPersonality];
+      return { ok: true };
+    });
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Personal personality library");
+    await clickButton("Delete");
+    await act(async () => mocks.alert.mock.lastCall![2][1].onPress());
+    expect(mocks.personalityRpc).toHaveBeenCalledWith(
+      "personalities/remove",
+      { personalityId: savedPersonality.id },
+      { requestContext: { headers: {} }, skipSpaceAuthRecovery: true },
+    );
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe(savedPersonality.instructions);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "project-fixture"])(
+    "reuses a saved avatar for project %s",
+    async (projectId) => {
+      mocks.projectId = projectId;
+      mocks.loadAvatarLibrary.mockResolvedValue([savedAvatar]);
+      await act(async () => root.render(<BotSettingsScreen />));
+      mocks.rpc.mockClear();
+      await openAvatars();
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('[aria-label="Select saved avatar"]')!.click(),
+      );
+      await clickButton("Done");
+      await clickButton("Save");
+      const bot = { botId: "bot-fixture", color: savedAvatar.dataUrl };
+      if (projectId)
+        expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+          "projectWorkspaces/updateBot",
+          { projectId, bot },
+          { skipSpaceAuthRecovery: true },
+        );
+      else expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", bot);
+    },
+  );
+
+  it("saves an uploaded photo to the same device avatar library as creation", async () => {
+    const photo = "data:image/jpeg;base64,dXBsb2FkZWQ=";
+    mocks.pickBotAvatar.mockResolvedValue(photo);
+    await act(async () => root.render(<BotSettingsScreen />));
+    await openAvatars();
+    await clickButton("Photo library");
+    expect(mocks.saveAvatar).toHaveBeenCalledExactlyOnceWith(photo);
+    expect(
+      container.querySelector('[aria-label="Select saved avatar"] img')?.getAttribute("src"),
+    ).toBe(photo);
+    await clickButton("Done");
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      color: photo,
+    });
+  });
+
+  it("keeps an uploaded photo usable if saving it to the device library fails", async () => {
+    const photo = "data:image/jpeg;base64,dXBsb2FkZWQ=";
+    mocks.pickBotAvatar.mockResolvedValue(photo);
+    mocks.saveAvatar.mockRejectedValue(new Error("Library full"));
+    await act(async () => root.render(<BotSettingsScreen />));
+    await openAvatars();
+    await clickButton("Photo library");
+    expect(container.textContent).toContain(
+      "The photo can be used now but could not be saved to the device library.",
+    );
+    await clickButton("Done");
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      color: photo,
+    });
+  });
+
+  it("removes a device avatar without changing the bot's selected photo", async () => {
+    mocks.loadAvatarLibrary.mockResolvedValue([savedAvatar]);
+    await act(async () => root.render(<BotSettingsScreen />));
+    await openAvatars();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Select saved avatar"]')!.click(),
+    );
+    await clickButton("Remove saved avatar");
+    expect(mocks.alert).toHaveBeenCalledWith(
+      "Remove this device avatar?",
+      "Existing bot avatars will not change.",
+      expect.any(Array),
+    );
+    await act(async () => mocks.alert.mock.lastCall![2][1].onPress());
+    expect(mocks.removeAvatar).toHaveBeenCalledExactlyOnceWith(savedAvatar.id);
+    expect(container.querySelector('[aria-label="Select saved avatar"]')).toBeNull();
+    await clickButton("Done");
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      color: savedAvatar.dataUrl,
+    });
+  });
+
+  it("does not apply an outstanding photo picker result after switching workspace", async () => {
+    const picking = deferredSave<string>();
+    mocks.pickBotAvatar.mockReturnValue(picking.promise);
+    await act(async () => root.render(<BotSettingsScreen />));
+    await openAvatars();
+    await clickButton("Photo library");
+    mocks.selection += 1;
+    await act(async () => picking.resolve(savedAvatar.dataUrl));
+    expect(mocks.saveAvatar).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await clickButton("Done");
+    expect(
+      [...container.querySelectorAll("button")].some((button) => button.textContent === "Save"),
+    ).toBe(false);
+  });
+
+  it("shows personality separately before Advanced without marking the loaded bot dirty", async () => {
+    mocks.instructions = combinePersonalityInstructions("Review the project", "Warm and direct");
+    await act(async () => root.render(<BotSettingsScreen />));
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("Warm and direct");
+    expect(container.querySelector('textarea[aria-label="Instructions"]')).toBeNull();
+    expect(
+      [...container.querySelectorAll("button")].some((button) => button.textContent === "Save"),
+    ).toBe(false);
+    await expand();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Instructions"]')?.value,
+    ).toBe("Review the project");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy instructions as duties and starts with no personality", async () => {
+    mocks.instructions = "Keep existing instructions\nexactly as written";
+    await render();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("");
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Instructions"]')?.value,
+    ).toBe(mocks.instructions);
+    expect(
+      [...container.querySelectorAll("button")].some((button) => button.textContent === "Save"),
+    ).toBe(false);
+  });
+
+  it.each([undefined, "project-fixture"])(
+    "saves custom personality through the correct route for project %s while retaining duties",
+    async (projectId) => {
+      mocks.projectId = projectId;
+      mocks.instructions = combinePersonalityInstructions("Review the project", "Warm");
+      await act(async () => root.render(<BotSettingsScreen />));
+      mocks.rpc.mockClear();
+      await editField("Personality", "Patient\nUse concrete examples");
+      await clickButton("Save");
+      const bot = {
+        botId: "bot-fixture",
+        instructions: combinePersonalityInstructions(
+          "Review the project",
+          "Patient\nUse concrete examples",
+        ),
+        expectedInstructions: mocks.instructions,
+      };
+      if (projectId) {
+        expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith(
+          "projectWorkspaces/updateBot",
+          { projectId, bot },
+          { skipSpaceAuthRecovery: true },
+        );
+      } else expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", bot);
+      expect(mocks.back).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps personality when the work instructions change", async () => {
+    mocks.instructions = combinePersonalityInstructions("Old duties", "Friendly");
+    await render();
+    await editField("Instructions", "New duties");
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      instructions: combinePersonalityInstructions("New duties", "Friendly"),
+      expectedInstructions: mocks.instructions,
+    });
+  });
+
+  it("lets an existing bot choose a personality preset and then customize it", async () => {
+    mocks.instructions = "Review the project";
+    await act(async () => root.render(<BotSettingsScreen />));
+    await clickButton("Friendly");
+    const friendly = SYDNEY_PERSONALITIES.find((preset) => preset.id === "friendly")!;
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe(friendly.instructions);
+    await editField("Personality", `${friendly.instructions}\nUse short sentences.`);
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      instructions: combinePersonalityInstructions(
+        mocks.instructions,
+        `${friendly.instructions}\nUse short sentences.`,
+      ),
+      expectedInstructions: mocks.instructions,
+    });
+  });
+
+  it.each(["None", "empty text"])(
+    "clears personality using %s without removing duties",
+    async (method) => {
+      mocks.instructions = combinePersonalityInstructions("Review the project", "Friendly");
+      await act(async () => root.render(<BotSettingsScreen />));
+      if (method === "None") await clickButton("None");
+      else await editField("Personality", "");
+      await clickButton("Save");
+      expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+        botId: "bot-fixture",
+        instructions: "Review the project",
+        expectedInstructions: mocks.instructions,
+      });
+    },
+  );
+
+  it("checks the encoded combined length and allows saving after shortening the personality", async () => {
+    mocks.instructions = "Review the project";
+    await act(async () => root.render(<BotSettingsScreen />));
+    await editField("Personality", "\n".repeat(BOT_INSTRUCTIONS_MAX_LENGTH / 2));
+    const save = () =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent === "Save",
+      )!;
+    expect(save().disabled).toBe(true);
+    expect(container.textContent).toContain(
+      `Instructions and personality must fit within ${BOT_INSTRUCTIONS_MAX_LENGTH} characters.`,
+    );
+    await act(async () => save().click());
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await editField("Personality", "Friendly");
+    expect(save().disabled).toBe(false);
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("retains the personality draft and instruction baseline after a failed save", async () => {
+    mocks.instructions = combinePersonalityInstructions("Review the project", "Friendly");
+    mocks.rpc.mockRejectedValueOnce(new Error("Could not save bot"));
+    await act(async () => root.render(<BotSettingsScreen />));
+    await editField("Personality", "Patient");
+    await clickButton("Save");
+    expect(container.textContent).toContain("Could not save bot");
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("Patient");
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.rpc.mock.calls[1]).toEqual(mocks.rpc.mock.calls[0]);
+    expect(mocks.back).toHaveBeenCalledOnce();
+  });
+
+  it("allows an encoded instruction payload exactly at the contract limit", async () => {
+    const personality = "Friendly";
+    mocks.instructions = "D".repeat(
+      BOT_INSTRUCTIONS_MAX_LENGTH - combinePersonalityInstructions("", personality).length - 2,
+    );
+    await act(async () => root.render(<BotSettingsScreen />));
+    await editField("Personality", personality);
+    await clickButton("Save");
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    const input = mocks.rpc.mock.calls[0]![1] as { instructions: string };
+    expect(input.instructions).toHaveLength(BOT_INSTRUCTIONS_MAX_LENGTH);
+    expect(splitPersonalityInstructions(input.instructions)).toEqual({
+      duties: mocks.instructions,
+      personality,
+    });
+  });
+
+  it("restores both personality and duties from instruction history", async () => {
+    const restored = combinePersonalityInstructions("Previous duties", "Previous personality");
+    mocks.history = [
+      {
+        id: "v1",
+        instructions: restored,
+        reason: "Manual edit",
+        createdAt: "2026-10-01T00:00:00Z",
+      },
+    ];
+    await render();
+    const history = container.querySelector('[data-menu="Instruction history"]')!;
+    await act(async () => history.querySelector<HTMLButtonElement>("button")!.click());
+    const { rpc } = await import("./api");
+    const current = await rpc("bots/get", { botId: "bot-fixture" });
+    mocks.rpc.mockResolvedValueOnce({ ...current, instructions: restored });
+    await act(async () => mocks.alert.mock.calls.at(-1)![2][1].onPress());
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe("Previous personality");
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Instructions"]')?.value,
+    ).toBe("Previous duties");
+    expect(
+      [...container.querySelectorAll("button")].some((button) => button.textContent === "Save"),
+    ).toBe(false);
+  });
+
+  it("reloads the bot after a failed initial edit-page read", async () => {
+    mocks.loadBot.mockRejectedValueOnce(new Error("Could not load bot"));
+    mocks.instructions = combinePersonalityInstructions("Review the project", "Patient");
+    await act(async () => root.render(<BotSettingsScreen />));
+    expect(container.textContent).toContain("Could not load bot");
+    await clickButton("Try Again");
+    expect(mocks.loadBot).toHaveBeenCalledTimes(2);
+    expect(container.textContent).not.toContain("Could not load bot");
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Personality"]')?.value,
+    ).toBe(splitPersonalityInstructions(mocks.instructions).personality);
+  });
 
   it("defaults daily check-ins on and saves an opt-out", async () => {
     await render();
@@ -773,7 +1314,10 @@ describe("bot settings device voice menu", () => {
     expect(trigger.getAttribute("role")).toBe("button");
     expect(JSON.parse(trigger.dataset.style!)).toMatchObject({ marginTop: 24, minHeight: 44 });
     const headings = [...container.querySelectorAll<HTMLElement>('[role="header"]')];
-    expect(headings.map((heading) => heading.textContent)).toEqual(["Notifications"]);
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Notifications",
+      "Personality",
+    ]);
     expect(trigger.querySelector('[data-ios="chevron.right"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Instructions"]')).toBeNull();
     await expand();

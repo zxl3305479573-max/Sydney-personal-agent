@@ -1,21 +1,21 @@
 {
-  "version": "1.0.38",
-  "releasedOn": "2026-11-26",
+  "version": "1.0.39",
+  "releasedOn": "2026-11-27",
   "notes": {
     "zh-CN": [
-      "灵动岛语音对话新增「文字 + 语音」「仅显示文字」「仅语音播报」三档输出模式，支持在陪伴页偏好与灵动岛展开态一键实时切换。",
-      "选择文字输出时可在灵动岛实时流式显示 Bot 回复内容（展开态 3 行、锁屏 4 行），静音模式不朗读。",
-      "语音播报新增「正在播报」动态波形与「停止播报 / 继续说」控制，并优化扬声器与耳机音频路由。"
+      "Bot 编辑现已覆盖新建时的全部身份选项：名称、人格预设、完整个人人格库、内置头像、相册上传与本机头像库。",
+      "支持独立修改或清空 Bot 人格，保留原有工作指令；个人人格库可配置属性和权重，并新增、编辑、删除及选用人格。",
+      "支持复用及移除本机保存的头像；增加资料加载失败重试、指令长度提示与保存失败后的草稿保留。"
     ],
     "zh-TW": [
-      "動態島語音對話新增「文字 + 語音」「僅顯示文字」「僅語音播報」三檔輸出模式，支援在陪伴頁偏好與動態島展開態一鍵即時切換。",
-      "選擇文字輸出時可在動態島即時串流顯示 Bot 回覆內容（展開態 3 行、鎖屏 4 行），靜音模式不朗讀。",
-      "語音播報新增「正在播報」動態波形與「停止播報 / 繼續說」控制，並最佳化揚聲器與耳機音訊路由。"
+      "Bot 編輯現已涵蓋新增時的全部身分選項：名稱、人格預設、完整個人人格庫、內建頭像、相簿上傳與本機頭像庫。",
+      "支援獨立修改或清空 Bot 人格，保留原有工作指令；個人人格庫可設定屬性和權重，並新增、編輯、刪除及選用人格。",
+      "支援重用及移除本機儲存的頭像；加入資料載入失敗重試、指令長度提示與儲存失敗後的草稿保留。"
     ],
     "en": [
-      "Add three Dynamic Island voice dialogue output modes (Text + Voice, Text only, Voice only) switchable from both the Companion console and directly on the Dynamic Island.",
-      "Stream bot reply text live onto the Dynamic Island (3 lines expanded, 4 lines Lock Screen) with silent text-only mode.",
-      "Add a live Speaking status with Stop Speaking and Continue controls plus improved speaker/headphone audio routing."
+      "Edit every identity option available when creating a bot: name, personality presets, the full personal personality library, built-in avatars, photo uploads, and saved avatars.",
+      "Edit or clear a bot's personality independently of its work instructions, and create, edit, remove, or select library personalities with attributes and weights.",
+      "Reuse or remove locally saved avatars, retry failed profile loads, see instruction length limits, and keep drafts after a failed save."
     ]
   }
 }

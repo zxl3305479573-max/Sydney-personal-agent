@@ -38,6 +38,7 @@ export function PersonalPersonalityLibrary({
   current,
   disabled,
   selectedId,
+  selectedInstructions,
   onSelect,
   onSaved,
   onRemoved,
@@ -46,8 +47,9 @@ export function PersonalPersonalityLibrary({
   current: () => boolean;
   disabled: boolean;
   selectedId?: string;
+  selectedInstructions?: string;
   onSelect: (item: PersonalityPreset) => void;
-  onSaved: (item: PersonalityPreset) => void;
+  onSaved: (item: PersonalityPreset, previous?: PersonalityPreset) => void;
   onRemoved: (id: string) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -188,7 +190,10 @@ export function PersonalPersonalityLibrary({
         return;
       }
       setItems((old) => [saved, ...old.filter((item) => item.id !== saved.id)]);
-      onSaved(saved);
+      onSaved(
+        saved,
+        items.find((item) => item.id === saved.id),
+      );
       resetEditor();
     } catch (cause) {
       if (mounted.current)
@@ -365,7 +370,7 @@ export function PersonalPersonalityLibrary({
         </Text>
       ) : null}
       {items.map((item, index) => {
-        const isSelected = selectedId === item.id;
+        const isSelected = selectedId === item.id || selectedInstructions === item.instructions;
         return (
           <View
             key={item.id}

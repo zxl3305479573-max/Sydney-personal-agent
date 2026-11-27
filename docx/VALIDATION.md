@@ -1,5 +1,21 @@
 # 验证记录
 
+## 手机 Bot 编辑与人格设定（2026-11-27）
+
+关联 PA-021／PA-022。范围为手机 Bot 编辑页、共享人格指令编码与界面文案；本机离线验证，没有连接生产写入或启动服务。
+
+- 基线：现有 `bot-settings-voice.test.tsx` 与 `bot-profile.test.tsx` 共 124 项通过，未复现用户反馈的具体编辑报错，尚待错误文字及进入编辑／点击保存的触发步骤。
+- 改动验证：新增 13 项人格与加载回归，覆盖原有人格回显、旧指令无损、普通／项目 Bot 分路保存、人格和工作指令互不覆盖、预设后二次编辑、两种清除方式、JSON 转义后的合并长度、20,000 字符精确上限、失败后保留草稿并重试、指令历史同时恢复两部分以及首次加载失败后重试。
+- 首轮回归：历史恢复用例使用了仅含 `id`／`instructions` 的不完整 Bot 替身，导致其他字段被视为变化、保存按钮残留；修正测试返回值以匹配真实完整资料响应后通过，未把此夹具问题当作生产根因。
+- 终轮定向 Vitest：8 文件、169／169 项通过，使用 `--maxWorkers=1`。文件为移动端 `bot-settings-voice`、`bot-profile`、`bot-context-cards`、`i18n`、`screen-theme-coverage`、`scroll-hygiene`，以及共享契约 `bot-personality`、`bot-settings-layout`。
+- 增量 Biome：9 个改动 TS／TSX 文件通过，零错误、零警告；Impeccable 对改动界面的机械检测无发现。机械检测及 jsdom 回归均不替代原生界面视觉验收。
+- 类型与差异检查：移动端包 `tsc --noEmit -p apps/mobile/tsconfig.json` 通过，`git diff --check` 通过。
+- 运行时：使用本机已有 Node `24.22.3` 执行检查，未绕过项目引擎约束、安装依赖或修改运行环境配置。
+- 用户追加「编辑包括新建 Bot 的所有内容」后，新增 11 项交互回归，直接运行完整人格库组件，验证新增属性／明显权重、匹配条目回显与编辑、删除不修改 Bot、库保存期间阻止 Bot 提交、普通／项目 Bot 选用人格与已保存头像、上传并入库、入库失败后继续使用照片、移除本机头像不修改所选头像及工作区切换期间丢弃照片结果。首轮新导入会话模块缺少原生缓存测试替身导致导入失败，改用 `currentSessionGeneration` 替身后通过；模型选择测试补齐新增的头像库与空间切换接口替身。
+- 追加范围终轮：10 文件、245／245 项通过（上列 8 文件，加 `chat-model-picker.test.tsx` 与 `mobile-ui-sheets.test.tsx`），移动端 `tsc --noEmit -p apps/mobile/tsconfig.json` 通过；11 个改动 TS／TSX 文件 Biome 检查无错误／警告，最终 `git diff --check` 通过，Impeccable 改动界面机械检测无发现。真机视觉、键盘与菜单操作未执行。
+- `1.0.39` 发布准备：递增 JS 版本与三语说明后，追加 `app-version.test.ts` 与 `app-config.test.ts` 两文件 40／40 项通过，发布 JSON 的 Biome 检查及 `git diff --check` 通过；原生版本与 runtime 未更改。
+- 未执行／未完成：原始报错的真机复现与根因确认、iPhone 真实界面／键盘／预设菜单及保存后重新进入验收。用户随后授权提交、推送及 OTA，`1.0.39` 发布阶段已开始，工作流和线上资源验证结果待补录。
+
 ## 灵动岛语音对话支持直接显示输出文字与语音播报模式切换（2026-11-26）
 
 关联 PA-021。
@@ -13,9 +29,13 @@
   - **定向与守卫 Vitest（`--maxWorkers=1`，17 个文件、159 / 159 项全部通过）**：`companion-session.test.ts`（7）、`companion-console.test.tsx`（1）、`companion-activity.test.ts`（13）、`companion-plugin.test.ts`（2）、`companion-presentation.test.ts`（5）、`companion-avatar.test.ts`（3）、`companion-floating-bar.test.tsx`（2）、`companion-thread-watch.test.tsx`（11）、`home-companion-card.test.tsx`（2）、`home-hub.test.tsx`（7）、`bot-profile.test.tsx`（74）、`companion-capture-screen.test.tsx`（2）、`mobile-bridge.test.tsx`（3）、`call-live-activity.test.ts`（4）、`screen-theme-coverage.test.ts`（6）、`scroll-hygiene.test.ts`（1）、`i18n.test.ts`（16）。
   - **Swift 6 / iOS 16.4 静态核查**：复核 5 个 Swift 文件补丁，确认 `ActivityKit` `activity.content`（iOS 16.2+）、`LiveActivityIntent`（`@available(iOS 17.0, *)`）、`AudioRecordingIntent`（`@available(iOS 18.0, *)`）、`#if !SYDNEY_COMPANION_WIDGET` 扩展隔离、`@unchecked Sendable` + `NSLock` 的 `CompanionVoiceBridge` 并发安全性与 `CompanionActivityAttributes.ContentState` 向后兼容默认参数。
   - **空白与补丁检查**（`git diff --check`）：**0 警告**。
-- **未执行项（待编译出包与真机验收）**：
-  - macOS `xcode-27` 编译新版无签名侧载 IPA（`mobile-ios-sideload.yml`）；
-  - iPhone 真机经 `Sideloadly` 重签后实测三种输出模式（`文字+语音` / `仅文字` / `仅语音`）：展开态一键切换模式、流式文字直接显示在灵动岛、静音仅显示文字、`正在播报` 态扬声器响亮播报及「停止播报 / 继续说」打断体验。
+- **云端 CI、编译修复与 `1.0.19`（build `8`）无签名侧载 IPA 实证（全部通过）**：
+  - 提交 `5e66772790392a837c6005944b73a14c05ea9632`（递增 `app.json` 至 `1.0.19` build `8` 与 `sydney-release.json` 至 `1.0.38`，补充 `app-version.test.ts` 6 项与 `app-config.test.ts` 34 项全绿）：`CI` [Run 45843485814](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45843485814) 全绿（含 `deploy-production` Job `139993704157`）；首轮 `mobile-ios-sideload.yml` Run `45843485855` 在 `CompanionWidget.swift:303/306/309` 暴露 `@ViewBuilder` 方法内 `switch` 赋值局部变量报错 `type '()' cannot conform to 'View'`；
+  - 抽取纯辅助函数 `voiceModeDisplay()` 并在 `companion-plugin.test.ts` 新增回归断言（Biome 0 错误、`companion-plugin.test.ts` 2 / 2 通过）后提交推送 `52ee881f781b8f0b2aeffba8bea8e79ff4789d0e` 至双分支；
+  - **`CI`** [Run 45846875465](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846875465)：**`completed / success`**；线上 `GET https://pc.zxlup.xin/health`（`{"ok":true}`）与 `/ready`（`{"ok":true,"degraded":false}`）均 HTTP `200`。
+  - **`iOS unsigned sideload build`（`mobile-ios-sideload.yml`）** [Run 45846874969](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846874969)（`xcode-27` / iOS 27.1 SDK，Job `140002731851`）：**`completed / success`**（`2026-11-26T15:13:17Z`–`15:32:43Z`），产物 [sydney-ios-unsigned-45846874969-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846874969/artifacts/15134095934)（Artifact ID `15134095934`，`27,638,852` 字节，zip SHA-256 `544c748df7e7ef5f5948a38854d1a8904ba1f8aa1ae23ee9ffed186cce12b13b`）；本机下载解压至 `D:\33054\sydney-ipa-output\Sydney-1.0.19-8-unsigned.ipa`（`27,874,140` 字节，SHA-256 `68fa761019d52c5896f87762049900f75ab7c2ad42ff97775e333dfab535f5c5`，与压缩包内 `SHA256.txt` 完全匹配）。
+- **未执行项（待真机验收）**：
+  - iPhone 真机经 `Sideloadly` 覆盖重签 `1.0.19`（build `8`）IPA 后实测三种输出模式（`文字+语音` / `仅文字` / `仅语音`）：展开态一键切换模式、流式文字直接显示在灵动岛、静音仅显示文字、`正在播报` 态扬声器／耳机清晰播报及「停止播报 / 继续说」打断体验。
 
 ## iPhone 1.0.37 侧载 OTA 发布与生产后端 `personalFinance/parseDraft` 上线（2026-11-26）
 

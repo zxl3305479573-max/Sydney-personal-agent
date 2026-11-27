@@ -1,4 +1,30 @@
 export const NL_MESSAGES: Record<string, string> = {
+  "Personal personality library": "Eigen persoonlijkheidsbibliotheek",
+  "Saved avatars": "Opgeslagen avatars",
+  "Select saved avatar": "Opgeslagen avatar kiezen",
+  "Remove saved avatar": "Opgeslagen avatar verwijderen",
+  "Remove this device avatar?": "Deze avatar van het apparaat verwijderen?",
+  "Existing bot avatars will not change.": "Avatars van bestaande bots blijven ongewijzigd.",
+  "Could not load the device avatar library": "De avatarbibliotheek kon niet worden geladen",
+  "Could not remove the device avatar": "De avatar kon niet worden verwijderd",
+  "The photo can be used now but could not be saved to the device library.":
+    "De foto kan worden gebruikt, maar kon niet worden opgeslagen in de apparaatbibliotheek.",
+  "The workspace changed. Close and reopen.":
+    "De werkruimte is gewijzigd. Sluit deze weergave en open deze opnieuw.",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "Geüploade avatars worden op dit apparaat opgeslagen, zijn beschikbaar voor de accounts erop en worden niet automatisch gesynchroniseerd.",
+  Personality: "Persoonlijkheid",
+  "Personality preset": "Persoonlijkheidsprofiel",
+  Balanced: "Evenwichtig",
+  Professional: "Professioneel",
+  Friendly: "Vriendelijk",
+  Concise: "Beknopt",
+  Creative: "Creatief",
+  Teacher: "Leraar",
+  "Describe this bot's personality and speaking style.":
+    "Beschrijf de persoonlijkheid en spreekstijl van deze bot.",
+  "Instructions and personality must fit within {max} characters.":
+    "Instructies en persoonlijkheid mogen samen maximaal {max} tekens bevatten.",
   Avatar: "Avatar",
   "Account deleted": "Account verwijderd",
   "Could not confirm account deletion. Check your account before trying again.":

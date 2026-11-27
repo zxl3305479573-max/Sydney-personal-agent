@@ -1,4 +1,28 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
+  "Personal personality library": "個人人格庫",
+  "Saved avatars": "本機頭像庫",
+  "Select saved avatar": "選擇已儲存頭像",
+  "Remove saved avatar": "移除已儲存頭像",
+  "Remove this device avatar?": "移除本機頭像？",
+  "Existing bot avatars will not change.": "現有 Bot 的頭像不會改變。",
+  "Could not load the device avatar library": "無法讀取本機頭像庫",
+  "Could not remove the device avatar": "無法移除本機頭像",
+  "The photo can be used now but could not be saved to the device library.":
+    "頭像可用於本次編輯，但未儲存到本機頭像庫。",
+  "The workspace changed. Close and reopen.": "工作區已改變，請關閉後重新開啟。",
+  "Uploaded avatars are saved on this device, available to its accounts, and do not sync automatically.":
+    "上傳的頭像儲存在此裝置，裝置上的帳號皆可使用，不會自動同步。",
+  Personality: "人格設定",
+  "Personality preset": "人格預設",
+  Balanced: "均衡",
+  Professional: "專業",
+  Friendly: "友善",
+  Concise: "簡潔",
+  Creative: "創意",
+  Teacher: "老師",
+  "Describe this bot's personality and speaking style.": "描述 Bot 的性格和說話風格。",
+  "Instructions and personality must fit within {max} characters.":
+    "工作指令與人格設定合計不能超過 {max} 個字元，請縮短後儲存。",
   Avatar: "頭像",
   "Server settings or the saved session could not be verified.":
     "無法驗證伺服器設定或已儲存的登入狀態。",

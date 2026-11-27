@@ -1,5 +1,25 @@
 # 运维手册
 
+## 手机 Bot 编辑与人格设定 `1.0.39` OTA（2026-11-27）
+
+- 本轮仅修改手机 JS／TS 源码与多语言文案，沿用已有 `bots/get`／`bots/update`、项目 Bot 对应接口和 `personalities/list`／`create`／`update`／`remove`；没有新增环境变量、数据路径、迁移、原生模块或权限。
+- 用户入口为「Bot 资料页 → 编辑 → 人格设定」，工作指令留在「高级」。保存人格继续使用现有指令字段及版本历史；不要把独立编辑区域解释为新增数据库字段。资料加载失败时可在原页重试，保存失败保留人格草稿。
+- 编辑页现已包含新建时的名称、六种人格预设、完整个人人格库、内置头像、相册上传及本机头像库。人格库操作即时保存到既有后台，当前 Bot 的人格／头像草稿仍需点击编辑页「保存」；名称按既有行为在确认后即时保存。
+- 相册图片沿用 `Paths.document/sydney-bot-avatars` 本机目录、现有头像格式与 40 项容量限制；本机头像库为设备共用且不自动同步。上传时本机库保存失败仍可将该图片用于当前 Bot，界面显示提示。移除本机库头像不会清除 Bot 已保存或本次已选的图片。
+- 编码后的工作指令与人格合计不能超过 20,000 字符；换行及引号的 JSON 转义会占用长度，超限需缩短内容后保存。
+- 用户已授权提交、推送及 OTA。发布候选为 JS `1.0.39`，沿用 `mobile-ios-update.yml`、iOS `sideload` 通道及 `sydney-ios-ip-1` runtime；原生底座保持 `1.0.19` build `8`，无需为本批代码单独重签 IPA。当前准备提交，工作流及线上清单／全资源核验结果待补录；真机兼容性仍需验收，不能由离线检查替代。
+- 原始「编辑 Bot 报错」尚无错误文字／触发步骤，未定位根因。真机验收需区分进入编辑失败、资料读取失败和保存失败，再核对普通／项目 Bot 的预设、自由编辑、清除、离页重进回显与历史恢复。
+
+## iPhone `1.0.19`（build `8`）无签名侧载 IPA（2026-11-26）
+
+- **构建与产物（已出包、下载并校验）**：提交 `5e6677279`＋`52ee881f7` 经 `.github/workflows/mobile-ios-sideload.yml` [Run 45846874969](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846874969)（`xcode-27` / iOS 27.1 SDK，Job `140002731851`）于 `2026-11-26T15:32:43Z` 编译打包通过（关联 `CI` [Run 45843485814](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45843485814) 与 [Run 45846875465](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846875465) 均全绿，线上 `/health` 与 `/ready` HTTP `200`）。
+  - 云端产物：[sydney-ios-unsigned-45846874969-1](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45846874969/artifacts/15134095934)（Artifact ID `15134095934`，`27,638,852` 字节，zip SHA-256 `544c748df7e7ef5f5948a38854d1a8904ba1f8aa1ae23ee9ffed186cce12b13b`）；
+  - 本机已验证 IPA：`D:\33054\sydney-ipa-output\Sydney-1.0.19-8-unsigned.ipa`（`27,874,140` 字节，SHA-256 `68fa761019d52c5896f87762049900f75ab7c2ad42ff97775e333dfab535f5c5`，与 `SHA256.txt` 一致）。
+- **原生变更与安装方式**：
+  - 灵动岛语音对话新增「文字 + 语音」「仅显示文字」「仅语音播报」三档输出模式（陪伴页偏好与灵动岛展开态右上胶囊实时双向同步）、SSE 实时流式输出文字到灵动岛（展开态 3 行／锁屏 4 行）、`正在播报` 动态扬声器状态与「停止播报 / 继续说」交互按钮，并优化扬声器／耳机路由及前台防双声道重复播报；保留 `1.0.18` 的清晰 sRGB 头像与收缩态常态右侧仅留头像。
+  - Bundle ID 保持 `xin.zxlup.sydney`，内置 `1.0.38` JS 发布说明与 `sideload`（`sydney-ios-ip-1`）OTA 通道；使用 **Sideloadly** 直接拖入 `D:\33054\sydney-ipa-output\Sydney-1.0.19-8-unsigned.ipa` 覆盖签名安装即可（不卸载、不清数据）。
+- **回退**：如需回退原生底座，可重新侧载 `1.0.18`（build `7`）IPA（`D:\33054\sydney-ipa-output\Sydney-1.0.18-7-unsigned.ipa`，Artifact `15126070242`）。真机实测待设备验收。
+
 ## iPhone `1.0.18`（build `7`）无签名侧载 IPA（2026-11-26）
 
 - **构建与产物（已出包并验证）**：提交 `cd413addc6262e96133ffbfc2efc90c3718b9e62` 经 `.github/workflows/mobile-ios-sideload.yml` [Run 45832850729](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832850729)（`xcode-27` / iOS 27.1 SDK，Job `139953851282`）于 `2026-11-26T14:10:23Z` 一次编译打包通过（关联 `CI` [Run 45832851798](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45832851798) 全绿，线上 `/health` 与 `/ready` HTTP `200`）。
