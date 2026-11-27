@@ -8,7 +8,9 @@
 - 根因：`default-bot-avatar.native.ts` 的 `export ... from "./default-bot-avatar"` 经 Metro 平台优先规则解析到自身，Babel 实时导出的 getter 反复读取自身。编辑页初始 `useState(DEFAULT_BOT_AVATAR_DATA_URI)` 触发；头像展示读取的是该文件独立定义的高清资源，故其他页面展示头像不构成排除证据。
 - 新增 `default-bot-avatar.test.ts` 使用现有 Expo 依赖中的实际 Metro 解析器与 Babel TypeScript／CommonJS 转换，在隔离 VM 内保留模块缓存后读取导出。旧代码 iOS／Android 两项均复现递归 getter 的 `RangeError`，Web 一项通过。首次运行因 pnpm 符号链接的 `createRequire` 基准路径失败，改用实际路径后取得上述有效复现。
 - 修复：共享数据移到 `default-bot-avatar-data.ts`，原生和通用入口引用唯一数据源，原生仍使用已打包高清 WebP。修复后三平台回归通过，相关 10 文件 226 项全部通过（原生导出、Bot 编辑／资料／头像渲染、通知／陪伴头像、群组席位、版本／发布配置）；移动端 `tsc --noEmit` 通过。5 文件 Biome 首轮仅发现共享数据尾部多空行，修正后终轮通过，`git diff --check` 通过。
-- 本机仅执行离线轻量校验，未运行服务、安装依赖或进行全工作区构建。准备提交推送与 `1.0.41` OTA；真实 iPhone 打开编辑、人格修改及保存尚未验收。
+- 发布证据：源码提交 `7248b3a6431a459586089fecb96f9b488cba4b0b` 已推送集成分支；[Run 45936755243](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45936755243)／Job `140301617274` 成功，更新组 `ac07b59a-cf55-4525-b5b5-9447916b3c17`，iOS 更新 ID `01a21b24-9026-7595-9f2b-705694ad3cee`，创建于 `2026-11-27T03:55:10.758Z`。
+- 从现有 `1.0.19` build `8` IPA 的实际 Expo 配置请求线上清单，HTTP `200`、版本 `1.0.41` 和三语说明匹配；启动包 `11,416,860` 字节，SHA-256 `2f8324e88654febf9bf265b542caeec24d9915a16d71411aea5a3708e4037dab`，启动包与全部 `62 / 62` 静态资源 HTTP `200` 且摘要匹配，运行时与 Hermes 头匹配。
+- 本机仅执行离线轻量校验，未运行服务、安装依赖或进行全工作区构建。未合并 `main` 或部署后端；真实 iPhone 打开编辑、人格修改及保存尚未验收。
 
 ## Bot 编辑入口全屏重试排查与诊断（2026-11-27）
 
