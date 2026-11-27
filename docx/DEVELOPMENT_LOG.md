@@ -1,7 +1,8 @@
 # 开发过程记录
 
-## 手机聊天界面左上角账户头像修复（PA-021，2026-11-27）
+## 手机聊天界面左上角账户头像修复（PA-021／REL-01，2026-11-28）
 
+- 实际交付：源码 `ec4e46bf4` 已推送集成分支，[Run 46030878919](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46030878919)／Job `140614052278` 成功发布 `1.0.47`。更新组 `792c7afe-1de6-4c3b-bc50-74111137a3e0`，iOS 更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`，北京时间 `2026-11-28 00:09:33` 创建。现有 `1.0.19` IPA 配置在线取得的版本、三语说明与 runtime 一致；启动包 `11,544,788` 字节、SHA-256 `8249d44cbfb6efb31fa8ac9f4259fac0371ac595ad619d2703b68d4ee8cbc4f1`，全部 `62 / 62` 项静态资源摘要匹配。补录发布文档后再次提交推送；iPhone 真机视觉与设置返回即时刷新未执行。以下保留实施过程。
 - 用户截图显示手机聊天列表左上角圆形账户按钮只展示首字母，而打开设置页后账户行能正常显示已设置的个人照片。核对源码确认底部标签栏与分栏模式下的聊天页均走非原生 `InboxHeader`，该组件仅接收 `initials` 并固定渲染首字母文字，未读取或渲染账户头像。
 - 在 `apps/mobile/components/account-avatar.tsx` 抽出共享 `localAccountAvatarUri()` 校验函数，在 `apps/mobile/components/inbox-header.tsx` 增加可选 `avatar` 属性：有合法本地头像时于左上角 `HeaderButton` 内渲染 40pt 圆形 `AccountAvatar`（保留外层 `circleButton` 圆环边框与按压动效），未设置或非本地链接时继续显示原有 `profileInitials` 首字母。
 - 在 `apps/mobile/lib/account-avatar.ts` 增加 `captureAccountMeSnapshot()`、`syncAccountMeCache()` 与 `useCachedAccountMe()`，并在 `apps/mobile/components/inbox-screens.tsx` 的首页与聊天页加载链路中同步更新 `accountRpcQuery("me")` 缓存、接入 `useAccountAvatar`。通过请求前后缓存引用对比，确保在设置页刚保存新头像后聊天页立即刷新且不被在途旧轮询覆盖，同时兼容旧后台 `me` 省略 `image` 时的会话回退拉取。

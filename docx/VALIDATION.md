@@ -1,8 +1,10 @@
 # 验证记录
 
-## 手机聊天界面左上角账户头像修复（2026-11-27）
+## 手机聊天界面左上角账户头像修复与 1.0.47（2026-11-28）
 
-- 关联 PA-021。新增与扩展定向回归覆盖：聊天顶栏有合法本地头像时渲染照片并保留点击跳转 `/settings-home`；未设置、`null` 或非本地 URL 时回退显示首字母；`me` 含 `image` 时零额外请求直接渲染；旧后台省略 `image` 时回退调用 `fetchAccountAvatar(userId)`；设置页更新 `accountRpcQuery("me")` 后聊天顶栏立即更新且忽略修改前发出的在途旧轮询，随后新轮询可同步其他设备的变更。
+- 发布完成：源码 `ec4e46bf48738040eca5d908b5b20c84baeb91ff` 已推送 `cursor/integrate-remote-branches-7334`；[Run 46030878919](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46030878919)／Job `140614052278` 为 `completed / success`，北京时间 `2026-11-28 00:07:22`–`00:09:36`。更新组 `792c7afe-1de6-4c3b-bc50-74111137a3e0`，iOS 更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`，`createdAt: 2026-11-27T16:09:33.239Z`，日志发布 Commit 与源码一致。
+- 使用现有 `1.0.19` build `8` IPA 的 Expo 配置在线核验：清单 HTTP `200`，runtime `sydney-ios-ip-1`，`1.0.47`（`2026-11-28`）及三语说明与源码完全一致，时间晚于内嵌更新（`47b66fc9-75e9-413b-beef-566ba719d9ce`）。启动包 HTTP `200`、`11,544,788` 字节、SHA-256 `8249d44cbfb6efb31fa8ac9f4259fac0371ac595ad619d2703b68d4ee8cbc4f1`，Hermes 头匹配；`62 / 62` 项静态资源 HTTP `200` 且 SHA-256 摘要全部匹配。未进行 iPhone 真机视觉与设置返回实测，以下为发布前离线验证记录。
+- 关联 PA-021／REL-01。新增与扩展定向回归覆盖：聊天顶栏有合法本地头像时渲染照片并保留点击跳转 `/settings-home`；未设置、`null` 或非本地 URL 时回退显示首字母；`me` 含 `image` 时零额外请求直接渲染；旧后台省略 `image` 时回退调用 `fetchAccountAvatar(userId)`；设置页更新 `accountRpcQuery("me")` 后聊天顶栏立即更新且忽略修改前发出的在途旧轮询，随后新轮询可同步其他设备的变更。
 - `pnpm.cmd exec vitest run apps/mobile/lib/account-avatar.test.tsx apps/mobile/lib/artifacts-navigation.test.tsx apps/mobile/lib/account-screen.test.tsx apps/mobile/lib/home-route.test.tsx apps/mobile/lib/home-styles.test.ts apps/mobile/lib/inbox-render.test.tsx --maxWorkers=1`：6 文件 69／69 项通过（首轮新增测试因未等待 TanStack Query 通知刷新导致 1 项断言失败并触发 act 警告，补齐通知刷新后复验全绿且无警告）。
 - `pnpm.cmd --filter @rakazo/mobile check` 通过（`tsc --noEmit -p tsconfig.json` 0 错误）。
 - `pnpm.cmd exec biome check` 检查本轮 6 个改动／新增 TS／TSX 文件：初轮报新建测试按钮缺少 `type="button"`，修正后终轮 0 错误；`sydney-release.json` 更新至 `1.0.47` 后，`app-version.test.ts` 与 `app-config.test.ts` 2 文件 40／40 项（累计 8 文件 109／109 项）及 Biome 全部通过，`git diff --check` 通过。未安装依赖、未执行全工作区构建或启动本机服务；准备提交推送并发布 `1.0.47` OTA，iPhone 真机视觉与设置返回实测待设备验收。
