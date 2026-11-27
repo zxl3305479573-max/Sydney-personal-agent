@@ -21,6 +21,7 @@ import { cardGradient } from "../lib/card-gradient";
 import { promptForAvailableUpdate, useClientUpdateState } from "../lib/client-update";
 import { componentSurfaceColor } from "../lib/component-opacity";
 import { conversationStatusLabel, isConversationActiveStatus } from "../lib/conversation-status";
+import { resolveMobileFeatureAccess } from "../lib/feature-access";
 import type { HomeWeatherSnapshot } from "../lib/home-weather";
 import {
   homeWeatherLabel,
@@ -59,7 +60,13 @@ const STARLIGHT_DOTS = [
 ] as const;
 
 export type HomeHubProps = {
-  me: (Pick<MobileMe, "userId" | "spaceId" | "name"> & { email?: MobileMe["email"] }) | null;
+  me:
+    | (Pick<MobileMe, "userId" | "spaceId" | "name"> & {
+        email?: MobileMe["email"];
+        isAdmin?: MobileMe["isAdmin"];
+        featureAccess?: MobileMe["featureAccess"];
+      })
+    | null;
   spaceName?: string | null;
   bots: readonly (MobileBot | SpaceBot)[];
   groups: readonly InboxGroup[];
@@ -180,6 +187,7 @@ export function HomeHub({
   const { componentOpacity } = useAppBackground();
   const appearance = useResolvedAppearance();
   const { locale, t } = useI18n();
+  const features = resolveMobileFeatureAccess(me);
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
   const copy = (zhHans: string, zhHant: string, en: string) =>
@@ -721,211 +729,217 @@ export function HomeHub({
       {/* 2-Column Bento Feature Grid */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
         {/* Tile 1: GitHub */}
-        <MotionPressable
-          preset="card"
-          testID="home-hub-github-tile"
-          accessibilityRole="button"
-          accessibilityLabel="GitHub"
-          onPress={() => router.push("/github")}
-          style={[
-            cardSurface("sage"),
-            {
-              flexBasis: "47%",
-              flexGrow: 1,
-              minWidth: 148,
-              minHeight: 170,
-              padding: 18,
-              overflow: "hidden",
-              justifyContent: "space-between",
-            },
-          ]}
-        >
-          <View>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
+        {features.github ? (
+          <MotionPressable
+            preset="card"
+            testID="home-hub-github-tile"
+            accessibilityRole="button"
+            accessibilityLabel="GitHub"
+            onPress={() => router.push("/github")}
+            style={[
+              cardSurface("sage"),
+              {
+                flexBasis: "47%",
+                flexGrow: 1,
+                minWidth: 148,
+                minHeight: 170,
+                padding: 18,
+                overflow: "hidden",
                 justifyContent: "space-between",
-                gap: 6,
-              }}
-            >
-              <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
-                GitHub
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={{ color: tokens.mutedForeground, fontSize: 12, flexShrink: 1 }}
-              >
-                {githubConnected && githubLogin ? `@${githubLogin}` : copy("仓库", "倉庫", "Repos")}
-              </Text>
-            </View>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
-                gap: 5,
-                marginTop: 8,
-              }}
-            >
-              <Text
-                style={{
-                  color: tokens.foreground,
-                  fontSize: githubRepoCount !== null ? 30 : 22,
-                  lineHeight: githubRepoCount !== null ? 34 : 28,
-                  fontWeight: "700",
-                  fontVariant: ["tabular-nums"],
-                }}
-              >
-                {githubRepoCount !== null
-                  ? githubRepoCount
-                  : githubConnected
-                    ? copy("已连接", "已連接", "Connected")
-                    : copy("未连接", "未連接", "Connect")}
-              </Text>
-              {githubRepoCount !== null ? (
-                <Text style={{ color: tokens.mutedForeground, fontSize: 12.5 }}>
-                  {copy("仓库", "倉庫", "repos")}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-
-          <View
-            pointerEvents="none"
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-end",
-              justifyContent: "space-between",
-              gap: 5,
-              marginTop: 14,
-            }}
+              },
+            ]}
           >
-            {WEEKDAY_INITIALS.map((dayInitial, index) => {
-              const weight = barWeights[index] ?? 0.3;
-              const barHeight = Math.round(10 + weight * 24);
-              const emphasized = index === 2 || weight >= 0.65;
-              return (
-                <View key={index} style={{ flex: 1, alignItems: "center", gap: 4 }}>
-                  <View
-                    style={{
-                      width: "100%",
-                      maxWidth: 16,
-                      height: barHeight,
-                      borderRadius: 5,
-                      backgroundColor: emphasized ? barActiveFill : barMutedFill,
-                      opacity: emphasized ? 0.85 : 0.55,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      color: tokens.mutedForeground,
-                      fontSize: 10,
-                      lineHeight: 12,
-                    }}
-                  >
-                    {dayInitial}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </MotionPressable>
-
-        {/* Tile 2: Connect Apps */}
-        <MotionPressable
-          preset="card"
-          testID="home-hub-integrations-tile"
-          accessibilityRole="button"
-          accessibilityLabel={copy("连接应用", "連接應用", "Connect Apps")}
-          onPress={() => router.push("/integrations")}
-          style={[
-            cardSurface("rose"),
-            {
-              flexBasis: "47%",
-              flexGrow: 1,
-              minWidth: 148,
-              minHeight: 170,
-              padding: 18,
-              overflow: "hidden",
-              justifyContent: "space-between",
-            },
-          ]}
-        >
-          <View>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                gap: 6,
-              }}
-            >
-              <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
-                {copy("连接应用", "連接應用", "Connect Apps")}
-              </Text>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
-                {copy("MCP & 插件", "MCP & 插件", "MCP")}
-              </Text>
-            </View>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
-                gap: 5,
-                marginTop: 8,
-              }}
-            >
-              <Text
+            <View>
+              <View
                 style={{
-                  color: tokens.foreground,
-                  fontSize: connectedAppsCount !== null ? 30 : 22,
-                  lineHeight: connectedAppsCount !== null ? 34 : 28,
-                  fontWeight: "700",
-                  fontVariant: ["tabular-nums"],
+                  flexDirection: "row",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 6,
                 }}
               >
-                {connectedAppsCount !== null
-                  ? connectedAppsCount
-                  : copy("应用中心", "應用中心", "Catalog")}
-              </Text>
-              {connectedAppsCount !== null ? (
-                <Text style={{ color: tokens.mutedForeground, fontSize: 12.5 }}>
-                  {copy("已连接", "已連接", "linked")}
+                <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
+                  GitHub
                 </Text>
-              ) : null}
+                <Text
+                  numberOfLines={1}
+                  style={{ color: tokens.mutedForeground, fontSize: 12, flexShrink: 1 }}
+                >
+                  {githubConnected && githubLogin
+                    ? `@${githubLogin}`
+                    : copy("仓库", "倉庫", "Repos")}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "baseline",
+                  gap: 5,
+                  marginTop: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: tokens.foreground,
+                    fontSize: githubRepoCount !== null ? 30 : 22,
+                    lineHeight: githubRepoCount !== null ? 34 : 28,
+                    fontWeight: "700",
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {githubRepoCount !== null
+                    ? githubRepoCount
+                    : githubConnected
+                      ? copy("已连接", "已連接", "Connected")
+                      : copy("未连接", "未連接", "Connect")}
+                </Text>
+                {githubRepoCount !== null ? (
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 12.5 }}>
+                    {copy("仓库", "倉庫", "repos")}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
 
-          <View pointerEvents="none" style={{ gap: 8, marginTop: 14 }}>
             <View
+              pointerEvents="none"
               style={{
                 flexDirection: "row",
                 alignItems: "flex-end",
-                gap: 4,
-                height: 24,
+                justifyContent: "space-between",
+                gap: 5,
+                marginTop: 14,
               }}
             >
-              {RHYTHM_HEIGHTS.map((height, index) => (
-                <View
-                  key={index}
-                  style={{
-                    flex: 1,
-                    height,
-                    borderRadius: 2,
-                    backgroundColor: rhythmFill,
-                    opacity: index % 3 === 0 ? 0.68 : 0.34,
-                  }}
-                />
-              ))}
+              {WEEKDAY_INITIALS.map((dayInitial, index) => {
+                const weight = barWeights[index] ?? 0.3;
+                const barHeight = Math.round(10 + weight * 24);
+                const emphasized = index === 2 || weight >= 0.65;
+                return (
+                  <View key={index} style={{ flex: 1, alignItems: "center", gap: 4 }}>
+                    <View
+                      style={{
+                        width: "100%",
+                        maxWidth: 16,
+                        height: barHeight,
+                        borderRadius: 5,
+                        backgroundColor: emphasized ? barActiveFill : barMutedFill,
+                        opacity: emphasized ? 0.85 : 0.55,
+                      }}
+                    />
+                    <Text
+                      style={{
+                        color: tokens.mutedForeground,
+                        fontSize: 10,
+                        lineHeight: 12,
+                      }}
+                    >
+                      {dayInitial}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
-            <Text
-              numberOfLines={1}
-              style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
-            >
-              {copy("管理外部工具与连接器", "管理外部工具與連接器", "Tools & connectors")}
-            </Text>
-          </View>
-        </MotionPressable>
+          </MotionPressable>
+        ) : null}
+
+        {/* Tile 2: Connect Apps */}
+        {features.integrations ? (
+          <MotionPressable
+            preset="card"
+            testID="home-hub-integrations-tile"
+            accessibilityRole="button"
+            accessibilityLabel={copy("连接应用", "連接應用", "Connect Apps")}
+            onPress={() => router.push("/integrations")}
+            style={[
+              cardSurface("rose"),
+              {
+                flexBasis: "47%",
+                flexGrow: 1,
+                minWidth: 148,
+                minHeight: 170,
+                padding: 18,
+                overflow: "hidden",
+                justifyContent: "space-between",
+              },
+            ]}
+          >
+            <View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <Text style={{ color: tokens.foreground, fontSize: 16, fontWeight: "600" }}>
+                  {copy("连接应用", "連接應用", "Connect Apps")}
+                </Text>
+                <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
+                  {copy("MCP & 插件", "MCP & 插件", "MCP")}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "baseline",
+                  gap: 5,
+                  marginTop: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: tokens.foreground,
+                    fontSize: connectedAppsCount !== null ? 30 : 22,
+                    lineHeight: connectedAppsCount !== null ? 34 : 28,
+                    fontWeight: "700",
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {connectedAppsCount !== null
+                    ? connectedAppsCount
+                    : copy("应用中心", "應用中心", "Catalog")}
+                </Text>
+                {connectedAppsCount !== null ? (
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 12.5 }}>
+                    {copy("已连接", "已連接", "linked")}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+
+            <View pointerEvents="none" style={{ gap: 8, marginTop: 14 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                  gap: 4,
+                  height: 24,
+                }}
+              >
+                {RHYTHM_HEIGHTS.map((height, index) => (
+                  <View
+                    key={index}
+                    style={{
+                      flex: 1,
+                      height,
+                      borderRadius: 2,
+                      backgroundColor: rhythmFill,
+                      opacity: index % 3 === 0 ? 0.68 : 0.34,
+                    }}
+                  />
+                ))}
+              </View>
+              <Text
+                numberOfLines={1}
+                style={{ color: tokens.mutedForeground, fontSize: 12, lineHeight: 16 }}
+              >
+                {copy("管理外部工具与连接器", "管理外部工具與連接器", "Tools & connectors")}
+              </Text>
+            </View>
+          </MotionPressable>
+        ) : null}
 
         {/* Tile 3: Routines & Skills */}
         <View

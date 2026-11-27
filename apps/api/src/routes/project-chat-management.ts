@@ -7,7 +7,8 @@ import type { RouterContext } from "./context.js";
 import { threadsRoutes } from "./threads.js";
 
 export function projectChatManagementRoutes(routerContext: RouterContext) {
-  const { deps, repos, groupRepos, authed } = routerContext;
+  const { deps, repos, groupRepos } = routerContext;
+  const authed = routerContext.projectsAuthed ?? routerContext.authed;
   const procedures = authed.projectWorkspaces;
   const requireEnabled = () => {
     if (!deps.env?.projectConversationCreateExperiment)

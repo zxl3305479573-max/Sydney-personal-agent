@@ -86,6 +86,11 @@ export interface AppEnv {
   /** Verified accounts that review plugin submissions, add stdio MCP servers, and grant access
    * (RAKAZO_ADMIN_EMAILS), lowercased. */
   adminEmails: string[];
+  /**
+   * Optional override for default non-admin feature restriction (SYDNEY_FEATURE_ACCESS_RESTRICTED).
+   * When unset, defaults to true on native-linux deployments with RAKAZO_ADMIN_EMAILS configured.
+   */
+  featureAccessRestricted: boolean | undefined;
   phoneCallsEnabled: boolean;
   phoneCallRingSeconds: number;
   phoneCallCooldownMinutes: number;
@@ -339,6 +344,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     userDevicesEnabled: source.USER_DEVICES_ENABLED !== "false",
     navLinks: parseNavLinks(source.RAKAZO_NAV_LINKS),
     adminEmails: list(source.RAKAZO_ADMIN_EMAILS).map((email) => email.toLowerCase()),
+    featureAccessRestricted:
+      source.SYDNEY_FEATURE_ACCESS_RESTRICTED === "true"
+        ? true
+        : source.SYDNEY_FEATURE_ACCESS_RESTRICTED === "false"
+          ? false
+          : undefined,
     ...phoneCallSettings(source),
     maxUploadSizeBytes: uploadSizeFromEnv(source),
     maxAttachmentsPerMessage: attachmentCountFromEnv(source),

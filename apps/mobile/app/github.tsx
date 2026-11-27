@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { FeatureDisabledView } from "../components/feature-disabled-view";
 import { GlassSurface } from "../components/glass-surface";
 import { MenuPicker } from "../components/menu-picker";
 import { MotionPressable } from "../components/motion-pressable";
@@ -21,6 +22,7 @@ import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
 import { cardGradient } from "../lib/card-gradient";
+import { useFeatureAccess } from "../lib/feature-access";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { usePageScroll, usePageState } from "../lib/page-state";
@@ -36,7 +38,9 @@ function isLightSurface(background?: string): boolean {
 }
 
 export default function GithubScreen() {
+  const { github } = useFeatureAccess();
   const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
+  if (!github) return <FeatureDisabledView feature="github" />;
   return <GithubBrowser key={scopeKey} scopeKey={scopeKey} />;
 }
 

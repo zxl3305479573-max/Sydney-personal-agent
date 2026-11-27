@@ -45,6 +45,7 @@ import { computerRoutes } from "./routes/computer.js";
 import { connectionsRoutes } from "./routes/connections.js";
 import { contentRoutes } from "./routes/content.js";
 import { createRouterContext } from "./routes/context.js";
+import { featureAccessRoutes } from "./routes/feature-access.js";
 import { githubRoutes } from "./routes/github.js";
 import { mcpRoutes } from "./routes/mcp.js";
 import { memoryRoutes } from "./routes/memory.js";
@@ -133,6 +134,7 @@ export interface RouterDeps {
     ticketBoardEnabled?: boolean;
     navLinks?: NavLink[];
     adminEmails?: string[];
+    featureAccessRestricted?: boolean;
     phoneCallsEnabled?: boolean;
     phoneCallRingSeconds?: number;
     maxUploadSizeBytes?: number;
@@ -187,5 +189,6 @@ export function createRouter(deps: RouterDeps) {
     ...githubRoutes(ctx),
     ...mobileBridgeRoutes(ctx),
     ...personalFinanceRoutes(ctx),
+    ...featureAccessRoutes(ctx),
   });
 }

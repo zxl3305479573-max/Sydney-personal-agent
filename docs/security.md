@@ -8,7 +8,7 @@
 
 工具调用必须经过确定性的参数和权限检查。提示词中的“请遵守权限”不能替代实际检查。
 
-第一版只接入已明确登记的工具和 Provider。按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，后台与云电脑分机，Agent 以桌面账号执行已授权操作，默认不获得任一服务器 root、sudo、后台密钥、数据库或服务管理权限；网络隔离和远端身份须实测。动态加载未知 Provider 或工具不属于第一版。手机 App 能力与 iOS 原生数据向自有 Bot 的授权、最小化同步与所有者会话限制按 [ADR-0028](adr/0028-mobile-app-bot-capabilities-bridge.md) 执行；个人账单协同与加密支付方式卡包的隔离边界按 [ADR-0029](adr/0029-personal-finance-ledger-and-payment-vault.md) 执行（银行卡号、有效期、CVV 与私密备注永不向模型或 Bot 暴露）。
+第一版只接入已明确登记的工具和 Provider。按 [ADR-0008](adr/0008-separate-control-and-desktop-hosts.md)，后台与云电脑分机，Agent 以桌面账号执行已授权操作，默认不获得任一服务器 root、sudo、后台密钥、数据库或服务管理权限；网络隔离和远端身份须实测。动态加载未知 Provider 或工具不属于第一版。手机 App 能力与 iOS 原生数据向自有 Bot 的授权、最小化同步与所有者会话限制按 [ADR-0028](adr/0028-mobile-app-bot-capabilities-bridge.md) 执行；个人账单协同与加密支付方式卡包的隔离边界按 [ADR-0029](adr/0029-personal-finance-ledger-and-payment-vault.md) 执行（银行卡号、有效期、CVV 与私密备注永不向模型或 Bot 暴露）；面向受邀成员共享后台时的按账号模块门控（`computer`、`projects`、`github`、`integrations`）按 [ADR-0030](adr/0030-per-user-feature-access.md) 执行，要求在 API 路由与 Worker／Executor 工具下发／执行层同步拦截，且 `user_feature_access` 表对普通租户仅开放自身只读权限。
 
 ## 2. 授权策略
 

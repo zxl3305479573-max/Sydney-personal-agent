@@ -348,6 +348,7 @@ export async function updateBotSettings(
 
 export function botsRoutes(ctx: RouterContext) {
   const { deps, repos, removeBot, agentImportServices, groupRepos, authed } = ctx;
+  const computerAuthed = ctx.computerAuthed ?? authed;
   return {
     bots: {
       list: authed.bots.list.handler(async ({ context }) => repos.listBots(context.actor)),
@@ -456,7 +457,7 @@ export function botsRoutes(ctx: RouterContext) {
         }
         return (await repos.listBots(context.actor)).find((bot) => bot.id === input.botId)!;
       }),
-      setComputer: authed.bots.setComputer.handler(async ({ context, input }) => {
+      setComputer: computerAuthed.bots.setComputer.handler(async ({ context, input }) => {
         const bot = await repos.getBot(context.actor, input.botId);
         if (!bot.computer) throw new IsolationError();
         const currentMode = bot.computer.scope === "dedicated" ? "dedicated" : "team";

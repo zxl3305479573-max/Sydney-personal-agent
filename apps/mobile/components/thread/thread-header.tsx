@@ -6,6 +6,7 @@ import { rpc } from "../../lib/api";
 import { notifyArchivedChatsChanged } from "../../lib/archived-chats";
 import { confirmDeleteBot, restoreArchivedBot } from "../../lib/bot-lifecycle";
 import { chatTitleRoute } from "../../lib/chat-settings-route";
+import { useFeatureAccess } from "../../lib/feature-access";
 import { useI18n } from "../../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { removeFromSearchInbox } from "../../lib/search-inbox";
@@ -166,8 +167,11 @@ export function useThreadHeader({
     });
   }
 
+  const { computer: computerAllowed } = useFeatureAccess();
   const botActions = [
-    ...(!readOnly && botId ? [{ text: t("Open computer"), onPress: openBotComputer }] : []),
+    ...(!readOnly && botId && computerAllowed
+      ? [{ text: t("Open computer"), onPress: openBotComputer }]
+      : []),
     {
       text: t("Profile"),
       onPress: () =>

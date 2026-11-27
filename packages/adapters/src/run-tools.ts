@@ -1,5 +1,9 @@
 import type { AgentToolExecutionObserver } from "@rakazo/adapter-kit";
-import { StoredTaskMandateSchema } from "@rakazo/contracts";
+import {
+  GITHUB_TOOL_NAMES,
+  StoredTaskMandateSchema,
+  USER_FEATURE_DENIED_MESSAGES,
+} from "@rakazo/contracts";
 import { taskToolResource, toolResultTaintsRun } from "@rakazo/core";
 import { guardManagedRun, preflightManagedRun, runAsTenant } from "@rakazo/db";
 import { isTerminatingReplyResult } from "./approval-effect.js";
@@ -16,7 +20,7 @@ import {
 import type { ToolHandler } from "./run-tool-gate.js";
 import { auditToolCall, gateToolCall } from "./run-tool-gate.js";
 import { prepareToolRequest, resolveToolRequest } from "./run-tool-request.js";
-import { PAGE_BROWSER_TOOL_NAMES } from "./run-tool-selection.js";
+import { COMPUTER_SANDBOX_TOOL_NAMES, PAGE_BROWSER_TOOL_NAMES } from "./run-tool-selection.js";
 import { computerTools, pageBrowserTool } from "./run-tools-computer.js";
 import { feedbackTools } from "./run-tools-feedback.js";
 import { fileTools } from "./run-tools-files.js";
@@ -99,6 +103,30 @@ export async function applyTool(
   }
 }
 
+const GITHUB_TOOL_NAMES_SET: ReadonlySet<string> = new Set(GITHUB_TOOL_NAMES);
+
+function featureAccessDeniedError(ctx: RunContext, name: string): string | null {
+  const access = ctx.featureAccess;
+  if (!access) return null;
+  if (
+    !access.computer &&
+    (COMPUTER_SANDBOX_TOOL_NAMES.has(name) || name === PROJECT_CLOUD_COMMAND)
+  ) {
+    return USER_FEATURE_DENIED_MESSAGES.computer;
+  }
+  if (!access.github && GITHUB_TOOL_NAMES_SET.has(name)) {
+    return USER_FEATURE_DENIED_MESSAGES.github;
+  }
+  if (
+    !access.integrations &&
+    (ctx.tools.connector.has(name) ||
+      (!TOOL_HANDLERS.has(name) && !name.startsWith("cloud_agent_")))
+  ) {
+    return USER_FEATURE_DENIED_MESSAGES.integrations;
+  }
+  return null;
+}
+
 async function dispatchTool(
   ctx: RunContext,
   name: string,
@@ -107,6 +135,8 @@ async function dispatchTool(
   observer: AgentToolExecutionObserver | undefined,
 ) {
   ctx.context.signal.throwIfAborted();
+  const deniedFeature = featureAccessDeniedError(ctx, name);
+  if (deniedFeature) return { error: deniedFeature };
   if (!inRunScope(ctx, name, args)) return projectScopeError(ctx);
   if (!strategicInitiativeToolAllowed(name, ctx.run)) {
     return { error: "Daily check-ins can only ask or message the user." };

@@ -8,7 +8,7 @@ import type {
   SemanticMemoryProvider,
   WebProvider,
 } from "@rakazo/adapter-kit";
-import type { ComputerMode, MessageBlock } from "@rakazo/contracts";
+import type { ComputerMode, FeatureAccessFlags, MessageBlock } from "@rakazo/contracts";
 import { createStreamingRedactor } from "@rakazo/core";
 import { toolEffectIdempotencyKey } from "@rakazo/core/node/approval-effect-key";
 import type { Bot, Computer, effectiveMemoryScope, Run, Task, Thread } from "@rakazo/db";
@@ -275,7 +275,10 @@ export interface RunContext {
   secrets: string[];
   source: RunSource;
   computer: RunComputerContext;
+  /** Tools and plugins exposed to this attempt. */
   tools: RunTools;
+  /** Effective per-account feature access flags for this run. */
+  featureAccess?: FeatureAccessFlags;
   trust: RunTrust;
   memory: {
     semantic: SemanticMemoryProvider | null;

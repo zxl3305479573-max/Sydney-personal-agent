@@ -150,6 +150,11 @@ import {
 } from "./domain.js";
 import { ComputerCommandSchema, ProductEventSchema } from "./events.js";
 import {
+  AdminFeatureAccessListOutputSchema,
+  AdminUserFeatureAccessSchema,
+  UpdateUserFeatureAccessInputSchema,
+} from "./feature-access.js";
+import {
   GithubConnectInputSchema,
   GithubConnectionStatusSchema,
   GithubListMyReposInputSchema,
@@ -1756,6 +1761,10 @@ export const appContract = {
       .output(PersonalFinanceImportOutputSchema),
     /** Parses a receipt photo and/or spoken/typed bill utterance into a categorized bill draft. */
     parseDraft: oc.input(ParseFinanceBillDraftInputSchema).output(ParsedFinanceBillDraftSchema),
+  },
+  featureAccess: {
+    listUsers: oc.output(AdminFeatureAccessListOutputSchema),
+    updateUser: oc.input(UpdateUserFeatureAccessInputSchema).output(AdminUserFeatureAccessSchema),
   },
 };
 

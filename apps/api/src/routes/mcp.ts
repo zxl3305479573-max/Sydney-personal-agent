@@ -80,6 +80,7 @@ export function mcpRoutes(ctx: RouterContext) {
     announceMcpServer,
     authed,
   } = ctx;
+  const integrationsAuthed = ctx.integrationsAuthed ?? authed;
   const pluginMarketplace = createPluginMarketplace(deps.pluginMarketplaceRead);
   /** Removes an install and, for a plugin, the servers, secrets and skills it added. */
   const removeInstall = async (actor: Actor, id: string) => {
@@ -118,7 +119,7 @@ export function mcpRoutes(ctx: RouterContext) {
   };
   return {
     marketplace: {
-      catalog: authed.marketplace.catalog.handler(async ({ input }) => {
+      catalog: integrationsAuthed.marketplace.catalog.handler(async ({ input }) => {
         const [catalog, approved] = await Promise.all([
           pluginMarketplace.catalog(input.query),
           approvedPluginEntries(deps.prisma),
@@ -133,17 +134,19 @@ export function mcpRoutes(ctx: RouterContext) {
           ].sort(comparePlugins),
         };
       }),
-      submissions: authed.marketplace.submissions.handler(async ({ context, input }) => {
-        await requireAdmin(deps, context.actor.userId);
-        return listPluginSubmissions(deps.prisma, input.status);
-      }),
-      review: authed.marketplace.review.handler(async ({ context, input }) => {
+      submissions: integrationsAuthed.marketplace.submissions.handler(
+        async ({ context, input }) => {
+          await requireAdmin(deps, context.actor.userId);
+          return listPluginSubmissions(deps.prisma, input.status);
+        },
+      ),
+      review: integrationsAuthed.marketplace.review.handler(async ({ context, input }) => {
         await requireAdmin(deps, context.actor.userId);
         return reviewPluginSubmission(deps, input, context.signal);
       }),
     },
     capabilities: {
-      list: authed.capabilities.list.handler(async ({ context }) => {
+      list: integrationsAuthed.capabilities.list.handler(async ({ context }) => {
         const rows = await deps.prisma.capabilityInstall.findMany({
           where: availableInSpace(context.actor),
           include: { availableIn: AVAILABILITY_SELECT },
@@ -161,26 +164,28 @@ export function mcpRoutes(ctx: RouterContext) {
           createdAt: row.createdAt.toISOString(),
         }));
       }),
-      catalogSearch: authed.capabilities.catalogSearch.handler(async ({ context, input }) => {
-        const baseUrl =
-          deps.env.integrationsCatalogUrl ??
-          (input.usePublicCatalog ? "https://integrations.sh" : undefined);
-        if (!baseUrl) return { enabled: false, results: [] };
-        try {
-          const results = await searchIntegrationCatalog({
-            baseUrl,
-            query: input.query,
-            signal: context.signal ?? new AbortController().signal,
-            fetch: deps.remoteConnectors?.fetch,
-          });
-          return { enabled: true, results };
-        } catch (error) {
-          throw new ORPCError("BAD_GATEWAY", {
-            message: error instanceof Error ? error.message : "Integration catalog search failed",
-          });
-        }
-      }),
-      install: authed.capabilities.install.handler(async ({ context, input }) => {
+      catalogSearch: integrationsAuthed.capabilities.catalogSearch.handler(
+        async ({ context, input }) => {
+          const baseUrl =
+            deps.env.integrationsCatalogUrl ??
+            (input.usePublicCatalog ? "https://integrations.sh" : undefined);
+          if (!baseUrl) return { enabled: false, results: [] };
+          try {
+            const results = await searchIntegrationCatalog({
+              baseUrl,
+              query: input.query,
+              signal: context.signal ?? new AbortController().signal,
+              fetch: deps.remoteConnectors?.fetch,
+            });
+            return { enabled: true, results };
+          } catch (error) {
+            throw new ORPCError("BAD_GATEWAY", {
+              message: error instanceof Error ? error.message : "Integration catalog search failed",
+            });
+          }
+        },
+      ),
+      install: integrationsAuthed.capabilities.install.handler(async ({ context, input }) => {
         if (input.kind === "plugin") {
           return installPlugin(
             {
@@ -318,60 +323,64 @@ export function mcpRoutes(ctx: RouterContext) {
           createdAt: row.createdAt.toISOString(),
         };
       }),
-      pluginPreview: authed.capabilities.pluginPreview.handler(async ({ context, input }) => {
-        try {
-          const preview = await previewPluginInstall({
-            source: input.source,
-            signal: context.signal,
-            fetcher: deps.pluginRepoFetcher,
-          });
-          for (const server of preview.mcpServers) {
-            await assertMcpRemoteEndpoint(server.endpoint, deps);
+      pluginPreview: integrationsAuthed.capabilities.pluginPreview.handler(
+        async ({ context, input }) => {
+          try {
+            const preview = await previewPluginInstall({
+              source: input.source,
+              signal: context.signal,
+              fetcher: deps.pluginRepoFetcher,
+            });
+            for (const server of preview.mcpServers) {
+              await assertMcpRemoteEndpoint(server.endpoint, deps);
+            }
+            // Browse lists only plugins that install completely; one that turns out partial leaves it.
+            if (preview.skipped.some((part) => part.kind !== "unsupported_field"))
+              pluginMarketplace.markUnreadable(input.source);
+            else pluginMarketplace.clearUnreadable(input.source);
+            return {
+              ...pluginPreviewDto(preview),
+              pinnedSource: `${preview.source.gitUrl}@${preview.resolvedSha}${preview.source.subdir ? `#${preview.source.subdir}` : ""}`,
+              installedSource: `${preview.source.gitUrl}${preview.source.subdir ? `#${preview.source.subdir}` : ""}`,
+            };
+          } catch (error) {
+            // Only content we can't support leaves browse; a slow or failing GitHub is retried.
+            if (!isTransientFetchError(error)) pluginMarketplace.markUnreadable(input.source);
+            throw new ORPCError("BAD_REQUEST", {
+              message: "Could not preview a supported plugin from this repository",
+            });
           }
-          // Browse lists only plugins that install completely; one that turns out partial leaves it.
-          if (preview.skipped.some((part) => part.kind !== "unsupported_field"))
-            pluginMarketplace.markUnreadable(input.source);
-          else pluginMarketplace.clearUnreadable(input.source);
-          return {
-            ...pluginPreviewDto(preview),
-            pinnedSource: `${preview.source.gitUrl}@${preview.resolvedSha}${preview.source.subdir ? `#${preview.source.subdir}` : ""}`,
-            installedSource: `${preview.source.gitUrl}${preview.source.subdir ? `#${preview.source.subdir}` : ""}`,
-          };
-        } catch (error) {
-          // Only content we can't support leaves browse; a slow or failing GitHub is retried.
-          if (!isTransientFetchError(error)) pluginMarketplace.markUnreadable(input.source);
-          throw new ORPCError("BAD_REQUEST", {
-            message: "Could not preview a supported plugin from this repository",
-          });
-        }
-      }),
-      remove: authed.capabilities.remove.handler(async ({ context, input }) => {
+        },
+      ),
+      remove: integrationsAuthed.capabilities.remove.handler(async ({ context, input }) => {
         await removeInstall(context.actor, input.id);
         return { ok: true as const };
       }),
-      pluginParts: authed.capabilities.pluginParts.handler(async ({ context, input }) => {
-        const notify: Array<{ threadId: string; seq: number }> = [];
-        const install = await setPluginParts(
-          {
-            prisma: deps.prisma,
-            secrets: deps.secrets,
-            fetcher: deps.pluginRepoFetcher,
-            assertEndpoint: (endpoint) => assertMcpRemoteEndpoint(endpoint, deps),
-            removeServer: async (tx, server) =>
-              notify.push(...(await removeMcpServerInTransaction(tx, context.actor, server))),
-          },
-          context.actor,
-          input,
-          context.signal,
-        );
-        for (const event of notify) await deps.events.notify(event.threadId, event.seq);
-        if (!install) await removeInstall(context.actor, input.id);
-        return { install };
-      }),
+      pluginParts: integrationsAuthed.capabilities.pluginParts.handler(
+        async ({ context, input }) => {
+          const notify: Array<{ threadId: string; seq: number }> = [];
+          const install = await setPluginParts(
+            {
+              prisma: deps.prisma,
+              secrets: deps.secrets,
+              fetcher: deps.pluginRepoFetcher,
+              assertEndpoint: (endpoint) => assertMcpRemoteEndpoint(endpoint, deps),
+              removeServer: async (tx, server) =>
+                notify.push(...(await removeMcpServerInTransaction(tx, context.actor, server))),
+            },
+            context.actor,
+            input,
+            context.signal,
+          );
+          for (const event of notify) await deps.events.notify(event.threadId, event.seq);
+          if (!install) await removeInstall(context.actor, input.id);
+          return { install };
+        },
+      ),
     },
     mcp: {
       servers: {
-        list: authed.mcp.servers.list.handler(async ({ context }) => {
+        list: integrationsAuthed.mcp.servers.list.handler(async ({ context }) => {
           const rows = await deps.prisma.mcpServer.findMany({
             where: availableInSpace(context.actor),
             include: { availableIn: AVAILABILITY_SELECT },
@@ -400,7 +409,7 @@ export function mcpRoutes(ctx: RouterContext) {
             ),
           );
         }),
-        create: authed.mcp.servers.create.handler(async ({ context, input }) => {
+        create: integrationsAuthed.mcp.servers.create.handler(async ({ context, input }) => {
           const stored = await prepareMcpServer(context.actor, input);
           const row = await deps.prisma
             .$transaction((tx) =>
@@ -417,7 +426,7 @@ export function mcpRoutes(ctx: RouterContext) {
             });
           return announceMcpServer(row, context.actor);
         }),
-        update: authed.mcp.servers.update.handler(async ({ context, input }) => {
+        update: integrationsAuthed.mcp.servers.update.handler(async ({ context, input }) => {
           for (let attempt = 0; attempt < 5; attempt++) {
             const { existing, existingSecret } = await deps.prisma.$transaction(async (tx) => {
               const existing = await tx.mcpServer.findFirst({
@@ -610,7 +619,7 @@ export function mcpRoutes(ctx: RouterContext) {
           }
           throw new ORPCError("CONFLICT", { message: "MCP credentials changed; retry" });
         }),
-        test: authed.mcp.servers.test.handler(async ({ context, input }) => {
+        test: integrationsAuthed.mcp.servers.test.handler(async ({ context, input }) => {
           const scope = { id: input.id, ...availableInSpace(context.actor) };
           const server = await deps.prisma.mcpServer.findFirst({ where: scope });
           if (!server) throw new IsolationError();
@@ -632,7 +641,7 @@ export function mcpRoutes(ctx: RouterContext) {
           if (!fresh) throw new IsolationError();
           return mcpServerDto(fresh, oauth);
         }),
-        agents: authed.mcp.servers.agents.handler(async ({ context, input }) => {
+        agents: integrationsAuthed.mcp.servers.agents.handler(async ({ context, input }) => {
           const owner = { spaceId: context.actor.spaceId, userId: context.actor.userId };
           const { server, assignments, seqs } = await deps.prisma.$transaction(async (tx) => {
             const existing = await tx.mcpServer.findFirst({
@@ -694,7 +703,7 @@ export function mcpRoutes(ctx: RouterContext) {
             assignments: assignments.map(mcpAssignmentDto),
           };
         }),
-        remove: authed.mcp.servers.remove.handler(async ({ context, input }) => {
+        remove: integrationsAuthed.mcp.servers.remove.handler(async ({ context, input }) => {
           const server = await deps.prisma.mcpServer.findFirst({
             where: {
               id: input.id,
@@ -713,7 +722,7 @@ export function mcpRoutes(ctx: RouterContext) {
         }),
       },
       assignments: {
-        all: authed.mcp.assignments.all.handler(async ({ context }) => {
+        all: integrationsAuthed.mcp.assignments.all.handler(async ({ context }) => {
           const rows = await deps.prisma.botMcpServer.findMany({
             where: {
               spaceId: context.actor.spaceId,
@@ -725,7 +734,7 @@ export function mcpRoutes(ctx: RouterContext) {
           });
           return rows.map(mcpAssignmentDto);
         }),
-        list: authed.mcp.assignments.list.handler(async ({ context, input }) => {
+        list: integrationsAuthed.mcp.assignments.list.handler(async ({ context, input }) => {
           const bot = await deps.prisma.bot.findFirst({
             where: {
               id: input.botId,
@@ -746,7 +755,7 @@ export function mcpRoutes(ctx: RouterContext) {
           });
           return rows.map(mcpAssignmentDto);
         }),
-        approve: authed.mcp.assignments.approve.handler(async ({ context, input }) => {
+        approve: integrationsAuthed.mcp.assignments.approve.handler(async ({ context, input }) => {
           const row = await resolveMcpApprovalCards(
             onboardingDeps,
             context.actor,
@@ -809,7 +818,7 @@ export function mcpRoutes(ctx: RouterContext) {
           }
           return mcpAssignmentDto(row.assignment);
         }),
-        dismiss: authed.mcp.assignments.dismiss.handler(async ({ context, input }) => {
+        dismiss: integrationsAuthed.mcp.assignments.dismiss.handler(async ({ context, input }) => {
           // Not now resolves the card only. Assignments are never touched
           // here: a stale card must not delete a live connection, and server
           // removal belongs to the MCP settings surface.
@@ -821,7 +830,7 @@ export function mcpRoutes(ctx: RouterContext) {
           });
           return { ok: true as const };
         }),
-        replace: authed.mcp.assignments.replace.handler(async ({ context, input }) => {
+        replace: integrationsAuthed.mcp.assignments.replace.handler(async ({ context, input }) => {
           const { rows, seqs } = await deps.prisma.$transaction(async (tx) => {
             const bot = await tx.bot.findFirst({
               where: {
@@ -897,7 +906,7 @@ export function mcpRoutes(ctx: RouterContext) {
         }),
       },
       oauth: {
-        begin: authed.mcp.oauth.begin.handler(async ({ context, input }) => {
+        begin: integrationsAuthed.mcp.oauth.begin.handler(async ({ context, input }) => {
           try {
             const webRedirect = new URL("/mcp/oauth/callback", deps.env.webOrigin).toString();
             if (input.redirectUri && new URL(input.redirectUri).toString() !== webRedirect) {
@@ -934,7 +943,7 @@ export function mcpRoutes(ctx: RouterContext) {
             });
           }
         }),
-        complete: authed.mcp.oauth.complete.handler(async ({ context, input }) => {
+        complete: integrationsAuthed.mcp.oauth.complete.handler(async ({ context, input }) => {
           try {
             // complete() consumes the session, so which server it belongs to is read first.
             const session = deps.mcp
@@ -980,7 +989,7 @@ export function mcpRoutes(ctx: RouterContext) {
             });
           }
         }),
-        disconnect: authed.mcp.oauth.disconnect.handler(async ({ context, input }) => {
+        disconnect: integrationsAuthed.mcp.oauth.disconnect.handler(async ({ context, input }) => {
           await mcpOAuth.disconnect({
             ...input,
             spaceId: context.actor.spaceId,
@@ -1059,13 +1068,13 @@ export function mcpRoutes(ctx: RouterContext) {
       }),
     },
     integrationSetup: {
-      get: authed.integrationSetup.get.handler(() => ({
+      get: integrationsAuthed.integrationSetup.get.handler(() => ({
         canConfigure: false,
         needsSetup: false,
         webUrl: new URL("/integrations/setup", deps.env.webOrigin).toString(),
         providers: [],
       })),
-      save: authed.integrationSetup.save.handler(() => {
+      save: integrationsAuthed.integrationSetup.save.handler(() => {
         throw new ORPCError("FORBIDDEN");
       }),
     },

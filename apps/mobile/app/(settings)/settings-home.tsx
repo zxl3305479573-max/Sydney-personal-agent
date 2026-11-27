@@ -14,6 +14,7 @@ import {
   promptForAvailableUpdate,
   useClientUpdateState,
 } from "../../lib/client-update";
+import { resolveMobileFeatureAccess } from "../../lib/feature-access";
 import { useI18n } from "../../lib/i18n";
 import { native } from "../../lib/native";
 import {
@@ -62,6 +63,7 @@ export default function SettingsHome() {
   const { release, nativeLabel } = getAppVersionInfo();
   const currentVersion = release?.version ?? nativeLabel;
   const account = accountDisplay(me ?? {}, t("Your account"));
+  const features = resolveMobileFeatureAccess(me);
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
   useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
@@ -174,13 +176,32 @@ export default function SettingsHome() {
           />
           {me?.billingEnabled ? link(t("Billing"), "/billing") : null}
           {link(t("Vault"), "/vault")}
-          {link(t("Computers"), "/devices")}
+          {features.computer ? link(t("Computers"), "/devices") : null}
+          {features.isAdmin ? (
+            <SettingsRow
+              title={
+                chinese ? (traditional ? "成員功能權限" : "成员功能权限") : "Member feature access"
+              }
+              detail={
+                chinese
+                  ? traditional
+                    ? "按帳號開關雲電腦、項目、GitHub 與連接應用"
+                    : "按账号开关云电脑、项目、GitHub 与连接应用"
+                  : "Manage per-account computer, projects, GitHub & apps"
+              }
+              accessibilityRole="button"
+              chevron="right"
+              onPress={() => router.push("/feature-access")}
+            />
+          ) : null}
         </SettingsGroup>
 
-        <SettingsGroup label={t("Apps")}>
-          {link(t("Connect apps"), "/integrations", true)}
-          {link("GitHub", "/github", true)}
-        </SettingsGroup>
+        {features.integrations || features.github ? (
+          <SettingsGroup label={t("Apps")}>
+            {features.integrations ? link(t("Connect apps"), "/integrations", true) : null}
+            {features.github ? link("GitHub", "/github", true) : null}
+          </SettingsGroup>
+        ) : null}
 
         <SettingsGroup label={chinese ? (traditional ? "小夥伴" : "小伙伴") : t("Bots")}>
           <SettingsRow

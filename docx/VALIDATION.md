@@ -1,5 +1,47 @@
 # 验证记录
 
+## 按账号功能权限管理离线验证（2026-11-28）
+
+- 关联 PA-026／PA-004／PA-021／ADR-0030。已清理临时 `share/friend` worktree 与本地／远端分支（均已核验移除）。
+- Prisma 客户端生成：`pnpm --filter @rakazo/db generate` 成功（`UserFeatureAccess` 模型与类型已生成）。
+- 7 包 TypeScript 校验（`tsc --noEmit`）：`@rakazo/contracts`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/worker`、`@rakazo/mobile`、`@rakazo/testkit` 全部 0 错误（包含 `packages/testkit/src/authorization.test.ts` 的 `ProtectedRpcPath` 穷举类型校验）。
+- 格式化与 Lint：通过 `node ./node_modules/@biomejs/biome/bin/biome check --write` 检查全部 55 个新增／改动 TS／TSX 文件，0 错误（自动格式化 14 个文件；剩余 3 条告警／1 条提示均为既有文件中的可选链／空片段建议）。
+- 定向离线单元测试（`pnpm exec vitest run ... --maxWorkers=1`）：**14／14 文件、252／252 项全绿**，覆盖：
+  - 新增 `packages/contracts/src/feature-access.test.ts`（5／5）：`native-linux` 默认受限、显式环境覆盖、管理员防误锁、非管理员覆盖合并与 `MeSchema` 向后兼容；
+  - 新增 `packages/db/src/feature-access.test.ts`（3／3）：角色解析、成员列表、增量开关合并、恢复默认、管理员锁定拒绝与缺省 mock 兼容；
+  - 新增 `apps/api/src/feature-access.test.ts`（2／2）：`me.featureAccess` 返回、普通成员访问 `computer`/`bots.setComputer`/`projectWorkspaces`/`github`/`connections`/`mcp`/`capabilities` 返回 `FORBIDDEN`、管理员列表与单模块放行即时生效及非管理员调用管理接口被拒；
+  - 新增 `packages/adapters/src/executor-feature-access.test.ts`（2／2）：`computerEnabled: false` 剔除全部 `COMPUTER_SANDBOX_TOOL_NAMES` 并保留聊天／记忆／记账／搜索工具，`dispatchTool` 对云电脑／GitHub／连接器工具纵深拒绝；
+  - 新增 `apps/mobile/lib/feature-access.test.tsx`（4／4）：旧服务端默认全开、禁用项目时底部导航栏隐藏「项目」Tab、非管理员进入管理页零 RPC 拒绝、管理员加载成员并点击开关调用 `featureAccess/updateUser`；
+  - 既有回归扩展与复验：`apps/mobile/lib/home-hub.test.tsx`（10／10，新增隐藏 GitHub 与连接应用磁贴用例）、`main-navigation.test.tsx`（27／27）、`screen-theme-coverage.test.ts`（7／7，含新页 `feature-access.tsx` 主题背景覆盖）、`i18n.test.ts`（16／16）、`account-screen.test.tsx`（28／28）、`saved-chats.test.ts`（14／14）、`apps/api/src/admins.test.ts`（1／1）、`apps/api/src/env.test.ts`（99／99）、`packages/adapters/src/run-project-policy.test.ts`（34／34）。
+- 扩大离线回归全量扫查（共 138 个非 PostgreSQL 单测文件，覆盖 `packages/contracts`、`packages/db`、`packages/adapters`、`apps/api` 与全部 `apps/mobile`）：
+  - 首轮 125／138 文件通过，暴露 13 个失败文件，逐一归因后分为三类：
+    1. **本次改动引发的 6 个回归（已全部修复并复验全绿）**：
+       - `apps/mobile/lib/settings-sheet.test.ts`：捕获到真实导航遗漏——新建 `app/(settings)/feature-access.tsx` 未登记到 `apps/mobile/lib/settings-sheet.ts` 的 `settingsScreens` 集合；补登后 11／11 通过；
+       - `apps/mobile/lib/computer-screen.test.tsx` 与 `apps/mobile/lib/github-screen.test.tsx`：`FeatureDisabledView` 引入 `NativeSymbol` 与 `SafeAreaView` 拉入纯组件单测未 mock 的原生模块；精简为纯 `View`/`Text` 渲染并兼容 `locale` 缺省与 `tokens.background` 后，分别 73／73、11／11 通过；
+       - `apps/api/src/routes/project-workspaces.test.ts`、`project-workspace-thread.test.ts` 与 `project-directories.test.ts`：独立路由单测传入精简 mock `RouterContext` 缺少 `*Authed` 键，且 `bindCloudDirectory` 在 `available()` 检查前访问数据库；在全部 9 个受限路由工厂补 `?? ctx.authed`（真实 `createRouterContext` 始终注入实际门控中间件，由 `apps/api/src/feature-access.test.ts` 覆盖）并调整 `bindCloudDirectory` 先验 `available()` 后，分别 20／20、24／24、21／21 通过；
+       - 修复后终轮 14 文件（6 个修复文件 + 5 个新增权限单测 + `home-hub`／`screen-theme-coverage`／`i18n`）**14／14 文件、209／209 项全绿**，`@rakazo/api` 与 `@rakazo/mobile` `tsc --noEmit` 0 错误，11 个修改文件 Biome 0 错误，`git diff --check` 通过。
+    2. **本机 `C:` 盘剩余空间仅 2 GB 导致的 4 个适配器套件（改用 `D:` 临时目录复验全绿）**：`packages/adapters/src/{computer-idle,computer-lifecycle,computer-recovery,host-computer}.test.ts` 因 `computer-workspace.ts` 预留磁盘保护触发 `WorkspaceTooLargeError`；切换 `TEMP/TMP` 至剩余 44 GB 的 `D:` 临时目录（测后立即清理）复验 **4／4 文件、287／287 项通过（17 项跳过）**。
+    3. **既有 Windows POSIX 环境不兼容的 3 个未改动文件**：`packages/adapters/src/{computer-workspace,mcp-connector,mcp-package-installer}.test.ts`（分别依赖 WSL `/bin/bash` 与 POSIX symlink、`/` 路径分隔符正则、`/srv/pkgs` 路径与 POSIX shebang 脚本），以及另跑 `apps/api/src/router.test.ts` 373／377 项通过（4 项 `export.bot` Windows `EPERM symlink`）。
+  - 汇总：138 文件扩大扫查中 **135／138 文件已在本机离线全绿验证**，其余 3 文件与 `router.test.ts` 4 项均为未改动文件的既有 Windows POSIX 限制。
+- Compose 环境变量白名单校验：同步将 `RAKAZO_ADMIN_EMAILS` 上移至 `infra/compose/docker-compose*.yml` 的 `x-app-environment` 并补入 `SYDNEY_FEATURE_ACCESS_RESTRICTED`（确保 `api` 与 `worker` 均能接收权限策略变量），随后运行 `pnpm vitest run infra/updater/src/compose-env.test.ts infra/updater/src/compose-service.test.ts`：**2／2 文件、45／45 项全绿**；`git diff --check` 通过。
+- 生产主机只读核验（`sydney-cloud-admin`，未修改任何线上配置）：确认 `/srv/rakazo/.env` 当前 `SANDBOX_PROVIDER=native-linux`、`SIGNUP_ALLOWLIST` 已设、`RAKAZO_ADMIN_EMAILS` 尚未配置；目标管理员账号已在生产 PostgreSQL `user` 表中存在且 `emailVerified = true`（当前全库共 1 名用户）。
+- 未执行与待验收项：真实 PostgreSQL `20261128120000_user_feature_access` 迁移与 `row-security.postgres.test.ts` / `authorization.test.ts` 集成测试、服务器写入 `RAKAZO_ADMIN_EMAILS` 与部署上线、手机 OTA 发布及真实 iPhone 管理员／朋友双账号交互验收均未执行，待用户授权部署与发布后实测。
+
+## 自建服务器 iPhone 免费侧载私密分发页（2026-11-28）
+
+- 关联 PA-021／REL-01。离线单测 `python -m unittest scripts/build_sideload_download_site_test.py -v`：3／3 项通过（`0.056s`），覆盖合成 IPA 解析、主／直连源 JSON 字段与 `appPermissions.privacy`、HTML 转义与 `sidestore://`／`altstore://` 链接、历史版本去重保留，以及非 HTTPS 地址与缺失 `Info.plist` 拒绝；初轮因模块导入路径报 `ModuleNotFoundError`，改为按文件路径加载后通过。
+- 本地已校验底座 IPA（`Sydney-1.0.19-8-unsigned.ipa`，`27,874,140` 字节，SHA-256 `68fa761019d52c5896f87762049900f75ab7c2ad42ff97775e333dfab535f5c5`，含 `xin.zxlup.sydney` 与 `xin.zxlup.sydney.companion` 扩展）上传至 `sydney-cloud-admin` `/srv/sydney-downloads/<private-token>/` 后服务端 `sha256sum` 一致。
+- 生产配置预检：使用运行中 `caddy:2` 镜像挂载只读 `/data` 与 `/srv/downloads` 执行 `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` 输出 `Valid configuration`；`docker compose ... config --quiet` 通过，确认 Caddy 保留既有 3 项挂载并新增 `/srv/sydney-downloads:/srv/downloads:ro`。仅重建 `rakazo-prod-caddy-1`，`api`／`worker`／`postgres`／native sidecars 未重启。
+- 公网端到端核验（同时验证 `https://pc.zxlup.xin` 与 `https://124.221.182.39`）：
+  - `/health` 与 `/ready` 均 HTTP `200`；
+  - `/download`、`/download/`、`/download/wrong-token-probe/`、`/download/wrong-token-probe/source.json` 均 HTTP `404`；
+  - `/download/<private-token>` 返回 HTTP `308` 跳转至 `/download/<private-token>/`；
+  - `/download/<private-token>/` 返回 HTTP `200`，含 `X-Robots-Tag: noindex, nofollow`、`Referrer-Policy: no-referrer`、`Cache-Control: no-cache`；
+  - `source.json` 与 `source-direct.json` 均 HTTP `200`（`Cache-Control: no-cache`），JSON 校验 `1.0.19`／Build `8`／`27,874,140` 字节／SHA-256 及各自 `downloadURL` 匹配；`icon.png` HTTP `200`（`image/png`）；
+  - `Sydney-1.0.19-8-unsigned.ipa` HEAD 返回 `Content-Length: 27874140`、`Accept-Ranges: bytes`、`Cache-Control: public, max-age=31536000, immutable`；Range `0-3` 返回 `PK\x03\x04`；两条入口各自完整下载并校验 SHA-256 全部匹配。
+- 访问日志脱敏核验：检查 `docker logs --tail 200 rakazo-prod-caddy-1`，原始私密 token 出现 `0` 次，已脱敏的 `/download/REDACTED/` 日志共 `22` 条。
+- 限制与未执行项：真实 iPhone 通过 SideStore／AltStore 一键导入订阅源并完成免费签名安装的端到端设备操作尚未执行；备份文件回滚流程未演练；未安装依赖、未运行全工作区构建，也未提交或推送源码。
+
 ## 手机聊天界面左上角账户头像修复与 1.0.47（2026-11-28）
 
 - 发布完成：源码 `ec4e46bf48738040eca5d908b5b20c84baeb91ff` 已推送 `cursor/integrate-remote-branches-7334`；[Run 46030878919](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46030878919)／Job `140614052278` 为 `completed / success`，北京时间 `2026-11-28 00:07:22`–`00:09:36`。更新组 `792c7afe-1de6-4c3b-bc50-74111137a3e0`，iOS 更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`，`createdAt: 2026-11-27T16:09:33.239Z`，日志发布 Commit 与源码一致。

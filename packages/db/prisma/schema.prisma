@@ -60,6 +60,7 @@ model User {
   approvalRules               UserActionApprovalRule[]
   autoReviewPreference        UserActionAutoReviewPreference?
   mobileBridge                UserMobileBridge?
+  featureAccess               UserFeatureAccess?
   paymentMethods              UserPaymentMethod[]
   financeBills                UserFinanceBill[]
   createdSpaces               Space[]                      @relation("SpaceCreator")
@@ -2469,4 +2470,19 @@ model UserFinanceBill {
   @@index([userId, occurredAt])
   @@index([userId, paymentMethodId])
   @@map("user_finance_bills")
+}
+
+/// Admin-managed per-account feature overrides. Null columns inherit the deployment's role default.
+model UserFeatureAccess {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  computer     Boolean?
+  projects     Boolean?
+  github       Boolean?
+  integrations Boolean?
+  updatedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_feature_access")
 }

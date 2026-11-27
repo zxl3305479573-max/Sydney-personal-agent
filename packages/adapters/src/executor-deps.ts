@@ -16,6 +16,7 @@ import type {
   SecretStore,
   WebProvider,
 } from "@rakazo/adapter-kit";
+import type { FeatureAccessFlags } from "@rakazo/contracts";
 import type { PrismaClient, RunLease, ThreadEvents } from "@rakazo/db";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
 import type { MemoryProviderResolver } from "./memory-provider-factory.js";
@@ -84,4 +85,9 @@ export interface ExecutorDeps {
   shutdownSignal?: AbortSignal;
   /** Set by withRunLease for one attempt; that run's history writes carry its lease. */
   runLease?: RunLease & { runId: string };
+  /**
+   * Resolves per-account feature access (computer / projects / github / integrations) for a run.
+   * Omitting this leaves all features enabled (used by standalone unit tests).
+   */
+  resolveFeatureAccess?: (userId: string) => Promise<FeatureAccessFlags>;
 }

@@ -44,7 +44,9 @@ async function queryGrant(
   return result;
 }
 
-export function projectDirectoryRoutes({ deps, authed }: RouterContext) {
+export function projectDirectoryRoutes(ctx: RouterContext) {
+  const { deps } = ctx;
+  const authed = ctx.projectsAuthed ?? ctx.authed;
   const enabled = () =>
     deps.env?.projectWorkspaceCreateExperiment === true &&
     deps.env?.projectDeviceToolsEnabled === true &&

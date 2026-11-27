@@ -48,7 +48,8 @@ async function runGithub<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export function githubRoutes(ctx: RouterContext) {
-  const { deps, authed } = ctx;
+  const { deps } = ctx;
+  const authed = ctx.githubAuthed ?? ctx.authed;
   const requireGithub = () => {
     if (!deps.github) {
       throw new ORPCError("NOT_FOUND", { message: GITHUB_DISABLED_MESSAGE });

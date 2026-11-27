@@ -23,6 +23,7 @@ export const SECURITY_EVENT_TYPES = [
   "project.directory.bound",
   "project.directory.unbound",
   "deployment.settings.changed",
+  "admin.feature_access.updated",
   "approval.decided",
   "approval.policy.changed",
   "egress.refused",

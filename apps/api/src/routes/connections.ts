@@ -217,7 +217,8 @@ function connectionContext(
 }
 
 export function connectionsRoutes(ctx: RouterContext) {
-  const { deps, authed } = ctx;
+  const { deps } = ctx;
+  const authed = ctx.integrationsAuthed ?? ctx.authed;
   return {
     connections: {
       catalog: authed.connections.catalog.handler(async ({ context, input }) => {

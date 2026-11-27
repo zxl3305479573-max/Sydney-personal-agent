@@ -73,7 +73,8 @@ const MAX_COMPUTER_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 /** Each command writes a running and a done event, so this keeps about 100 commands. */
 const COMPUTER_COMMAND_HISTORY_EVENTS = 200;
 export function computerRoutes(ctx: RouterContext) {
-  const { deps, repos, taughtSkills, authed } = ctx;
+  const { deps, repos, taughtSkills } = ctx;
+  const authed = ctx.computerAuthed ?? ctx.authed;
   return {
     computer: {
       status: authed.computer.status.handler(async ({ context, input }) =>

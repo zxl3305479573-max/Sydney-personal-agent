@@ -10,6 +10,7 @@ import {
 import type { Actor, Me } from "@rakazo/contracts";
 import { attachmentMaxBytes, attachmentMaxCount, canonicalPiProviderId } from "@rakazo/contracts";
 import { isAdmin } from "../admins.js";
+import { getActorFeatureAccess } from "../feature-access.js";
 import type { RouterDeps } from "../router.js";
 
 export { createAdapterContext as computerContext } from "@rakazo/adapter-kit";
@@ -21,7 +22,7 @@ function hostCredentials(active: boolean, provider: string) {
 }
 
 export async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
-  const [user, setup, admin] = await Promise.all([
+  const [user, setup, admin, featureAccess] = await Promise.all([
     deps.prisma.user.findUniqueOrThrow({
       where: { id: actor.userId },
       select: {
@@ -35,6 +36,7 @@ export async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
     }),
     modelSetup(deps, actor),
     isAdmin(deps, actor.userId),
+    getActorFeatureAccess(deps, actor.userId),
   ]);
   return {
     ticketBoardEnabled: deps.env.ticketBoardEnabled === true,
@@ -78,6 +80,7 @@ export async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
     paymentWalletProvider: deps.paymentWallet
       ? { id: deps.paymentWallet.describe().id, name: deps.paymentWallet.displayName }
       : null,
+    featureAccess: featureAccess.effective,
   };
 }
 

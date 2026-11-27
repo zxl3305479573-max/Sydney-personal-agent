@@ -40,7 +40,8 @@ import { THREAD_MESSAGE_PAGE_SIZE } from "./shared.js";
 import { createThreadSender, subscribeThread } from "./threads.js";
 
 export function projectWorkspaceRoutes(routerContext: RouterContext) {
-  const { deps, authed, repos, groupRepos } = routerContext;
+  const { deps, repos, groupRepos } = routerContext;
+  const authed = routerContext.projectsAuthed ?? routerContext.authed;
   const send = createThreadSender(routerContext);
   return {
     projectWorkspaces: {

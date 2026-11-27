@@ -106,6 +106,7 @@ import {
 import { createAuth, isBlockedAuthPath, loopbackTwinOrigins } from "@rakazo/auth";
 import type { Actor, AuthCapabilities } from "@rakazo/contracts";
 import {
+  isFeatureAccessRestrictedByDefault,
   isLocalhostOrLoopbackIp,
   PLUGIN_SUBMISSIONS_PATH,
   SERVER_BUILD_HEADER,
@@ -129,6 +130,7 @@ import {
   pushSessionExpiresAt,
   recordUsage,
   requireMembership,
+  resolveUserFeatureAccess,
   rowSecurityWarning,
   runAsSystem,
   securityEventRetentionDays,
@@ -674,7 +676,20 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   // One cache serves models.list, selection validation, and run-time model
   // resolution alike, so a list call warms the run path in this process.
   const codexCatalog = new CodexCatalogCache();
+  const featureAccessRestricted = isFeatureAccessRestrictedByDefault({
+    sandboxProvider: env.sandboxProvider,
+    adminEmails: env.adminEmails,
+    featureAccessRestricted: env.featureAccessRestricted,
+  });
   const executor = createRunExecutor({
+    resolveFeatureAccess: async (userId) =>
+      (
+        await resolveUserFeatureAccess(prisma, {
+          userId,
+          adminEmails: env.adminEmails,
+          restrictNonAdmins: featureAccessRestricted,
+        })
+      ).effective,
     billingEnabled: modelCreditsEnabled,
     maxUploadSizeBytes: env.maxUploadSizeBytes,
     contextStrategy,
@@ -867,6 +882,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       ticketBoardEnabled,
       navLinks: env.navLinks,
       adminEmails: env.adminEmails,
+      featureAccessRestricted: env.featureAccessRestricted,
       maxUploadSizeBytes: env.maxUploadSizeBytes,
       maxAttachmentsPerMessage: env.maxAttachmentsPerMessage,
       agentRuntime: env.agentRuntime,

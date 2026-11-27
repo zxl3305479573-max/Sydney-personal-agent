@@ -155,7 +155,12 @@ function PersonalHomeHubScreen() {
   const [botSections, setBotSections] = useState<MobileBotSection[]>([]);
   const [spaces, setSpaces] = useState<MobileSpace[]>([]);
   const [me, setMe] = useState<
-    (Pick<MobileMe, "userId" | "spaceId" | "name"> & { email?: MobileMe["email"] }) | null
+    | (Pick<MobileMe, "userId" | "spaceId" | "name"> & {
+        email?: MobileMe["email"];
+        isAdmin?: MobileMe["isAdmin"];
+        featureAccess?: MobileMe["featureAccess"];
+      })
+    | null
   >(null);
   const [spaceName, setSpaceName] = useState<string | null>(null);
   const [activeRunsCount, setActiveRunsCount] = useState(0);
@@ -319,48 +324,63 @@ function PersonalHomeHubScreen() {
       );
 
       const optionalOptions = { skipSpaceAuthRecovery: true } as const;
-      void rpc("projectWorkspaces/list", {}, optionalOptions)
-        .then((result) => {
-          if (isCurrent()) setProjectCount(result.items.length);
-        })
-        .catch(() => undefined);
-      void rpc("connections/list", undefined, optionalOptions)
-        .then((connections) => {
-          if (isCurrent()) {
-            setConnectedAppsCount(
-              connections.filter((entry) => entry.status === "connected").length,
-            );
-          }
-        })
-        .catch(() => undefined);
+      if (nextMe.featureAccess?.projects !== false) {
+        void rpc("projectWorkspaces/list", {}, optionalOptions)
+          .then((result) => {
+            if (isCurrent()) setProjectCount(result.items.length);
+          })
+          .catch(() => undefined);
+      } else {
+        setProjectCount(null);
+      }
+      if (nextMe.featureAccess?.integrations !== false) {
+        void rpc("connections/list", undefined, optionalOptions)
+          .then((connections) => {
+            if (isCurrent()) {
+              setConnectedAppsCount(
+                connections.filter((entry) => entry.status === "connected").length,
+              );
+            }
+          })
+          .catch(() => undefined);
+      } else {
+        setConnectedAppsCount(null);
+      }
       void rpc("runs/list", { filter: "active" }, optionalOptions)
         .then((active) => {
           if (isCurrent()) setActiveRunsCount(active.runs.length);
         })
         .catch(() => undefined);
-      void rpc("github/status", {}, optionalOptions)
-        .then(async (status) => {
-          if (!isCurrent()) return;
-          if (status.status === "connected") {
-            setGithubConnected(true);
-            setGithubLogin(status.login);
-            const overview = await rpc("github/profileOverview", {}, optionalOptions).catch(
-              () => null,
-            );
-            if (!isCurrent() || !overview) return;
-            setGithubRepoCount(overview.profile.publicRepos);
-            const days = overview.calendar.weeks.flatMap((week) =>
-              week.contributionDays.map((day) => day.contributionCount),
-            );
-            if (days.length > 0) setGithubRecentCounts(days.slice(-7));
-          } else {
-            setGithubConnected(false);
-            setGithubLogin(null);
-            setGithubRepoCount(null);
-            setGithubRecentCounts(null);
-          }
-        })
-        .catch(() => undefined);
+      if (nextMe.featureAccess?.github !== false) {
+        void rpc("github/status", {}, optionalOptions)
+          .then(async (status) => {
+            if (!isCurrent()) return;
+            if (status.status === "connected") {
+              setGithubConnected(true);
+              setGithubLogin(status.login);
+              const overview = await rpc("github/profileOverview", {}, optionalOptions).catch(
+                () => null,
+              );
+              if (!isCurrent() || !overview) return;
+              setGithubRepoCount(overview.profile.publicRepos);
+              const days = overview.calendar.weeks.flatMap((week) =>
+                week.contributionDays.map((day) => day.contributionCount),
+              );
+              if (days.length > 0) setGithubRecentCounts(days.slice(-7));
+            } else {
+              setGithubConnected(false);
+              setGithubLogin(null);
+              setGithubRepoCount(null);
+              setGithubRecentCounts(null);
+            }
+          })
+          .catch(() => undefined);
+      } else {
+        setGithubConnected(false);
+        setGithubLogin(null);
+        setGithubRepoCount(null);
+        setGithubRecentCounts(null);
+      }
 
       return true;
     } catch (err) {

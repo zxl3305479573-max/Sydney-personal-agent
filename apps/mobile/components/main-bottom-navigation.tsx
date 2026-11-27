@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppBackground } from "../lib/app-background";
 import { componentSurfaceColor } from "../lib/component-opacity";
+import { useFeatureAccess } from "../lib/feature-access";
 import { useI18n } from "../lib/i18n";
 import type { MainNavigationRoute } from "../lib/main-navigation";
 import { openMainNavigation } from "../lib/main-navigation";
@@ -59,9 +60,10 @@ export function MainBottomNavigation({ state, navigation }: MainBottomNavigation
       ? Math.max(1, Math.min(2, scope.geometry.borderWidth))
       : StyleSheet.hairlineWidth;
   const { locale, t } = useI18n();
+  const { projects: projectsAllowed } = useFeatureAccess();
   const chinese = locale.startsWith("zh");
   const traditional = locale === "zh-TW";
-  const items: readonly MainTabItem[] = [
+  const allItems: readonly MainTabItem[] = [
     {
       tabName: "index",
       route: "/",
@@ -90,6 +92,7 @@ export function MainBottomNavigation({ state, navigation }: MainBottomNavigation
       androidActiveIcon: "folder",
     },
   ];
+  const items = projectsAllowed ? allItems : allItems.filter((item) => item.tabName !== "projects");
   const activeTabName = state ? state.routes[state.index]?.name : undefined;
 
   return (

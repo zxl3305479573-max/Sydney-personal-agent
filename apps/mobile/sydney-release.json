@@ -1,18 +1,18 @@
 {
-  "version": "1.0.47",
+  "version": "1.0.48",
   "releasedOn": "2026-11-28",
   "notes": {
     "zh-CN": [
-      "修复聊天列表左上角头像只显示首字母的问题，已设置的账户照片现在会直接显示在顶栏。",
-      "同步账户头像缓存，在设置页更换头像后返回聊天页即时更新，并保留未设置头像时的首字母回退。"
+      "新增按账号功能权限管理：管理员可在「设置 → 账户 → 成员功能权限」为各账号单独开关云电脑、项目工作区、GitHub 与连接应用／MCP，或一键恢复默认。",
+      "未授权的功能会自动隐藏对应入口与底部「项目」栏，并由服务端与执行器同步拦截，同时保留聊天、陪伴灵动岛、个人记账、地图天气与外观换肤。"
     ],
     "zh-TW": [
-      "修復聊天列表左上角頭像只顯示首字母的問題，已設定的帳戶照片現在會直接顯示在頂欄。",
-      "同步帳戶頭像快取，在設定頁更換頭像後返回聊天頁即時更新，並保留未設定頭像時的首字母回退。"
+      "新增按帳號功能權限管理：管理員可在「設定 → 帳戶 → 成員功能權限」為各帳號單獨開關雲電腦、項目工作區、GitHub 與連接應用／MCP，或一鍵恢復預設。",
+      "未授權的功能會自動隱藏對應入口與底部「項目」欄，並由伺服器與執行器同步攔截，同時保留聊天、陪伴靈動島、個人記帳、地圖天氣與外觀換膚。"
     ],
     "en": [
-      "Fix the top-left account button in Chats showing only initials instead of your saved profile photo.",
-      "Keep the chat header synced with account avatar edits made in Settings, while falling back to initials when no photo is set."
+      "Add per-account feature access management: server administrators can toggle Cloud Computer, Projects, GitHub, and Connected Apps / MCP per account in Settings → Account → Member feature access.",
+      "Disabled features automatically hide their navigation tabs and entry points while remaining enforced by the backend and worker, keeping chat, companion, personal finance, map weather, and themes available."
     ]
   }
 }

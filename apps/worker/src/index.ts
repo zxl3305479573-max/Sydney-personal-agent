@@ -91,10 +91,12 @@ import {
   describeRowSecurity,
   installAuditEventStore,
   installSecurityEventStore,
+  isFeatureAccessRestrictedByDefault,
   isPoolCheckoutTimeout,
   isTooManyDatabaseConnections,
   parsePositiveInteger,
   pushSessionExpiresAt,
+  resolveUserFeatureAccess,
   rowSecurityWarning,
   runAsSystem,
   securityEventRetentionDays,
@@ -267,7 +269,29 @@ async function main() {
     jobs,
     accessToken: process.env.EXPO_ACCESS_TOKEN,
   });
+  const adminEmails = (process.env.RAKAZO_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  const featureAccessRestricted = isFeatureAccessRestrictedByDefault({
+    sandboxProvider,
+    adminEmails,
+    featureAccessRestricted:
+      process.env.SYDNEY_FEATURE_ACCESS_RESTRICTED === "true"
+        ? true
+        : process.env.SYDNEY_FEATURE_ACCESS_RESTRICTED === "false"
+          ? false
+          : undefined,
+  });
   const executor = createRunExecutor({
+    resolveFeatureAccess: async (userId) =>
+      (
+        await resolveUserFeatureAccess(prisma, {
+          userId,
+          adminEmails,
+          restrictNonAdmins: featureAccessRestricted,
+        })
+      ).effective,
     maxUploadSizeBytes: uploadSizeFromEnv(process.env),
     prisma,
     runtime,

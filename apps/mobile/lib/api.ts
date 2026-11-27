@@ -1649,7 +1649,8 @@ export type MobileMe = Pick<
   | "billingEnabled"
   | "paymentWalletProvider"
   | "ticketBoardEnabled"
->;
+> &
+  Partial<Pick<Me, "isAdmin" | "featureAccess">>;
 
 export type MobileModel = ModelCatalogEntry;
 

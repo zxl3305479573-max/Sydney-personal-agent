@@ -9,9 +9,12 @@ import {
   recordSecurityEvent,
   unbindProjectCloudDirectory,
 } from "@rakazo/db";
+import { getActorFeatureAccess, requireFeatureAccess } from "../feature-access.js";
 import type { RouterContext } from "./context.js";
 
-export function projectCloudDirectoryRoutes({ deps, authed }: RouterContext) {
+export function projectCloudDirectoryRoutes(ctx: RouterContext) {
+  const { deps } = ctx;
+  const authed = ctx.projectsAuthed ?? ctx.authed;
   const available = () =>
     deps.env?.projectWorkspaceCreateExperiment === true &&
     deps.env?.projectDeviceToolsEnabled === true &&
@@ -44,6 +47,9 @@ export function projectCloudDirectoryRoutes({ deps, authed }: RouterContext) {
     cloudDirectory: authed.projectWorkspaces.cloudDirectory.handler(async ({ context, input }) => {
       const enabled = available();
       if (!enabled)
+        return { available: false, computers: [], binding: null, status: "unbound" as const };
+      const { effective } = await getActorFeatureAccess(deps, context.actor.userId);
+      if (!effective.computer)
         return { available: false, computers: [], binding: null, status: "unbound" as const };
       const { actor, signal } = context;
       await authorize(actor, input.id);
@@ -82,6 +88,7 @@ export function projectCloudDirectoryRoutes({ deps, authed }: RouterContext) {
     bindCloudDirectory: authed.projectWorkspaces.bindCloudDirectory.handler(
       async ({ context, input }) => {
         if (!available()) throw new ORPCError("SERVICE_UNAVAILABLE");
+        await requireFeatureAccess(deps, context.actor.userId, "computer");
         const { actor, signal } = context;
         await authorize(actor, input.projectId);
         const computers = await listProjectCloudComputers(deps.prisma, actor);

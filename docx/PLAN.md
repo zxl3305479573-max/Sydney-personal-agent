@@ -1,5 +1,21 @@
 # Sydney 开发总计划
 
+## 按账号功能权限管理与管理员手机配置页（PA-026／PA-004／PA-021，2026-11-28）
+
+状态：全栈源码实现（契约、Prisma 迁移与 RLS、API 路由拦截、Worker／Executor 工具门控、手机端入口自动显隐与管理员管理页）及离线验证已完成；数据库生产迁移、服务端镜像部署、手机 OTA 发布与真实多账号／iPhone 联调待办，源码暂未提交或推送。
+
+范围与交付物：用单一主线代码与按账号权限替代朋友分叉分支，默认对普通成员关闭 4 项受限能力——`computer`（云电脑）、`projects`（项目工作区）、`github`（GitHub）、`integrations`（连接应用与 MCP），同时保留聊天、陪伴灵动岛、个人记账、地图天气、外观换肤与部署默认模型共用；管理员（`RAKAZO_ADMIN_EMAILS` 且邮箱已验证）始终全开，并可在手机端「设置 → 成员功能权限」为每个账号单独开关或恢复默认。交付物包括 `packages/contracts/src/feature-access.ts`（含 `MeSchema.featureAccess` 与 `featureAccess/*` 契约）、`UserFeatureAccess` 表与迁移 `20261128120000_user_feature_access`（RLS 租户只读自身 + 系统全权）、`packages/db/src/feature-access.ts`、`apps/api/src/feature-access.ts` 及 4 组路由中间件与管理路由、`packages/adapters` 与 `apps/worker` 执行器工具／沙箱门控、移动端 `apps/mobile/lib/feature-access.ts`、`FeatureDisabledView`、底部导航／首页／设置／聊天／Bot 资料与设置门控、管理员页面 `apps/mobile/app/(settings)/feature-access.tsx`、5 套新增单元测试、[ADR-0030](../docs/adr/0030-per-user-feature-access.md) 及需求／安全／运维同步文档。
+
+依赖与验收条件：依赖既有 `RAKAZO_ADMIN_EMAILS` 管理员机制、PostgreSQL RLS、Prisma 迁移与手机 `accountRpcQuery("me")` 缓存，零新增第三方依赖与零原生 iOS 权限变动。离线验收：`@rakazo/contracts`、`@rakazo/db`、`@rakazo/adapters`、`@rakazo/api`、`@rakazo/worker`、`@rakazo/mobile`、`@rakazo/testkit` 共 7 个包 `tsc --noEmit` 0 错误；全改动文件 Biome 0 错误；138 文件扩大离线回归扫查中 135／138 文件全绿（首轮捕获并修复 `settings-sheet.ts` 路由登记、`FeatureDisabledView` 原生依赖解耦、路由 mock 上下文兼容与 `bindCloudDirectory` 检查顺序 6 个回归后，终轮 14 文件 209／209 项与 4 个适配器套件 `D:` 临时目录 287／287 项复验通过；剩余 3 文件与 `router.test.ts` 4 项均为既有 Windows POSIX 环境限制）；`git diff --check` 通过。真实 PostgreSQL RLS 集成测试、服务器应用迁移及真机多账号切换待部署后验收。
+
+## 自建服务器 iPhone 免费侧载私密分发页与 SideStore 源（PA-021／REL-01，2026-11-28）
+
+状态：生成器源码与离线测试、生产服务器 `sydney-cloud-admin` 只读静态目录部署及公网双入口（`https://pc.zxlup.xin` 与 `https://124.221.182.39`）端到端核验均已完成；真实 iPhone 经 SideStore／AltStore 导入安装与配置回滚演练待办，源码暂未提交或推送。
+
+范围与交付物：在现有生产 HTTPS 网关上为受邀好友提供免费 iPhone 侧载分发入口，避免 7 天过期的 GitHub Actions Artifact 与不安全的第三方免费代签。交付物包括零第三方依赖的静态站与 SideStore／AltStore 2.0 订阅源生成器 `scripts/build_sideload_download_site.py`、离线单测 `scripts/build_sideload_download_site_test.py`、生产主机 `/srv/sydney-downloads/<private-token>/`（含 `Sydney-1.0.19-8-unsigned.ipa`、`index.html`、`source.json`、`source-direct.json`、`icon.png`、`SHA256.txt`）、Caddy 只读挂载与私密路由及 `/download/` 日志脱敏，以及计划／开发／验证／运维文档同步（仓库文档不记录真实私密 token）。
+
+依赖与验收条件：复用 Python 标准库、本机已校验的 `1.0.19`（build `8`）无签名 IPA、现有 `apps/mobile/assets/icon.png` 与 `apps/mobile/sydney-release.json`，以及生产主机既有的 Caddy 容器与 `/etc/rakazo/` 配置；零新增依赖、零改动 `api`／`worker`／数据库镜像。验收：生成器离线单测 3/3 通过；生产 `caddy validate` 与 Compose 配置校验通过，仅重建 Caddy 且其他容器零中断；域名与 IP 双入口 `/health`、`/ready` 保持 HTTP `200`，`/download` 与错误路径返回 `404`，正确私密路径返回下载页、主／直连源 JSON、图标及完整 `27,874,140` 字节 IPA（Range `PK\x03\x04` 与 SHA-256 精确匹配），Caddy 访问日志不含原始私密 token（脱敏为 `/download/REDACTED/`）。真实 iPhone SideStore／AltStore 导入体验与好友注册白名单（`SIGNUP_ALLOWLIST`）另行按需验收。
+
 ## 手机聊天界面左上角账户头像修复（PA-021／REL-01，2026-11-28）
 
 发布补记：源码 `ec4e46bf48738040eca5d908b5b20c84baeb91ff` 已推送 `cursor/integrate-remote-branches-7334`；[Run 46030878919](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46030878919)／Job `140614052278` 为 `completed / success`，更新组 `792c7afe-1de6-4c3b-bc50-74111137a3e0`，iOS 更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`。线上 `1.0.47` 清单、三语说明、启动包（`11,544,788` 字节）及 `62 / 62` 项静态资源摘要核验通过。源码、离线验证和 OTA 交付完成，iPhone 真机视觉与设置返回即时刷新仍待验；以下为实施范围与发布前状态。

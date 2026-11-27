@@ -29,7 +29,7 @@ export type SavedInbox = {
   groups: MobileGroup[];
   botSections: MobileBotSection[];
   spaces: MobileSpace[];
-  me: Pick<MobileMe, "userId" | "spaceId" | "name">;
+  me: Pick<MobileMe, "userId" | "spaceId" | "name" | "isAdmin" | "featureAccess">;
 };
 
 export const SAVED_CHAT_MESSAGES = 100;
@@ -167,7 +167,13 @@ export function writeSavedInbox(
         groups: space.groups.slice(0, SAVED_INBOX_ROWS),
         externalConversations: [],
       })),
-      me: { userId: me.userId, spaceId: me.spaceId, name: me.name },
+      me: {
+        userId: me.userId,
+        spaceId: me.spaceId,
+        name: me.name,
+        ...(me.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {}),
+        ...(me.featureAccess !== undefined ? { featureAccess: me.featureAccess } : {}),
+      },
     };
     if (!isIntegrationsScopeCurrent(scope) || me.userId !== scope.userId) return;
     writeSavedFile(scope, "inbox", { key: scopeKey(scope, "inbox"), inbox });

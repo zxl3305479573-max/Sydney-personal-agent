@@ -1,5 +1,37 @@
 # 运维手册
 
+## 按账号功能权限管理与部署配置（待部署，2026-11-28）
+
+- **能力与默认边界**：新增 `PA-026` 按账号功能权限管理（[ADR-0030](../docs/adr/0030-per-user-feature-access.md)），对 `computer`（云电脑）、`projects`（项目工作区）、`github`（GitHub）与 `integrations`（连接应用／MCP）实施前后端与 Worker 执行器三层门控；聊天、陪伴灵动岛、个人记账、地图天气、外观换肤与部署默认模型 Key 共用不受限制。
+- **必需的环境变量（待服务器配置与验证）**：
+  - 在 `api` 与 `worker` 共用的环境变量文件（如 `/srv/rakazo/.env` 或原生服务的 `/etc/sydney/backend.env`）中配置 `RAKAZO_ADMIN_EMAILS=<管理员已验证邮箱>`（多个以逗号分隔），并确认管理员账号在数据库中 `emailVerified = true`；
+  - 当 `SANDBOX_PROVIDER=native-linux` 且 `RAKAZO_ADMIN_EMAILS` 非空时，系统**自动**对非管理员账号默认关闭上述 4 项受限功能；若服务器使用 `docker` 或其他 Provider 并希望同样默认关闭，可显式设置 `SYDNEY_FEATURE_ACCESS_RESTRICTED=true`（设为 `false` 则恢复默认全开，仍支持逐账号在数据库单独关闭）。
+- **数据库迁移与权限边界（待生产执行）**：
+  - 随新后端镜像上线运行既有迁移入口（`pnpm --filter @rakazo/db migrate` / `prisma migrate deploy`）应用 `packages/db/prisma/migrations/20261128120000_user_feature_access/migration.sql`，创建 `public.user_feature_access` 表并启用 RLS（普通租户仅允许 `FOR SELECT` 读取本人行，禁止自行提权；管理员读写均经 `requireAdmin` 后走 `runAsSystem`，并记录 `admin.feature_access.updated` 安全事件）。
+- **客户端交付与兼容性**：
+  - 手机端零新增原生模块、零新增权限，无需重签 `1.0.19` 底座 IPA；后续提交推送并发布纯 JS 侧载 OTA 后，管理员账号在「设置 → 账户 → 成员功能权限」即可逐账号开关 4 项功能或一键「恢复默认权限」，普通成员自动隐藏未授权的底部「项目」栏、首页 GitHub／连接应用磁贴、设置项与对话内电脑入口。
+  - 若新手机客户端先于新后端上线（旧后端 `me` 未返回 `featureAccess`），前端按兼容全开渲染，不阻塞升级顺序；但为确保单机 `native-linux` 云电脑隔离生效，在向朋友开放注册前须先完成**后端迁移部署 + `RAKAZO_ADMIN_EMAILS` 配置**。
+- **回退说明（未执行）**：
+  - 客户端可通过既有侧载 OTA 重发 `1.0.47` 回退界面；后端若需临时放宽默认限制，可将 `SYDNEY_FEATURE_ACCESS_RESTRICTED=false` 并重启 `api`／`worker`；新增 `user_feature_access` 表不影响既有业务表结构，代码回退时保留该表即可，无需删表。
+
+## 自建服务器 iPhone 免费侧载私密分发页（已上线，2026-11-28）
+
+- **架构与隔离边界**：生产主机 `sydney-cloud-admin` 由 Caddy 原生 `file_server` 提供只读静态分发，不占用 `api`／`worker` 进程内存、不改后端镜像或数据库。静态文件位于宿主机 `/srv/sydney-downloads/<private-token>/`（`root:root`，目录 `0755`，文件 `0644`），经 `/etc/rakazo/compose/production.overlay.yml` 以只读卷 `/srv/sydney-downloads:/srv/downloads:ro` 挂载到 `rakazo-prod-caddy-1`。真实 `<private-token>` 仅存于服务器配置与交付给维护者的私密渠道，**不写入仓库代码或文档**。
+- **路由与安全头**：`/etc/rakazo/Caddyfile.prod` 在域名站点（`pc.zxlup.xin`）与直连 IP 站点（`124.221.182.39`）同时引入 `(sideload_downloads)` 片段：
+  - `/download/<private-token>` → HTTP `308` 重定向至 `/download/<private-token>/`；
+  - `/download/<private-token>/*` → 映射到 `/srv/downloads/<private-token>`，默认关闭目录列表，附加 `X-Robots-Tag: noindex, nofollow` 与 `Referrer-Policy: no-referrer`；`index.html`／`*.json`／`SHA256.txt` 使用 `Cache-Control: no-cache`，带版本号的 `*.ipa` 使用 `Cache-Control: public, max-age=31536000, immutable`；
+  - `/download` 与任何其他 `/download/*` 路径直接由 Caddy 返回 `404`；
+  - `(access_log)` 脱敏正则已追加 `|/download/`，访问日志中统一记为 `/download/REDACTED/...`，实测原始 token 零泄漏。
+- **当前上架内容**：原生底座 `Sydney-1.0.19-8-unsigned.ipa`（`27,874,140` 字节，SHA-256 `68fa761019d52c5896f87762049900f75ab7c2ad42ff97775e333dfab535f5c5`，含灵动岛扩展，免费 Apple ID 占 2 个 App ID）、主域名订阅源 `source.json`（`https://pc.zxlup.xin/download/<private-token>/source.json`）、国内直连订阅源 `source-direct.json`（`https://124.221.182.39/download/<private-token>/source-direct.json`）、`index.html`、`icon.png` 与 `SHA256.txt`。好友装好底座后，日常 JS 更新仍走既有 Expo OTA（App 内「设置 → 检查更新」）。
+- **后续更新新版 IPA 或更新页（无需重启 Caddy）**：
+  1. 在本机执行 `python scripts/build_sideload_download_site.py --ipa <新IPA路径> --output-dir <临时目录> --base-url "https://pc.zxlup.xin/download/<private-token>" --direct-base-url "https://124.221.182.39/download/<private-token>"`（需要保留旧版列表时加 `--previous-source <旧source.json>`）；
+  2. 将生成目录内文件上传覆盖到 `sydney-cloud-admin` 的 `/srv/sydney-downloads/<private-token>/`（保持 `root:root`、`0644`），核对新 IPA 的 `sha256sum` 即可生效；SideStore 刷新源后会自动发现新版本。
+- **轮换或作废私密链接**：新建新 token 目录 `/srv/sydney-downloads/<new-token>/`，用新 `--base-url` 重新生成上传，更新 `/etc/rakazo/Caddyfile.prod` 中的 token（原位写回保留 inode），经 `caddy validate` 后执行 `sudo docker exec rakazo-prod-caddy-1 caddy reload --config /etc/caddy/Caddyfile` 并删除旧目录（轮换流程待按需验证）。
+- **受邀好友账号注册边界**：当前 `/srv/rakazo/.env` 启用了 `SIGNUP_ALLOWLIST`（仅放行白名单邮箱，未向陌生人开放公开注册）。需要让好友注册登录本服务器时，按需将好友邮箱追加到 `SIGNUP_ALLOWLIST`（逗号分隔）并重启 `api`；同时注意与个人云电脑／模型额度的隔离边界。
+- **备份与回滚（回滚未演练）**：
+  - 变更前已留存 `0600` 备份：`/etc/rakazo/compose/production.overlay.yml.before-downloads-20261128-174603` 与 `/etc/rakazo/Caddyfile.prod.before-downloads-20261128-174603`。
+  - 如需彻底下线分发页：恢复两份备份（注意 `/etc/rakazo/compose/production.overlay.yml` 保持 `root:deploy` `0640` 以通过 `deploy-main.sh` 权限校验，`/etc/rakazo/Caddyfile.prod` 保持 `root:root` `0644`），运行 `docker compose --project-name rakazo-prod --env-file /srv/rakazo/.env -f /srv/rakazo/infra/compose/docker-compose.prod.yml -f /etc/rakazo/compose/production.overlay.yml up -d --no-deps --no-build --pull never --force-recreate caddy`，随后按需删除 `/srv/sydney-downloads`。
+
 ## 聊天界面左上角账户头像修复 1.0.47（已发布，2026-11-28）
 
 - 源码 `ec4e46bf48738040eca5d908b5b20c84baeb91ff` 已推送集成分支；[Run 46030878919](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/46030878919)／Job `140614052278` 成功发布至 `sideload`／`sydney-ios-ip-1`。更新组 `792c7afe-1de6-4c3b-bc50-74111137a3e0`，更新 ID `01a21dc4-e737-7914-b100-c7e1760d3207`，北京时间 `2026-11-28 00:09:33` 创建。线上 `1.0.47` 清单、三语说明、启动包（`11,544,788` 字节、SHA-256 `8249d44cbfb6efb31fa8ac9f4259fac0371ac595ad619d2703b68d4ee8cbc4f1`）及全部 `62 / 62` 项资源核验通过。在 App「设置 → 检查更新」下载并重启确认版本 `1.0.47`；无需重签 IPA 或部署后台。

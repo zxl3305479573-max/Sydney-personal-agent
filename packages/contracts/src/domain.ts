@@ -10,6 +10,7 @@ import {
 } from "./cloudflare-ai-gateway.js";
 import { MCP_OAUTH_CLIENT_REQUIRED } from "./connector-errors.js";
 import { BotSettingsValuesSchema, ThreadMessageSchema } from "./events.js";
+import { FeatureAccessFlagsSchema } from "./feature-access.js";
 import { Id, MemoryScope, RunStatus, SandboxKind, ThinkingLevelSchema } from "./ids.js";
 import {
   McpHeadersSchema,
@@ -1919,6 +1920,8 @@ export const MeSchema = z.object({
   needsSignupSurvey: z.boolean().optional(),
   /** The wallet bots can spend from, when this deployment offers one. Absent from older servers. */
   paymentWalletProvider: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
+  /** Effective per-account feature access flags. Absent from older servers (treated as enabled). */
+  featureAccess: FeatureAccessFlagsSchema.optional(),
 });
 export type Me = z.infer<typeof MeSchema>;
 

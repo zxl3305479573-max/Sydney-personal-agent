@@ -750,4 +750,33 @@ describe("HomeHub personal hub", () => {
     expect(scroll.getAttribute("data-inset-behavior")).toBe("never");
     expect(scroll.style.paddingTop).toBe("52px");
   });
+
+  it("hides GitHub and Connect Apps tiles when featureAccess disables them", () => {
+    act(() =>
+      root.render(
+        <HomeHub
+          me={{
+            userId: "u-friend",
+            spaceId: "space-friend",
+            name: "Friend",
+            email: "friend@example.com",
+            isAdmin: false,
+            featureAccess: {
+              computer: false,
+              projects: false,
+              github: false,
+              integrations: false,
+            },
+          }}
+          bots={[sampleBot()]}
+          groups={[]}
+          now={fixedEvening}
+        />,
+      ),
+    );
+    expect(container.querySelector('[data-testid="home-hub-github-tile"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-integrations-tile"]')).toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-routines-tile"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="home-hub-artifacts-tile"]')).not.toBeNull();
+  });
 });

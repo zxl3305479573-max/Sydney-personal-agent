@@ -17,6 +17,7 @@ const settingsScreens = new Set([
   "change-password",
   "chat-appearance",
   "devices",
+  "feature-access",
   "messaging",
   "language",
   "models",

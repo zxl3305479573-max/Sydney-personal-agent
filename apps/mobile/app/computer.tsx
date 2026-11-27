@@ -32,6 +32,7 @@ import { ComputerKeyboardBar } from "../components/computer-keyboard-bar";
 import { ComputerMaintenanceActions } from "../components/computer-maintenance-actions";
 import { ComputerModePicker } from "../components/computer-mode-picker";
 import { ComputerZoomBar, ComputerZoomGestureOverlay } from "../components/computer-zoom-controls";
+import { FeatureDisabledView } from "../components/feature-disabled-view";
 import { GlassIconButton } from "../components/glass-icon-button";
 import { GlassSurface } from "../components/glass-surface";
 import { MotionPressable } from "../components/motion-pressable";
@@ -80,6 +81,7 @@ import {
 import { createComputerRefresh } from "../lib/computer-refresh";
 import type { ComputerZoomState } from "../lib/computer-zoom";
 import { clampComputerZoom, INITIAL_COMPUTER_ZOOM, stepComputerZoom } from "../lib/computer-zoom";
+import { useFeatureAccess } from "../lib/feature-access";
 import { tabletopLayout } from "../lib/fold-layout";
 import { useFoldRegions } from "../lib/fold-regions";
 import { useI18n } from "../lib/i18n";
@@ -112,6 +114,12 @@ function isLightSurface(background?: string): boolean {
 }
 
 export default function Computer() {
+  const { computer } = useFeatureAccess();
+  if (!computer) return <FeatureDisabledView feature="computer" />;
+  return <ComputerScreen />;
+}
+
+function ComputerScreen() {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
   const tokens = useMobileTokens();

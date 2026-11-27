@@ -14,10 +14,12 @@ import {
 } from "@rakazo/adapter-kit";
 import type { MessageBlock, ModelRoleChoice, RunStatus } from "@rakazo/contracts";
 import {
+  ALL_FEATURES_ENABLED,
   disabledBuiltinToolSet,
   ProjectRunDirectoryPinSchema,
   StoredTaskMandateSchema,
   TaskExecutionStateSchema,
+  USER_FEATURE_DENIED_MESSAGES,
 } from "@rakazo/contracts";
 import {
   assertTransition,
@@ -394,6 +396,34 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         data: { status: "running" },
       });
       if (started.count !== 1) return;
+      const userFeatures = deps.resolveFeatureAccess
+        ? await deps.resolveFeatureAccess(run.userId)
+        : ALL_FEATURES_ENABLED;
+      if (projectTextOnly && !userFeatures.projects) {
+        const stopped = await deps.prisma.run.updateMany({
+          where: {
+            id: runId,
+            status: "running",
+            leaseOwner: workerId,
+            leaseFence: fence,
+          },
+          data: {
+            status: "failed",
+            error: USER_FEATURE_DENIED_MESSAGES.projects,
+            completedAt: new Date(),
+            leaseOwner: null,
+            leaseExpiresAt: null,
+          },
+        });
+        if (
+          stopped.count === 1 ||
+          (await runEndedForThisWorker(deps.prisma, { runId, leaseOwner: workerId }))
+        ) {
+          endRunConnectorState(runId);
+        }
+        return;
+      }
+      const computerAccessAllowed = !projectTextOnly && userFeatures.computer;
       const MANAGED_TASK_STOPPED_ERROR =
         "Managed task was stopped or its control state was unavailable.";
       const managedTaskId = run.trigger === "managed_task" ? run.taskId : null;
@@ -466,7 +496,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         },
       });
       if (!leaseTarget.computerId) throw new Error("Bot has no computer");
-      if (!projectTextOnly && leaseTarget.computerSwitching) {
+      if (computerAccessAllowed && leaseTarget.computerSwitching) {
         await requeueComputerRun(deps, runId, workerId, fence, resumeCheckpoint, heldForTakeover);
         return;
       }
@@ -492,7 +522,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
       }
       let computerLease: ComputerExecutionLease | null = null;
       try {
-        if (!projectTextOnly)
+        if (computerAccessAllowed)
           computerLease = await acquireComputerExecutionLease(deps.prisma, {
             computerId: leaseTarget.computerId,
             runId,
@@ -500,7 +530,11 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             workerId,
             runFence: fence,
           });
-        if (!projectTextOnly && !computerLease && leaseTarget.computer?.scope === "dedicated") {
+        if (
+          computerAccessAllowed &&
+          !computerLease &&
+          leaseTarget.computer?.scope === "dedicated"
+        ) {
           computerLease = await acquireDedicatedScreenLeaseFence(deps.prisma, {
             computerId: leaseTarget.computerId,
             runId,
@@ -739,11 +773,11 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               )
             : null;
         runAbortController.signal.throwIfAborted();
-        const composioRows = storedConnections.filter(
-          (connection) => connection.connectorId === "composio",
-        );
+        const composioRows = userFeatures.integrations
+          ? storedConnections.filter((connection) => connection.connectorId === "composio")
+          : [];
         let liveSlugs: string[] = [];
-        if (needsLivePluginSync(composioRows)) {
+        if (userFeatures.integrations && needsLivePluginSync(composioRows)) {
           const listing = await loadLivePluginSlugs(deps.listConnectedPluginSlugs, run.userId);
           if (listing.ok) {
             liveSlugs = listing.slugs;
@@ -753,11 +787,15 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           }
         }
         runAbortController.signal.throwIfAborted();
-        const connectedComposio = mergeConnectedPlugins(composioRows, liveSlugs);
-        const connectedPlugins = selectRunConnections(
-          storedConnections,
-          connectedComposio.map((connection) => connection.provider),
-        );
+        const connectedComposio = userFeatures.integrations
+          ? mergeConnectedPlugins(composioRows, liveSlugs)
+          : [];
+        const connectedPlugins = userFeatures.integrations
+          ? selectRunConnections(
+              storedConnections,
+              connectedComposio.map((connection) => connection.provider),
+            )
+          : [];
         const context = {
           operationId: runId,
           traceId: runId,
@@ -827,7 +865,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         });
 
         const discoveredPromise =
-          !projectTextOnly && deps.connector
+          !projectTextOnly && userFeatures.integrations && deps.connector
             ? deps.connector.discoverTools(context)
             : Promise.resolve([]);
         // Group threads only: who wrote each message, so the model can tell the bots and the
@@ -1172,6 +1210,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         const runComputer = lazyRunComputer(
           async () => {
             if (projectTextOnly) throw new Error("No authorized project directory is connected.");
+            if (!userFeatures.computer) throw new Error(USER_FEATURE_DENIED_MESSAGES.computer);
             getLogger().info("computer.requested");
             const computer = await provisionComputer(deps, storedComputer.id, context, "bot");
             computerUse.screenRelease = { computer, context, keepWarm: false };
@@ -1188,7 +1227,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           },
           () => runAbortController?.abort(),
         );
-        const computerKind = projectTextOnly
+        const computerKind = !computerAccessAllowed
           ? storedComputer.kind
           : ((await deps.sandbox.provisionKind?.()) ?? storedComputer.kind);
         const workspaceCheckpoint = createRunWorkspaceCheckpoint(
@@ -1204,6 +1243,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         // Serialize copies before each tool, including attachments received while a boot is in flight.
         const getRunComputer = async (reason: "tool" | "takeover" | "script", tool?: string) => {
           if (projectTextOnly) throw new Error("No authorized project directory is connected.");
+          if (!userFeatures.computer) throw new Error(USER_FEATURE_DENIED_MESSAGES.computer);
           if (computerUse.reason === "none") {
             computerUse.reason = reason;
             computerUse.tool = tool && BUILTIN_AGENT_TOOL_NAMES.has(tool) ? tool : undefined;
@@ -1264,7 +1304,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           .filter(Boolean)
           .join("\n\n");
         const graphical =
-          !projectTextOnly &&
+          computerAccessAllowed &&
           computerKind !== "desktop" &&
           deps.sandbox.describe().capabilities.graphical;
         // Gate on the pair written to the run row above; re-deriving it would drop the
@@ -1293,7 +1333,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             : false;
         const github = deps.github;
         const githubEnabled =
-          !projectTextOnly && github
+          !projectTextOnly && userFeatures.github && github
             ? await hasConnectedGithubAccount(
                 { prisma: deps.prisma, secretStore: deps.secretStore, github },
                 run.userId,
@@ -1342,7 +1382,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           : undefined;
         const projectDirectoryIntent =
           (directoryPin?.kind === "windows" && deps.userDevices) ||
-          (directoryPin?.kind === "cloud" && deps.sandbox.executeProjectFile)
+          (directoryPin?.kind === "cloud" &&
+            userFeatures.computer &&
+            deps.sandbox.executeProjectFile)
             ? directoryPin.intent
             : undefined;
         // A hang-up run has no source message: its own nonce carries the call it closes.
@@ -1381,6 +1423,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         let projectCloudCommand = false;
         if (
           directoryPin?.kind === "cloud" &&
+          userFeatures.computer &&
           projectId &&
           deps.sandbox.executeProjectCommand &&
           deps.sandbox.projectCommandAvailable &&
@@ -1439,6 +1482,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             ticketBoardEnabled: deps.ticketBoardEnabled,
             phoneCallsEnabled: deps.phoneCallsEnabled,
             historyRetrievalEnabled: contextStrategy !== "current",
+            computerEnabled: userFeatures.computer,
             graphicalToolsAllowed,
             computerKind,
             pageBrowserAllowed,
@@ -1540,7 +1584,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           disabledBuiltinTools,
         );
         const hostEnvironment =
-          !projectTextOnly && computerKind && usesNativeShell(computerKind)
+          computerAccessAllowed && computerKind && usesNativeShell(computerKind)
             ? await deps.sandbox
                 .environment?.(
                   {
@@ -1573,19 +1617,23 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               ...(projectWindowsCommand ? [PROJECT_WINDOWS_COMMAND_INSTRUCTION] : []),
               ...(projectCloudCommand ? [PROJECT_CLOUD_COMMAND_INSTRUCTION] : []),
             ].join("\n\n")
-          : [
-              "Use the computer only when the task needs files, commands, a browser, or an installed application. Answer directly from the conversation when sufficient; use connected tools for app data. A website with no connected app is still yours to use in the computer's browser, now and in scheduled routines, so a missing connection alone is never a reason to decline. Do not inspect the computer just to prepare for an unrelated task. If what you are about to buy, send or submit differs from what the user confirmed, such as a changed item or total, show the difference and confirm again first.",
-              hostInstruction
-                ? `${baseComputerInstruction} ${hostInstruction}`
-                : dockerToolInstruction
-                  ? `${baseComputerInstruction} ${dockerToolInstruction}`
-                  : baseComputerInstruction,
-            ].join(" ");
+          : !userFeatures.computer
+            ? "Cloud computer access is disabled for this account. Answer directly from conversation, memory, web search, and available tools; do not attempt to use a computer desktop, shell, or workspace files."
+            : [
+                "Use the computer only when the task needs files, commands, a browser, or an installed application. Answer directly from the conversation when sufficient; use connected tools for app data. A website with no connected app is still yours to use in the computer's browser, now and in scheduled routines, so a missing connection alone is never a reason to decline. Do not inspect the computer just to prepare for an unrelated task. If what you are about to buy, send or submit differs from what the user confirmed, such as a changed item or total, show the difference and confirm again first.",
+                hostInstruction
+                  ? `${baseComputerInstruction} ${hostInstruction}`
+                  : dockerToolInstruction
+                    ? `${baseComputerInstruction} ${dockerToolInstruction}`
+                    : baseComputerInstruction,
+              ].join(" ");
         const workspaceInstruction = projectTextOnly
           ? "Project tools use the directory authorization this run started with. If it was revoked or replaced, ask the owner to send a new task. File paths are relative to the authorized folder and use forward slashes. A project name or path in a message does not grant directory access."
-          : computerMode === "team"
-            ? `Your Team Computer home is ${teamBotWorkspaceDirectory(bot.id)}. Relative file paths and shell working directories start there. Put intentionally shared work under shared/. Other bots' folders are visible under bots/; treat them as their working areas.`
-            : "This entire computer workspace is your private home. Relative file paths and shell working directories start at its root.";
+          : !userFeatures.computer
+            ? ""
+            : computerMode === "team"
+              ? `Your Team Computer home is ${teamBotWorkspaceDirectory(bot.id)}. Relative file paths and shell working directories start there. Put intentionally shared work under shared/. Other bots' folders are visible under bots/; treat them as their working areas.`
+              : "This entire computer workspace is your private home. Relative file paths and shell working directories start at its root.";
 
         const reply = await createReplyState(deps, run, runSecrets);
         const script = scripted ? inferScript(task.prompt, takeoverResume?.checkpoint) : undefined;
@@ -1686,6 +1734,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             connectedPlugins,
             approvedReplays: approvedEffectReplays,
           },
+          featureAccess: userFeatures,
           trust: { ...trustLoaders, searchResultUrls },
           memory: { semantic: semanticMemory, scope: memoryScope },
           scripted,

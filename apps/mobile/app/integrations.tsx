@@ -40,6 +40,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConnectorIcon } from "../components/connector-icon";
+import { FeatureDisabledView } from "../components/feature-disabled-view";
 import { GlassSurface } from "../components/glass-surface";
 import { MainNavigationHeader } from "../components/main-navigation-header";
 import { McpOAuthReturn } from "../components/mcp-oauth-return";
@@ -52,6 +53,7 @@ import { Chevron } from "../components/row-accessories";
 import { rpc } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
 import { cardGradient } from "../lib/card-gradient";
+import { useFeatureAccess } from "../lib/feature-access";
 import { useI18n } from "../lib/i18n";
 import type { IntegrationsCacheScope, IntegrationsSnapshot } from "../lib/integrations-cache";
 import {
@@ -92,6 +94,12 @@ const SECTION_SIZE = 4;
 const PLUGIN_PAGE_SIZE = 20;
 
 export default function Integrations() {
+  const { integrations } = useFeatureAccess();
+  if (!integrations) return <FeatureDisabledView feature="integrations" />;
+  return <IntegrationsContent />;
+}
+
+function IntegrationsContent() {
   const bottomClaimed = useBottomSafeAreaClaimed();
   const sideInsets = useSideInsets();
   const router = useRouter();

@@ -64,6 +64,7 @@ import { COMPUTER_LIFECYCLE_TIMEOUT_MS } from "../lib/computer";
 import { BUILT_IN_BOT_AVATARS, bundledBotAvatar, pickBotAvatar } from "../lib/create-bot-avatar";
 import { DEFAULT_BOT_AVATAR_DATA_URI } from "../lib/default-bot-avatar";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
+import { useFeatureAccess } from "../lib/feature-access";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
 import { reportMobileError } from "../lib/monitoring";
@@ -209,6 +210,7 @@ function BotSettingsScreen({
         : rpc("bots/update", bot),
     [projectId, scope],
   );
+  const { computer: computerAllowed } = useFeatureAccess();
   const scrollRef = useRef<ScrollView>(null);
   const modelY = useRef(0);
   const [bot, setBot] = useState<Bot | null>(null);
@@ -1045,7 +1047,7 @@ function BotSettingsScreen({
               </Text>
             ) : null}
 
-            {!projectId ? (
+            {!projectId && computerAllowed ? (
               <SettingsGroup label={t("Computer")}>
                 <ComputerModePicker plain value={computerMode} onChange={setComputerMode} />
               </SettingsGroup>

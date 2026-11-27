@@ -15,12 +15,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppModalSheet } from "../../components/app-modal-sheet";
+import { FeatureDisabledView } from "../../components/feature-disabled-view";
 import { GlassSurface } from "../../components/glass-surface";
 import { MotionPressable } from "../../components/motion-pressable";
 import { NativeActionButton } from "../../components/native-action-button";
 import { NativeSymbol } from "../../components/native-symbol";
 import { ProjectFolderCard } from "../../components/project-folder-card";
 import { captureApiRequestContext, isSpaceSelectionPending, rpc } from "../../lib/api";
+import { useFeatureAccess } from "../../lib/feature-access";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../../lib/native";
 import { clearPageState, usePageScroll, usePageState } from "../../lib/page-state";
@@ -51,7 +53,9 @@ function mergeProjects(existing: ProjectItem[], incoming: ProjectItem[]): Projec
 }
 
 export default function Projects() {
+  const { projects } = useFeatureAccess();
   const scopeKey = useSyncExternalStore(subscribeProjectScope, projectScopeKey);
+  if (!projects) return <FeatureDisabledView feature="projects" />;
   return <ProjectBrowser key={scopeKey} scopeKey={scopeKey} />;
 }
 

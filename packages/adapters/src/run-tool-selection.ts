@@ -63,6 +63,24 @@ const PURCHASE_TOOL_NAMES = new Set(["request_purchase", "purchase_status", "pai
 /** Offered only to a user who connected a GitHub account. */
 const GITHUB_TOOL_NAMES_SET: ReadonlySet<string> = new Set(GITHUB_TOOL_NAMES);
 
+/** Built-in tools that interact with the bot's cloud computer sandbox (shell, screen, workspace files, browser). */
+export const COMPUTER_SANDBOX_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "shell",
+  "computer_observe",
+  "computer_act",
+  "open_path",
+  "launch_app",
+  "request_takeover",
+  "list_files",
+  "read_file",
+  "write_file",
+  "render_plot",
+  "attach_file",
+  "browser_navigate",
+  "browser_snapshot",
+  "browser_act",
+]);
+
 export const BUILTIN_AGENT_TOOL_NAMES = new Set(builtinAgentTools.map((tool) => tool.name));
 
 const FLEET_TOOL_NAMES_SET: ReadonlySet<string> = new Set(FLEET_TOOL_NAMES);
@@ -86,6 +104,8 @@ export function selectBuiltinToolsForRun(options: {
   ticketBoardEnabled?: boolean;
   phoneCallsEnabled?: boolean;
   historyRetrievalEnabled?: boolean;
+  /** Whether the run's account is allowed to use the cloud computer sandbox. Defaults to true. */
+  computerEnabled?: boolean;
   graphicalToolsAllowed: boolean;
   computerKind?: string;
   /** Page browser tools need a graphical computer (Chrome), not model vision. */
@@ -136,6 +156,7 @@ export function selectBuiltinToolsForRun(options: {
   ).filter(
     (tool) =>
       !disabled.has(tool.name) &&
+      (options.computerEnabled !== false || !COMPUTER_SANDBOX_TOOL_NAMES.has(tool.name)) &&
       (options.computerKind !== "native-linux" ||
         (tool.name !== "open_path" && tool.name !== "launch_app")) &&
       (options.trigger !== "created" || CREATED_RUN_TOOL_NAMES.has(tool.name)) &&

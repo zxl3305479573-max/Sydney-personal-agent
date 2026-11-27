@@ -29,6 +29,7 @@ import type {
   ModelRoleChoice,
   ModelRoleSettings,
   ModelRoleView,
+  UserFeatureKey,
 } from "@rakazo/contracts";
 import {
   appContract,
@@ -46,6 +47,7 @@ import {
 import { createAgentImportServices } from "../agent-import-services.js";
 import { createAgentSkillsService } from "../agent-skills.js";
 import { createBotRemoval } from "../bot-removal.js";
+import { requireFeatureAccess } from "../feature-access.js";
 import { createMcpServers } from "../mcp-servers.js";
 import { createModelConnector, prepareAllowedThinkingLevels } from "../model-credentials.js";
 import type { RouterDeps } from "../router.js";
@@ -371,6 +373,16 @@ export function createRouterContext(deps: RouterDeps) {
     return next();
   });
 
+  const featureAuthed = (feature: UserFeatureKey) =>
+    authed.use(async ({ context, next }) => {
+      await requireFeatureAccess(deps, context.actor.userId, feature);
+      return next();
+    });
+  const computerAuthed = featureAuthed("computer");
+  const projectsAuthed = featureAuthed("projects");
+  const githubAuthed = featureAuthed("github");
+  const integrationsAuthed = featureAuthed("integrations");
+
   const boardEnabled = os
     .use(async ({ next }) => {
       if (!deps.env?.ticketBoardEnabled) throw new ORPCError("NOT_FOUND");
@@ -416,6 +428,10 @@ export function createRouterContext(deps: RouterDeps) {
     taughtSkills,
     agentSkills,
     authed,
+    computerAuthed,
+    projectsAuthed,
+    githubAuthed,
+    integrationsAuthed,
     callsEnabled,
     boardEnabled,
     ticketDeps,

@@ -48,6 +48,7 @@ import {
   screenSendScopeCurrent,
   sendReviewedScreenText,
 } from "../lib/companion-screen-send";
+import { useFeatureAccess } from "../lib/feature-access";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
 import type { NativeColors } from "../lib/native";
@@ -100,6 +101,7 @@ function ProjectBotProfileRoute({
 function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: string }) {
   const sideInsets = useSideInsets();
   const { t } = useI18n();
+  const { computer: computerAllowed, projects: projectsAllowed } = useFeatureAccess();
   const router = useRouter();
   const styles = useThemedStyles(createStyles);
   const stacked = useStackedSettings();
@@ -188,14 +190,18 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
           );
         })
         .catch(() => undefined);
-      void rpc("computer/status", { botId })
-        .then((next) => {
-          if (current) setComputer(next);
-        })
-        // A stale Running or Asleep is worse than no state.
-        .catch(() => {
-          if (current) setComputer(null);
-        });
+      if (computerAllowed) {
+        void rpc("computer/status", { botId })
+          .then((next) => {
+            if (current) setComputer(next);
+          })
+          // A stale Running or Asleep is worse than no state.
+          .catch(() => {
+            if (current) setComputer(null);
+          });
+      } else {
+        setComputer(null);
+      }
       return () => {
         current = false;
         profileFocused.current = false;
@@ -203,7 +209,7 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
         unsubscribeScreen();
         unsubscribeSpace();
       };
-    }, [botId, projectId, scope, t]),
+    }, [botId, computerAllowed, projectId, scope, t]),
   );
 
   // The chat list's Silence notifications saves the same setting. The switch moves
@@ -645,32 +651,34 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
               }
               onPress={() => router.push({ pathname: "/artifacts", params: { botId } })}
             />
-            <SettingsRow
-              key="computer"
-              accessibilityRole="button"
-              chevron="right"
-              title={t("Computer")}
-              leading={
-                <View style={styles.leadingBadge}>
-                  <NativeSymbol
-                    ios="desktopcomputer"
-                    android="desktop-outline"
-                    size={16}
-                    color={styles.leadingIcon.color}
-                  />
-                </View>
-              }
-              value={
-                computer?.state === "running"
-                  ? t("Running")
-                  : computer?.state === "suspended"
-                    ? t("Asleep")
-                    : undefined
-              }
-              onPress={() => router.push({ pathname: "/computer", params: { botId, name } })}
-            />
+            {computerAllowed ? (
+              <SettingsRow
+                key="computer"
+                accessibilityRole="button"
+                chevron="right"
+                title={t("Computer")}
+                leading={
+                  <View style={styles.leadingBadge}>
+                    <NativeSymbol
+                      ios="desktopcomputer"
+                      android="desktop-outline"
+                      size={16}
+                      color={styles.leadingIcon.color}
+                    />
+                  </View>
+                }
+                value={
+                  computer?.state === "running"
+                    ? t("Running")
+                    : computer?.state === "suspended"
+                      ? t("Asleep")
+                      : undefined
+                }
+                onPress={() => router.push({ pathname: "/computer", params: { botId, name } })}
+              />
+            ) : null}
           </>
-        ) : (
+        ) : projectsAllowed ? (
           <SettingsRow
             accessibilityRole="button"
             chevron="right"
@@ -692,7 +700,7 @@ function BotProfileBody({ projectId, scope }: { projectId?: string; scope?: stri
               })
             }
           />
-        )}
+        ) : null}
       </SettingsGroup>
       {bot ? (
         <SettingsGroup footer={t("Get notified when this Bot finishes or needs input")}>
