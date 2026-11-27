@@ -9,16 +9,21 @@ import { completeMobileStartup, ServerSettingsStartupError } from "../lib/startu
 import { themeManager } from "../lib/theme-state";
 import { getUiModeSnapshot, resetUiModeToClassic } from "../lib/ui-mode";
 import { MotionPressable } from "./motion-pressable";
+import { RenderErrorDetails } from "./render-error-details";
 
 type Props = { children: ReactNode };
-type State = { failed: boolean; serverSettingsError: boolean };
+type State = { failed: boolean; serverSettingsError: boolean; error: unknown };
 
 /** Keep a render failure from becoming a blank release screen. */
 export class AppErrorBoundary extends Component<Props, State> {
-  override state: State = { failed: false, serverSettingsError: false };
+  override state: State = { failed: false, serverSettingsError: false, error: null };
 
   static getDerivedStateFromError(error: unknown): State {
-    return { failed: true, serverSettingsError: error instanceof ServerSettingsStartupError };
+    return {
+      failed: true,
+      serverSettingsError: error instanceof ServerSettingsStartupError,
+      error,
+    };
   }
 
   override componentDidCatch(error: Error) {
@@ -38,7 +43,7 @@ export class AppErrorBoundary extends Component<Props, State> {
         else void themeManager.reset().catch(() => undefined);
       }
       void resetUiModeToClassic();
-      this.setState({ failed: false, serverSettingsError: false });
+      this.setState({ failed: false, serverSettingsError: false, error: null });
       return;
     }
     void SplashScreen.hideAsync()
@@ -55,11 +60,18 @@ export class AppErrorBoundary extends Component<Props, State> {
           <Text style={[styles.message, { color: tokens.foreground }]}>
             {t("Server settings or the saved session could not be verified.")}
           </Text>
-        ) : null}
+        ) : (
+          <>
+            <Text style={[styles.message, { color: tokens.foreground }]}>
+              {t("Something went wrong. Try again.")}
+            </Text>
+            <RenderErrorDetails error={this.state.error} color={tokens.foreground} />
+          </>
+        )}
         <MotionPressable
           preset="control"
           accessibilityRole="button"
-          onPress={() => this.setState({ failed: false, serverSettingsError: false })}
+          onPress={() => this.setState({ failed: false, serverSettingsError: false, error: null })}
           style={[styles.action, { backgroundColor: tokens.primary }]}
         >
           <Text style={[styles.actionText, { color: tokens.primaryForeground }]}>

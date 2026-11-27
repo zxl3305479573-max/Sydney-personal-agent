@@ -16,10 +16,11 @@ import { act, createElement, useEffect } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import BotSettingsScreen from "../app/bot-settings";
+import BotSettingsScreen, { ErrorBoundary as BotSettingsErrorBoundary } from "../app/bot-settings";
 import { MenuPicker } from "../components/menu-picker";
 import type { SavedBotAvatar } from "./bot-avatar-library";
 import { afterChatNotifyChange } from "./live-notifications";
+import { reportMobileError } from "./monitoring";
 
 const mocks = vi.hoisted(() => ({
   instructions: "",
@@ -72,6 +73,7 @@ function deferredSave<T = void>() {
 }
 
 vi.mock("./side-insets", () => ({ useSideInsets: () => ({}) }));
+vi.mock("./monitoring", () => ({ reportMobileError: vi.fn() }));
 vi.mock("./session", () => ({ currentSessionGeneration: () => 1 }));
 vi.mock("./bot-avatar-library", () => ({
   loadBotAvatarLibrary: mocks.loadAvatarLibrary,
@@ -485,6 +487,50 @@ describe("bot settings device voice menu", () => {
         .click(),
     );
   };
+  it("retries a render failure within the editor and only leaves on Back", async () => {
+    const retry = vi.fn(async () => {
+      root.render(<BotSettingsScreen />);
+    });
+    const failure = new TypeError("Cannot read property 'width' of undefined");
+    await act(async () => root.render(<BotSettingsErrorBoundary error={failure} retry={retry} />));
+    expect(container.textContent).toContain("TypeError: Cannot read property 'width' of undefined");
+    expect(reportMobileError).toHaveBeenCalledWith(failure, "react.render", {
+      screen: "bot-settings",
+    });
+    await clickButton("Try again");
+    expect(retry).toHaveBeenCalledOnce();
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label="Edit name"]')?.textContent).toBe("Fixture");
+    expect(container.querySelector('textarea[aria-label="Personality"]')).not.toBeNull();
+    await act(async () => root.render(<BotSettingsErrorBoundary error={failure} retry={retry} />));
+    await clickButton("Back");
+    expect(mocks.back).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps repeated render failures visible and redacts diagnostic secrets", async () => {
+    const retry = vi.fn(async () => undefined);
+    const failure = new Error("Missing native view; Bearer abc.def password=secret");
+    await act(async () => root.render(<BotSettingsErrorBoundary error={failure} retry={retry} />));
+    await clickButton("Try again");
+    expect(container.textContent).toContain("Missing native view");
+    expect(container.textContent).not.toContain("abc.def");
+    expect(container.textContent).not.toContain("password=secret");
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("bounds unusually long render diagnostics", async () => {
+    await act(async () =>
+      root.render(
+        <BotSettingsErrorBoundary
+          error={new Error("x".repeat(5000))}
+          retry={async () => undefined}
+        />,
+      ),
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent?.length).toBe(1200);
+  });
   const savedAvatar: SavedBotAvatar = {
     id: "avatar-existing",
     dataUrl: "data:image/jpeg;base64,ZXhpc3Rpbmc=",

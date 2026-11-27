@@ -108,6 +108,7 @@ describe("AppErrorBoundary", () => {
 
     const retry = container.querySelector("button");
     expect(container.textContent).not.toContain("Server settings or the saved session");
+    expect(container.textContent).toContain("Error: render failed");
     expect(retry?.textContent).toBe("Try again");
     expect(SplashScreen.hideAsync).toHaveBeenCalledOnce();
 
@@ -129,6 +130,7 @@ describe("AppErrorBoundary", () => {
     expect(container.textContent).toContain(
       "Server settings or the saved session could not be verified.",
     );
+    expect(container.textContent).not.toContain("not verified");
     const retry = container.querySelector("button");
     shouldThrow = false;
     act(() => retry?.click());
@@ -147,6 +149,22 @@ describe("AppErrorBoundary", () => {
     );
     expect(modeState.isClassic).toBe(true);
     expect(container.textContent).toBe("Recovered content");
+  });
+
+  it("shows sanitized diagnostics for render errors outside a route boundary", () => {
+    function BrokenRoute(): never {
+      throw new TypeError("Missing native view; Bearer abc.def password=secret");
+    }
+    act(() =>
+      root.render(
+        <AppErrorBoundary>
+          <BrokenRoute />
+        </AppErrorBoundary>,
+      ),
+    );
+    expect(container.textContent).toContain("TypeError: Missing native view");
+    expect(container.textContent).not.toContain("abc.def");
+    expect(container.textContent).not.toContain("password=secret");
   });
 
   it("does not reset the selected mode for a server settings failure", () => {

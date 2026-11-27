@@ -17,6 +17,7 @@ import {
   resolveSelectableModelId,
 } from "@rakazo/core";
 import type { ColorTokens } from "@rakazo/ui-tokens";
+import type { ErrorBoundaryProps } from "expo-router";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import type { Voice } from "expo-speech";
 import type { ReactNode } from "react";
@@ -36,6 +37,7 @@ import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
 import { PersonalPersonalityLibrary } from "../components/personal-personality-library";
 import { ProfileEditDialog } from "../components/profile-edit-dialog";
+import { RenderErrorDetails } from "../components/render-error-details";
 import { Chevron } from "../components/row-accessories";
 import type { MobileMe, MobileModel, MobileModelCredential } from "../lib/api";
 import {
@@ -57,6 +59,7 @@ import { DEFAULT_BOT_AVATAR_DATA_URI } from "../lib/default-bot-avatar";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { useI18n } from "../lib/i18n";
 import { afterChatNotifyChange } from "../lib/live-notifications";
+import { reportMobileError } from "../lib/monitoring";
 import { native, useMobileTokens } from "../lib/native";
 import {
   projectRequestOptions,
@@ -87,6 +90,49 @@ type BotSettingsParams = {
   projectId?: string;
   scope?: string;
 };
+
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const { t } = useI18n();
+  const tokens = useMobileTokens();
+  const router = useRouter();
+  useEffect(() => {
+    reportMobileError(error, "react.render", { screen: "bot-settings" });
+  }, [error]);
+  return (
+    <>
+      <Stack.Screen options={glassHeaderOptions(t("Chat settings"))} />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+        style={{ flex: 1, backgroundColor: tokens.background }}
+        contentContainerStyle={{ padding: 24, gap: 20 }}
+      >
+        <Text accessibilityRole="header" style={{ color: tokens.foreground, fontSize: 18 }}>
+          {t("Could not load bot")}
+        </Text>
+        <RenderErrorDetails error={error} color={tokens.foreground} />
+        <MotionPressable
+          preset="control"
+          accessibilityRole="button"
+          onPress={() => void retry()}
+          style={{ padding: 16, borderRadius: 12, backgroundColor: tokens.primary }}
+        >
+          <Text style={{ color: tokens.primaryForeground, textAlign: "center" }}>
+            {t("Try again")}
+          </Text>
+        </MotionPressable>
+        <MotionPressable
+          preset="control"
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          style={{ padding: 16 }}
+        >
+          <Text style={{ color: tokens.foreground, textAlign: "center" }}>{t("Back")}</Text>
+        </MotionPressable>
+      </ScrollView>
+    </>
+  );
+}
 
 export default function BotSettingsRoute() {
   const params = useLocalSearchParams<BotSettingsParams>();
