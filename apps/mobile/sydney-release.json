@@ -1,21 +1,30 @@
 {
-  "version": "1.0.42",
+  "version": "1.0.43",
   "releasedOn": "2026-11-27",
   "notes": {
     "zh-CN": [
       "人格预设菜单现在包含已保存的个人人格，可直接选择并回显当前人格名称。",
       "个人人格库增加明确的“使用”按钮和选中状态，新建与编辑 Bot 均可使用。",
-      "人格修改后可直接在该区域点击“保存”应用到 Bot，保留原有工作指令。"
+      "人格修改后可直接在该区域点击“保存”应用到 Bot，保留原有工作指令。",
+      "修复聊天气泡渐变遮盖自定义颜色的问题，保留已设置的颜色与透明度。",
+      "修复记账金额输入显示不全，并避免账单同步重置正在输入的草稿。",
+      "账单新增每日收支趋势、币种切换和单日查询，前台自动同步，隐藏金额时同时隐藏曲线。"
     ],
     "zh-TW": [
       "人格預設選單現在包含已儲存的個人人格，可直接選取並顯示目前人格名稱。",
       "個人人格庫加入明確的「使用」按鈕和選取狀態，建立與編輯 Bot 均可使用。",
-      "人格修改後可直接在該區域點選「儲存」套用至 Bot，保留原有工作指令。"
+      "人格修改後可直接在該區域點選「儲存」套用至 Bot，保留原有工作指令。",
+      "修復聊天氣泡漸層遮蓋自訂顏色的問題，保留已設定的顏色與透明度。",
+      "修復記帳金額輸入顯示不全，並避免帳單同步重設正在輸入的草稿。",
+      "帳單新增每日收支趨勢、幣別切換和單日查詢，前景自動同步，隱藏金額時同時隱藏曲線。"
     ],
     "en": [
       "Choose saved personal personalities directly from the preset menu and see the current personality name.",
       "Use explicit Use buttons and selected states in the personality library when creating or editing bots.",
-      "Save personality changes directly in the personality section while preserving existing work instructions."
+      "Save personality changes directly in the personality section while preserving existing work instructions.",
+      "Fix chat bubble gradients covering custom colors while preserving your colors and opacity.",
+      "Fix clipped bill amount inputs and preserve drafts when bills sync.",
+      "View daily income and expense trends by currency and day, with foreground sync and charts concealed when amounts are hidden."
     ]
   }
 }

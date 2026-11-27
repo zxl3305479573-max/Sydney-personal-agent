@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
+import { GlassSurface as FallbackGlassSurface } from "../components/glass-surface";
 import { GlassSurface } from "../components/glass-surface.ios";
 
 const device = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock("react-native", () => ({
     accessibilityRole,
     accessibilityLiveRegion,
     accessibilityViewIsModal,
+    style,
   }: {
     children?: ReactNode;
     testID?: string;
@@ -30,6 +32,7 @@ vi.mock("react-native", () => ({
     accessibilityRole?: string;
     accessibilityLiveRegion?: string;
     accessibilityViewIsModal?: boolean;
+    style?: unknown;
   }) => (
     <div
       data-testid={testID}
@@ -37,11 +40,13 @@ vi.mock("react-native", () => ({
       role={accessibilityRole}
       aria-live={accessibilityLiveRegion as "off" | "polite" | "assertive" | undefined}
       data-modal={accessibilityViewIsModal}
+      data-surface-style={JSON.stringify(style)}
     >
       {children}
     </div>
   ),
 }));
+
 vi.mock("@expo/ui/swift-ui", () => ({
   Host: ({
     children,
@@ -71,6 +76,21 @@ vi.mock("./ui-mode", () => ({
   getActiveUiMode: () => ({ glassPolicy: device.policy }),
 }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => device.supportsGlass }));
+
+it.each([
+  ["ios", GlassSurface],
+  ["fallback", FallbackGlassSurface],
+] as const)("allows %s bubbles to opt out of the opaque card gradient", (_platform, Surface) => {
+  const props = {
+    shape: "roundedRectangle" as const,
+    fallbackStyle: { backgroundColor: "rgba(187, 247, 208, 0.4)", borderRadius: 12 },
+  };
+  const bubble = renderToStaticMarkup(<Surface {...props} gradient={false} />);
+  expect(bubble).toContain("rgba(187, 247, 208, 0.4)");
+  expect(bubble).not.toContain("gradient(");
+  const card = renderToStaticMarkup(<Surface {...props} />);
+  expect(card).toContain("gradient(");
+});
 
 it("keeps ordinary surfaces flat and interactive on iOS 26", () => {
   device.supportsGlass = true;

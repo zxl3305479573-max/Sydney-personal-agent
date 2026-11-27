@@ -19,7 +19,7 @@ import {
   ParseFinanceBillImageMimeTypeSchema,
   parseAmountToCents,
 } from "@rakazo/contracts";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -155,7 +155,7 @@ export function FinanceBillSheet({
     setListening(false);
   }, []);
 
-  useEffect(() => {
+  const initializeDraft = useEffectEvent(() => {
     if (!visible) {
       stopVoiceCapture();
       initialModeConsumedRef.current = false;
@@ -196,18 +196,12 @@ export function FinanceBillSheet({
       setPaymentMethodId(preselected?.id ?? null);
       setStatus("paid");
     }
-    return () => {
-      stopVoiceCapture();
-    };
-  }, [
-    visible,
-    editing,
-    initialPaymentMethodId,
-    methods,
-    defaultMethod?.id,
-    defaultMethod?.currency,
-    stopVoiceCapture,
-  ]);
+  });
+
+  useEffect(() => {
+    initializeDraft();
+    return () => stopVoiceCapture();
+  }, [visible, editing?.id, initialPaymentMethodId, stopVoiceCapture]);
 
   const isLight = appearance === "light";
   const cardBg = isLight ? "#FFFEFC" : "#242933";
@@ -954,9 +948,12 @@ export function FinanceBillSheet({
             style={{
               color: tokens.foreground,
               fontSize: 32,
+              lineHeight: 44,
               fontWeight: "700",
               fontVariant: ["tabular-nums"],
-              paddingVertical: 2,
+              minHeight: 64,
+              flexShrink: 0,
+              paddingVertical: 8,
             }}
           />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>

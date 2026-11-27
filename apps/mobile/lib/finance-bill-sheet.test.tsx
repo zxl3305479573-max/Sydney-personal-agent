@@ -123,15 +123,18 @@ vi.mock("react-native", () => {
       onChangeText,
       testID,
       placeholder,
+      style,
     }: {
       value?: string;
       onChangeText?: (text: string) => void;
       testID?: string;
       placeholder?: string;
+      style?: unknown;
     }) => (
       <input
         data-testid={testID}
         placeholder={placeholder}
+        style={flatten(style)}
         value={value ?? ""}
         onChange={(e) => onChangeText?.(e.target.value)}
       />
@@ -177,6 +180,63 @@ afterEach(() => {
 });
 
 describe("FinanceBillSheet smart receipt scan, voice input, and auto-categorize", () => {
+  it("keeps large decimal amounts editable with sufficient vertical space", async () => {
+    const onSave = vi.fn(async () => undefined);
+    act(() =>
+      root.render(
+        <FinanceBillSheet
+          visible
+          editing={null}
+          methods={SAMPLE_METHODS}
+          onClose={() => undefined}
+          onSave={onSave}
+        />,
+      ),
+    );
+    const amount = container.querySelector<HTMLInputElement>(
+      '[data-testid="finance-bill-amount-input"]',
+    )!;
+    expect(amount.style.lineHeight).toBe("44");
+    expect(amount.style.minHeight).toBe("64px");
+    expect(amount.style.flexShrink).toBe("0");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        amount,
+        "123456.78",
+      );
+      amount.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(amount.value).toBe("123456.78");
+    act(() =>
+      root.render(
+        <FinanceBillSheet
+          visible
+          editing={null}
+          methods={SAMPLE_METHODS.map((method) => ({ ...method }))}
+          onClose={() => undefined}
+          onSave={onSave}
+        />,
+      ),
+    );
+    expect(amount.value).toBe("123456.78");
+    const title = container.querySelector<HTMLInputElement>(
+      '[data-testid="finance-bill-title-input"]',
+    )!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        title,
+        "午饭",
+      );
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-testid="finance-bill-save"]')!.click(),
+    );
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 12345678, title: "午饭" }),
+    );
+  });
+
   it("scans a receipt photo via camera, auto-classifies, and auto-saves when auto-save is ON", async () => {
     mocks.parseFinanceBillDraft.mockResolvedValueOnce({
       direction: "expense",

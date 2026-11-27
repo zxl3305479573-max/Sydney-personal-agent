@@ -1,8 +1,8 @@
 import { resolvePersonaColorDef, shouldShowBotSenderName } from "@rakazo/core";
 import { botColors, darkTokens } from "@rakazo/ui-tokens";
-import type { ComponentProps } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import type { MobileBot, MobileSnapshot } from "./api";
 
 vi.mock("react-native", () => ({
@@ -14,7 +14,13 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: <T,>(styles: T) => styles },
   Text: "span",
   TextInput: "input",
-  View: "div",
+  View: ({
+    children,
+    style,
+  }: {
+    children?: ReactNode;
+    style?: CSSProperties | CSSProperties[];
+  }) => <div style={Array.isArray(style) ? Object.assign({}, ...style) : style}>{children}</div>,
 }));
 
 vi.mock("react-native-reanimated", () => ({
@@ -62,15 +68,20 @@ vi.mock("@rakazo/chat-ui/native", () => ({
 vi.mock("../components/message-caption", () => ({
   MessageCaption: ({ text }: { text: string }) => <span>{text}</span>,
 }));
-vi.mock("../components/glass-surface", () => ({
-  GlassSurface: ({
-    fallbackStyle,
-    tint,
-  }: {
-    fallbackStyle: { backgroundColor: string; borderRadius: number };
-    tint: string;
-  }) => <div data-glass-tint={tint} style={fallbackStyle} />,
-}));
+vi.mock("../components/glass-surface", async (importOriginal) => {
+  const { GlassSurface } = await importOriginal<typeof import("../components/glass-surface")>();
+  return {
+    GlassSurface: (props: ComponentProps<typeof GlassSurface>) => (
+      <div data-glass-tint={props.tint}>
+        <GlassSurface {...props} />
+      </div>
+    ),
+  };
+});
+vi.mock("./chat-appearance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./chat-appearance")>();
+  return { ...actual, useMobileChatAppearance: () => actual.getEffectiveMobileChatAppearance() };
+});
 vi.mock("../components/ComputerCard", () => ({
   ComputerCard: ({ onOpen }: { onOpen: () => void }) => {
     onOpen();
@@ -93,6 +104,15 @@ vi.mock("../components/McpApprovalCard", () => ({ McpApprovalCard: () => null })
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
 
 import { MessageBubble } from "../components/thread/message-bubble";
+import {
+  getMobileChatAppearance,
+  MOBILE_BUBBLE_PRESETS,
+  saveMobileChatAppearance,
+} from "./chat-appearance";
+
+beforeEach(async () => {
+  await saveMobileChatAppearance({ ...getMobileChatAppearance(), bubble: null });
+});
 
 type BubbleProps = ComponentProps<typeof MessageBubble>;
 
@@ -138,6 +158,40 @@ it.each(["user", "bot"] as const)("shows a translucent glass bubble for a %s mes
   expect(html).toContain("border-radius:20px");
   expect(html).toContain('data-glass-tint="rgba(');
   expect(html).toContain(">Hello</span>");
+});
+
+it.each([
+  ["user", "text"],
+  ["bot", "text"],
+  ["user", "image"],
+  ["bot", "image"],
+] as const)("keeps the saved bubble color visible for %s %s messages", async (role, kind) => {
+  await saveMobileChatAppearance({
+    ...getMobileChatAppearance(),
+    bubble: { ...MOBILE_BUBBLE_PRESETS[1]!.value, opacity: 0.4, radius: 12 },
+  });
+  const html = renderToStaticMarkup(
+    <Bubble
+      userBubble={{ background: "#112233", foreground: "#ffffff" }}
+      message={{
+        id: "message",
+        role,
+        blocks: [
+          kind === "text"
+            ? { kind, text: "Hello" }
+            : { kind, name: "Picture", artifactId: "artifact-1", mimeType: "image/png" },
+          ...(kind === "image" ? [{ kind: "text" as const, text: "Photo caption" }] : []),
+        ],
+      }}
+    />,
+  );
+  expect(html).toContain(
+    role === "user"
+      ? "background-color:rgba(187, 247, 208, 0.4)"
+      : "background-color:rgba(236, 253, 245, 0.4)",
+  );
+  expect(html).toContain("border-radius:12px");
+  expect(html).not.toContain("gradient(");
 });
 
 it.each(["text", "image"] as const)("keeps per-bot sender colours on %s messages", (kind) => {

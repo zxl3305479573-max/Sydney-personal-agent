@@ -25,6 +25,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AutoSavedBillBanner } from "../components/finance-bill-sheet";
 import { FinanceBillSheet } from "../components/finance-bill-sheet";
+import { FinanceTrendChart } from "../components/finance-trend-chart";
 import { glassHeaderOptions } from "../components/glass-title";
 import { MotionPressable } from "../components/motion-pressable";
 import { NativeSwitch } from "../components/native-switch";
@@ -61,6 +62,7 @@ import {
   soonestCreditCardRepayment,
 } from "../lib/personal-finance-ui";
 import { useScreenBackground } from "../lib/scoped-theme-context";
+import { useFinanceLiveRefresh } from "../lib/use-finance-live-refresh";
 
 type FinanceTab = "bills" | "methods";
 type MethodFilter = "all" | "bank" | "credit" | "ewallet" | "other";
@@ -158,10 +160,10 @@ export default function PersonalFinanceScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refreshPersonalFinance({ month: selectedMonth });
       void loadMobileBridgeState();
-    }, [selectedMonth]),
+    }, []),
   );
+  useFinanceLiveRefresh(selectedMonth);
 
   const handleToggleAllBotsLedger = async (next: boolean) => {
     if (updatingBotToggle) return;
@@ -680,6 +682,12 @@ export default function PersonalFinanceScreen() {
                   </Text>
                 </View>
               </View>
+
+              <FinanceTrendChart
+                bills={finance.bills}
+                month={selectedMonth}
+                hideAmounts={hideAmounts}
+              />
 
               {/* Category Breakdown Bars */}
               {monthSummary.byCategory.length > 0 && monthSummary.totalExpenseCents > 0 ? (

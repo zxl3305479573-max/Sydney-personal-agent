@@ -873,6 +873,7 @@ function MessageGlass({
   return (
     <GlassSurface
       pointerEvents="none"
+      gradient={false}
       shape="roundedRectangle"
       cornerRadius={borderRadius}
       tint={backgroundColor}

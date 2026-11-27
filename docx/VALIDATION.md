@@ -1,5 +1,22 @@
 # 验证记录
 
+## 1.0.43 合并回归与发布（2026-11-27）
+
+- 范围为已推送的人格选择／Bot 编辑修复与当前工作区气泡、记账改动，关联 PA-020／PA-021／PA-022／PA-025／REL-01。
+- 使用已有 Node `24.15.0`，执行 `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run ... --maxWorkers=1`：16 文件 275／275 项通过。文件包含 `thread-sender-colors`、`glass-surface`、`chat-appearance`、`chat-appearance-screen`、`glass-title`、`finance-trend`、`finance-trend-chart`、`use-finance-live-refresh`、`finance-bill-sheet`、`personal-finance`、`home-finance-card`、`bot-settings-voice`、`chat-model-picker`、`bot-profile`、`default-bot-avatar` 及共享契约 `bot-personality`。
+- 版本更新至 `1.0.43` 后，`app-version.test.ts`、`app-config.test.ts` 两文件 40／40 项通过，合计 18 文件 315 项。移动端 `pnpm.cmd --filter @rakazo/mobile check` 通过，13 个改动 TS／TSX／JSON 文件 Biome 检查通过，无自动修正。
+- `1.0.42` 人格 OTA Run `45951677897` 已确认 `completed / success`；该版因代理响应导致探针未完成，不宣称全资源核验通过。`1.0.43` 的提交、工作流和线上资源核验随后补录。
+- 未安装依赖、启动本机服务或执行全工作区构建；未合并 `main`、部署后端或进行 iPhone 真机交互验收。
+
+## 记账金额输入与实时收支趋势（2026-11-27）
+
+- 关联 PA-025／PA-021。`finance-bill-sheet.test.tsx` 验证 `123456.78` 可完整保留、金额输入垂直空间和保存分值，且账单同步导致同一新建草稿不被重新初始化。
+- `finance-trend.test.ts` 验证按日累计、收入／支出方向、转账排除、月份隔离、币种隔离、闰年天数和新增／编辑／删除后的重新计算。
+- `finance-trend-chart.test.tsx` 验证收入／支出曲线、单日导航、点选、币种切换、实时传入新账单、金额隐藏和空月份状态。
+- `use-finance-live-refresh.test.tsx` 验证前台立即刷新及 15 秒周期、后台停止、重新激活恢复、月份切换和卸载清理。
+- 命令 `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run apps/mobile/lib/finance-trend.test.ts apps/mobile/lib/finance-trend-chart.test.tsx apps/mobile/lib/use-finance-live-refresh.test.tsx apps/mobile/lib/finance-bill-sheet.test.tsx apps/mobile/lib/personal-finance.test.ts apps/mobile/lib/home-finance-card.test.tsx`，6 文件、16／16 项通过。
+- 命令 `fnm exec --using 24.15.0 -- pnpm.cmd --filter @rakazo/mobile check` 通过，命令 `fnm exec --using 24.15.0 -- pnpm.cmd exec biome check --write ...` 对本轮 9 个文件通过。未进行全工作区构建、后端部署、手机截图或真机交互验收。
+
 ## 已保存人格选择与应用（2026-11-27）
 
 关联 PA-021／PA-022／REL-01。
@@ -8,6 +25,15 @@
 - 修复后普通／项目 Bot 均可直接从菜单选择已保存人格；实际库组件的使用按钮可填入人格草稿，保存合并指令且保留原有工作指令。新增菜单加载／回显、库失败重试、工作区切换拒绝选择和新建 Bot 使用按钮等回归；创建、修改、删除后的菜单同步也由真实组件回归覆盖。
 - 首轮新增测试发现项目夹具需要清除初始读取调用、模型测试夹具需要完整语言属性；修正后 3 文件 149 项通过。终轮 10 文件 274 项全部通过，包含编辑、创建、模型选择、资料页、原生头像导出、发布配置、主题覆盖、滚动和共享人格编码；移动端 `tsc --noEmit`、6 文件 Biome 与 `git diff --check` 通过。Impeccable 两份 TSX 源文件机械扫描无输出发现，仅执行正则检查，不能替代真机视觉验证。
 - 本机没有原生运行环境，未验证 iPhone 的实际触摸和视觉；没有读取截图中的私人事项对应业务数据。继续使用已有 OTA 工作流，版本准备为 `1.0.42`；发布标识与全资源核验待补录。
+
+## 聊天气泡自定义颜色被遮盖修复（2026-11-27）
+
+- 关联 PA-020／PA-021。回归覆盖实际消息组件传入真实通用表面后的背景层，用户／机器人文字及带说明图片共四项在旧实现中因残留 `gradient(...)` 失败，移除消息渐变后通过。首轮图片测试未提供说明文本，仅有图片本体，未进入气泡分支；补齐说明后四项均复现同一遮盖问题。
+- 命令：`pnpm exec vitest run apps/mobile/lib/thread-sender-colors.test.tsx apps/mobile/lib/glass-surface.test.tsx apps/mobile/lib/chat-appearance.test.ts apps/mobile/lib/chat-appearance-screen.test.tsx apps/mobile/lib/glass-title.test.tsx`，5 文件、36／36 项通过。覆盖保存与重载、设置交互、消息色与圆角、双平台渐变关闭及普通卡片、标题玻璃回归。
+- 移动端 `pnpm --filter @rakazo/mobile check` 在默认 Node `22.22.0` 因仓库引擎约束拒绝执行；通过 `fnm exec --using 24.15.0 -- pnpm.cmd --filter @rakazo/mobile check` 使用已有合规 Node 后通过。Windows 下 `fnm exec` 需显式指定 `pnpm.cmd`，未改运行环境配置或安装依赖。
+- `message-bubble.tsx`、`thread-sender-colors.test.tsx`、`glass-surface.test.tsx` 三文件 Biome 检查通过，首轮仅有导入排序及测试格式问题，已修正。Impeccable `detect --json --changed` 返回空发现。
+- 终轮使用已有 Node `24.15.0` 重跑上述五文件回归，仍为 36／36 项通过；`git diff --check` 通过。
+- 限制：以上是离线组件回归与静态检查，没有执行全工作区构建、服务部署或 iPhone 真实截图／触摸验收；修复未发布至手机。
 
 ## Bot 编辑调用栈溢出根因修复（2026-11-27）
 

@@ -1,6 +1,12 @@
 # 对话窗口分工与交接
 
+2026-11-27（REL-01 合并新增修改与 `1.0.43` OTA，本对话接管）：用户明确要求新的修改一起提交，当前对话统一审查、验证和提交工作区全部气泡／记账写集及共享文档，在人格提交 `538df4ab5` 上更新 `sydney-release.json` 并发布。此前各窗口「不修改发布版本／不代为提交」为当时写集边界，本轮以用户追加授权统一收口；不调用子代理、不创建窗口、不安装依赖或启动服务。交付状态与真实证据见最新计划、验证及运维记录。
+
+2026-11-27（PA-025／PA-021 金额输入与收支趋势，本窗口）：顺序实现，不调用子代理。写集为 `apps/mobile/app/finance.tsx`、`components/finance-bill-sheet.tsx`、新增 `components/finance-trend-chart.tsx`、`lib/finance-trend.ts`、`lib/use-finance-live-refresh.ts` 与对应测试、既有 `finance-bill-sheet.test.tsx`，及需求和过程文档追加。延续本窗口气泡修复；不修改另一窗口 Bot 人格组件、测试与 `sydney-release.json` 发布准备。
+
 2026-11-27（PA-021／PA-022 已保存人格选择，本对话）：处理用户截图反馈，顺序修复，不调用子代理。写集：`apps/mobile/app/bot-settings.tsx`、`components/personal-personality-library.tsx`、3 份关联交互测试、`sydney-release.json` 与人格说明及共享文档的本任务段落。另一个实际窗口已在修改气泡颜色，保留其 `message-bubble.tsx`、`thread-sender-colors.test.tsx`、`glass-surface.test.tsx` 及文档段落；本任务提交仅暂存人格写集和本任务文档段落，OTA 从对应已提交源码发布。
+
+2026-11-27（PA-020／PA-021 气泡颜色覆盖，本窗口）：顺序排查与修复，不调用子代理。写集为 `apps/mobile/components/thread/message-bubble.tsx`、`apps/mobile/lib/thread-sender-colors.test.tsx`、`apps/mobile/lib/glass-surface.test.tsx` 及本节、总计划、开发／验证／运维记录。开始时同工作区已有人格选择相关的 `bot-settings.tsx`、`personal-personality-library.tsx` 和总计划改动，保留该实现与状态，本文档仅追加气泡记录；不修改其版本号或代为发布。
 
 2026-11-25（PA-018／PA-021 任务结束后残留「等待输入」状态修复，本窗口续作）：接续用户反馈「任务结束了一直显示等待输入」，在保留前批 3 个 CI 修复文件不变的基础上，扩展写集至 `apps/mobile/lib/thread-session-cache.ts`、`apps/mobile/lib/thread-session-cache.test.tsx`、`packages/db/src/thread-listing.ts`、`packages/db/src/thread-listing.test.ts`、`packages/db/src/repos.ts` 及四份 `docx/` 过程文档；与同工作区另一窗口正在编辑的 `apps/mobile/components/update-download-banner.tsx`、`apps/mobile/lib/home-weather*`、`apps/mobile/lib/client-update*`、`apps/mobile/app/(settings)/settings-home.tsx`、`apps/mobile/components/home-hub.tsx`、`apps/mobile/lib/locales/*` 写集零重叠。本机已完成 5 文件 Biome 0 错误、`packages/db` 与本批移动端文件 TypeScript 0 错误、3 文件 52 项离线 Vitest 全绿及 `git diff --check` 0 警告；未调用子代理，未启动本机 Docker/PostgreSQL，未提交或推送。[验证](VALIDATION.md#任务结束后残留等待输入状态修复2026-11-25)
 
