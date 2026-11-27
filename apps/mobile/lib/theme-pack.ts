@@ -60,6 +60,7 @@ export type ThemeAssignments = {
   pages: Partial<Record<ThemeScope, string>>;
 };
 export type ResolvedScopedTheme = ResolvedUiModeTheme & {
+  pageBackgroundColor?: string;
   scope: ThemeScope;
   layout: ThemeLayout;
   surface: "flat" | "outlined" | "glass";

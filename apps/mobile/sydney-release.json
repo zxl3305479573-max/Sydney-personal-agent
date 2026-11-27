@@ -1,18 +1,18 @@
 {
-  "version": "1.0.44",
+  "version": "1.0.45",
   "releasedOn": "2026-11-27",
   "notes": {
     "zh-CN": [
-      "修复拍照识图、相册与语音记账共用普通接口短超时的问题，为上传与模型解析单独预留等待时间。",
-      "识图失败保留账单草稿，网络异常显示可读提示，超时可重新拍照或从相册选择图片重试。"
+      "在设置的外观中新增全局 App 背景，支持相册图片、明暗适配底色和即时预览。",
+      "可调整填满或完整显示、图片透明度和遮罩强度，并恢复默认；跨页面生效，聊天专属背景优先。"
     ],
     "zh-TW": [
-      "修復拍照辨識、相簿與語音記帳共用一般介面短逾時的問題，為上傳與模型解析單獨預留等待時間。",
-      "辨識失敗保留帳單草稿，網路異常顯示易讀提示，逾時可重新拍照或從相簿選擇圖片重試。"
+      "在設定的外觀中新增全域 App 背景，支援相簿圖片、明暗適配底色與即時預覽。",
+      "可調整填滿或完整顯示、圖片透明度與遮罩強度，並恢復預設；跨頁面生效，聊天專屬背景優先。"
     ],
     "en": [
-      "Give camera, photo library, and voice bill parsing a separate upload and model timeout instead of the short ordinary request timeout.",
-      "Keep bill drafts on recognition failure, show readable network errors, and explain how to retry after a timeout."
+      "Customize the app background in Settings > Appearance with a photo, adaptive light and dark colors, and a live preview.",
+      "Adjust fill or fit, image transparency, and overlay strength, or reset to the theme default. Applies across screens while custom chat backgrounds take priority."
     ]
   }
 }

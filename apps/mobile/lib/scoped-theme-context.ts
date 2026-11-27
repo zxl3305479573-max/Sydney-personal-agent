@@ -12,6 +12,7 @@ export function useScopedTheme() {
  * Returns `"transparent"` when the active screen scope has a theme background image so the
  * screen container does not paint an opaque solid fill over `ScopedThemeBackground`.
  */
-export function useScreenBackground<T extends ColorValue>(fallback: T): T | "transparent" {
-  return useScopedTheme()?.background ? "transparent" : fallback;
+export function useScreenBackground<T extends ColorValue>(fallback: T): T | string {
+  const scope = useScopedTheme();
+  return scope?.background ? "transparent" : (scope?.pageBackgroundColor ?? fallback);
 }

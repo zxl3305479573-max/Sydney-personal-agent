@@ -64,8 +64,8 @@ describe("useScreenBackground", () => {
   function renderWithScope<T extends ColorValue>(
     scope: ResolvedScopedTheme | null | undefined,
     fallback: T,
-  ): T | "transparent" | undefined {
-    let observed: T | "transparent" | undefined;
+  ): T | string | undefined {
+    let observed: T | string | undefined;
     function Probe() {
       observed = useScreenBackground(fallback);
       return null;
@@ -129,6 +129,18 @@ describe("useScreenBackground", () => {
     } as unknown as ColorValue;
     expect(renderWithScope(undefined, "#FFFFFF")).toBe("#FFFFFF");
     expect(renderWithScope(null, platformColorFallback)).toBe(platformColorFallback);
+  });
+
+  it("replaces native page colors with the selected global palette", () => {
+    const scope = resolveScopedTheme(
+      [],
+      { schemaVersion: 1, globalPackId: "classic", pages: {} },
+      "settings",
+      "light",
+    );
+    expect(renderWithScope({ ...scope, pageBackgroundColor: "#EAF3ED" }, "#FFFFFF")).toBe(
+      "#EAF3ED",
+    );
   });
 });
 

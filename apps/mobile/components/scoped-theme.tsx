@@ -3,6 +3,7 @@ import { DarkTheme, ThemeProvider } from "expo-router/react-navigation";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Image, Platform, StyleSheet, View } from "react-native";
+import { applyAppBackground, useAppBackground } from "../lib/app-background";
 import { resolveUserMobileAppearance } from "../lib/appearance";
 import { reportMobileError } from "../lib/monitoring";
 import { useResolvedAppearance } from "../lib/native";
@@ -11,6 +12,8 @@ import { effectiveThemeAssignments } from "../lib/theme-manager";
 import type { ResolvedScopedTheme, ThemeScope } from "../lib/theme-pack";
 import { hasCustomThemeForScope, resolveScopedTheme, themeScopeForRoute } from "../lib/theme-pack";
 import { themeManager } from "../lib/theme-state";
+import { getActiveUiMode, getUiModeRevision, subscribeUiMode } from "../lib/ui-mode";
+import { resolveUiModeTheme } from "../lib/ui-mode-registry";
 import { UiModeCrashBoundary, UiModeRuntimeProvider, useUiModeRuntime } from "../lib/ui-mode-slots";
 
 export function useThemeManagerSnapshot() {
@@ -110,7 +113,25 @@ function ScopedThemeContent({
 export function ScopedThemeScreen({ scope, children }: PropsWithChildren<{ scope: ThemeScope }>) {
   const snapshot = useThemeManagerSnapshot();
   const theme = useThemeForScope(scope);
+  const background = useAppBackground();
+  const appearance = resolveUserMobileAppearance();
+  const modeRevision = useSyncExternalStore(subscribeUiMode, getUiModeRevision, getUiModeRevision);
   const assignments = effectiveThemeAssignments(snapshot);
+  const modeId =
+    Platform.OS === "ios" && assignments.globalPackId === "midnight"
+      ? "midnight"
+      : getActiveUiMode().id;
+  const effectiveTheme = useMemo(() => {
+    if (!background.imageUri && !background.palette) return theme;
+    const base = theme ?? {
+      ...resolveUiModeTheme(modeId, { platform: Platform.OS, userAppearance: appearance }),
+      scope,
+      layout: "classic" as const,
+      surface: "flat" as const,
+      background: null,
+    };
+    return applyAppBackground(base, background);
+  }, [appearance, background, scope, theme, modeId, modeRevision]);
   const packId = assignments.pages[scope] ?? assignments.globalPackId;
   const fallback = resolveScopedTheme(
     snapshot.packs,
@@ -118,7 +139,7 @@ export function ScopedThemeScreen({ scope, children }: PropsWithChildren<{ scope
     scope,
     resolveUserMobileAppearance(),
   );
-  if (!theme) return children;
+  if (!effectiveTheme) return children;
   return (
     <UiModeCrashBoundary
       modeId={packId}
@@ -132,7 +153,7 @@ export function ScopedThemeScreen({ scope, children }: PropsWithChildren<{ scope
             .catch(() => undefined);
       }}
     >
-      <ScopedThemeContent theme={theme}>{children}</ScopedThemeContent>
+      <ScopedThemeContent theme={effectiveTheme}>{children}</ScopedThemeContent>
     </UiModeCrashBoundary>
   );
 }

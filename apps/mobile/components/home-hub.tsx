@@ -31,6 +31,7 @@ import type { InboxGroup } from "../lib/inbox-spaces";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { refreshPersonalFinance } from "../lib/personal-finance";
 import { previewSnippet } from "../lib/preview";
+import { useScreenBackground } from "../lib/scoped-theme-context";
 import { useBottomSafeAreaClaimed } from "../lib/side-insets";
 import { sydneyReleaseFromManifest } from "../lib/sydney-release";
 import { registerTabScrollToTop } from "../lib/tab-scroll-to-top";
@@ -173,6 +174,7 @@ export function HomeHub({
   const { width: windowWidth } = useWindowDimensions();
   const bottomClaimed = useBottomSafeAreaClaimed();
   const tokens = useMobileTokens();
+  const screenBackground = useScreenBackground(tokens.background);
   const appearance = useResolvedAppearance();
   const { locale, t } = useI18n();
   const chinese = locale.startsWith("zh");
@@ -359,7 +361,7 @@ export function HomeHub({
       ref={scrollRef}
       showsVerticalScrollIndicator={false}
       testID="home-hub-scroll"
-      style={{ flex: 1, backgroundColor: tokens.background }}
+      style={{ flex: 1, backgroundColor: screenBackground }}
       contentInsetAdjustmentBehavior="never"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{

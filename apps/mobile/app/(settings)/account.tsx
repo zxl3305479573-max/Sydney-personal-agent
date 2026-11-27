@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AccountAvatar } from "../../components/account-avatar";
 import { useAccountDeletion } from "../../components/account-deletion";
+import { AppBackgroundSettings } from "../../components/app-background-settings";
 import { AppMark } from "../../components/app-mark";
 import { ApprovalModeRow, ApprovalRulesRow } from "../../components/approval-settings-rows";
 import { NameDialog } from "../../components/name-dialog";
@@ -619,6 +620,8 @@ export default function Account() {
                 value={appearance}
               />
             </View>
+
+            <AppBackgroundSettings />
 
             {showAll ? (
               <SettingsGroup>

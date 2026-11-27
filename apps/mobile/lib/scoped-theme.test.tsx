@@ -4,6 +4,7 @@ import { act } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppBackground } from "./app-background";
 import type { ThemePackV1 } from "./theme-pack";
 
 const runtime = vi.hoisted(() => ({
@@ -12,6 +13,18 @@ const runtime = vi.hoisted(() => ({
   focusedRoute: "index",
   currentRenderRoute: "index",
   appearance: "dark" as "dark" | "light",
+  background: {
+    palette: null,
+    imageUri: null,
+    fit: "cover",
+    opacity: 1,
+    overlayOpacity: 0.35,
+  } as AppBackground,
+}));
+
+vi.mock("./app-background", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./app-background")>()),
+  useAppBackground: () => runtime.background,
 }));
 
 vi.mock("expo-router", () => ({
@@ -122,6 +135,14 @@ describe("ScopedThemeRoute isolation", () => {
     runtime.storage.clear();
     runtime.focusedRoute = "index";
     runtime.appearance = "dark";
+    runtime.platform.OS = "ios";
+    runtime.background = {
+      palette: null,
+      imageUri: null,
+      fit: "cover",
+      opacity: 1,
+      overlayOpacity: 0.35,
+    };
     const map = new Map<string, ThemePackV1>([
       [globalPack.id, globalPack],
       [inboxPack.id, inboxPack],
@@ -204,6 +225,67 @@ describe("ScopedThemeRoute isolation", () => {
 
     expect(container.querySelector('[data-testid="safe-home"]')?.textContent).toBe("classic");
     expect(themeManager.getSnapshot().assignments.pages.inbox).toBeUndefined();
+  });
+
+  it("applies the global photo across classic home, chats, projects and settings on both platforms", async () => {
+    for (const platform of ["ios", "android"]) {
+      runtime.platform.OS = platform;
+      runtime.background = {
+        ...runtime.background,
+        palette: "mint",
+        imageUri: "file://documents/background.jpg",
+      };
+      await act(async () =>
+        root.render(
+          ["index", "thread", "projects", "(settings)"].map((routeName) => (
+            <MountedRoute key={routeName} routeName={routeName} id={routeName} />
+          )),
+        ),
+      );
+      expect(container.querySelectorAll('img[src="file://documents/background.jpg"]')).toHaveLength(
+        4,
+      );
+      expect(container.textContent).toContain("inbox:#17251E:classic");
+      expect(container.textContent).toContain("thread:#17251E:classic");
+      expect(container.textContent).toContain("projects:#17251E:classic");
+      expect(container.textContent).toContain("settings:#17251E:classic");
+      runtime.appearance = "light";
+      await act(async () => root.render(<MountedRoute routeName="(settings)" id="light-global" />));
+      expect(container.textContent).toContain("settings:#EAF3ED:classic");
+      runtime.appearance = "dark";
+    }
+  });
+
+  it("restores the assigned theme pack when global customization is cleared", async () => {
+    await themeManager.assign("all", "ocean");
+    runtime.background = {
+      ...runtime.background,
+      imageUri: "file://documents/global.jpg",
+      palette: "porcelain",
+    };
+    await act(async () => root.render(<MountedRoute routeName="thread" id="customized" />));
+    expect(container.textContent).toContain("thread:#211E1B:classic");
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("file://documents/global.jpg");
+    runtime.background = { ...runtime.background, imageUri: null, palette: null };
+    await act(async () => root.render(<MountedRoute routeName="thread" id="restored" />));
+    expect(container.textContent).toContain("thread:#001122:classic");
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(TINY_PNG);
+    expect(themeManager.getSnapshot().assignments.globalPackId).toBe("ocean");
+  });
+
+  it("keeps the built-in midnight color scheme while using a global photo", async () => {
+    await themeManager.assign("all", "midnight");
+    runtime.appearance = "light";
+    runtime.background = {
+      ...runtime.background,
+      palette: "mint",
+      imageUri: "file://documents/global.jpg",
+    };
+    await act(async () => root.render(<MountedRoute routeName="(settings)" id="midnight" />));
+    expect(container.textContent).toContain("settings:#17251E:classic");
+    expect(
+      container.querySelector('[data-pointer-events="none"] div')?.getAttribute("data-style"),
+    ).toContain('"backgroundColor":"#000000"');
   });
 
   it("renders a non-interactive scrim above the background image only when overlayOpacity > 0", async () => {

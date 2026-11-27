@@ -453,6 +453,11 @@ it.each([
   const view = await renderAccount();
   expect(view.screen.textContent).toContain(shown);
   expect(view.screen.textContent).not.toContain(hidden);
+  if (section === "appearance") {
+    expect(view.screen.textContent).toContain("Choose background photo");
+  } else {
+    expect(view.screen.textContent).not.toContain("Choose background photo");
+  }
 });
 
 afterEach(() => {

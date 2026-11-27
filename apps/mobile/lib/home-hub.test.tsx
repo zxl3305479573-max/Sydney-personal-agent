@@ -6,6 +6,8 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeHub } from "../components/home-hub";
 import type { MobileBot, MobileGroup } from "./api";
+import { ScopedThemeContext } from "./scoped-theme-context";
+import { resolveScopedTheme } from "./theme-pack";
 
 const state = vi.hoisted(() => ({
   locale: "zh-CN",
@@ -301,6 +303,42 @@ afterEach(() => {
 
 describe("HomeHub personal hub", () => {
   const fixedEvening = new Date(2026, 10, 24, 20, 15, 0);
+
+  it("lets the global photo show through the home root and restores its default fill", () => {
+    const scope = resolveScopedTheme(
+      [],
+      { schemaVersion: 1, globalPackId: "classic", pages: {} },
+      "inbox",
+      "light",
+    );
+    const home = <HomeHub me={null} bots={[]} groups={[]} now={fixedEvening} />;
+    act(() =>
+      root.render(
+        <ScopedThemeContext.Provider
+          value={{
+            ...scope,
+            background: {
+              uri: "file://background",
+              fit: "cover",
+              opacity: 1,
+              overlayOpacity: 0.35,
+            },
+          }}
+        >
+          {home}
+        </ScopedThemeContext.Provider>,
+      ),
+    );
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="home-hub-scroll"]')?.style
+        .backgroundColor,
+    ).toBe("transparent");
+    act(() => root.render(home));
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="home-hub-scroll"]')?.style
+        .backgroundColor,
+    ).toBe("rgb(241, 238, 232)");
+  });
 
   it("renders Chinese greeting, pinned spotlight banner, and all Bento module cards", () => {
     const onRefresh = vi.fn();
