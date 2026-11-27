@@ -2,6 +2,8 @@
 
 ## 全局组件透明度与 1.0.46（2026-11-27）
 
+- 发布完成：源码 `0eb871bd0586c18fdd4705b57a5d77b40db2175c` 已推送 `cursor/integrate-remote-branches-7334`；[Run 45974181759](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45974181759)／Job `140421707408` 为 `completed / success`，北京时间 `2026-11-27 17:29:48`–`17:31:36`。更新组 `3e5e1df4-da7a-4514-9272-ce4d7324a638`，iOS 更新 ID `01a21c58-84ef-7dba-abbe-e7d6fa9d1df8`，`createdAt: 2026-11-27T09:31:32.975Z`，日志中的发布 Commit 与源码一致。
+- 使用现有 `1.0.19` build `8` IPA 的 Expo 配置在线核验：清单 HTTP `200`，runtime `sydney-ios-ip-1`，`1.0.46` 日期及三语说明与源码完全一致，时间晚于内嵌更新。启动包 HTTP `200`、`11,543,896` 字节、SHA-256 `5b730b9da1e580179dd185d0909388629e067778c96432558a2c013b85504a59`，Hermes 头匹配；`62 / 62` 项静态资源 HTTP `200` 且摘要匹配。探针仅内存追加代理、CONNECT 头抑制与 60 秒下载预算；日志跨域重定向移除 Authorization，未改客户端。未进行 iPhone 真机视觉／触摸验收，以下为发布前离线验证记录。
 - 新增颜色／表面回归：明暗主题卡片底色可调，文字、图标相关色、页面背景与状态色保留；已有 alpha 不增大，重复应用不叠乘；关闭固定渐变并保留布局、点击区域及原有按压反馈。iOS 原生玻璃只调整背景材料层。
 - 存储测试覆盖旧版缺失字段默认值、重启保留及非法范围；实际外观组件覆盖无背景图片时的五档入口、设置失败保持旧值、预览、背景恢复保留组件值、独立组件恢复默认。路由测试覆盖无图片时可用和恢复经典渲染。新增首页和导航组件透明度断言，既有聊天文字、相册与主题回归合并运行。
 - 首轮 9 文件 105 项通过；随后 14 文件 154 项中 152 项通过，首页夹具缺少 `StyleSheet.flatten`，以及并发聊天渐变条件冲突各导致 1 项失败。修正夹具、保留另一窗口的主题化聊天卡片无固定渐变规则后定向复验。移动端类型检查第二轮通过；终轮、格式及发布结果随后补录。
@@ -10,6 +12,7 @@
 
 ## 全局底色与聊天列表胶囊修复（2026-11-27）
 
+- 发布补记：已随源码 `0eb871bd0` 与 `1.0.46` OTA 发布，Run `45974181759` 成功，线上清单、启动包与全部 62 项资源摘要匹配；证据见本文件上一节。以下保留本专项实施时的验证结果，真机视觉／滑动验收仍待办。
 - PA-020／PA-021。跨页面回归同时挂载首页、聊天、项目、设置，依次修改浅海、淡紫和跟随主题，断言四页图片遮罩同步更新；午夜模式按所选深色底色绘制，未设置全局底色的主题包仍按原黑／白遮罩绘制。
 - iOS 真实行组件回归检查 `listRowBackground("transparent")` 与隐藏列表滚动底色，确保胶囊外无原生行底色；保留滑动动作、上下文菜单、组织和预览已有回归。`home-styles.test.ts` 验证主题胶囊保留底色、18pt 圆角、20pt 边距且没有覆盖渐变。
 - `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run apps/mobile/lib/inbox-swipe.test.tsx apps/mobile/lib/home-styles.test.ts apps/mobile/lib/scoped-theme.test.tsx apps/mobile/lib/app-background-settings.test.tsx apps/mobile/lib/inbox-render.test.tsx apps/mobile/lib/appearance.test.ts`：6 文件 54／54 项通过。首轮主题胶囊回归发现固定渐变仍存在，修正目标样式后终轮通过。
