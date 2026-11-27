@@ -5,7 +5,9 @@
 - 范围为已推送的人格选择／Bot 编辑修复与当前工作区气泡、记账改动，关联 PA-020／PA-021／PA-022／PA-025／REL-01。
 - 使用已有 Node `24.15.0`，执行 `fnm exec --using 24.15.0 -- pnpm.cmd exec vitest run ... --maxWorkers=1`：16 文件 275／275 项通过。文件包含 `thread-sender-colors`、`glass-surface`、`chat-appearance`、`chat-appearance-screen`、`glass-title`、`finance-trend`、`finance-trend-chart`、`use-finance-live-refresh`、`finance-bill-sheet`、`personal-finance`、`home-finance-card`、`bot-settings-voice`、`chat-model-picker`、`bot-profile`、`default-bot-avatar` 及共享契约 `bot-personality`。
 - 版本更新至 `1.0.43` 后，`app-version.test.ts`、`app-config.test.ts` 两文件 40／40 项通过，合计 18 文件 315 项。移动端 `pnpm.cmd --filter @rakazo/mobile check` 通过，13 个改动 TS／TSX／JSON 文件 Biome 检查通过，无自动修正。
-- `1.0.42` 人格 OTA Run `45951677897` 已确认 `completed / success`；该版因代理响应导致探针未完成，不宣称全资源核验通过。`1.0.43` 的提交、工作流和线上资源核验随后补录。
+- `git diff --check` 与暂存区差异检查通过。源码 `e82e07787250a26308f069b71615db40a94d4dd7` 已推送集成分支；[Run 45953862507](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45953862507)／Job `140355704032` 为 `completed / success`，创建与完成时间为 `2026-11-27T06:45:06Z`–`06:47:06Z`。更新组 `7fc1af80-ae77-4f0c-8720-4d1ef7c7c300`，iOS 更新 ID `01a21bc1-ee78-7d1b-8ec5-890b6a7dba2d`，`createdAt: 2026-11-27T06:47:04.056Z`。
+- 从现有 `1.0.19` build `8` IPA 读取真实 Expo 配置验证线上清单：HTTP `200`、runtime `sydney-ios-ip-1`、版本 `1.0.43`、日期与全部三语说明均匹配源码，发布时间晚于内嵌包。启动包 HTTP `200`、`11,438,360` 字节、SHA-256 `d2031f5ebec04a621f2ce8f39a68985457e886deb310993d1787bf73d55f625c`，Hermes 头匹配；全部 `62 / 62` 静态资源 HTTP `200` 且 SHA-256 匹配。
+- `1.0.42` 人格 OTA Run `45951677897` 已确认 `completed / success`，但该版全资源核验未完成。本次仅在内存中为既有探针增加显式代理、`--suppress-connect-headers` 和 60 秒下载上限，避免代理 CONNECT 响应头被误当为清单头，未修改脚本或客户端配置。日志首次读取因重定向签名认证返回 `401`，改为清除跨主机认证头并绕过缓存后取得发布标识；工作流无须重跑。
 - 未安装依赖、启动本机服务或执行全工作区构建；未合并 `main`、部署后端或进行 iPhone 真机交互验收。
 
 ## 记账金额输入与实时收支趋势（2026-11-27）
