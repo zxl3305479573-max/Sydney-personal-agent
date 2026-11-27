@@ -22,6 +22,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  captureAccountMeSnapshot,
+  syncAccountMeCache,
+  useAccountAvatar,
+  useCachedAccountMe,
+} from "../lib/account-avatar";
 import { fetchSpaceActivity } from "../lib/activity";
 import { loadActivityMode, saveActivityMode } from "../lib/activity-mode";
 import { readableGutters } from "../lib/adaptive-layout";
@@ -231,6 +237,7 @@ function PersonalHomeHubScreen() {
     const apiBase = currentApiBase();
     const currentGen = currentSessionGeneration();
     const requestThreadRevision = threadSessionCache.getRequestRevision();
+    const accountMeSnapshot = captureAccountMeSnapshot();
     const isCurrent = () =>
       requestId === requestIdRef.current &&
       currentGen === currentSessionGeneration() &&
@@ -283,6 +290,7 @@ function PersonalHomeHubScreen() {
         requestThreadRevision,
         { bots: navigation.current.bots, groups: navigation.current.groups },
       );
+      syncAccountMeCache(accountMeSnapshot, nextMe);
       if (nextMe.spaceId === selectedSpaceId()) {
         queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
       }
@@ -652,7 +660,9 @@ function Home({
   const [groups, setGroups] = useState<MobileGroup[]>([]);
   const [botSections, setBotSections] = useState<MobileBotSection[]>([]);
   const [spaces, setSpaces] = useState<MobileSpace[]>([]);
-  const [me, setMe] = useState<Pick<MobileMe, "userId" | "spaceId" | "name"> | null>(null);
+  const [me, setMe] = useState<
+    (Pick<MobileMe, "userId" | "spaceId" | "name"> & { image?: MobileMe["image"] }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   // Kept apart from action errors so a failed action never borrows the load's title.
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -728,6 +738,7 @@ function Home({
     const apiBase = currentApiBase();
     const generation = currentSessionGeneration();
     const requestThreadRevision = threadSessionCache.getRequestRevision();
+    const accountMeSnapshot = captureAccountMeSnapshot();
     setError(null);
     setInboxLoading(true);
     try {
@@ -788,6 +799,7 @@ function Home({
         requestThreadRevision,
         { bots: navigation.current.bots, groups: navigation.current.groups },
       );
+      syncAccountMeCache(accountMeSnapshot, nextMe);
       if (nextMe.spaceId === selectedSpaceId()) {
         queryClient.setQueryData(rpcQuery("me").queryKey, (current) => current ?? nextMe);
       }
@@ -1107,7 +1119,10 @@ function Home({
     if (badgeCount === null || badgeLoad === null) return;
     void syncInboxAppBadge(badgeCount, badgeLoad.generation);
   }, [badgeCount, badgeLoad]);
-  const initials = accountDisplay(me ?? {}, t("You")).initial ?? "?";
+  const cachedAccountMe = useCachedAccountMe();
+  const profileMe = cachedAccountMe ?? me;
+  const { image: accountAvatar } = useAccountAvatar(profileMe ?? undefined, hasSession);
+  const initials = accountDisplay(profileMe ?? {}, t("You")).initial ?? "?";
   const organizeSpace = organizeTarget
     ? organizeTarget.spaceId === me?.spaceId
       ? { bots: visible, groups: visibleGroups, botSections }
@@ -1486,6 +1501,7 @@ function Home({
       {nativeHeader || onShareSelect ? null : (
         <InboxHeader
           initials={initials}
+          avatar={accountAvatar}
           activityMode={activityMode}
           toggleActivityMode={toggleActivityMode}
           runCreateAction={runCreateAction}

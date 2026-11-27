@@ -1,5 +1,12 @@
 # 开发过程记录
 
+## 手机聊天界面左上角账户头像修复（PA-021，2026-11-27）
+
+- 用户截图显示手机聊天列表左上角圆形账户按钮只展示首字母，而打开设置页后账户行能正常显示已设置的个人照片。核对源码确认底部标签栏与分栏模式下的聊天页均走非原生 `InboxHeader`，该组件仅接收 `initials` 并固定渲染首字母文字，未读取或渲染账户头像。
+- 在 `apps/mobile/components/account-avatar.tsx` 抽出共享 `localAccountAvatarUri()` 校验函数，在 `apps/mobile/components/inbox-header.tsx` 增加可选 `avatar` 属性：有合法本地头像时于左上角 `HeaderButton` 内渲染 40pt 圆形 `AccountAvatar`（保留外层 `circleButton` 圆环边框与按压动效），未设置或非本地链接时继续显示原有 `profileInitials` 首字母。
+- 在 `apps/mobile/lib/account-avatar.ts` 增加 `captureAccountMeSnapshot()`、`syncAccountMeCache()` 与 `useCachedAccountMe()`，并在 `apps/mobile/components/inbox-screens.tsx` 的首页与聊天页加载链路中同步更新 `accountRpcQuery("me")` 缓存、接入 `useAccountAvatar`。通过请求前后缓存引用对比，确保在设置页刚保存新头像后聊天页立即刷新且不被在途旧轮询覆盖，同时兼容旧后台 `me` 省略 `image` 时的会话回退拉取。
+- 补充 `artifacts-navigation.test.tsx` 顶栏头像显示与回退断言及 `account-avatar.test.tsx` 缓存同步／防竞态回归；首轮测试因 TanStack Query 异步通知调度修正测试刷新等待并补齐按钮 `type="button"` 后，6 文件 69 项、移动端类型检查、6 文件 Biome 0 错误与 `git diff --check` 全部通过。未安装依赖、未启动本机服务、未提交推送或发布，真机视觉待验。
+
 ## 全局组件透明度（PA-020／PA-021／REL-01，2026-11-27）
 
 - 实际交付：源码 `0eb871bd0` 已推送集成分支，Run `45974181759`／Job `140421707408` 成功发布 `1.0.46`，连同背景遮罩底色与聊天胶囊整行底色修复一并交付。更新组 `3e5e1df4-da7a-4514-9272-ce4d7324a638`，iOS 更新 ID `01a21c58-84ef-7dba-abbe-e7d6fa9d1df8`，北京时间 `2026-11-27 17:31:32` 创建。现有 IPA 配置在线取得的版本、三语说明和 runtime 一致；启动包 `11,543,896` 字节、SHA-256 `5b730b9da1e580179dd185d0909388629e067778c96432558a2c013b85504a59`，全部 `62 / 62` 项静态资源摘要匹配。补录发布文档后再次提交推送；iPhone 真机视觉与触摸未执行。以下保留实施过程。

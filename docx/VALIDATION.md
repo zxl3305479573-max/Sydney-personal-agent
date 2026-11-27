@@ -1,5 +1,12 @@
 # 验证记录
 
+## 手机聊天界面左上角账户头像修复（2026-11-27）
+
+- 关联 PA-021。新增与扩展定向回归覆盖：聊天顶栏有合法本地头像时渲染照片并保留点击跳转 `/settings-home`；未设置、`null` 或非本地 URL 时回退显示首字母；`me` 含 `image` 时零额外请求直接渲染；旧后台省略 `image` 时回退调用 `fetchAccountAvatar(userId)`；设置页更新 `accountRpcQuery("me")` 后聊天顶栏立即更新且忽略修改前发出的在途旧轮询，随后新轮询可同步其他设备的变更。
+- `pnpm.cmd exec vitest run apps/mobile/lib/account-avatar.test.tsx apps/mobile/lib/artifacts-navigation.test.tsx apps/mobile/lib/account-screen.test.tsx apps/mobile/lib/home-route.test.tsx apps/mobile/lib/home-styles.test.ts apps/mobile/lib/inbox-render.test.tsx --maxWorkers=1`：6 文件 69／69 项通过（首轮新增测试因未等待 TanStack Query 通知刷新导致 1 项断言失败并触发 act 警告，补齐通知刷新后复验全绿且无警告）。
+- `pnpm.cmd --filter @rakazo/mobile check` 通过（`tsc --noEmit -p tsconfig.json` 0 错误）。
+- `pnpm.cmd exec biome check` 检查本轮 6 个改动／新增 TS／TSX 文件：初轮报新建测试按钮缺少 `type="button"`，修正后终轮 0 错误；`sydney-release.json` 更新至 `1.0.47` 后，`app-version.test.ts` 与 `app-config.test.ts` 2 文件 40／40 项（累计 8 文件 109／109 项）及 Biome 全部通过，`git diff --check` 通过。未安装依赖、未执行全工作区构建或启动本机服务；准备提交推送并发布 `1.0.47` OTA，iPhone 真机视觉与设置返回实测待设备验收。
+
 ## 全局组件透明度与 1.0.46（2026-11-27）
 
 - 发布完成：源码 `0eb871bd0586c18fdd4705b57a5d77b40db2175c` 已推送 `cursor/integrate-remote-branches-7334`；[Run 45974181759](https://github.com/zxl3305479573-max/Sydney-personal-agent/actions/runs/45974181759)／Job `140421707408` 为 `completed / success`，北京时间 `2026-11-27 17:29:48`–`17:31:36`。更新组 `3e5e1df4-da7a-4514-9272-ce4d7324a638`，iOS 更新 ID `01a21c58-84ef-7dba-abbe-e7d6fa9d1df8`，`createdAt: 2026-11-27T09:31:32.975Z`，日志中的发布 Commit 与源码一致。

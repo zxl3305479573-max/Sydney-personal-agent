@@ -7,6 +7,7 @@ import type { CreateAction } from "../lib/create-chooser";
 import { createMenuActions, isCreateAction } from "../lib/create-chooser";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
+import { AccountAvatar, localAccountAvatarUri } from "./account-avatar";
 import { CREATE_MENU_GAP, createHomeStyles } from "./home-styles";
 import { MotionPressable } from "./motion-pressable";
 import { NativeSymbol } from "./native-symbol";
@@ -114,12 +115,14 @@ export function InboxIntro({ activityMode }: { activityMode: boolean }) {
 /** The inbox's own header where the native Liquid Glass bar is unavailable. */
 export function InboxHeader({
   initials,
+  avatar,
   activityMode,
   toggleActivityMode,
   runCreateAction,
   columnInsets,
 }: {
   initials: string;
+  avatar?: string | null;
   activityMode: boolean;
   toggleActivityMode: () => void;
   runCreateAction: (action: CreateAction) => void;
@@ -131,6 +134,7 @@ export function InboxHeader({
   const { t } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const avatarUri = localAccountAvatarUri(avatar);
   return (
     <View
       style={[
@@ -147,7 +151,11 @@ export function InboxHeader({
           accessibilityLabel={t("Account")}
           onPress={() => router.push("/settings-home")}
         >
-          <Text style={styles.profileInitials}>{initials}</Text>
+          {avatarUri ? (
+            <AccountAvatar image={avatarUri} initial={initials} size={40} />
+          ) : (
+            <Text style={styles.profileInitials}>{initials}</Text>
+          )}
         </HeaderButton>
       </View>
       <View style={styles.headerActions}>

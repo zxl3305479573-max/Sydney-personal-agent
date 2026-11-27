@@ -1,18 +1,18 @@
 {
-  "version": "1.0.46",
-  "releasedOn": "2026-11-27",
+  "version": "1.0.47",
+  "releasedOn": "2026-11-28",
   "notes": {
     "zh-CN": [
-      "外观中新增全局组件透明度，提供 0% 至 100% 五档、即时预览与独立恢复默认，重启后保留。",
-      "调整卡片、列表和控件底色时保持文字与图标清晰；同步修复背景底色遮罩和聊天胶囊周边的整行底色。"
+      "修复聊天列表左上角头像只显示首字母的问题，已设置的账户照片现在会直接显示在顶栏。",
+      "同步账户头像缓存，在设置页更换头像后返回聊天页即时更新，并保留未设置头像时的首字母回退。"
     ],
     "zh-TW": [
-      "外觀中新增全域元件透明度，提供 0% 至 100% 五檔、即時預覽與獨立恢復預設，重新啟動後保留。",
-      "調整卡片、列表與控制項底色時保持文字與圖示清晰；同步修復背景底色遮罩與聊天膠囊周邊的整列底色。"
+      "修復聊天列表左上角頭像只顯示首字母的問題，已設定的帳戶照片現在會直接顯示在頂欄。",
+      "同步帳戶頭像快取，在設定頁更換頭像後返回聊天頁即時更新，並保留未設定頭像時的首字母回退。"
     ],
     "en": [
-      "Set global component transparency in Appearance with five levels from 0% to 100%, a live preview, a separate reset, and persistence across restarts.",
-      "Adjust card, list, and control surfaces while keeping text and icons clear. Also fix background color overlays and opaque rows around chat capsules."
+      "Fix the top-left account button in Chats showing only initials instead of your saved profile photo.",
+      "Keep the chat header synced with account avatar edits made in Settings, while falling back to initials when no photo is set."
     ]
   }
 }

@@ -1,5 +1,7 @@
 # 对话窗口分工与交接
 
+2026-11-27（PA-021 手机聊天界面左上角账户头像修复，本对话）：顺序排查并修复，不调用子代理。写集为 `apps/mobile/components/account-avatar.tsx`、`apps/mobile/components/inbox-header.tsx`、`apps/mobile/components/inbox-screens.tsx`、`apps/mobile/lib/account-avatar.ts`、`apps/mobile/lib/account-avatar.test.tsx`、`apps/mobile/lib/artifacts-navigation.test.tsx` 及四份 `docx/` 过程文档（`PLAN.md`、`DEVELOPMENT_LOG.md`、`VALIDATION.md`、`WORKSTREAMS.md`）。未修改 `sydney-release.json`、原生工程或后端，未安装依赖、启动本机服务、提交推送或发布；定向 6 文件 69 项回归、移动端类型检查、Biome 与差异检查通过，iPhone 真机视觉待验。
+
 2026-11-27（REL-01 全部修改提交推送与 OTA 收口，本对话）：按用户最新授权推送现有源码提交 `0eb871bd0586c18fdd4705b57a5d77b40db2175c`，核对远端一致且无进行中的 OTA 后触发 `1.0.46`。Run `45974181759`／Job `140421707408` 成功，更新组 `3e5e1df4-da7a-4514-9272-ce4d7324a638`，更新 ID `01a21c58-84ef-7dba-abbe-e7d6fa9d1df8`。现有 IPA 配置线上核验版本、三语说明、启动包与全部 `62 / 62` 项资源通过；启动包 `11,543,896` 字节、SHA-256 `5b730b9da1e580179dd185d0909388629e067778c96432558a2c013b85504a59`。本轮仅补录六份发布文档后再次提交推送，未调用子代理或新增窗口；无后台部署或本机服务启动，真机视觉与触摸待验。
 
 2026-11-27（PA-020／PA-021／REL-01 全局组件透明度，本对话）：维护 `lib/component-opacity.ts`、本机 `app-background` 偏好、外观设置、主题路由与 native 颜色、GlassSurface 双平台、MotionPressable 双平台、首页／导航／记账／天气组件表面及对应回归，准备 `1.0.46` 与文档。另一实际窗口处理遮罩底色及聊天胶囊，保留其 `inbox-swipe-row.ios.tsx`／测试与共享 `home-styles.ts`、主题／预览遮罩变更。`home-styles.ts` 的 rosterRow 统一合并为作用域主题下关闭固定渐变，覆盖组件透明度与背景修复；不调用子代理。用户原有全部新改动一并提交的授权继续适用，21 文件合计 249 项、移动端类型及 27 文件 Biome 通过，另一窗口专项亦已记录完成，一并交付两组改动。

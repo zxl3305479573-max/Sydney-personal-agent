@@ -1,6 +1,10 @@
 import { Image, Text, View } from "react-native";
 import { useMobileTokens } from "../lib/native";
 
+export function localAccountAvatarUri(image?: string | null): string | undefined {
+  return image?.startsWith("data:image/jpeg;base64,") ? image : undefined;
+}
+
 export function AccountAvatar({
   image,
   initial,
@@ -11,7 +15,7 @@ export function AccountAvatar({
   size?: number;
 }) {
   const tokens = useMobileTokens();
-  const localImage = image?.startsWith("data:image/jpeg;base64,") ? image : undefined;
+  const localImage = localAccountAvatarUri(image);
   return (
     <View
       accessibilityElementsHidden

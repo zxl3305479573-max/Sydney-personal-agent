@@ -59,6 +59,8 @@ const { labelled } = vi.hoisted(() => {
 });
 
 vi.mock("react-native", () => ({
+  Image: ({ source }: { source: { uri: string } }) =>
+    createElement("img", { src: source.uri, alt: "" }),
   Platform: header.platform,
   Pressable: labelled("button"),
   StyleSheet: { create: <T,>(styles: T) => styles },
@@ -133,12 +135,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderHeader(platform: string) {
+function renderHeader(platform: string, avatar?: string | null) {
   header.platform.OS = platform;
   act(() =>
     root.render(
       <InboxHeader
         initials="A"
+        avatar={avatar}
         activityMode={false}
         toggleActivityMode={toggleActivityMode}
         runCreateAction={runCreateAction}
@@ -161,6 +164,26 @@ it.each(["android", "ios"])("omits Artifacts from the %s fallback header", (plat
   expect(header.push.mock.calls).toEqual([["/settings-home"]]);
   expect(toggleActivityMode).toHaveBeenCalledOnce();
 });
+
+it("shows the saved account avatar photo in the top-left header button when set", () => {
+  const image = "data:image/jpeg;base64,cGhvdG8=";
+  const control = renderHeader("ios", image);
+  const accountButton = control("Account");
+  expect(accountButton.querySelector("img")?.getAttribute("src")).toBe(image);
+  expect(accountButton.textContent).toBe("");
+  act(() => accountButton.click());
+  expect(header.push.mock.calls).toEqual([["/settings-home"]]);
+});
+
+it.each([undefined, null, "https://example.test/avatar.jpg"])(
+  "falls back to account initials in the top-left header for %s",
+  (avatar) => {
+    const control = renderHeader("ios", avatar);
+    const accountButton = control("Account");
+    expect(accountButton.querySelector("img")).toBeNull();
+    expect(accountButton.textContent).toBe("A");
+  },
+);
 
 it("puts search below the Chats heading and opens the existing search route", () => {
   act(() => root.render(<InboxIntro activityMode={false} />));
