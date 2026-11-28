@@ -22,6 +22,7 @@ import type { CloudAgentConnection } from "./cloud-agent-factory.js";
 import type { MemoryProviderResolver } from "./memory-provider-factory.js";
 import type { CodexLiveCatalog } from "./pi-codex-catalog.js";
 import type { RemoteTransportDependencies } from "./remote-mcp.js";
+import type { SharedAdminModelRole } from "./shared-admin-model.js";
 import type { TicketChangeNotifier } from "./ticket-changes.js";
 import type { UserDeviceGateway } from "./user-device-protocol.js";
 
@@ -90,4 +91,10 @@ export interface ExecutorDeps {
    * Omitting this leaves all features enabled (used by standalone unit tests).
    */
   resolveFeatureAccess?: (userId: string) => Promise<FeatureAccessFlags>;
+  /**
+   * Resolves the verified server administrator's configured main model (and backups) for
+   * non-admin accounts that have not connected their own model yet. Omitting this disables
+   * shared admin model fallback (used by standalone unit tests).
+   */
+  resolveSharedAdminModelRole?: () => Promise<SharedAdminModelRole | null>;
 }

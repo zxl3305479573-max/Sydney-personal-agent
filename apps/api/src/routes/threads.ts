@@ -127,9 +127,11 @@ export function createThreadSender({ deps, codexCatalog }: RouterContext) {
     const confirmingImages =
       input.imageHandling === "confirm" && Boolean(input.artifactIds?.length);
     // Reuse the funding modelSetup resolved; a send never asks billing twice.
-    const deployment = setup.hasDeployment
-      ? { provider: deps.env.defaultProvider, model: deps.env.defaultModel }
-      : null;
+    const deployment = setup.sharedMain
+      ? { provider: setup.sharedMain.provider, model: setup.sharedMain.modelId }
+      : setup.hasDeployment
+        ? { provider: deps.env.defaultProvider, model: deps.env.defaultModel }
+        : null;
     return sendThreadMessage(
       {
         ...deps,
@@ -138,6 +140,7 @@ export function createThreadSender({ deps, codexCatalog }: RouterContext) {
           ? {
               secrets: deps.secrets,
               deployment,
+              sharedMain: setup.sharedMain,
               hostedProvider: setup.creditsAvailable ? deployment?.provider : undefined,
               codexCatalog,
             }

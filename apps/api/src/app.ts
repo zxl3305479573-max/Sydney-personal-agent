@@ -70,6 +70,7 @@ import {
   InstalledConnectorProvider,
   IntegrationProviderSettings,
   installedMessaging,
+  isAdminModelSharingEnabled,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
   isPipedreamEnabled,
@@ -90,6 +91,7 @@ import {
   reconcilePurchases,
   removePiUserSessions,
   resolveDeploymentModel,
+  resolveSharedAdminModelRole,
   ScriptedAgentRuntime,
   SpaceMemoryProviderResolver,
   StripeBillingProvider,
@@ -681,6 +683,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     adminEmails: env.adminEmails,
     featureAccessRestricted: env.featureAccessRestricted,
   });
+  const shareAdminModels = isAdminModelSharingEnabled({
+    sandboxProvider: env.sandboxProvider,
+    adminEmails: env.adminEmails,
+    shareAdminModels: env.shareAdminModels,
+  });
   const executor = createRunExecutor({
     resolveFeatureAccess: async (userId) =>
       (
@@ -690,6 +697,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
           restrictNonAdmins: featureAccessRestricted,
         })
       ).effective,
+    resolveSharedAdminModelRole: () =>
+      resolveSharedAdminModelRole(
+        { prisma, secretStore: secrets },
+        { adminEmails: env.adminEmails, enabled: shareAdminModels },
+      ),
     billingEnabled: modelCreditsEnabled,
     maxUploadSizeBytes: env.maxUploadSizeBytes,
     contextStrategy,

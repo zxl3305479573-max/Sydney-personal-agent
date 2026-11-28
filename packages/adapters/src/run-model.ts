@@ -12,6 +12,7 @@ import {
   OPENAI_COMPATIBLE_PROVIDER_ID,
 } from "@rakazo/contracts";
 import { MISSING_MODEL_RUN_ERROR } from "@rakazo/core";
+import { runAsSystem } from "@rakazo/db";
 import { cloudflareProviderEnv } from "./cloudflare-ai-gateway.js";
 import { resolveDeploymentModel } from "./deployment-model.js";
 import type { ExecutorDeps } from "./executor-deps.js";
@@ -191,6 +192,7 @@ async function resolveModelKeyMaterial(
   spaceId: string,
   credential: {
     id: string;
+    userId?: string;
     secretId: string;
     provider: string;
     defaultModel?: string | null;
@@ -227,10 +229,17 @@ async function resolveModelKeyMaterial(
   redact: string[];
 }> {
   if (credential) {
+    const secretOwnerUserId = credential.userId ?? userId;
+    const isSharedCredential = secretOwnerUserId !== userId;
+    const loadOwnerSecretRow = () => {
+      const read = () =>
+        deps.prisma.secret.findFirst({
+          where: { id: credential.secretId, userId: secretOwnerUserId, spaceId: null },
+        });
+      return isSharedCredential ? runAsSystem("shared-admin-model.secret", read) : read();
+    };
     return withModelCredentialLock(credential.secretId, async () => {
-      const row = await deps.prisma.secret.findFirst({
-        where: { id: credential.secretId, userId, spaceId: null },
-      });
+      const row = await loadOwnerSecretRow();
       if (!row) {
         if (await modelCreditBillingEnabled(deps))
           throw new Error("Connect that model provider again.");
@@ -243,19 +252,26 @@ async function resolveModelKeyMaterial(
       }
       const plaintext = await deps.secretStore.load(row.ciphertext, row.id);
       registerSecrets?.(secretValuesToRedact(parseModelSecret(plaintext)));
-      const persist = persistStoredModelSecret(
+      const basePersist = persistStoredModelSecret(
         deps.prisma,
         deps.secretStore,
-        { userId, spaceId },
+        { userId: secretOwnerUserId, spaceId },
         row.id,
       );
-      const retire = retireToReconnectMarker(
-        deps.prisma,
-        deps.secretStore,
-        { userId, spaceId },
-        credential,
-        parseModelSecret(plaintext).maxTokens,
-      );
+      const persist = isSharedCredential
+        ? async (nextPlaintext: string) => {
+            await runAsSystem("shared-admin-model.persist-oauth", () => basePersist(nextPlaintext));
+          }
+        : basePersist;
+      const retire = isSharedCredential
+        ? async () => false
+        : retireToReconnectMarker(
+            deps.prisma,
+            deps.secretStore,
+            { userId, spaceId },
+            credential,
+            parseModelSecret(plaintext).maxTokens,
+          );
       const resolveAuth = () =>
         resolveModelAuth(plaintext, credential.provider, { persist, retire });
       let resolved: Awaited<ReturnType<typeof resolveAuth>> | undefined;
@@ -268,9 +284,15 @@ async function resolveModelKeyMaterial(
         // first — rotating a stale token the way any run would — then ask.
         if (deps.codexCatalog && parseModelSecret(plaintext).kind === "oauth") {
           resolved = await resolveAuth();
-          liveCodex = await codexLiveModel(deps.codexCatalog, userId, resolved.secret, modelId, {
-            waitMs: CODEX_LIVE_RUN_WAIT_MS,
-          });
+          liveCodex = await codexLiveModel(
+            deps.codexCatalog,
+            secretOwnerUserId,
+            resolved.secret,
+            modelId,
+            {
+              waitMs: CODEX_LIVE_RUN_WAIT_MS,
+            },
+          );
         }
         if (!liveCodex) throw new UnavailableModelForAuthError(authError);
       }
@@ -281,9 +303,15 @@ async function resolveModelKeyMaterial(
         provider === CHATGPT_OAUTH_PROVIDER &&
         resolved.secret.kind === "oauth"
       ) {
-        liveCodex = await codexLiveModel(deps.codexCatalog, userId, resolved.secret, modelId, {
-          waitMs: CODEX_LIVE_RUN_WAIT_MS,
-        });
+        liveCodex = await codexLiveModel(
+          deps.codexCatalog,
+          secretOwnerUserId,
+          resolved.secret,
+          modelId,
+          {
+            waitMs: CODEX_LIVE_RUN_WAIT_MS,
+          },
+        );
       }
       assertCompatibleModelEnabled(credential, resolved.secret, modelId);
       const oauth = resolved.secret.kind === "oauth" ? resolved.secret.credential : undefined;
@@ -341,9 +369,7 @@ async function resolveModelKeyMaterial(
         persistOAuth: oauth
           ? async (next) => {
               await withModelCredentialLock(credential.secretId, async () => {
-                const currentRow = await deps.prisma.secret.findFirst({
-                  where: { id: credential.secretId, userId, spaceId: null },
-                });
+                const currentRow = await loadOwnerSecretRow();
                 if (!currentRow) return;
                 const current = parseModelSecret(
                   await deps.secretStore.load(currentRow.ciphertext, currentRow.id),
@@ -370,7 +396,7 @@ async function resolveModelKeyMaterial(
             }
           : undefined,
         retireOAuth: retire,
-        ownCredential: true,
+        ...(isSharedCredential ? {} : { ownCredential: true as const }),
         redact: [...secretValuesToRedact(resolved.secret), resolved.apiKey].filter(
           (value): value is string => Boolean(value),
         ),
@@ -514,7 +540,7 @@ export async function resolveRunModel(
       })
     : null;
   const hasOverride = Boolean(override?.modelProvider && override.modelId);
-  const [overrideCredential, main, settings] = await Promise.all([
+  const [overrideCredential, memberMain, settings] = await Promise.all([
     hasOverride
       ? findConnectedModelCredential(
           deps.prisma,
@@ -529,6 +555,11 @@ export async function resolveRunModel(
       where: { id: "default" },
     }),
   ]);
+  const sharedPrimary =
+    !memberMain && !deps.deploymentModelConfigured
+      ? ((await deps.resolveSharedAdminModelRole?.())?.primary ?? null)
+      : null;
+  const main = memberMain ?? sharedPrimary;
   const selected = selectConfiguredModel({
     override,
     overrideCredential,

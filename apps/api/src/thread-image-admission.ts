@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { SecretStore } from "@rakazo/adapter-kit";
-import type { CodexLiveCatalog } from "@rakazo/adapters";
+import type { CodexLiveCatalog, MemberMainModel } from "@rakazo/adapters";
 import {
   CHATGPT_OAUTH_PROVIDER,
   codexLiveModel,
@@ -17,7 +17,13 @@ import {
 import type { Actor, MessageBlock } from "@rakazo/contracts";
 import { MODEL_IMAGE_INPUT_ERROR, MODEL_IMAGE_INPUT_UNKNOWN } from "@rakazo/core";
 import type { PrismaClient } from "@rakazo/db";
-import { appliedModelRole, findModelCredential, findModelCredentialById } from "@rakazo/db";
+import {
+  appliedModelRole,
+  findModelCredential,
+  findModelCredentialById,
+  runAsSystem,
+  runAsSystemInTransaction,
+} from "@rakazo/db";
 
 type ModelChoice = {
   modelProvider: string | null;
@@ -40,6 +46,7 @@ export async function assertThreadImageInput(
   configuration?: {
     secrets: Pick<SecretStore, "load">;
     deployment: { provider: string; model: string } | null;
+    sharedMain?: MemberMainModel | null;
     hostedProvider?: string;
     codexCatalog?: CodexLiveCatalog;
   },
@@ -65,12 +72,13 @@ export async function assertThreadImageInput(
           )
         : await findModelCredential(prisma, actor, override.modelProvider, override.modelId)
       : null;
+  const memberMain = configuration
+    ? await resolveMemberMainModel({ prisma, secretStore: configuration.secrets }, actor)
+    : await mainModelWithoutSecrets(prisma, actor);
   const selected = selectConfiguredModel({
     override,
     overrideCredential,
-    main: configuration
-      ? await resolveMemberMainModel({ prisma, secretStore: configuration.secrets }, actor)
-      : await mainModelWithoutSecrets(prisma, actor),
+    main: memberMain ?? configuration?.sharedMain ?? null,
     defaults: {
       settings: await prisma.deploymentSettings.findUnique({ where: { id: "default" } }),
       deployment: configuration?.deployment ?? null,
@@ -81,17 +89,38 @@ export async function assertThreadImageInput(
   const id = running ? run.modelId : selected.id;
   if (!provider || !id) return;
   let supportsImages = knownModelImageInput(provider, id);
+  const readOwnerCredential = async <T>(
+    ownerUserId: string,
+    fn: (client: PrismaClient) => Promise<T>,
+  ): Promise<T> => {
+    if (ownerUserId === actor.userId) return fn(prisma);
+    if (typeof prisma.$transaction === "function") {
+      return runAsSystem("shared-admin-model.image-admission", () => fn(prisma));
+    }
+    if (typeof prisma.$queryRaw === "function") {
+      return runAsSystemInTransaction(prisma, "shared-admin-model.image-admission", () =>
+        fn(prisma),
+      );
+    }
+    return fn(prisma);
+  };
   if (provider === "openai-compatible" && configuration) {
     const credential = running ? overrideCredential : selected.credential;
     if (credential) {
-      const row = await prisma.secret.findFirst({
-        where: { id: credential.secretId, userId: actor.userId, spaceId: null },
+      const ownerUserId = credential.userId ?? actor.userId;
+      const { row, legacy } = await readOwnerCredential(ownerUserId, async (client) => {
+        const foundRow = await client.secret.findFirst({
+          where: { id: credential.secretId, userId: ownerUserId, spaceId: null },
+        });
+        const foundLegacy = foundRow
+          ? await client.userModelCredential.findFirst({
+              where: { id: credential.id, userId: ownerUserId },
+              select: { supportsImages: true },
+            })
+          : null;
+        return { row: foundRow, legacy: foundLegacy };
       });
       if (row) {
-        const legacy = await prisma.userModelCredential.findFirst({
-          where: { id: credential.id, userId: actor.userId },
-          select: { supportsImages: true },
-        });
         const secret = parseModelSecret(await configuration.secrets.load(row.ciphertext, row.id));
         if (secret.kind === "openai_compatible") {
           // A custom endpoint is never known to be text-only: without image input turned on,
@@ -110,13 +139,16 @@ export async function assertThreadImageInput(
   if (provider === CHATGPT_OAUTH_PROVIDER && configuration?.codexCatalog) {
     const credential = running ? overrideCredential : selected.credential;
     if (credential) {
+      const ownerUserId = credential.userId ?? actor.userId;
       try {
-        const row = await prisma.secret.findFirst({
-          where: { id: credential.secretId, userId: actor.userId, spaceId: null },
-        });
+        const row = await readOwnerCredential(ownerUserId, (client) =>
+          client.secret.findFirst({
+            where: { id: credential.secretId, userId: ownerUserId, spaceId: null },
+          }),
+        );
         if (row) {
           const secret = parseModelSecret(await configuration.secrets.load(row.ciphertext, row.id));
-          const live = await codexLiveModel(configuration.codexCatalog, actor.userId, secret, id, {
+          const live = await codexLiveModel(configuration.codexCatalog, ownerUserId, secret, id, {
             waitMs: 0,
           });
           if (live?.supportsImages !== undefined) supportsImages = live.supportsImages;

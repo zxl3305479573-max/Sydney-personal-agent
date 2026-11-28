@@ -54,7 +54,7 @@ import type { RouterDeps } from "../router.js";
 import { createRoutineAnnouncer } from "../routines.js";
 import { procedureSecurityEvent } from "../security-audit.js";
 import { createTaughtSkillsService } from "../taught-skills.js";
-import { meDto } from "./shared.js";
+import { meDto, sharedAdminMainModel } from "./shared.js";
 
 /**
  * Runs an authenticated procedure with row-level security scoped to the actor's
@@ -212,14 +212,20 @@ export function createRouterContext(deps: RouterDeps) {
     role: ModelRole,
     settings: ModelRoleSettings,
   ): Promise<ModelRoleView> => {
+    const sharedMain =
+      role === "main" && !deps.env.deploymentModelConfigured
+        ? await sharedAdminMainModel(deps)
+        : null;
     const defaults =
       role === "main"
         ? {
             settings: await deps.prisma.deploymentSettings.findUnique({ where: { id: "default" } }),
-            // Only a model the deployment can run stands in for the member's choice.
+            // Only a model the deployment (or shared admin default) can run stands in for the member's choice.
             deployment: deps.env.deploymentModelConfigured
               ? { provider: deps.env.defaultProvider, model: deps.env.defaultModel }
-              : null,
+              : sharedMain
+                ? { provider: sharedMain.provider, model: sharedMain.modelId }
+                : null,
           }
         : { env: process.env };
     return { ...settings, deploymentPrimary: deploymentModelRole(role, defaults).primary };

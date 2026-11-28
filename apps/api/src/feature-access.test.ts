@@ -89,13 +89,17 @@ function createHarness() {
         },
       ),
     },
-    userModelPreference: { findUnique: vi.fn(async () => null) },
+    userModelPreference: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
     spaceModelPreference: { findUnique: vi.fn(async () => null) },
-    userModelCredential: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
+    userModelCredential: {
+      findMany: vi.fn(async () => []),
+      findFirst: vi.fn(async () => null),
+    },
     userModelRoleChoice: { findMany: vi.fn(async () => []) },
     spaceModelRoleChoice: { findMany: vi.fn(async () => []) },
     spaceSettingOverride: { findUnique: vi.fn(async () => null) },
     deploymentSettings: { findUnique: vi.fn(async () => null) },
+    secret: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
     connection: { findMany: vi.fn(async () => []) },
     mcpServer: { findMany: vi.fn(async () => []) },
     capabilityInstall: { findMany: vi.fn(async () => []) },
@@ -136,6 +140,7 @@ function createHarness() {
       isDeploymentOwner: false,
     }),
     overrides,
+    prisma,
   };
 }
 
@@ -235,5 +240,86 @@ describe("featureAccess API enforcement and admin controls", () => {
     await expect(
       adminClient.featureAccess.updateUser({ userId: "missing-user", computer: true }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("shares the verified admin main model with non-admins without exposing admin credentials", async () => {
+    const adminCred = {
+      id: "cred-admin-main",
+      userId: "admin-1",
+      provider: "openai-compatible",
+      label: "Admin Primary",
+      secretId: "sec-admin-main",
+      supportsImages: true,
+      createdAt: new Date("2026-11-01T00:00:00Z"),
+      updatedAt: new Date("2026-11-01T00:00:00Z"),
+      userPreferences: [
+        {
+          userId: "admin-1",
+          credentialId: "cred-admin-main",
+          modelId: "x-deepseek-v4.1-flash",
+          thinkingLevel: null,
+          createdAt: new Date("2026-11-01T00:00:00Z"),
+          updatedAt: new Date("2026-11-01T00:00:00Z"),
+        },
+      ],
+    };
+    const { friendClient, prisma } = createHarness();
+    vi.mocked(prisma.userModelRoleChoice.findMany).mockImplementation((async (args?: {
+      where?: { userId?: string; role?: string };
+    }) => {
+      const where = args?.where;
+      if (where?.userId === "admin-1" && (!where.role || where.role === "main")) {
+        return [
+          {
+            role: "main",
+            position: 0,
+            provider: "openai-compatible",
+            modelId: "x-deepseek-v4.1-flash",
+            thinkingLevel: null,
+            credentialId: "cred-admin-main",
+          },
+        ];
+      }
+      return [];
+    }) as never);
+    vi.mocked(prisma.userModelCredential.findFirst).mockImplementation((async (args?: {
+      where?: { id?: string; userId?: string };
+    }) => {
+      const where = args?.where;
+      if (where?.userId === "admin-1" && (!where.id || where.id === "cred-admin-main")) {
+        return adminCred;
+      }
+      return null;
+    }) as never);
+    vi.mocked(prisma.secret.findFirst).mockImplementation((async (args?: {
+      where?: { id?: string; userId?: string };
+    }) => {
+      const where = args?.where;
+      if (where?.id === "sec-admin-main" && where?.userId === "admin-1") {
+        return {
+          id: "sec-admin-main",
+          userId: "admin-1",
+          spaceId: null,
+          ciphertext: "enc",
+        };
+      }
+      return null;
+    }) as never);
+
+    const friendMe = await friendClient.me();
+    expect(friendMe.needsModel).toBe(false);
+    expect(friendMe.defaultProvider).toBe("openai-compatible");
+    expect(friendMe.defaultModel).toBe("x-deepseek-v4.1-flash");
+
+    const roleView = await friendClient.models.role({ role: "main" });
+    expect(roleView.primary).toBeNull();
+    expect(roleView.deploymentPrimary).toEqual({
+      provider: "openai-compatible",
+      modelId: "x-deepseek-v4.1-flash",
+    });
+
+    // Friends never see or edit the admin's model connections.
+    const friendCredentials = await friendClient.models.credentials();
+    expect(friendCredentials).toEqual([]);
   });
 });

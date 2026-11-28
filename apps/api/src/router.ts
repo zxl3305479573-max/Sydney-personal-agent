@@ -135,6 +135,7 @@ export interface RouterDeps {
     navLinks?: NavLink[];
     adminEmails?: string[];
     featureAccessRestricted?: boolean;
+    shareAdminModels?: boolean;
     phoneCallsEnabled?: boolean;
     phoneCallRingSeconds?: number;
     maxUploadSizeBytes?: number;

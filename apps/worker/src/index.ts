@@ -51,6 +51,7 @@ import {
   InMemoryJobQueue,
   InstalledConnectorProvider,
   installedMessaging,
+  isAdminModelSharingEnabled,
   isComposioEnabled,
   isMessagingSurfaceEnabled,
   isPipedreamEnabled,
@@ -73,6 +74,7 @@ import {
   resolveDeploymentModel,
   resolvePiSessionRoot,
   resolveSandboxProvider,
+  resolveSharedAdminModelRole,
   ScriptedAgentRuntime,
   SpaceMemoryProviderResolver,
   sandboxProviderOptionsFromEnv,
@@ -283,6 +285,16 @@ async function main() {
           ? false
           : undefined,
   });
+  const shareAdminModels = isAdminModelSharingEnabled({
+    sandboxProvider,
+    adminEmails,
+    shareAdminModels:
+      process.env.SYDNEY_SHARE_ADMIN_MODELS === "true"
+        ? true
+        : process.env.SYDNEY_SHARE_ADMIN_MODELS === "false"
+          ? false
+          : undefined,
+  });
   const executor = createRunExecutor({
     resolveFeatureAccess: async (userId) =>
       (
@@ -292,6 +304,11 @@ async function main() {
           restrictNonAdmins: featureAccessRestricted,
         })
       ).effective,
+    resolveSharedAdminModelRole: () =>
+      resolveSharedAdminModelRole(
+        { prisma, secretStore: secrets },
+        { adminEmails, enabled: shareAdminModels },
+      ),
     maxUploadSizeBytes: uploadSizeFromEnv(process.env),
     prisma,
     runtime,

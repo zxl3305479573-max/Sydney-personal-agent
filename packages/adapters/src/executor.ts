@@ -667,7 +667,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           peerMessage,
           task,
           storedConnections,
-          main,
+          memberMain,
           settings,
           configuredMemory,
           savedSkills,
@@ -724,6 +724,11 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           loadRunCodeRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
         runAbortController.signal.throwIfAborted();
+        const sharedAdminRole =
+          !memberMain && !deps.deploymentModelConfigured
+            ? ((await deps.resolveSharedAdminModelRole?.()) ?? null)
+            : null;
+        const main = memberMain ?? sharedAdminRole?.primary ?? null;
         // Team chat reaches people besides the owner, so their runs get a group channel's limits.
         const teamChatConversationId =
           run.trigger === "messaging" ? thread.externalConversationId : null;
@@ -1083,15 +1088,35 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           !(await spaceHasModelAccess(deps.prisma, run.spaceId));
         const scripted = deps.runtime.describe().capabilities.scripted;
         let backupChoices: Promise<ModelRoleChoice[]> | undefined;
-        const loadBackups = () =>
+        const sharedBackupFor = (
+          provider: string,
+          modelId: string,
+          credentialId?: string | null,
+        ) =>
+          !credentialId
+            ? sharedAdminRole?.backups.find(
+                (candidate) => candidate.provider === provider && candidate.modelId === modelId,
+              )
+            : undefined;
+        const loadBackups = (): Promise<ModelRoleChoice[]> =>
           (backupChoices ??= scripted
             ? Promise.resolve([])
             : effectiveModelRole(deps.prisma, run, "main", {
                 settings,
                 deployment: runDeployment,
               }).then(
-                (role) => role.backups,
-                (error: unknown) => {
+                (role): ModelRoleChoice[] => {
+                  if (role.backups.length > 0) return role.backups;
+                  if (!memberMain && sharedAdminRole?.backups.length) {
+                    return sharedAdminRole.backups.map(({ provider, modelId, thinkingLevel }) => ({
+                      provider,
+                      modelId,
+                      ...(thinkingLevel ? { thinkingLevel } : {}),
+                    }));
+                  }
+                  return [];
+                },
+                (error: unknown): ModelRoleChoice[] => {
                   getLogger().warn("Backup models could not be loaded", { runId, error });
                   return [];
                 },
@@ -1104,15 +1129,34 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           if (run.modelPinned) return undefined;
           for (const choice of await loadBackups()) {
             try {
-              const backup = await resolveConnectedModelKey(
-                deps,
-                run,
+              const sharedBackup = sharedBackupFor(
                 choice.provider,
                 choice.modelId,
-                (values) => runSecrets.push(...values),
-                true,
                 choice.credentialId,
               );
+              const backup = sharedBackup
+                ? {
+                    credential: sharedBackup.credential,
+                    resolved: await resolveModelKey(
+                      deps,
+                      run.userId,
+                      run.spaceId,
+                      sharedBackup.credential,
+                      choice.provider,
+                      choice.modelId,
+                      (values) => runSecrets.push(...values),
+                      { requireStoredSecret: true },
+                    ),
+                  }
+                : await resolveConnectedModelKey(
+                    deps,
+                    run,
+                    choice.provider,
+                    choice.modelId,
+                    (values) => runSecrets.push(...values),
+                    true,
+                    choice.credentialId,
+                  );
               getLogger().warn("model.primary_unavailable.backup_used", {
                 runId,
                 "model.provider": choice.provider,
@@ -2142,7 +2186,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
               model: {
                 provider: runModelProvider,
                 id: runModelId,
-                ...(credential ? { connectionId: credential.id } : {}),
+                ...(credential && (!credential.userId || credential.userId === run.userId)
+                  ? { connectionId: credential.id }
+                  : {}),
                 ...resolvedModelRunFields(
                   run.trigger === "managed_task"
                     ? {
@@ -2163,12 +2209,8 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                     const key = fallbackKey(provider, modelId, connectionId);
                     if (!fallbackModelKeys.has(key))
                       throw new Error("Backup model is not selected");
-                    const fallback = await resolveConnectedModel(
-                      { userId: run.userId, spaceId: run.spaceId },
-                      provider,
-                      modelId,
-                      (values) => runSecrets.push(...values),
-                      true,
+                    const sharedBackup = sharedBackupFor(provider, modelId, connectionId);
+                    const matchedThinking =
                       fallbackModels.find(
                         (candidate) =>
                           fallbackKey(
@@ -2176,13 +2218,42 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                             candidate.modelId,
                             candidate.credentialId,
                           ) === key,
-                      )?.thinkingLevel ?? null,
-                      connectionId,
-                    );
+                      )?.thinkingLevel ?? null;
+                    const fallback = sharedBackup
+                      ? (() => {
+                          return resolveModelKey(
+                            deps,
+                            run.userId,
+                            run.spaceId,
+                            sharedBackup.credential,
+                            provider,
+                            modelId,
+                            (values) => runSecrets.push(...values),
+                            { requireStoredSecret: true },
+                          ).then((resolvedBackup) => ({
+                            provider,
+                            id: modelId,
+                            ...resolvedModelRunFields(resolvedBackup),
+                            thinkingLevel: (matchedThinking ??
+                              sharedBackup.thinkingLevel ??
+                              resolvedBackup.thinkingLevel ??
+                              null) as AgentRunRequest["model"]["thinkingLevel"],
+                          }));
+                        })()
+                      : resolveConnectedModel(
+                          { userId: run.userId, spaceId: run.spaceId },
+                          provider,
+                          modelId,
+                          (values) => runSecrets.push(...values),
+                          true,
+                          matchedThinking,
+                          connectionId,
+                        );
+                    const resolvedFallback = await fallback;
                     return {
-                      ...fallback,
+                      ...resolvedFallback,
                       ...(run.trigger === "managed_task"
-                        ? { callObserver: managedCallObserver(fallback.callObserver) }
+                        ? { callObserver: managedCallObserver(resolvedFallback.callObserver) }
                         : {}),
                     };
                   }

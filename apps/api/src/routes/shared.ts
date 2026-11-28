@@ -3,8 +3,10 @@ import {
   findConnectedModelCredential,
   hasHostedModelCredits,
   hostCredentialSource,
+  isAdminModelSharingEnabled,
   mcpStdioAvailable,
   resolveMemberMainModel,
+  resolveSharedAdminModelRole,
   selectConfiguredModel,
 } from "@rakazo/adapters";
 import type { Actor, Me } from "@rakazo/contracts";
@@ -94,7 +96,27 @@ function computerHostFor(
   return null;
 }
 
-/** The main model chat runs: the member's while it can run, else the deployment's. */
+/**
+ * Resolves the verified server administrator's main model when admin-model sharing is
+ * enabled and the deployment itself has no environment-level default key.
+ */
+export async function sharedAdminMainModel(deps: RouterDeps) {
+  if (deps.env?.deploymentModelConfigured) return null;
+  const role = await resolveSharedAdminModelRole(
+    { prisma: deps.prisma, secretStore: deps.secrets },
+    {
+      adminEmails: deps.env?.adminEmails,
+      enabled: isAdminModelSharingEnabled({
+        sandboxProvider: deps.env?.sandboxProvider,
+        adminEmails: deps.env?.adminEmails,
+        shareAdminModels: deps.env?.shareAdminModels,
+      }),
+    },
+  );
+  return role?.primary ?? null;
+}
+
+/** The main model chat runs: the member's while it can run, else the deployment's (or shared admin's). */
 export async function modelSetup(deps: RouterDeps, actor: Actor) {
   const [member, settings] = await Promise.all([
     resolveMemberMainModel({ prisma: deps.prisma, secretStore: deps.secrets }, actor),
@@ -110,13 +132,17 @@ export async function modelSetup(deps: RouterDeps, actor: Actor) {
   const funding = deps.billing ? await deps.billing.status(actor) : null;
   // A balance keeps paying for the deployment model after switching to an own key.
   const creditsAvailable = funding?.funding === "credits" || (funding?.balanceUsd ?? 0) > 0;
-  const hasDeployment =
+  const hasEnvDeployment =
     Boolean(deps.env.deploymentModelConfigured) &&
     (!funding?.creditPurchasesEnabled || creditsAvailable);
+  const sharedMain = !main && !hasEnvDeployment ? await sharedAdminMainModel(deps) : null;
+  const hasDeployment = hasEnvDeployment || Boolean(sharedMain);
   return {
     main,
+    sharedMain,
     model:
       main ??
+      sharedMain ??
       deploymentModelRole("main", {
         settings,
         deployment: { provider: deps.env.defaultProvider, model: deps.env.defaultModel },

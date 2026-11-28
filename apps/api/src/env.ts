@@ -91,6 +91,12 @@ export interface AppEnv {
    * When unset, defaults to true on native-linux deployments with RAKAZO_ADMIN_EMAILS configured.
    */
   featureAccessRestricted: boolean | undefined;
+  /**
+   * Optional override for sharing verified administrator model configurations with non-admin
+   * accounts that have not connected their own model (SYDNEY_SHARE_ADMIN_MODELS).
+   * When unset, defaults to true on native-linux deployments with RAKAZO_ADMIN_EMAILS configured.
+   */
+  shareAdminModels: boolean | undefined;
   phoneCallsEnabled: boolean;
   phoneCallRingSeconds: number;
   phoneCallCooldownMinutes: number;
@@ -348,6 +354,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       source.SYDNEY_FEATURE_ACCESS_RESTRICTED === "true"
         ? true
         : source.SYDNEY_FEATURE_ACCESS_RESTRICTED === "false"
+          ? false
+          : undefined,
+    shareAdminModels:
+      source.SYDNEY_SHARE_ADMIN_MODELS === "true"
+        ? true
+        : source.SYDNEY_SHARE_ADMIN_MODELS === "false"
           ? false
           : undefined,
     ...phoneCallSettings(source),
