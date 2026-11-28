@@ -4,6 +4,7 @@ import {
   answerableAskMessageIds,
   dismissableAskMessageIds,
   groupVoiceChats,
+  isTerminal,
   memberName,
   timeSeparatorIds,
   unreadDividerMessageId,
@@ -49,7 +50,8 @@ export function useLatestRowActions(current: MessageRowActions): MessageRowActio
       answer: (message, answer, fields, dismiss, remember) =>
         rowActionsRef.current.answer(message, answer, fields, dismiss, remember),
       openBot: (id, name) => rowActionsRef.current.openBot(id, name),
-      openComputer: (id, name) => rowActionsRef.current.openComputer(id, name),
+      openComputer: (id, name, takeControl) =>
+        rowActionsRef.current.openComputer(id, name, takeControl),
       previewMarkdown: (target) => rowActionsRef.current.previewMarkdown(target),
       previewImage: (target) => rowActionsRef.current.previewImage(target),
       jump: (id) => rowActionsRef.current.jump(id),
@@ -113,6 +115,14 @@ export function useThreadRows({
   );
   // Group calls in reading order, then reverse for the inverted list.
   const liveItems = useMemo(() => groupVoiceChats(visibleMessages).reverse(), [visibleMessages]);
+  const computerCards = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const message of visibleMessages) {
+      if (message.runId && message.blocks.some((block) => block.kind === "computer"))
+        latest.set(message.runId, message.id);
+    }
+    return new Set(latest.values());
+  }, [visibleMessages]);
   const messagesById = useMemo(
     () => new Map((snap?.messages ?? []).map((message) => [message.id, message])),
     [snap?.messages],
@@ -162,6 +172,12 @@ export function useThreadRows({
           onCall={onCall}
           canAnswer={!readOnly && answerableAskIds.has(message.id)}
           canDismiss={dismissableAskIds.has(message.id)}
+          computerActive={
+            computerCards.has(message.id) &&
+            [...(snap?.activeRuns ?? []), ...(snap?.run ? [snap.run] : [])].some(
+              (run) => run.id === message.runId && !isTerminal(run.status),
+            )
+          }
           highlighted={highlightedMessageId === message.id}
           separator={separatorIds.has(message.id)}
           headerAdjacent={threadHeaderFloats() && message.id === visibleMessages[0]?.id}
@@ -195,6 +211,7 @@ export function useThreadRows({
       snap?.members,
       snap?.activeRuns,
       snap?.run,
+      computerCards,
       mentionBots,
       displayName,
       reactionView,

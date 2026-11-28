@@ -1,4 +1,9 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "小伙伴正在操作时，接管会先停止当前任务。",
+  "Live desktop": "实时桌面",
+  "Loading live desktop…": "正在连接实时桌面…",
+  "Preview unavailable. Open the computer to reconnect.": "画面暂不可用，可打开云电脑重新连接。",
   "Personal personality library": "个人人格库",
   "Saved avatars": "本机头像库",
   "Select saved avatar": "选择已保存头像",

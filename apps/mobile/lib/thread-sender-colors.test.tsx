@@ -83,8 +83,9 @@ vi.mock("./chat-appearance", async (importOriginal) => {
   return { ...actual, useMobileChatAppearance: () => actual.getEffectiveMobileChatAppearance() };
 });
 vi.mock("../components/ComputerCard", () => ({
-  ComputerCard: ({ onOpen }: { onOpen: () => void }) => {
+  ComputerCard: ({ onOpen, onTakeControl }: { onOpen: () => void; onTakeControl?: () => void }) => {
     onOpen();
+    onTakeControl?.();
     return null;
   },
 }));
@@ -261,8 +262,8 @@ it.each(["text", "image"] as const)(
   },
 );
 
-it("keeps the bot name when opening a computer without a sender label", () => {
-  const opened: string[][] = [];
+it("keeps the bot name when viewing or taking control without a sender label", () => {
+  const opened: Array<[string, string, boolean?]> = [];
   renderToStaticMarkup(
     <Bubble
       botId="bot-a"
@@ -279,5 +280,8 @@ it("keeps the bot name when opening a computer without a sender label", () => {
       actionProps={{}}
     />,
   );
-  expect(opened).toEqual([["bot-a", "Sender"]]);
+  expect(opened).toEqual([
+    ["bot-a", "Sender"],
+    ["bot-a", "Sender", true],
+  ]);
 });

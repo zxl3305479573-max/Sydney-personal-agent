@@ -245,8 +245,9 @@ vi.mock("react-native-safe-area-context", () => {
   };
 });
 
+const route = vi.hoisted(() => ({ takeover: undefined as string | undefined }));
 vi.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ botId: "bot-1", name: "Basil" }),
+  useLocalSearchParams: () => ({ botId: "bot-1", name: "Basil", takeover: route.takeover }),
   useNavigation: () => ({ setOptions: () => undefined }),
 }));
 
@@ -386,6 +387,7 @@ describe("computer screen", () => {
   let container: HTMLDivElement | undefined;
 
   beforeEach(() => {
+    route.takeover = undefined;
     rpc.mockReset();
     spaceState.id = "space-1";
     spaceState.generation = 0;
@@ -446,6 +448,19 @@ describe("computer screen", () => {
       (button) => button.textContent === "Take control",
     );
   }
+
+  it("enters the existing takeover flow once when opened from the chat card", async () => {
+    route.takeover = "1";
+    respond(botWorking);
+    await render();
+    await settle();
+    expect(calls("computer/takeover")).toHaveLength(1);
+    await act(async () => {
+      root?.render(<Computer />);
+    });
+    await settle();
+    expect(calls("computer/takeover")).toHaveLength(1);
+  });
 
   async function openNativeScreen() {
     const screen = "https://screen.example.test/novnc/session/view/1.test/vnc.html";
@@ -951,7 +966,9 @@ describe("computer screen", () => {
     await act(async () => headerTakeControl?.click());
     await settle();
 
-    expect(calls("computer/takeover")).toEqual([["computer/takeover", { botId: "bot-1" }]]);
+    expect(calls("computer/takeover")).toEqual([
+      ["computer/takeover", { botId: "bot-1", stopRunning: true }],
+    ]);
     expect(fullWindow?.querySelector("iframe")?.getAttribute("data-elements-hidden")).toBe("false");
     expect(fullWindow?.querySelector("iframe")?.getAttribute("data-important")).toBe("auto");
     expect(fullWindow?.querySelector("[data-keyboard-bar]")).not.toBeNull();
@@ -1414,7 +1431,9 @@ describe("computer screen", () => {
     await act(async () => takeControlButtons(view)[0]?.click());
     await settle();
 
-    expect(calls("computer/takeover")).toEqual([["computer/takeover", { botId: "bot-1" }]]);
+    expect(calls("computer/takeover")).toEqual([
+      ["computer/takeover", { botId: "bot-1", stopRunning: true }],
+    ]);
   });
 
   function statusLabel(view: HTMLElement) {

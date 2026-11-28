@@ -507,7 +507,7 @@ export function useComputerControls({
         }
       }
       if (takeControl) {
-        await rpc.computer.takeover({ botId: targetBotId });
+        await rpc.computer.takeover({ botId: targetBotId, stopRunning: true });
         if (!stillThisBoot() || !stillThisBot()) return;
       }
       await refreshComputerFor(targetBotId);
@@ -617,12 +617,11 @@ export function useComputerControls({
       return true;
     }
     const needsTakeover = takeControl && !userHoldsComputerControl(targetComputer, id);
-    const blocked = computerTakeoverBlocked(targetComputer, runStatus);
     try {
       await bootComputer({
         botId: id,
-        takeControl: needsTakeover && !blocked,
-        showProgress: (needsTakeover && !blocked) || targetComputer?.state !== "running",
+        takeControl: needsTakeover,
+        showProgress: needsTakeover || targetComputer?.state !== "running",
         force: targetComputer?.state !== "running",
       });
       return true;
@@ -633,8 +632,8 @@ export function useComputerControls({
   }
   const openComputerRef = useRef(openComputer);
   openComputerRef.current = openComputer;
-  const onOpenComputer = useCallback((botId?: string) => {
-    void openComputerRef.current(botId);
+  const onOpenComputer = useCallback((botId?: string, takeControl = false) => {
+    void openComputerRef.current(botId, takeControl);
   }, []);
 
   async function releaseComputer(reason?: ComputerReleaseReason) {

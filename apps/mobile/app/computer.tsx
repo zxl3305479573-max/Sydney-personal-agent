@@ -128,7 +128,11 @@ function ComputerScreen() {
   const windowSize = useWindowDimensions();
   const stacked = stacksAtTextScale(windowSize.fontScale);
   const folds = useFoldRegions();
-  const { botId, name: nameParam } = useLocalSearchParams<{ botId?: string; name?: string }>();
+  const {
+    botId,
+    name: nameParam,
+    takeover,
+  } = useLocalSearchParams<{ botId?: string; name?: string; takeover?: string }>();
   const name = displayName(nameParam, t("Bot"));
   const foreground = useAppForeground();
   const [computer, setComputer] = useState<ComputerStatus | null>(null);
@@ -147,6 +151,7 @@ function ComputerScreen() {
   // The keyboard closes on the Release tap, not when the server answers.
   const [releasing, setReleasing] = useState(false);
   const autoBooted = useRef<string | null>(null);
+  const requestedTakeover = useRef<string | null>(null);
   const screenWebViewRef = useRef<WebView>(null);
   const keyboardGate = useRef({
     key: "",
@@ -489,7 +494,7 @@ function ComputerScreen() {
       }
       starting = false;
       if (!action.isActive()) return false;
-      if (takeControl) await rpc("computer/takeover", { botId });
+      if (takeControl) await rpc("computer/takeover", { botId, stopRunning: true });
       if (!action.isActive()) return false;
       await action.refresh({ screenAttempts: SCREEN_URL_OPEN_ATTEMPTS });
       if (!action.isActive()) return false;
@@ -514,7 +519,14 @@ function ComputerScreen() {
 
   useEffect(() => {
     if (!botId || readyBotId !== botId || switching || isSpaceSelectionPending()) return;
-    if (computer?.state === "booting" || computer?.state === "suspended") return;
+    if (computer?.state === "booting") return;
+    if (takeover === "1" && requestedTakeover.current !== botId) {
+      requestedTakeover.current = botId;
+      autoBooted.current = botId;
+      void openComputer({ takeControl: true });
+      return;
+    }
+    if (computer?.state === "suspended") return;
     if (autoBooted.current === botId) return;
     autoBooted.current = botId;
     void bootComputer({
@@ -522,7 +534,7 @@ function ComputerScreen() {
       showProgress: computer?.state !== "running",
       force: true,
     }).catch(() => undefined);
-  }, [readyBotId, botId, computer?.state, switching]);
+  }, [readyBotId, botId, computer?.state, switching, takeover]);
 
   const reloadScreen = useCallback(async () => {
     await refresh().catch(() => undefined);

@@ -40,6 +40,7 @@ async function runRoutine(
     takeover?: boolean;
     takeoverReleased?: boolean;
     native?: boolean;
+    graphical?: boolean;
     nativeUnavailable?: boolean;
     toolFailure?: "abort" | "recover";
     attachments?: "file" | "image";
@@ -259,7 +260,7 @@ async function runRoutine(
     },
   };
   const sandbox = {
-    describe: () => ({ id: "e2b", capabilities: { graphical: false } }),
+    describe: () => ({ id: "e2b", capabilities: { graphical: options.graphical ?? false } }),
     environment: options.native
       ? vi.fn(async () => {
           if (options.nativeUnavailable) throw new Error("native app is closed");
@@ -677,6 +678,44 @@ describe("run computer provisioning", () => {
 
     expect(provisionComputer).toHaveBeenCalledOnce();
   });
+
+  it("publishes one live card when parallel tools first use a graphical computer", async () => {
+    const publish = vi.spyOn(runMessages, "publishMessage").mockResolvedValue(null);
+    try {
+      await runRoutine(
+        [
+          { name: "list_files", args: { path: "" } },
+          { name: "list_files", args: { path: "" } },
+        ],
+        { graphical: true, parallel: true },
+      );
+      const cards = publish.mock.calls.filter((call) => call[5] === "computer-live:run-1");
+      expect(cards).toHaveLength(1);
+      expect(cards[0]?.slice(2)).toEqual([
+        "bot",
+        [{ kind: "computer", state: "Live", text: "" }],
+        false,
+        "computer-live:run-1",
+      ]);
+    } finally {
+      publish.mockRestore();
+    }
+  });
+
+  it.each([{ graphical: true }, { graphical: false }, { graphical: true, takeover: true }])(
+    "does not publish a live card for an unused computer or takeover-only turn: %j",
+    async (options) => {
+      const publish = vi.spyOn(runMessages, "publishMessage").mockResolvedValue(null);
+      try {
+        await runRoutine([], options);
+        expect(
+          publish.mock.calls.filter((call) => call[5]?.startsWith("computer-live:")),
+        ).toHaveLength(0);
+      } finally {
+        publish.mockRestore();
+      }
+    },
+  );
 
   it("queues the continuation when release wins the race with the takeover pause", async () => {
     const publish = vi.spyOn(runMessages, "publishMessage").mockResolvedValue(null);

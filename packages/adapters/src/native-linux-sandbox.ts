@@ -196,6 +196,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
       spaceId: string;
       botId?: string;
       port: number;
+      authorizeAdditionalViewer?: (context: AdapterContext) => Promise<boolean>;
     },
   ) {}
 
@@ -241,6 +242,16 @@ export class NativeLinuxSandbox implements SandboxProvider {
     return { ...context, nativeRunLease: { ...context.nativeRunLease, expiresAt } };
   }
 
+  private async canAccessScreen(context: AdapterContext): Promise<boolean> {
+    if (!this.screen || (this.screen.botId !== undefined && context.botId !== this.screen.botId)) {
+      return false;
+    }
+    if (context.userId === this.screen.userId && context.spaceId === this.screen.spaceId) {
+      return true;
+    }
+    return (await this.screen.authorizeAdditionalViewer?.(context)) === true;
+  }
+
   async act(
     computer: ComputerRef,
     request: ComputerActionRequest,
@@ -250,10 +261,7 @@ export class NativeLinuxSandbox implements SandboxProvider {
       this.assertComputer(context, computer);
       const lease = context.nativeControlLease;
       if (
-        !this.screen ||
-        context.userId !== this.screen.userId ||
-        context.spaceId !== this.screen.spaceId ||
-        (this.screen.botId !== undefined && context.botId !== this.screen.botId) ||
+        !(await this.canAccessScreen(context)) ||
         !lease.leaseId ||
         !Number.isSafeInteger(lease.fence) ||
         lease.fence < 1 ||
@@ -442,12 +450,10 @@ export class NativeLinuxSandbox implements SandboxProvider {
       request.view !== "stream" ||
       request.interactive ||
       !this.screen ||
-      context.userId !== this.screen.userId ||
-      context.spaceId !== this.screen.spaceId ||
-      (this.screen.botId !== undefined && context.botId !== this.screen.botId) ||
       !Number.isInteger(this.screen.port) ||
       this.screen.port < 1 ||
-      this.screen.port > 65535
+      this.screen.port > 65535 ||
+      !(await this.canAccessScreen(context))
     ) {
       throw new Error(!this.screen ? "native_screen_not_configured" : "native_screen_unsupported");
     }

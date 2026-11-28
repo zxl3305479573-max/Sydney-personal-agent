@@ -5923,6 +5923,21 @@ msgid "Table"
 msgstr "Table"
 
 #: src/pages/shell/computer-overlay.tsx
+msgid "Live desktop"
+msgstr "Live desktop"
+
+msgid "Loading live desktop…"
+msgstr "Loading live desktop…"
+
+msgid "Preview unavailable. Open the computer to reconnect."
+msgstr "Preview unavailable. Open the computer to reconnect."
+
+msgid "If the bot is working, taking control stops its current task."
+msgstr "If the bot is working, taking control stops its current task."
+
+msgid "Open computer"
+msgstr "Open computer"
+
 msgid "Take control"
 msgstr "Take control"
 

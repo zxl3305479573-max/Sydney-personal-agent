@@ -65,6 +65,7 @@ import { ensureNativeControlFence } from "../native-computer-control-fence.js";
 import { applyNativeComputerInput } from "../native-computer-input.js";
 import { reportNativeControlRefusal } from "../native-computer-refusal.js";
 import type { RouterDeps } from "../router.js";
+import { stopThreadRuns } from "../thread-target.js";
 import type { RouterContext } from "./context.js";
 import { computerContext, isRecordNotFound } from "./shared.js";
 
@@ -342,6 +343,7 @@ export function computerRoutes(ctx: RouterContext) {
         return { ok: true as const };
       }),
       takeover: authed.computer.takeover.handler(async ({ context, input }) => {
+        let stoppedRunning = false;
         const grantTakeover = async (): Promise<{ leaseId: string; expiresAt: string }> => {
           let bot = await repos.getBot(context.actor, input.botId);
           if (!bot.computer?.providerRef || bot.computer.state !== "running") {
@@ -410,7 +412,7 @@ export function computerRoutes(ctx: RouterContext) {
           const executionRun = executionLease
             ? await deps.prisma.run.findUnique({
                 where: { id: executionLease.runId },
-                select: { botId: true, status: true },
+                select: { botId: true, status: true, threadId: true },
               })
             : null;
           const waitingForTakeover =
@@ -425,6 +427,21 @@ export function computerRoutes(ctx: RouterContext) {
               takeoverRequested: waitingForTakeover,
             })
           ) {
+            if (
+              input.stopRunning &&
+              !stoppedRunning &&
+              executionLease &&
+              executionRun?.botId === bot.id
+            ) {
+              stoppedRunning = true;
+              await stopThreadRuns(
+                deps,
+                context.actor,
+                { kind: "bot", botId: bot.id, bot, threadId: executionRun.threadId },
+                executionLease.runId,
+              );
+              return grantTakeover();
+            }
             throw new ORPCError("CONFLICT", { message: "Stop the bot first" });
           }
           // Keep an inactive lease as a fencing tombstone. The next run reclaims it
@@ -829,18 +846,16 @@ export function computerRoutes(ctx: RouterContext) {
           return { url: null };
         }
         const computer = bot.computer;
-        const nativeReadOnly = computer.kind === "native-linux";
+        const viewOnly = computer.kind === "native-linux" || input.viewOnly === true;
         const session = await deps.sandbox
           .connectScreen(
             toComputerRef(computer),
             {
               view: "stream",
               interactive:
-                !nativeReadOnly &&
-                hasActiveComputerControl(computer) &&
-                computer.controlBotId === bot.id,
+                !viewOnly && hasActiveComputerControl(computer) && computer.controlBotId === bot.id,
               controlToken:
-                !nativeReadOnly && computer.controlBotId === bot.id
+                !viewOnly && computer.controlBotId === bot.id
                   ? (computer.controlLeaseId ?? undefined)
                   : undefined,
             },
@@ -856,7 +871,7 @@ export function computerRoutes(ctx: RouterContext) {
         scheduleComputerSleep(deps.jobs, bot.computer.id);
         const viewUrl = withViewOnly(
           session.url,
-          nativeReadOnly ||
+          viewOnly ||
             !(hasActiveComputerControl(bot.computer) && bot.computer.controlBotId === bot.id),
         );
         return {
@@ -869,11 +884,11 @@ export function computerRoutes(ctx: RouterContext) {
               computerId: computer.id,
               botGeneration: bot.screenGeneration,
               computerGeneration: computer.screenGeneration,
-              controlLeaseId: nativeReadOnly ? null : computer.controlLeaseId,
+              controlLeaseId: viewOnly ? null : computer.controlLeaseId,
             },
             undefined,
             session.headers,
-            nativeReadOnly,
+            viewOnly,
           ),
           ...(new URL(viewUrl).protocol === "http:" || new URL(viewUrl).protocol === "https:"
             ? { proxy: "rakazo-novnc" as const }

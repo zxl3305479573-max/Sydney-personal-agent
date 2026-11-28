@@ -36,6 +36,7 @@ import {
 } from "../../lib/tool-activity-view";
 import { ReplyLine } from "./chat-context";
 import { FALLBACK_BOT_COLOR, previewMessageText } from "./chat-shared";
+import { ComputerMessageCard } from "./computer-message-card";
 import type { ImportSetupTarget } from "./import-setup-card";
 import { ImportSetupCard } from "./import-setup-card";
 import {
@@ -70,6 +71,7 @@ export const MessageView = memo(function MessageView({
   speaking,
   onSpeak,
   onOpenComputer,
+  computerActive = false,
   onOpenImportSetup,
   showToolActivity,
   onReply,
@@ -112,7 +114,8 @@ export const MessageView = memo(function MessageView({
   voiceReady: boolean;
   speaking: boolean;
   onSpeak: (message: ThreadMessage) => void;
-  onOpenComputer: (botId?: string) => void;
+  onOpenComputer: (botId?: string, takeControl?: boolean) => void;
+  computerActive?: boolean;
   /** Opens where an imported item's setup is finished. */
   onOpenImportSetup?: (target: ImportSetupTarget) => void;
   showToolActivity: boolean;
@@ -616,45 +619,14 @@ export const MessageView = memo(function MessageView({
           }
           if (block.kind === "computer") {
             return (
-              <div
+              <ComputerMessageCard
                 key={i}
-                data-testid="computer-card"
-                className="w-[340px] max-w-full rounded-[18px] border border-border bg-muted px-[18px] py-4"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[15px] font-medium text-foreground">
-                    <Trans>Computer</Trans>
-                  </span>
-                  <span
-                    className={
-                      block.state === "Needs you"
-                        ? "rounded-full bg-warning/15 px-[11px] py-1 text-[13px] text-warning"
-                        : block.state === "Skipped"
-                          ? "rounded-full bg-foreground/10 px-[11px] py-1 text-[13px] text-muted-foreground"
-                          : "rounded-full bg-success/15 px-[11px] py-1 text-[13px] text-success"
-                    }
-                  >
-                    {block.state === "Needs you"
-                      ? t`Needs you`
-                      : block.state === "Skipped"
-                        ? t`Skipped`
-                        : block.state === "Done"
-                          ? t`Done`
-                          : block.state}
-                  </span>
-                </div>
-                <div className="my-2.5 text-[14.5px] leading-[1.5] text-foreground/75">
-                  <ChatMarkdown>{block.text}</ChatMarkdown>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  data-testid="computer-card-open"
-                  onClick={() => onOpenComputer(message.botId)}
-                >
-                  <Trans>Open</Trans>
-                </Button>
-              </div>
+                block={block}
+                botId={message.botId}
+                active={computerActive}
+                onOpen={() => onOpenComputer(message.botId)}
+                onTakeControl={() => onOpenComputer(message.botId, true)}
+              />
             );
           }
           return null;

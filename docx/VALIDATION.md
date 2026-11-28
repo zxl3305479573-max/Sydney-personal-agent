@@ -1,5 +1,32 @@
 # 验证记录
 
+## 1.0.49 发布前核对（2026-11-28）
+
+- 已执行 `git fetch origin`，确认远端主线为本地集成分支祖先、无未知远端新增源码；已读取既有 CI／生产部署与 iOS OTA 工作流。
+- 发布前线上 `1.0.48` 清单、三语说明、Hermes 启动包及 `62 / 62` 静态资源摘要核验通过，最近 iOS OTA 工作流均已结束。此为旧版基线，不代表 `1.0.49` 已发布。
+- 复用下述本轮已完成的定向回归与六包类型检查，不运行全工作区构建、不安装依赖或启动本机服务。版本说明、提交、生产部署与 OTA 核验结果按实际执行后补记；真机双账号交互仍待验。
+- 发布元数据追加验证：`pnpm exec vitest run apps/mobile/lib/app-config.test.ts apps/mobile/lib/app-version.test.ts apps/mobile/lib/client-update.test.ts --maxWorkers=1` 为 3 文件 56 项通过；`sydney-release.json` 三语／版本／日期断言、该 JSON 的 Biome 检查与 `git diff --check` 通过。pnpm 提示现有根配置字段弃用，未为此更改依赖或工具配置。
+
+## Bot 云电脑实时卡片与中途主动接管（2026-11-28）
+
+- 范围：PA-011／PA-021／PA-004；仅本机单 worker 定向离线测试，不启动云电脑、Docker、数据库或桌面服务。下述分批结果按最终套件去重为 **16 文件 284 项通过**；API／线程套件 461 项因过滤条件未选中，不计为通过，不代表全路由／全工作区测试。
+- 扩大基础回归命令：`pnpm exec vitest run packages/adapters/src/run-computer-card.test.ts packages/adapters/src/executor-lazy-computer.test.ts packages/adapters/src/executor-feature-access.test.ts apps/mobile/lib/computer-card.test.tsx apps/mobile/lib/computer-screen.test.tsx apps/mobile/lib/thread-sender-colors.test.tsx apps/mobile/lib/thread-card-width.test.tsx apps/web/src/lib/computer-screen.test.ts apps/web/src/pages/shell/computer-message-card.test.tsx apps/web/src/pages/shell/message-view.test.tsx apps/web/src/pages/shell/transcript-render.test.tsx apps/web/src/pages/shell/use-computer.test.tsx apps/api/src/feature-access.test.ts apps/api/src/screen-proxy.test.ts --maxWorkers=1`。首轮 260 项通过、2 项失败，失败源于新增 Web 接管测试夹具未提供 `computer.heartbeat`；补齐后该文件 6／6 复验通过。此轮覆盖并行首次使用发卡、未用电脑不发卡、持久 nonce／失败重试、权限门控、屏幕能力保留、群聊发送 Bot、最新卡片选择、后台／焦点／结束／撤权清理及按钮意图。
+- 补齐真正中途接管后终轮：`pnpm exec vitest run apps/web/src/pages/shell/use-computer.test.tsx apps/web/src/pages/shell/computer-message-card.test.tsx apps/mobile/lib/computer-screen.test.tsx apps/mobile/lib/computer-card.test.tsx --maxWorkers=1`，4 文件 95／95 项通过。包含显式接管参数、正在工作的电脑仍可发出接管请求、手机卡片路由只触发一次接管、只读 Viewer 与错误反馈。
+- 服务端终轮：`pnpm exec vitest run apps/api/src/router.test.ts apps/api/src/thread-target.test.ts --testNamePattern='computer screen url|computer takeover while working|stopThreadRuns' --maxWorkers=1`，2 文件 22 项通过、461 项未选中。其中 screen URL 9 项验证持有人也可强制只读及旧调用兼容；接管 6 项验证指定群聊 Run 停止先于授予、旧请求继续拒绝、停止异常不授予、复读仍忙不循环停止、不得取消其他 Bot、原主动求助保留归还后继续；既有停止流程 7 项验证指定 Run 与电脑工作清理。前后重复执行的同一用例不重复计数。
+- 类型检查：`pnpm exec tsc --noEmit -p <包路径>/tsconfig.json`，依次对 `packages/contracts`、`packages/adapters`、`apps/api`、`apps/mobile`、`apps/web`、`apps/worker` 全部退出 0。中间曾捕获移动端旧测试将新增可选布尔参数存入 `string[]`、Web 新夹具返回类型不符；均已修复并复验，未将失败轮次计为通过。
+- 静态检查：全部 34 个变更／新增 TypeScript 文件 `pnpm exec biome check` 退出 0，无格式错误；保留 `computer.tsx` 的既有 `useOptionalChain` warning 和旧测试的 `useTemplate` info，不顺带修改。中英 Web 新增 5 个翻译条目逐一确认唯一；Impeccable `detect --json --changed` 返回 `[]`，工具项目配置仍有既有缺项，未安装 hook 或启动视觉预览。`git diff --check` 通过。
+- 待验与未执行：无依赖安装、后台部署、数据库迁移、手机 OTA、Windows 打包或真机截图。上线后需分别验证管理员／获权成员可见卡片、真实画面缩放与可读性、操作中停止并接管、原生 fence 拒绝旧输入、Bot 求助后的归还继续、断网及跨账号清理；未验证的客体残留进程不能声称已全部终止。此前成员权限修复的独立记录和未修复审查事项不由本轮结果覆盖。
+
+## 普通成员获权后原生云电脑连接修复（2026-11-28）
+
+- 范围：PA-026／PA-004／PA-021；本机单 worker 离线验证，不启动服务、数据库或云电脑。
+- 修复前回归：`native-screen-feature-access.test.ts` 与 `native-linux-sandbox.test.ts` 合计 8 项失败、27 项通过、2 项跳过；确认显式获权成员仍遇到 `native_screen_unsupported`，且统一构造入口未接入额外成员授权。
+- 修复后终轮命令：`pnpm exec vitest run packages/adapters/src/native-screen-feature-access.test.ts packages/adapters/src/native-linux-sandbox.test.ts packages/adapters/src/sandbox-factory.test.ts apps/api/src/feature-access.test.ts apps/api/src/screen-proxy.test.ts apps/api/src/native-computer-input.test.ts apps/api/src/native-computer-control-fence.test.ts apps/api/src/native-computer-refusal.test.ts apps/api/src/screen-proxy-dispatch.test.ts --maxWorkers=1`。结果：9 文件全部通过，92 项通过、2 项跳过。覆盖显式获权观看／人工输入、拒绝默认／关闭、撤权复读、数据库异常／缺失、固定 Bot、代次和失效租约，并回归 API 权限、代理与人工控制路径。
+- 扩大检查曾另纳入 `packages/adapters/src/host-aware-sandbox.test.ts`：该文件 2 项执行 `argv: ["echo", "ok"]` 的宿主桌面测试退出码为 1，未通过；其余 5 文件通过（该轮共 82 项通过、2 项跳过、2 项失败）。本机 Windows 上独立 `spawnSync("echo", ["ok"], { shell: false })` 复现 `ENOENT`，源码执行路径使用无 shell 启动。未修改这些用例或宿主执行器，未在原提交另行重跑，因此不将扩大检查标为通过或声称已完成基线对比。
+- 类型检查：`pnpm exec tsc --noEmit -p packages/adapters/tsconfig.json`、`pnpm exec tsc --noEmit -p apps/api/tsconfig.json`、`pnpm exec tsc --noEmit -p apps/worker/tsconfig.json` 均退出 0。
+- 静态检查：上述 6 个变更 TypeScript 文件的 `pnpm exec biome check` 通过（无待修复项），`git diff --check` 通过。
+- 待验：真实 PostgreSQL 授权查询／RLS、生产后端部署、管理员与普通成员双账号手机观看／接管／撤权。额外成员每次建连、代理复核及人工输入均重新校验权限；既有长连接是否及时断开未验证。不以离线测试替代服务器或真机验收。
+
 ## 按账号功能权限管理离线验证（2026-11-28）
 
 - 关联 PA-026／PA-004／PA-021／ADR-0030。已清理临时 `share/friend` worktree 与本地／远端分支（均已核验移除）。

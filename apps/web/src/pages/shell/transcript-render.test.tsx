@@ -19,9 +19,18 @@ const messageRenders = vi.hoisted(() => new Map<string, number>());
 vi.mock("./message-view", async () => {
   const { createElement, memo } = await import("react");
   return {
-    MessageView: memo(function MessageView({ message }: { message: { id: string } }) {
+    MessageView: memo(function MessageView({
+      message,
+      computerActive,
+    }: {
+      message: { id: string };
+      computerActive?: boolean;
+    }) {
       messageRenders.set(message.id, (messageRenders.get(message.id) ?? 0) + 1);
-      return createElement("div", { "data-testid": `message-${message.id}` });
+      return createElement("div", {
+        "data-testid": `message-${message.id}`,
+        "data-computer-active": computerActive,
+      });
     }),
   };
 });
@@ -128,6 +137,36 @@ function Host({
     />
   );
 }
+
+it("only streams the latest computer card of a live run", () => {
+  const first: ThreadMessage = {
+    ...message("computer-first", ""),
+    runId: "run",
+    blocks: [{ kind: "computer", state: "Live", text: "" }],
+  };
+  const second: ThreadMessage = {
+    ...message("computer-help", ""),
+    runId: "run",
+    blocks: [{ kind: "computer", state: "Needs you", text: "Sign in" }],
+  };
+  act(() => root.render(<Host messages={[first, second]} />));
+  expect(
+    container
+      .querySelector('[data-testid="message-computer-first"]')
+      ?.getAttribute("data-computer-active"),
+  ).toBe("false");
+  expect(
+    container
+      .querySelector('[data-testid="message-computer-help"]')
+      ?.getAttribute("data-computer-active"),
+  ).toBe("true");
+  act(() => root.render(<Host messages={[first, second]} workingRuns={[]} />));
+  expect(
+    container
+      .querySelector('[data-testid="message-computer-help"]')
+      ?.getAttribute("data-computer-active"),
+  ).toBe("false");
+});
 
 it("shows work stages and pending confirmation in the active language", () => {
   i18n.load("zh-CN", {});

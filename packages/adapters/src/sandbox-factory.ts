@@ -1,4 +1,4 @@
-import type { SandboxProvider } from "@rakazo/adapter-kit";
+import type { AdapterContext, SandboxProvider } from "@rakazo/adapter-kit";
 import { SandboxKind } from "@rakazo/contracts";
 import { BoatSandboxProvider } from "./boat-sandbox.js";
 import { BoxdSandboxProvider } from "./boxd-sandbox.js";
@@ -63,6 +63,7 @@ export interface SandboxProviderOptions {
   nativeLinuxScreenSpaceId?: string;
   nativeLinuxScreenBotId?: string;
   nativeLinuxScreenPort?: number;
+  nativeLinuxScreenAuthorizeAdditionalViewer?: (context: AdapterContext) => Promise<boolean>;
 }
 
 function missingRemoteKey(
@@ -208,6 +209,7 @@ export async function createSandboxProvider(
                 spaceId: opts.nativeLinuxScreenSpaceId,
                 ...(opts.nativeLinuxScreenBotId ? { botId: opts.nativeLinuxScreenBotId } : {}),
                 port: opts.nativeLinuxScreenPort,
+                authorizeAdditionalViewer: opts.nativeLinuxScreenAuthorizeAdditionalViewer,
               }
             : undefined,
         );

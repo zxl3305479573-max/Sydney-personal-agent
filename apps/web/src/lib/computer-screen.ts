@@ -75,6 +75,31 @@ export function sameWuyingScreen(current: string | null, next: string | null): b
   }
 }
 
+export function retainCardScreenSource(held: string, next: string, now = Date.now()): string {
+  if (sameWuyingScreen(held, next)) return held;
+  try {
+    const current = new URL(held);
+    const incoming = new URL(next);
+    const sealed = /^\/novnc\/session\/(view|control)\/(\d+)\.[^/]+(\/.*)?$/;
+    const previousSeal = current.pathname.match(sealed);
+    const nextSeal = incoming.pathname.match(sealed);
+    if (
+      previousSeal &&
+      nextSeal &&
+      current.origin === incoming.origin &&
+      previousSeal[1] === nextSeal[1] &&
+      previousSeal[3] === nextSeal[3] &&
+      current.search === incoming.search &&
+      current.hash === incoming.hash
+    ) {
+      return Number(previousSeal[2]) - now > 15 * 60_000 ? held : next;
+    }
+  } catch {
+    return next;
+  }
+  return next;
+}
+
 export function screenIframeSandbox(url: string | null) {
   if (!url) return undefined;
   try {

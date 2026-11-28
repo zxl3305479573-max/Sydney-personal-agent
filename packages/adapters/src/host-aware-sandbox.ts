@@ -15,6 +15,7 @@ import type {
   WorkspaceExportLimits,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient } from "@rakazo/db";
+import { resolveUserFeatureAccess } from "@rakazo/db";
 import { cancelComputerRunWork } from "./computer-idle.js";
 import { manageComputerWorkspaceDirectories } from "./computer-workspace.js";
 import { assertHostCommandsAllowed, DesktopSandboxProvider } from "./desktop-sandbox.js";
@@ -40,6 +41,17 @@ export async function createRunSandbox(
   }
   const primary = await createSandboxProvider(kind, {
     ...opts,
+    nativeLinuxScreenAuthorizeAdditionalViewer:
+      opts.nativeLinuxScreenAuthorizeAdditionalViewer ??
+      (kind === "native-linux" && opts.prisma
+        ? async (context) => {
+            const { overrides } = await resolveUserFeatureAccess(opts.prisma!, {
+              userId: context.userId,
+              restrictNonAdmins: true,
+            });
+            return overrides.computer === true;
+          }
+        : undefined),
     onUnsafeStop: opts.prisma
       ? async (providerRef) => {
           const quarantined = await opts.prisma!.computer.updateMany({

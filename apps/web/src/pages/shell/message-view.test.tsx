@@ -14,6 +14,26 @@ const skills = vi.hoisted(() => ({
   testRun: vi.fn(async () => ({ runId: "run" })),
 }));
 vi.mock("../../lib/rpc", () => ({ rpc: { skills } }));
+vi.mock("./computer-message-card", () => ({
+  ComputerMessageCard: ({
+    botId,
+    onOpen,
+    onTakeControl,
+  }: {
+    botId?: string;
+    onOpen: () => void;
+    onTakeControl: () => void;
+  }) => (
+    <div data-bot={botId}>
+      <button type="button" onClick={onOpen}>
+        Open computer
+      </button>
+      <button type="button" onClick={onTakeControl}>
+        Take control
+      </button>
+    </div>
+  ),
+}));
 
 vi.mock("@lingui/core/macro", () => ({
   plural: (count: number, forms: { one: string; other: string }) =>
@@ -159,6 +179,36 @@ function renderView(
     ),
   );
 }
+
+it("opens or takes control of the computer belonging to the message's sender", () => {
+  const open = vi.fn();
+  renderView("bot", [], {
+    message: {
+      id: "card",
+      threadId: "group",
+      botId: "sender",
+      runId: "run",
+      seq: 1,
+      role: "bot",
+      createdAt: new Date().toISOString(),
+      blocks: [{ kind: "computer", state: "Live", text: "" }],
+    },
+    onOpenComputer: open,
+    computerActive: true,
+  });
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Open computer")
+      ?.click(),
+  );
+  expect(open).toHaveBeenLastCalledWith("sender");
+  act(() =>
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "Take control")
+      ?.click(),
+  );
+  expect(open).toHaveBeenLastCalledWith("sender", true);
+});
 
 function renderMessage(
   blocks: ThreadMessage["blocks"],

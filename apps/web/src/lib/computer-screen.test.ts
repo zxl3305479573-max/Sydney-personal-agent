@@ -7,12 +7,28 @@ import {
   loadComputerScreen,
   probeScreen,
   probeScreenStatus,
+  retainCardScreenSource,
   sameWuyingScreen,
   screenFrameError,
   screenFrameMessage,
   screenFrameStarted,
   screenIframeSandbox,
 } from "./computer-screen";
+
+it("keeps a card's stream through capability rotation and renews near expiry", () => {
+  const now = Date.now();
+  const held = `https://app.test/novnc/session/view/${now + 60 * 60_000}.old/vnc.html`;
+  const next = `https://app.test/novnc/session/view/${now + 70 * 60_000}.new/vnc.html`;
+  expect(retainCardScreenSource(held, next, now)).toBe(held);
+  expect(retainCardScreenSource(held, next, now + 46 * 60_000)).toBe(next);
+  expect(retainCardScreenSource(held, next.replace("/view/", "/control/"), now)).not.toBe(held);
+  expect(
+    retainCardScreenSource(
+      "wuying://desktop?desktop_id=d&region_id=r&auth_code=old&view_only=true",
+      "wuying://desktop?desktop_id=d&region_id=r&auth_code=new&view_only=true",
+    ),
+  ).toContain("auth_code=old");
+});
 
 describe("computer screen requests", () => {
   it("shows connection failures and lets a successful retry clear them", async () => {

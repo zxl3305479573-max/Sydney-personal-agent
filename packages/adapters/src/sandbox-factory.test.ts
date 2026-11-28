@@ -12,6 +12,31 @@ const ctx = {
 };
 
 describe("createSandboxProvider", () => {
+  it("passes additional native screen authorization through to the provider", async () => {
+    const authorize = vi.fn(async () => false);
+    const sandbox = await createSandboxProvider("native-linux", {
+      nativeLinuxSocketPath: "unused-driver-socket",
+      nativeLinuxScreenUserId: "owner",
+      nativeLinuxScreenSpaceId: "owner-space",
+      nativeLinuxScreenPort: 16080,
+      nativeLinuxScreenAuthorizeAdditionalViewer: authorize,
+    });
+    const viewer = { ...ctx, botId: "member-bot" };
+    await expect(
+      sandbox.connectScreen(
+        {
+          id: "member-computer",
+          kind: "native-linux",
+          botId: "member-bot",
+          providerRef: "native:0123456789abcdef",
+        },
+        { view: "stream" },
+        viewer,
+      ),
+    ).rejects.toThrow("native_screen_unsupported");
+    expect(authorize).toHaveBeenCalledWith(viewer);
+  });
+
   it("returns fake sandbox when explicitly requested", async () => {
     const sandbox = await createSandboxProvider("fake", {});
     expect(sandbox.describe().id).toBe("fake");

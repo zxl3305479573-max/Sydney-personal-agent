@@ -62,6 +62,7 @@ async function report(rakazoScreen: string) {
 }
 
 beforeEach(async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
   codes = 0;
   screenUrl.mockClear();
@@ -121,6 +122,63 @@ it("never caches a Wuying login code", async () => {
   await read();
   expect(state.computerCacheRef.current.get("bot-1")?.screenUrl).toBeNull();
 });
+
+it.each([false, true])(
+  "only requests takeover for an explicit control action: %s",
+  async (takeControl) => {
+    const bot = { id: "bot-1", name: "Basil" } as never;
+    const status = {
+      botId: "bot-1",
+      state: "running",
+      controlHolder: "none",
+      busyBotName: "Basil",
+    };
+    const takeover = vi.fn(async () => ({}));
+    const boot = vi.fn(async () => status);
+    let controls: ReturnType<typeof useComputerControls>;
+    function Controls() {
+      state = useComputerState({
+        rpc: { computer: { screenUrl } } as never,
+        panel: null,
+        activeId: "bot-1",
+        activeBotId: { current: "bot-1" },
+      });
+      controls = useComputerControls({
+        rpc: {
+          computer: {
+            boot,
+            takeover,
+            status: vi.fn(async () => status),
+            heartbeat: vi.fn(async () => ({})),
+          },
+        } as never,
+        state,
+        panel: null,
+        active: bot,
+        bots: [bot],
+        botsRef: { current: [bot] },
+        activeBotId: { current: "bot-1" },
+        activeGroupId: { current: undefined },
+        runStatus: "running",
+        sandboxProvider: "e2b",
+        refreshThread: vi.fn(),
+        refreshGroupThread: vi.fn(),
+      });
+      return null;
+    }
+    await act(async () => root.render(<Controls />));
+    await act(async () => {
+      state.commitComputer(status as never);
+      state.setScreenUrl("https://screen.example.test/embed?view_only=true");
+    });
+    await act(async () => {
+      controls.onOpenComputer("bot-1", takeControl);
+    });
+    expect(state.computerOpen).toBe(true);
+    expect(takeover).toHaveBeenCalledTimes(takeControl ? 1 : 0);
+    if (takeControl) expect(takeover).toHaveBeenCalledWith({ botId: "bot-1", stopRunning: true });
+  },
+);
 
 it("closes the computer view on Escape, but not on the Escape that ends an IME composition", async () => {
   function Controls() {

@@ -184,6 +184,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
   canDismiss,
   onAnswer,
   onOpenComputer,
+  computerActive,
   onChoiceDismissed,
   onPreviewMarkdown,
   onPreviewImage,
@@ -211,7 +212,8 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     remember?: false,
   ) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
-  onOpenComputer: (botId: string, name: string) => void;
+  onOpenComputer: (botId: string, name: string, takeControl?: boolean) => void;
+  computerActive?: boolean;
   onChoiceDismissed?: (question: string) => void;
   onPreviewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
   onPreviewImage: (target: ImageArtifactPreviewTarget) => void;
@@ -744,6 +746,13 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
         <ComputerCard
           key={`computer-${index}`}
           block={block}
+          botId={computerBotId}
+          active={computerActive}
+          onTakeControl={
+            computerBotId
+              ? () => onOpenComputer(computerBotId, speaker ?? t("Bot"), true)
+              : undefined
+          }
           onOpen={
             computerBotId ? () => onOpenComputer(computerBotId, speaker ?? t("Bot")) : undefined
           }

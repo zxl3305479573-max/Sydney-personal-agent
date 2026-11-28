@@ -5923,6 +5923,21 @@ msgid "Table"
 msgstr "表格"
 
 #: src/pages/shell/computer-overlay.tsx
+msgid "Live desktop"
+msgstr "实时桌面"
+
+msgid "Loading live desktop…"
+msgstr "正在加载实时桌面…"
+
+msgid "Preview unavailable. Open the computer to reconnect."
+msgstr "画面暂不可用，请打开云电脑重新连接。"
+
+msgid "If the bot is working, taking control stops its current task."
+msgstr "小伙伴正在操作时，接管会先停止当前任务。"
+
+msgid "Open computer"
+msgstr "打开云电脑"
+
 msgid "Take control"
 msgstr "接管控制权"
 

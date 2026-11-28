@@ -1,4 +1,10 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "小夥伴正在操作時，接管會先停止目前任務。",
+  "Live desktop": "即時桌面",
+  "Loading live desktop…": "正在連接即時桌面…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "畫面暫時無法使用，可開啟雲電腦重新連線。",
   "Personal personality library": "個人人格庫",
   "Saved avatars": "本機頭像庫",
   "Select saved avatar": "選擇已儲存頭像",

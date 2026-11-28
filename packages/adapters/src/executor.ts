@@ -147,6 +147,7 @@ import { loadReplyContext, messageToAgentHistoryText } from "./reply-context.js"
 import { backOffRoutineAfterAccountError } from "./routine-backoff.js";
 import { lateRoutineRunInstruction } from "./routine-lateness.js";
 import { lazyRunComputer } from "./run-computer.js";
+import { createRunComputerCardPublisher } from "./run-computer-card.js";
 import type {
   RunComputerUseState,
   RunContext,
@@ -1284,6 +1285,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
         );
         const pendingTurnFiles: MessageBlock[][] = [turnBlocks ?? []];
         let copyingTurnFiles = Promise.resolve();
+        const publishComputerCard = createRunComputerCardPublisher(deps, run);
         // Serialize copies before each tool, including attachments received while a boot is in flight.
         const getRunComputer = async (reason: "tool" | "takeover" | "script", tool?: string) => {
           if (projectTextOnly) throw new Error("No authorized project directory is connected.");
@@ -1302,6 +1304,9 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
             },
             async () => {
               const computer = await runComputer.get();
+              if (reason !== "takeover" && deps.sandbox.describe().capabilities.graphical) {
+                await publishComputerCard();
+              }
               copyingTurnFiles = copyingTurnFiles
                 .catch(() => undefined)
                 .then(async () => {

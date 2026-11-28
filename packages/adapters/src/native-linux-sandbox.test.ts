@@ -404,6 +404,98 @@ it("allows the configured user and space to use a newly provisioned bot", async 
   ).rejects.toThrow("native_screen_unsupported");
 });
 
+it("allows an explicitly authorized member to view and control their own native computer", async () => {
+  const transport = vi.fn().mockResolvedValue({ completed: 1 });
+  const authorizeAdditionalViewer = vi.fn().mockResolvedValue(true);
+  const sandbox = new NativeLinuxSandbox(async () => null, transport, {
+    userId: "owner",
+    spaceId: "owner-space",
+    port: 16080,
+    authorizeAdditionalViewer,
+  });
+  const member = {
+    ...context,
+    nativeRunLease: undefined,
+    nativeControlLease: {
+      leaseId: "member-control",
+      fence: 4,
+      validate: vi.fn().mockResolvedValue(Date.now() + 60_000),
+    },
+  };
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, member)).resolves.toMatchObject({
+    url: "http://127.0.0.1:16080/vnc.html",
+  });
+  await sandbox.sendInput(
+    computer,
+    { kind: "key", key: "Enter" },
+    { holder: "user", leaseId: "member-control", fence: 4 },
+    member,
+  );
+  expect(authorizeAdditionalViewer).toHaveBeenCalledTimes(2);
+  expect(authorizeAdditionalViewer).toHaveBeenCalledWith(member);
+  expect(transport).toHaveBeenLastCalledWith(
+    "control_input",
+    expect.objectContaining({ control: expect.objectContaining({ leaseId: "member-control" }) }),
+    expect.anything(),
+    computer,
+  );
+
+  transport.mockClear();
+  authorizeAdditionalViewer.mockResolvedValue(false);
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, member)).rejects.toThrow(
+    "native_screen_unsupported",
+  );
+  await expect(
+    sandbox.sendInput(
+      computer,
+      { kind: "key", key: "Enter" },
+      { holder: "user", leaseId: "member-control", fence: 4 },
+      member,
+    ),
+  ).rejects.toThrow("native_control_unsupported");
+  expect(transport).not.toHaveBeenCalled();
+});
+
+it("keeps Bot, generation and human lease restrictions for explicitly authorized members", async () => {
+  const transport = vi.fn();
+  const authorizeAdditionalViewer = vi.fn().mockResolvedValue(true);
+  const screen = {
+    userId: "owner",
+    spaceId: "owner-space",
+    botId: "pinned-bot",
+    port: 16080,
+    authorizeAdditionalViewer,
+  };
+  const sandbox = new NativeLinuxSandbox(async () => null, transport, screen);
+  await expect(sandbox.connectScreen(computer, { view: "stream" }, context)).rejects.toThrow(
+    "native_screen_unsupported",
+  );
+  const unpinned = new NativeLinuxSandbox(async () => null, transport, {
+    ...screen,
+    botId: undefined,
+  });
+  await expect(
+    unpinned.connectScreen({ ...computer, botId: "another-bot" }, { view: "stream" }, context),
+  ).rejects.toThrow("native_generation_mismatch");
+  await expect(
+    unpinned.connectScreen({ ...computer, providerRef: "native:old" }, { view: "stream" }, context),
+  ).rejects.toThrow("native_generation_mismatch");
+  const member = {
+    ...context,
+    nativeRunLease: undefined,
+    nativeControlLease: { leaseId: "expired", fence: 3, validate: async () => null },
+  };
+  await expect(
+    unpinned.sendInput(
+      computer,
+      { kind: "key", key: "Enter" },
+      { holder: "user", leaseId: "expired", fence: 3 },
+      member,
+    ),
+  ).rejects.toThrow("native_control_lease_invalid");
+  expect(transport).not.toHaveBeenCalled();
+});
+
 it("reports an unconfigured native screen distinctly", async () => {
   const sandbox = new NativeLinuxSandbox(async () => null, vi.fn());
 

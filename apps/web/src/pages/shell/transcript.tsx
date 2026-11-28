@@ -11,6 +11,7 @@ import {
   expandPeerReplies,
   groupVoiceChats,
   isPeerReceiptBlocks,
+  isTerminal,
   liveActivityLine,
   liveMessageComposing,
   peerExchangeLines,
@@ -153,7 +154,7 @@ export const Transcript = memo(function Transcript({
   voiceReady: boolean;
   speakingMessageId: string | null;
   onSpeak: (message: ThreadMessage) => void;
-  onOpenComputer: (botId?: string) => void;
+  onOpenComputer: (botId?: string, takeControl?: boolean) => void;
   onOpenImportSetup?: (target: ImportSetupTarget) => void;
 }) {
   const { t } = useLingui();
@@ -259,6 +260,14 @@ export const Transcript = memo(function Transcript({
     () => projectMessageReactions(mentionView.visibleMessages),
     [mentionView],
   );
+  const computerCards = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const message of reactionView.visibleMessages) {
+      if (message.runId && message.blocks.some((block) => block.kind === "computer"))
+        latest.set(message.runId, message.id);
+    }
+    return new Set(latest.values());
+  }, [reactionView.visibleMessages]);
   const visibleReceipts = reactionView.visibleMessages.filter((message) =>
     messageHasVisibleBlocks(message.blocks, showToolActivity),
   );
@@ -728,6 +737,12 @@ export const Transcript = memo(function Transcript({
                       speaking={speakingMessageId === message.id}
                       onSpeak={onSpeak}
                       onOpenComputer={onOpenComputer}
+                      computerActive={
+                        computerCards.has(message.id) &&
+                        workingRuns.some(
+                          (run) => run.id === message.runId && !isTerminal(run.status),
+                        )
+                      }
                       onOpenImportSetup={onOpenImportSetup}
                       showToolActivity={showToolActivity}
                       onReply={onReply}

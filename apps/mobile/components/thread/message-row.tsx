@@ -52,7 +52,7 @@ export type MessageRowActions = {
     remember?: false,
   ) => Promise<void>;
   openBot: (id: string, name: string) => void;
-  openComputer: (id: string, name: string) => void;
+  openComputer: (id: string, name: string, takeControl?: boolean) => void;
   previewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
   previewImage: (target: ImageArtifactPreviewTarget) => void;
   jump: (messageId: string) => void;
@@ -83,6 +83,7 @@ type MessageRowProps = {
   replyAuthor: string;
   replyFallbackText?: string;
   waitingForUser: boolean;
+  computerActive?: boolean;
   messageReactions?: ReadonlyMap<MessageReaction, number>;
   mentions?: readonly ChildBotBlock[];
   /** The adjacent receipts represented by this peer line. */
@@ -122,6 +123,7 @@ export const MessageRow = memo(function MessageRow({
   messageReactions,
   mentions,
   waitingForUser,
+  computerActive,
   peerExchange,
   activityBotId,
   activityColor,
@@ -438,6 +440,7 @@ export const MessageRow = memo(function MessageRow({
                 onAnswer={actions.answer}
                 onOpenBot={actions.openBot}
                 onOpenComputer={actions.openComputer}
+                computerActive={computerActive}
                 onChoiceDismissed={onChoiceDismissed}
                 onPreviewMarkdown={actions.previewMarkdown}
                 onPreviewImage={actions.previewImage}

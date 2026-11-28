@@ -53,6 +53,7 @@ import {
   SESSION_RECHECK_MS,
 } from "./router.js";
 import { providerScopeKey } from "./routes/connections.js";
+import * as threadTargets from "./thread-target.js";
 
 const withRoleDeps = (deps: RouterDeps) => {
   withModelRoles(deps.prisma);
@@ -4002,6 +4003,7 @@ describe("computer screen url", () => {
     connectScreen: () => Promise<unknown>,
     updateMany = vi.fn().mockResolvedValue({ count: 1 }),
     screenProxyPublicOrigin?: string,
+    options: { viewOnly?: boolean; computer?: Record<string, unknown> } = {},
   ) => {
     const endRun = vi.fn().mockResolvedValue(1);
     const prisma = {
@@ -4010,7 +4012,7 @@ describe("computer screen url", () => {
           id: "bot-1",
           screenGeneration: 2,
           thread: { id: "thread-1" },
-          computer: computerRow,
+          computer: { ...computerRow, ...options.computer },
         }),
       },
       computer: { updateMany },
@@ -4041,7 +4043,7 @@ describe("computer screen url", () => {
           "x-forwarded-host": "attacker.example",
           "x-forwarded-proto": "http",
         },
-        body: JSON.stringify({ json: { botId: "bot-1" } }),
+        body: JSON.stringify({ json: { botId: "bot-1", viewOnly: options.viewOnly } }),
       }),
       { prefix: "/rpc", context: { actor } },
     );
@@ -4068,6 +4070,39 @@ describe("computer screen url", () => {
       target: { hostname: "screen.example", interactive: false },
     });
   });
+
+  it.each([true, false, undefined])(
+    "respects an explicit read-only request while the user holds control: %s",
+    async (viewOnly) => {
+      const connect = vi.fn(async () => ({
+        url: "https://screen.example/vnc.html?token=readonly-test",
+      }));
+      const { response } = await callScreenUrl(connect, undefined, undefined, {
+        viewOnly,
+        computer: {
+          controlHolder: "user",
+          controlBotId: "bot-1",
+          controlLeaseId: "human-lease",
+          controlLeaseExpiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+      expect(response.status).toBe(200);
+      expect(connect).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          interactive: viewOnly !== true,
+          controlToken: viewOnly === true ? undefined : "human-lease",
+        }),
+        expect.anything(),
+      );
+      const url = new URL((await response.json()).json.url);
+      expect(openScreenCapability(url.pathname, "fake-test-secret")).toMatchObject({
+        scope: { controlLeaseId: viewOnly === true ? null : "human-lease" },
+        target: { interactive: viewOnly !== true },
+      });
+      if (viewOnly) expect(url.pathname).toContain("/session/view/");
+    },
+  );
 
   it("uses the configured public screen origin independently of forwarded headers and cache", async () => {
     const connect = async () => ({ url: "https://screen.example/vnc.html?token=origin-test" });
@@ -4138,6 +4173,119 @@ describe("computer screen url", () => {
       }),
     });
     expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("computer takeover while working", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function fixture() {
+    const actor = {
+      spaceId: "space-1",
+      userId: "user-1",
+      email: "user@rakazo.test",
+      isDeploymentOwner: true,
+    } satisfies Actor;
+    const computer = {
+      id: "computer-1",
+      state: "running",
+      kind: "e2b",
+      providerRef: "sandbox-1",
+      homeKey: "home-1",
+      controlHolder: "none",
+      controlLeaseId: null,
+      controlRunId: null,
+      maintenanceId: null,
+    };
+    const bot = { id: "bot-1", thread: { id: "private-thread" }, computer };
+    const lease = { runId: "working-run", fence: 3, expiresAt: new Date(Date.now() + 60_000) };
+    const run = { botId: "bot-1", threadId: "group-thread", status: "running" };
+    const stop = vi.spyOn(threadTargets, "stopThreadRuns").mockImplementation(async () => {
+      lease.expiresAt = new Date(0);
+      run.status = "cancelled";
+    });
+    const prisma = {
+      bot: { findFirst: vi.fn(async () => bot) },
+      computerExecutionLease: { findUnique: vi.fn(async () => lease) },
+      run: { findUnique: vi.fn(async () => run) },
+      computer: { updateMany: vi.fn(async () => ({ count: 1 })) },
+    };
+    const deps = {
+      prisma,
+      sandbox: {},
+      events: { append: vi.fn(async () => ({ seq: 1 })) },
+      jobs: { enqueue: vi.fn(async () => undefined) },
+      env: { sandboxProvider: "e2b", defaultProvider: "fake", defaultModel: "fake-model" },
+    } as unknown as RouterDeps;
+    const client = createRouterClient(createRouter(deps), { context: { actor } as never });
+    return { actor, bot, run, lease, stop, prisma, client };
+  }
+
+  it("stops only the bound Run before granting user control, including group runs", async () => {
+    const value = fixture();
+    await expect(
+      value.client.computer.takeover({ botId: "bot-1", stopRunning: true }),
+    ).resolves.toMatchObject({ leaseId: expect.any(String) });
+    expect(value.stop).toHaveBeenCalledOnce();
+    expect(value.stop).toHaveBeenCalledWith(
+      expect.anything(),
+      value.actor,
+      { kind: "bot", botId: "bot-1", bot: value.bot, threadId: "group-thread" },
+      "working-run",
+    );
+    expect(value.stop.mock.invocationCallOrder[0]).toBeLessThan(
+      value.prisma.computer.updateMany.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("keeps the old refusal when interruption was not explicitly requested", async () => {
+    const value = fixture();
+    await expect(value.client.computer.takeover({ botId: "bot-1" })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Stop the bot first",
+    });
+    expect(value.stop).not.toHaveBeenCalled();
+    expect(value.prisma.computer.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not grant control when stopping the bound Run fails", async () => {
+    const value = fixture();
+    value.stop.mockRejectedValue(new Error("cancel failed"));
+    await expect(
+      value.client.computer.takeover({ botId: "bot-1", stopRunning: true }),
+    ).rejects.toThrow("cancel failed");
+    expect(value.prisma.computer.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the lease after stopping and refuses a replacement Run without a second stop", async () => {
+    const value = fixture();
+    value.stop.mockResolvedValue(undefined);
+    await expect(
+      value.client.computer.takeover({ botId: "bot-1", stopRunning: true }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(value.stop).toHaveBeenCalledOnce();
+    expect(value.prisma.computer.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("never stops another bot's leased Run", async () => {
+    const value = fixture();
+    value.run.botId = "another-bot";
+    await expect(
+      value.client.computer.takeover({ botId: "bot-1", stopRunning: true }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(value.stop).not.toHaveBeenCalled();
+  });
+
+  it("preserves a Bot-requested takeover so release can resume it", async () => {
+    const value = fixture();
+    value.run.status = "waiting_takeover";
+    await expect(
+      value.client.computer.takeover({ botId: "bot-1", stopRunning: true }),
+    ).resolves.toMatchObject({ leaseId: expect.any(String) });
+    expect(value.stop).not.toHaveBeenCalled();
+    expect(value.prisma.computer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ controlRunId: "working-run" }) }),
+    );
   });
 });
 

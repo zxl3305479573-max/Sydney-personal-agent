@@ -1010,7 +1010,9 @@ export const appContract = {
       .input(z.object({ id: Id, workersStopped: z.literal(true) }))
       .output(z.object({ ok: z.literal(true) })),
     dismissUpdate: oc.input(z.object({ id: Id })).output(z.object({ ok: z.literal(true) })),
-    takeover: oc.input(botId).output(z.object({ leaseId: Id, expiresAt: z.string() })),
+    takeover: oc
+      .input(botId.extend({ stopRunning: z.boolean().optional() }))
+      .output(z.object({ leaseId: Id, expiresAt: z.string() })),
     release: oc
       .input(
         z.object({
@@ -1053,7 +1055,7 @@ export const appContract = {
     commands: oc
       .input(botId)
       .output(z.array(ComputerCommandSchema.extend({ createdAt: z.string() }))),
-    screenUrl: oc.input(botId).output(
+    screenUrl: oc.input(botId.extend({ viewOnly: z.boolean().optional() })).output(
       z.object({
         url: z.string().nullable(),
         proxy: z.literal("rakazo-novnc").optional(),

@@ -1,18 +1,21 @@
 {
-  "version": "1.0.48",
+  "version": "1.0.49",
   "releasedOn": "2026-11-28",
   "notes": {
     "zh-CN": [
-      "新增按账号功能权限管理：管理员可在「设置 → 账户 → 成员功能权限」为各账号单独开关云电脑、项目工作区、GitHub 与连接应用／MCP，或一键恢复默认。",
-      "未授权的功能会自动隐藏对应入口与底部「项目」栏，并由服务端与执行器同步拦截，同时保留聊天、陪伴灵动岛、个人记账、地图天气与外观换肤。"
+      "小伙伴操作云电脑时，聊天内自动显示实时画面卡片，可随时打开查看或接管。",
+      "中途接管会先停止当前电脑任务再交由你操作；交还后需重新发指令。小伙伴主动求助的任务仍可在交还后继续。",
+      "修复普通成员已获云电脑权限仍无法连接的问题，需管理员为该账号显式开启云电脑权限。"
     ],
     "zh-TW": [
-      "新增按帳號功能權限管理：管理員可在「設定 → 帳戶 → 成員功能權限」為各帳號單獨開關雲電腦、項目工作區、GitHub 與連接應用／MCP，或一鍵恢復預設。",
-      "未授權的功能會自動隱藏對應入口與底部「項目」欄，並由伺服器與執行器同步攔截，同時保留聊天、陪伴靈動島、個人記帳、地圖天氣與外觀換膚。"
+      "小夥伴操作雲電腦時，聊天內自動顯示即時畫面卡片，可隨時開啟查看或接管。",
+      "中途接管會先停止目前的電腦任務再交由你操作；交還後需重新發指令。小夥伴主動求助的任務仍可在交還後繼續。",
+      "修復一般成員已獲雲電腦權限仍無法連線的問題，需管理員為該帳號明確開啟雲電腦權限。"
     ],
     "en": [
-      "Add per-account feature access management: server administrators can toggle Cloud Computer, Projects, GitHub, and Connected Apps / MCP per account in Settings → Account → Member feature access.",
-      "Disabled features automatically hide their navigation tabs and entry points while remaining enforced by the backend and worker, keeping chat, companion, personal finance, map weather, and themes available."
+      "Show a live screen card in chat when your bot uses Cloud Computer, with controls to open the screen or take over at any time.",
+      "Taking over during work stops the current computer task before giving you control. Send a new instruction after handing it back. Tasks where the bot asks for help can still resume after handback.",
+      "Fix Cloud Computer connections for ordinary members with access explicitly enabled by an administrator."
     ]
   }
 }

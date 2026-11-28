@@ -555,8 +555,11 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
   );
 
   const openComputer = useCallback(
-    (id: string, botName: string) =>
-      router.push({ pathname: "/computer", params: { botId: id, name: botName } }),
+    (id: string, botName: string, takeControl = false) =>
+      router.push({
+        pathname: "/computer",
+        params: { botId: id, name: botName, ...(takeControl ? { takeover: "1" } : {}) },
+      }),
     [router],
   );
 
