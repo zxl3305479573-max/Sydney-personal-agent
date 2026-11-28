@@ -1,4 +1,10 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "Если бот работает, перехват управления остановит его текущую задачу.",
+  "Live desktop": "Рабочий стол в реальном времени",
+  "Loading live desktop…": "Подключение к рабочему столу…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "Предпросмотр недоступен. Откройте компьютер, чтобы подключиться заново.",
   "Personal personality library": "Личная библиотека личностей",
   "Saved avatars": "Сохранённые аватары",
   "Select saved avatar": "Выбрать сохранённый аватар",

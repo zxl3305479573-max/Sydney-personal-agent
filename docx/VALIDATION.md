@@ -2,6 +2,9 @@
 
 ## 1.0.49 发布前核对（2026-11-28）
 
+- 首轮源码 `61b9dc639` 的 CI `46156210613` 为 `completed / failure`，未部署生产且未发布 OTA。`Unit tests (3/3)`：`executor-login-redaction.test.ts` 4 项失败（新增 Live 卡片走真实持久化，而此套件只模拟工具和脱敏）；`Unit tests (2/3)`：`i18n.test.ts` 检出新文案在另外五种语言缺失；`Postgres journeys (1/2)`：journey 54 在 `group-handoff.ts:64` 报 `40P01 / deadlock detected`。类型检查与全部服务器镜像构建／发布通过，但不能代替整轮 CI 成功。
+- 补齐测试夹具及五种语言后，`pnpm exec vitest run packages/adapters/src/executor-login-redaction.test.ts packages/adapters/src/run-computer-card.test.ts packages/adapters/src/executor-lazy-computer.test.ts apps/mobile/lib/i18n.test.ts apps/mobile/lib/computer-card.test.tsx --maxWorkers=1` 为 **5 文件 74 项通过**；6 个修正文件 Biome 与 `git diff --check` 通过。数据库死锁待下一轮云端集成测试复验，本机未启动数据库。
+
 - 已执行 `git fetch origin`，确认远端主线为本地集成分支祖先、无未知远端新增源码；已读取既有 CI／生产部署与 iOS OTA 工作流。
 - 发布前线上 `1.0.48` 清单、三语说明、Hermes 启动包及 `62 / 62` 静态资源摘要核验通过，最近 iOS OTA 工作流均已结束。此为旧版基线，不代表 `1.0.49` 已发布。
 - 复用下述本轮已完成的定向回归与六包类型检查，不运行全工作区构建、不安装依赖或启动本机服务。版本说明、提交、生产部署与 OTA 核验结果按实际执行后补记；真机双账号交互仍待验。

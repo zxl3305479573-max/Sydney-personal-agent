@@ -1,4 +1,10 @@
 export const DE_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "Wenn der Bot arbeitet, wird seine aktuelle Aufgabe bei der Übernahme gestoppt.",
+  "Live desktop": "Live-Desktop",
+  "Loading live desktop…": "Live-Desktop wird geladen…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "Vorschau nicht verfügbar. Öffne den Computer, um die Verbindung wiederherzustellen.",
   "Personal personality library": "Eigene Persönlichkeitsbibliothek",
   "Saved avatars": "Gespeicherte Avatare",
   "Select saved avatar": "Gespeicherten Avatar auswählen",

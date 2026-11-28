@@ -1,4 +1,10 @@
 export const JA_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "Bot が操作中の場合、操作を引き継ぐと現在のタスクが停止します。",
+  "Live desktop": "リアルタイム画面",
+  "Loading live desktop…": "リアルタイム画面に接続中…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "プレビューを表示できません。コンピューターを開いて再接続してください。",
   "Personal personality library": "個人の人格ライブラリ",
   "Saved avatars": "保存済みアバター",
   "Select saved avatar": "保存済みアバターを選択",

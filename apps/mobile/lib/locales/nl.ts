@@ -1,4 +1,10 @@
 export const NL_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "Als de bot bezig is, stopt de huidige taak wanneer je de bediening overneemt.",
+  "Live desktop": "Live bureaublad",
+  "Loading live desktop…": "Live bureaublad laden…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "Voorbeeld niet beschikbaar. Open de computer om opnieuw verbinding te maken.",
   "Personal personality library": "Eigen persoonlijkheidsbibliotheek",
   "Saved avatars": "Opgeslagen avatars",
   "Select saved avatar": "Opgeslagen avatar kiezen",

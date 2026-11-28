@@ -1,4 +1,10 @@
 export const ES_MESSAGES: Record<string, string> = {
+  "If the bot is working, taking control stops its current task.":
+    "Si el bot está trabajando, tomar el control detiene su tarea actual.",
+  "Live desktop": "Escritorio en directo",
+  "Loading live desktop…": "Cargando escritorio en directo…",
+  "Preview unavailable. Open the computer to reconnect.":
+    "Vista previa no disponible. Abre el ordenador para volver a conectarte.",
   "Personal personality library": "Biblioteca personal de personalidades",
   "Saved avatars": "Avatares guardados",
   "Select saved avatar": "Seleccionar avatar guardado",

@@ -3,6 +3,7 @@ import { encodeLoginSecret } from "@rakazo/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as ComputerLifecycleModule from "./computer-lifecycle.js";
 import { createRunExecutor } from "./executor.js";
+import * as runMessages from "./run-messages.js";
 import { EncryptedSecretStore } from "./secrets.js";
 
 const COMPUTER: ComputerRef = {
@@ -37,6 +38,7 @@ async function runAfterFill(
   toolCalls: Array<{ name: string; args: Record<string, unknown> }>,
   options: { savedLogin?: boolean; reply?: string } = {},
 ) {
+  vi.spyOn(runMessages, "publishMessage").mockResolvedValue(null);
   const run = {
     id: "run-2",
     botId: "bot-1",
